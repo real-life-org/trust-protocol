@@ -1623,35 +1623,45 @@ class Component extends DCLogic {
   // re-encounter is CHAINED into the existing relationship instead of
   // showing up twice; mapping/star duties flush the same way. Debounced
   // after visible acts, run once silently after the seed.
-  scheduleSweep() {
+  // debounced until the act's burst has settled; the sweep's own deliveries
+  // never schedule another sweep — otherwise stars are re-issued while the
+  // previous ones are still in flight (16 deliveries for one trust act
+  // instead of the protocol's 9)
+  // A sweep may owe a follow-up (a probe's mapping comes back and wants its
+  // flush): rounds are spaced like the reference host's ticks and bounded.
+  scheduleSweep(round = 0) {
     clearTimeout(this.sweepTimer);
-    this.sweepTimer = setTimeout(() => this.guard(this.sweepAll({})), 900);
+    this.sweepTimer = setTimeout(() => this.guard(this.sweepAll({ fromSweep: true }).then((sent) => { if (sent > 0 && round < 3) this.scheduleSweep(round + 1); })), 1800);
   }
   async sweepAll(o = {}) {
-    if (!this.world) return;
-    for (const id of [...this.world.P.keys()]) await this.sweep(id, o);
+    if (!this.world) return 0;
+    let sent = 0;
+    for (const id of [...this.world.P.keys()]) sent += await this.sweep(id, o);
     if (!o.silent) this.bump();
+    return sent;
   }
   async sweep(id, o = {}) {
     const { CN, T } = this.lib;
     const p = this.person(id);
-    if (!p) return;
+    if (!p) return 0;
+    let sent = 0;
     const toIdOf = (tuple) => this.ownerOf(tuple && tuple.card && tuple.card.anchor);
     for (const [k, c] of [...p.contacts]) {
       if (!c.channel || !c.channel.own || c.deactivated) continue;
       if (!c.probeSent) {
         try {
           const outs = await CN.buildProbe(p, k, this.now(id));
-          if (outs) { c.probeSent = true; for (const out of outs) { const back = toIdOf(out.to); if (back) await this.deliver(id, back, out.kind || 'continuity-probe/0.1', out.env, o); } }
+          if (outs) { c.probeSent = true; for (const out of outs) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-probe/0.1', out.env, o); } } }
         } catch (err) {
           if (String(err && err.message || err).includes('scope exhausted')) c.probeSent = true;
           this.log(id, 'probe to ' + c.name + ' suspended: ' + (err && err.message || err));
         }
       }
       const fl = await CN.flushContinuity(p, k, this.now(id));
-      for (const out of (fl && fl.outbound) || []) { const back = toIdOf(out.to); if (back) await this.deliver(id, back, out.kind || 'continuity-mapping/0.1', out.env, o); }
+      for (const out of (fl && fl.outbound) || []) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-mapping/0.1', out.env, o); } }
     }
-    for (const out of await T.starRefreshAll(p, this.now(id))) { const back = toIdOf(out.to); if (back) await this.deliver(id, back, out.kind || 'star/0.1', out.env, o); }
+    for (const out of await T.starRefreshAll(p, this.now(id))) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'star/0.1', out.env, o); } }
+    return sent;
   }
 
   startWireDrag(ev) {
@@ -1800,7 +1810,7 @@ class Component extends DCLogic {
       if (back) await this.deliver(toId, back, 'membership-accept/0.2', pkt.env, o);
     }
     for (const out of r.outbound || []) { const back = toIdOf(out.to); if (back) await this.deliver(toId, back, out.kind || 'membership document', out.env, o); }
-    if (!o.silent) { this.bump(); this.scheduleSweep(); }
+    if (!o.silent) { this.bump(); if (!o.fromSweep) this.scheduleSweep(); }
     return r;
   }
 
@@ -2255,7 +2265,7 @@ class Component extends DCLogic {
       wireAsList: true,
       wireSub: s.wire.length ? s.wire.length + ' · click to open' : '',
       wireEmpty: s.wire.length === 0,
-      wire: s.wire.map((w) => ({
+      wire: s.wire.slice().sort((a, b) => b.n - a.n).map((w) => ({
         ...w,
         dispFg: w.bad ? RED : w.disp === 'unique' ? GREEN : AMBER,
         blockW: w.open ? 260 : 150,

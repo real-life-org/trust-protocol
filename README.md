@@ -54,5 +54,7 @@ ack/mutual correlation) are listed in the workshop handoff
 
 - A device that receives a bundle confirms back after a beat (the app would show the
   "verify back?" prompt). A device that receives a group invitation accepts it.
-- Re-encounters are chained by a continuity sweep that runs after visible acts; the
-  reference host does this in its tick.
+- Re-encounters are chained by a continuity sweep that runs once the act's burst has
+  settled (bounded follow-up rounds, spaced like the reference host's ticks). One trust
+  act therefore costs the protocol's 8–9 deliveries on the wire: mapping + grade with
+  their acks, then one blinded star per side with its ack.
