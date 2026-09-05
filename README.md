@@ -34,7 +34,7 @@ is produced through the same acts at load time, silently.
 - `Workbench.dc.html` — the workbench (graph, devices, channel, faults, god mode)
 - `DeviceScreen.dc.html` — the app panes (contacts · groups · profile · ceremony screens)
 - `support.js` — the Claude Design runtime (generated, do not edit)
-- `lib/` — `@real-life/trust-protocol` 0.3.0, frozen from the workshop's `simulator/lib`
+- `lib/` — `@real-life/trust-protocol` 0.3.0 + continuity late-probe fix (06.09., unreleased), frozen from the workshop's `simulator/lib`
   (`index.js` = root: `ceremony`, `visibility`, primitives · `probe.js` = introduce, membership)
 
 ## Run locally

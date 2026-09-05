@@ -480,6 +480,7 @@ class Component extends DCLogic {
   packets = [];
 
   componentDidMount() {
+    globalThis.__wb = this;   // debug/test hook: the running workbench
     document.addEventListener('pointerdown', this.onDocDown, true);
     this.timer = setInterval(() => {
       if (this.state.rate > 0) { this.tNow += this.state.rate * 300; this.setState({ t: this.tNow }); }
@@ -1656,6 +1657,10 @@ class Component extends DCLogic {
           if (String(err && err.message || err).includes('scope exhausted')) c.probeSent = true;
           this.log(id, 'probe to ' + c.name + ' suspended: ' + (err && err.message || err));
         }
+        // the probe just left; its ack travels back asynchronously. A flush
+        // in the same breath would see it unacked, retire it and issue a
+        // second fresh probe — the flush is the NEXT round's business
+        continue;
       }
       const fl = await CN.flushContinuity(p, k, this.now(id));
       for (const out of (fl && fl.outbound) || []) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-mapping/0.1', out.env, o); } }
