@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex;flex-direction:column;">
+  <div style="display:block;">
+    <div style="background:oklch(98% 0.003 265);color:oklch(22% 0.004 265);border-radius:15px;overflow:hidden;display:flex;flex-direction:column;position:relative;height:{{ w.screenH }}px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 13px 2px;font-size:10px;font-family:ui-monospace,monospace;color:oklch(44% 0.008 265);flex:none;">
+        <span>{{ w.deviceClock }}</span><span>Web of Trust</span><span style="color:{{ w.ownerFg }};">{{ w.name }}</span>
+      </div>
+
+      <sc-if value="{{ w.isList }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;overflow:auto;padding:6px 11px 12px;">
+          <sc-if value="{{ w.tabIsProfile }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 0 14px;">
+              <span style="width:56px;height:56px;border-radius:50%;background:{{ w.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;">{{ w.initial }}</span>
+              <span style="font-size:17px;font-weight:700;">{{ w.name }}</span>
+              <span style="font-size:11.5px;color:oklch(48% 0.008 265);">Trust settings — who may recognize me</span>
+            </div>
+            <div style="background:#fff;border:1px solid oklch(92% 0.005 265);border-radius:12px;overflow:hidden;">
+              <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;">
+                <span style="flex:1;min-width:0;">
+                  <span style="display:block;font-weight:700;font-size:12.5px;">Public profile</span>
+                  <span style="display:block;font-size:10.5px;color:oklch(48% 0.008 265);margin-top:1px;text-wrap:pretty;">anyone may find and recognize me</span>
+                </span>
+                <button onClick="{{ w.onPublish }}" style="font:inherit;font-size:10.5px;font-weight:700;padding:4px 11px;border-radius:8px;border:1.5px solid oklch(55% 0.21 264);background:transparent;color:oklch(48% 0.18 264);cursor:pointer;flex:none;">Publish</button>
+              </div>
+            </div>
+            <div style="font-size:10px;color:oklch(52% 0.008 265);line-height:1.5;padding:9px 3px 0;text-wrap:pretty;">Publishing is the one-way door. Only the ongoing publication can be paused — what is out stays out.</div>
+          </sc-if>
+
+          <sc-if value="{{ w.tabIsContacts }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#fff;border:1px solid oklch(92% 0.005 265);border-radius:12px;overflow:hidden;">
+              <sc-for list="{{ w.contacts }}" as="c" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-top:1px solid oklch(94% 0.004 265);">
+                  <span style="width:30px;height:30px;border-radius:50%;background:{{ c.tint }};color:{{ c.color }};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:none;">{{ c.initials }}</span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                    <span style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                      <span style="font-weight:700;font-size:12.5px;line-height:1.3;">{{ c.name }}</span>
+                      <sc-if value="{{ c.hasVer }}" hint-placeholder-val="{{ true }}">
+                        <span style="font-size:9px;font-weight:600;line-height:1.5;padding:1px 6px;border-radius:99px;background:{{ c.verBg }};color:{{ c.verFg }};white-space:nowrap;">{{ c.verBadge }}</span>
+                      </sc-if>
+                      <sc-if value="{{ c.hasTrust }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:9px;font-weight:600;line-height:1.5;padding:1px 6px;border-radius:99px;background:{{ c.trustBg }};color:{{ c.trustFg }};white-space:nowrap;">{{ c.trustBadge }}</span>
+                      </sc-if>
+                    </span>
+                    <span style="font-size:10.5px;line-height:1.4;color:oklch(48% 0.008 265);text-wrap:pretty;">{{ c.meta }}</span>
+                  </span>
+                  <sc-if value="{{ c.canShare }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ c.onShare }}" style="font:inherit;font-size:10.5px;font-weight:700;padding:4px 11px;border-radius:8px;border:1.5px solid oklch(52% 0.14 150);background:transparent;color:oklch(46% 0.14 150);cursor:pointer;flex:none;">Trust</button>
+                  </sc-if>
+                </div>
+              </sc-for>
+              <sc-if value="{{ w.noContacts }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11.5px;color:oklch(50% 0.008 265);padding:15px;text-align:center;text-wrap:pretty;">Nobody yet. Verification starts in person — tap the button below.</div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ w.hasIntroduced }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:oklch(48% 0.008 265);padding:13px 3px 6px;">Waiting</div>
+              <div style="background:#fff;border:1px solid oklch(92% 0.005 265);border-radius:12px;overflow:hidden;">
+                <sc-for list="{{ w.introduced }}" as="c" hint-placeholder-count="1">
+                  <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-top:1px solid oklch(94% 0.004 265);">
+                    <span style="width:30px;height:30px;border-radius:50%;background:oklch(93% 0.005 265);color:oklch(44% 0.008 265);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:none;">{{ c.initials }}</span>
+                    <span style="flex:1;min-width:0;">
+                      <span style="display:block;font-weight:700;font-size:12.5px;">{{ c.name }}</span>
+                      <span style="display:block;font-size:10.5px;color:oklch(50% 0.12 70);margin-top:1px;text-wrap:pretty;">{{ c.meta }} — nothing proven until you meet</span>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </sc-if>
+
+          <sc-if value="{{ w.tabIsGroups }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#fff;border:1px solid oklch(92% 0.005 265);border-radius:12px;overflow:hidden;">
+              <sc-for list="{{ w.groups }}" as="g" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-top:1px solid oklch(94% 0.004 265);">
+                  <span style="width:30px;height:30px;border-radius:9px;background:oklch(93% 0.005 265);color:oklch(44% 0.008 265);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:none;">{{ g.initials }}</span>
+                  <span style="flex:1;min-width:0;">
+                    <span style="display:block;font-weight:700;font-size:12.5px;">{{ g.label }}</span>
+                    <span style="display:block;font-size:10.5px;color:oklch(48% 0.008 265);margin-top:1px;">{{ g.meta }}</span>
+                  </span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ w.noGroups }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11.5px;color:oklch(50% 0.008 265);padding:15px;text-align:center;">No groups.</div>
+              </sc-if>
+            </div>
+            <div style="font-size:10px;color:oklch(52% 0.008 265);line-height:1.5;padding:9px 3px 0;text-wrap:pretty;">Membership is anonymous by default. Trusting a group names your anchor in its roster — from then on, forever.</div>
+          </sc-if>
+        </div>
+
+        <div style="flex:none;padding:7px 11px 9px;background:oklch(98% 0.003 265);">
+          <button onClick="{{ w.onConnect }}" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px;border:none;border-radius:11px;background:oklch(55% 0.21 264);color:#fff;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;">⇄ Verify someone in person</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ w.isReady }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:8px 14px 12px;">
+          <div style="display:flex;align-items:baseline;gap:7px;">
+            <div style="font-size:14px;font-weight:700;">Verify in person</div>
+            <button onClick="{{ w.onCloseVerify }}" style="margin-left:auto;padding:2px;border:none;background:transparent;color:oklch(50% 0.008 265);font:inherit;font-size:11px;cursor:pointer;">Cancel</button>
+          </div>
+          <div style="align-self:center;background:#fff;padding:7px;border-radius:11px;border:1px solid oklch(92% 0.005 265);">
+            <img src="{{ w.qr }}" alt="contact card QR" title="{{ w.ownChallenge }}" style="width:{{ w.qrSize }}px;height:{{ w.qrSize }}px;display:block;image-rendering:pixelated;" />
+          </div>
+          <sc-if value="{{ w.scanMiss }}" hint-placeholder-val="{{ false }}">
+            <div style="background:oklch(97% 0.04 55);border:1px solid oklch(87% 0.09 55);border-radius:10px;padding:7px 9px;font-size:10.5px;color:oklch(50% 0.14 55);text-wrap:pretty;line-height:1.45;">No code in front of the camera — the other person opens ⇄ first. Verification takes two.</div>
+          </sc-if>
+          <button onClick="{{ w.onScan }}" style="align-self:center;padding:9px 20px;border:none;border-radius:11px;background:oklch(55% 0.21 264);color:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;">Scan code</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ w.isScanner }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:10px 14px 14px;background:oklch(24% 0.01 265);">
+          <div style="font-size:12px;color:oklch(84% 0.01 265);">Point at their code</div>
+          <div ref="{{ w.setViewfinder }}" style="width:150px;height:150px;border-radius:14px;border:2px solid oklch(72% 0.16 264);position:relative;"></div>
+          <div style="font-size:11px;color:oklch(66% 0.01 265);text-wrap:pretty;text-align:center;">The camera recognizes the code itself. Nothing travels yet — the camera leg carries no traffic.</div>
+          <button onClick="{{ w.onScanCancel }}" style="padding:4px;border:none;background:transparent;color:oklch(70% 0.01 265);font:inherit;font-size:11px;cursor:pointer;">Cancel</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ w.isConfirm }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:8px 14px 12px;">
+          <div style="display:flex;align-items:center;gap:9px;">
+            <span style="width:34px;height:34px;border-radius:50%;background:{{ w.peerTint }};color:{{ w.peerColor }};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none;">{{ w.peerInitials }}</span>
+            <span style="min-width:0;">
+              <span style="display:block;font-size:14px;font-weight:700;">Is this {{ w.peerName }}?</span>
+              <span style="display:block;font-size:10.5px;color:oklch(44% 0.008 265);line-height:1.4;text-wrap:pretty;">Their card proof verified offline, under their own anchor.</span>
+            </span>
+          </div>
+          <div style="background:#fff;border:1px solid oklch(92% 0.005 265);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:2px;">
+            <sc-for list="{{ w.confirmMeta }}" as="m" hint-placeholder-count="3">
+              <div title="{{ m }}" style="font-family:ui-monospace,monospace;font-size:9.5px;color:oklch(46% 0.008 265);line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ m }}</div>
+            </sc-for>
+          </div>
+          <button onClick="{{ w.onConfirm }}" style="padding:10px;border:none;border-radius:11px;background:oklch(55% 0.21 264);color:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;">Yes, verify {{ w.peerName }}</button>
+          <button onClick="{{ w.onScanCancel }}" style="align-self:center;padding:2px;border:none;background:transparent;color:oklch(50% 0.008 265);font:inherit;font-size:11px;cursor:pointer;">Not them</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ w.isWaiting }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px;padding:14px;">
+          <div style="font-size:15px;font-weight:700;">{{ w.peerName }} verified</div>
+          <div style="font-size:12px;color:oklch(44% 0.008 265);line-height:1.5;text-wrap:pretty;">Your credential is on its way. Arrival is not acceptance — {{ w.peerName }}'s device decides for itself, and its confirmation comes back over the network.</div>
+          <div style="background:oklch(97% 0.04 55);border:1px solid oklch(87% 0.09 55);border-radius:11px;padding:9px 10px;font-size:11px;color:oklch(50% 0.14 55);text-wrap:pretty;line-height:1.5;">Waiting for the counter credential. Delivery time is unbounded — hold the channel and this state simply stays.</div>
+          <button onClick="{{ w.onCloseVerify }}" style="align-self:center;padding:4px;border:none;background:transparent;color:oklch(50% 0.008 265);font:inherit;font-size:11px;cursor:pointer;">Back to contacts</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ w.isFallback }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:10px 14px 14px;">
+          <div style="font-size:15px;font-weight:700;">Same encounter, optically</div>
+          <div style="font-size:11.5px;color:oklch(44% 0.008 265);line-height:1.5;text-wrap:pretty;">The ack did not arrive in time. The sent card becomes a code — a carrier switch, never a ceremony switch.</div>
+          <div style="align-self:center;background:#fff;padding:9px;border-radius:12px;border:1px solid oklch(92% 0.005 265);">
+            <img src="{{ w.qr }}" alt="sent card QR" style="width:{{ w.qrSize }}px;height:{{ w.qrSize }}px;display:block;image-rendering:pixelated;" />
+          </div>
+          <button onClick="{{ w.onCloseVerify }}" style="align-self:center;padding:4px;border:none;background:transparent;color:oklch(50% 0.008 265);font:inherit;font-size:11px;cursor:pointer;">Back to contacts</button>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;border-top:1px solid oklch(92% 0.005 265);background:#fff;flex:none;">
+        <sc-for list="{{ w.tabs }}" as="t" hint-placeholder-count="3">
+          <button onClick="{{ t.on }}" style="flex:1;font:inherit;font-size:10px;font-weight:600;padding:7px 0 9px;cursor:pointer;border:none;background:transparent;color:{{ t.fg }};">{{ t.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:268,&quot;height&quot;:500},&quot;w&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}"></script>
+</body>
+</html>
