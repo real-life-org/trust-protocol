@@ -331,7 +331,7 @@ const Buffer_ = (s) => new TextEncoder().encode(s).length;
 async function handleWelcome(p, doc, from) {
     // form BEFORE fields (M-3): the roster travels as data and becomes
     // this person's map — every entry earns its shape before adoption
-    if (!C.shaped(doc, { issuer: 'string', recipient: 'string', payload: 'object', proof: 'object' })
+    if (!C.shaped(doc, { issuer: 'string', recipient: 'string', threadId: 'string', payload: 'object', proof: 'object' })
         || !C.shaped(doc.payload, { genesisDigest: 'string', group: 'string', label: 'string', roster: 'array' })
         || !doc.payload.roster.every((m) => C.shaped(m, { anchor: 'string', name: 'string', addedAt: 'string' })))
         return { handled: true, error: 'malformed welcome' };
@@ -349,6 +349,22 @@ async function handleWelcome(p, doc, from) {
     }
     if (doc.recipient !== my.anchor)
         return { handled: true, error: 'welcome not for my member anchor' };
+    // a held group is never rewritten by a later welcome
+    if (p.groups.has(gd))
+        return { handled: true, idempotent: true };
+    // the welcome answers an invitation THIS device accepted (Membership
+    // Tasks: it travels in the invite's thread, from the inviter, for the
+    // accept's subject and the invited group) — a signed welcome from a held
+    // contact without that binding adopts nothing
+    const entry = p.inbox.find((e) => e.kind === 'invite' && e.accepted && !e.welcomed
+        && e.invite.taskContext === doc.threadId && e.invite.issuer === doc.issuer
+        && e.myMemberCtx.anchor === doc.recipient
+        && e.invite.credentialSubject.genesisDigest === gd && e.invite.credentialSubject.group === doc.payload.group);
+    if (!entry)
+        return { handled: true, error: 'welcome without an accepted invitation' };
+    const listed = new Set(doc.payload.roster.map((m) => m.anchor));
+    if (!listed.has(doc.issuer) || !listed.has(my.anchor))
+        return { handled: true, error: 'welcome roster omits its issuer or subject' };
     const g = {
         label: doc.payload.label, groupDid: doc.payload.group, genesisDigest: gd,
         genesis: doc.payload.genesis, myMemberCtx: my, role: 'member',
@@ -359,6 +375,7 @@ async function handleWelcome(p, doc, from) {
     };
     g.myAcceptDigest = g.roster.get(my.anchor)?.acceptDigest ?? null;
     p.groups.set(gd, g);
+    entry.welcomed = true;
     if (from)
         (from.sharedGroups ??= []).push(gd); // der Invitee WEISS, wer ihn eingeladen hat
     say(p, `Willkommen in „${g.label}" — Roster mit ${g.roster.size} Mitgliedern übernommen`);
