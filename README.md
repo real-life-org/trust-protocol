@@ -101,6 +101,8 @@ live.
 | [`conformance/`](conformance/) | Conformance runner — recomputes every cryptographic claim of the shipped vectors and validates every schema claim; negatives must fail at their declared stage |
 | [`interop/ceremonies/`](interop/ceremonies/) | RLTP ceremonies expressed in the ToIP DTGWG ceremony-definition format |
 | [`simulator/`](simulator/) | Interactive browser simulator of the full ceremony (both paths, fault injections) + a Node reference engine |
+| [`lib/`](lib/) | The library [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol): the executable form of the specifications |
+| [`apps/gesamtsimulator/`](apps/gesamtsimulator/) | The workbench: one trust network, device windows running the app, a visible channel with fault injection — everything on the real library |
 | [`scripts/validate.mjs`](scripts/validate.mjs) | Publication checks: schema compilation, vector recomputation, and conformance fixtures that MUST fail |
 
 ## Status
@@ -191,10 +193,20 @@ Life Network Protocol and the Real Life Stack live in the shared register,
 
 Library: [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
 0.3.2 on npm (encounter ceremony and continuity, published with
-provenance). One implementation is in production, the
-[Web of Trust app](https://web-of-trust.de/), on the previous protocol
-generation; its migration to the converged contracts is under way. A
-second, independent implementation is the goal, not yet a fact.
+provenance).
+
+RLTP is the third generation of this trust protocol. The second
+generation, [`wot-spec`](https://github.com/real-life-org/wot-spec), is
+in production in the [Web of Trust app](https://web-of-trust.de/) and the
+Real Life Stack (implementation:
+[`real-life-org/web-of-trust`](https://github.com/real-life-org/web-of-trust));
+it is repaired toward the converged contracts, and its users migrate when
+identity does. The first generation-3 application, a new Web of Trust
+app, is being built in this repository under `apps/`. In the vocabulary
+of the DTGWG it is a *PNM* (Personal Network Manager): local-first, keys
+on the device, no hosted agent (VTA) required, interoperable through
+Trust Tasks. A second, independent implementation is the goal, not yet a
+fact.
 
 ## Contact
 

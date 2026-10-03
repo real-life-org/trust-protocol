@@ -1,4 +1,4 @@
-# Claude Instructions for `rltp-spec`
+# Claude Instructions for `trust-protocol`
 
 This file delegates to `AGENTS.md`, the shared source of truth for agent
 guidance in this repository. **Read it first** — in particular the opening

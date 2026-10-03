@@ -74,7 +74,7 @@ castings. Review happens against the converged companion
 documents; the convergence criterion is a review round with no
 blocker-level findings. Feedback belongs in the design journal
 of the private workshop repository; the public mirror is
-[`real-life-org/rltp-spec`](https://github.com/real-life-org/rltp-spec).
+[`real-life-org/trust-protocol`](https://github.com/real-life-org/trust-protocol).
 
 
 ## 1. Introduction (informative)

@@ -106,7 +106,7 @@ every casting — lives in the design journal
 `design/replication-review*.md`).
 
 Feedback is welcome via the issues of the publication repository
-(github.com/real-life-org/rltp-spec).
+(github.com/real-life-org/trust-protocol).
 
 ## 1. Introduction (informative)
 

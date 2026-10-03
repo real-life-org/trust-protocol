@@ -40,7 +40,7 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/access-layer.md#2-conventions-and-terminology"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#2-conventions-and-terminology"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -69,8 +69,8 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/access-layer.md#5-members",
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/membership-tasks.md"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#5-members",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -99,9 +99,9 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/encounter-layer.md#22-terms",
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative",
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/identity-layer.md"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#22-terms",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -130,7 +130,7 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/encounter-layer.md#42-the-edge-is-the-relation-and-it-is-per-anchor-pair"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#42-the-edge-is-the-relation-and-it-is-per-anchor-pair"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -159,7 +159,7 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/encounter-layer.md#7-the-encounter-credential"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#7-the-encounter-credential"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -188,8 +188,8 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/access-layer.md#8-visibility-modes",
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/network-visibility.md"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#8-visibility-modes",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md"
    ],
    "skos:editorialNote": "German text: draft; the spec names the term only in its fragment table, definition still to be quoted"
   },
@@ -218,7 +218,7 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/rltp-spec/blob/main/spec/encounter-layer.md#22-terms"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#22-terms"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
