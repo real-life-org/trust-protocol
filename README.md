@@ -43,18 +43,18 @@ once their identities are migrated, planned as the last step.
 Three views of the same protocol, no installation, everything running
 locally in your tab — real Ed25519/X25519/AES-GCM, no mocked crypto:
 
-- **[The app](https://rltp.real-life.org/simulator/network.html)** — the
+- **[The app](https://trust-protocol.real-life.org/simulator/network.html)** — the
   same app on three devices side by side: verify someone by QR (with the
   automatic offline two-way-scan fallback), introduce two contacts
   through a third person who is never needed again afterwards, give
   trust as a separate deliberate act, found groups and join them with
   candidacy and vouching. The wire panel shows every sealed envelope
   and the stage at which it was accepted — and lets you inject faults.
-- **[The ceremony](https://rltp.real-life.org/simulator/index.html)** —
+- **[The ceremony](https://trust-protocol.real-life.org/simulator/index.html)** —
   one encounter under the microscope: two devices, one delivery
   channel, nine receive stages per envelope, clock skew and fault
   injection, and every artifact each device stores.
-- **[The graph](https://rltp.real-life.org/simulator/graph.html)** — the
+- **[The graph](https://trust-protocol.real-life.org/simulator/graph.html)** — the
   same world seen from above: who can *prove* what about whom, told as
   eight chapters, switchable between the omniscient view and what any
   single person can actually see.

@@ -32,7 +32,7 @@
 //                     model, enactment record, 5.6 acceptance, both
 //                     paths of 5.8 (graduated from /probe on 05.09.2026)
 //
-// Specification, schemas and vectors: https://rltp.real-life.org
+// Specification, schemas and vectors: https://trust-protocol.real-life.org
 
 export * from './core.js'
 export * from './crypto.js'
