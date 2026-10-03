@@ -25,11 +25,13 @@ jobs:
         working-directory: apps/site
       - run: npm run build
         working-directory: apps/site
+      # Only main is ever published: pull requests carry refs/pull/…, and a
+      # manual run on another branch builds but never uploads or deploys.
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         with: { path: apps/site/dist }
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
