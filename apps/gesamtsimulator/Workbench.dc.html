@@ -777,7 +777,6 @@ class Component extends DCLogic {
 
   P(id) { return this.state.people.find((p) => p.id === id) || { id, name: String(id), color: MUTED }; }
   G(id) { return this.groupList().find((g) => g.id === id); }
-  groupsOf(id) { return this.groupList().filter((g) => g.members.includes(id)); }
   // groups exist on the devices of their members: one entry per genesis digest
   groupList() {
     const m = new Map();
@@ -789,6 +788,34 @@ class Component extends DCLogic {
       if (g.role === 'founder') e.founder = pid;
     }
     return [...m.values()];
+  }
+  // what ONE device holds: its own groups, each with the roster it was
+  // handed (member anchors) and the anchors it can map to a person — its
+  // own, and the members it admitted itself (the admission records the
+  // relationship it ran over). Every other entry stays an anonymous anchor.
+  localGroupsOf(id) {
+    const p = this.person(id);
+    if (!p) return [];
+    return [...p.groups.values()].map((g) => {
+      const owners = new Map([[g.myMemberCtx.anchor, id]]);
+      for (const [anchor, m] of g.roster) {
+        const who = m.contactAnchor && this.ownerOf(m.contactAnchor);
+        if (who) owners.set(anchor, who);
+      }
+      return { id: g.genesisDigest, label: g.label, genesis: g.genesis, founder: g.role === 'founder' ? id : null, roster: [...g.roster.keys()], owners };
+    });
+  }
+  // groups a device knows it shares with a person: the relationship carries
+  // them (the inviter knows who joined, the invitee who invited them)
+  sharedWith(id, other) {
+    const p = this.person(id);
+    if (!p) return 0;
+    const shared = new Set();
+    for (const [anchor, c] of p.contacts) {
+      if (c.deactivated || this.ownerOf(anchor) !== other) continue;
+      for (const gd of c.sharedGroups || []) if (p.groups.has(gd)) shared.add(gd);
+    }
+    return shared.size;
   }
   // edges are what the devices hold: a ceremony tuple on either side is an
   // encounter edge; the trust act (trustGiven) gives the direction(s); an
@@ -876,18 +903,19 @@ class Component extends DCLogic {
       nodes.push(person(meP, 12, meP.name + ' (me)', 'holds ' + this.holdCount(me) + ' documents', [this.cx(), this.cy()]));
       const peers = edges.filter((e) => e.a === me || e.b === me).map((e) => (e.a === me ? e.b : e.a));
       peers.forEach((id) => {
-        const shared = this.groupsOf(id).filter((g) => g.members.includes(me)).length;
+        const shared = this.sharedWith(me, id);
         nodes.push(person(this.P(id), 9, this.P(id).name + (shared ? ' · ' + shared + ' shared' : ''), ''));
       });
       edges.forEach((e, i) => { if (e.a === me || e.b === me) this.sceneEdge(out, e, i); });
-      this.groupsOf(me).forEach((g) => {
+      this.localGroupsOf(me).forEach((g) => {
         nodes.push(hub(g));
-        g.members.forEach((m) => {
-          if (m === me || peers.includes(m)) {
-            out.push({ id: 'm:' + g.id + ':' + m, a: 'g:' + g.id, b: 'p:' + m, member: true });
+        g.roster.forEach((anchor) => {
+          const who = g.owners.get(anchor);
+          if (who === me || peers.includes(who)) {
+            out.push({ id: 'm:' + g.id + ':' + who, a: 'g:' + g.id, b: 'p:' + who, member: true });
           } else {
-            nodes.push({ id: 'a:' + g.id + ':' + m, r: 6, color: null, sub: 'member', at: this.spot(g.id) });
-            out.push({ id: 'm:' + g.id + ':' + m, a: 'g:' + g.id, b: 'a:' + g.id + ':' + m, member: true, orbit: true });
+            nodes.push({ id: 'a:' + g.id + ':' + anchor, r: 6, color: null, sub: abbr(anchor), at: this.spot(g.id) });
+            out.push({ id: 'm:' + g.id + ':' + anchor, a: 'g:' + g.id, b: 'a:' + g.id + ':' + anchor, member: true, orbit: true });
           }
         });
       });
@@ -1930,7 +1958,7 @@ class Component extends DCLogic {
       let verBadge = null, verBg = 'oklch(93% 0.05 264)', verFg = 'oklch(45% 0.16 264)';
       if (isCeremony) verBadge = st === '✓' ? '⇄ verified' : st === '→' ? '→ verified' : st === '←' ? '← verified you' : '◇ met';
       else { verBadge = '⇄ introduced'; verBg = 'oklch(96% 0.06 85)'; verFg = 'oklch(50% 0.12 70)'; }
-      const shared = other ? this.groupsOf(other).filter((g) => g.members.includes(id)).length : 0;
+      const shared = other ? this.sharedWith(id, other) : 0;
       let trustBadge = null, trustBg = '', trustFg = '', meta = isCeremony ? 'met in person' : ('introduced' + (c.via ? ' via ' + c.via : ''));
       const gave = !!c.trustGiven, got = !!c.selfAnchor;
       if (gave && got) { trustBadge = '⇄ trust'; trustBg = 'oklch(94% 0.06 142)'; trustFg = 'oklch(42% 0.14 142)'; meta = 'they hold your stable ID, you hold theirs'; }
@@ -2038,7 +2066,7 @@ class Component extends DCLogic {
 
       const cs = this.contactsOf(id);
       const intro = this.introducedOf(id);
-      const gs = this.groupsOf(id);
+      const gs = this.localGroupsOf(id);
       const tab = s.tab[id] ?? 'Contacts';
       const view = s.appView[id] ?? 'list';
       const show = s.shows[id];
@@ -2126,7 +2154,7 @@ class Component extends DCLogic {
         introduced: intro, hasIntroduced: intro.length > 0,
         groups: gs.map((g) => ({
           id: g.id, label: g.label, initials: initials(g.label),
-          meta: g.members.length + (g.members.length === 1 ? ' member' : ' members') + (g.founder === id ? ' · you founded it' : ' · anonymous roster'),
+          meta: g.roster.length + (g.roster.length === 1 ? ' member' : ' members') + (g.founder === id ? ' · you founded it' : ' · anonymous roster'),
           onTrust: () => {},
         })),
         noGroups: gs.length === 0,
