@@ -34,7 +34,7 @@ is produced through the same acts at load time, silently.
 - `Workbench.dc.html` — the workbench (graph, devices, channel, faults, god mode)
 - `DeviceScreen.dc.html` — the app panes (contacts · groups · profile · ceremony screens)
 - `support.js` — the Claude Design runtime (generated, do not edit)
-- `lib/` — `@real-life/trust-protocol` 0.3.0 + continuity late-probe fix (06.09., unreleased), frozen from the workshop's `simulator/lib`
+- `lib/` — `@real-life/trust-protocol`, a byte-identical copy of `../../simulator/lib` (the committed freeze of `lib/dist`; CI checks the identity). The copy stays here so the folder also runs as a Claude Design project
   (`index.js` = root: `ceremony`, `visibility`, primitives · `probe.js` = introduce, membership)
 
 ## Run locally
@@ -48,7 +48,7 @@ and the QR generator from jsdelivr.
 The library proves the protocol logic, not persistence. The workbench is in-memory;
 the duties an app with real storage must carry (atomic writes, resume before flush,
 ack/mutual correlation) are listed in the workshop handoff
-(`rltp/design/HANDOFF-pair-block-2026-08-23.md`, Nachtrag 05.09. spät).
+(kept in the private design workshop).
 
 ## Known simplifications (workbench policy, not protocol)
 

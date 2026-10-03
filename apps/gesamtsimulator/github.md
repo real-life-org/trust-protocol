@@ -1,6 +1,6 @@
-repo: real-life-org/rltp
+repo: real-life-org/trust-protocol
 branch: main
-path: simulator, lib
+path: apps/gesamtsimulator, simulator, lib
 
 ## Last sync
 date: 2026-09-05

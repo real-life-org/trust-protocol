@@ -28,6 +28,9 @@ jobs:
       # simulator/lib/ is the committed freeze of lib/dist — byte identity
       # keeps the buildless simulators on the single library source
       - run: node scripts/build-simulator-lib.mjs --check
+      # the workbench carries its own copy so it also runs as a Claude Design
+      # project; it must stay byte-identical to the freeze
+      - run: diff -r simulator/lib apps/gesamtsimulator/lib
       # the simulator suites run AGAINST that frozen copy — they are the
       # workbench-level integration tests of lib/src
       - run: |

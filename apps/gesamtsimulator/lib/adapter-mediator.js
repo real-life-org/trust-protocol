@@ -2,7 +2,7 @@
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // RLTP transport adapter: VTI mediator.
 //
-// Profile: spec/adapter-vti-mediator.md v0.13 (thirteenth casting;
+// Profile: spec/adapter-vti-mediator.md v0.23 (twenty-third casting;
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port.
 //
@@ -69,6 +69,7 @@ export class MediatorCarrierAdapter {
     #outstandingBytes = 0;
     #concluded = new Map();
     #pendingAcks = new Set();
+    #flightAcks = new Set(); // ids inside the in-flight flush snapshot
     #flushing = false;
     #nextColId = 1;
     #transitions = [];
@@ -113,21 +114,27 @@ export class MediatorCarrierAdapter {
             }
             this.#now(restoredAt);
             const pending = new Set(restored.pending);
+            const known = new Set(restored.concluded.map((c) => c.queueId));
+            for (const id of pending) {
+                if (!known.has(id)) {
+                    throw new Error('ack snapshot violates its invariant: pending intent without a concluded entry');
+                }
+            }
             for (const { queueId, concludedAt } of restored.concluded) {
                 if (!Number.isFinite(concludedAt) || concludedAt > restoredAt) {
                     // a conclusion "from the future" would stretch the window
                     // past its declared span (R5-B4) — fail closed
                     throw new Error('ack snapshot: conclusion instant is non-finite or after restoredAt');
                 }
-                if (!pending.has(queueId) && restoredAt - concludedAt >= DECLARED.duplicateWindowMs)
+                // the window beats everything (round-14 B): an expired entry
+                // falls at the restore instant, owed or not — a phantom debt
+                // from an ack that landed just before a close can never
+                // outlive the window and delete a fresh copy (R14-B2)
+                if (restoredAt - concludedAt >= DECLARED.duplicateWindowMs)
                     continue;
                 this.#concluded.set(queueId, concludedAt);
-            }
-            for (const id of pending) {
-                if (!this.#concluded.has(id)) {
-                    throw new Error('ack snapshot violates its invariant: pending intent without a concluded entry');
-                }
-                this.#pendingAcks.add(id);
+                if (pending.has(queueId))
+                    this.#pendingAcks.add(queueId);
             }
         }
         this.#wire.onDeliver(async (raw) => {
@@ -138,18 +145,22 @@ export class MediatorCarrierAdapter {
             if (this.#closed)
                 return;
             // Absorption is WINDOW-checked at the moment it happens
-            // (R11-B1): a byte-identical arrival beyond the declared
-            // window is a NEW item — the expired entry is dropped and the
-            // frame buffered, so its acknowledgement can never delete the
-            // only fresh copy. An owed ack still outranks the window.
+            // (R11-B1), and the window beats everything (round-14 B):
+            // beyond it, entry AND any leftover intent fall, and the frame
+            // is a new item — so no acknowledgement, owed or phantom, can
+            // ever delete the only fresh copy.
             const concludedAt = this.#concluded.get(queueId);
             if (concludedAt !== undefined) {
-                const owed = this.#pendingAcks.has(queueId);
-                if (owed || this.#clock - concludedAt < DECLARED.duplicateWindowMs) {
+                if (this.#flightAcks.has(queueId) ||
+                    this.#clock - concludedAt < DECLARED.duplicateWindowMs) {
+                    // inside the window — or deferred: an id inside an
+                    // in-flight flush keeps absorbing until that flush ends,
+                    // because its irrecallable ack may still land (R15-B1)
                     this.#pendingAcks.add(queueId);
                     return;
                 }
                 this.#concluded.delete(queueId);
+                this.#pendingAcks.delete(queueId);
             }
             if (this.#inboxDigests.has(queueId))
                 return;
@@ -259,7 +270,7 @@ export class MediatorCarrierAdapter {
             submittedAt: now,
             attemptStartedAt: null,
             lastKind: null,
-            st: knownOffline ? { state: 'awaiting-transport', reason: 'offline' } : null,
+            st: null,
         };
         this.#subs.set(id, sub);
         if (!knownOffline)
@@ -319,12 +330,31 @@ export class MediatorCarrierAdapter {
     }
     /** The §6.1 report, or null while none exists yet (has()
      *  distinguishes an unknown id). status is a PORT: after close it
-     *  refuses like every other port operation — a retired instance
-     *  must not keep answering with reports whose horizons it no
-     *  longer drives (R5-B3). */
+     *  refuses like every other port operation (R5-B3).
+     *
+     *  The pre-transport report is an HONEST SNAPSHOT, derived at the
+     *  moment of observation by one precedence order (Option B of the
+     *  round-14 halt) — never a stored patchwork:
+     *    (a) the wire knows itself offline      → offline
+     *    (b) an attempt is overdue              → transport-unreachable
+     *    (c) the last completed attempt's kind  → its report
+     *    (d) otherwise                          → no report yet (null)
+     *  Terminal states and `accepted` are stored and stand. */
     status(id) {
         this.#open();
-        return this.#subs.get(id)?.st ?? null;
+        const sub = this.#subs.get(id);
+        if (!sub)
+            return null;
+        if (sub.st !== null && sub.st.state !== 'awaiting-transport')
+            return sub.st;
+        if (this.#wire.offline?.() === true) {
+            return { state: 'awaiting-transport', reason: 'offline' };
+        }
+        if (sub.attemptStartedAt !== null &&
+            this.#clock - sub.attemptStartedAt >= DECLARED.statusHorizonMs) {
+            return { state: 'awaiting-transport', reason: 'transport-unreachable' };
+        }
+        return sub.st;
     }
     acknowledged(id) {
         if (this.#closed)
@@ -427,11 +457,43 @@ export class MediatorCarrierAdapter {
             const token = await this.#ensureAuth(now);
             if (this.#closed)
                 return;
-            await this.#wire.ackReceived(token, ids);
-            if (this.#closed)
+            // Only NOW does anything become irrecallable (R16-B1): the
+            // stay of expiry begins at the wire call itself, never at the
+            // snapshot — a hanging auth extends no window. And "live" is
+            // WINDOW-live (R17-B1): an entry whose window already closed —
+            // even if no prune has swept it yet — is never sent.
+            const live = ids.filter((id) => {
+                const at = this.#concluded.get(id);
+                return at !== undefined && this.#clock - at < DECLARED.duplicateWindowMs;
+            });
+            if (live.length === 0)
                 return;
-            for (const id of ids)
-                this.#pendingAcks.delete(id);
+            for (const id of live)
+                this.#flightAcks.add(id);
+            try {
+                await this.#wire.ackReceived(token, live);
+                if (!this.#closed)
+                    for (const id of live)
+                        this.#pendingAcks.delete(id);
+            }
+            finally {
+                for (const id of live)
+                    this.#flightAcks.delete(id);
+                // deferred window sweep: entries whose window closed while
+                // the ack flew fall now — intent, entry and absorption
+                // together (R15-B1). Never on a retired instance: after
+                // close, ackState() is the host's final-persist surface and
+                // a late-returning wire mutates nothing (R17-B2).
+                if (!this.#closed) {
+                    for (const id of live) {
+                        const at = this.#concluded.get(id);
+                        if (at !== undefined && this.#clock - at >= DECLARED.duplicateWindowMs) {
+                            this.#concluded.delete(id);
+                            this.#pendingAcks.delete(id);
+                        }
+                    }
+                }
+            }
         }
         catch {
             // intent survives; the next advance starts a fresh flush
@@ -449,9 +511,15 @@ export class MediatorCarrierAdapter {
                 // unroutable only when the LAST COMPLETED attempt was an
                 // admission refusal and no attempt is in flight whose outcome
                 // is unknown (review-4 B3)
+                // the give-up verdict applies the SAME precedence as every
+                // observation (R17-B3): a wire that knows itself offline at
+                // the horizon outranks any stored refusal class — unroutable
+                // needs a completed admission refusal, no unknown outcome in
+                // flight, AND no offline signal standing over it
                 sub.st = {
                     state: 'failed',
-                    reason: sub.lastKind === 'refused-admission' && sub.attemptStartedAt === null
+                    reason: sub.lastKind === 'refused-admission' && sub.attemptStartedAt === null &&
+                        this.#wire.offline?.() !== true
                         ? 'unroutable'
                         : 'expired-by-adapter-policy',
                 };
@@ -459,29 +527,23 @@ export class MediatorCarrierAdapter {
             }
             if (sub.st !== null && sub.st.state === 'accepted')
                 continue;
-            // the wire's truthful offline signal is re-consulted on every
-            // tick (R13-B1): a knowingly offline wire reports offline —
-            // never an invented unreachable — and no attempt is started
-            // against it
-            if (this.#wire.offline?.() === true) {
-                if (sub.attemptStartedAt === null) {
-                    sub.st = { state: 'awaiting-transport', reason: 'offline' };
-                }
+            // reports are DERIVED at observation (see status()); the clock
+            // only decides here whether to start an attempt — and never
+            // against a wire that knows itself offline
+            if (this.#wire.offline?.() === true)
                 continue;
-            }
-            // an attempt overdue past the status-horizon earns the honest
-            // report — whatever stale reason it would otherwise keep
-            // showing (review-4 B3)
-            if (sub.attemptStartedAt !== null &&
-                now - sub.attemptStartedAt >= DECLARED.statusHorizonMs) {
-                sub.st = { state: 'awaiting-transport', reason: 'transport-unreachable' };
-            }
             if (sub.attemptStartedAt === null)
                 this.#startAttempt(sub, now);
         }
+        // THE WINDOW BEATS EVERYTHING (Option B of the round-14 halt):
+        // an ack intent is retried until the window closes; then intent
+        // and absorption fall together. There is no ageless debt whose
+        // truth the adapter would have to know — the receiver's §6.2
+        // absorption owns everything beyond the window.
         for (const [digest, at] of this.#concluded) {
-            if (now - at >= DECLARED.duplicateWindowMs && !this.#pendingAcks.has(digest)) {
+            if (now - at >= DECLARED.duplicateWindowMs && !this.#flightAcks.has(digest)) {
                 this.#concluded.delete(digest);
+                this.#pendingAcks.delete(digest);
             }
         }
         this.#startKeylistSync(now);
