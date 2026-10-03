@@ -18,7 +18,7 @@ interacts with anyone else's systems.
 - Before proposing any normative change, run the offline validation:
   `node scripts/validate.mjs`.
 - The simulator under `simulator/` is a static browser artifact published
-  at <https://rltp.real-life.org/simulator/>; it uses no network services
+  at <https://trust-protocol.real-life.org/simulator/>; it uses no network services
   and stores nothing remotely.
 - Mermaid diagrams in the specifications render on GitHub. Three
   constraints apply to them: no semicolons in message text (mermaid reads

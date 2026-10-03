@@ -52,7 +52,7 @@
     "url": "https://github.com/real-life-org/trust-protocol",
     "directory": "lib"
   },
-  "homepage": "https://rltp.real-life.org",
+  "homepage": "https://trust-protocol.real-life.org",
   "engines": {
     "node": ">=20"
   },

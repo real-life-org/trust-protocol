@@ -9,7 +9,7 @@ This package is the **executable form of the specification** — it lives beside
 the schemas and the test vectors it must reproduce byte-for-byte. Published by
 the [Real Life Organisation](https://real-life.org) under CC BY 4.0.
 
-- Specification, schemas and vectors: <https://rltp.real-life.org>
+- Specification, schemas and vectors: <https://trust-protocol.real-life.org>
 - Zero dependencies. WebCrypto only (Ed25519, X25519, HKDF, AES-256-GCM).
 - Works in browsers, Node ≥ 20, Deno, Bun. No DOM, no storage, no network:
   the library computes and verifies, the host decides where bytes live.
