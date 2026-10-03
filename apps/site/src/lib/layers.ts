@@ -16,8 +16,8 @@ const bands: Band[] = [
   { key: 'identity', label: 'Identity', kind: 'layer', href: '#identity', chips: [['fingerprint', 'One seed'], ['waypoints', 'Anchor per context'], ['hard-drive', 'Recovery']] },
 ]
 const services: Service[] = [
-  { key: 'delivery', label: 'Delivery', text: 'E2EE task transport', icon: 'plug' },
-  { key: 'replication', label: 'Replication', text: 'encrypted state sync', icon: 'database' },
+  { key: 'delivery', label: 'Delivery', text: 'E2EE messaging', icon: 'plug' },
+  { key: 'replication', label: 'Replication', text: 'E2EE state sync', icon: 'database' },
 ]
 
 const svg = (name: IconName) =>
