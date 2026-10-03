@@ -1,8 +1,8 @@
-# Agent Instructions for `rltp-spec`
+# Agent Instructions for `trust-protocol`
 
 ## What This Repository Is
 
-`rltp-spec` is the **public, openly licensed specification** (CC BY 4.0) of
+`trust-protocol` (formerly `rltp-spec`) is the **public, openly licensed specification** (CC BY 4.0) of
 the **Real Life Trust Protocol (RLTP)**: a decentralized trust protocol
 rooted in encounters between people, published by the
 [Real Life Organisation](https://real-life.org).
@@ -62,9 +62,21 @@ vectors/      deterministic test vectors (implementations MUST reproduce
               them byte-for-byte)
 fixtures/     must-fail examples for validator conformance
 interop/      RLTP ceremonies in the ToIP DTGWG ceremony-definition format
-simulator/    a browser simulator for the ceremony UX
+simulator/    a browser simulator for the ceremony UX; simulator/lib/ is the
+              committed freeze of lib/dist
+lib/          the library @real-life/trust-protocol (npm, released by tag lib-v*)
+apps/gesamtsimulator/
+              the workbench: one trust network, device windows running the app,
+              a visible channel with fault injection; its lib/ is a byte-identical
+              copy of simulator/lib (checked in CI)
 scripts/      offline validation (`node scripts/validate.mjs`)
 ```
+
+### Specification paths are never auto-merged
+
+Changes under `spec/`, `schemas/`, `contexts/`, `vectors/`, `fixtures/`,
+`conformance/`, `interop/` and `terms/` are normative. An agent may prepare them as a
+pull request, but only a human maintainer merges them (see `CODEOWNERS`).
 
 ## Conventions
 

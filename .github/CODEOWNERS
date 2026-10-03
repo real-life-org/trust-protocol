@@ -1,0 +1,9 @@
+# Normative paths: a human maintainer reviews and merges every change.
+/spec/        @antontranelis
+/schemas/     @antontranelis
+/contexts/    @antontranelis
+/vectors/     @antontranelis
+/fixtures/    @antontranelis
+/conformance/ @antontranelis
+/interop/     @antontranelis
+/terms/       @antontranelis

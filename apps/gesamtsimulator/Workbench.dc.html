@@ -1,0 +1,2313 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/d3-dispatch@3/dist/d3-dispatch.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-quadtree@3/dist/d3-quadtree.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-timer@3/dist/d3-timer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-force@3/dist/d3-force.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  /* the dark half of graph.html's own :root palette, verbatim */
+  :root {
+    --bg: #141821; --card: #1b212c; --fg: #eef2f7; --muted: #94a3b8;
+    --border: #2d3644; --tint: #222937; --primary: #60a5fa;
+    --primary-tint: #1d2839; --green: #4ade80; --amber: #fbbf24;
+    --shadow: 0 10px 15px -3px rgba(0,0,0,.35), 0 4px 6px -4px rgba(0,0,0,.35);
+  }
+  html, body { overflow: hidden; overscroll-behavior: none; margin: 0; padding: 0; background: var(--bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { color: #93c5fd; }
+  /* the graph layer is imperative d3-force — these rules are graph.html's */
+  .gnode { cursor: pointer; }
+  .gnode circle { transition: fill .6s, stroke .6s, r .4s; }
+  .gnode text { font-size: 11px; fill: var(--fg); font-family: Inter, system-ui, sans-serif; }
+  .gnode text.anchortag { font-size: 8.5px; fill: var(--muted); font-family: ui-monospace, monospace; }
+  .gedge { stroke: var(--primary); stroke-opacity: .8; stroke-width: 1.8; transition: opacity .6s; }
+  .gedge.memberline { stroke: var(--muted); stroke-dasharray: 3 4; stroke-opacity: .4; stroke-width: 1.6; }
+  .gedge.vialine { stroke: var(--amber); stroke-dasharray: 6 4; stroke-opacity: .85; stroke-width: 1.8; }
+  .gedge.trust2 { stroke: oklch(70% 0.15 145); stroke-opacity: .9; stroke-width: 2.2; }
+  .gedge.trust1 { stroke: var(--amber); stroke-opacity: .85; stroke-width: 1.8; stroke-dasharray: 6 4; }
+  .ghub circle { fill: transparent; stroke: var(--muted); stroke-opacity: .7; stroke-dasharray: 6 5; stroke-width: 1.8 !important; }
+  .ghub text { font-weight: 700; }
+  .ghub.droptarget circle { stroke: var(--primary) !important; stroke-opacity: 1 !important; stroke-dasharray: none !important; }
+  .gnode.droptarget:not(.ghub) circle { stroke: var(--primary) !important; stroke-width: 3px !important; }
+  .gnode.sel circle { stroke: var(--primary) !important; stroke-width: 3px !important; }
+  @media (prefers-reduced-motion: reduce) { .gnode circle { transition: none; } }
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:#141821;color:#eef2f7;font-family:Inter,system-ui,sans-serif;font-size:15px;overflow:hidden;">
+
+  <div style="flex:none;display:flex;align-items:center;gap:14px;padding:6px 14px;border-bottom:1px solid #2d3644;background:#171c26;">
+    <a href="https://github.com/real-life-org/trust-protocol" target="_blank" rel="noopener" title="real-life-org/rltp on GitHub" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;color:#eef2f7;text-decoration:none;">RLTP Simulator<svg width="12" height="12" viewBox="0 0 16 16" fill="#94a3b8" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.89.87 2.35.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.19c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"></path></svg></a>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;">
+      <button onClick="{{ resetAll }}" title="back to the starting world" style="font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:8px;border:1.5px solid #2d3644;background:#1b212c;color:#94a3b8;">Reset</button>
+      <div data-gear="wrap" style="position:relative;">
+        <button onClick="{{ toggleGear }}" data-gear="button" title="settings" style="font:inherit;font-size:14px;line-height:1;cursor:pointer;width:26px;height:26px;border-radius:8px;border:1px solid {{ gearBd }};background:transparent;color:{{ gearFg }};display:flex;align-items:center;justify-content:center;">⚙</button>
+        <sc-if value="{{ gearOpen }}" hint-placeholder-val="{{ false }}">
+          <div data-gear="menu" style="position:absolute;right:0;top:calc(100% + 6px);width:196px;z-index:900;background:#1b212c;border:1px solid #2d3644;border-radius:10px;box-shadow:0 10px 15px -3px rgba(0,0,0,.5);padding:9px 10px;display:flex;flex-direction:column;gap:6px;">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#64748b;">Devices open at once</div>
+            <div style="display:flex;gap:4px;">
+              <sc-for list="{{ capChips }}" as="c" hint-placeholder-count="4">
+                <button onClick="{{ c.on }}" style="flex:1;font:inherit;font-family:ui-monospace,monospace;font-size:11px;font-weight:700;cursor:pointer;padding:4px 0;border-radius:7px;border:1.5px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};">{{ c.label }}</button>
+              </sc-for>
+            </div>
+            <div style="font-size:9.5px;line-height:1.45;color:#94a3b8;text-wrap:pretty;">{{ capNote }}</div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;">
+
+    <div ref="{{ setStage }}" style="flex:1;min-width:0;position:relative;z-index:2;overscroll-behavior:none;">
+      <svg ref="{{ setSvg }}" viewBox="0 0 1400 660" preserveAspectRatio="none" style="display:block;width:100%;height:100%;cursor:grab;touch-action:none;"></svg>
+
+
+      <div style="position:absolute;left:12px;top:10px;z-index:110;display:flex;flex-direction:column;align-items:flex-start;gap:4px;max-width:340px;pointer-events:none;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#64748b;padding-left:1px;">Camera</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;pointer-events:auto;">
+          <sc-for list="{{ viewChips }}" as="c" hint-placeholder-count="2">
+            <button onClick="{{ c.on }}" title="{{ c.title }}" style="font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:99px;border:1.5px solid {{ c.bd }};background:{{ c.bgSolid }};color:{{ c.fg }};backdrop-filter:blur(4px);">{{ c.label }}</button>
+          </sc-for>
+          <sc-for list="{{ personChips }}" as="c" hint-placeholder-count="5">
+            <button onClick="{{ c.on }}" title="{{ c.title }}" style="font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:99px;border:1.5px solid {{ c.bd }};background:{{ c.bgSolid }};color:{{ c.fg }};display:inline-flex;align-items:center;gap:5px;backdrop-filter:blur(4px);"><span style="width:8px;height:8px;border-radius:50%;background:{{ c.dot }};display:inline-block;flex:none;"></span>{{ c.label }}</button>
+          </sc-for>
+        </div>
+        <div style="font-size:10px;line-height:1.45;color:#94a3b8;text-wrap:pretty;padding-left:1px;text-shadow:0 1px 3px rgba(20,24,33,.9);">{{ viewNote }}</div>
+      </div>
+
+      <div style="position:absolute;left:12px;bottom:{{ legendBottom }}px;z-index:110;display:inline-flex;flex-direction:column;gap:4px;background:rgba(20,24,33,.94);border:1px solid #2d3644;border-radius:9px;padding:7px 9px;backdrop-filter:blur(4px);">
+        <span style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#94a3b8;white-space:nowrap;"><span style="width:15px;height:2px;background:#60a5fa;border-radius:2px;display:block;flex:none;"></span>a real meeting happened</span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#94a3b8;white-space:nowrap;"><span style="width:15px;height:2.5px;background:oklch(70% 0.15 145);border-radius:2px;display:block;flex:none;"></span>identity disclosed, both ways</span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#94a3b8;white-space:nowrap;"><span style="width:15px;height:2px;background:#fbbf24;border-radius:2px;display:block;flex:none;"></span>one way, introduced, or waiting</span>
+      </div>
+
+      <sc-if value="{{ hasDock }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:14px;bottom:14px;z-index:120;display:flex;align-items:center;gap:7px;background:rgba(23,28,38,.92);border:1px solid #2d3644;border-radius:10px;padding:6px 8px;flex-wrap:wrap;max-width:56%;">
+          <span style="font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;">Docked</span>
+          <sc-for list="{{ dock }}" as="d" hint-placeholder-count="2">
+            <button onClick="{{ d.on }}" style="font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:7px;border:1px solid #2d3644;background:#1b212c;color:#cbd5e1;display:inline-flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:{{ d.color }};display:block;"></span>{{ d.name }}
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="position:absolute;right:16px;bottom:16px;z-index:200;display:flex;flex-direction:column;align-items:flex-end;gap:9px;">
+        <sc-if value="{{ godOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="width:214px;flex:none;display:flex;flex-direction:column;gap:5px;">
+            <sc-for list="{{ fabItems }}" as="i" hint-placeholder-count="5">
+              <button onClick="{{ i.on }}" style="font:inherit;font-size:12px;font-weight:600;padding:7px 11px;border-radius:9px;border:1px solid #2d3644;background:#1b212c;color:#eef2f7;cursor:pointer;text-align:left;box-shadow:0 10px 15px -3px rgba(0,0,0,.35);">{{ i.label }}</button>
+            </sc-for>
+            <div style="font-size:9.5px;color:#64748b;line-height:1.45;padding:2px 2px 0;text-wrap:pretty;">Or drag one node onto another to verify · onto a group circle to join.</div>
+          </div>
+        </sc-if>
+        <button onClick="{{ toggleGod }}" style="width:52px;height:52px;border-radius:50%;border:none;background:#2563eb;color:#fff;font-size:27px;line-height:1;cursor:pointer;box-shadow:0 10px 15px -3px rgba(0,0,0,.45);">{{ godGlyph }}</button>
+      </div>
+
+      <div style="position:fixed;left:{{ stageLeft }}px;top:{{ stageTop }}px;width:{{ stageWpx }}px;height:{{ stageHpx }}px;z-index:600;pointer-events:none;">
+      <sc-for list="{{ floatWins }}" as="w" hint-placeholder-count="1">
+        <div ref="{{ w.setEl }}" onPointerDown="{{ w.onRaise }}" style="position:absolute;left:{{ w.left }}px;top:{{ w.top }}px;width:{{ w.width }}px;z-index:{{ w.z }};pointer-events:auto;">
+
+          <div style="position:absolute;left:{{ w.sheetLeft }}px;top:6px;width:250px;z-index:1;background:#171c26;border:1px solid {{ w.sheetBd }};border-radius:12px;box-shadow:0 10px 15px -3px rgba(0,0,0,.4);transition:left .22s cubic-bezier(.35,0,.25,1);overflow:hidden;">
+            <button onClick="{{ w.onSheet }}" title="what this device holds" style="width:100%;display:flex;align-items:center;justify-content:{{ w.sheetJustify }};gap:7px;padding:7px 9px;border:none;background:transparent;color:{{ w.sheetIconFg }};font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;">
+              <span style="display:flex;align-items:center;gap:5px;min-width:0;">
+                <svg viewBox="0 0 24 24" style="width:13px;height:13px;flex:none;display:block;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                  <path d="M3 5V19A9 3 0 0 0 21 19V5"></path>
+                  <path d="M3 12A9 3 0 0 0 21 12"></path>
+                </svg>
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ w.sheetTitle }}</span>
+              </span>
+              <span style="font-family:ui-monospace,monospace;color:#94a3b8;flex:none;">{{ w.sheetGlyph }}</span>
+            </button>
+            <sc-if value="{{ w.sheetOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="height:{{ w.sheetH }}px;overflow:auto;padding:0 9px 10px;">
+                <sc-for list="{{ w.holds }}" as="h" hint-placeholder-count="3">
+                  <div style="border:1px solid #2d3644;border-radius:8px;margin-bottom:6px;overflow:hidden;background:#141821;">
+                    <button onClick="{{ h.on }}" style="width:100%;display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 9px;border:none;background:transparent;color:#eef2f7;font:inherit;font-size:11px;font-weight:700;cursor:pointer;text-align:left;">
+                      <span>{{ h.title }}<span style="display:block;font-size:9px;font-weight:400;color:#94a3b8;font-family:ui-monospace,monospace;">{{ h.sub }}</span></span>
+                      <span style="font-family:ui-monospace,monospace;font-size:10px;color:#94a3b8;flex:none;">{{ h.count }}</span>
+                    </button>
+                    <sc-if value="{{ h.open }}" hint-placeholder-val="{{ false }}">
+                      <pre style="font-family:ui-monospace,monospace;font-size:9px;line-height:1.5;color:#cbd5e1;background:#222937;border-radius:6px;padding:7px 8px;margin:0 8px 8px;white-space:pre-wrap;word-break:break-all;max-height:190px;overflow:auto;">{{ h.json }}</pre>
+                    </sc-if>
+                  </div>
+                </sc-for>
+                <div style="font-size:9.5px;color:#94a3b8;text-wrap:pretty;line-height:1.45;">Empty categories are not listed. Nothing here is inferred — every entry is a document this device actually holds.</div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="position:relative;z-index:2;background:oklch(11% 0.012 265);border:1.5px solid {{ w.headBd }};border-radius:22px;padding:0 5px 5px;box-shadow:0 10px 15px -3px rgba(0,0,0,.45);">
+            <div onPointerDown="{{ w.onDrag }}" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 5px;cursor:grab;">
+              <span style="width:8px;height:8px;border-radius:50%;background:{{ w.color }};flex:none;"></span>
+              <span style="font-size:11px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1;">{{ w.name }}</span>
+              <button onClick="{{ w.onDrift }}" title="device clock drift" style="font:inherit;font-family:ui-monospace,monospace;font-size:9px;padding:1px 5px;border-radius:5px;border:1px solid {{ w.driftBd }};background:transparent;color:{{ w.driftFg }};cursor:pointer;flex:none;">{{ w.driftLabel }}</button>
+              <button onClick="{{ w.onCollapse }}" title="collapse into the dock" style="font:inherit;font-size:10px;padding:0 4px;border:none;background:transparent;color:#94a3b8;cursor:pointer;flex:none;">{{ w.collapseGlyph }}</button>
+              <button onClick="{{ w.onClose }}" title="close" style="font:inherit;font-size:10px;padding:0 3px;border:none;background:transparent;color:#94a3b8;cursor:pointer;flex:none;">✕</button>
+            </div>
+            <dc-import name="DeviceScreen" w="{{ w }}" hint-size="100%,340px"></dc-import>
+          </div>
+        </div>
+      </sc-for>
+      </div>
+    </div>
+
+  </div>
+
+  <div onPointerDown="{{ onWireDrag }}" title="drag to resize" style="flex:none;position:relative;z-index:5;height:8px;cursor:row-resize;background:#141821;border-top:1px solid #2d3644;display:flex;align-items:center;justify-content:center;">
+    <span style="width:44px;height:2px;border-radius:2px;background:#3d4757;display:block;"></span>
+  </div>
+
+  <div style="flex:none;position:relative;z-index:5;height:{{ wireH }}px;background:#171c26;display:flex;">
+    <div style="flex:none;width:250px;border-right:1px solid #2d3644;padding:9px 12px;display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;flex:none;">Fault injection</div>
+      <div style="flex:none;display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+        <sc-for list="{{ faultBtns }}" as="f" hint-placeholder-count="4">
+          <div style="position:relative;min-width:0;border:1px solid {{ f.bd }};border-radius:7px;background:{{ f.bg }};">
+            <sc-if value="{{ f.infoOpen }}" hint-placeholder-val="{{ false }}">
+              <div data-fault-info="popover" style="position:absolute;left:-2px;bottom:calc(100% + 6px);width:228px;z-index:40;background:#222937;border:1px solid {{ f.bd }};border-radius:8px;box-shadow:0 10px 15px -3px rgba(0,0,0,.5);padding:7px 9px;font-size:9.5px;line-height:1.5;color:#cbd5e1;text-wrap:pretty;">{{ f.effect }}</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:4px;min-width:0;">
+              <button onClick="{{ f.on }}" style="flex:1;min-width:0;display:flex;align-items:center;gap:5px;text-align:left;padding:5px 2px 5px 6px;border:none;background:transparent;color:#eef2f7;cursor:pointer;font:inherit;font-size:10.5px;line-height:1.25;">
+                <span style="flex:none;width:11px;height:11px;border-radius:3px;border:1.5px solid {{ f.boxBd }};background:{{ f.boxBg }};display:block;"></span>
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ f.label }}</span>
+              </button>
+              <button onClick="{{ f.onInfo }}" data-fault-info="button" title="what this fault does" style="flex:none;width:17px;height:17px;margin-right:5px;border-radius:50%;border:1px solid {{ f.infoBd }};background:transparent;color:{{ f.infoFg }};cursor:pointer;font:inherit;font-size:9.5px;font-weight:700;font-style:italic;line-height:1;display:flex;align-items:center;justify-content:center;">i</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+      <div style="flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:4px 9px;padding:8px 12px 6px;">
+        <span style="font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;white-space:nowrap;">{{ wireTitle }}</span>
+        <span style="flex:none;font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace;white-space:nowrap;">{{ wireSub }}</span>
+      </div>
+
+      <sc-if value="{{ wireAsList }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;overflow:auto;padding:0 12px 10px;font-family:ui-monospace,monospace;font-size:10.5px;">
+          <sc-for list="{{ wire }}" as="w" hint-placeholder-count="0">
+            <div style="border-top:1px solid #222937;padding:3px 0;">
+              <button onClick="{{ w.on }}" style="display:flex;align-items:baseline;gap:6px;max-width:290px;text-align:left;font:inherit;font-family:ui-monospace,monospace;font-size:10.5px;border:none;background:transparent;color:#eef2f7;cursor:pointer;padding:1px 0;">
+                <span style="color:#94a3b8;flex:none;">{{ w.n }}</span>
+                <span style="flex:none;">{{ w.from }} ⇒ {{ w.to }}</span>
+                <span style="color:{{ w.dispFg }};flex:none;">{{ w.disp }}</span>
+                <span style="color:#94a3b8;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ w.kind }}</span>
+              </button>
+              <sc-if value="{{ w.open }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:4px 0 6px;">
+                  <sc-for list="{{ w.stages }}" as="s" hint-placeholder-count="9">
+                    <div style="font-size:10px;line-height:1.6;color:{{ s.fg }};">{{ s.mark }} {{ s.label }}</div>
+                  </sc-for>
+                  <pre style="font-size:9.5px;line-height:1.35;background:#222937;border-radius:6px;padding:6px 8px;margin:5px 0 0;white-space:pre-wrap;word-break:break-all;color:#cbd5e1;max-height:160px;overflow:auto;">{{ w.payload }}</pre>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ wireEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="max-width:286px;color:#94a3b8;padding:6px 0;line-height:1.5;text-wrap:pretty;">— nothing on the wire yet · verify someone, or use ＋ —</div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ dlgOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;">
+      <div style="width:340px;background:#1b212c;border:1px solid #2d3644;border-radius:14px;box-shadow:0 10px 15px -3px rgba(0,0,0,.5);padding:17px 19px;display:flex;flex-direction:column;gap:11px;">
+        <div style="font-size:16px;font-weight:800;">{{ dlgTitle }}</div>
+        <sc-if value="{{ dlgHasName }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;">Name</div>
+            <input value="{{ dlgName }}" onChange="{{ setDlgName }}" placeholder="{{ dlgPlaceholder }}" style="font:inherit;font-size:14px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid #2d3644;background:#141821;color:#eef2f7;" />
+          </div>
+        </sc-if>
+        <sc-if value="{{ dlgHasFrom }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;">{{ dlgFromLabel }}</div>
+            <select value="{{ dlgFrom }}" onChange="{{ setDlgFrom }}" style="font:inherit;font-size:14px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid #2d3644;background:#141821;color:#eef2f7;">
+              <sc-for list="{{ people }}" as="p" hint-placeholder-count="5"><option value="{{ p.id }}">{{ p.name }}</option></sc-for>
+            </select>
+          </div>
+        </sc-if>
+        <sc-if value="{{ dlgHasTo }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;">{{ dlgToLabel }}</div>
+            <select value="{{ dlgTo }}" onChange="{{ setDlgTo }}" style="font:inherit;font-size:14px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid #2d3644;background:#141821;color:#eef2f7;">
+              <sc-for list="{{ dlgToOptions }}" as="p" hint-placeholder-count="5"><option value="{{ p.id }}">{{ p.name }}</option></sc-for>
+            </select>
+          </div>
+        </sc-if>
+        <sc-if value="{{ dlgHasGroup }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;">Group</div>
+            <select value="{{ dlgGroup }}" onChange="{{ setDlgGroup }}" style="font:inherit;font-size:14px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid #2d3644;background:#141821;color:#eef2f7;">
+              <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4"><option value="{{ g.id }}">{{ g.label }}</option></sc-for>
+            </select>
+          </div>
+        </sc-if>
+        <div style="font-size:11.5px;line-height:1.5;color:#94a3b8;text-wrap:pretty;">{{ dlgNote }}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onClick="{{ closeDlg }}" style="font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:7px 15px;border-radius:8px;border:1.5px solid #2d3644;background:#1b212c;color:#94a3b8;">Cancel</button>
+          <button onClick="{{ submitDlg }}" style="font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:7px 17px;border-radius:8px;border:1.5px solid #60a5fa;background:#1d2839;color:#60a5fa;">{{ dlgOk }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;maxDevices&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Devices&quot;,&quot;unit&quot;:&quot;open at once&quot;},&quot;startLayout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;],&quot;default&quot;:&quot;free&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Start state&quot;},&quot;startOpen&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1,&quot;min&quot;:0,&quot;max&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Start state&quot;}}">
+
+// ── the world is REAL: @real-life/trust-protocol 0.3.0 (frozen ESM under ./lib),
+// one `Person` per device, every act a real sealed document over the channel.
+// The demo world below is SEEDED through the same acts at load time.
+const T0 = Date.parse('2026-08-21T10:00:00Z');
+const NS = 'http://www.w3.org/2000/svg';
+
+const COLORS = { Anna: '#3b82f6', Peter: '#ef4444', Frida: '#f59e0b', Sam: '#84cc16', Lena: '#ec4899' };
+const EXTRA = ['#14b8a6', '#8b5cf6', '#fb923c', '#06b6d4', '#f43f5e'];
+const PEOPLE0 = ['Anna', 'Peter', 'Frida', 'Sam', 'Lena'].map((n) => ({ id: n, name: n, color: COLORS[n] }));
+
+// seed plan (graph.html's demo world): groups are FOUNDED by their first member,
+// the others join through the real prelude → invite → accept → welcome flow
+const GROUPS0 = [
+  { id: 'chor', label: 'Choir', members: ['Anna', 'Peter', 'Sam', 'Lena'] },
+  { id: 'garten', label: 'Garden', members: ['Anna', 'Peter', 'Frida', 'Lena'] },
+  { id: 'rat', label: 'Council', members: ['Anna', 'Peter'] },
+  { id: 'schach', label: 'Chess', members: ['Peter'] },
+];
+// encounters: real ceremonies; trust: the real trust act (anchor-mapping@2)
+// `dir` names who disclosed one-sidedly
+const EDGES0 = [
+  { a: 'Anna', b: 'Peter', trust: 2 },
+  { a: 'Anna', b: 'Frida', trust: 2 },
+  { a: 'Peter', b: 'Frida', trust: 2 },
+  { a: 'Peter', b: 'Sam', trust: 2 },
+  { a: 'Frida', b: 'Sam', trust: 2 },
+  { a: 'Anna', b: 'Sam', trust: 2 },
+  { a: 'Anna', b: 'Lena', trust: 1, dir: 'Lena' },
+  { a: 'Peter', b: 'Lena', trust: 0 },
+];
+
+const AUTHOR_W = 960;
+const AUTHOR_H = 660;
+const PENTAGON = { Anna: [480, 180], Peter: [700, 330], Sam: [590, 520], Lena: [370, 520], Frida: [260, 330] };
+const GROUP_SPOTS = { chor: [820, 120], garten: [140, 120], rat: [830, 470], schach: [130, 450] };
+
+// the ONE registered ceremony — what varies is the carrier, never the ceremony
+const CEREMONY = 'encounter-scan@0.25';
+
+// Delivery Contract 6.2 — the receiver's stages, in mandatory order
+const STAGES = [
+  'stage 1 · sealed size within bounds',
+  'stage 2 · envelope schema · rkid known',
+  'stage 3 · AES-256-GCM open · tag verified',
+  'stage 4 · parse · digest · duplicate cache',
+  'stage 5 · document profile · recipient is me',
+  'stage 6 · type known',
+  'stage 7 · payload schema',
+  'stage 8 · type consistency · pre-lock checks',
+  'stage 9 · effect committed under the lock set',
+];
+
+const FAULTS = [
+  ['hold', 'Hold', 'Hold the channel: deliveries park; releasing flushes them — delivery time is unbounded, and a held ack turns the encounter optical'],
+  ['dup', 'Duplicate', 'Deliver everything twice: the completed-effect cache answers duplicate-known, never a second effect'],
+  ['tamper', 'Flip a bit', 'Flip one ciphertext bit: stage 3, the AES-GCM tag catches it — failed(decryption-failed)'],
+  ['lose', 'Lose', 'Lose deliveries: the channel gives no sign; only the missing ack tells'],
+];
+
+const MUTED = '#94a3b8';
+const BD = '#2d3644';
+const PRIMARY = '#60a5fa';
+const GREEN = 'oklch(70% 0.15 145)';
+const AMBER = '#fbbf24';
+const RED = '#f87171';
+
+const FULL_W = 268;
+const CARD_W = 236;
+const WIN_TOP = 14;
+const CHROME_H = 40;
+const clamp = (lo, v, hi) => Math.max(lo, Math.min(v, hi));
+// a real did:key pair anchor, abbreviated for a label
+const abbr = (anchor) => { const s = String(anchor || ''); return s.startsWith('did:key:') ? s.slice(8, 15) + '…' + s.slice(-4) : s.slice(0, 12); };
+const initials = (s) => String(s).slice(0, 2).toUpperCase();
+const tint = (hex) => hex + '33';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+
+class Component extends DCLogic {
+  state = {
+    view: 'omniscient',
+    people: PEOPLE0.map((p) => ({ ...p })),
+    rev: 0,            // world revision — every real act bumps it, the UI is a function of the world
+    ready: false,      // the library is loaded and the demo world seeded
+    open: [],
+    focus: null,
+    collapsed: {},
+    pos: {},
+    berth: {},
+    sheet: {},
+    tab: {},
+    drift: {},
+    holdsOpen: {},
+    rate: 1,
+    t: T0,
+    faults: { hold: false, dup: false, tamper: false, lose: false },
+    wire: [],
+    held: [],
+    n: 0,
+    godOpen: false,
+    wireH: 96,
+    dlg: null,
+    dlgName: '',
+    dlgFrom: 'Anna',
+    dlgTo: 'Peter',
+    dlgGroup: '',
+    appView: {},
+    shows: {},
+    scan: {},
+    scanMiss: {},
+    flying: null,
+    W: 1200,
+    H: 620,
+    stageTop: 38,
+    stageLeft: 0,
+    vh: 800,
+    pan: { x: 0, y: 0 },
+    faultInfo: {},
+    gearOpen: false,
+    cap: null,
+    seedNote: 'loading the protocol library…',
+  };
+
+  winEl = {};
+  viewfinder = {};
+
+  // ── the library and the world ─────────────────────────────────────────
+  lib = null;
+  world = null;
+  tNow = T0;          // the authoritative simulated clock (state.t mirrors it for display)
+  seq = 0;            // delivery numbering
+  enc = {};           // per device: the running encounter { peer, sentCard, threadId, acked }
+
+  async loadLib() {
+    if (this.lib) return this.lib;
+    const base = new URL('./lib/', document.baseURI).href;
+    const [root, probe] = await Promise.all([import(base + 'index.js'), import(base + 'probe.js')]);
+    this.lib = { root, probe, E: root.ceremony, T: root.visibility.trust, CN: root.visibility.continuity, I: probe.introduce, G: probe.membership };
+    return this.lib;
+  }
+  newWorld() { return { P: new Map(), held: [], groupSpot: new Map() }; }
+  person(id) { return this.world && this.world.P.get(id); }
+  ensurePerson(id, name) {
+    if (this.world.P.has(id)) return this.world.P.get(id);
+    const p = this.lib.I.createPerson(name);
+    this.world.P.set(id, p);
+    return p;
+  }
+  ownerOf(anchor) {
+    if (!this.world || !anchor) return null;
+    for (const [id, p] of this.world.P) if (p.contexts.has(anchor)) return id;
+    return null;
+  }
+  // the counterpart anchor under which `from` holds `to` (a ceremony tuple first)
+  anchorOf(fromId, toId) {
+    const p = this.person(fromId);
+    if (!p) return null;
+    let fallback = null;
+    for (const [anchor, c] of p.contacts) {
+      if (c.deactivated || this.ownerOf(anchor) !== toId) continue;
+      if (c.provenance === 'ceremony') return anchor;
+      fallback = fallback || anchor;
+    }
+    return fallback;
+  }
+  now(id) { return this.tNow + ((this.state.drift && this.state.drift[id]) || 0) * 60000; }
+  jump(ms) { this.tNow += ms; }
+  bump(cb) { this.setState((s) => ({ rev: s.rev + 1, t: this.tNow }), cb); }
+
+  // Back to the starting world: a fresh set of persons, the seed acts run
+  // again, the clock, the camera, the wire, the faults and the open devices
+  // return to what a fresh load shows. The device cap survives.
+  resetAll() {
+    const cap = this.state.cap;
+    this.packets = [];
+    if (this.sim) { this.sim.stop(); this.sim = null; this.simIndex = null; this.simSig = null; }
+    if (this.svg) this.svg.innerHTML = '';
+    this.winEl = {};
+    this.viewfinder = {};
+    this.enc = {};
+    this.tNow = T0;
+    this.seq = 0;
+    this.world = this.newWorld();
+    this.setState({
+      view: 'omniscient',
+      people: PEOPLE0.map((p) => ({ ...p })),
+      rev: 0, ready: false, seedNote: 'seeding the demo world…',
+      open: [], focus: null, collapsed: {}, pos: {}, berth: {}, sheet: {}, tab: {},
+      drift: {}, holdsOpen: {}, appView: {}, shows: {}, scan: {}, scanMiss: {},
+      rate: 1, t: T0, wire: [], held: [], n: 0, flying: null,
+      faults: { hold: false, dup: false, tamper: false, lose: false },
+      faultInfo: {}, godOpen: false, gearOpen: false, dlg: null,
+      pan: { x: 0, y: 0 }, cap,
+    }, () => {
+      this.waitForD3();
+      this.seedWorld().then(() => requestAnimationFrame(() => this.focusWin('Anna')));
+    });
+  }
+
+  packets = [];
+
+  componentDidMount() {
+    globalThis.__wb = this;   // debug/test hook: the running workbench
+    document.addEventListener('pointerdown', this.onDocDown, true);
+    this.timer = setInterval(() => {
+      if (this.state.rate > 0) { this.tNow += this.state.rate * 300; this.setState({ t: this.tNow }); }
+    }, 300);
+    this.waitForD3();
+    this.world = this.newWorld();
+    this.loadLib()
+      .then(() => this.seedWorld())
+      .then(() => requestAnimationFrame(() => this.focusWin('Anna')))
+      .catch((e) => { console.error('[workbench] library', e); this.setState({ seedNote: 'library failed to load: ' + (e && e.message ? e.message : e) }); });
+  }
+
+  // the demo world through REAL acts, silently (nothing on the wire list)
+  async seedWorld() {
+    const o = { silent: true };
+    for (const p of PEOPLE0) this.ensurePerson(p.id, p.name);
+    for (const e of EDGES0) {
+      await this.godVerify(e.a, e.b, o);
+      if (e.trust === 2) { await this.giveTrust(e.a, e.b, o); await this.giveTrust(e.b, e.a, o); }
+      else if (e.trust === 1) { const from = e.dir, to = e.dir === e.a ? e.b : e.a; await this.giveTrust(from, to, o); }
+    }
+    for (const g of GROUPS0) {
+      const gid = await this.foundGroup(g.members[0], g.label, o);
+      if (gid) { this.world.groupSpot.set(gid, g.id); for (const m of g.members.slice(1)) await this.joinGroup(m, gid, o); }
+    }
+    await this.sweepAll(o);
+    this.setState({ ready: true, seedNote: '' });
+    this.bump();
+  }
+
+  componentDidUpdate() { this.syncGraph(); }
+
+  // a click anywhere outside dismisses the fault popover
+  onDocDown = (ev) => {
+    const t = ev.target;
+    const inside = (sel) => t && t.closest && t.closest(sel);
+    // the trigger and the overlay itself are not "outside"
+    if (!inside('[data-fault-info]') && Object.keys(this.state.faultInfo).length) this.setState({ faultInfo: {} });
+    if (!inside('[data-gear]') && this.state.gearOpen) this.setState({ gearOpen: false });
+  };
+
+  cap() { return Math.max(1, this.state.cap ?? this.props.maxDevices ?? 2); }
+
+  // Lowering the cap drops the devices longest untouched, keeping the focused
+  // one — the same rule as opening past the cap.
+  setCap(n) {
+    this.setState((s) => {
+      let open = s.open;
+      if (open.length > n) {
+        const keep = new Set(open.includes(s.focus) ? [s.focus] : []);
+        for (let i = open.length - 1; i >= 0 && keep.size < n; i--) keep.add(open[i]);
+        open = open.filter((o) => keep.has(o));
+      }
+      const pos = { ...s.pos };
+      s.open.filter((o) => !open.includes(o)).forEach((o) => { delete pos[o]; });
+      // changing the cap re-seats the survivors in the berths, otherwise they
+      // keep positions they were given under a different cap
+      const berth = {};
+      if (n <= 4) {
+        open.forEach((o, i) => { berth[o] = i; pos[o] = this.berthAt(i); });
+      }
+      return { cap: n, open, pos, berth, focus: open.includes(s.focus) ? s.focus : open[open.length - 1] ?? null };
+    });
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.timer);
+    clearTimeout(this.d3Timer);
+    clearInterval(this.pkTimer);
+    if (this.ro) this.ro.disconnect();
+    document.removeEventListener('pointerdown', this.onDocDown, true);
+    if (this.sim) this.sim.stop();
+  }
+
+  waitForD3() {
+    if (typeof window !== 'undefined' && window.d3 && window.d3.forceSimulation) { this.bootSim(); return; }
+    this.d3Timer = setTimeout(() => this.waitForD3(), 60);
+  }
+
+  // ── d3-force: graph.html's own two-shell configuration, unchanged ──────
+  bootSim() {
+    if (this.sim || !this.svg) return;
+    const d3 = window.d3;
+    // the svg may carry layers from a previous instance (hot reload keeps the
+    // element but not this.sim/this.dom) — start from an empty element or the
+    // old nodes stay behind as duplicates
+    this.svg.textContent = '';
+    this.simIndex = new Map();
+    this.dom = new Map();
+    this.scene = { nodes: [], edges: [], note: '' };
+    this.layers = {};
+    this.svg.insertAdjacentHTML('afterbegin',
+      '<defs><marker id="wbArrowT" viewBox="0 0 10 10" refX="16" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+      + '<path d="M0,0 L10,5 L0,10 z" fill="' + AMBER + '"/></marker></defs>');
+    ['edges', 'nodes', 'packets'].forEach((l) => {
+      const g = document.createElementNS(NS, 'g');
+      this.layers[l] = g;
+      this.svg.appendChild(g);
+    });
+    // TWO SHELLS: persons keep the center; group hubs are pushed onto an
+    // outer ring so person-to-person edges no longer cross the group circles.
+    this.sim = d3.forceSimulation([])
+      .force('link', d3.forceLink([]).id((d) => d.id).distance((l) => l.dist).strength((l) => l.str))
+      .on('tick', () => this.ticked());
+    this.recentre();
+    this.syncGraph();
+  }
+
+  setSvg = (el) => {
+    if (!el || this.svg === el) return;
+    this.svg = el;
+    // No zoom, and the wheel must not scroll an ancestor either — over the
+    // stage a wheel turn is simply swallowed, so the graph never jumps.
+    el.addEventListener('wheel', (ev) => ev.preventDefault(), { passive: false });
+
+    // Panning lives on the viewBox, so node dragging (which goes through
+    // getScreenCTM) keeps working without a second transform.
+    el.addEventListener('pointerdown', (ev) => {
+      // a node or hub handles its own drag and stops propagation; reaching
+      // here means the empty canvas was grabbed
+      ev.preventDefault();
+      const p0 = this.state.pan;
+      const sx = ev.clientX, sy = ev.clientY;
+      const scale = this.svg.getBoundingClientRect().width / this.stageW();
+      el.style.cursor = 'grabbing';
+      const noSelect = (e) => e.preventDefault();
+      document.addEventListener('selectstart', noSelect);
+      const prevSel = document.body.style.userSelect;
+      document.body.style.userSelect = 'none';
+      const onMove = (mv) => {
+        this.setState({ pan: { x: p0.x - (mv.clientX - sx) / scale, y: p0.y - (mv.clientY - sy) / scale } }, () => this.applyView());
+      };
+      const onUp = () => {
+        el.style.cursor = '';
+        document.removeEventListener('selectstart', noSelect);
+        document.body.style.userSelect = prevSel;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+
+    if (window.d3 && window.d3.forceSimulation) this.bootSim();
+  };
+
+  applyView() {
+    if (!this.svg) return;
+    const p = this.state.pan;
+    this.svg.setAttribute('viewBox', p.x + ' ' + p.y + ' ' + this.stageW() + ' ' + this.stageH());
+  }
+
+  setStage = (el) => {
+    if (!el || this.stageEl === el) return;
+    this.stageEl = el;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      if (r.width && (Math.abs(r.width - this.state.W) > 1 || Math.abs(r.height - this.state.H) > 1
+        || Math.abs(r.top - this.state.stageTop) > 1 || Math.abs(vh - this.state.vh) > 1)) {
+        this.setState({ W: r.width, H: r.height, stageTop: r.top, stageLeft: r.left, vh }, () => {
+          // the forces close over cx/cy/k, so they must be rebuilt on resize —
+          // without this the whole figure stayed centred on the pre-measurement
+          // stage width and sat well right of centre
+          if (this.sim) {
+            this.recentre();
+            this.applyView();
+            // Teleport every node to its freshly mapped authored spot. Merely
+            // reheating was not enough: the simulation was seeded on the
+            // pre-measurement stage width and alpha ran out before the forces
+            // could walk the whole figure back to the new centre, which left
+            // it sitting well right of it.
+            for (const sn of this.simIndex.values()) {
+              if (sn.dragged || !sn.homeA) continue;
+              sn.x = this.mapX(sn.homeA[0]); sn.y = this.mapY(sn.homeA[1]);
+              sn.vx = 0; sn.vy = 0;
+            }
+            this.sim.alpha(0.7).restart();
+          }
+        });
+      }
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.ro = new ResizeObserver(measure);
+      this.ro.observe(el);
+    }
+  };
+
+  // The stage IS the column, in its own pixels — scale 1, so graph.html's
+  // 11px labels render at 11px. Its layout was authored for 960×660, so
+  // author coordinates map proportionally and its absolute force constants
+  // (link 170, collide 46/26, radial 300) scale by the same factor.
+  stageW() { return Math.round(Math.max(420, this.state.W)); }
+  stageH() { return Math.round(Math.max(260, this.state.H)); }
+
+  // The layout keeps the full stage: shrinking it for the device cascade
+  // squeezed the group shell against the person shell and pressed every
+  // person into the right wall. Devices are moved, the graph is not.
+  // The corridor between the two berth columns is what the graph gets. It is
+  // derived from where the berths actually are, and it drives the WALLS, cx AND
+  // the scale together — the first attempt shrank the width alone, which left
+  // the hub ring unscaled and piled every person against the right wall. A
+  // floor keeps the corridor usable on a narrow stage; it never depends on how
+  // many devices are open, so nothing re-lays on open and close.
+  // The graph gets the whole stage, centred. The earlier corridor between the
+  // berth columns capped the width at 520px, which squashed the authored
+  // pentagon horizontally; devices float above the graph and can be moved, so
+  // they need no reserved column of their own.
+  corridor() {
+    const W = this.stageW();
+    // The width stays full — narrowing it was the horizontal squashing. But the
+    // CENTRE leans away from an occupied flank, so the figure is not parked
+    // under a phone: the graph is the background layer and must stay readable.
+    // Read off the BERTH assignment, not live positions: berths alternate right,
+    // left, right, left, so one open device means the right flank is taken and
+    // two or more mean both are. Live positions would re-centre the graph mid-
+    // drag every time a phone crossed the middle.
+    // With one device the graph takes the free strip beside it — width AND
+    // centre together, which is the part the first attempt got wrong: it
+    // narrowed the width alone and left the ring unscaled against a moved
+    // centre. With two or more it keeps the whole stage and accepts the
+    // overlap, since no strip is left to retreat into.
+    // With one device the graph leans out of the phone's column but keeps most
+    // of the stage: retreating into the free strip alone squeezed it too far.
+    const n = this.state.open.length;
+    // one device: the free strip beside it. Two or more: the strip BETWEEN the
+    // two flanks, which the graph fills instead of hiding under both phones.
+    if (n === 1) {
+      const w = Math.max(360, W - FULL_W - 36);
+      return { w, cx: Math.round(w / 2) + 12 };
+    }
+    if (n >= 2) {
+      const inner = W - 2 * (FULL_W + 20) - 24;
+      if (inner >= 300) return { w: inner, cx: Math.round(W / 2) };
+    }
+    return { w: W - 32, cx: Math.round(W / 2) };
+  }
+
+  layoutW() { return this.corridor().w; }
+  // k drives the force constants and stays uniform. kx additionally stretches
+  // the START positions horizontally: the stage is far wider than the authored
+  // box is tall, so a purely uniform fit left the pentagon narrow in the middle
+  // with empty margins either side. Capped at 1.5 so the shape still reads.
+  k() { return clamp(0.34, Math.min(this.layoutW() / AUTHOR_W, this.stageH() / AUTHOR_H), 1.6); }
+  kx() { return this.k() * clamp(1, (this.layoutW() / AUTHOR_W) / this.k(), 1.5); }
+
+  cx() { return this.corridor().cx; }
+  cy() { return Math.round(this.stageH() / 2); }
+  // uniform, centred: the authored pentagon keeps its shape instead of being
+  // squashed into a short column
+  mapX(x) { return Math.round(this.cx() + (x - AUTHOR_W / 2) * this.kx()); }
+  mapY(y) { return Math.round(this.cy() + (y - AUTHOR_H / 2) * this.k()); }
+
+  recentre() {
+    if (!this.sim) return;
+    const d3 = window.d3;
+    const cx = this.cx(), cy = this.cy(), k = this.k();
+    this.sim.force('charge', d3.forceManyBody().strength(-340 * k));
+    this.sim.force('collide', d3.forceCollide().radius((d) => (d.r ?? 8) + (d.hubR ? 46 : 26) * k));
+    // no radial ring: the hubs have their own authored corners, and the ring
+    // fought them — pulling the left pair inward and the whole scene sideways
+    this.sim.force('radial', null);
+    // x and y pull EQUALLY and gently. The old 0.14 on x against 0.06 on y was
+    // the horizontal squashing: it compressed the pentagon sideways while
+    // leaving its height alone, so five people sat in a 130px-wide column.
+    // Hubs are pulled to their OWN authored corner, not to the centre. Pulling
+    // all four shells at one point let the member links drag the whole scene
+    // sideways, which is why the pentagon sat right of centre.
+    // EVERY node is pulled to its own authored spot, hubs and people alike.
+    // Pulling all people at one centre point let the member links drag the
+    // pentagon sideways and compress it; anchoring each person to their corner
+    // of the authored pentagon keeps the figure centred and its width intact.
+    // a steady push out of the reserved corners, so nodes settle clear of them
+    // instead of resting against the wall
+    this.sim.force('nogo', (alpha) => {
+      const zones = this.noGoZones();
+      for (const sn of this.simIndex.values()) {
+        if (sn.fx != null) continue;
+        const m = (sn.hubR ? 30 : 18) + (sn.r || 8);
+        for (const z of zones) {
+          if (sn.x - m < z.x1 && sn.y - m < z.y1 && sn.y + m > z.y0) {
+            const push = 60 * alpha;
+            sn.vx += push;
+            sn.vy += sn.y < (z.y0 + z.y1) / 2 ? -push * 0.5 : push * 0.5;
+          }
+        }
+      }
+    });
+    this.sim.force('x', d3.forceX((d) => (d.homeA ? this.mapX(d.homeA[0]) : cx)).strength((d) => (d.hubR ? 1 : 0.35)));
+    this.sim.force('y', d3.forceY((d) => (d.homeA ? this.mapY(d.homeA[1]) : cy)).strength((d) => (d.hubR ? 1 : 0.35)));
+  }
+
+
+  P(id) { return this.state.people.find((p) => p.id === id) || { id, name: String(id), color: MUTED }; }
+  G(id) { return this.groupList().find((g) => g.id === id); }
+  // groups exist on the devices of their members: one entry per genesis digest
+  groupList() {
+    const m = new Map();
+    if (!this.world) return [];
+    for (const [pid, p] of this.world.P) for (const [gid, g] of p.groups) {
+      let e = m.get(gid);
+      if (!e) { e = { id: gid, label: g.label, members: [], founder: null, genesis: g.genesis }; m.set(gid, e); }
+      if (!e.members.includes(pid)) e.members.push(pid);
+      if (g.role === 'founder') e.founder = pid;
+    }
+    return [...m.values()];
+  }
+  // what ONE device holds: its own groups, each with the roster it was
+  // handed (member anchors) and the anchors it can map to a person — its
+  // own, and the members it admitted itself (the admission records the
+  // relationship it ran over). Every other entry stays an anonymous anchor.
+  localGroupsOf(id) {
+    const p = this.person(id);
+    if (!p) return [];
+    return [...p.groups.values()].map((g) => {
+      const owners = new Map([[g.myMemberCtx.anchor, id]]);
+      for (const [anchor, m] of g.roster) {
+        const who = m.contactAnchor && this.ownerOf(m.contactAnchor);
+        if (who) owners.set(anchor, who);
+      }
+      return { id: g.genesisDigest, label: g.label, genesis: g.genesis, founder: g.role === 'founder' ? id : null, roster: [...g.roster.keys()], owners };
+    });
+  }
+  // groups a device knows it shares with a person: the relationship carries
+  // them (the inviter knows who joined, the invitee who invited them)
+  sharedWith(id, other) {
+    const p = this.person(id);
+    if (!p) return 0;
+    const shared = new Set();
+    for (const [anchor, c] of p.contacts) {
+      if (c.deactivated || this.ownerOf(anchor) !== other) continue;
+      for (const gd of c.sharedGroups || []) if (p.groups.has(gd)) shared.add(gd);
+    }
+    return shared.size;
+  }
+  // edges are what the devices hold: a ceremony tuple on either side is an
+  // encounter edge; the trust act (trustGiven) gives the direction(s); an
+  // introduced-only relationship is the amber via-line
+  edges() {
+    const out = [];
+    if (!this.world) return out;
+    for (const [aid, a] of this.world.P) for (const [anchor, c] of a.contacts) {
+      if (c.deactivated) continue;
+      const bid = this.ownerOf(anchor);
+      if (!bid || bid === aid) continue;
+      const key = [aid, bid].sort().join('|');
+      let e = out.find((x) => x.key === key);
+      if (!e) { e = { key, a: aid, b: bid, trust: 0, verified: false, via: null, dirs: [], anchors: {} }; out.push(e); }
+      e.anchors[bid] = anchor;                       // the pair anchor of bid in this relationship
+      if (c.provenance === 'ceremony') e.verified = true;
+      else if (!e.via) e.via = c.via || c.mediator || 'introduced';
+      if (c.trustGiven && !e.dirs.includes(aid)) e.dirs.push(aid);
+    }
+    for (const e of out) {
+      if (e.dirs.length === 2) e.trust = 2;
+      else if (e.dirs.length === 1) { e.trust = 1; e.dir = e.dirs[0]; }
+      if (e.verified) delete e.via;
+    }
+    return out;
+  }
+  spot(gid) {
+    const key = this.world && this.world.groupSpot.get(gid);
+    const s = key && GROUP_SPOTS[key];
+    if (s) return [this.mapX(s[0]), this.mapY(s[1])];
+    return [this.cx() + (Math.random() * 300 - 150) * this.k(), this.cy() + (Math.random() * 260 - 130) * this.k()];
+  }
+  spotA(gid) { const key = this.world && this.world.groupSpot.get(gid); return (key && GROUP_SPOTS[key]) || null; }
+
+  start(name) {
+    const p = PENTAGON[name];
+    if (p) return [this.mapX(p[0]), this.mapY(p[1])];
+    const i = this.state.people.findIndex((q) => q.id === name);
+    const n = Math.max(this.state.people.length, 3);
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+    const r = 195 * this.k();
+    return [this.cx() + r * Math.cos(a), this.cy() + r * Math.sin(a)];
+  }
+
+
+  // ── scene: what the current camera can show ───────────────────────────
+  buildScene() {
+    const { view, people, open, focus } = this.state;
+    const edges = this.edges();
+    const groups = this.groupList();
+    const nodes = [];
+    const out = [];
+    let note = '';
+
+    const person = (p, r, label, sub, pinned) => ({
+      id: 'p:' + p.id, r, color: p.color, label, sub, pinned,
+      at: this.start(p.id), home: PENTAGON[p.id] || null,
+      open: open.includes(p.id), focused: p.id === focus, person: p.id,
+    });
+    const hub = (g) => ({ id: 'g:' + g.id, r: 24, hub: true, label: g.label, at: this.spot(g.id), home: this.spotA(g.id), group: g.id });
+
+    if (view === 'outside') {
+      note = 'Every credential ever issued, in one place. Pairs never compose into a graph — islands, always. No anchor resolves to a person.';
+      edges.forEach((e, i) => {
+        const [sx, sy] = [170 + (i % 4) * 200, 150 + Math.floor(i / 4) * 220];
+        nodes.push({ id: 'n:' + i + ':a', r: 6, color: null, sub: abbr(e.anchors[e.a]), at: [sx - 26, sy] });
+        nodes.push({ id: 'n:' + i + ':b', r: 6, color: null, sub: abbr(e.anchors[e.b]), at: [sx + 26, sy] });
+        out.push({ id: 'i:' + i, a: 'n:' + i + ':a', b: 'n:' + i + ':b', cls: '' });
+      });
+      groups.forEach((g) => {
+        nodes.push(hub(g));
+        g.members.forEach((m) => {
+          const gp = this.person(m) && this.person(m).groups.get(g.id);
+          nodes.push({ id: 'a:' + g.id + ':' + m, r: 6, color: null, sub: abbr(gp && gp.myMemberCtx ? gp.myMemberCtx.anchor : m), at: this.spot(g.id) });
+          out.push({ id: 'm:' + g.id + ':' + m, a: 'g:' + g.id, b: 'a:' + g.id + ':' + m, member: true, orbit: true });
+        });
+      });
+      return { nodes, edges: out, note };
+    }
+
+    if (view !== 'omniscient') {
+      const me = view;
+      const meP = this.P(me);
+      note = 'Only what ' + meP.name + ' can prove from documents on their device.';
+      nodes.push(person(meP, 12, meP.name + ' (me)', 'holds ' + this.holdCount(me) + ' documents', [this.cx(), this.cy()]));
+      const peers = edges.filter((e) => e.a === me || e.b === me).map((e) => (e.a === me ? e.b : e.a));
+      peers.forEach((id) => {
+        const shared = this.sharedWith(me, id);
+        nodes.push(person(this.P(id), 9, this.P(id).name + (shared ? ' · ' + shared + ' shared' : ''), ''));
+      });
+      edges.forEach((e, i) => { if (e.a === me || e.b === me) this.sceneEdge(out, e, i); });
+      this.localGroupsOf(me).forEach((g) => {
+        nodes.push(hub(g));
+        g.roster.forEach((anchor) => {
+          const who = g.owners.get(anchor);
+          if (who === me || peers.includes(who)) {
+            out.push({ id: 'm:' + g.id + ':' + who, a: 'g:' + g.id, b: 'p:' + who, member: true });
+          } else {
+            nodes.push({ id: 'a:' + g.id + ':' + anchor, r: 6, color: null, sub: abbr(anchor), at: this.spot(g.id) });
+            out.push({ id: 'm:' + g.id + ':' + anchor, a: 'g:' + g.id, b: 'a:' + g.id + ':' + anchor, member: true, orbit: true });
+          }
+        });
+      });
+      return { nodes, edges: out, note };
+    }
+
+    note = this.state.ready
+      ? 'What actually happened — no device holds this view. Drag a node onto another to verify, onto a group to join.'
+      : this.state.seedNote;
+    people.forEach((p) => nodes.push(person(p, 10, p.name, '')));
+    groups.forEach((g) => {
+      nodes.push(hub(g));
+      g.members.forEach((m) => out.push({ id: 'm:' + g.id + ':' + m, a: 'g:' + g.id, b: 'p:' + m, member: true }));
+    });
+    edges.forEach((e, i) => this.sceneEdge(out, e, i));
+    return { nodes, edges: out, note };
+  }
+
+  sceneEdge(out, e, i) {
+    const key = e.a + '-' + e.b + '-' + i;
+    if (e.via) { out.push({ id: 'v:' + key, a: 'p:' + e.a, b: 'p:' + e.b, cls: 'vialine' }); return; }
+    out.push({ id: 'e:' + key, a: 'p:' + e.a, b: 'p:' + e.b, cls: '' });
+    if (e.trust === 2) out.push({ id: 't:' + key, a: 'p:' + e.a, b: 'p:' + e.b, cls: 'trust2' });
+    else if (e.trust === 1) {
+      const from = e.dir === e.a ? e.a : e.b;
+      const to = e.dir === e.a ? e.b : e.a;
+      out.push({ id: 't:' + key, a: 'p:' + from, b: 'p:' + to, cls: 'trust1', arrow: true });
+    }
+  }
+
+  // ── sim + dom sync, ported from graph.html ────────────────────────────
+  syncGraph() {
+    if (!this.sim || !this.svg) return;
+    this.applyView();
+    this.recentre();
+    this.scene = this.buildScene();
+    const scene = this.scene;
+
+    for (const n of scene.nodes) {
+      let sn = this.simIndex.get(n.id);
+      if (!sn) {
+        const at = n.at || [this.cx(), this.cy()];
+        sn = { id: n.id, x: at[0] + (Math.random() - 0.5) * 8, y: at[1] + (Math.random() - 0.5) * 8 };
+        this.simIndex.set(n.id, sn);
+      }
+      sn.r = n.r;
+      sn.hubR = n.hub ? 1 : 0;
+      // A node remembers its spot in AUTHORED coordinates, not in stage pixels:
+      // stage pixels captured at build time went stale as soon as the stage was
+      // re-measured, which left the whole figure sitting right of centre.
+      if (n.home) { sn.homeA = n.home; }
+      if (n.pinned) { sn.fx = n.pinned[0]; sn.fy = n.pinned[1]; }
+      else if (!sn.dragged) { sn.fx = null; sn.fy = null; }
+    }
+    for (const id of [...this.simIndex.keys()]) {
+      if (!scene.nodes.some((n) => n.id === id)) this.simIndex.delete(id);
+    }
+
+    const links = [];
+    for (const e of scene.edges) {
+      if (!this.simIndex.has(e.a) || !this.simIndex.has(e.b)) continue;
+      const k = this.k();
+      // person↔person bands use the horizontal scale: with the plain uniform k
+      // they were shorter than the authored pentagon's own edges and pulled the
+      // figure inward, so five people sat in a narrow column
+      let dist = 170 * this.kx(), str = 0.5;
+      // anchor dots orbit their hub tightly; hub↔person bands are long and
+      // soft so they cannot drag hubs into the person shell
+      if (e.member) { dist = (e.orbit ? 64 : 250) * k; str = e.orbit ? 0.6 : 0.08; }
+      links.push({ source: e.a, target: e.b, dist, str });
+    }
+    this.sim.nodes([...this.simIndex.values()]);
+    this.sim.force('link').links(links);
+    // Only a changed scene reheats the field. Reheating on every setState made
+    // the world clock — which ticks four times a second — twitch the graph.
+    const sig = scene.nodes.map((n) => n.id).join(',') + '|'
+      + scene.edges.map((e) => e.a + '-' + e.b + ':' + (e.member ? 'm' : '') + (e.orbit ? 'o' : '')).join(',')
+      // the corridor belongs in the signature: when it moves, the force centre
+      // moves with it, and a cold sim would leave the cluster where it was
+      + '|' + this.k().toFixed(3) + '|' + this.corridor().cx + '|' + this.corridor().w + '|' + this.state.view;
+    if (sig !== this.simSig) {
+      this.simSig = sig;
+      // the force closures capture cx/cy/k, so they are rebuilt whenever the
+      // signature moves — otherwise a leaning corridor never takes effect
+      this.recentre();
+      this.sim.alpha(0.8).restart();
+    }
+    this.syncDom();
+  }
+
+  el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  syncDom() {
+    const keep = new Set();
+    for (const e of this.scene.edges) {
+      const id = 'E:' + e.id;
+      keep.add(id);
+      let l = this.dom.get(id);
+      if (!l) { l = this.el('line', {}); this.layers.edges.appendChild(l); this.dom.set(id, l); }
+      l.setAttribute('class', 'gedge' + (e.member ? ' memberline' : '') + (e.cls ? ' ' + e.cls : ''));
+      if (e.arrow) l.setAttribute('marker-end', 'url(#wbArrowT)');
+      else l.removeAttribute('marker-end');
+      l.__a = e.a; l.__b = e.b;
+    }
+    for (const n of this.scene.nodes) {
+      keep.add(n.id);
+      let g = this.dom.get(n.id);
+      if (!g) {
+        g = this.el('g', { class: 'gnode' });
+        g.appendChild(this.el('circle', { r: n.r }));
+        g.appendChild(this.el('text', { 'text-anchor': 'middle', y: 22, 'font-weight': 700 }));
+        g.appendChild(this.el('text', { class: 'anchortag', 'text-anchor': 'middle', y: 33 }));
+        this.layers.nodes.appendChild(g);
+        this.dom.set(n.id, g);
+        this.attachInteraction(g);
+      }
+      g.__id = n.id;
+      g.__node = n;
+      g.classList.toggle('ghub', !!n.hub);
+      g.classList.toggle('sel', !!n.focused);
+      const c = g.querySelector('circle');
+      c.setAttribute('r', n.r);
+      if (!n.hub) {
+        c.setAttribute('fill', n.color ?? 'transparent');
+        c.setAttribute('stroke', n.open ? (n.focused ? PRIMARY : '#e2e8f0') : (n.color ?? MUTED));
+        c.setAttribute('stroke-width', n.color ? (n.open ? 2.5 : 0) : 1.6);
+        if (!n.color) c.setAttribute('stroke-opacity', '.7');
+      } else { c.removeAttribute('fill'); c.removeAttribute('stroke'); }
+      g.children[1].textContent = n.label ?? '';
+      g.children[1].setAttribute('y', n.r + 15);
+      g.children[2].textContent = n.sub ?? '';
+      g.children[2].setAttribute('y', n.r + 26);
+    }
+    for (const [id, node] of this.dom) if (!keep.has(id)) { node.remove(); this.dom.delete(id); }
+    this.ticked();
+  }
+
+  posOf(id) { return this.simIndex.get(id) || { x: this.cx(), y: this.cy() }; }
+
+  // The two chrome blocks on the left edge, in graph coordinates: camera chips
+  // plus the view note at the top, the colour key at the bottom. Both are
+  // pinned to the stage, so they are stated here as stage geometry.
+  noGoZones() {
+    const shh = this.stageH();
+    return [
+      { x0: 0, x1: 250, y0: 0, y1: 118 },
+      { x0: 0, x1: 214, y0: shh - 74, y1: shh },
+    ];
+  }
+
+  ticked() {
+    // no node may leave the stage, and the wall must kill velocity or the
+    // simulation keeps pushing and nodes pile up on it
+    // the x-walls ARE the corridor edges, symmetric about the same cx the
+    // forces use — that is what keeps the layout centred instead of piling
+    const cor = this.corridor(), shh = this.stageH();
+    const loX = cor.cx - cor.w / 2, hiXbase = cor.cx + cor.w / 2;
+    for (const sn of this.simIndex.values()) {
+      if (sn.fx != null) continue;
+      const pad = (sn.hubR ? 30 : 18) + (sn.r || 8);
+      const lo = loX + pad, hi = hiXbase - pad;
+      const vpad = (sn.hubR ? 78 : 34) + (sn.r || 8);
+      const hiY = shh - vpad;
+      if (sn.y < vpad) { sn.y = vpad; sn.vy = Math.abs(sn.vy || 0) * 0.3; }
+      else if (sn.y > hiY) { sn.y = hiY; sn.vy = -Math.abs(sn.vy || 0) * 0.3; }
+      if (sn.x < lo) { sn.x = lo; sn.vx = Math.abs(sn.vx || 0) * 0.3; }
+      else if (sn.x > hi) { sn.x = hi; sn.vx = -Math.abs(sn.vx || 0) * 0.3; }
+      // The camera overlay (top left) and the colour key (bottom left) are
+      // reserved: a node pushed into one is nudged out along the shorter axis,
+      // so the chrome always stays readable over the graph.
+      for (const z of this.noGoZones()) {
+        const m = pad;
+        if (sn.x - m < z.x1 && sn.x + m > z.x0 && sn.y - m < z.y1 && sn.y + m > z.y0) {
+          const outRight = z.x1 - sn.x + m;
+          const outUp = sn.y - z.y0 + m;
+          const outDown = z.y1 - sn.y + m;
+          if (outRight <= Math.min(outUp, outDown)) { sn.x = z.x1 + m; sn.vx = Math.abs(sn.vx || 0) * 0.3; }
+          else if (outUp <= outDown) { sn.y = z.y0 - m; sn.vy = -Math.abs(sn.vy || 0) * 0.3; }
+          else { sn.y = z.y1 + m; sn.vy = Math.abs(sn.vy || 0) * 0.3; }
+        }
+      }
+    }
+    for (const [id, g] of this.dom) {
+      if (g.tagName === 'line') {
+        const a = this.posOf(g.__a), b = this.posOf(g.__b);
+        g.setAttribute('x1', a.x); g.setAttribute('y1', a.y);
+        g.setAttribute('x2', b.x); g.setAttribute('y2', b.y);
+      } else if (g.tagName === 'g') {
+        const p = this.posOf(g.__id ?? id);
+        g.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+      }
+    }
+    this.drawPackets();
+  }
+
+  svgPoint(ev) {
+    const pt = this.svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(this.svg.getScreenCTM().inverse());
+  }
+
+  attachInteraction(g) {
+    g.addEventListener('pointerdown', (ev) => {
+      const node = g.__node;
+      const sn = this.simIndex.get(g.__id);
+      if (!sn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      let moved = false;
+      let last = this.svgPoint(ev);
+      sn.dragged = true;
+      const hitAt = (p, wantHub) => {
+        for (const n of this.scene.nodes) {
+          if (!!n.hub !== wantHub || n.id === node.id) continue;
+          const q = this.posOf(n.id);
+          if (Math.hypot(q.x - p.x, q.y - p.y) < (n.hub ? n.r + 14 : n.r + 20)) return n;
+        }
+        return null;
+      };
+      const paint = (p) => {
+        const target = node.person ? (hitAt(p, true) || hitAt(p, false)) : null;
+        for (const [, el] of this.dom) el.classList && el.classList.remove('droptarget');
+        if (target) this.dom.get(target.id)?.classList.add('droptarget');
+        return target;
+      };
+      const onMove = (mv) => {
+        const p = this.svgPoint(mv);
+        moved = true; last = p;
+        sn.fx = p.x; sn.fy = p.y;
+        this.sim.alphaTarget(0.25).restart();
+        paint(p);
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        this.sim.alphaTarget(0);
+        for (const [, el] of this.dom) el.classList && el.classList.remove('droptarget');
+        if (!moved) {
+          sn.dragged = false;
+          if (!node.pinned) { sn.fx = null; sn.fy = null; }
+          if (node.person) this.focusWin(node.person);
+          return;
+        }
+        const target = paint(last);
+        if (target && target.group) this.joinGroup(node.person, target.group);
+        else if (target && target.person) this.runAct('verify', node.person, target.person);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
+  // ── deliveries drawn along the live edge ──────────────────────────────
+  fly(from, to, fill, dur) {
+    this.packets.push({ a: 'p:' + from, b: 'p:' + to, fill, dur: dur * 1000, t0: Date.now() });
+    if (!this.pkTimer) this.pkTimer = setInterval(() => this.drawPackets(), 40);
+  }
+
+  drawPackets() {
+    if (!this.layers) return;
+    const now = Date.now();
+    this.packets = this.packets.filter((p) => now - p.t0 < p.dur + 120);
+    if (!this.packets.length) {
+      this.layers.packets.textContent = '';
+      if (this.pkTimer) { clearInterval(this.pkTimer); this.pkTimer = null; }
+      return;
+    }
+    while (this.layers.packets.childElementCount < this.packets.length) {
+      this.layers.packets.appendChild(this.el('circle', { r: 5.5, stroke: '#141821', 'stroke-width': 1.5 }));
+    }
+    while (this.layers.packets.childElementCount > this.packets.length) this.layers.packets.lastChild.remove();
+    this.packets.forEach((p, i) => {
+      const a = this.posOf(p.a), b = this.posOf(p.b);
+      const k = Math.min(1, (now - p.t0) / p.dur);
+      const c = this.layers.packets.children[i];
+      c.setAttribute('cx', a.x + (b.x - a.x) * k);
+      c.setAttribute('cy', a.y + (b.y - a.y) * k);
+      c.setAttribute('fill', p.fill);
+    });
+  }
+
+  // ── window geometry (free stage cascade) ──────────────────────────────
+  // A phone screen has a minimum readable height: the ceremony screens need
+  // ~300px. The window is allowed to run past the stage bottom rather than be
+  // squeezed — the wire bar is draggable, so the user can always make room.
+  // The cascade's row stagger is reserved BEFORE the window height is taken,
+  // so the placement clamp can never eat it and stack two title bars.
+  static ROW_STEP = 40;
+  static STAGGER = 48;
+
+  // Device height is measured against the stage as if the wire were closed:
+  // dragging the wire up must not squeeze the phones — they simply slide
+  // behind it, which is what the layering already allows.
+  // measured off the VIEWPORT, not the stage: the stage is re-measured
+  // asynchronously while the wire moves, which made the phones breathe
+  // measured off the VIEWPORT minus the wire band at its DEFAULT height: the
+  // stage is re-measured asynchronously while the wire moves, which made the
+  // phones breathe, but a phone must still FIT the stage at rest — otherwise a
+  // focused device can never be pulled fully into view.
+  // …and the phone is short enough that the LEFT flank, which starts below the
+  // camera overlay, still fits the stage. Without this the left berth's top was
+  // clamped up under the overlay and covered the camera switcher.
+  roomH() {
+    const byViewport = this.state.vh - this.state.stageTop - 112;
+    const byLeftFlank = this.state.H - 120 + WIN_TOP + 8;
+    return Math.max(240, Math.min(byViewport, byLeftFlank));
+  }
+  avail() { return this.roomH() - WIN_TOP - 8 - CHROME_H; }
+  canFull() { return true; }
+  screenH() { return Math.round(clamp(150, this.avail(), 430)); }
+  winH() { return CHROME_H + this.screenH(); }
+  // A device may be pushed down until only its title bar is left — the rest
+  // slides BEHIND the wire and the fault panel, which stay on top.
+  minTop() { return Math.round(6 - this.state.stageTop); }
+  maxTop() { return Math.max(4, Math.round(this.state.H - 30)); }
+  gridMaxTop() { return Math.max(4, this.state.H - this.winH() - 4); }
+
+  // A device gets its position exactly once, when it opens. Positions of
+  // devices already on the stage are never recomputed — that recomputation
+  // was what made open windows jump.
+  // Fixed berths on the flanks of the graph, filled corner by corner so left
+  // and right stay even: right-top, left-top, right-bottom, left-bottom. The
+  // list does not depend on how many are open, so nothing drifts when one
+  // opens or closes. Only past four does the cascade take over.
+  // Devices alternate right, left, right, left. The FIRST on a flank takes the
+  // clean berth; a SECOND on the same flank overlaps it in the screenshot's
+  // manner — a step inward and down, so the one underneath keeps its title bar
+  // and leading edge. The left column stops short of the camera overlay and
+  // the legend, which own the left edge.
+  berths() {
+    const W = this.state.W;
+    // flush to the right edge: the 96px kept clear for the ＋ button was width
+    // the graph could have had, and the button sits below the berth anyway
+    const right = Math.round(W - FULL_W - 20);
+    const left = 24;
+    // the same 20px gap to the top bar as to the right edge
+    const top = 20;
+    // the left flank starts below the camera overlay, which owns the top left
+    const leftTop = 120;
+    const step = { x: 92, y: 104 };
+    return [
+      { x: right, y: top },
+      { x: left, y: leftTop },
+      { x: right - step.x, y: Math.min(this.maxTop(), top + step.y) },
+      { x: left + step.x, y: Math.min(this.maxTop(), leftTop + 88) },
+    ];
+  }
+
+  berthsFlank() {
+    const W = this.state.W;
+    const right = Math.round(W - FULL_W - 20);
+    const left = 20;
+    // the camera overlay and the legend own the left edge and sit ABOVE the
+    // device layer, so the left column starts below the overlay — otherwise
+    // the overlay would cover the left phone's title bar and block its drag
+    // the same 20px gap to the top bar as to the right edge
+    const top = 20;
+    const leftTop = 156;
+    // at this stage height two full rows cannot both clear the wire; the lower
+    // berth keeps about two thirds of the phone above it and slides the rest behind
+    const bottom = Math.max(top + 40, Math.min(this.maxTop(), Math.round(this.state.H - this.winH() * 0.55)));
+    return [
+      { x: right, y: top }, { x: left, y: leftTop },
+      // the left column keeps the SAME row spread as the right one, just
+      // shifted down past the overlay, so neither pair stacks on itself
+      { x: right, y: Math.min(this.maxTop(), bottom) }, { x: left, y: Math.min(this.maxTop(), leftTop + (bottom - top)) },
+    ];
+  }
+
+  // A berth is clamped into the stage exactly as click-to-focus clamps: the
+  // authored tier tops assume a stage taller than the phone, and on a short
+  // stage the lower tier would otherwise leave a device clipped behind the
+  // wire from the moment it opens. The horizontal step still tells the tiers
+  // apart when their tops collapse onto each other.
+  berthAt(i) {
+    const bs = this.berths();
+    const b = bs[i] || bs[bs.length - 1];
+    return {
+      x: Math.round(clamp(4, b.x, Math.max(4, this.state.W - FULL_W - 4))),
+      y: Math.round(clamp(4, b.y, this.gridMaxTop())),
+    };
+  }
+
+  // A device HOLDS its berth index for as long as it is open. Matching by
+  // position instead meant that dragging the first phone away from its berth
+  // made that berth look free, so the next device opened on top of it rather
+  // than on the opposite flank.
+  freeBerth(open, berth) {
+    const used = new Set(open.map((o) => berth[o]).filter((i) => i != null));
+    for (let i = 0; i < 4; i++) if (!used.has(i)) return i;
+    return null;
+  }
+
+  freeSlot(taken) {
+    const W = this.state.W;
+    const stepX = FULL_W + 14;
+    const step = Component.ROW_STEP;
+    // 96px of right clearance keeps the cascade out of the ＋ button's column
+    const cols = Math.max(1, Math.floor((W - 104) / stepX));
+    const rows = Math.max(1, Math.floor((this.gridMaxTop() - 4) / step) + 1);
+    for (let i = 0; i < cols * rows; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = Math.round(Math.max(8, W - FULL_W - 96 - col * stepX - row * 22));
+      const y = 4 + row * step;
+      // a new window never lands within a title bar of an existing one
+      if (!taken.some((p) => Math.abs(p.x - x) < 40 && Math.abs(p.y - y) < 36)) return { x, y };
+    }
+    // past the clean grid it becomes a true cascade: each further window steps
+    // down-left from the last, so every title bar keeps its right edge — and
+    // with it its drift, collapse and close buttons — exposed
+    const last = taken[taken.length - 1] || { x: W - FULL_W - 96, y: 4 };
+    return {
+      x: Math.max(Math.round(W * 0.28), Math.round(last.x - 34)),
+      y: clamp(4, last.y + 36, this.gridMaxTop()),
+    };
+  }
+
+  focusWin(id) {
+    this.setState((s) => {
+      if (s.open.includes(id)) {
+        // clicking an already-open device raises it AND pulls it fully into
+        // view, in case a previous drag pushed it behind the wire or off an edge
+        const p = s.pos[id];
+        const pulled = p ? {
+          x: clamp(4, p.x, Math.max(4, s.W - FULL_W - 4)),
+          y: clamp(4, p.y, this.gridMaxTop()),
+        } : null;
+        return {
+          focus: id,
+          collapsed: { ...s.collapsed, [id]: false },
+          pos: pulled ? { ...s.pos, [id]: pulled } : s.pos,
+        };
+      }
+      // A ceremony needs exactly two devices, and two full phones are what
+      // fits beside the graph. Opening a third drops the one longest untouched.
+      const cap = this.cap();
+      let open = s.open;
+      const pos = { ...s.pos };
+      // The newcomer INHERITS the slot of the device it replaces, so swapping
+      // which person is shown never moves the window. One left of the graph,
+      // one right; both stay put through every change of camera and occupant.
+      let inherited = null;
+      let inheritedBerth = null;
+      const berth = { ...s.berth };
+      if (open.length >= cap) {
+        const drop = open.filter((o) => o !== s.focus).slice(0, open.length - cap + 1);
+        const victims = drop.length ? drop : open.slice(0, open.length - cap + 1);
+        const last = victims[victims.length - 1];
+        inherited = pos[last] || null;
+        inheritedBerth = berth[last] ?? null;
+        open = open.filter((o) => !victims.includes(o));
+        victims.forEach((o) => { delete pos[o]; delete berth[o]; });
+      }
+      const idx = inheritedBerth != null ? inheritedBerth : this.freeBerth(open, berth);
+      berth[id] = idx;
+      return {
+        open: [...open, id],
+        focus: id,
+        collapsed: { ...s.collapsed, [id]: false },
+        berth,
+        pos: { ...pos, [id]: inherited || (idx != null ? this.berthAt(idx) : this.freeSlot(open.map((o) => pos[o]).filter(Boolean))) },
+      };
+    });
+  }
+
+  closeWin(id) {
+    this.setState((s) => {
+      const open = s.open.filter((o) => o !== id);
+      const berth = { ...s.berth };
+      delete berth[id];
+      return { open, berth, focus: s.focus === id ? open[open.length - 1] ?? null : s.focus };
+    });
+  }
+
+  startDrag(id, ev) {
+    if (ev.target.tagName === 'BUTTON') return;
+    // grabbing the title bar raises without pulling in: the whole point of a
+    // drag is to put the phone where the user wants it, wire included
+    this.setState((s) => ({ focus: id, collapsed: { ...s.collapsed, [id]: false } }));
+    // a drag must not turn into a text selection: suppress the native default,
+    // gag selectstart for the duration, and drop whatever got selected already
+    ev.preventDefault();
+    ev.stopPropagation();
+    const p0 = this.state.pos[id] || { x: 40, y: WIN_TOP };
+    const base = { x: p0.x, y: p0.y };
+    const sx = ev.clientX, sy = ev.clientY;
+    const noSelect = (e) => e.preventDefault();
+    document.addEventListener('selectstart', noSelect);
+    const prev = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    const sel = window.getSelection && window.getSelection();
+    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    const move = (e) => {
+      this.setState((s) => ({
+        pos: { ...s.pos, [id]: { x: Math.max(4, base.x + e.clientX - sx), y: Math.max(4, base.y + e.clientY - sy) } },
+      }));
+    };
+    const up = () => {
+      document.removeEventListener('selectstart', noSelect);
+      document.body.style.userSelect = prev;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+
+  // ── the QR ceremony · encounter-scan@0.25 — the REAL forms ────────────
+  qrOf(payload) {
+    const Q = typeof window !== 'undefined' ? window.qrcode : null;
+    if (!Q) return '';
+    try {
+      const q = Q(0, 'L');
+      q.addData(JSON.stringify(payload));
+      q.make();
+      return q.createDataURL(3, 6);
+    } catch (e) { return ''; }
+  }
+
+  // fresh-always: every showing derives a fresh pair anchor and challenge
+  // (ceremony.show) — the QR carries the signed contact card itself
+  async showCode(id) {
+    if (!this.lib) return;
+    const P = this.person(id);
+    const sh = await this.lib.E.show(P, this.now(id));
+    if (sh.error) return;
+    this.setState((s) => ({
+      shows: { ...s.shows, [id]: { ctx: sh.ctx, ch: sh.ch, card: sh.card, qr: this.qrOf(sh.card) } },
+      appView: { ...s.appView, [id]: 'ready' },
+      focus: id,
+    }));
+  }
+
+  closeVerify(id) {
+    this.setState((s) => {
+      const shows = { ...s.shows };
+      delete shows[id];
+      const scan = { ...s.scan };
+      delete scan[id];
+      return { shows, appView: { ...s.appView, [id]: 'list' }, scan };
+    });
+  }
+
+  startScan(id) {
+    const target = this.state.open.find((o) => o !== id && this.state.shows[o]);
+    if (!target) {
+      this.setState((s) => ({ appView: { ...s.appView, [id]: 'ready' }, scanMiss: { ...s.scanMiss, [id]: true } }));
+      setTimeout(() => this.setState((s) => ({ scanMiss: { ...s.scanMiss, [id]: false } })), 3200);
+      return;
+    }
+    this.setState((s) => ({
+      appView: { ...s.appView, [id]: 'scanner' },
+      scan: { ...s.scan, [id]: { peer: target } },
+    }), () => {
+      requestAnimationFrame(() => this.animScan(id, target));
+      clearTimeout(this.captureTimer);
+      this.captureTimer = setTimeout(() => this.capture(id), 2600);
+    });
+  }
+
+  animScan(scanId, showId) {
+    const a = this.winEl[scanId];
+    const b = this.winEl[showId];
+    const hole = this.viewfinder[scanId];
+    if (!a || !b || !hole) return;
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const rh = hole.getBoundingClientRect();
+    const qr = b.querySelector('img');
+    const rq = (qr || b).getBoundingClientRect();
+    const host = a.parentElement.getBoundingClientRect();
+    const cx = host.left + host.width / 2;
+    const cy = host.top + host.height / 2;
+    const ctr = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    const ac = ctr(ra), bc = ctr(rb), hc = ctr(rh), qc = ctr(rq);
+    const tiltB = bc.x < ac.x ? 45 : -45;
+    const tiltA = -tiltB;
+    // the showing window centres its code on the stage centre
+    const bd = { x: cx - qc.x, y: cy - qc.y };
+    // the scanner lands with its hole exactly there
+    const ad = { x: cx - hc.x, y: cy - hc.y };
+    const arc = (d, lift, tilt) => [0, 0.55, 1].map((t) => ({
+      transform: 'translate(' + (d.x * t) + 'px,' + (d.y * t - Math.sin(t * Math.PI) * lift) + 'px) rotate(' + (tilt * t) + 'deg)',
+    }));
+    // The hole must be the SAME SHAPE as the viewfinder — a circle read as a
+    // camera lens, which the viewfinder is not. An even-odd SVG path punches
+    // the rounded square exactly.
+    const hw = Math.round(rh.width), hh = Math.round(rh.height), hr = 12;
+    const hx = Math.round(hc.x - rh.width / 2 - ra.left), hy = Math.round(hc.y - rh.height / 2 - ra.top);
+    const pw = Math.ceil(ra.width), ph = Math.ceil(ra.height);
+    const holePath = 'M' + hx + ' ' + (hy + hr)
+      + 'a' + hr + ' ' + hr + ' 0 0 1 ' + hr + ' -' + hr
+      + 'h' + (hw - 2 * hr)
+      + 'a' + hr + ' ' + hr + ' 0 0 1 ' + hr + ' ' + hr
+      + 'v' + (hh - 2 * hr)
+      + 'a' + hr + ' ' + hr + ' 0 0 1 -' + hr + ' ' + hr
+      + 'h-' + (hw - 2 * hr)
+      + 'a' + hr + ' ' + hr + ' 0 0 1 -' + hr + ' -' + hr + 'Z';
+    const maskSvg = "url(\"data:image/svg+xml;utf8,"
+      + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + pw + '" height="' + ph + '">'
+        + '<path fill="#fff" fill-rule="evenodd" d="M0 0h' + pw + 'v' + ph + 'H0Z ' + holePath + '"/></svg>')
+      + "\")";
+    // the lift is STATE, not an inline write: z-index is written by the
+    // template, so mutating it here would leave React's model unchanged and
+    // the stacking permanently lost. mask is ours — React never sets it.
+    this.setState({ flying: { scan: scanId, show: showId } });
+    a.style.mask = maskSvg;
+    a.style.maskSize = pw + 'px ' + ph + 'px';
+    a.style.maskRepeat = 'no-repeat';
+    a.style.webkitMask = maskSvg;
+    a.style.webkitMaskSize = a.style.maskSize;
+    a.style.webkitMaskRepeat = 'no-repeat';
+    const ease = 'cubic-bezier(.35,0,.25,1)';
+    this.scanAnim = {
+      els: [a, b],
+      anims: [
+        b.animate(arc(bd, 70, tiltB), { duration: 950, easing: ease, fill: 'forwards' }),
+        a.animate(arc(ad, 140, tiltA), { duration: 2150, easing: ease, fill: 'forwards' }),
+      ],
+    };
+  }
+
+  returnFlight() {
+    const sa = this.scanAnim;
+    this.scanAnim = null;
+    if (!sa) { this.setState({ flying: null }); return; }
+    let pending = sa.els.length;
+    sa.els.forEach((el) => {
+      let from = 'none';
+      try { from = getComputedStyle(el).transform; } catch (e) { from = 'none'; }
+      sa.anims.forEach((an) => { try { an.cancel(); } catch (e) {} });
+      el.style.mask = '';
+      el.style.maskSize = '';
+      el.style.maskRepeat = '';
+      el.style.webkitMask = '';
+      el.style.webkitMaskSize = '';
+      el.style.webkitMaskRepeat = '';
+      const back = el.animate(
+        [{ transform: from === 'none' ? 'none' : from }, { transform: 'none' }],
+        { duration: 620, easing: 'cubic-bezier(.35,0,.25,1)', fill: 'forwards' },
+      );
+      back.onfinish = () => {
+        try { back.cancel(); } catch (e) {}
+        pending -= 1;
+        if (pending <= 0) this.setState({ flying: null });
+      };
+    });
+  }
+
+
+  // the camera recognizes the code — nothing is on the wire yet. A DISPLAYED
+  // card leads to the confirm screen; a SENT card (the peer's optical
+  // fallback) is the ceremony-level optical leg (Encounter 5.8) and is
+  // taken up directly: record created, the confirmations follow over the network.
+  async capture(id) {
+    const scan = this.state.scan[id];
+    if (!scan || this.state.appView[id] !== 'scanner') { this.returnFlight(); return; }
+    const show = this.state.shows[scan.peer];
+    if (!show) { this.returnFlight(); this.closeVerify(id); return; }
+    if (show.fallback) {
+      const P = this.person(id);
+      const r = await this.lib.E.captureSentCard(P, show.card, this.now(id));
+      this.returnFlight();
+      this.setState((s) => {
+        const scanx = { ...s.scan }; delete scanx[id];
+        return { scan: scanx, appView: { ...s.appView, [id]: 'list' } };
+      });
+      if (r.recorded) {
+        // the counter-step: issued now, its document waits for the bundle thread (4.3)
+        await this.lib.E.counter(P, show.card.anchor, this.now(id));
+      }
+      this.bump();
+      return;
+    }
+    this.setState((s) => ({
+      appView: { ...s.appView, [id]: 'confirm' },
+      scan: { ...s.scan, [id]: { peer: scan.peer, card: show.card } },
+    }), () => this.returnFlight());
+  }
+
+  scanCancel(id) {
+    clearTimeout(this.captureTimer);
+    this.returnFlight();
+    this.setState((s) => {
+      const scan = { ...s.scan };
+      delete scan[id];
+      return { appView: { ...s.appView, [id]: s.shows[id] ? 'ready' : 'list' }, scan };
+    });
+  }
+
+  // the deliberate confirmation: ceremony.scan records the enactment and
+  // ISSUES the step credential; the encounter-bundle travels the channel;
+  // the other device decides for itself and answers with its counter-step
+  async confirmVerify(id) {
+    const scan = this.state.scan[id];
+    if (!scan || !scan.card || !this.lib) return;
+    const P = this.person(id);
+    const r = await this.lib.E.scan(P, scan.card, this.now(id));
+    if (r.error) {
+      this.setState((s) => ({ appView: { ...s.appView, [id]: 'ready' }, scanMiss: { ...s.scanMiss, [id]: true } }));
+      this.log(id, 'scan refused: ' + r.error);
+      setTimeout(() => this.setState((s) => ({ scanMiss: { ...s.scanMiss, [id]: false } })), 3200);
+      return;
+    }
+    this.enc[id] = { peer: scan.peer, peerAnchor: scan.card.anchor, sentCard: r.sentCard, threadId: r.threadId, acked: false };
+    this.setState((s) => ({ appView: { ...s.appView, [id]: 'waiting' } }));
+    this.bump();
+    this.guard(this.deliver(id, scan.peer, 'encounter-bundle/0.1', r.env));
+    // ack-wait (Delivery §7): the RECOMMENDED automatic switch to the optical leg
+    setTimeout(() => this.switchOptical(id), 2600);
+  }
+
+  // Encounter 5.8: the sent card becomes a code — a carrier switch, never a
+  // ceremony switch. Only while still waiting and no valid ack arrived.
+  switchOptical(id) {
+    const e = this.enc[id];
+    if (!e || e.acked || this.state.appView[id] !== 'waiting') return;
+    this.setState((s) => ({
+      appView: { ...s.appView, [id]: 'fallback' },
+      shows: { ...s.shows, [id]: { fallback: true, card: e.sentCard, qr: this.qrOf(e.sentCard) } },
+    }));
+  }
+
+  log(id, msg) { const p = this.person(id); if (p) p.log.push(msg); }
+  guard(pr) { return Promise.resolve(pr).catch((e) => { console.error('[workbench] act failed:', e); }); }
+
+  // ── standing duties (Visibility §6a continuity, 5.4 producer sweep) ────
+  // after a fresh enactment each device probes its new tuple so a
+  // re-encounter is CHAINED into the existing relationship instead of
+  // showing up twice; mapping/star duties flush the same way. Debounced
+  // after visible acts, run once silently after the seed.
+  // debounced until the act's burst has settled; the sweep's own deliveries
+  // never schedule another sweep — otherwise stars are re-issued while the
+  // previous ones are still in flight (16 deliveries for one trust act
+  // instead of the protocol's 9)
+  // A sweep may owe a follow-up (a probe's mapping comes back and wants its
+  // flush): rounds are spaced like the reference host's ticks and bounded.
+  scheduleSweep(round = 0) {
+    clearTimeout(this.sweepTimer);
+    this.sweepTimer = setTimeout(() => this.guard(this.sweepAll({ fromSweep: true }).then((sent) => { if (sent > 0 && round < 3) this.scheduleSweep(round + 1); })), 1800);
+  }
+  async sweepAll(o = {}) {
+    if (!this.world) return 0;
+    let sent = 0;
+    for (const id of [...this.world.P.keys()]) sent += await this.sweep(id, o);
+    if (!o.silent) this.bump();
+    return sent;
+  }
+  async sweep(id, o = {}) {
+    const { CN, T } = this.lib;
+    const p = this.person(id);
+    if (!p) return 0;
+    let sent = 0;
+    const toIdOf = (tuple) => this.ownerOf(tuple && tuple.card && tuple.card.anchor);
+    for (const [k, c] of [...p.contacts]) {
+      if (!c.channel || !c.channel.own || c.deactivated) continue;
+      if (!c.probeSent) {
+        try {
+          const outs = await CN.buildProbe(p, k, this.now(id));
+          if (outs) { c.probeSent = true; for (const out of outs) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-probe/0.1', out.env, o); } } }
+        } catch (err) {
+          if (String(err && err.message || err).includes('scope exhausted')) c.probeSent = true;
+          this.log(id, 'probe to ' + c.name + ' suspended: ' + (err && err.message || err));
+        }
+        // the probe just left; its ack travels back asynchronously. A flush
+        // in the same breath would see it unacked, retire it and issue a
+        // second fresh probe — the flush is the NEXT round's business
+        continue;
+      }
+      const fl = await CN.flushContinuity(p, k, this.now(id));
+      for (const out of (fl && fl.outbound) || []) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-mapping/0.1', out.env, o); } }
+    }
+    for (const out of await T.starRefreshAll(p, this.now(id))) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'star/0.1', out.env, o); } }
+    return sent;
+  }
+
+  startWireDrag(ev) {
+    ev.preventDefault();
+    const h0 = this.state.wireH;
+    const sy = ev.clientY;
+    const max = Math.max(160, (typeof window !== 'undefined' ? window.innerHeight : 800) - 260);
+    const noSelect = (e) => e.preventDefault();
+    document.addEventListener('selectstart', noSelect);
+    const prevSel = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    const move = (e) => this.setState({ wireH: Math.round(clamp(0, h0 + (sy - e.clientY), max)) });
+    const up = () => {
+      document.removeEventListener('selectstart', noSelect);
+      document.body.style.userSelect = prevSel;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+
+  // ── acts — every one of them a real act on the devices ────────────────
+  addPerson(name) {
+    const clean = (name || '').trim();
+    if (!clean || this.state.people.some((p) => p.id === clean) || !this.lib) return;
+    const color = COLORS[clean] ?? EXTRA[this.state.people.length % EXTRA.length];
+    this.ensurePerson(clean, clean);
+    this.setState((s) => ({ people: [...s.people, { id: clean, name: clean, color }] }));
+  }
+
+  addGroup(label, founderId) {
+    const clean = (label || '').trim();
+    if (!clean || !founderId) return;
+    this.foundGroup(founderId, clean, {}).then(() => this.bump());
+  }
+
+  async foundGroup(founderId, label, o = {}) {
+    const P = this.person(founderId);
+    if (!P) return null;
+    const g = await this.lib.G.foundGroup(P, label, this.now(founderId));
+    if (!o.silent) this.bump();
+    return g.genesisDigest;
+  }
+
+  // joining runs the real membership flow: a member who HOLDS the person
+  // sponsors a prelude request → prelude reply → invite → the invitee's
+  // device accepts → admission + welcome. Without a relationship there is
+  // no channel: the sponsor first verifies the person (god mode).
+  async joinGroup(personId, gid, o = {}) {
+    const g = this.G(gid);
+    if (!g || !personId || g.members.includes(personId)) return;
+    let sponsor = g.members.find((m) => this.anchorOf(m, personId));
+    if (!sponsor) {
+      sponsor = g.founder || g.members[0];
+      if (!sponsor) return;
+      await this.godVerify(sponsor, personId, o);
+    }
+    const S = this.person(sponsor);
+    const anchor = this.anchorOf(sponsor, personId);
+    if (!anchor) return;
+    const pkt = await this.lib.G.preludeRequest(S, anchor, gid, this.now(sponsor));
+    await this.deliver(sponsor, personId, 'membership-prelude-request@probe', pkt.env, o);
+  }
+
+  runAct(kind, from, to) {
+    if (!from || !to || from === to || !this.lib) return;
+    if (kind === 'verify') this.guard(this.godVerify(from, to, {}));
+    else this.guard(this.giveTrust(from, to, {}));
+  }
+
+  // god mode "verify": the same ceremony the app runs — `to` shows a code,
+  // `from` scans it; bundle and counter-step travel the channel
+  async godVerify(a, b, o = {}) {
+    const A = this.person(a), B = this.person(b);
+    if (!A || !B) return false;
+    const sh = await this.lib.E.show(B, this.now(b));
+    const bu = await this.lib.E.scan(A, sh.card, this.now(a));
+    if (bu.error) { this.log(a, 'scan refused: ' + bu.error); return false; }
+    await this.deliver(a, b, 'encounter-bundle/0.1', bu.env, o);
+    return true;
+  }
+
+  // the trust act: anchor-mapping@2 (designated verifier) + grade, then the
+  // blinded star follows through the 5.4 reconciliation
+  async giveTrust(from, to, o = {}) {
+    const P = this.person(from);
+    // the row names its tuple; god mode picks the active ceremony tuple that has no trust yet
+    let anchor = o.anchor || null;
+    if (!anchor && P) for (const [k, c] of P.contacts) if (!c.deactivated && c.provenance === 'ceremony' && !c.trustGiven && this.ownerOf(k) === to) { anchor = k; break; }
+    if (!anchor) anchor = this.anchorOf(from, to);
+    if (!P || !anchor) return false;
+    const T = this.lib.T;
+    const pkt = await T.setTrust(P, anchor, this.now(from));
+    if (pkt && pkt.error) { this.log(from, 'trust act refused: ' + pkt.error); if (!o.silent) this.bump(); return false; }
+    for (const out of (pkt && pkt.outbound) || []) await this.deliver(from, to, out.kind || 'anchor-mapping@2', out.env, o);
+    for (const out of await T.starRefreshAll(P, this.now(from))) {
+      const toId = this.ownerOf(out.to && out.to.card && out.to.card.anchor);
+      if (toId) await this.deliver(from, toId, out.kind || 'star@1', out.env, o);
+    }
+    if (!o.silent) this.bump();
+    return true;
+  }
+
+  // ── the receiver: the library's type-specific chain, in the reference
+  // host's order; acks travel back at once; acceptance is awaited separately
+  async dispatch(toId, env, o = {}) {
+    const { G, T, CN, E, I, root } = this.lib;
+    const P = this.person(toId);
+    const now = this.now(toId);
+    const toIdOf = (tuple) => this.ownerOf(tuple && tuple.card && tuple.card.anchor);
+    let r = await G.receiveDoc(P, env, now);
+    if (!r.handled) r = await T.receiveTrustDoc(P, env, now);
+    if (!r.handled) r = await CN.receiveContinuity(P, env, now);
+    if (!r.handled) r = await E.receiveEncounter(P, env, now);
+    if (r.ack) { const back = toIdOf(r.ack.to); if (back) this.deliver(toId, back, r.ack.kind || 'delivery-ack/0.1', r.ack.env, { ...o, replay: true }); }
+    if (r.acceptance) Object.assign(r, await r.acceptance);
+    if (!r.handled) {
+      const off = await I.receiveOffer(P, env);
+      if (!off.error) r = { handled: true, offer: true };
+      else {
+        // nothing took it: classify at the envelope level for the wire view
+        const d = await root.receive(env, (rkid) => { const c = P.contexts.get(rkid); return c ? c.x.priv : undefined; }, new Set());
+        r = { handled: false, transport: d.disposition === 'unique' ? 'unknown-type' : d.disposition };
+      }
+    }
+    // encounter moments
+    if (r.recorded && r.prompt) {
+      // arrival is not acceptance: this device decides — the workbench's
+      // devices confirm after a beat (the app would show the prompt)
+      const peerAnchor = r.prompt.peerAnchor;
+      const counter = async () => {
+        const c = await E.counter(P, peerAnchor, this.now(toId));
+        if (c && c.env) { const back = this.ownerOf(peerAnchor); if (back) await this.deliver(toId, back, 'encounter-credential-delivery/0.1', c.env, o); }
+      };
+      if (o.silent) await counter(); else setTimeout(counter, 900);
+    }
+    if (r.counterOut && r.counterOut.env) { const back = toIdOf(r.counterOut.to); if (back) await this.deliver(toId, back, 'encounter-credential-delivery/0.1', r.counterOut.env, o); }
+    if (r.accepted && r.mutual) this.onMutual(toId, r.peerAnchor);
+    if (r.acked === 'encounter-bundle') { const e = this.enc[toId]; if (e && e.peerAnchor === r.peerAnchor) e.acked = true; }
+    // membership: an invitation waits in the inbox — the workbench's devices accept
+    if (r.prompt && r.prompt.kind === 'invite' && !r.prompt.decided) {
+      const pkt = await G.acceptInvite(P, r.prompt, this.now(toId), { candidacy: false });
+      const back = toIdOf(pkt.to);
+      if (back) await this.deliver(toId, back, 'membership-accept/0.2', pkt.env, o);
+    }
+    for (const out of r.outbound || []) { const back = toIdOf(out.to); if (back) await this.deliver(toId, back, out.kind || 'membership document', out.env, o); }
+    if (!o.silent) { this.bump(); if (!o.fromSweep) this.scheduleSweep(); }
+    return r;
+  }
+
+  // the counter credential landed: both devices hold each other's credential
+  onMutual(id, peerAnchor) {
+    const peer = this.ownerOf(peerAnchor);
+    this.setState((s) => {
+      const shows = { ...s.shows }, scanx = { ...s.scan }, appView = { ...s.appView };
+      for (const x of [id, peer]) { if (!x) continue; delete shows[x]; delete scanx[x]; if (['waiting', 'fallback', 'confirm', 'ready'].includes(appView[x])) appView[x] = 'list'; }
+      return { shows, scan: scanx, appView };
+    });
+    if (this.enc[id]) delete this.enc[id];
+    if (peer && this.enc[peer]) delete this.enc[peer];
+  }
+
+  // ── the channel: a real sealed envelope, faults injected on the wire ──
+  tampered(env) {
+    const c = String(env.ciphertext || '');
+    if (c.length < 12) return env;
+    const i = 8;
+    const ch = c[i] === 'A' ? 'B' : 'A';
+    return { ...env, ciphertext: c.slice(0, i) + ch + c.slice(i + 1) };
+  }
+
+  stagesOf(r) {
+    const ok = (k) => STAGES.slice(0, k).map((l) => ({ label: l, ok: true }));
+    const failAt = (idx, disp) => ({ disp, bad: true, stages: [...ok(idx - 1), { label: STAGES[idx - 1], ok: false }] });
+    if (r.transport) {
+      const idx = ({ oversize: 1, malformed: 2, 'decryption-failed': 3, 'unknown-type': 6 })[r.transport] || 4;
+      return failAt(idx, 'failed(' + r.transport + ')');
+    }
+    if (r.duplicate) return { disp: 'duplicate-known · prior outcome applies', bad: false, stages: ok(4) };
+    if (r.error) {
+      const e = String(r.error);
+      const idx = /malformed document|wrong-recipient/.test(e) ? 5 : /unknown-type/.test(e) ? 6 : /^malformed/.test(e) ? 7
+        : /consumed-challenge|gate-future|challenge unknown/.test(e) ? 9 : 8;
+      return failAt(idx, 'failed(' + e + ')');
+    }
+    return { disp: 'unique', bad: false, stages: ok(9) };
+  }
+
+  async deliver(from, to, kind, env, o = {}) {
+    if (!env || !this.person(to)) return { arrived: false };
+    const f = this.state.faults;
+    const silent = !!o.silent;
+    const n = silent ? 0 : ++this.seq;   // one running number per VISIBLE delivery, even for concurrent ones
+    const at = new Date(this.tNow).toISOString().slice(11, 19);
+    const base = { n, from: this.P(from).name, to: this.P(to).name, kind, at, payload: JSON.stringify(env, null, 1), open: false };
+
+    if (!silent && f.lose && !o.replay) {
+      this.push({ ...base, disp: 'lost (fault)', stages: [], bad: true }, n);
+      this.fly(from, to, RED, 1.1);
+      return { arrived: false };
+    }
+    if (!silent && f.hold && !o.replay) {
+      this.push({ ...base, disp: 'held (fault) — parked on the channel', stages: [], bad: true }, n);
+      this.world.held.push({ from, to, kind, env });
+      this.setState((s) => ({ held: [...s.held, { from, to, kind }] }));
+      return { arrived: false, held: true };
+    }
+    let sendEnv = env;
+    if (!silent && f.tamper && !o.replay) sendEnv = this.tampered(env);
+    if (!silent) {
+      this.fly(from, to, f.tamper && !o.replay ? RED : GREEN, 1.4);
+      await sleep(1400);
+    }
+    const r = await this.dispatch(to, sendEnv, o);
+    const st = this.stagesOf(r);
+    if (!silent) this.push({ ...base, ...st }, n);
+    if (!silent && f.dup && !o.replay && !st.bad) {
+      setTimeout(async () => {
+        const n2 = ++this.seq;
+        this.fly(from, to, AMBER, 1.4);
+        const r2 = await this.dispatch(to, sendEnv, { ...o, replay: true });
+        const st2 = this.stagesOf(r2);
+        this.push({ ...base, n: n2, at: new Date(this.tNow).toISOString().slice(11, 19), kind: kind + ' — DUPLICATE (fault)', ...st2 }, n2);
+      }, 700);
+    }
+    return { arrived: !st.bad, r };
+  }
+
+  push(entry, n) {
+    this.jump(5000);
+    this.setState((s) => ({ wire: [entry, ...s.wire].slice(0, 40), n, t: this.tNow, rev: s.rev + 1 }));
+  }
+
+  toggleFault(k) {
+    const on = !this.state.faults[k];
+    this.setState((s) => ({ faults: { ...s.faults, [k]: on } }), () => {
+      if (k === 'hold' && !on) {
+        const held = this.world.held;
+        this.world.held = [];
+        this.setState({ held: [] });
+        held.forEach((h, i) => setTimeout(() => this.deliver(h.from, h.to, h.kind + ' — released from hold', h.env, { replay: true }), i * 350));
+      }
+    });
+  }
+
+  // ── device data — read off the Person, never invented ─────────────────
+  edgeStateOf(c) { return c.state || (c.credential && c.credentialIn ? '✓' : c.credential ? '→' : c.credentialIn ? '←' : '◇'); }
+
+  contactsOf(id) {
+    const p = this.person(id);
+    if (!p) return [];
+    const out = [];
+    for (const [anchor, c] of p.contacts) {
+      if (c.deactivated) continue;
+      const other = this.ownerOf(anchor);
+      const o = other ? this.P(other) : { id: anchor, name: c.name || '?', color: MUTED };
+      const st = this.edgeStateOf(c);
+      const isCeremony = c.provenance === 'ceremony';
+      let verBadge = null, verBg = 'oklch(93% 0.05 264)', verFg = 'oklch(45% 0.16 264)';
+      if (isCeremony) verBadge = st === '✓' ? '⇄ verified' : st === '→' ? '→ verified' : st === '←' ? '← verified you' : '◇ met';
+      else { verBadge = '⇄ introduced'; verBg = 'oklch(96% 0.06 85)'; verFg = 'oklch(50% 0.12 70)'; }
+      const shared = other ? this.sharedWith(id, other) : 0;
+      let trustBadge = null, trustBg = '', trustFg = '', meta = isCeremony ? 'met in person' : ('introduced' + (c.via ? ' via ' + c.via : ''));
+      const gave = !!c.trustGiven, got = !!c.selfAnchor;
+      if (gave && got) { trustBadge = '⇄ trust'; trustBg = 'oklch(94% 0.06 142)'; trustFg = 'oklch(42% 0.14 142)'; meta = 'they hold your stable ID, you hold theirs'; }
+      else if (gave) { trustBadge = '→ you trust'; trustBg = 'oklch(96% 0.06 85)'; trustFg = 'oklch(50% 0.12 70)'; meta = 'they hold your stable ID forever'; }
+      else if (got) { trustBadge = '← trusts you'; trustBg = 'oklch(96% 0.06 85)'; trustFg = 'oklch(50% 0.12 70)'; meta = 'they trusted you — you have not'; }
+      if (st === '→' && isCeremony && !gave && !got) meta = 'verified by you — their confirmation is pending';
+      if (st === '←' && isCeremony && !gave && !got) meta = 'they verified you — your confirmation is pending';
+      if (st === '◇' && isCeremony) meta = 'met — code captured; the confirmations follow over the network';
+      if (shared) meta = shared + (shared === 1 ? ' mutual group' : ' mutual groups') + ' · ' + meta;
+      out.push({
+        id: other || anchor, anchor, name: o.name, initials: initials(o.name), color: o.color, tint: tint(o.color),
+        verBadge, verBg, verFg, hasVer: !!verBadge,
+        hasTrust: !!trustBadge, trustBadge, trustBg, trustFg, meta,
+        canShare: isCeremony && !gave,
+        onShare: () => this.guard(this.giveTrust(id, other, { anchor })),
+      });
+    }
+    return out;
+  }
+
+  introducedOf(id) {
+    const p = this.person(id);
+    if (!p) return [];
+    const out = [];
+    for (const [anchor, c] of p.contacts) {
+      if (c.deactivated || c.provenance === 'ceremony') continue;
+      const other = this.ownerOf(anchor);
+      const name = other ? this.P(other).name : (c.name || '?');
+      out.push({ id: other || anchor, name, initials: initials(name), meta: 'introduced' + (c.via ? ' via ' + c.via : '') });
+    }
+    return out;
+  }
+
+  // the artifacts a device actually holds, as real JSON
+  holdsRaw(id) {
+    const p = this.person(id);
+    if (!p) return [];
+    const cats = [];
+    const active = [...p.contacts.values()].filter((c) => !c.deactivated);
+    const issued = active.filter((c) => c.credential).map((c) => c.credential);
+    const received = active.filter((c) => c.credentialIn).map((c) => c.credentialIn);
+    const cards = active.filter((c) => c.card).map((c) => c.card);
+    const disclosed = active.filter((c) => c.selfAnchor).map((c) => ({ counterpart: c.card && c.card.anchor, selfAnchor: c.selfAnchor, name: c.name }));
+    const groups = [...p.groups.values()];
+    if (issued.length) cats.push(['encounter-credential/0.25 · issued', 'your step credentials, one per enactment', issued]);
+    if (received.length) cats.push(['encounter-credential/0.25 · received', 'their step credentials, accepted under 5.6', received]);
+    if (cards.length) cats.push(['contact-card/0.25', 'their cards as received, bound to the record', cards]);
+    if (disclosed.length) cats.push(['anchor-mapping@2 · received', 'stable identities disclosed to you (designated verifier)', disclosed]);
+    if (groups.length) cats.push(['membership', 'genesis + roster · member anchors, never names on the wire', groups.map((g) => ({ label: g.label, genesisDigest: g.genesisDigest, role: g.role, myMemberAnchor: g.myMemberCtx && g.myMemberCtx.anchor, roster: [...g.roster.entries()].map(([anchor, m]) => ({ anchor, name: m.name, addedAt: m.addedAt, founder: !!m.founder })) }))]);
+    return cats;
+  }
+  holdCount(id) { return this.holdsRaw(id).reduce((n, c) => n + c[2].length, 0) + (this.person(id) ? 1 : 0); }
+  holdsOf(id) {
+    return this.holdsRaw(id).map(([title, sub, items]) => ({
+      title, sub, count: String(items.length),
+      open: !!this.state.holdsOpen[id + title],
+      json: JSON.stringify(items[0], null, 1),
+      on: () => this.setState((s) => ({ holdsOpen: { ...s.holdsOpen, [id + title]: !s.holdsOpen[id + title] } })),
+    }));
+  }
+
+  chip(label, active, on, extra) {
+    return {
+      label, on,
+      bd: active ? PRIMARY : BD,
+      bg: active ? '#1d2839' : '#1b212c',
+      // over the graph the chip is translucent, so edges stay readable behind it
+      bgSolid: active ? 'rgba(29,40,57,.88)' : 'rgba(27,33,44,.78)',
+      fg: active ? PRIMARY : MUTED,
+      ...(extra || {}),
+    };
+  }
+
+
+  openDlg(kind) {
+    const p = this.state.people;
+    const gl = this.groupList();
+    this.setState({
+      dlg: kind, godOpen: false, dlgName: '',
+      dlgFrom: p[0] ? p[0].id : '',
+      dlgTo: p[1] ? p[1].id : '',
+      dlgGroup: gl[0] ? gl[0].id : '',
+    });
+  }
+
+  submitDlg() {
+    const s = this.state;
+    if (s.dlg === 'person') this.addPerson(s.dlgName);
+    else if (s.dlg === 'group') this.addGroup(s.dlgName, s.dlgFrom);
+    else if (s.dlg === 'verification') this.runAct('verify', s.dlgFrom, s.dlgTo);
+    else if (s.dlg === 'trust') this.runAct('trust', s.dlgFrom, s.dlgTo);
+    else if (s.dlg === 'membership') this.joinGroup(s.dlgFrom, s.dlgGroup, {}).then(() => this.bump());
+    this.setState({ dlg: null });
+  }
+
+  renderVals() {
+    const s = this.state;
+
+    const win = (id) => {
+      const p0 = this.P(id);
+      const focused = id === s.focus;
+      const collapsed = !!s.collapsed[id];
+      const p = s.pos[id] || { x: 40, y: WIN_TOP };
+      const drift = s.drift[id] ?? 0;
+
+      const cs = this.contactsOf(id);
+      const intro = this.introducedOf(id);
+      const gs = this.localGroupsOf(id);
+      const tab = s.tab[id] ?? 'Contacts';
+      const view = s.appView[id] ?? 'list';
+      const show = s.shows[id];
+      const sc = s.scan[id];
+      const peer = sc ? this.P(sc.peer) : null;
+      const peerCard = sc ? sc.card : null;
+      return {
+        isList: view === 'list',
+        isReady: view === 'ready',
+        isScanner: view === 'scanner',
+        isConfirm: view === 'confirm',
+        isWaiting: view === 'waiting',
+        isFallback: view === 'fallback',
+        qr: show ? show.qr : '',
+        qrSize: Math.round(clamp(96, this.screenH() - 118, 150)),
+        ownChallenge: show ? 'challenge ' + show.ch : '',
+        scanMiss: !!s.scanMiss[id],
+        peerName: peer ? peer.name : '',
+        peerInitials: peer ? initials(peer.name) : '',
+        peerColor: peer ? peer.color : MUTED,
+        peerTint: peer ? tint(peer.color) : '#eee',
+        confirmMeta: peerCard ? [
+          'ceremony   ' + CEREMONY,
+          'anchor     ' + peerCard.anchor,
+          'challenge  ' + peerCard.challenge.value,
+        ] : [],
+        setViewfinder: (el) => { if (el) this.viewfinder[id] = el; },
+        setEl: (el) => { if (el) this.winEl[id] = el; },
+        onConnect: () => this.showCode(id),
+        onScan: () => this.startScan(id),
+        onScanCancel: () => this.scanCancel(id),
+        onConfirm: () => this.confirmVerify(id),
+        onCloseVerify: () => this.closeVerify(id),
+        id, name: p0.name, initial: p0.name[0], color: p0.color,
+        // the window is placed against the VIEWPORT, not the stage remainder:
+        // the band below the stage (grip + wire bar) is fair game, so chrome
+        // that grows can never push a device past the bottom edge
+        // A drag may put a phone anywhere, including behind the wire — pulling
+        // it into view is a one-off correction on click-to-focus (see
+        // focusWin), not a clamp here, which would fight the drag.
+        left: Math.round(clamp(Math.round(24 - FULL_W - s.stageLeft), p.x, s.W + 40)),
+        top: Math.round(clamp(this.minTop(), p.y, this.maxTop())),
+        width: FULL_W,
+        // a lower device paints above a higher one, so a lower row's title bar
+        // can never end up behind the phone above it — but the focused device
+        // always tops the pile, which is what a click on it is asking for
+        z: s.flying && s.flying.scan === id ? 400
+          : s.flying && s.flying.show === id ? 390
+            : focused ? 300
+              : 40 + Math.round(clamp(0, p.y, 999) / 20),
+        headBg: focused ? '#222937' : '#1b212c',
+        onDrag: (ev) => this.startDrag(id, ev),
+        onRaise: () => this.focusWin(id),
+        headBd: focused ? PRIMARY : BD,
+        headBdB: collapsed ? 1.5 : 0,
+        br: collapsed ? '10px' : '0',
+        collapseGlyph: collapsed ? '▸' : '▾',
+        driftLabel: drift === 0 ? '±0' : (drift > 0 ? '+' : '') + drift + 'm',
+        driftBd: drift === 0 ? BD : AMBER,
+        driftFg: drift === 0 ? MUTED : AMBER,
+        deviceClock: new Date(s.t + drift * 60000).toISOString().slice(11, 16),
+        ownerFg: drift === 0 ? 'oklch(44% 0.008 265)' : 'oklch(50% 0.12 70)',
+        screenH: this.screenH(),
+        // the artifact layer belongs to the device, not to the app: a sheet
+        // tucked behind the phone, its edge always showing, in workbench
+        // material so the two layers read as different substances
+        sheetOpen: !!s.sheet[id],
+        // it pulls out on whichever side has room, so it is never cut off;
+        // closed, only a 30px edge of the sheet shows past the phone
+        // closed, a 54px tab shows past the phone — enough for the database
+        // icon and the document count, which is what makes it findable
+        sheetLeft: (s.W - (p.x + FULL_W) >= 264)
+          ? (s.sheet[id] ? FULL_W + 8 : FULL_W - 196)
+          : (s.sheet[id] ? -258 : -54),
+        sheetJustify: s.sheet[id] ? 'space-between' : ((s.W - (p.x + FULL_W) >= 264) ? 'flex-end' : 'flex-start'),
+        sheetBd: s.sheet[id] ? PRIMARY : BD,
+        sheetH: Math.max(90, this.screenH() - 10),
+        sheetTitle: s.sheet[id] ? 'Holds ' + this.holdCount(id) + ' documents' : String(this.holdCount(id)),
+        sheetGlyph: s.sheet[id] ? '✕' : '',
+        // currentColor drives the lucide glyph, per graph.html's icon convention
+        sheetIconFg: s.sheet[id] ? PRIMARY : '#94a3b8',
+        onSheet: () => this.setState((st) => ({ sheet: { ...st.sheet, [id]: !st.sheet[id] } })),
+        tabIsContacts: tab === 'Contacts', tabIsGroups: tab === 'Groups', tabIsProfile: tab === 'Profile',
+        contacts: cs, noContacts: cs.length === 0,
+        introduced: intro, hasIntroduced: intro.length > 0,
+        groups: gs.map((g) => ({
+          id: g.id, label: g.label, initials: initials(g.label),
+          meta: g.roster.length + (g.roster.length === 1 ? ' member' : ' members') + (g.founder === id ? ' · you founded it' : ' · anonymous roster'),
+          onTrust: () => {},
+        })),
+        noGroups: gs.length === 0,
+        tabs: ['Contacts', 'Groups', 'Profile'].map((l) => ({
+          label: l, fg: l === tab ? '#2563eb' : 'oklch(52% 0.008 265)',
+          on: () => this.setState((st) => ({ tab: { ...st.tab, [id]: l } })),
+        })),
+        holds: this.holdsOf(id),
+        cardLine1: cs.length + ' contacts · ' + (gs.length ? gs.length + ' groups' : 'no group'),
+        cardLine2: 'holds ' + this.holdCount(id) + ' documents',
+        cardLine3: drift === 0 ? 'clock in step' : 'clock drift ' + (drift > 0 ? '+' : '') + drift + ' min',
+        cardLine3Fg: drift === 0 ? MUTED : AMBER,
+        onFocus: () => this.focusWin(id),
+        onClose: () => this.closeWin(id),
+        onCollapse: () => this.setState((st) => ({ collapsed: { ...st.collapsed, [id]: !st.collapsed[id] } })),
+        onDrift: () => this.setState((st) => {
+          const cur = st.drift[id] ?? 0;
+          return { drift: { ...st.drift, [id]: cur === 0 ? 4 : cur > 0 ? -4 : 0 } };
+        }),
+
+      };
+    };
+
+    const visible = s.open.filter((id) => !s.collapsed[id]);
+    const railOrder = [...visible].sort((a, b) => (a === s.focus ? -1 : b === s.focus ? 1 : 0));
+
+    const DLG = {
+      person: { title: 'New person', ok: 'Create', name: true, ph: 'e.g. Mara', note: 'A new node in the graph. Nothing is proven about them until an encounter happens.' },
+      group: { title: 'New group', ok: 'Found', name: true, from: true, fromLabel: 'Founder', ph: 'e.g. Bakery', note: 'A real group genesis, signed under a founding pair anchor; the founder is its first member. Drag a person onto it to join — membership is anonymous by default.' },
+      verification: { title: 'New verification', ok: 'Run', from: true, to: true, fromLabel: 'Issuer', toLabel: 'Counterpart', note: 'A real encounter: both sides issue credentials. The delivery runs through the channel and shows its receiving stages.' },
+      trust: { title: 'Trust', ok: 'Run', from: true, to: true, fromLabel: 'Trusts', toLabel: 'Receives the stable ID', note: 'A deliberate disclosure, with direction. One way is amber; once both have disclosed, the edge turns green. Irreversible — they hold it forever.' },
+      membership: { title: 'New membership', ok: 'Run', from: true, group: true, fromLabel: 'Person', note: 'An existing member sponsors the invite. The roster carries an anchor, never a name.' },
+    };
+    const d = DLG[s.dlg] || {};
+
+    const fw = visible.map(win);
+    return {
+      floatWins: fw,
+      wireH: s.wireH,
+      viewNote: this.scene ? this.scene.note : '',
+      // the device layer is fixed to the viewport at the stage origin, so a
+      // phone can be pushed anywhere — over the wire and the fault panel too
+      stageLeft: Math.round(s.stageLeft),
+      stageTop: Math.round(s.stageTop),
+      stageWpx: Math.round(s.W),
+      stageHpx: Math.round(s.H),
+
+      setStage: this.setStage,
+      setSvg: this.setSvg,
+      onWireDrag: (ev) => this.startWireDrag(ev),
+
+      viewChips: [
+        this.chip("God's eye", s.view === 'omniscient', () => this.setState({ view: 'omniscient' }), { title: 'the social truth' }),
+        this.chip('Outside', s.view === 'outside', () => this.setState({ view: 'outside' }), { title: 'the credential space an outsider can collect' }),
+      ],
+      personChips: s.people.map((p) => this.chip(p.name, s.view === p.id, () => this.setState({ view: p.id }), { title: 'camera: ' + p.name, dot: p.color })),
+
+      // The colour key owns the bottom left corner, but steps aside when a
+      // device occupies the left flank: at this stage height the flank's lower
+      // tier reaches the bottom, so there is no vertical band to hide in.
+
+      legendBottom: s.open.some((id) => s.collapsed[id]) ? 62 : 12,
+
+      gearOpen: s.gearOpen,
+      gearBd: s.gearOpen ? PRIMARY : BD,
+      gearFg: s.gearOpen ? PRIMARY : MUTED,
+      toggleGear: () => this.setState({ gearOpen: !s.gearOpen }),
+      capChips: [1, 2, 3, 4].map((n) => this.chip(String(n), this.cap() === n, () => this.setCap(n))),
+      capNote: this.cap() === 1
+        ? 'One device. A ceremony needs a second — open one and this one closes.'
+        : this.cap() === 2
+          ? 'Two berths, one on each flank. What a ceremony needs, and what fits beside the graph.'
+          : 'Devices alternate right and left; a second one on the same flank overlaps the first.',
+
+      resetAll: () => this.resetAll(),
+
+
+
+      hasDock: s.open.some((id) => s.collapsed[id]),
+      dock: s.open.filter((id) => s.collapsed[id]).map((id) => ({
+        name: this.P(id).name, color: this.P(id).color,
+        on: () => this.setState((st) => ({ collapsed: { ...st.collapsed, [id]: false }, focus: id })),
+      })),
+
+      godOpen: s.godOpen,
+      godGlyph: s.godOpen ? '✕' : '＋',
+      toggleGod: () => this.setState({ godOpen: !s.godOpen }),
+      fabItems: [
+        { label: '＋ Person', on: () => this.openDlg('person') },
+        { label: '＋ Group', on: () => this.openDlg('group') },
+        { label: '＋ Verification', on: () => this.openDlg('verification') },
+        { label: '＋ Membership', on: () => this.openDlg('membership') },
+        { label: '★ Trust', on: () => this.openDlg('trust') },
+      ],
+
+      dlgOpen: !!s.dlg,
+      dlgTitle: d.title || '',
+      dlgOk: d.ok || 'Create',
+      dlgNote: d.note || '',
+      dlgHasName: !!d.name,
+      dlgHasFrom: !!d.from,
+      dlgHasTo: !!d.to,
+      dlgHasGroup: !!d.group,
+      dlgFromLabel: d.fromLabel || 'From',
+      dlgToLabel: d.toLabel || 'To',
+      dlgPlaceholder: d.ph || '',
+      dlgName: s.dlgName,
+      dlgFrom: s.dlgFrom,
+      dlgTo: s.dlgTo,
+      dlgGroup: s.dlgGroup,
+      dlgToOptions: s.people.filter((p) => p.id !== s.dlgFrom),
+      people: s.people,
+      groups: this.groupList(),
+      setDlgName: (e) => this.setState({ dlgName: e.target.value }),
+      setDlgFrom: (e) => this.setState({ dlgFrom: e.target.value }),
+      setDlgTo: (e) => this.setState({ dlgTo: e.target.value }),
+      setDlgGroup: (e) => this.setState({ dlgGroup: e.target.value }),
+      closeDlg: () => this.setState({ dlg: null }),
+      submitDlg: () => this.submitDlg(),
+
+
+      faultBtns: FAULTS.map(([k, label, effect]) => ({
+        label, effect,
+        boxBd: s.faults[k] ? AMBER : '#4a5568',
+        boxBg: s.faults[k] ? AMBER : 'transparent',
+        bd: s.faults[k] ? AMBER : BD,
+        bg: s.faults[k] ? '#2a2417' : 'transparent',
+        on: () => this.toggleFault(k),
+        infoOpen: !!s.faultInfo[k],
+        infoBd: s.faultInfo[k] ? AMBER : BD,
+        infoFg: s.faultInfo[k] ? AMBER : MUTED,
+        // one popover at a time — two open at once read as a paragraph
+        onInfo: (ev) => {
+          ev.stopPropagation();
+          this.setState((st) => ({ faultInfo: st.faultInfo[k] ? {} : { [k]: true } }));
+        },
+      })),
+
+      wireTitle: 'On the wire · deliveries',
+      wireAsList: true,
+      wireSub: s.wire.length ? s.wire.length + ' · click to open' : '',
+      wireEmpty: s.wire.length === 0,
+      wire: s.wire.slice().sort((a, b) => b.n - a.n).map((w) => ({
+        ...w,
+        dispFg: w.bad ? RED : w.disp === 'unique' ? GREEN : AMBER,
+        blockW: w.open ? 260 : 150,
+        stages: (w.stages || []).map((st) => ({ label: st.label, mark: st.ok ? '✓' : '✕', fg: st.ok ? MUTED : RED })),
+        on: () => this.setState((prev) => ({ wire: prev.wire.map((x) => (x.n === w.n ? { ...x, open: !x.open } : x)) })),
+      })),
+    };
+  }
+}
+
+</script>
+</body>
+</html>
