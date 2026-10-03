@@ -112,19 +112,16 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-band ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: nowrap; justify-content: center; gap: .25rem; }
 .tp-band li { margin: 0; display: inline-flex; align-items: center; gap: .28rem; padding: .2rem .45rem; border-radius: 999px; font-size: .74rem; line-height: 1.3; white-space: nowrap; background: var(--sl-color-black); border: 1px solid var(--sl-color-gray-5); color: var(--sl-color-white); }
 .tp-band li svg { width: .8rem; height: .8rem; color: var(--sl-color-accent); flex-shrink: 0; }
-/* The rail: dashed, centred in its column, labelled "ports". */
+/* The rail: a thin dashed line, centred in its column, labelled "ports". */
 .tp-rail { position: relative; grid-column: 2; grid-row: 2 / 5; }
-.tp-rail::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed var(--sl-color-gray-4); transform: translateX(-1px); }
-.tp-rail span { position: absolute; left: 50%; top: -1.5rem; transform: translateX(-50%); font-size: .78rem; color: var(--sl-color-gray-3); }
-/* The services: dashed boxes, each reached by an arrow from the rail. */
+.tp-rail::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed var(--sl-color-gray-4); }
+.tp-rail span { position: absolute; left: 50%; top: -1.5rem; transform: translateX(-50%); font-size: .72rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--sl-color-gray-2); }
+/* The services: bands like the applications band (thin dashed border, same
+   label, the description as a chip), each reached by an arrow from the rail. */
 .tp-svcs { grid-column: 3; grid-row: 2 / 5; display: flex; flex-direction: column; justify-content: space-around; gap: 1rem; }
-.tp-svc { position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: .45rem; align-items: center; padding: .7rem .8rem; border: 2px dashed var(--sl-color-gray-4); border-radius: var(--radius-xl); text-decoration: none; color: inherit; min-width: 7.5rem; }
-.tp-svc:hover { border-color: var(--sl-color-accent); }
-.tp-svc svg { width: .9rem; height: .9rem; color: var(--sl-color-accent); }
-.tp-svc strong { font-size: .9rem; color: var(--sl-color-white); }
-.tp-svc span { grid-column: 1 / -1; font-size: .74rem; line-height: 1.35; color: var(--sl-color-gray-3); margin-top: .1rem; }
-.tp-svc::before { content: ''; position: absolute; top: 50%; left: calc(-1 * (var(--gap) + var(--rail) / 2) - 2px); width: calc(var(--gap) + var(--rail) / 2 - .35rem); border-top: 2px solid var(--sl-color-gray-4); }
-.tp-svc::after { content: ''; position: absolute; top: 50%; left: -.55rem; transform: translateY(-50%); border: .32rem solid transparent; border-left: .45rem solid var(--sl-color-gray-3); border-right: 0; }
+.tp-band.svc { grid-column: auto; border-style: dashed; padding-inline: .6rem; }
+.tp-band.svc::before { content: ''; position: absolute; top: 50%; left: calc(-1 * (var(--gap) + var(--rail) / 2) - 1px); width: calc(var(--gap) + var(--rail) / 2 - .3rem); border-top: 2px solid var(--sl-color-gray-5); }
+.tp-band.svc::after { content: ''; position: absolute; top: 50%; left: -.4rem; transform: translateY(-50%); border: .26rem solid transparent; border-left: .36rem solid var(--sl-color-gray-4); border-right: 0; }
 
 /* Outro: the three ways once more, as a band in the brand colour. */
 .tp-outro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.5rem 2.5rem; margin-block: 4rem; padding: 3rem; border-radius: 1.5rem; border: 1px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent); background: color-mix(in oklab, var(--sl-color-accent) 7%, transparent); }
@@ -154,9 +151,7 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   #layers { grid-template-columns: 1fr; }
   .tp-bands { --gap: .5rem; --rail: 1.4rem; }
   .tp-band ul { flex-wrap: wrap; }
-  .tp-svc { min-width: 0; padding: .55rem .55rem; }
-  .tp-svc strong { font-size: .8rem; }
-  .tp-svc span { font-size: .68rem; }
+  .tp-band.svc { padding-inline: .35rem; }
   .tp-band li { font-size: .72rem; padding: .18rem .42rem; }
   .tp-outro { margin-block: 3rem 2rem; padding: 1.75rem 1.25rem; }
   .tp-outro .tp-actions, .tp-outro .tp-btn { width: 100%; justify-content: center; }

@@ -38,7 +38,7 @@ export function layerDiagramHtml(): string {
     .join('')
   const rail = `<div class="tp-rail" aria-hidden="true"><span>ports</span></div>`
   const svc = services
-    .map((s) => `<a class="tp-svc" data-svc="${s.key}" href="#services">${svg(s.icon)}<strong>${s.label}</strong><span>${s.text}</span></a>`)
+    .map((s) => `<a class="tp-band svc" data-svc="${s.key}" href="#services"><span class="tp-band-label">${s.label}</span><ul><li>${svg(s.icon)}<span>${s.text}</span></li></ul></a>`)
     .join('')
   return `<nav class="tp-bands" aria-label="How RLTP is built">${stack}${rail}<div class="tp-svcs">${svc}</div></nav>`
 }
