@@ -49,7 +49,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/real-life-org/rltp-spec"
+    "url": "https://github.com/real-life-org/trust-protocol",
+    "directory": "lib"
   },
   "homepage": "https://rltp.real-life.org",
   "engines": {
