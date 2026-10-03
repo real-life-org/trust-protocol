@@ -95,25 +95,28 @@ a.tp-card:hover { border-color: var(--sl-color-accent); }
 .tp-icon svg { width: 1.25rem; height: 1.25rem; color: var(--sl-color-accent); }
 .tp-icon.tile { width: 2.5rem; height: 2.5rem; border-radius: var(--radius-lg); background: color-mix(in oklab, var(--sl-color-accent) 14%, transparent); margin-bottom: .6rem; }
 
-/* The layer picture: applications on top, three layers, and the ports beside
-   the layers (services the layers use, not a layer underneath). */
-.tp-bands { display: grid; grid-template-columns: 1fr 8.5rem; grid-template-rows: auto repeat(3, auto); column-gap: 1rem; row-gap: .8rem; width: 100%; max-width: 34rem; margin-inline: auto; }
-.tp-band { position: relative; grid-column: 1; display: block; box-sizing: border-box; text-decoration: none; color: inherit; border: 1px solid var(--sl-color-gray-5); border-radius: var(--radius-xl); padding: .6rem .5rem .65rem; background: var(--sl-color-bg-sidebar); }
+/* The layer picture: applications on top, three layers, and beside the
+   layers the ports (services the layers use, not a layer underneath). The
+   ports carry no box: a dashed rail, with a dashed link from each layer. */
+#layers { grid-template-columns: 1.15fr .85fr; }
+.tp-bands { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto repeat(3, auto); column-gap: 1.1rem; row-gap: .8rem; width: 100%; max-width: 40rem; margin-inline: auto; }
+.tp-band { position: relative; grid-column: 1; display: block; box-sizing: border-box; text-decoration: none; color: inherit; border: 1px solid var(--sl-color-gray-5); border-radius: var(--radius-xl); padding: .6rem .4rem .65rem; background: var(--sl-color-bg-sidebar); }
 .tp-band.layer { border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); background: color-mix(in oklab, var(--sl-color-accent) 8%, var(--sl-color-bg-sidebar)); }
 .tp-band.apps { border-style: dashed; }
-.tp-band.ports { grid-column: 2; grid-row: 2 / 5; border-style: dashed; display: flex; flex-direction: column; justify-content: center; }
-.tp-band.ports ul { flex-direction: column; align-items: stretch; }
-.tp-band.ports li { justify-content: center; }
-a.tp-band:hover { border-color: var(--sl-color-accent); }
-/* Vertical links between stacked bands; the ports column carries none. */
+.tp-band.ports { grid-column: 2; grid-row: 2 / 5; border: 0; border-left: 2px dashed var(--sl-color-gray-5); border-radius: 0; background: none; padding: 0 0 0 .9rem; display: flex; flex-direction: column; justify-content: center; }
+.tp-band.ports .tp-band-label { text-align: start; }
+.tp-band.ports ul { flex-direction: column; align-items: flex-start; }
+a.tp-band.layer:hover, a.tp-band.apps:hover { border-color: var(--sl-color-accent); }
+a.tp-band.ports:hover li { border-color: var(--sl-color-accent); }
+/* Vertical links between stacked bands. */
 .tp-band.layer::before { content: ''; position: absolute; left: 50%; top: calc(-.8rem - 1px); height: .8rem; width: 2px; transform: translateX(-50%); background: var(--sl-color-gray-5); }
-/* Horizontal links from each layer to the ports column. */
-.tp-band.layer::after { content: ''; position: absolute; top: 50%; right: calc(-1rem - 1px); width: 1rem; border-top: 2px dashed var(--sl-color-gray-5); }
+/* Horizontal links from each layer to the ports rail. */
+.tp-band.layer::after { content: ''; position: absolute; top: 50%; right: calc(-1.1rem - 1px); width: 1.1rem; border-top: 2px dashed var(--sl-color-gray-5); }
 .tp-band-label { display: block; margin-bottom: .45rem; text-align: center; font-size: .72rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--sl-color-gray-2); }
 .tp-band.layer .tp-band-label { color: var(--sl-color-accent); }
-.tp-band ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem; }
-.tp-band li { margin: 0; display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .6rem; border-radius: 999px; font-size: .8rem; line-height: 1.3; white-space: nowrap; background: var(--sl-color-black); border: 1px solid var(--sl-color-gray-5); color: var(--sl-color-white); }
-.tp-band li svg { width: .85rem; height: .85rem; color: var(--sl-color-accent); flex-shrink: 0; }
+.tp-band ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: nowrap; justify-content: center; gap: .25rem; }
+.tp-band li { margin: 0; display: inline-flex; align-items: center; gap: .28rem; padding: .22rem .5rem; border-radius: 999px; font-size: .76rem; line-height: 1.3; white-space: nowrap; background: var(--sl-color-black); border: 1px solid var(--sl-color-gray-5); color: var(--sl-color-white); }
+.tp-band li svg { width: .8rem; height: .8rem; color: var(--sl-color-accent); flex-shrink: 0; }
 
 /* Outro: the three ways once more, as a band in the brand colour. */
 .tp-outro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.5rem 2.5rem; margin-block: 4rem; padding: 3rem; border-radius: 1.5rem; border: 1px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent); background: color-mix(in oklab, var(--sl-color-accent) 7%, transparent); }
@@ -140,7 +143,10 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-ways { padding-block: 1.5rem 2.5rem; }
   .tp-ways .tp-card { display: grid; grid-template-columns: 2.5rem 1fr; column-gap: 1rem; row-gap: .2rem; align-items: start; padding: 1rem; }
   .tp-ways .tp-icon.tile { grid-row: span 2; margin-bottom: 0; }
-  .tp-bands { grid-template-columns: 1fr 6.5rem; column-gap: .7rem; }
+  #layers { grid-template-columns: 1fr; }
+  .tp-bands { column-gap: .7rem; }
+  .tp-band ul { flex-wrap: wrap; }
+  .tp-band.ports { padding-left: .6rem; }
   .tp-band.layer::after { right: calc(-.7rem - 1px); width: .7rem; }
   .tp-band li { font-size: .72rem; padding: .18rem .42rem; }
   .tp-outro { margin-block: 3rem 2rem; padding: 1.75rem 1.25rem; }
