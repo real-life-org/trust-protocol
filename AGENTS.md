@@ -75,7 +75,7 @@ scripts/      offline validation (`node scripts/validate.mjs`)
 ### Specification paths are never auto-merged
 
 Changes under `spec/`, `schemas/`, `contexts/`, `vectors/`, `fixtures/`,
-`conformance/` and `interop/` are normative. An agent may prepare them as a
+`conformance/`, `interop/` and `terms/` are normative. An agent may prepare them as a
 pull request, but only a human maintainer merges them (see `CODEOWNERS`).
 
 ## Conventions

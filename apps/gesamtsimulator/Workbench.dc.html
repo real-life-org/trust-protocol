@@ -2162,7 +2162,6 @@ class Component extends DCLogic {
           label: l, fg: l === tab ? '#2563eb' : 'oklch(52% 0.008 265)',
           on: () => this.setState((st) => ({ tab: { ...st.tab, [id]: l } })),
         })),
-        onPublish: () => {},
         holds: this.holdsOf(id),
         cardLine1: cs.length + ' contacts · ' + (gs.length ? gs.length + ' groups' : 'no group'),
         cardLine2: 'holds ' + this.holdCount(id) + ' documents',
