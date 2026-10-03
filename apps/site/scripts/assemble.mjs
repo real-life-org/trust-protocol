@@ -27,4 +27,5 @@ for (const dir of ['schemas', 'contexts', 'vectors', 'conformance']) {
   write(`${dir}/index.html`, `${REPO}/blob/main/${dir}/index.md`)
 }
 write('lib/index.html', `${REPO}/tree/main/lib`)
+write('spec/archive/index.html', `${REPO}/tree/main/spec/archive`)
 console.log('assembled: raw files, CNAME, legacy redirects')
