@@ -1,9 +1,10 @@
 import { icons, type IconName } from '../components/icons'
 
 /**
- * The protocol as a picture: applications on top, then the three layers RLTP
- * specifies, then the two services behind ports. Each band leads to its
- * section below, so the picture is also the map of the page.
+ * The protocol as a picture: applications on top, the three layers RLTP
+ * specifies below them, and beside the layers the two services behind ports,
+ * which the layers use rather than stand on. Each band leads to its section
+ * below, so the picture is also the map of the page.
  */
 interface Band { key: string; label: string; href?: string; kind: 'apps' | 'layer' | 'ports'; chips: [IconName, string][] }
 
@@ -12,7 +13,7 @@ const bands: Band[] = [
   { key: 'access', label: 'Access', kind: 'layer', href: '#access', chips: [['users', 'Groups as places'], ['shield', 'Policy as data'], ['lock', 'Epochs']] },
   { key: 'encounter', label: 'Encounter', kind: 'layer', href: '#encounter', chips: [['wot', 'Ceremony'], ['shield-check', 'Credentials'], ['message-square', 'Contact cards']] },
   { key: 'identity', label: 'Identity', kind: 'layer', href: '#identity', chips: [['fingerprint', 'One seed'], ['waypoints', 'Anchor per context'], ['hard-drive', 'Recovery']] },
-  { key: 'ports', label: 'Services behind ports', kind: 'ports', href: '#services', chips: [['plug', 'Delivery'], ['database', 'Replication']] },
+  { key: 'ports', label: 'Ports', kind: 'ports', href: '#services', chips: [['plug', 'Delivery'], ['database', 'Replication']] },
 ]
 
 const svg = (name: IconName) =>
