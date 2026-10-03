@@ -197,6 +197,10 @@ async function receiveOfferInner(p, env, offer) {
 // controls the own card; the counterpart's card arrives via sync
 // (checkDrop) whether or not this side ever consents.
 export async function consent(p, entry, drop, when, ent = {}) {
+    // the release happens once: a repeated consent keeps the released context
+    // and card (a new pair would orphan the channel the counterpart holds)
+    if (entry.released)
+        return { ctx: entry.ownCtx, mutual: !!entry.counterpartAnchor };
     if (!p.online) {
         p.queue.push(() => consent(p, entry, drop, when, ent));
         say(p, 'offline — Freigabe wartet auf Netz');

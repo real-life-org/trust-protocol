@@ -186,6 +186,9 @@ async function receiveOfferInner (p: Person, env: any, offer: any) {
 // controls the own card; the counterpart's card arrives via sync
 // (checkDrop) whether or not this side ever consents.
 export async function consent (p: Person, entry: any, drop: any, when: number, ent: any = {}) {
+  // the release happens once: a repeated consent keeps the released context
+  // and card (a new pair would orphan the channel the counterpart holds)
+  if (entry.released) return { ctx: entry.ownCtx, mutual: !!entry.counterpartAnchor }
   if (!p.online) { p.queue.push(() => consent(p, entry, drop, when, ent)); say(p, 'offline — Freigabe wartet auf Netz'); return { queued: true } }
   const { offer } = entry
   const secret = C.fromB64u(offer.rendezvous)

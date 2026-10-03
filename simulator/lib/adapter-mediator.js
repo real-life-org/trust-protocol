@@ -204,8 +204,20 @@ export class MediatorCarrierAdapter {
             return this.#authing;
         const run = (async () => {
             if (this.#tokens && now < this.#tokens.refreshExpiresAt) {
-                this.#tokens = await this.#wire.refresh(this.#tokens.refreshToken);
-                return this.#tokens.accessToken;
+                try {
+                    const refreshed = await this.#wire.refresh(this.#tokens.refreshToken);
+                    if (this.#closed)
+                        throw new Error('retired'); // as on the handshake path (R6-B1)
+                    this.#tokens = refreshed;
+                    return this.#tokens.accessToken;
+                }
+                catch (e) {
+                    if (this.#closed)
+                        throw e;
+                    // a refused refresh (revoked before its expiry) is never replayed:
+                    // drop the tokens and take the challenge handshake below
+                    this.#tokens = null;
+                }
             }
             const { challenge, sessionId } = await this.#wire.authChallenge(this.#connectionDid);
             if (this.#closed)
