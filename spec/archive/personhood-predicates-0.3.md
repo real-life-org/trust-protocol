@@ -1,0 +1,649 @@
+# RLTP Personhood Predicates
+
+**Real Life Trust Protocol — verifier-relative witnessing predicates**
+
+- **Status:** Editor's Draft
+- **Version:** 0.3.0-draft (third casting)
+- **Editors:** Anton Tranelis
+- **Date:** 2026-08-13
+- **Vocabulary namespace:** `https://real-life.org/rltp/v1`
+- **Conformance profile:** `rltp-predicates@0.3` (draft)
+- **Position:** a consumer of the **RLTP Encounter Layer 0.22**
+  (normative reference: credential form §7 incl. issuance time
+  §7.2 and issuer copy §7.4, evidence direction and counting rule
+  §4.2, enactment binding §5.4, participant-local acceptance §5.6,
+  pair verification and its honesty §8, Sybil economics §13). P3
+  additionally consumes group snapshots supplied by the verifier's
+  **RLTP Access Layer** implementation (currently 0.25). This
+  document defines **evaluation**, not transport: nothing here
+  travels; the presented set reaches the verifier by any channel.
+- **Supersedes:** versions 0.2.0-draft and 0.1.0-draft (archived
+  as `archive/personhood-predicates-0.2.md` and
+  `archive/personhood-predicates-0.1.md`).
+
+## Abstract
+
+This document defines how a verifier evaluates **recognition
+assertions** — encounter credentials presented by a subject — into
+three measures: how many of the asserting anchors the verifier
+already knows (P1), which signed instants those assertions carry
+(P2), and how many asserters a named group's own admission
+discipline vouches for (P3). The **evaluator** is a deterministic,
+clock-free, pure function from a defined input model to a defined
+result model; the few obligations that inherently need verifier
+state — issuing and consuming possession challenges — are defined
+as verifier duties *around* the function, never inside it.
+
+The name of this document names the **need** it serves — evidence
+of personhood where no authority is in reach — not a claim any
+predicate makes. No predicate here says *"this is a human,"* and
+no predicate here proves *a meeting took place*: a credential in a
+third party's hands is a **signed assertion of recognition**, and
+its weight is exactly the weight of the key that signed it
+(Encounter §8). Each measure says: **"from this verifier's
+standpoint, with the roots it names, this anchor is asserted
+thus."** Personhood evidence in RLTP is verifier-relative and
+graph-rooted, where issuer-rooted systems make it absolute and
+certificate-shaped. Both the strength and the limit of that choice
+are stated in this document, in the same breath.
+
+## Status of This Document
+
+This is an **Editor's Draft** with no standing beyond its own
+argument, the third casting of this document. It is developed
+through the same adversarial convergence process as the other RLTP
+documents (casting, independent adversarial review, full recast —
+never a patch); round one drew seven blocker-level findings, round
+two drew three against the recast, answered by this casting. It
+has not yet completed its own round. The document will change;
+known open questions are collected in Section 10. Feedback is
+welcome via the issues of the publication repository
+(github.com/real-life-org/rltp-spec).
+
+## 1. Introduction (informative)
+
+### 1.1 The two structural facts
+
+Everything here follows from two properties of the RLTP encounter
+graph:
+
+**The graph is nowhere.** No global view, no directory, no
+crawling. Every person holds their own edges; a verifier learns of
+a subject's edges only because the subject **presents** them. This
+is a presentation model, not a lookup model: disclosure is the
+subject's controlled act, a verifier can anchor its judgment only
+in roots it already holds, and every step beyond the first edge
+would disclose edges of third parties who were never asked — the
+hard boundary that decides which predicates can exist at all
+(Section 7).
+
+**Trust does not propagate.** No transitive computation, no
+introducer model, no trust depth. An edge is one anchor's signed
+recognition of another; what a *set* of edges means is decided by
+the **verifier's policy**, never by the graph. This document
+defines *measures*, not *thresholds*.
+
+### 1.2 What a presented credential is — and is not
+
+Inside an enactment, the Encounter layer's gates (records,
+challenges, issuance windows) bind a credential to a live exchange
+— for the two participants. **None of that travels.** A third
+party holds no enactment record and cannot check one (Encounter
+§5.6 is participant-local by design). What a third party can
+verify is exactly this: *a key signed a recognition of this
+subject, following the credential form*. Where the subject also
+presents its own matching step credential of the same enactment,
+the third party can run the Encounter §8 pair verification —
+including **recomputing** the shared binding from both challenges
+— and learn that *both keys signed reciprocally over one
+recomputed descriptor* (the `reciprocal` quality, 4.1). That is
+still not proof of a meeting: Encounter §8 states in as many words
+that colluding key holders can manufacture a consistent pair. This
+document therefore speaks of **assertions** throughout, and every
+measure's strength reduces to the trustworthiness of the asserting
+keys.
+
+### 1.3 Relation to issuer-rooted personhood
+
+Issuer-rooted systems bind a boolean to a person: an accredited
+issuer certifies humanity, governance ensures it happens once.
+That serves strangers — anyone can check the boolean — and it
+stands or falls with accreditation and global uniqueness, which
+are hard open problems. The predicates here claim no uniqueness
+and need no issuer. They serve **acquaintances**: a verifier that
+already holds roots — its own encounter history, a group it
+belongs to — learns something real about a subject asserted by
+them. A verifier with no roots learns nothing, correctly. Most
+real trust decisions are taken among acquaintances; that is the
+ground this document stands on, and its honest boundary.
+
+## 2. Conventions and Terminology
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+"MAY", and "OPTIONAL" are to be interpreted as described in BCP 14
+[RFC2119] [RFC8174] when, and only when, they appear in all
+capitals.
+
+The **interim securing profile** of Encounter §2.3 applies to
+every document evaluated here. Timestamps compare as instants
+(RFC3339 UTC, per that profile); this document never derives
+durations. **Credential digest** — the multibase multihash over
+`JCS(document)` per Encounter §2.2; the equivalence under which
+documents are counted here.
+
+**Subject** — the anchor whose assertions are being evaluated.
+**Verifier** — the party evaluating; **evaluator** — the pure
+function of Sections 3–5, which the verifier runs. **Asserter** —
+the issuer of an encounter credential about the subject.
+**Incoming candidate** — a presented document issued *by* an
+asserter *about* the subject; the only kind that forms edges
+(Encounter §4.2). **Outgoing candidate** — a presented document
+issued *by the subject* about an asserter; serves only the
+`reciprocal` quality (4.1), never forms an edge. **Presented
+set** — the input collection of documents (3.1); deliberately not
+named "presentation" — the Access layer's `encounter-presentation`
+is a different, operation-bound artifact. **Known-anchor set
+(K)** — the set of anchors the verifier already associates with
+people it has reason to treat as distinct; its curation is the
+verifier's responsibility and P1/P2's entire root (Section 8).
+**Group input** — per requested group, either a snapshot (3.3) or
+a declared unavailability (5.3). **Edge record** — the
+per-asserter unit every measure is computed from (4.1).
+**Measure** — a deterministic value over edge records.
+**Non-result** — a named outcome from the closed set of 5.3.
+
+## 3. The Input Model (normative, abstract)
+
+The evaluator is a pure function of the following input; no other
+information may influence any result field.
+
+### 3.1 The presented set
+
+A finite collection of candidate documents, counted and
+deduplicated by **credential digest** (documents with equal digest
+are one document, whatever their serialization). Bounds, checked
+in this order before any validation: more than **1024** distinct
+documents yields the whole-evaluation non-result
+`input-too-large`; a single document exceeding **2048 bytes** in
+its JCS serialization (the Encounter credential cap) is excluded
+individually with reason `oversize` and never fails the
+evaluation.
+
+### 3.2 Parameters
+
+The subject anchor; the known-anchor set K (possibly empty; bound
+into results by digest, 5.2); the list of **requested groups**
+(possibly empty), each with its group input (3.3); optionally a
+possession input (3.4) together with the challenge the verifier
+issued for it.
+
+### 3.3 Group inputs (for P3)
+
+For each requested group, the verifier's Access implementation
+supplies exactly one of:
+
+- a **snapshot**: `{ snapshotId, currencyRoster }`, where
+  `snapshotId` is the multibase multihash over the JCS
+  serialization of `{ "genesisDigest": …, "epoch": …, "heads":
+  [ …the materialization's DAG head operation ids, sorted
+  bytewise… ] }` — canonical and implementation-independent: two
+  replicas holding the same DAG name the same snapshot — and
+  `currencyRoster` is the policy currency (pending exits excluded)
+  of that materialization, as a set of anchors. **Roster fidelity
+  is the supplying Access implementation's obligation**, named
+  here: an evaluator neither recomputes materialization nor could
+  it; it trusts its own replica, which is P3's root (4.4);
+- or a **declared unavailability**, one of `group-unknown` ·
+  `group-unreadable` · `group-forked` · `group-terminal`, which
+  the evaluator carries verbatim into the result (5.3).
+
+This makes P3 total: every requested group yields either a measure
+or a named non-result, and nothing else.
+
+### 3.4 The possession input (profile)
+
+Predicates evaluate evidence about an **anchor**. Whether a live
+counterparty controls that anchor is a separate proof, REQUIRED
+whenever a verdict attaches to a present counterparty rather than
+to a stored anchor.
+
+**Verifier duties (stateful, outside the evaluator):** generate a
+**challenge** of at least 128 bits of entropy, fresh per
+evaluation, never reused; accept only challenges it itself issued;
+treat every seen challenge as consumed.
+
+**The signed object (checked inside the evaluator):** the
+counterparty signs, with the subject anchor (Ed25519), the UTF-8
+bytes of the JCS serialization of
+
+```
+{ "profile": "rltp-predicates@0.3",
+  "challenge": <the verifier's challenge>,
+  "audience": <the verifier's identifier as stated in its need>,
+  "subject": <the subject anchor>,
+  "presentedSet": <multihash over JCS of the sorted credential
+                   digests of the presented set> }
+```
+
+prefixed by the domain separator **`rltp/v1/possession`**. The
+evaluator verifies signature, subject binding, audience equality
+with the verifier-supplied value, challenge equality with the
+verifier-supplied challenge, and presented-set binding against the
+set it was actually given. Result states: `proven` /
+`not-attempted` / `failed` (5.2).
+
+**Scope, honestly:** the presented-set binding ties a proof to
+exactly one disclosure; the challenge ties it to one evaluation of
+one verifier *provided the verifier honors its duties above* — a
+verifier accepting a challenge it did not issue is non-conformant,
+and audience binding is only as strong as audience uniqueness
+(RECOMMENDED: the verifier's own anchor). Conflating possession
+with assertion evidence is the classic mistake this section exists
+to prevent.
+
+### 3.5 Admission of candidate documents
+
+Each distinct document is classified independently. First its
+**lane**:
+
+- **incoming candidate** — credential subject = the evaluated
+  subject and issuer ≠ subject;
+- **outgoing candidate** — issuer = the evaluated subject and
+  credential subject ≠ subject;
+- anything else is excluded with reason `unrelated`.
+
+Then, per lane and in order, the first failing step names the
+**exclusion reason** from the closed set: `oversize` (3.1) ·
+`invalid-document` (Encounter §7 validation: schema, proof under
+the issuer's anchor, decoded keys, pinned context) · `unrelated`
+(lane check above). There are no other reasons; in particular,
+this profile evaluates **raw anchors only** — applying succession
+resolution and still claiming this profile is non-conformant
+(PP-5).
+
+Documents surviving admission are **admitted** (in their lane);
+the rest are **excluded** with their reason. Exclusions MUST NOT
+fail the evaluation, and an invalid document never affects the
+standing of other documents from the same asserter (independent
+classification — no slot poisoning). A presented set claims *at
+least*, Section 6.
+
+## 4. Edges and Measures
+
+### 4.1 The edge model
+
+From the admitted incoming candidates, the evaluator builds **one
+edge record per distinct asserter anchor**:
+
+```
+edge := { asserter, instants, reciprocal, documents }
+```
+
+- `asserter` — the issuer anchor;
+- `instants` — the sorted list of `validFrom` values of that
+  asserter's admitted incoming documents. `validFrom` is the
+  credential's **issuance time** (Encounter §7.2) — an instant an
+  assertion was signed, nothing about when an edge "began"; every
+  admitted document contributes its instant, none is discarded;
+- `reciprocal` — `true` iff the presented set contains an admitted
+  outgoing candidate about this asserter such that the **full
+  Encounter §8 pair verification** succeeds for the two documents:
+  both proofs, reciprocal anchors, each subject's challenge
+  binding, and the shared enactment binding **recomputed per
+  Encounter §5.4 from the two documents' challenges** — equality
+  of two carried binding values is NOT sufficient, precisely
+  because a copied value proves nothing;
+- `documents` — the credential digests collapsed into this edge.
+
+Edges are a set keyed by asserter: deterministic for any input
+order and any duplication. **Every measure is a function of the
+edge set and nothing else.** This is Encounter §4.2's rule —
+*counts edges, never credentials or enactments* — made structural.
+
+**What `reciprocal` is, honestly:** pair verification proves that
+*both keys signed reciprocally over one recomputed descriptor*.
+Two colluding keys manufacture that trivially (Encounter §8). The
+one thing it excludes is a **unilateral** assertion the subject
+never countersigned — a reciprocity and consent marker, not
+stronger evidence of a meeting. **No measure uses it**; consumers
+MAY filter edges on it, and a consumer requiring `reciprocal` is
+requiring the subject's own countersignature, nothing more. It
+carries no strength order, and Section 6's floor statement is
+about measures, which it does not touch.
+
+### 4.2 P1 — Known-asserter count
+
+> **P1(K)** = |{ edges e : e.asserter ∈ K }|
+
+*"n of the anchors asserting this subject, I already know."*
+Distinctness is **anchor**-distinctness and nothing more: one
+person holding several anchors in K counts once per anchor
+(Section 8). Anchors outside K contribute nothing — anchors are
+free to create, assertions among unknown anchors are free to
+manufacture; what is expensive is an assertion signed by a
+**specific, known key** (Encounter §13). P1's root is K, entirely.
+
+### 4.3 P2 — Signed instants
+
+> **P2(K)** = { (e.asserter, e.instants) : e.asserter ∈ K }
+
+*"the assertions I can anchor carry these signed instants."* P2
+returns **per-edge instants, never ages** — evaluation is
+clock-free; turning instants into durations, and deciding what a
+temporal pattern is worth, is the consumer's act with the
+consumer's clock and policy.
+
+**This document defines no strength order for P2** — deliberately.
+More input is more *information* (Section 6's monotonicity), but
+an earlier instant is not automatically more *strength*: a single
+backdated entry is exactly what a compromised K-key would produce
+(Section 8), so "older is stronger" would reward precisely the
+forgery. The robust consumption pattern, stated informatively: a
+consumer requiring *m distinct edges* whose instants precede *T*
+demands *m* independent keys' histories, which no single stolen
+key satisfies. P2 over asserters outside K MUST NOT be computed —
+unknown keys' instants attest nothing.
+
+### 4.4 P3 — Contextual assertion
+
+> **P3(G)** = |{ edges e : e.asserter ∈ currencyRoster(G) }|
+
+*"n anchors this group's own admission discipline vouches for have
+signed recognition assertions about this subject."* The roster is
+the snapshot's policy currency (3.3). **P3's root is not K — it is
+G's gatekeeping and the verifier's own replica**: trusting P3
+means trusting the group's admission policy and the integrity of
+the Access implementation that supplied the roster. That the
+verifier can obtain a roster at all means it belongs to that
+context (membership is member-only state, Access §3.1/§13).
+
+P3 is the **sibling** of the Access layer's registered
+`encounter(count)` rule (Access §4.2), not the same predicate: the
+Access rule is evaluated at an operation's causal position during
+admission decisions; P3 at a verifier-named snapshot for the
+verifier's own purposes. Two verifiers holding different replicas
+may compute different P3 — inherent to local-first, and made
+comparable: the canonical `snapshotId` (3.3) names each
+evaluation's state, and equal snapshotIds mean equal DAGs mean
+equal rosters.
+
+### 4.5 Composition
+
+Measures MAY be combined by the consumer in any way; this document
+defines no composition algebra and no thresholds. Groups wanting
+predicate thresholds *as group policy* would need new registered
+requirement types in the Access layer's open rule set — a future
+registration, not a present capability.
+
+## 5. The Result Model (normative, abstract)
+
+### 5.1 No wire format, one data model
+
+Interoperability happens at the credential level; a result is a
+local value. This document defines no serialization for results —
+but it defines their **abstract content**, because a result whose
+meaning cannot be reconstructed is not evidence of anything.
+
+### 5.2 Result content
+
+An evaluation result contains, at minimum: the profile version
+(`rltp-predicates@0.3`) · the subject anchor · the **K digest**
+(multibase multihash over the JCS serialization of the sorted K
+anchors — binding which K produced these numbers without embedding
+it) · the edge records of 4.1 (asserter, instants, reciprocal,
+document digests) · the counts of distinct presented documents,
+admitted documents per lane, and excluded documents per closed
+reason · P1 and P2 for the given K · per requested group: its
+`snapshotId` and P3, or its declared unavailability · the
+possession status: `proven` / `not-attempted` / `failed`.
+Timestamps appear as instants; **no age, duration, or "now" may
+appear anywhere in a result.**
+
+A result **contains graph knowledge** — the subject and its
+asserters — and Section 9's retention duty therefore applies to
+results exactly as to presented documents.
+
+### 5.3 Non-results (closed set)
+
+`input-too-large` (3.1, whole evaluation) · per requested group,
+carried from the group input: `group-unknown` ·
+`group-unreadable` · `group-forked` · `group-terminal`. A
+non-result is distinct from every measure value; in particular,
+**`group-unreadable` is not `P3 = 0`**, and implementations MUST
+preserve the distinction in their result types.
+
+## 6. What No Predicate Establishes
+
+Presenting any of the following as established is non-conformant.
+
+- **No predicate establishes personhood, and none establishes
+  that a meeting took place.** A credential in third-party hands
+  is a signed recognition assertion (§1.2); a `reciprocal` edge is
+  two consistent reciprocal signatures (Encounter §8). The
+  protocol proves key control and signing; humans witness humans.
+- **Every measure is a floor over what was presented, bounded by
+  what was signed.** The *subject* can withhold, never invent:
+  hiding documents can lower measures, and no subject-side input
+  raises any **measure** beyond what asserting keys signed (the
+  `reciprocal` flag is subject-side and is not a measure, 4.1).
+  Whether *asserters* signed truthfully is exactly the trust
+  P1/P2 place in K's keys and P3 places in G — issuer-side
+  fabrication is not prevented, it is priced (Section 8).
+- **Monotonicity is information-monotonicity.** Adding admitted
+  input never shrinks anything: P1 and P3 are non-decreasing, and
+  every P2 instant list only gains entries; removing input never
+  adds. For P1/P3 more is stronger; **for P2 this document
+  defines no strength order** (4.3) — more entries is more
+  information, and its interpretation is policy.
+- **No global uniqueness.** One person may hold several anchors,
+  each independently asserted — true on the subject side and
+  equally on the asserter side (Section 8). These predicates
+  measure assertion of *an anchor*, not enumeration of *persons*.
+- **A verifier without roots learns nothing.** Empty K yields
+  P1 = 0 and an empty P2; no obtainable roster yields P3
+  non-results. Correct, and the honest boundary: these predicates
+  serve acquaintances and contexts, not strangers.
+- **Nothing propagates.** An asserted asserter confers nothing
+  transitively. There is no depth parameter anywhere in this
+  document, deliberately.
+
+## 7. Excluded Predicates (named non-goals)
+
+- **P4 — Asserter independence** ("n asserters not densely
+  connected among themselves") is the real collusion measure and
+  requires edges *among the asserters* — third-party data the
+  subject cannot rightfully present and a verifier can only
+  approximate from its own prior knowledge. A future revision MAY
+  define P4 as an explicitly approximate, verifier-local measure;
+  this version does not, rather than define it badly.
+- **P5 — Path distance** is excluded, not deferred: a predicate
+  whose evaluation disclosed the social graph of non-parties is
+  structurally at odds with the presentation model (§1.1).
+- **Zero-knowledge presentation** ("n of my asserters lie in S,
+  without revealing which") is the genuine minimal-disclosure
+  direction for P1/P3 and belongs to the Encounter layer's OI-5
+  presentation work. Named as a direction, not implied as a
+  feature.
+
+## 8. Security Considerations
+
+- **Each predicate's root, named:** P1 and P2 root **entirely in
+  K's keys**; P3 roots **entirely in G's admission discipline and
+  the verifier's replica integrity** (roster fidelity, 3.3). No
+  statement in this document may be read as K protecting P3 or G
+  protecting P1.
+- **K is anchor-distinct, never person-distinct.** One person
+  entering K under several anchors counts once per anchor in P1
+  and contributes several instant lists to P2. K curation (one
+  anchor per person, provenance per entry) is the verifier's
+  security work; implementations MUST make K's provenance
+  inspectable and MUST NOT merge anchors into K from
+  unauthenticated sources. K poisoning defeats P1/P2 before any
+  machinery here runs.
+- **The Sybil economics are inherited, not improved:** free
+  anchors, free assertions among them; expensive assertions from
+  **specific known keys** (Encounter §13). A K-anchor asserting
+  falsely is a known key lying — possible, and exactly the trust
+  being spent.
+- **Key compromise beats collusion-talk.** False or backdated
+  assertions require a K-anchor's *key*, not its owner's consent;
+  signatures do not distinguish owner from thief, there is no
+  transparency log, and multiple credentials per issuer are legal.
+  Drawn consequences: P2 carries **all** instants and defines no
+  strength order, so a consumer can demand *m* independent keys'
+  histories (4.3) — one stolen key satisfies one edge, never *m*;
+  asserter-anchor compromise is a first-class threat, not only
+  subject compromise; and stale evidence about a long-lived anchor
+  means both established history *and* a longer compromise window
+  — consumers weigh both.
+- **Raw anchors only.** This profile does not consult succession
+  state (3.5). A person's anchor change therefore splits their
+  assertions across anchors until a future succession-aware
+  profile (PP-5) defines resolution with person-slot collapsing —
+  under-counting, never double-counting, consistent with the floor
+  semantics of Section 6.
+- **Possession replay, scoped.** The 3.4 object is single-
+  challenge, audience-bound, presented-set-bound, and
+  domain-separated. Within conformant verifiers — each issuing its
+  own challenges and consuming them — a captured proof is useless.
+  The residual is named in 3.4: a verifier that accepts foreign
+  challenges, or an audience namespace without uniqueness, weakens
+  its own gate and only its own.
+- **Presented sets are not secrets, and holding one is not
+  standing.** Possession gates authority; what holding a foreign
+  presented set or result confers is knowledge — a privacy
+  consequence, treated in Section 9.
+
+## 9. Privacy Considerations
+
+- **What a presented credential actually discloses — in full.** A
+  complete encounter credential reveals its asserter and subject
+  anchors, `validFrom`, ceremony identifier, the subject's
+  challenge, the enactment binding, any channel hint, and the
+  proof with its metadata (`proof.created` among it). Bindings and
+  challenges are correlatable with counterpart credentials
+  obtained elsewhere. Consumers learn substantially more than the
+  measures; this document does not pretend otherwise.
+- **Disclosure within this flow is the subject's act** — scoped
+  claim: the asserter of every credential also holds a copy
+  (Encounter §7.4) and may disclose it independently; nothing here
+  restrains issuers. Within the evaluation flow, the subject
+  chooses what to present.
+- **Stated need first.** A consumer MUST state, before receiving
+  any credential: which measures it needs, the K digest it will
+  evaluate against, and **which groups** it will request P3 for.
+  Evaluating P3 against groups not stated beforehand is
+  non-conformant. (Against a malicious verifier this is a
+  conformance line, not a shield; the protection is that the
+  subject hands over less, guided by the stated need.)
+- **Interactive narrowing (RECOMMENDED).** A K digest does not
+  tell the subject which of its asserters count (K's contents are
+  rightly not disclosed), so minimal presentation needs a flow
+  that makes it possible: the subject first offers its **asserter
+  anchor list** — anchors only, no credentials, no instants; the
+  consumer answers which of them it can anchor (in K, or in a
+  stated group's roster); the subject then presents credentials
+  for exactly those. The subject discloses its asserter list one
+  step earlier, and its credentials — with their instants,
+  bindings, and correlatable content — only where they count.
+- **P3 discloses context proximity.** Computing P3(G) tells the
+  verifier the subject is asserted by G-members — proximity to G.
+  Multiple requested groups compose into a profile; the
+  stated-need rule makes that composition visible to the subject
+  before disclosure.
+- **Verifiers accumulate graphs — and results are graphs.** Every
+  evaluation enriches the verifier's picture of who asserts whom,
+  and a stored result (5.2) preserves the subject-asserter
+  relation even after presented documents are deleted.
+  Implementations SHOULD NOT persist presented documents **or
+  results** beyond the evaluation's need without the subject's
+  consent.
+
+## 10. Open Issues
+
+- **PP-2 The K interchange question.** Communities will want to
+  share known-anchor sets ("our roster as a K you can adopt") — a
+  trust decision with real attack surface (Section 8), related to
+  the Access membrane (Access OI-13).
+- **PP-3 P4 as approximate measure**, once field experience
+  exists.
+- **PP-4 Report wire form.** If two independent consumers emerge,
+  a minimal serialization of the 5.2 model may be worth freezing.
+- **PP-5 Succession-resolved evaluation.** A future profile that
+  consults succession state: its inputs, contested-succession
+  handling, and person-slot collapsing (one person, several
+  anchors, one edge slot). Until it exists, this profile is raw-
+  anchor only and says so (3.5, §8).
+- *(PP-1, the possession profile, was resolved into §3.4 by the
+  second casting; the third bound it to the presented set and
+  separated verifier duties from the evaluator.)*
+
+## 11. Conformance
+
+- **Profile** `rltp-predicates@0.3`; normatively references
+  `rltp-encounter@0.22` (credential form, evidence direction,
+  enactment binding, pair verification); P3 additionally requires
+  group inputs per 3.3.
+- **Classes:** *predicate evaluator* — the clock-free pure
+  function from the input model (Section 3) to the result model
+  (Section 5) — and *verifier* — an evaluator plus the stateful
+  duties of 3.4 (challenge issue, uniqueness, consumption) and
+  the stated-need flow of Section 9.
+- **Vector plan:**
+  - input bounds: 1025 distinct documents → `input-too-large`
+    before validation; a single document over 2048 bytes →
+    excluded `oversize`, evaluation proceeds; the same document
+    presented in two serializations with one credential digest →
+    one document in every count;
+  - lanes and admission: incoming and outgoing candidates
+    classified by issuer/subject relation; a document about a
+    third party → `unrelated`; Encounter-invalid →
+    `invalid-document` without failing the evaluation; an invalid
+    and a valid document from one asserter → the valid one forms
+    the edge (no slot poisoning); every closed reason exercised
+    and no reason outside the closed set ever produced;
+  - edges: one edge per asserter; `instants` = all admitted
+    incoming documents' `validFrom` values, sorted; outgoing
+    candidates never form edges;
+  - reciprocal: full §8 pair verification required — an outgoing
+    candidate carrying a **copied binding value** whose
+    recomputation from the two documents' challenges fails does
+    NOT set `reciprocal`; a genuine pair does; reciprocal touches
+    no measure;
+  - P1: inside/outside K; empty K → 0; anchor-distinctness (two
+    anchors, one person, both in K → both count);
+  - P2: per-edge instant lists for K-edges only; instants only —
+    a result containing any age or "now" fails; empty
+    intersection → empty P2, not an error;
+  - P3: evaluated against the supplied `currencyRoster` — a
+    pending exit's assertion does not count; `snapshotId`
+    recomputes from (genesisDigest, epoch, sorted heads) and is
+    reproduced verbatim; each declared unavailability carried
+    into the result and distinct from 0 in the result type;
+  - possession: valid object → `proven`; absent →
+    `not-attempted`; wrong audience, wrong challenge, wrong
+    subject, or presented-set digest mismatch → `failed`; a
+    verdict attached to a live counterparty with status other
+    than `proven` MUST be reported as unbound;
+  - result binding: K digest recomputes from the sorted K
+    anchors; edge document digests present;
+  - monotonicity (information order): adding an admitted document
+    never lowers P1/P3 and never removes a P2 entry; removing one
+    never raises P1/P3 and never adds one;
+  - determinism: permuting input order and duplicating documents
+    changes no result field.
+- Every normative statement is vector-testable or explicitly
+  marked as consumer policy.
+
+## References
+
+[RFC2119] · [RFC8174] BCP 14 · **RLTP Encounter Layer 0.22**
+(credential form §7, issuance time §7.2, issuer copy §7.4,
+evidence direction and counting rule §4.2, enactment binding
+§5.4, participant-local acceptance §5.6, pair verification and
+honesty §8, Sybil economics §13) · **RLTP Access Layer 0.25**
+(materialized state and currency §3–§4, membership privacy
+§3.1/§13, `encounter(count)` rule §4.2) · RLTP Succession draft
+(anchor resolution, future PP-5) · W3C Verifiable Credentials
+Data Model 2.0
