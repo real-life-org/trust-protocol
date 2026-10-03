@@ -7,10 +7,13 @@ credentials. Trust is anchored in real meetings rather than in a
 certifying institution. Cryptography proves freshness and authorship;
 only a human can witness a human.
 
-Published by the [Real Life Organisation](https://real-life.org). The
-protocol grew out of the deployed
-[Web of Trust app](https://web-of-trust.de/), whose ceremony flows have
-been exercised at festivals and community gatherings since 2026.
+Published by the [Real Life Organisation](https://real-life.org). RLTP is
+the third generation of this protocol. The second,
+[`wot-spec`](https://github.com/real-life-org/wot-spec), runs in production
+in the [Web of Trust app](https://web-of-trust.de/), whose ceremony flows
+have been exercised at festivals and community gatherings since 2026; it
+is repaired toward these contracts, and its users migrate when identity
+does.
 
 ## What is different about it
 
@@ -156,6 +159,9 @@ Graph work where the two effort meet:
   RDF processing, offline-verifiable.
 - **Messages:** RLTP delivery documents are private Trust Task
   specifications (framework 0.4, §6.5).
+- **Roles:** in DTGWG terms the Web of Trust app is a *PNM* (Personal
+  Network Manager): local-first, keys on the device, no hosted agent
+  (VTA) required, interoperable through Trust Tasks.
 
 Where RLTP differs, it differs deliberately and says why in the
 specifications themselves: participant recognition rather than
@@ -191,22 +197,19 @@ Life Network Protocol and the Real Life Stack live in the shared register,
 
 ## Implementations
 
-Library: [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
-0.3.2 on npm (encounter ceremony and continuity, published with
-provenance).
-
-RLTP is the third generation of this trust protocol. The second
-generation, [`wot-spec`](https://github.com/real-life-org/wot-spec), is
-in production in the [Web of Trust app](https://web-of-trust.de/) and the
-Real Life Stack (implementation:
-[`real-life-org/web-of-trust`](https://github.com/real-life-org/web-of-trust));
-it is repaired toward the converged contracts, and its users migrate when
-identity does. The first generation-3 application, a new Web of Trust
-app, is being built in this repository under `apps/`. In the vocabulary
-of the DTGWG it is a *PNM* (Personal Network Manager): local-first, keys
-on the device, no hosted agent (VTA) required, interoperable through
-Trust Tasks. A second, independent implementation is the goal, not yet a
-fact.
+- **Library:** [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
+  0.3.2 on npm, published with provenance: encounter ceremony and
+  continuity.
+- **Simulators:** [`simulator/`](simulator/) and the workbench
+  [`apps/gesamtsimulator/`](apps/gesamtsimulator/), both on the real
+  library.
+- **Web of Trust app (generation 3):** being built under `apps/`.
+- **Generation 2 in production:**
+  [`@web_of_trust/core`](https://www.npmjs.com/package/@web_of_trust/core)
+  in [`real-life-org/web-of-trust`](https://github.com/real-life-org/web-of-trust).
+- **An independent implementation** is the goal, not yet a fact. The
+  [vectors](vectors/) and the [conformance runner](conformance/) are the
+  test it would have to pass.
 
 ## Contact
 
