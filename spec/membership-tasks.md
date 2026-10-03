@@ -132,7 +132,7 @@ task proof falls away for the invite; the accept keeps its task
 proof). Every consumer check maps one-to-one onto the new paths;
 nothing weakens.
 Feedback is welcome via the issues of the publication repository
-(github.com/real-life-org/rltp-spec).
+(github.com/real-life-org/trust-protocol).
 
 ## 1. Introduction (informative)
 

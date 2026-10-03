@@ -6,7 +6,7 @@ floating device windows that run the full app, a visible delivery channel with
 fault injection, and per-device artifact sheets.
 
 **Everything that happens, happens for real.** Since 05.09.2026 the world model
-is `@real-life/trust-protocol` 0.3.0 (frozen ESM under `lib/`): one `Person` per
+is `@real-life/trust-protocol` (frozen ESM under `lib/`, a copy of the repository's `simulator/lib`, currently 0.3.2): one `Person` per
 device; every act is a real sealed document over the channel; the graph, the
 contact lists, the group rosters and the artifact sheets are DERIVED from what
 the devices hold — nothing is invented.

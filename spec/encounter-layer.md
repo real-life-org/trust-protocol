@@ -91,7 +91,7 @@ wire break with no deployed predecessor.**
 The document will keep changing as implementation experience
 accumulates; known open questions are collected in Section 16.
 Feedback is welcome via the issues of the publication repository
-(github.com/real-life-org/rltp-spec).
+(github.com/real-life-org/trust-protocol).
 
 ## 1. Introduction (informative)
 
