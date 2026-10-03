@@ -1,0 +1,9 @@
+---
+/** A symbol in a tinted tile. One tone: the primary blue of the Web of Trust design system. */
+import { icons, type IconName } from './icons'
+interface Props { name: IconName; tile?: boolean }
+const { name, tile = true } = Astro.props
+---
+<span class:list={['tp-icon', { tile }]} aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" set:html={icons[name]} />
+</span>

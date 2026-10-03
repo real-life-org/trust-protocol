@@ -1,0 +1,77 @@
+/*
+ * Web of Trust design tokens: the colour roles of the design system
+ * "Web of Trust" (Claude Design, project b62061a7), as CSS variables only.
+ * The Tailwind bridge and base layer of the original are left out; Starlight
+ * brings its own base. Light is the default on bare :root; dark answers both
+ * signals, the system setting and the explicit data-theme choice.
+ *
+ *   264°  blue    primary, identity, action, verification
+ *   142°  green   trust only (the deliberate disclosure of a durable identity)
+ *    55°  orange  introduced, one-way, pending, offline
+ *   265°  neutral cool-tinted, very low chroma
+ */
+:root {
+  --background: oklch(98% 0.003 265);
+  --foreground: oklch(22% 0.004 265);
+  --card: oklch(100% 0 0);
+  --primary: oklch(55% 0.21 264);
+  --primary-foreground: oklch(100% 0 0);
+  --success: oklch(55% 0.17 142);
+  --warning: oklch(70% 0.17 55);
+  --muted: oklch(95% 0.005 265);
+  --muted-foreground: oklch(44% 0.008 265);
+  --accent: oklch(95% 0.03 264);
+  --accent-foreground: oklch(55% 0.21 264);
+  --border: oklch(90% 0.008 265);
+  --ring: oklch(55% 0.21 264);
+  --sidebar: oklch(98% 0.01 247);
+  --primary-50: oklch(97% 0.02 264);
+  --primary-100: oklch(93% 0.05 264);
+  --primary-700: oklch(48% 0.18 264);
+  --primary-900: oklch(30% 0.10 264);
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, monospace;
+  --radius: 0.5rem;
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-lg: 0 10px 15px -3px oklch(0% 0 0 / 0.10), 0 4px 6px -4px oklch(0% 0 0 / 0.10);
+  --shadow-card: var(--shadow-lg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(15% 0.02 265);
+    --foreground: oklch(95% 0.01 247);
+    --card: oklch(20% 0.02 265);
+    --primary: oklch(65% 0.19 264);
+    --primary-foreground: oklch(15% 0.02 265);
+    --success: oklch(65% 0.17 142);
+    --warning: oklch(75% 0.15 55);
+    --muted: oklch(25% 0.02 265);
+    --muted-foreground: oklch(70% 0.01 247);
+    --accent: oklch(30% 0.08 264);
+    --accent-foreground: oklch(95% 0.01 247);
+    --border: oklch(30% 0.02 265);
+    --ring: oklch(65% 0.19 264);
+    --sidebar: oklch(15% 0.02 265);
+    --shadow-lg: 0 10px 15px -3px oklch(0% 0 0 / 0.15), 0 4px 6px -4px oklch(0% 0 0 / 0.15);
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: oklch(15% 0.02 265);
+  --foreground: oklch(95% 0.01 247);
+  --card: oklch(20% 0.02 265);
+  --primary: oklch(65% 0.19 264);
+  --primary-foreground: oklch(15% 0.02 265);
+  --success: oklch(65% 0.17 142);
+  --warning: oklch(75% 0.15 55);
+  --muted: oklch(25% 0.02 265);
+  --muted-foreground: oklch(70% 0.01 247);
+  --accent: oklch(30% 0.08 264);
+  --accent-foreground: oklch(95% 0.01 247);
+  --border: oklch(30% 0.02 265);
+  --ring: oklch(65% 0.19 264);
+  --sidebar: oklch(15% 0.02 265);
+  --shadow-lg: 0 10px 15px -3px oklch(0% 0 0 / 0.15), 0 4px 6px -4px oklch(0% 0 0 / 0.15);
+}

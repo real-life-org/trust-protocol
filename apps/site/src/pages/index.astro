@@ -1,0 +1,21 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+import Landing from '../components/Landing.astro'
+---
+<StarlightPage frontmatter={{
+  title: 'Real Life Trust Protocol',
+  description: 'A trust protocol rooted in encounters between people: specifications, library, simulators.',
+  template: 'splash',
+  tableOfContents: false,
+  hero: {
+    title: 'Trust through <span class="tp-accent">real encounters</span>',
+    tagline: 'DIDs and verifiable credentials, issued when two people recognize each other. Groups as shared, end-to-end encrypted places with their own rules, replicated on every member\'s device. Documents that travel as Trust Tasks.',
+    actions: [
+      { text: 'Try it', link: '/get-started/try-it/', icon: 'right-arrow', variant: 'primary' },
+      { text: 'Read the spec', link: '/get-started/read-the-spec/', icon: 'open-book', variant: 'secondary' },
+      { text: 'Implement', link: '/get-started/implement/', variant: 'minimal' },
+    ],
+  },
+}}>
+  <Landing />
+</StarlightPage>

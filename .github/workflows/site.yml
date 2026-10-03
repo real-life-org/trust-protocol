@@ -1,0 +1,45 @@
+name: site
+# trust-protocol.real-life.org: the Astro site in apps/site, with the
+# normative files and simulators copied next to it unchanged
+# (apps/site/scripts/assemble.mjs). Pull requests build it; main deploys it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+# Least privilege: the build (which also runs for pull requests) only reads;
+# only the deploy job may publish to Pages.
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --no-audit --no-fund
+        working-directory: apps/site
+      - run: npm run build
+        working-directory: apps/site
+      # Only main is ever published: pull requests carry refs/pull/…, and a
+      # manual run on another branch builds but never uploads or deploys.
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
+        with: { path: apps/site/dist }
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
