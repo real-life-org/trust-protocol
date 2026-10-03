@@ -190,7 +190,7 @@ Life Network Protocol and the Real Life Stack live in the shared register,
 ## Implementations
 
 Library: [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
-0.3.1 on npm (encounter ceremony and continuity, published with
+0.3.2 on npm (encounter ceremony and continuity, published with
 provenance). One implementation is in production, the
 [Web of Trust app](https://web-of-trust.de/), on the previous protocol
 generation; its migration to the converged contracts is under way. A
