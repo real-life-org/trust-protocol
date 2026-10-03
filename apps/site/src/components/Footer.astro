@@ -1,0 +1,16 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro'
+import info from '../../public/build-info.json'
+---
+<Default><slot /></Default>
+<aside class="tp-family" aria-label="Part of the Real Life project">
+  <strong>RLTP is part of the Real Life project</strong>
+  <nav>
+    <a href="https://real-life.org/">Big picture</a>
+    <a href="https://reallife.network/">Real Life Network</a>
+    <a href="https://real-life-stack.de/">Real Life Stack</a>
+    <a href="https://github.com/real-life-org/trust-protocol">GitHub</a>
+    <a href="https://www.npmjs.com/package/@real-life/trust-protocol">npm</a>
+  </nav>
+  <small>Library {info.lib} · <code>{info.commit.slice(0, 8)}</code>{info.dirty ? ' with local changes' : ''}</small>
+</aside>
