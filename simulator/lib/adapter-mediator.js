@@ -214,6 +214,10 @@ export class MediatorCarrierAdapter {
                 catch (e) {
                     if (this.#closed)
                         throw e;
+                    // a transient failure (mediator unreachable, retriable refusal)
+                    // says nothing about the token: keep it for the next attempt (#9)
+                    if (e instanceof WireError && (e.kind === 'unreachable' || e.kind === 'refused-retriable'))
+                        throw e;
                     // a refused refresh (revoked before its expiry) is never replayed:
                     // drop the tokens and take the challenge handshake below
                     this.#tokens = null;

@@ -44,6 +44,9 @@ export class WireError extends Error {
 export interface MediatorWire {
   authChallenge (did: string): Promise<{ challenge: string, sessionId: string }>
   authenticate (answer: { did: string, challenge: string, sessionId: string }): Promise<TokenSet>
+  // A transient failure MUST be a WireError 'unreachable' or
+  // 'refused-retriable' (the tokens are kept); any other error means the
+  // mediator refused the refresh token (the adapter re-runs the handshake).
   refresh (refreshToken: string): Promise<TokenSet>
   keylistUpdate (accessToken: string, rkids: string[]): Promise<void>
   deposit (accessToken: string, bytes: Uint8Array, egressDid: string): Promise<void>
@@ -281,6 +284,9 @@ export class MediatorCarrierAdapter {
           return this.#tokens.accessToken
         } catch (e) {
           if (this.#closed) throw e
+          // a transient failure (mediator unreachable, retriable refusal)
+          // says nothing about the token: keep it for the next attempt (#9)
+          if (e instanceof WireError && (e.kind === 'unreachable' || e.kind === 'refused-retriable')) throw e
           // a refused refresh (revoked before its expiry) is never replayed:
           // drop the tokens and take the challenge handshake below
           this.#tokens = null
