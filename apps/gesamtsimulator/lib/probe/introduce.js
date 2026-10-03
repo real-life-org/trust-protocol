@@ -198,14 +198,21 @@ async function receiveOfferInner(p, env, offer) {
 // (checkDrop) whether or not this side ever consents.
 export async function consent(p, entry, drop, when, ent = {}) {
     // the release happens once: a repeated consent keeps the released context
-    // and card (a new pair would orphan the channel the counterpart holds)
+    // and card (a new pair would orphan the channel the counterpart holds);
+    // a call while the release is in flight shares it (single-flight, #8)
     if (entry.released)
         return { ctx: entry.ownCtx, mutual: !!entry.counterpartAnchor };
+    if (entry.releasing)
+        return entry.releasing;
     if (!p.online) {
         p.queue.push(() => consent(p, entry, drop, when, ent));
         say(p, 'offline — Freigabe wartet auf Netz');
         return { queued: true };
     }
+    entry.releasing = release(p, entry, drop, when, ent).finally(() => { entry.releasing = null; });
+    return entry.releasing;
+}
+async function release(p, entry, drop, when, ent) {
     const { offer } = entry;
     const secret = C.fromB64u(offer.rendezvous);
     const myDir = offer.direction;
