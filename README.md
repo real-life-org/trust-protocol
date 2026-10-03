@@ -12,8 +12,8 @@ the third generation of this protocol. The second,
 [`wot-spec`](https://github.com/real-life-org/wot-spec), runs in production
 in the [Web of Trust app](https://web-of-trust.de/), whose ceremony flows
 have been exercised at festivals and community gatherings since 2026; it
-is repaired toward these contracts, and its users migrate when identity
-does.
+is repaired toward these contracts. Its users move to generation 3
+once their identities are migrated, planned as the last step.
 
 ## What is different about it
 
@@ -203,7 +203,8 @@ Life Network Protocol and the Real Life Stack live in the shared register,
 - **Simulators:** [`simulator/`](simulator/) and the workbench
   [`apps/gesamtsimulator/`](apps/gesamtsimulator/), both on the real
   library.
-- **Web of Trust app (generation 3):** being built under `apps/`.
+- **Web of Trust app (generation 3):** in preparation; it will live under
+  `apps/`, next to the workbench.
 - **Generation 2 in production:**
   [`@web_of_trust/core`](https://www.npmjs.com/package/@web_of_trust/core)
   in [`real-life-org/web-of-trust`](https://github.com/real-life-org/web-of-trust).

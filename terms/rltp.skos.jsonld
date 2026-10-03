@@ -238,11 +238,11 @@
    ],
    "skos:definition": [
     {
-     "@value": "Vorgeschlagen: signierte, portable Aussage einer Person über Beitrag, Rolle, Fähigkeit oder Versprechen einer anderen, unabhängig prüfbar. Kandidat: DTG Endorsement Credential (VEC), also ein Statement Credential mit dem Prädikat endorses/1.",
+     "@value": "Vorgeschlagen: signierte, portable Aussage einer Person über Beitrag, Rolle, Fähigkeit oder Versprechen einer anderen, unabhängig prüfbar. Kandidat: Verifiable Endorsement Credential (VEC) der DTG, also ein Statement Credential mit dem Prädikat endorses/1.",
      "@language": "de"
     },
     {
-     "@value": "Proposed: a signed, portable statement by one person about another's contribution, role, skill or promise, independently verifiable. Candidate: DTG Endorsement Credential (VEC), i.e. a Statement Credential with predicate endorses/1.",
+     "@value": "Proposed: a signed, portable statement by one person about another's contribution, role, skill or promise, independently verifiable. Candidate: the DTG Verifiable Endorsement Credential (VEC), i.e. a Statement Credential with predicate endorses/1.",
      "@language": "en"
     }
    ],
