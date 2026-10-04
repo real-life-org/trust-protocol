@@ -47,9 +47,12 @@ and `did:peer` are not specified.
 The mnemonic restores keys, not state. Which groups, personas and
 relationships exist is a register in the person's encrypted,
 synchronized state; with a copy of it, everything returns. A lost
-mnemonic is final.
+mnemonic is final, unless the person has set up succession:
+recovering an anchor through several trusted people is specified
+separately and currently parked.
 
-Spec: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md)
+Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) ·
+[Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md) (parked)
 
 ## Credentials we issue
 
@@ -213,7 +216,7 @@ RLTP names no transport and no data store. It states two contracts,
 delivery and replication, and any substrate that keeps a contract
 can carry the protocol: a relay, a mesh, a cloud store, a messaging
 mediator, each behind an adapter. Everything that crosses a substrate
-is sealed, so no operator is trusted with anything.
+is sealed, so an operator sees delivery metadata and never content.
 
 Delivery moves one document to one addressee and is done on arrival:
 a credential, an invitation, an acknowledgement. Replication keeps a
@@ -234,9 +237,10 @@ strangers.
 **Replication.** Every entry is individually signed and causally
 linked, so a replica judges it on its own, by whatever road it came:
 sync, import, recovery. Convergence is promised, readability never;
-the port checks signatures and causality and never touches keys.
+the port checks signatures and causality and never touches content
+keys.
 Evidence always flows, effect is gated: a forked group learns it on
-every device. The contract condenses this into five requirements and
+every device. The contract condenses this into five doors and
 maps p2panda, Keyhive, SECSYNC, NextGraph and Automerge against them.
 
 **Today.** One delivery adapter is specified, for the Verifiable
@@ -258,7 +262,7 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
 - **There are no admins.** Privileged operations are gated by a rule
   the group states as data.
 - **Revocation is an epoch.** A removal carries its key transition
-  atomically; there are no expiry dates.
+  atomically; nothing waits for an expiry date.
 - **Relationships never converge into a person.** Every relationship
   has its own anchor and, toward every carrier, its own principal.
 
