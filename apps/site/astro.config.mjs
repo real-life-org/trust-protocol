@@ -38,6 +38,9 @@ export default defineConfig({
           { label: 'Read the spec', link: '/get-started/read-the-spec/' },
           { label: 'Implement', link: '/get-started/implement/' },
         ] },
+        { label: 'Understand', items: [
+          { label: 'Foundations', link: '/understand/foundations/' },
+        ] },
         { label: 'Reference', items: [
           { label: 'Specifications', link: '/reference/specifications/' },
           { label: 'Schemas', link: `${REPO}/tree/main/schemas` },
