@@ -377,7 +377,10 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-space-devices { padding: 0; }
   .tp-space-devices em { font-size: .6rem; }
 }
-/* The properties of the space, under the figure, across both columns. */
-.tp-props { grid-column: 1 / -1; order: 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 3rem; border-bottom: 1px solid var(--sl-color-gray-6); }
-.tp-props .tp-item { padding: 1rem 0; }
-@media (max-width: 49.99rem) { .tp-props { grid-template-columns: 1fr; } }
+/* The properties of the space: a compact list under the copy. */
+.tp-props { margin-top: 1.6rem; display: flex; flex-direction: column; border-bottom: 1px solid var(--sl-color-gray-6); }
+.tp-props .tp-item { padding: .7rem 0; gap: .8rem; align-items: center; }
+.tp-props .tp-icon.tile { width: 2rem; height: 2rem; border-radius: .5rem; }
+.tp-props .tp-icon svg { width: 1rem; height: 1rem; }
+.tp-props .tp-item strong { font-size: .92rem; margin-bottom: .05rem; }
+.tp-props .tp-item span { font-size: .82rem; line-height: 1.45; }
