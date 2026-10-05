@@ -1259,7 +1259,8 @@ group has not kept.
 descendant and in the removal-disposition set, its disposition
 MUST be the greatest under the order `forked` ≻
 `removed-disposed` ≻ `lapsed` ≻ `canonical`, and transitions MUST
-be closed under that order.
+be closed under that order; an operation invalid at its position
+(3.4) has no disposition and precedes the order.
 
 *Rationale.* One operation can fall under two outcome rules at
 once. A total order over the outcomes keeps the answer single and
@@ -4391,7 +4392,8 @@ removal of a member MUST remove every leaf of that member.
 **RLTP-ACC-9890** — Under `beekem/0.1`, `keys` MUST contain exactly
 `op`, the base64url encoding of the key operation addressed to the
 material's recipient, and a transition MUST carry no material
-binding beyond `keyOpDigest`.
+binding beyond `keyOpDigest`; a `history.expose` entry (8.1)
+exposes a key state as its 32-byte application secret, base64url.
 
 ```json
 { "v": "rltp-access-material/0.25", "adapter": "beekem/0.1",
@@ -4520,7 +4522,7 @@ The material kinds are registered per adapter (Section 9.4).
 |---|---|---|
 | `keydist` | the transition | the key envelope whose digest the named transition's `keyDist` carries for this recipient (the seal profile of 9.4.1) |
 | `re-welcome` | the canonical admission | a welcome seal per Membership §4, built from fresh material of the key port at the sender's current position, sealed to the accept's card or to the card of the request it answers (5.3) |
-| `refresh` | any canonical admission of the recipient, or the genesis for the founder | a seal per the `keydist` profile of 9.4.1 — same HKDF info, associated data with the requester as recipient and the sender's current epoch as `newEpoch` — whose plaintext is a fresh `keydist` object from the key port at the sender's current position, sealed to the request's card |
+| `refresh` | any canonical admission of the recipient, or the genesis for the founder | a seal per the `keydist` profile of 9.4.1 — same HKDF info, associated data with the requester as recipient and the sender's current epoch as `newEpoch` — whose plaintext is a fresh `material` object (9.4, with `keyState` = the sender's current key state) from the key port at the sender's current position, sealed to the requesting device's key-agreement key |
 
 **RLTP-ACC-10040** — A `keyDelivery` payload MUST carry `group`,
 `genesisDigest`, `epoch`, `op`, and `kind`, with `kind` being
@@ -4549,7 +4551,7 @@ anchor and the anchor the enclosed card binds to.
 envelope is committed by digest in the named transition and bound
 by its associated data to group, epoch, and recipient; `re-welcome`
 and `refresh` material is adopted only if it verifies against the
-log's binding of its epoch. A request is a demand on the receiver,
+log's binding of the key state it names. A request is a demand on the receiver,
 so it is signed; the signature gate is what keeps third parties from
 triggering the key service duty (5.3), and a card verifying under
 the same anchor is the live key the answer is sealed to. The
@@ -4586,10 +4588,11 @@ consumer's own-anchor check of Delivery §6 step 5, and this layer's
 binding check (5.1) follows at step 8.
 
 **RLTP-ACC-10110** — At adoption, the unsealed material's `epoch`
-MUST equal the recipient's current epoch and its `keyState` MUST
-name a key state of the recipient's materialization, and the
-material MUST verify against the log's binding of that key state
-(RLTP-ACC-9362).
+MUST equal the recipient's current epoch; for a `keydist` document
+its key state is the named transition, and for every other kind its
+`keyState` MUST name the current key state of the recipient's
+materialization; the material MUST verify against the log's binding
+of that key state (RLTP-ACC-9362).
 
 **RLTP-ACC-10120** — A document violating RLTP-ACC-10100 or
 RLTP-ACC-10110 MUST be disposed `failed(validation-failed)` without
@@ -4977,7 +4980,10 @@ AAD of its own version, unchanged. The welcome `material`
 Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
 under this profile; a receiver MUST accept `0.24` material without
 `keyState` as naming the key state of the most recent transition in
-the admission's ancestry, until the companion's pin advances.
+the admission's ancestry, until the companion's pin advances. A
+`0.24` envelope's `history.expose` body carries `keys` as an array
+of keys in epoch order, which receivers MUST read as naming the one
+key state per epoch number in the operation's ancestry.
 
 *Rationale.* A companion pin that lags one wire version is a
 compatibility statement, not a contradiction, as long as the
