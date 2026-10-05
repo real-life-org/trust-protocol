@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
   "title": "RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelopes rltp-access/0.25 and rltp-access/0.24)",
-  "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization. New in 0.25 (Access 9.2, 11): keyOpDigest — the digest of the adapter's key operation — in the genesis body and in every transition (RLTP-ACC-9270, 7045, 4440); the transition carries the adapter's material binding, which for linear/0.1 is contentKeyCommitment, keyDist and the lineage choice (9.4.1), and for an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2) nothing beyond newEpoch and keyOpDigest; device.add and device.revoke bind and revoke device cards (Access 5.1); dag.join (additive, empty body) joins DAG heads beyond the prev bound of 32 (RLTP-ACC-3170, 3172); history.expose names each exposed key's key state under 0.25 (RLTP-ACC-8090). Both wire versions validate (RLTP-ACC-11100): the access-operation/0.1 task of the Membership Tasks is pinned to rltp-access/0.24, and a receiver accepts 0.24 and 0.25 until that pin advances; keyOpDigest is REQUIRED only under 0.25, and lineage takes the single-object form { opens: <epoch number>, ct } under 0.24 and the array of { opens: <operation id>, ct } under 0.25 (the conditional blocks at the end of allOf).",
+  "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization. New in 0.25 (Access 9.2, 11): keyOpDigest — the digest of the adapter's key operation — in the genesis body and in every transition (RLTP-ACC-9270, 7045, 4440); the transition carries the adapter's material binding, which for linear/0.1 is contentKeyCommitment, keyDist and the lineage choice (9.4.1), and for an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2) nothing beyond newEpoch and keyOpDigest; device.add and device.revoke bind and revoke device cards (Access 5.1); dag.join (additive, empty body) joins DAG heads beyond the prev bound of 32 (RLTP-ACC-3170, 3172); history.expose names each exposed key's key state under 0.25 (RLTP-ACC-8090). Every 0.25 transition names the key states it succeeds in succeeds (RLTP-ACC-7045, 9872), from 1 to 64 genesis, transition or merge identifiers; the 0.24 form carries none. Both wire versions validate (RLTP-ACC-11100): the access-operation/0.1 task of the Membership Tasks is pinned to rltp-access/0.24, and a receiver accepts 0.24 and 0.25 until that pin advances; keyOpDigest is REQUIRED only under 0.25, and lineage takes the single-object form { opens: <epoch number>, ct } under 0.24 and the array of { opens: <operation id>, ct } under 0.25 (the conditional blocks at the end of allOf).",
   "type": "object",
   "required": [
     "v",
@@ -523,7 +523,7 @@
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 4096,
-                "description": "one entry per key state whose transition's newEpoch lies in [fromEpoch, toEpoch), at most 4096 entries, a span with more key states exposed in several operations (RLTP-ACC-8090, 8100); the entry shape is per wire version (the conditional blocks at the end of allOf): under rltp-access/0.25 { keyState, key }, under rltp-access/0.24 the bare key string"
+                "description": "entries naming key states whose exposure epoch lies in [fromEpoch, toEpoch) — the genesis key state 0, a transition-created key state its newEpoch, a merged key state the maximum over the states it merges — at most 4096 entries; one operation may name a subset, and the span counts as exposed when the union of canonical history.expose operations over it names every key state in it (RLTP-ACC-8090, 8100); the entry shape is per wire version (the conditional blocks at the end of allOf): under rltp-access/0.25 { keyState, key }, under rltp-access/0.24 the bare key string"
               }
             }
           }
@@ -717,14 +717,43 @@
             "properties": {
               "transition": {
                 "required": [
-                  "keyOpDigest"
+                  "keyOpDigest",
+                  "succeeds"
                 ]
               }
             }
           }
         }
       },
-      "description": "rltp-access/0.25: every transition carries keyOpDigest (RLTP-ACC-7045, 9270, 11100)"
+      "description": "rltp-access/0.25: every transition carries keyOpDigest and succeeds (RLTP-ACC-7045, 9270, 9872, 11100)"
+    },
+    {
+      "if": {
+        "required": [
+          "v"
+        ],
+        "properties": {
+          "v": {
+            "const": "rltp-access/0.24"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "properties": {
+              "transition": {
+                "not": {
+                  "required": [
+                    "succeeds"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "rltp-access/0.24: the transition carries no succeeds — that wire version names no key states; a receiver reads its single lineage edge per RLTP-ACC-11100"
     },
     {
       "if": {
@@ -891,6 +920,15 @@
         "keyOpDigest": {
           "$ref": "#/$defs/digest",
           "description": "digest of the transition's key operation as its adapter defines it (Access 9.2, RLTP-ACC-7045, 9270); under linear/0.1 the multibase multihash over the JCS serialization of keyDist (9860); under beekem/0.1 over the key-operation bytes (9870); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100)"
+        },
+        "succeeds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/keyState"
+          },
+          "description": "the identifiers of the key states this transition succeeds (Access 7.1, RLTP-ACC-7045, 9872): the current key states of its position, all of them where the bound allows, at least one and at most 64; each the oid: of the genesis or of the creating transition (RLTP-ACC-9262) or an adapter merge identifier (RLTP-ACC-9264); lineage may open any of them and no other, a succeeded key state without a verifying lineage edge is a history gap (9780); the healing need is computed over these edges (9865); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100). That the entries are exactly the position's current key states is a materialization rule, not a schema rule."
         },
         "contentKeyCommitment": {
           "$ref": "#/$defs/digest",
@@ -1155,7 +1193,7 @@
     "keyState": {
       "type": "string",
       "pattern": "^(oid:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]|u[A-Za-z0-9_-]{45}[AQgw]|z[1-9A-HJ-NP-Za-km-z]{44,48})$",
-      "description": "a key state's identifier: the oid: of the transition that created it (RLTP-ACC-9262) or an adapter merge identifier (RLTP-ACC-9264); never an epoch number (7042)"
+      "description": "a key state's identifier: the oid: of the genesis operation or of the transition that created it (RLTP-ACC-9262), or an adapter merge identifier, the multibase multihash of RLTP-ACC-9264; never an epoch number (7042)"
     }
   }
 }
