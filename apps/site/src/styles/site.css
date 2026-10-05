@@ -26,10 +26,9 @@
   --tp-primary-bg: oklch(65% 0.19 264);
   --tp-primary-fg: oklch(15% 0.02 265);
   /* Surfaces of the landing: the tint behind icons, the darker band every
-     other section sits on, the watermark numeral, the dots of the hero. */
+     other section sits on, the dots of the hero. */
   --tp-tint: oklch(28% 0.08 264);
   --tp-band: oklch(13% 0.02 265);
-  --tp-mark: oklch(19% 0.02 265);
   --tp-dot: oklch(30% 0.02 265);
   --tp-ok-bg: oklch(22% 0.04 142);
   --tp-ok-border: oklch(32% 0.06 142);
@@ -53,7 +52,6 @@
   --tp-primary-fg: oklch(100% 0 0);
   --tp-tint: oklch(93% 0.05 264);
   --tp-band: oklch(96% 0.005 265);
-  --tp-mark: oklch(93% 0.006 265);
   --tp-dot: oklch(86% 0.01 265);
   --tp-ok-bg: oklch(96% 0.03 142);
   --tp-ok-border: oklch(86% 0.08 142);
@@ -109,11 +107,6 @@ h2, h3 { letter-spacing: -.02em; }
 .tp-section { display: grid; gap: 4rem; align-items: center; padding-block: 5.5rem; border-top: 1px solid var(--sl-color-gray-6); }
 /* Every other section sits on a darker band that bleeds to the window edges. */
 .tp-section.band { background: var(--tp-band); box-shadow: 0 0 0 100vmax var(--tp-band); clip-path: inset(0 -100vmax); }
-/* The layer sections carry their number as a watermark behind the cards. */
-.tp-section.numbered { position: relative; }
-.tp-section.numbered::before { content: attr(data-n); position: absolute; top: 2rem; right: 0; z-index: 0; font-size: 13rem; line-height: 1; font-weight: 800; letter-spacing: -.06em; color: var(--tp-mark); pointer-events: none; user-select: none; }
-.tp-section.numbered.flip::before { right: auto; left: 0; }
-.tp-section.numbered > * { position: relative; z-index: 1; }
 @media (min-width: 52rem) {
   .tp-section { grid-template-columns: 1fr 1fr; }
   .tp-section.flip > :first-child { order: 2; }
@@ -164,12 +157,14 @@ a.tp-card:hover { border-color: var(--sl-color-accent); }
 .tp-card.port .tp-icon.tile { margin-bottom: .2rem; }
 /* The DTG references: a kicker, the text, the repository in mono. */
 .tp-card.ref { padding: 1.4rem; gap: .6rem; background: var(--sl-color-black); }
+.tp-card.ref .tp-kicker { font-size: .72rem; color: var(--sl-color-gray-3); }
 .tp-card.ref .text { color: var(--sl-color-gray-1); line-height: 1.6; }
 .tp-card.ref code { margin-top: auto; padding: .4rem 0 0; font-size: .75rem; color: var(--sl-color-accent); background: none; }
 
 /* The layer cards as one list: a line between thoughts instead of three boxes. */
 .tp-list { display: flex; flex-direction: column; border-bottom: 1px solid var(--sl-color-gray-6); }
 .tp-item { display: flex; gap: 1rem; align-items: flex-start; padding: 1.1rem 0; border-top: 1px solid var(--sl-color-gray-6); text-decoration: none; color: inherit; }
+.tp-item .tp-icon { display: inline-flex; }
 .tp-item .tp-icon.tile { margin: 0; }
 .tp-item > div { min-width: 0; flex: 1; }
 .tp-item strong { display: block; font-size: 1rem; font-weight: 650; color: var(--sl-color-white); margin-bottom: .2rem; }
@@ -187,6 +182,8 @@ a.tp-card:hover { border-color: var(--sl-color-accent); }
 .tp-shot-copy { display: flex; flex-direction: column; gap: .4rem; padding: 1.25rem; flex: 1; }
 .tp-shot-copy strong { font-size: 1.05rem; font-weight: 650; }
 .tp-shot code { position: absolute; left: .75rem; bottom: .6rem; font-size: .66rem; color: var(--sl-color-gray-3); background: none; padding: 0; }
+.tp-card .tp-phone { display: flex; }
+.tp-card .tp-channel { display: flex; }
 .tp-phone { width: 3.25rem; height: 6rem; box-sizing: border-box; border-radius: .55rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-bg-sidebar); display: flex; flex-direction: column; gap: .3rem; padding: .6rem .45rem; }
 .tp-phone.tall { height: 7rem; }
 .tp-phone.wide { width: 3.5rem; height: 6.25rem; align-items: center; justify-content: center; }
@@ -277,7 +274,6 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 }
 @media (max-width: 49.99rem) {
   .tp-section { padding-block: 3.5rem; gap: 2.25rem; }
-  .tp-section.numbered::before { font-size: 8rem; top: 1rem; }
   .tp-section h2, .tp-outro h2 { font-size: 1.7rem; }
   .tp-section p { font-size: 1rem; }
   .tp-ways { padding-block: 1.5rem 2.5rem; }

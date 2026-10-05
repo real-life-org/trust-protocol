@@ -17,7 +17,7 @@ const credential = (from: string, to: string) =>
 export function encounterHtml(): string {
   return (
     `<figure class="tp-encounter" aria-label="One encounter: two devices under fresh identifiers issue each other a credential">` +
-    `<div class="tp-encounter-head"><span class="tp-kicker">One encounter</span><span class="tp-offline">fully offline</span></div>` +
+    `<div class="tp-encounter-head"><span class="tp-kicker">One encounter</span><span class="tp-offline">local first</span></div>` +
     `<div class="tp-devices">${device('Ana', 'did:key:z6MkhaXg…9vQ2')}${device('Ben', 'did:key:z6MkrJVn…3kLp')}</div>` +
     `<div class="tp-creds">${credential('Ana', 'Ben')}${credential('Ben', 'Ana')}</div>` +
     `<figcaption>Key control, freshness and deliberate recognition. Nothing more, and never revoked.</figcaption>` +
