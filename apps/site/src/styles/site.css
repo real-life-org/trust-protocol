@@ -282,7 +282,10 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
    like the landing's chips, instead of Starlight's solid bar. */
 .sidebar-content a[aria-current='page'],
 .sidebar-content a[aria-current='page']:hover,
-.sidebar-content a[aria-current='page']:focus { color: var(--sl-color-accent); background-color: var(--sl-color-accent-low); }
+.sidebar-content a[aria-current='page']:focus { color: var(--tp-chip-fg); background-color: var(--sl-color-accent-low); }
+/* Chip text meets WCAG AA (4.5:1) on accent-low: dark 6.3:1, light 5.5:1. */
+:root { --tp-chip-fg: oklch(75% 0.15 264); }
+:root[data-theme='light'] { --tp-chip-fg: var(--primary-700); }
 .tp-family { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--sl-color-gray-5); font-size: .85rem; color: var(--sl-color-gray-2); display: grid; gap: .5rem; }
 .tp-family nav { display: flex; flex-wrap: wrap; gap: 1rem; }
 .tp-family a { color: inherit; }
