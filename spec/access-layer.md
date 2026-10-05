@@ -973,7 +973,10 @@ the maximum `newEpoch` of every transition valid at its position in
 the resolver's ancestry, its retained set MUST be the merged
 retained set of the reconciled DAG (RLTP-ACC-7015), its author
 MUST NOT be the subject of a `member.remove` that is a sibling or
-descends from a sibling, and RLTP-ACC-3440 MUST NOT apply to it.
+descends from a sibling, and RLTP-ACC-3440 MUST NOT apply to it; a
+would-be resolver that is invalid at that prefix, an empty retained
+set included (RLTP-ACC-7030), ends nothing and is invalid, not
+`forked`.
 
 **RLTP-ACC-3566** — The maximal prefix free of the open fork
 pairings MUST be the maximal causally closed sub-DAG of the accepted
@@ -4934,7 +4937,11 @@ under `0.25`, and a `0.24` envelope carries the single-object
 edge opening the one transition of that epoch number in the
 operation's own ancestry — under `0.24` a transition's ancestry
 holds at most one transition per epoch number — verified under the
-AAD of its own version, unchanged.
+AAD of its own version, unchanged. The welcome `material`
+Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
+under this profile; a receiver MUST accept `0.24` material without
+`keyState` as naming the key state of the admission's own
+transition, until the companion's pin advances.
 
 *Rationale.* A companion pin that lags one wire version is a
 compatibility statement, not a contradiction, as long as the
