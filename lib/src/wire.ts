@@ -11,10 +11,10 @@ import type { Json } from './core.js'
 
 /** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2) */
 export type AccessMaterial = ({
-  v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25"
+  v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25" | "rltp-access-material/0.24"
   adapter: "linear/0.1" | "beekem/0.1"
   epoch: number
-  keyState: string
+  keyState?: string
   keys: { [k: string]: Json }
 })
 

@@ -231,9 +231,9 @@ const twoAdmins = () => {
   const pa = op('alice-changes-policy', 'policy', 'alice', null, null, [head])
   const rmA = op('bob-removes-alice', 'remove', 'bob', 'alice', null, [head])
   add('policy.change ∥ removal of its author: a policy.change by the removed author over both siblings does not end the fork', 'fork: resolver removed on a sibling',
-    ['RLTP-ACC-3565', 'RLTP-ACC-3440', 'RLTP-ACC-3568'],
+    ['RLTP-ACC-3565', 'RLTP-ACC-3440'],
     [...s, pa, rmA, op('alice-would-decide-the-fork', 'policy', 'alice', null, null, [pa, rmA])],
-    { comment: 'RLTP-ACC-3565: alice is an admin in the fork-free prefix, but the sibling bob-removes-alice has her as subject, so her policy.change is not valid as the resolving operation. It builds on both siblings and therefore carries the status forked (RLTP-ACC-3568); the state stays forked with the prefix members.' })
+    { comment: 'RLTP-ACC-3565: alice is an admin in the fork-free prefix, but the sibling bob-removes-alice has her as subject, so her policy.change is not valid as the resolving operation. A would-be resolver invalid at its prefix ends nothing and is invalid, not forked, although it builds on both siblings (RLTP-ACC-3565); the state stays forked with the prefix members.' })
 }
 { // RLTP-ACC-3462 — a last-member leave beside a rotation stays a leave
   const s = twoAdmins(); const head = s.at(-1)
@@ -320,10 +320,10 @@ const nestedFork = () => {
   const pa = op('alice-changes-policy', 'policy', 'alice', null, null, [head])
   const rmA = op('bob-removes-alice', 'remove', 'bob', 'alice', null, [head])
   const leave = op('bob-leaves-after-removing-alice', 'leave', 'bob', 'bob', null, [rmA])
-  add('a resolver whose reconciled ancestry leaves no retained member is invalid, and the fork stays open', 'fork: resolver with an empty retained set',
+  add('a resolver whose reconciled ancestry leaves no retained member is invalid, not forked, and the fork stays open', 'fork: resolver with an empty retained set',
     ['RLTP-ACC-7030', 'RLTP-ACC-7015', 'RLTP-ACC-3565', 'RLTP-ACC-3462'],
     [...s, pa, rmA, leave, op('bob-would-decide-the-fork', 'policy', 'bob', null, null, [pa, leave])],
-    { comment: 'Bob is an admin and no pending exit in the fork-free prefix (the two-admin setup), and no sibling removes him, so the resolver passes RLTP-ACC-3565\'s author checks. Its retained set is the merged one of the reconciled ancestry (RLTP-ACC-7015): alice removed, bob\'s leave beside alice\'s policy.change — an enforcement operation — merging as an ordinary leave (RLTP-ACC-3462), so bob is a pending exit and the set is empty; the resolving transition is invalid (RLTP-ACC-7030). It builds on both siblings and is forked; the state stays forked.' })
+    { comment: 'Bob is an admin and no pending exit in the fork-free prefix (the two-admin setup), and no sibling removes him, so the resolver passes RLTP-ACC-3565\'s author checks. Its retained set is the merged one of the reconciled ancestry (RLTP-ACC-7015): alice removed, bob\'s leave beside alice\'s policy.change — an enforcement operation — merging as an ordinary leave (RLTP-ACC-3462), so bob is a pending exit and the set is empty; the resolving transition is invalid (RLTP-ACC-7030). A would-be resolver invalid at its prefix ends nothing and is invalid, not forked, although it builds on both siblings — judged before the fork disposition (RLTP-ACC-3565); the state stays forked.' })
 }
 
 const vector = {
@@ -339,7 +339,7 @@ const vector = {
     'cases[].expected.transitions': 'op id → { newEpoch, retainedAtPosition } for every enforcement operation valid at its position: newEpoch = its position\'s epoch + 1, a resolving policy.change\'s = the maximum newEpoch over the valid transitions of its whole ancestry + 1 (RLTP-ACC-7040, 3565); retainedAtPosition = the members of its position minus a removed subject minus the pending exits there, sorted (RLTP-ACC-7010); for a resolving policy.change the merged retained set of the reconciled DAG — its ancestry materialized with every pairing it contains decided, members minus pending exits (RLTP-ACC-3565, 7015); an enforcement operation, the resolver included, whose retained set is empty is invalid (RLTP-ACC-7030)',
     'cases[].expected.policy': 'the id of the policy.change in effect (the last canonical one folded; after a fork ends, the resolver, 3567), null for the genesis policy',
     'cases[].expected.policyVersion': 'the policy version in effect: 1 at the genesis, a canonical policy.change\'s position version + 1, the resolver\'s the fork-free prefix\'s version + 1 (RLTP-ACC-3565)',
-    'cases[].expected.status': `op id → one of ${STATUSES.join(', ')}: forked = a sibling of an open fork pairing or an operation building on one (RLTP-ACC-3440, 3568), greatest under RLTP-ACC-3562; invalid = no authority at its own position (it enters no concurrency rule, RLTP-ACC-3390); removed-disposed = valid but disposed by the removal disposition (RLTP-ACC-3520); lapsed = valid, confers no effect but its epoch transition (RLTP-ACC-3569): a group.dissolve concurrent with an enforcement operation (RLTP-ACC-3460), or a sibling policy.change of an ended fork, whose policy effect lapses (RLTP-ACC-3567); order forked ≻ removed-disposed ≻ lapsed ≻ canonical; canonical otherwise`,
+    'cases[].expected.status': `op id → one of ${STATUSES.join(', ')}: forked = a sibling of an open fork pairing or an operation building on one (RLTP-ACC-3440, 3568), greatest under RLTP-ACC-3562; invalid = no authority at its own position (it enters no concurrency rule, RLTP-ACC-3390), and a would-be resolver (a policy.change on a forked position) invalid at the prefix free of the open pairings, an empty retained set included, is invalid, not forked, judged before the fork disposition (RLTP-ACC-3565, 7030); removed-disposed = valid but disposed by the removal disposition (RLTP-ACC-3520); lapsed = valid, confers no effect but its epoch transition (RLTP-ACC-3569): a group.dissolve concurrent with an enforcement operation (RLTP-ACC-3460), or a sibling policy.change of an ended fork, whose policy effect lapses (RLTP-ACC-3567); order forked ≻ removed-disposed ≻ lapsed ≻ canonical; canonical otherwise`,
     'cases[].comment': 'optional: the reading of the spec a case fixes where the text leaves it open',
     'cases[].deliveryOrders': 'optional: op-id sequences in which a receiver gets the operations, holding each until its predecessors arrived; every order MUST yield expected',
     'cases[].rules': 'the rules of Access 0.54 the case exercises'

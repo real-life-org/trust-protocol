@@ -1437,8 +1437,8 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
   {
     const rz = AC.cases.find((x) => x.scenario === 'fork: resolver removed on a sibling')
     const res = rz.ops.at(-1)
-    check(rz.expected.state === 'forked' && rz.expected.status[res.id] === 'forked',
-      'access-conflicts: a policy.change by the subject of a sibling removal does not resolve the fork (RLTP-ACC-3565)')
+    check(rz.expected.state === 'forked' && rz.expected.status[res.id] === 'invalid',
+      'access-conflicts: a policy.change by the subject of a sibling removal does not resolve the fork and is invalid, not forked (RLTP-ACC-3565)')
     const byBob = { ...res, author: 'bob' }; byBob.id = opId(byBob)
     const rb = materialize([...rz.ops.slice(0, -1), byBob])
     check(rb.state === 'group' && !('alice' in rb.members) && rb.status[byBob.id] === 'canonical',
@@ -1488,8 +1488,13 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
       'access-conflicts: a policy.change over both pairings ends the renewed fork (RLTP-ACC-3565, 7040)')
     const em = AC.cases.find((x) => x.scenario === 'fork: resolver with an empty retained set')
     const emRes = em.ops.at(-1)
-    check(em.expected.state === 'forked' && !(emRes.id in em.expected.transitions),
-      'access-conflicts: a resolver whose reconciled retained set is empty is invalid, the fork stays (RLTP-ACC-7030, 7015)')
+    check(em.expected.state === 'forked' && !(emRes.id in em.expected.transitions) && em.expected.status[emRes.id] === 'invalid',
+      'access-conflicts: a resolver whose reconciled retained set is empty is invalid, not forked; the fork stays (RLTP-ACC-7030, 7015, 3565)')
+    // review 4 M6: invalidity is judged before the fork disposition — a
+    // checker that lets the forked status win over invalid is detected
+    const forgedEm = { ...em.expected.status, [emRes.id]: 'forked' }
+    check(!same(materialize(em.ops).status, forgedEm),
+      'access-conflicts: an invalid resolver declared forked is detected (RLTP-ACC-3565)')
     const noLeave = em.ops.filter((op) => op.kind !== 'leave')
     const res2 = { ...emRes, preds: [lab(em, 'alice-changes-policy'), lab(em, 'bob-removes-alice')] }; res2.id = opId(res2)
     const r2 = materialize([...noLeave.slice(0, -1), res2])

@@ -636,6 +636,91 @@
           }
         }
       }
+    },
+    "access-keydist": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
+      "document": {
+        "v": "rltp-access-keydist/0.25",
+        "adapter": "linear/0.1",
+        "epoch": 7,
+        "keys": {
+          "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    "access-material-0.24": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
+      "document": {
+        "v": "rltp-access-material/0.24",
+        "adapter": "linear/0.1",
+        "epoch": 7,
+        "keys": {
+          "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    "access-dag-join": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.25",
+        "op": "dag.join",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {},
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      }
+    },
+    "access-history-expose": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.25",
+        "op": "history.expose",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {
+          "fromEpoch": 2,
+          "toEpoch": 4,
+          "keys": [
+            {
+              "keyState": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            },
+            {
+              "keyState": "oid:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA",
+              "key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+          ]
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      }
     }
   },
   "cases": [
@@ -1241,24 +1326,8 @@
       }
     },
     {
-      "name": "material: the 0.24 form without keyState is superseded under rltp-access@0.54 (Access 11, RLTP-ACC-9362)",
-      "base": "access-material",
-      "set": {
-        "/v": "rltp-access-material/0.24"
-      },
-      "delete": "/keyState"
-    },
-    {
       "name": "material: the 0.25 form names the key state its keys belong to (RLTP-ACC-9360, 9362)",
       "base": "access-material",
-      "delete": "/keyState"
-    },
-    {
-      "name": "keydist: the 0.25 form names the key state its keys belong to (RLTP-ACC-9362)",
-      "base": "access-material",
-      "set": {
-        "/v": "rltp-access-keydist/0.25"
-      },
       "delete": "/keyState"
     },
     {
@@ -1295,6 +1364,102 @@
       "base": "key-delivery-material",
       "set": {
         "/keyDelivery/subject": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "keydist: a keydist object the transition commits to carries no keyState — its key state is the committing transition (RLTP-ACC-9362, 3005)",
+      "base": "access-keydist",
+      "set": {
+        "/keyState": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "material: legacy 0.24 material carries no keyState — the receiver supplies the most recent transition of the admission's ancestry (RLTP-ACC-11100)",
+      "base": "access-material-0.24",
+      "set": {
+        "/keyState": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "material: only material/0.24 is accepted as legacy, not a keydist/0.24 (Access 11, RLTP-ACC-11100)",
+      "base": "access-material-0.24",
+      "set": {
+        "/v": "rltp-access-keydist/0.24"
+      }
+    },
+    {
+      "name": "dag.join: additive with an empty body — no effect beyond its prev (RLTP-ACC-3172)",
+      "base": "access-dag-join",
+      "set": {
+        "/body/subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+      }
+    },
+    {
+      "name": "dag.join: additive — it carries no transition (RLTP-ACC-3172, 4.5)",
+      "base": "access-dag-join",
+      "set": {
+        "/body/transition": {
+          "newEpoch": 8,
+          "keyOpDigest": "uEiBRct4cQ_YT7Ile8dhAlriiuWbd2sQzHOL_oJP8O8OFiQ"
+        }
+      }
+    },
+    {
+      "name": "envelope: prev lists at most 32 heads; more heads are joined by later operations (RLTP-ACC-3170)",
+      "base": "access-dag-join",
+      "set": {
+        "/prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ]
+      }
+    },
+    {
+      "name": "history.expose: under rltp-access/0.25 every key names its key state — a bare key string does not (RLTP-ACC-8090)",
+      "base": "access-history-expose",
+      "set": {
+        "/body/keys": [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ]
+      }
+    },
+    {
+      "name": "history.expose: an epoch number never names a key state (RLTP-ACC-8090, 7042)",
+      "base": "access-history-expose",
+      "set": {
+        "/body/keys/0/keyState": "7"
       }
     }
   ]

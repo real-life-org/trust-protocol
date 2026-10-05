@@ -72,7 +72,9 @@
 //      (3462, 5840);
 //   6. status: `forked` ≻ `removed-disposed` ≻ `lapsed` ≻ `canonical`
 //      (3562), an unauthorized operation outside the forked set
-//      `invalid`; removals with authority all take effect (3395, 3400,
+//      `invalid`; a would-be resolver (a `policy.change` on a forked
+//      position) invalid at its prefix, an empty retained set included, is
+//      `invalid`, never `forked`, judged before the fork disposition (3565); removals with authority all take effect (3395, 3400,
 //      3405, 3410), a rotation beside them too (3415, 3417), and a
 //      visibility change (3418);
 //   7. state: canonical operations folded in ready-set order, smallest id
@@ -148,7 +150,7 @@ export function materialize (ops, opts = {}) {
     let resolverOf = null
     if (st.state === 'forked' && op.kind === 'policy') {
       resolverOf = st
-      const prefix = sub.filter((o) => st.status[o.id] !== 'forked')
+      const prefix = sub.filter((o) => !st.inFork.includes(o.id))
       st = prefix.length ? materialize(prefix) : EMPTY
       resolverCandidates.add(op.id)
     }
@@ -271,7 +273,10 @@ export function materialize (ops, opts = {}) {
   let policyVersion = 0
   let terminal = false
   for (const op of order) {
-    status[op.id] = forked.has(op.id) ? 'forked' : !authorized.has(op.id) ? 'invalid'
+    // 3565: a would-be resolver invalid at its prefix (7030 included) is
+    // `invalid`, not `forked` — judged before the fork disposition
+    status[op.id] = resolverCandidates.has(op.id) && !authorized.has(op.id) ? 'invalid'
+      : forked.has(op.id) ? 'forked' : !authorized.has(op.id) ? 'invalid'
       : disposed.has(op.id) ? 'removed-disposed' : lapsed.has(op.id) ? 'lapsed' : 'canonical'
     // 7040, 3569: canonical and lapsed transitions count for the epoch
     if ((status[op.id] === 'canonical' || status[op.id] === 'lapsed') && newEpoch.has(op.id)) epoch = Math.max(epoch, newEpoch.get(op.id))
@@ -300,7 +305,9 @@ export function materialize (ops, opts = {}) {
     if (!newEpoch.has(op.id) || !authorized.has(op.id)) continue
     transitions[op.id] = { newEpoch: newEpoch.get(op.id), retainedAtPosition: retainedAt.get(op.id) }
   }
-  return { state, members: sorted, pendingExits, epoch, policy, policyVersion, retained, transitions, status }
+  // inFork: every sibling of an open pairing and every operation building on
+  // one, an invalid would-be resolver included — what the prefix of 3566 excludes
+  return { state, members: sorted, pendingExits, epoch, policy, policyVersion, retained, transitions, status, inFork: order.filter((o) => forked.has(o.id)).map((o) => o.id) }
 }
 
 // Delivery in an arbitrary order: an operation waits until its predecessors
