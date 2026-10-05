@@ -127,7 +127,7 @@ export type CarrierProof = ({
   sig: string
 })
 
-/** schemas/contact-card-0.25.schema.json — RLTP Contact Card (rltp-encounter@0.29) */
+/** schemas/contact-card-0.25.schema.json — RLTP Contact Card (rltp-encounter@0.30) */
 export type ContactCard025 = {
   version: "rltp-card/0.25"
   anchor: string
@@ -150,7 +150,7 @@ export type ContactCard025 = {
   }
 }
 
-/** schemas/contact-card.schema.json — RLTP Contact Card (rltp-encounter@0.29) — mobile $id, carried by the unversioned resource */
+/** schemas/contact-card.schema.json — RLTP Contact Card (rltp-encounter@0.30) — mobile $id, carried by the unversioned resource */
 export type ContactCard = {
   version: "rltp-card/0.25"
   anchor: string
@@ -173,7 +173,7 @@ export type ContactCard = {
   }
 }
 
-/** schemas/encounter-credential-0.25.schema.json — RLTP Encounter Credential (rltp-encounter@0.29) */
+/** schemas/encounter-credential-0.25.schema.json — RLTP Encounter Credential (rltp-encounter@0.30) */
 export type EncounterCredential025 = {
   "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
   type: (Json[])
@@ -202,7 +202,7 @@ export type EncounterCredential025 = {
   }
 }
 
-/** schemas/encounter-credential.schema.json — RLTP Encounter Credential (rltp-encounter@0.29) — mobile $id, carried by the unversioned resource */
+/** schemas/encounter-credential.schema.json — RLTP Encounter Credential (rltp-encounter@0.30) — mobile $id, carried by the unversioned resource */
 export type EncounterCredential = {
   "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
   type: (Json[])
