@@ -26,13 +26,15 @@ context:
 |---|---|---|
 | One relationship-creation act (encounter, introduction, founding a group) | `pair/<digest of a fresh 32-byte nonce>` | `pairwise` |
 | One group; for the personal community this is the **community anchor** | `group/<genesis digest>` | `directed` |
-| One public persona | `persona/<name>` | `directed` |
+| One public persona | `persona/<name>` | `public` |
 
 The DTG scope is the correlation scope a holder declares for an
 identifier: `pairwise` is known to one counterpart, `directed` to a
 set the holder chooses, `public` to anyone. A pair anchor is
 `pairwise`; a member anchor is `directed`, because every member of
-the group can correlate it; a persona is `directed` too.
+the group can correlate it; a persona is `public`, because its
+profile is meant for everyone. RLTP has no persona for a chosen set;
+what the DTG calls a directed persona is, here, a member anchor.
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
