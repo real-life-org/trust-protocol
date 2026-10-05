@@ -1,5 +1,6 @@
 ---
 import Icon from './Icon.astro'
+import GroupPlace from './figures/GroupPlace.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -24,11 +25,6 @@ const encounter: Card[] = [
   ['wot', 'The ceremony', 'Show, scan, confirm. Connected or fully offline, switching freely.', spec('encounter-layer.md')],
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
   ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
-]
-const access: Card[] = [
-  ['users', 'Groups as places', 'An encrypted document on every member device, with a signed log.', spec('access-layer.md')],
-  ['shield', 'Policy as data', 'A decision rule the group states itself. No admins.', spec('access-layer.md')],
-  ['lock', 'Epochs', 'A removal carries its key transition atomically.', spec('access-layer.md')],
 ]
 const services: Card[] = [
   ['plug', 'Delivery contract', 'Sealed envelopes, signed acknowledgements, a closed set of delivery states.', spec('delivery-contract.md')],
@@ -103,11 +99,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
       <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
-    <div class="tp-list">
-      {access.map(([icon, name, desc, href]) => (
-        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
-      ))}
-    </div>
+    <GroupPlace />
   </section>
 
   <section class="tp-section flip band" id="services">
