@@ -2,6 +2,7 @@
 import Icon from './Icon.astro'
 import GroupPlace from './figures/GroupPlace.astro'
 import SharedSpace from './figures/SharedSpace.astro'
+import Ports from './figures/Ports.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -32,10 +33,6 @@ const space: [IconName, string][] = [
   ['hard-drive', 'Complete on every device'],
   ['waypoints', 'Changes merge'],
   ['shield', 'Former members read nothing new'],
-]
-const services: Card[] = [
-  ['plug', 'Delivery contract', 'Sealed envelopes, signed acknowledgements, a closed set of delivery states.', spec('delivery-contract.md')],
-  ['database', 'Replication contract', 'Signed, causally linked entries; key-blind by construction.', spec('replication-contract.md')],
 ]
 const dtg: { label: string; text: string; href: string; repo: string }[] = [
   { label: 'Credentials', text: 'Encounter credentials are typed as DTG relationship credentials, invitations as DTG invitation credentials. The move to the current DTG context follows its implementer\'s draft.', href: 'https://github.com/trustoverip/dtgwg-cred-spec', repo: 'dtgwg-cred-spec' },
@@ -131,16 +128,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <p>Documents travel sealed end to end, with signed acknowledgements and a closed set of delivery states.</p>
       <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it.</p>
     </div>
-    <div class="tp-cards two">
-      {services.map(([icon, name, desc, href]) => (
-        <a class="tp-card port" href={href}><Icon name={icon} /><strong>{name}</strong><span>{desc}</span></a>
-      ))}
-      <a class="tp-card row span" href={spec('adapter-vti-mediator.md')}>
-        <Icon name="server" />
-        <div><strong>VTI mediator adapter</strong><span>Delivery over the Verifiable Trust Infrastructure.</span></div>
-        <em class="tp-tag">one adapter</em>
-      </a>
-    </div>
+    <Ports />
   </section>
 
   <section class="tp-section wide" id="in-action">
