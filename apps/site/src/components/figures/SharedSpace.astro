@@ -1,0 +1,47 @@
+---
+/**
+ * The group's shared space as a collection: one stack per kind of item,
+ * every kind in its own hue, and room for more. Below, a blind relay and
+ * the devices: the same collection on each member's, one of them behind,
+ * one outside with ciphertext only. Styles: site.css, .tp-space.
+ */
+import { icons, type IconName } from '../icons'
+
+const kinds: { name: string; icon: IconName; hue: string }[] = [
+  { name: 'Event', icon: 'calendar', hue: '#5b8cf6' },
+  { name: 'Place', icon: 'map-pin', hue: '#3fb45c' },
+  { name: 'Offer', icon: 'gift', hue: '#e39a4a' },
+  { name: 'Need', icon: 'hand', hue: '#f0708a' },
+  { name: 'Task', icon: 'check-square', hue: '#a78bfa' },
+  { name: 'Person', icon: 'user', hue: '#38bdf8' },
+  { name: 'Message', icon: 'message-square', hue: '#2dd4bf' },
+]
+const devices: { name: string; state: string; mode?: 'behind' | 'outside' }[] = [
+  { name: 'Anna', state: '' },
+  { name: 'Peter', state: '' },
+  { name: 'Sam', state: 'not yet in sync', mode: 'behind' },
+  { name: 'Outside', state: 'ciphertext only', mode: 'outside' },
+]
+const svg = (name: IconName) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`
+---
+<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, offers, needs, tasks, persons and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is not yet in sync and merges on return, a device outside holds ciphertext only.">
+  <div class="tp-space-board">
+    <ul class="tp-space-grid">
+      {kinds.map((k) => (
+        <li style={`--c: ${k.hue}`}><span class="tile" set:html={svg(k.icon)} /><span class="kind">{k.name}</span></li>
+      ))}
+      <li class="new"><span class="tile" set:html={svg('plus')} /><span class="kind">New</span></li>
+    </ul>
+  </div>
+  <div class="tp-space-relay" aria-hidden="true"><i></i><span><Fragment set:html={svg('lock')} />blind relay</span><i></i></div>
+  <ul class="tp-space-devices">
+    {devices.map((d) => (
+      <li class={d.mode}>
+        <b>{kinds.map((k, i) => <s style={d.mode === 'behind' && i === kinds.length - 1 ? undefined : `--c: ${k.hue}`} />)}<s class="empty" /></b>
+        <strong>{d.name}</strong>
+        {d.state && <em>{d.state}</em>}
+      </li>
+    ))}
+  </ul>
+</figure>

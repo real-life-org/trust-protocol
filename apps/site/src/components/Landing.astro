@@ -1,5 +1,8 @@
 ---
 import Icon from './Icon.astro'
+import GroupPlace from './figures/GroupPlace.astro'
+import SharedSpace from './figures/SharedSpace.astro'
+import Ports from './figures/Ports.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -25,14 +28,11 @@ const encounter: Card[] = [
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
   ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
 ]
-const access: Card[] = [
-  ['users', 'Groups as places', 'An encrypted document on every member device, with a signed log.', spec('access-layer.md')],
-  ['shield', 'Policy as data', 'A decision rule the group states itself. No admins.', spec('access-layer.md')],
-  ['lock', 'Epochs', 'A removal carries its key transition atomically.', spec('access-layer.md')],
-]
-const services: Card[] = [
-  ['plug', 'Delivery contract', 'Sealed envelopes, signed acknowledgements, a closed set of delivery states.', spec('delivery-contract.md')],
-  ['database', 'Replication contract', 'Signed, causally linked entries; key-blind by construction.', spec('replication-contract.md')],
+const space: [IconName, string][] = [
+  ['lock', 'End-to-end encrypted'],
+  ['hard-drive', 'Complete on every device'],
+  ['waypoints', 'Changes merge'],
+  ['shield', 'Former members read nothing new'],
 ]
 const dtg: { label: string; text: string; href: string; repo: string }[] = [
   { label: 'Credentials', text: 'Encounter credentials are typed as DTG relationship credentials, invitations as DTG invitation credentials. The move to the current DTG context follows its implementer\'s draft.', href: 'https://github.com/trustoverip/dtgwg-cred-spec', repo: 'dtgwg-cred-spec' },
@@ -101,13 +101,24 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <h2>Groups are places, not certificates</h2>
       <p>A group is an encrypted document replicated on every member's device, with a signed log of who joined, who left and which rules apply. Membership is a fact in that state and a capability: holding the key.</p>
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
+      <p>Group state is a deterministic reading of the log, on each device. Only members can read it.</p>
       <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
-    <div class="tp-list">
-      {access.map(([icon, name, desc, href]) => (
-        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
-      ))}
+    <GroupPlace />
+  </section>
+
+  <section class="tp-section flip" id="shared-space">
+    <div>
+      <div class="tp-badge">Shared space</div>
+      <h2>A shared space for the group's work</h2>
+      <p>Events, places, offers, needs, tasks, people and messages: everything the group holds lives in one encrypted space. The relay in between sees ciphertext only.</p>
+      <div class="tp-props">
+        {space.map(([icon, name]) => (
+          <div class="tp-item"><Icon name={icon} /><strong>{name}</strong></div>
+        ))}
+      </div>
     </div>
+    <SharedSpace />
   </section>
 
   <section class="tp-section flip band" id="services">
@@ -117,16 +128,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <p>Documents travel sealed end to end, with signed acknowledgements and a closed set of delivery states.</p>
       <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it.</p>
     </div>
-    <div class="tp-cards two">
-      {services.map(([icon, name, desc, href]) => (
-        <a class="tp-card port" href={href}><Icon name={icon} /><strong>{name}</strong><span>{desc}</span></a>
-      ))}
-      <a class="tp-card row span" href={spec('adapter-vti-mediator.md')}>
-        <Icon name="server" />
-        <div><strong>VTI mediator adapter</strong><span>Delivery over the Verifiable Trust Infrastructure.</span></div>
-        <em class="tp-tag">one adapter</em>
-      </a>
-    </div>
+    <Ports />
   </section>
 
   <section class="tp-section wide" id="in-action">
@@ -162,8 +164,16 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       </a>
       <a class="tp-card shot" href={sim('graph.html')}>
         <div class="tp-shot graph" aria-hidden="true">
-          <i class="edge e1"></i><i class="edge e2"></i><i class="edge e3 ok"></i><i class="edge e4 warn"></i>
-          <b class="node n1"></b><b class="node n2"></b><b class="node n3"></b><b class="node n4 ok"></b>
+          <svg viewBox="0 0 300 150">
+            <line x1="72" y1="57" x2="156" y2="39" class="edge" />
+            <line x1="72" y1="57" x2="156" y2="96" class="edge" />
+            <line x1="156" y1="39" x2="234" y2="66" class="edge ok" />
+            <line x1="156" y1="96" x2="234" y2="66" class="edge warn" />
+            <circle cx="72" cy="57" r="8" class="node" />
+            <circle cx="156" cy="39" r="8" class="node" />
+            <circle cx="156" cy="96" r="8" class="node" />
+            <circle cx="234" cy="66" r="8" class="node ok" />
+          </svg>
           <code>chapter 3 / 8</code>
         </div>
         <div class="tp-shot-copy">
