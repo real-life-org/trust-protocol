@@ -28,7 +28,7 @@
 //                     act, the blinded star, §6a continuity, the deniable
 //                     ack (namespaced: `visibility.trust`, `.continuity`,
 //                     `.acks`; graduated from /probe on 04.09.2026)
-//   ceremony          Encounter 0.29's registered ceremony on Delivery
+//   ceremony          Encounter 0.30's registered ceremony on Delivery
 //                     0.79 — encounter-bundle, encounter-credential-
 //                     delivery, the signed ack; own-challenge state
 //                     model, enactment record, 5.6 acceptance, both

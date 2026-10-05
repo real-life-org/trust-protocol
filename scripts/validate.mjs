@@ -180,5 +180,39 @@ for (const f of specFiles) {
   }
 }
 
+// ── 6. Encounter rule trace (manifest ↔ numbered rules) ──────────────────
+// Always against the committed manifest conformance/encounter-rule-ids-0.30.txt.
+// The private rule inventory is checked additionally when present, and is
+// REQUIRED when ENCOUNTER_INVENTORY names it.
+{
+  const { checkTrace, resolveInventory } = await import('./check-encounter-trace.mjs')
+  const { path: inventory } = resolveInventory(process.env.ENCOUNTER_INVENTORY)
+  const r = checkTrace({ inventory })
+  for (const e of r.errors) err(`encounter trace: ${e}`)
+  if (!r.errors.length) ok(`encounter trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
+}
+
+// ── 7. SKOS hierarchy links are IRIs, not literals ───────────────────────
+// The shared context coerces inScheme and the *Match properties to @id, but
+// not broader/narrower/related. A bare string there is a JSON-LD literal and
+// the hierarchy is invisible to graph consumers; the value must be {"@id"} and
+// name a concept of this scheme.
+{
+  const skos = JSON.parse(readFileSync(join(ROOT, 'terms/rltp.skos.jsonld'), 'utf8'))
+  const ids = new Set(skos['@graph'].map((n) => n['@id']))
+  let links = 0
+  for (const node of skos['@graph']) {
+    for (const prop of ['skos:broader', 'skos:narrower', 'skos:related']) {
+      if (!(prop in node)) continue
+      for (const v of [].concat(node[prop])) {
+        links++
+        if (typeof v !== 'object' || v === null || typeof v['@id'] !== 'string') err(`skos: ${node['@id']} ${prop} is a literal, not {"@id"}: ${JSON.stringify(v)}`)
+        else if (!ids.has(v['@id'])) err(`skos: ${node['@id']} ${prop} names an unknown concept: ${v['@id']}`)
+      }
+    }
+  }
+  if (!errors) ok(`skos: ${links} hierarchy link(s) are IRIs naming concepts of the scheme`)
+}
+
 console.log(errors ? `\n${errors} error(s).` : '\nAll publication checks passed.')
 process.exit(errors ? 1 : 0)
