@@ -175,8 +175,16 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       </a>
       <a class="tp-card shot" href={sim('graph.html')}>
         <div class="tp-shot graph" aria-hidden="true">
-          <i class="edge e1"></i><i class="edge e2"></i><i class="edge e3 ok"></i><i class="edge e4 warn"></i>
-          <b class="node n1"></b><b class="node n2"></b><b class="node n3"></b><b class="node n4 ok"></b>
+          <svg viewBox="0 0 300 150">
+            <line x1="72" y1="57" x2="156" y2="39" class="edge" />
+            <line x1="72" y1="57" x2="156" y2="96" class="edge" />
+            <line x1="156" y1="39" x2="234" y2="66" class="edge ok" />
+            <line x1="156" y1="96" x2="234" y2="66" class="edge warn" />
+            <circle cx="72" cy="57" r="8" class="node" />
+            <circle cx="156" cy="39" r="8" class="node" />
+            <circle cx="156" cy="96" r="8" class="node" />
+            <circle cx="234" cy="66" r="8" class="node ok" />
+          </svg>
           <code>chapter 3 / 8</code>
         </div>
         <div class="tp-shot-copy">

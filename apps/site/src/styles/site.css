@@ -207,19 +207,12 @@ a.tp-card:hover { border-color: var(--sl-color-accent); }
 .tp-channel i { display: block; width: 100%; border-top: 2px dashed var(--sl-color-gray-4); }
 .tp-channel code { position: static; font-size: .62rem; }
 .tp-shot.graph { padding: 0; }
-.tp-shot.graph .edge { position: absolute; border-top: 1.5px solid var(--sl-color-gray-4); transform-origin: left; }
-.tp-shot.graph .edge.ok { border-color: var(--success); }
-.tp-shot.graph .edge.warn { border-color: var(--warning); border-top-style: dashed; }
-.tp-shot.graph .e1 { left: 24%; top: 38%; width: 30%; transform: rotate(-18deg); }
-.tp-shot.graph .e2 { left: 24%; top: 38%; width: 34%; transform: rotate(32deg); }
-.tp-shot.graph .e3 { left: 52%; top: 26%; width: 30%; transform: rotate(28deg); }
-.tp-shot.graph .e4 { left: 52%; top: 60%; width: 26%; transform: rotate(-30deg); }
-.tp-shot.graph .node { position: absolute; width: 1rem; height: 1rem; margin: -.5rem; border-radius: 50%; background: var(--sl-color-accent); border: 2px solid var(--tp-band); }
-.tp-shot.graph .node.ok { background: var(--success); }
-.tp-shot.graph .n1 { left: 24%; top: 38%; }
-.tp-shot.graph .n2 { left: 52%; top: 26%; }
-.tp-shot.graph .n3 { left: 52%; top: 60%; }
-.tp-shot.graph .n4 { left: 78%; top: 44%; }
+.tp-shot.graph svg { width: 100%; height: 100%; display: block; }
+.tp-shot.graph .edge { stroke: var(--sl-color-gray-4); stroke-width: 1.5; }
+.tp-shot.graph .edge.ok { stroke: var(--success); }
+.tp-shot.graph .edge.warn { stroke: var(--warning); stroke-dasharray: 4 4; }
+.tp-shot.graph .node { fill: var(--sl-color-accent); stroke: var(--tp-band); stroke-width: 2; }
+.tp-shot.graph .node.ok { fill: var(--success); }
 
 /* Status as figures: nothing the text does not already say. */
 .tp-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .9rem; }
