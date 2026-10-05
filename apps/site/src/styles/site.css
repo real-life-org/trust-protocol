@@ -23,6 +23,9 @@
   --sl-color-black: oklch(15% 0.02 265);
   --sl-color-bg-nav: oklch(15% 0.02 265 / 0.9);
   --sl-color-bg-sidebar: oklch(17% 0.02 265);
+  /* Starlight's dark theme takes the pale accent-high for links and the
+     current page; the landing uses the primary blue, so the docs do too. */
+  --sl-color-text-accent: var(--sl-color-accent);
   --tp-primary-bg: oklch(65% 0.19 264);
   --tp-primary-fg: oklch(15% 0.02 265);
   /* Surfaces of the landing: the tint behind icons, the darker band every
@@ -274,6 +277,15 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 /* Footer: part of the Real Life project */
 /* The splash page has no edit link or pagination; Starlight's footer there is empty space. */
 [data-has-hero] footer.sl-flex { display: none; }
+
+/* The current page in the sidebar as a tinted chip in the primary blue,
+   like the landing's chips, instead of Starlight's solid bar. */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus { color: var(--tp-chip-fg); background-color: var(--sl-color-accent-low); }
+/* Chip text meets WCAG AA (4.5:1) on accent-low: dark 6.3:1, light 5.5:1. */
+:root { --tp-chip-fg: oklch(75% 0.15 264); }
+:root[data-theme='light'] { --tp-chip-fg: var(--primary-700); }
 .tp-family { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--sl-color-gray-5); font-size: .85rem; color: var(--sl-color-gray-2); display: grid; gap: .5rem; }
 .tp-family nav { display: flex; flex-wrap: wrap; gap: 1rem; }
 .tp-family a { color: inherit; }
