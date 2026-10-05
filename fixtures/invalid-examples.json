@@ -272,12 +272,10 @@
                 "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
               }
             ],
-            "lineage": [
-              {
-                "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-              }
-            ]
+            "lineage": {
+              "opens": 7,
+              "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
           }
         },
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -1103,7 +1101,13 @@
       "name": "envelope: under rltp-access/0.25 a transition without keyOpDigest binds no key operation (RLTP-ACC-11100, 7045)",
       "base": "access-remove-0.24",
       "set": {
-        "/v": "rltp-access/0.25"
+        "/v": "rltp-access/0.25",
+        "/body/transition/lineage": [
+          {
+            "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        ]
       }
     },
     {
@@ -1114,13 +1118,32 @@
       }
     },
     {
-      "name": "transition: lineage is an array of edges, not one entry (RLTP-ACC-9760)",
+      "name": "transition: under rltp-access/0.25 lineage is an array of edges, not the single-object form of 0.24 (RLTP-ACC-9760, 11100)",
       "base": "access-remove",
       "set": {
         "/body/transition/lineage": {
           "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         }
+      }
+    },
+    {
+      "name": "transition: under rltp-access/0.24 lineage is the single-object form, not the array of 0.25 (RLTP-ACC-11100)",
+      "base": "access-remove-0.24",
+      "set": {
+        "/body/transition/lineage": [
+          {
+            "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        ]
+      }
+    },
+    {
+      "name": "transition: the 0.24 single-object lineage opens the previous epoch by its number, not by an operation id (RLTP-ACC-11100)",
+      "base": "access-remove-0.24",
+      "set": {
+        "/body/transition/lineage/opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
       }
     },
     {
