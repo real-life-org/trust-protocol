@@ -8,9 +8,9 @@
 import { icons, type IconName } from '../icons'
 
 const log: { icon: IconName; op: string; by: string }[] = [
-  { icon: 'fingerprint', op: 'genesis', by: 'Anna founds' },
-  { icon: 'shield', op: 'rule: two admit', by: 'Anna, Peter' },
-  { icon: 'users', op: 'admit Sam', by: 'Anna, Peter' },
+  { icon: 'fingerprint', op: 'genesis', by: 'by Anna' },
+  { icon: 'shield', op: 'rule: two admit', by: 'by Anna, Peter' },
+  { icon: 'users', op: 'admit Sam', by: 'by Anna, Peter' },
 ]
 type Device = { x: number; y: number; name: string; state: string; out?: boolean }
 const devices: Device[] = [
@@ -28,10 +28,8 @@ const links = [
 ]
 ---
 <figure class="tp-group">
-  <svg viewBox="0 0 640 420" role="img" aria-labelledby="fig-group-title">
+  <svg viewBox="0 40 640 372" role="img" aria-labelledby="fig-group-title">
     <title id="fig-group-title">A group named Garden group. Its authority log: Anna founds it, the rule becomes that two members admit, Anna and Peter admit Sam. The same log is on the devices of Anna, Peter and Sam, who hold the key. A device outside the group holds ciphertext only.</title>
-
-    <text x="320" y="34" class="title" text-anchor="middle">Garden group</text>
 
     {links.map(([x1, y1, x2, y2]) => <line {x1} {y1} {x2} {y2} class="link" />)}
 
@@ -47,20 +45,22 @@ const links = [
     ))}
 
     <circle cx="320" cy="220" r="150" class="place" />
-    <text x="320" y="124" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
+    <text x="320" y="112" class="title" text-anchor="middle">Garden group</text>
+    <text x="320" y="132" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
+    <line x1="254" y1="178" x2="254" y2="204" class="spine" />
+    <line x1="254" y1="232" x2="254" y2="258" class="spine" />
     {log.map((e, i) => {
-      const y = 146 + i * 54
+      const y = 150 + i * 54
       return (
         <g>
-          <rect x="236" y={y} width="28" height="28" rx="7" class="tile" />
-          <g transform={`translate(243 ${y + 7}) scale(0.58)`} class="glyph" set:html={icons[e.icon]} />
-          <text x="276" y={y + 13} class="op">{e.op}</text>
-          <text x="276" y={y + 28} class="by">{e.by}</text>
+          <rect x="240" y={y} width="28" height="28" rx="7" class="tile" />
+          <g transform={`translate(247 ${y + 7}) scale(0.58)`} class="glyph" set:html={icons[e.icon]} />
+          <text x="280" y={y + 13} class="op">{e.op}</text>
+          <text x="280" y={y + 28} class="by">{e.by}</text>
         </g>
       )
     })}
-    <line x1="250" y1="314" x2="390" y2="314" class="rule" />
-    <text x="320" y="338" class="note" text-anchor="middle">same log on every device</text>
+    <text x="320" y="328" class="note" text-anchor="middle">same log on every device</text>
   </svg>
   <figcaption>Group state is a deterministic reading of the log, on each device. Only members can read it.</figcaption>
 </figure>
