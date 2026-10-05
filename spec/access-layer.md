@@ -9,8 +9,8 @@
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Conformance profile:** `rltp-access@0.54` (draft). Wire forms:
   the operation envelope `rltp-access/0.25`, the `0.24` family
-  (`rltp-access-view/0.24`, `rltp-access-material/0.24`,
-  `rltp-access-keydist/0.24`,
+  (`rltp-access-view/0.24`, `rltp-access-material/0.25`,
+  `rltp-access-keydist/0.25`,
   `rltp-access-removal-notice/0.24`,
   `rltp-access-member-mapping/0.24`),
   `rltp-access-registration/0.27`, the session-plane evidence
@@ -578,9 +578,9 @@ only such operation (3.4.1). An operation whose ancestors do not
 produce its declared epoch and policy version is invalid — this,
 not wall-clock time, is the replay and race gate. Two concurrent
 enforcement operations both name the epoch of their common
-ancestor and both open the next one; an adapter declaring KV6
-merges their secrets under that one number (Section 9.2), and under
-an adapter without KV6 enforcement is serialized. Arrival time is
+ancestor and both open the next one; the key port merges their
+secrets into one key state or heals them by a rotation (Section
+9.2), the number counting both. Arrival time is
 controlled by the network and by an attacker; a rule that
 consulted it would split honest replicas. Clocks belong to the
 freshness of views, never to validity.
@@ -963,21 +963,29 @@ bound and the divergence obligations of 7.3 alone; a service of
 class `log` reaches it by its own materialization.
 
 **RLTP-ACC-3565** — The forked state MUST end exactly when a
-`policy.change` whose ancestry contains both siblings is valid as
-the resolving operation: it MUST be validated against the state
-materialized from the maximal prefix free of the fork pairing — its
-members, policy and policy version — its `policyVersion` MUST be
-that prefix's version plus one, its `newEpoch` MUST be one above
+`policy.change` whose ancestry contains both siblings of a fork
+pairing is canonical as the resolving operation: it MUST be
+validated against the state materialized from the maximal prefix
+free of every open fork pairing (RLTP-ACC-3566) — its members,
+policy and policy version — its `policyVersion` MUST be that
+prefix's version plus one, its `newEpoch` MUST be one above
 the maximum `newEpoch` of every transition valid at its position in
 the resolver's ancestry, its retained set MUST be the merged
 retained set of the reconciled DAG (RLTP-ACC-7015), its author
 MUST NOT be the subject of a `member.remove` that is a sibling or
 descends from a sibling, and RLTP-ACC-3440 MUST NOT apply to it.
 
-**RLTP-ACC-3566** — The maximal prefix free of a fork pairing MUST
-be the maximal causally closed sub-DAG of the accepted entries that
-contains no member of the pairing and no descendant of a member;
-for a pairing P → {T₁, T₂} it is exactly the closure of P.
+**RLTP-ACC-3566** — The maximal prefix free of the open fork
+pairings MUST be the maximal causally closed sub-DAG of the accepted
+entries that contains no member of any open fork pairing and no
+descendant of such a member; it contains every concurrent branch
+that touches no pairing.
+
+**RLTP-ACC-3564** — A resolving `policy.change` that is itself
+concurrent with an enforcement operation forms a new fork pairing
+under RLTP-ACC-3495 and MUST NOT end the forked state; a nested
+pairing inside a fork branch is one more open pairing of the same
+prefix computation.
 
 **RLTP-ACC-3567** — After the forked state ends, the materialization
 MUST be re-derived over the reconciled DAG by the ordinary rules of
@@ -1546,19 +1554,22 @@ carrier of evidence decides nothing.
 **RLTP-ACC-3785** — After folding concurrent branches, the
 materializer MUST validate the merged state.
 
-**RLTP-ACC-3790** — After a merge, the key port MUST satisfy KV2
-against the merged retained set (RLTP-ACC-9250): every new epoch
-secret reaches exactly that set.
+**RLTP-ACC-3790** — After a merge, the key port MUST hold or
+produce the merged key state of RLTP-ACC-9255, reaching exactly the
+merged retained set (RLTP-ACC-7015); the distributions of the merged
+transitions themselves MUST be judged at their own positions
+(RLTP-ACC-9250) and never against the merged set.
 
 *Rationale.* Two removals with authority, each valid at its
 position, compute their retained sets without each other; the
 merged state removes both subjects, and a key structure that
 honoured only one retained set would let the other removed member
 read on (S4b) or leave a remaining member without the secret. The
-check is therefore against the merged set, not against each
-operation's position. How a key adapter shows it is the adapter's
-form; under `linear/0.1` it is the equality of the `keyDist`
-recipient set and the computed retained set (RLTP-ACC-9700).
+distributions already made are immutable and were right where they
+were made; what the merged group reads under is a third key state
+that reaches the merged set, produced by the adapter's merge or by
+its healing rotation (9.4.1), and that is the state the post-merge
+check is about.
 
 **RLTP-ACC-3795** — An admission canonical at its position MUST
 NOT be suppressed, displaced, deferred or revised by any merge rule
@@ -2180,6 +2191,18 @@ from the contact card its genesis or membership-accept carries:
 card's, `serviceIdentity` follows 5.2; it is not a separate
 artifact, carries no proof of its own, and needs no `device.add`.
 
+**RLTP-ACC-5127** — The canonical reference of a derived first
+binding MUST be the multibase multihash over the JCS serialization
+of the object `{ "anchor", "device", "keyAgreement",
+"serviceIdentity" }` it yields; `device.revoke` names a first
+binding by that digest.
+
+**RLTP-ACC-5128** — A device card whose `device` key is already
+bound to the same anchor MUST replace that device's `keyAgreement`
+and `serviceIdentity` binding when entered by `device.add` signed
+by that device itself; a card presented outside the log MUST NOT
+change a binding.
+
 **RLTP-ACC-5130** — Adding a further device MUST be an operation of
 the key port and MUST NOT change membership.
 
@@ -2556,8 +2579,10 @@ that anchor and not revoked there (5.1).
 
 **RLTP-ACC-5565** — A key request MUST carry the requesting device's
 card (5.1), or for a first device the contact card whose derived
-binding (RLTP-ACC-5125) is not revoked; a request under a member
-anchor alone MUST be refused.
+binding (RLTP-ACC-5125) is not revoked, and the card MUST match the
+device's binding in force at the helper's state; a request under a
+member anchor alone, or with a card that matches no binding, MUST
+be refused.
 
 **RLTP-ACC-5570** — A request from an anchor whose membership has
 ended by a removal or a discharged exit MUST be refused.
@@ -2609,7 +2634,8 @@ to their newest request within the interval, whatever happened to
 cards, clones, or earlier deliveries.
 
 **RLTP-ACC-5630** — Received key material MUST be adopted only if it
-verifies against the log's binding of that epoch (Section 9.2).
+verifies against the log's binding of the key state it names
+(RLTP-ACC-9362).
 
 Under `linear/0.1`, the key service duty has one proactive arm: a
 member holding both keys of a skipped or failing lineage step owes
@@ -2955,7 +2981,8 @@ contains.
 
 **RLTP-ACC-7042** — The epoch number MUST serve as a counter for
 views (7.3) and for epoch monotonicity only; it MUST NOT identify a
-key state, which is named by its transition's `id` (RLTP-ACC-9262).
+key state, which is named by its transition's `id` or by the
+adapter's merge identifier (RLTP-ACC-9262, RLTP-ACC-9264).
 
 **RLTP-ACC-7045** — The body section `transition` MUST carry
 `newEpoch`, `keyOpDigest` (RLTP-ACC-9270) and the material binding
@@ -3146,6 +3173,7 @@ per RLTP-ACC-9560 (9.3).
 | `stalenessBound` | whole days, `P1D` to `P30D` (RLTP-ACC-7550) |
 | `terminalRetention` | the terminal grace window, day/time subset (RLTP-ACC-7560) |
 | `divergenceQuota` | integer in [16, 4096], the full-artifact evidence bound (RLTP-ACC-7330) |
+| `intakeBudget` | optional: `{ "operations", "bytes" }` per presenter and group within one `stalenessBound` (RLTP-ACC-9535) |
 | `attestationKey` | the service's target-attestation key (RLTP-ACC-7240) |
 | `registrationGeneration` | integer ≥ 1 (RLTP-ACC-7250) |
 | `previousRegistration` | the superseded registration's `registrationCoreDigest`, or null iff the generation is 1 |
@@ -3773,9 +3801,11 @@ epochs before `E`.
 `fromEpoch < toEpoch ≤ E`; an absent `toEpoch` defaults to `E`.
 
 **RLTP-ACC-8090** — `keys` MUST contain exactly the content keys of
-the epochs `[fromEpoch, toEpoch)` in the form the group's adapter
-defines (for `linear/0.1`, 9.4.1), each verified at
-materialization against the log's binding of its epoch (Section
+every key state whose transition's `newEpoch` lies in
+`[fromEpoch, toEpoch)`, keyed by key-state identifier, in the form
+the group's adapter defines (for `linear/0.1`, 9.4.1), each
+verified at materialization against the log's binding of its key
+state (Section
 9.2).
 
 **RLTP-ACC-8100** — One `history.expose` MUST cover at most 4096
@@ -3806,10 +3836,10 @@ rules of Section 3.6 state.
 
 *Rationale.* A visibility change is an enforcement operation with a
 key operation of its own, and so is a removal; neither claims
-authority over the other's subject, and an adapter declaring KV6
-merges their secrets (Section 9.2); under an adapter without KV6 the
-group issues enforcement operations one at a time
-(RLTP-ACC-9315). A fork would punish a harmless combination and
+authority over the other's subject, and the key port merges their
+secrets into one key state or heals them by a rotation (Section
+9.2); a group whose adapter heals pays one healing for the
+combination (RLTP-ACC-9315). A fork would punish a harmless combination and
 stop the group. A `visibility.change` concurrent with a
 `policy.change` still forks, as every enforcement operation
 concurrent with a constitutional change does (Section 3.6).
@@ -3886,15 +3916,23 @@ member more and none less (KV2).
 **RLTP-ACC-9255** — A merged state MUST obtain a key state that
 reaches exactly its merged retained set (7.1), by the adapter's
 merge of the concurrent secrets or by its healing (9.4), and until
-that key state is canonical, writes under any of the merged
-secrets MUST fail closed (KV6).
+that key state exists — for a merge, once the adapter has derived
+it; for a healing, once the healing transition is canonical —
+writes under any of the merged secrets MUST fail closed (KV6).
 
-**RLTP-ACC-9262** — A key state MUST be identified by the `id` of
-the transition that created it; the epoch number is a counter
+**RLTP-ACC-9260** — The authority log MUST bind each key state to
+its secret without containing the secret (KV3).
+
+**RLTP-ACC-9262** — A key state created by a transition MUST be
+identified by that transition's `id`; the epoch number is a counter
 (7.1) and MUST NOT serve as the identifier of a key state.
 
-**RLTP-ACC-9260** — The authority log MUST bind each epoch to its
-secret without containing the secret (KV3).
+**RLTP-ACC-9264** — A key state an adapter derives by merging
+without a transition MUST be identified deterministically from the
+`id`s of the merged key states as the adapter's registration
+defines (for `beekem/0.1`: the multibase multihash over the JCS
+array of the merged identifiers in unsigned bytewise order), so that
+every replica names the same merged state.
 
 **RLTP-ACC-9270** — Every enforcement operation and the genesis
 MUST carry `keyOpDigest`, the digest of its key operation as its
@@ -3921,7 +3959,8 @@ succeeds every open key state (9.4), never by forking the group.
 declare in its registration whether it satisfies KV5, and how it
 satisfies KV6: by merging secrets, or by a healing rotation as
 9.4.1 defines; a group using an adapter that heals SHOULD avoid
-issuing concurrent enforcement operations.
+issuing concurrent enforcement operations, because every one of
+them costs a healing.
 
 *Rationale.* The six invariants are what every tested key
 procedure either has or measurably lacks. KV1 and KV2 are the
@@ -3941,7 +3980,7 @@ must not be (S7). KV6 is what the conflict matrix of 3.6 rests on:
 two authorized enforcements produce two secrets, and a group
 whose adapter cannot merge them would have to fork. The adapter
 deployed today cannot merge; it heals instead, by a rotation over
-the merged state that every key holder owes on sight (9.4.1), and
+the merged state that the holders owe as 9.4.1 assigns, and
 it has no post-compromise security against a captured device; it
 says both in its registration.
 
@@ -4009,9 +4048,11 @@ sender and retriable.
 
 **RLTP-ACC-9535** — A service MAY bound its intake by size, rate
 and syntactic validity, and MUST then declare the bound in its
-registration as `intakeBudget`, the number of operations it admits
-per presenter and group within one `stalenessBound`, apply it per
-presenter and group, and admit on presentation every valid
+registration as `intakeBudget`, a block `{ "operations", "bytes" }`
+naming the operations and the bytes it admits per presenter and
+group within one `stalenessBound`, apply it per presenter and group,
+check only syntax and signature at intake, and admit on
+presentation every syntactically and cryptographically valid
 authority operation within the declared budget; it MUST NOT bound
 intake by the sender's membership or by the author of an authority
 operation.
@@ -4086,9 +4127,14 @@ Section 13.
 enforcement operation and for each admission or entitled key
 request, the key material the log binds.
 
-**RLTP-ACC-9360** — `v`, `adapter` and `epoch` of a material object
-MUST be this layer's, and `keys` MUST be closed by the adapter
-registration.
+**RLTP-ACC-9360** — `v`, `adapter`, `epoch` and `keyState` of a
+material object MUST be this layer's, and `keys` MUST be closed by
+the adapter registration.
+
+**RLTP-ACC-9362** — A material or keydist object MUST name in
+`keyState` the identifier (RLTP-ACC-9262, RLTP-ACC-9264) of the key
+state its `keys` belong to, and a receiver MUST verify the material
+against the log's binding of exactly that key state.
 
 **RLTP-ACC-9370** — Welcome material MUST be re-derivable at any
 later materialized position of the same epoch.
@@ -4097,8 +4143,8 @@ later materialized position of the same epoch.
 budget (Membership §4).
 
 ```json
-{ "v": "rltp-access-material/0.24", "adapter": "linear/0.1",
-  "epoch": 7, "keys": { …per the adapter registration… } }
+{ "v": "rltp-access-material/0.25", "adapter": "linear/0.1",
+  "epoch": 7, "keyState": "oid:…", "keys": { …per the adapter registration… } }
 ```
 
 *Rationale.* An adapter handles key material; no port rule can make
@@ -4132,8 +4178,8 @@ omission, stranger or duplicate.
 be the multibase multihash over the raw 32 content-key bytes.
 
 **RLTP-ACC-9720** — Under `linear/0.1`, a transition whose
-`contentKeyCommitment` equals an earlier transition's commitment in
-the group MUST be rejected as invalid.
+`contentKeyCommitment` equals any earlier key-state commitment in
+the group, the genesis included, MUST be rejected as invalid.
 
 **RLTP-ACC-9730** — Under `linear/0.1`, `keyDist` MUST be an array
 with one `{ "recipient": <device did:key>, "envelope": <digest> }`
@@ -4164,8 +4210,8 @@ of "rltp/v1/epoch-secret/" followed by the genesis digest in
 canonical u form, L = 32)`.
 
 ```json
-{ "v": "rltp-access-keydist/0.24", "adapter": "linear/0.1",
-  "epoch": 7, "keys": { "contentKey": "…base64url, 32 bytes…" } }
+{ "v": "rltp-access-keydist/0.25", "adapter": "linear/0.1",
+  "epoch": 7, "keyState": "oid:…", "keys": { "contentKey": "…base64url, 32 bytes…" } }
 ```
 
 *Rationale.* One content key is the only transported secret;
@@ -4194,10 +4240,16 @@ closed, and each member reads under the key states it holds.
 
 **RLTP-ACC-9867** — Under a healing need, the member who holds at
 least one of the open key states and whose device identity is the
-smallest, in unsigned bytewise order, among the holders it knows
-MUST issue an `epoch.rotate` whose ancestry contains all open key
-states it knows, under that operation's rule key; any other key
-holder MAY.
+smallest, in unsigned bytewise order, among the holders of open key
+states in its own materialization MUST issue an `epoch.rotate`
+succeeding the open key states it knows, under that operation's
+rule key; any other key holder MAY.
+
+**RLTP-ACC-9871** — While a healing need exists, every enforcement
+operation a key holder issues MUST succeed every open key state in
+the issuer's materialization that it can bridge, so that any
+enforcement by any holder heals; an enforcement that leaves an open
+key state it could have succeeded MUST be rejected as invalid.
 
 **RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
 key states under RLTP-ACC-9865, producing one further need.
@@ -4211,14 +4263,20 @@ adapter cannot fold into one. The need is defined over the key
 states themselves, so it is recognizable by anyone holding the
 materialization and it ends by construction when a common
 descendant exists; a historical pair of siblings below a canonical
-healing creates no new duty. The duty falls on one named holder so
+healing creates no new duty. The duty falls first on one named holder so
 that honest members do not race each other into an endless chain
 of healings; who it falls on is a liveness choice without authority
 effect, so an arbitrary deterministic order is acceptable where a
-tie-break about membership would not be. Everyone else may heal
-too, and if two do, the result is one more need and one more
-healing, which terminates once the members see each other's
-rotations. The rotation stays under the group's own rule for
+tie-break about membership would not be. A named holder who never
+heals cannot stall the group, because the next enforcement by any
+holder has to heal on its way: an operation that ignores an open
+key state it could bridge is invalid, so progress is tied to the
+group's own activity and not to one device's goodwill. If two
+heal at once, the result is one more need and one more healing;
+every healing succeeds at least two open states, so on a finite
+delivered DAG the count of open states falls to one. Where more
+states are open than one lineage array can carry, healing proceeds
+in steps, each one honest about what it bridged and what remains. The rotation stays under the group's own rule for
 rotations: where that rule asks for more than one signature, the
 obligated member collects them, and the group has chosen that
 delay. A member who was removed on one branch holds that branch's
@@ -4235,18 +4293,22 @@ under the new content key with AAD the UTF-8 bytes of the JCS
 serialization of `{ "genesis", "newEpoch": <this transition's
 newEpoch>, "opens": <the opened transition's id> }`.
 
-**RLTP-ACC-9762** — Under `linear/0.1`, a healing rotation MUST carry
-one lineage entry per open key state its author holds, and MUST
-surface every open key state it does not hold as a missing bridge
-under RLTP-ACC-9780.
+**RLTP-ACC-9762** — Under `linear/0.1`, a healing rotation MUST
+succeed at least two open key states and MUST carry one lineage
+entry per open key state it succeeds and its author holds, up to
+the schema's bound on `lineage`; open key states it does not
+succeed remain a need under RLTP-ACC-9865, and those it succeeds
+but does not hold MUST be surfaced as missing bridges under
+RLTP-ACC-9780.
 
 **RLTP-ACC-9770** — Under `linear/0.1`, a lineage entry opening a key
 state other than a direct predecessor is the recovery form and MUST
 be gated only by the operation's own rule.
 
-**RLTP-ACC-9780** — Under `linear/0.1`, a key state not opened by any
-canonical lineage entry or repair MUST be surfaced as skipped and,
-once repaired, as repaired.
+**RLTP-ACC-9780** — Under `linear/0.1`, a lineage edge that is
+missing or fails verification MUST be surfaced per edge as a gap in
+reachability from the member's current key state and, once a
+canonical repair opens it, as repaired.
 
 **RLTP-ACC-9790** — Under `linear/0.1`, a transition without
 `lineage` is the narrowing act and its proof MUST satisfy
@@ -4262,8 +4324,9 @@ key states MUST be surfaced as damage.
 
 **RLTP-ACC-9820** — Under `linear/0.1`, members MUST verify a lineage
 entry on first decryption against the commitment of the key state
-it names, and the first canonical verifying `lineage.repair` entry
-per `(transition, opens)` pair of transition ids MUST count.
+it names, and among canonical verifying `lineage.repair` entries for
+one `(transition, opens)` edge the first in 3.5's fold order
+(RLTP-ACC-3340) MUST count.
 
 **RLTP-ACC-9830** — Under `linear/0.1`, a member holding both keys of
 a skipped or failing lineage edge MUST publish the `lineage.repair`
@@ -4304,8 +4367,8 @@ material's recipient, and a transition MUST carry no material
 binding beyond `keyOpDigest`.
 
 ```json
-{ "v": "rltp-access-material/0.24", "adapter": "beekem/0.1",
-  "epoch": 7, "keys": { "op": "…base64url…" } }
+{ "v": "rltp-access-material/0.25", "adapter": "beekem/0.1",
+  "epoch": 7, "keyState": "u…", "keys": { "op": "…base64url…" } }
 ```
 
 **RLTP-ACC-9895** — Under `beekem/0.1`, key operations and the
@@ -4314,12 +4377,20 @@ beside the operation that caused them, addressed to all.
 
 **RLTP-ACC-9897** — `beekem/0.1` MUST register the `key-delivery`
 kind `material`: its document is the material object of 9.4
-(`epoch` = the helper's current epoch, `keys.op` = a key operation
-that gives the requesting device a leaf or path for that epoch),
-sealed as 10.1 seals `re-welcome` to the key-agreement key of the
-device card the request carries, with the recipient check of 10.1
-applied to that device; the receiver verifies the operation against
-the `keyOpDigest` of the enforcement operation it answers.
+(`epoch` = the helper's current epoch, `keyState` = the identifier
+of the helper's current key state, `keys.op` = a key operation,
+freshly produced by the helper's device at that key state, that
+gives the requesting device a leaf or path there), sealed as 10.1
+seals `re-welcome` to the key-agreement key of the requesting
+device, with the recipient check of 10.1 applied to that device.
+
+**RLTP-ACC-9898** — A receiver of a `material` document MUST verify
+that the named `keyState` is a key state of its own materialization
+(RLTP-ACC-9262, RLTP-ACC-9264), that the helper's device is bound
+and unrevoked for a member of that state, and that `keys.op`
+applies to that key state under the adapter's rules; it MUST NOT
+compare a fresh recovery operation with the `keyOpDigest` of any
+earlier operation.
 
 *Editor's note.* The registration exists because this adapter is
 the one under which all six invariants have been shown together
@@ -4459,16 +4530,26 @@ recipient's state for that group, or, for a bootstrapping invitee,
 its own invite's digest; and, per kind: for `keydist`, that the
 recipient appears in the named operation's `keyDist` with exactly
 this sealed envelope's digest and `epoch` equals that transition's
-`newEpoch`; for `re-welcome` and `refresh`, that the named operation
-is a canonical admission whose subject is the document `recipient`,
-or the genesis whose founder is the recipient, and that the
-recipient, where it already holds a materialized state, is a current
-member of it; for `request`, proof and card per RLTP-ACC-10060 to
-RLTP-ACC-10090.
+`newEpoch`; for `re-welcome`, `refresh` and `material`, that the
+named operation is a canonical admission whose subject is the
+document's `subject`, or the genesis whose founder is that anchor,
+that the anchor, where the receiver already holds a materialized
+state, is a current member of it, and that the document's
+`recipient` is a device bound and unrevoked for that anchor there;
+for `request`, proof and card per RLTP-ACC-10060 to RLTP-ACC-10090.
 
-**RLTP-ACC-10110** — At adoption, the unsealed material's epoch MUST
-equal the recipient's current epoch, and the material MUST verify
-against the log's binding of that epoch (Section 9.2).
+**RLTP-ACC-10105** — A key-delivery document MUST name the entitled
+member anchor in `subject` and the device the material is sealed to
+in `recipient`; entitlement is checked against `subject`, binding,
+revocation and the seal against `recipient`, and the Delivery
+Contract's recipient check applies to the device's own anchor
+through its binding (5.1).
+
+**RLTP-ACC-10110** — At adoption, the unsealed material's `epoch`
+MUST equal the recipient's current epoch and its `keyState` MUST
+name a key state of the recipient's materialization, and the
+material MUST verify against the log's binding of that key state
+(RLTP-ACC-9362).
 
 **RLTP-ACC-10120** — A document violating RLTP-ACC-10100 or
 RLTP-ACC-10110 MUST be disposed `failed(validation-failed)` without
@@ -4604,8 +4685,8 @@ removal hygiene preserves unsent work (5.3).
 **RLTP-ACC-10290** — A bootstrap MUST succeed only if, at first
 materialization, the named admission is canonical with the invitee
 as subject, the invitee is a member of that materialized state, and
-the unsealed material verifies against the current epoch's binding
-in the log (Section 9.2).
+the unsealed material verifies against the log's binding of the
+key state it names (RLTP-ACC-9362).
 
 **RLTP-ACC-10300** — `provisional-window` SHOULD default to P30D,
 measured from the first candidate's adoption for the
@@ -4690,14 +4771,17 @@ author, and in `issuer` the member who produced the notice.
 materializes the named removal as canonical.
 
 **RLTP-ACC-10370** — A removal-notice document MUST carry no
-`proof`; it MUST be delivered to every device of the removed
-anchor the service served (9.3).
+`proof`; its issuer MUST address it to the service identity of
+every device bound to the removed anchor in the issuer's
+materialization, and a service MUST deliver it to each addressed
+identity it served (9.3).
 
 **RLTP-ACC-10380** — Before any effect, a recipient MUST check that
 the payload is schema-valid, that `sig` verifies, that
 `genesisDigest` matches a group of the recipient's last-held state,
-that `author` was a member there, and that `subject` is the
-recipient; a violation MUST be disposed `failed(validation-failed)`
+that `issuer` was a member there, that `author` authored the
+named operation where the recipient holds it, and that `subject` is
+the recipient; a violation MUST be disposed `failed(validation-failed)`
 without acknowledgement.
 
 *Rationale.* An offline validator resolves the payload schema by
@@ -4758,7 +4842,7 @@ Profile `rltp-access@0.54` produces and accepts these wire forms:
 |---|---|
 | operation envelope (3.3) | `rltp-access/0.25` |
 | authorization view (7.3) | `rltp-access-view/0.24` |
-| key material, key distribution (9.4, 9.4.1) | `rltp-access-material/0.24`, `rltp-access-keydist/0.24` |
+| key material, key distribution (9.4, 9.4.1) | `rltp-access-material/0.25`, `rltp-access-keydist/0.25` (with `keyState`) |
 | service registration (7.3), with the field `class` (Section 9.3) | `rltp-access-registration/0.27` |
 | removal notice (10.2) | `rltp-access-removal-notice/0.24` |
 | member mapping (5.5) | `rltp-access-member-mapping/0.24` |
@@ -4843,7 +4927,10 @@ profile; a receiver MUST accept both versions in that payload until
 the companion's pin advances, and `keyOpDigest` is required only
 under `0.25`, and a `0.24` envelope carries the single-object
 `lineage` form of its version, which receivers MUST accept as one
-edge opening the previous epoch's transition.
+edge opening the one transition of that epoch number in the
+operation's own ancestry — under `0.24` a transition's ancestry
+holds at most one transition per epoch number — verified under the
+AAD of its own version, unchanged.
 
 *Rationale.* A companion pin that lags one wire version is a
 compatibility statement, not a contradiction, as long as the
