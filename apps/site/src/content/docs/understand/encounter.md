@@ -49,19 +49,15 @@ Spec: [Encounter Layer §6](https://github.com/real-life-org/trust-protocol/blob
 
 ## The challenge
 
-A **challenge** is a fresh random value on the card, with the time it
-was issued. It turns "I know your anchor" into "I saw your code in
-this exchange": the credential one side issues binds the challenge
-the other side showed, and nobody who did not see that value can
-issue a credential for this encounter. It does not prove presence; a
-code can be relayed to someone elsewhere. What stops that is the
-person pressing the button, not the challenge.
+A **challenge** is a fresh random value on the card. It turns "I
+know your anchor" into "I saw your code in this exchange": the
+credential one side issues binds the challenge the other side showed,
+and nobody who did not see that value can issue a credential for this
+encounter.
 
 Three rules keep it that way. Each person generates the challenge
-that protects them. A challenge is consumed once; the displayer
-rotates its code and never accepts the same value for a second act.
-And a challenge ages out; five minutes after it was issued it is
-unusable, whatever a clock says later.
+that protects them. A challenge is used once. And it expires within
+minutes.
 
 Spec: [Encounter Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#53-challenges)
 
@@ -76,13 +72,8 @@ The ceremony of this version needs one scan.
    *c<sub>B</sub>*. Card and credential go to B.
 4. B checks that *c<sub>B</sub>* is still open, records the encounter,
    and may confirm in turn, issuing a credential that binds
-   *c<sub>A</sub>*.
-
-Two clocks apply, and they are different. A credential must be dated
-within a day of the exchange it belongs to, or the receiver rejects it
-as stale. Its delivery has no deadline: it may arrive weeks later and
-is still accepted, because the receiver checks the dates it carries,
-not the day it arrived.
+   *c<sub>A</sub>*. The credential is dated to the exchange; when it
+   arrives does not matter.
 
 Step 3 reaches B in one of two ways, and the device may switch
 between them at any moment. With a network, card and credential travel
