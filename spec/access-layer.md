@@ -4276,22 +4276,22 @@ succeeding the open key states it knows, under that operation's
 rule key; any other key holder MAY.
 
 **RLTP-ACC-9871** — While a healing need exists, every enforcement
-operation a key holder issues MUST succeed the open key states the
-issuer holds, at least two and as many as the `succeeds` bound
-allows,
-so that any enforcement by any holder heals; this is a duty of the
-issuer, and a receiver MUST judge the operation only by the
-verifiability of the lineage entries it carries, surfacing open key
-states it left unsucceeded (RLTP-ACC-9780) without rejecting it.
+operation a key holder issues MUST bridge, by lineage entries, every
+succeeded key state whose key the issuer holds; this is a duty of
+the issuer, and a receiver MUST judge the lineage only by the
+verifiability of the entries it carries, surfacing a succeeded key
+state without a verifying edge as a gap (RLTP-ACC-9780) without
+rejecting the operation.
 
-**RLTP-ACC-9872** — The key states a transition succeeds MUST be
-exactly those its `succeeds` field names (7.1): the current key
-states of its position, all of them where the bound allows and
-without duplicates; a `lineage` entry MAY open any of them, or under
-the recovery form (RLTP-ACC-9770) an earlier key state its author
-holds, and a succeeded key state without a verifying lineage edge
-is a history gap (RLTP-ACC-9780), never an open key state. `prev`
-orders operations and names no key states.
+**RLTP-ACC-9872** — A transition's `succeeds` field MUST name exactly
+the current key states of the transition's position — all of them
+where the bound allows, otherwise at least two of them, without
+duplicates and none already succeeded in that ancestry — and a
+transition whose `succeeds` violates this MUST be rejected as
+invalid; the check is over the DAG alone and never over key
+possession. A `lineage` entry MAY open any succeeded key state, or
+under the recovery form (RLTP-ACC-9770) an earlier key state its
+author holds. `prev` orders operations and names no key states.
 
 **RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
 key states under RLTP-ACC-9865, producing one further need.
@@ -4338,11 +4338,12 @@ serialization of `{ "genesis", "newEpoch": <this transition's
 newEpoch>, "opens": <the opened transition's id> }`.
 
 **RLTP-ACC-9762** — Under `linear/0.1`, a healing rotation MUST name
-in `succeeds` at least two open key states, up to the bound, and
-MUST carry one lineage entry per succeeded key state its author
-holds; open key states it does not succeed remain a need under
-RLTP-ACC-9865, and succeeded ones it does not hold are history gaps
-under RLTP-ACC-9780, with the repair duty on whoever holds them.
+in `succeeds` at least two open key states, up to the bound, and,
+unless it carries an authorized `historyNarrow`, MUST carry one
+lineage entry per succeeded key state its author holds; open key
+states it does not succeed remain a need under RLTP-ACC-9865, and
+succeeded ones it does not hold are history gaps under
+RLTP-ACC-9780, with the repair duty on whoever holds them.
 
 **RLTP-ACC-9770** — Under `linear/0.1`, a lineage entry opening a key
 state other than a direct predecessor is the recovery form and MUST
@@ -4352,6 +4353,13 @@ be gated only by the operation's own rule.
 missing or fails verification MUST be surfaced per edge as a gap in
 reachability from the member's current key state and, once a
 canonical repair opens it, as repaired.
+
+**RLTP-ACC-9782** — Under `linear/0.1`, every edge from a transition
+carrying an authorized `historyNarrow` (RLTP-ACC-9790) to the key
+states it succeeds MUST be a closed edge: not a gap, under no repair
+duty, and MUST NOT be opened by `lineage.repair` or by historical
+material (RLTP-ACC-10112) unless a canonical `history.expose`
+(Section 8) has since exposed the key state behind it.
 
 **RLTP-ACC-9790** — Under `linear/0.1`, a transition without
 `lineage` is the narrowing act and its proof MUST satisfy
@@ -4372,9 +4380,10 @@ one `(transition, opens)` edge the first in 3.5's fold order
 (RLTP-ACC-3340) MUST count.
 
 **RLTP-ACC-9830** — Under `linear/0.1`, a member holding both keys of
-a skipped or failing lineage edge MUST publish the `lineage.repair`
-entry, body `{ "transition": <id>, "opens": <id>, "ct": … }`, upon
-materializing the gap.
+a skipped or failing lineage edge that is not closed (RLTP-ACC-9782)
+MUST publish the `lineage.repair` entry, body `{ "transition":
+<id>, "opens": <id>, "ct": … }`, upon materializing the gap; a
+repair of a closed edge MUST be rejected as invalid.
 
 *Rationale.* Reachable history across a lineage edge is exactly as
 durable as the set of members holding that edge's keys: an entry is
@@ -4614,12 +4623,18 @@ of that key state (RLTP-ACC-9362).
 **RLTP-ACC-10112** — A material document whose `keyState` names a
 historical key state of the recipient's materialization MAY be
 accepted for the sole purpose of opening history under that key
-state (RLTP-ACC-9280); it MUST NOT change the recipient's current
-key state, and `epoch` then names that key state's exposure epoch.
+state (RLTP-ACC-9280), if its `epoch` names that key state's
+exposure epoch, the material verifies against the log's binding of
+that key state, the helper's device is bound and unrevoked in the
+recipient's current materialization, and no closed edge
+(RLTP-ACC-9782) lies between the recipient's current key state and
+the named one; it MUST NOT change the recipient's current key state,
+and RLTP-ACC-10110 and RLTP-ACC-10120 do not apply to it.
 
-**RLTP-ACC-10120** — A document violating RLTP-ACC-10100 or
-RLTP-ACC-10110 MUST be disposed `failed(validation-failed)` without
-acknowledgement.
+**RLTP-ACC-10120** — A document violating RLTP-ACC-10100, or
+RLTP-ACC-10110 where it applies, or the conditions of
+RLTP-ACC-10112 where that path is claimed, MUST be disposed
+`failed(validation-failed)` without acknowledgement.
 
 *Rationale.* A former member must adopt nothing on this path; only
 the expressly provisional bootstrap below stands apart. Material
@@ -4999,10 +5014,13 @@ under `0.25`, and a `0.24` envelope carries the single-object
 edge opening the one transition of that epoch number in the
 operation's own ancestry, and MUST reject a `0.24` operation whose
 ancestry holds more than one transition of that epoch number, since
-its legacy forms cannot name a key state; verified under the AAD of
-its own version, unchanged. A `0.24` transition carries no
-`succeeds` and MUST be read as succeeding exactly the one maximal
-key state of its ancestry, whatever its lineage form. The welcome `material`
+its legacy forms cannot name a key state; a legacy `opens` of `0`
+opens the genesis key state; verified under the AAD of its own
+version, unchanged. A `0.24` transition carries no `succeeds` and
+MUST be read as succeeding exactly the one maximal key state of its
+ancestry, whatever its lineage form; a `0.24` transition whose
+ancestry holds more than one maximal key state MUST be rejected as
+invalid. The welcome `material`
 Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
 under this profile; a receiver MUST accept `0.24` material without
 `keyState` only where the admission's ancestry holds exactly one
