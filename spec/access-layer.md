@@ -66,8 +66,10 @@ registered experimental one. Persons are members of the log;
 their devices hold keys in the adapter's key structure, each bound
 to its person by a signed **device card**, so that losing a device
 is not losing membership. Concurrent removals that carry authority
-all take effect; only concurrent constitutional changes, and a
-dissolution against an enforcement, fork the group, fail-closed.
+all take effect; only a constitutional change against an
+enforcement forks the group, fail-closed, until a member resolves
+it, and a dissolution against an enforcement lapses and is issued
+again.
 
 Services carry a group's data and follow its log; they never
 decide it. Every service a group registers declares its **service
@@ -766,7 +768,8 @@ document means position in exactly this linearization.
 
 **RLTP-ACC-3345** — An operation caught by an outcome rule of
 Section 3.6 MUST remain valid and MUST confer no effect in that
-materialization.
+materialization, except the epoch transition a lapsed operation
+keeps (RLTP-ACC-3569).
 
 **RLTP-ACC-3350** — Canonicality, including terminality (5.4), MUST
 be computed over the full materialization at hand, identically on
@@ -933,10 +936,14 @@ forked state.
 
 **RLTP-ACC-3460** — A `group.dissolve` concurrent with a canonical
 enforcement operation, a `policy.change` included, MUST lapse: the
-enforcement takes effect, the merged state is not terminal, and a
-dissolution of the merged state requires a new `group.dissolve`;
-the last-member leave and the drained dissolve of 5.4 are
-dissolutions for this rule.
+enforcement takes effect, the merged state is not terminal unless
+its membership is empty (RLTP-ACC-5850), and a dissolution of the
+merged state requires a new `group.dissolve`.
+
+**RLTP-ACC-3462** — A last-member leave or a drained dissolve
+concurrent with an enforcement operation MUST NOT lapse as a leave:
+the leave merges as an ordinary `member.leave` with its discharge
+open (5.4), and only its terminal effect yields to RLTP-ACC-3460.
 
 **RLTP-ACC-3440** — In the forked state an operation building on
 either fork sibling MUST NOT be canonical, and every authorization
@@ -1006,7 +1013,13 @@ to lapse, because whoever meant it issues it again over the merged
 state, while a lapsed removal or rotation would undo an
 enforcement someone had authority for. So the dissolution yields,
 always to the same side, and nobody loses more than a second
-signature. Content keeps flowing in the forked state; only
+signature. What never yields is the will to leave: a last member
+who left while someone else rotated is still gone, as a pending
+exit the next transition discharges. A member with the right to
+rotate can delay a dissolution by rotating beside it, never prevent
+it, because the dissolution is re-issuable over every new state and
+no fork arises; that delay is an insider residual, attributable and
+bounded by the members' own patience. Content keeps flowing in the forked state; only
 authorization answers fail closed. A malicious authorized member
 can force this state; that is denial of service by an insider
 against their own group, fail-closed and attributable, never an
@@ -1558,9 +1571,11 @@ the admission bound, as denial-of-service ceilings and not group
 bounds.
 
 **RLTP-ACC-3810** — Beyond 8192 entries of a membership-scaled
-field — members for views, bound devices for a per-device key
-distribution — operations whose artifacts scale with it MUST fail
-closed at construction, membership itself untouched.
+field — device identities for views, bound devices for a per-device
+key distribution — operations whose artifacts scale with it MUST
+fail closed at construction, membership itself untouched; under
+`linear/0.1` that includes a `device.revoke` whose distribution
+would exceed the ceiling, so recovery there is by attrition.
 
 **RLTP-ACC-3815** — `member.leave` and `group.dissolve`, and
 additive operations whose artifacts do not scale with membership,
@@ -2273,8 +2288,9 @@ anchor cannot be taken over. A device outside the log's binding
 could sign views the log never authorized. Effect at the next
 transition containing the announcement makes the effective set
 deterministic under concurrency — a transition merged concurrently
-with the announcement does not carry it, the next one does — keeps
-the view identity set of one epoch grow-only (7.3), and lets an
+with the announcement does not carry it, the next one does — gives
+the view identity set a single point of change per transition
+(7.3), and lets an
 identity rotation after a key compromise ride the `epoch.rotate`
 that the compromise warrants anyway.
 
@@ -2527,11 +2543,17 @@ it holds.
 key of its enclosed admission card — for the founder, the genesis
 card — for as long as it is a member.
 
-**RLTP-ACC-5560** — A member holding the current epoch keys MUST
+**RLTP-ACC-5560** — A member holding the current key state MUST
 evaluate a request's entitlement at its own current materialized
 state before answering: the requesting anchor is a member there,
-and the named operation is a canonical admission of that anchor or,
-for the founder, the genesis.
+the named operation is a canonical admission of that anchor or, for
+the founder, the genesis, and the requesting device is bound to
+that anchor and not revoked there (5.1).
+
+**RLTP-ACC-5565** — A key request MUST carry the requesting device's
+card (5.1), or for a first device the contact card whose derived
+binding (RLTP-ACC-5125) is not revoked; a request under a member
+anchor alone MUST be refused.
 
 **RLTP-ACC-5570** — A request from an anchor whose membership has
 ended by a removal or a discharged exit MUST be refused.
@@ -2540,7 +2562,7 @@ ended by a removal or a discharged exit MUST be refused.
 material produced by the key port at the helper's current position,
 in the recovery kind the adapter registers (9.4: `re-welcome` or
 `refresh` under `linear/0.1`, `material` under `beekem/0.1`),
-sealed to the request's card.
+sealed to the key-agreement key of the requesting device.
 
 *Rationale.* Without the duty, the author of an admission or a
 transition could hold the new member's or a retained member's keys
@@ -2908,11 +2930,13 @@ log only through signed, chained statements of who is in, is 7.3.
 MUST be computed as the members of the state materialized from its
 ancestors, minus the operation's `subject` where it is a
 `member.remove`, minus every member whose undischarged
-`member.leave` lies in its ancestry; the retained set of a merged
-state MUST be the members of the merged materialization minus its
-pending exits, and in devices, minus the devices revoked in it; the
-forked and the terminal state have no retained set, because no
-transition is valid there.
+`member.leave` lies in its ancestry.
+
+**RLTP-ACC-7015** — The retained set of a merged state MUST be the
+members of the merged materialization minus its pending exits, and
+in devices, minus the devices revoked in it; the forked and the
+terminal state have no retained set, because no transition is
+valid there.
 
 **RLTP-ACC-7020** — A rotation MUST NOT shrink membership other than
 by discharging the pending leaves in its ancestry.
@@ -2922,21 +2946,24 @@ set is empty MUST be rejected as invalid.
 
 **RLTP-ACC-7040** — A transition's `newEpoch` MUST be its position's
 epoch plus 1, and the epoch of any materialized state MUST be the
-maximum `newEpoch` over the canonical transitions it contains, so
-that concurrent transitions from one position share a number and
-transitions of unequal depth merge under the deeper one.
+maximum `newEpoch` over the canonical and lapsed transitions it
+contains.
+
+**RLTP-ACC-7042** — The epoch number MUST serve as a counter for
+views (7.3) and for epoch monotonicity only; it MUST NOT identify a
+key state, which is named by its transition's `id` (RLTP-ACC-9262).
 
 **RLTP-ACC-7045** — The body section `transition` MUST carry
 `newEpoch`, `keyOpDigest` (RLTP-ACC-9270) and the material binding
 the adapter registration names (9.4); the transition envelope MUST
-NOT contain plaintext secret material of the new epoch.
+NOT contain plaintext secret material of the new key state.
 
 **RLTP-ACC-7050** — Members MUST apply transitions in ancestry
 order, buffering on a gap and recovering material through the key
 port or a key request (5.3).
 
-**RLTP-ACC-7060** — A bootstrap across a span the adapter's chain
-does not open MUST surface that span as narrowed.
+**RLTP-ACC-7060** — A bootstrap across a key state the adapter's
+chain does not open MUST surface that key state as narrowed.
 
 **RLTP-ACC-7070** — An operation that removes or narrows standing
 authority in a continuing group without carrying an epoch
@@ -2946,26 +2973,26 @@ transition MUST be rejected as invalid.
 rotation can never be abused to expel anyone: the only way
 membership shrinks at a rotation is by discharging leaves the
 rotator causally knows of, and an adapter that reached anyone else
-or missed anyone would violate KV2 (RLTP-ACC-9250). An empty
-retained set has no next member to hold a next secret; the defined
-ending is the drained dissolve (5.4). Two enforcements from one
-position are two decisions about the same next epoch; they share
-its number, and the key port merges their secrets (KV6), so the
-epoch count stays a count of decisions, not of branches; where
-one branch rotated twice and another once, the merged state is the
-deeper epoch and the adapter binds both key states under it (KV6,
-or the healing rotation of `linear/0.1`). The transition carries a
-digest of its key operation and never the secret, because the log
-remains readable to members of the old epoch, including the subject
-of a removal. A merged retained set is computed from the merged
-membership, never from the branches' sets alone: an intersection
-would strip a member admitted on one branch of every key, and a
-union would keep a member removed on one branch in. What a service
-may rely on is weaker than it was under a totally ordered log:
-within one epoch number the authorized set can shrink when a
-concurrent enforcement merges in, so a stale view's safety rests on
-its sequence, on the divergence rules and on its freshness bound
-(7.3), not on the epoch number alone.
+or missed anyone would violate KV2. An empty retained set has no
+next member to hold a next secret; the defined ending is the
+drained dissolve (5.4). Two transitions beside each other are two
+decisions and two key states; they may share an epoch number,
+because the number counts decisions, and the merged state's number
+is the deeper one, so views and monotonicity keep working. What the
+merged group reads under is a third key state that the adapter
+produces for the merged retained set, by merging or by healing
+(9.2); an intersection of the branches' sets would strip a member
+admitted on one branch of every key, and a union would keep a
+member removed on one branch in, so the merged set is computed from
+the merged membership and from nothing else. The transition carries
+a digest of its key operation and never the secret, because the log
+remains readable to members of the old key state, including the
+subject of a removal. What a service may rely on is weaker than it
+was under a totally ordered log: within one epoch number the
+authorized set can shrink when a concurrent enforcement merges in,
+so a stale view's safety rests on its sequence, on the divergence
+rules and on its freshness bound (7.3), not on the epoch number
+alone.
 
 ### 7.2 What rotation guarantees
 
@@ -3191,7 +3218,7 @@ service whose attestation-key continuity ended (state loss, key
 compromise, key loss; Replication Contract §4.1): it carries the
 fresh `attestationKey`, and the target chain it roots begins its
 standing there. Below, the *effective quorum* of a view is
-`m_effective` per the quorum rule of this section (RLTP-ACC-7190),
+the effective quorum size per RLTP-ACC-7190 and RLTP-ACC-7880,
 its signers listed in that view's `identities`.
 
 **RLTP-ACC-7340** — A registration of generation g+1 MUST carry
@@ -3418,10 +3445,13 @@ never look up or guess.
 *Rationale.* Checking both ends of the validity window means
 neither a year-9999 `validUntil` nor a future-dated `issuedAt`
 extends a view's life. Epoch monotonicity is the rollback
-protection: within one epoch the authorized set only grows, so
-replaying an older view of the same epoch can only shrink what the
-service accepts, which is denial and never authority, and a view of
-a superseded epoch is rejected outright. A view carries no log
+protection against superseded epochs: a view of an older epoch is
+rejected outright. Within one epoch number the authorized set can
+shrink when a concurrent enforcement merges in (7.1), so replaying
+an older view of the same epoch is caught by `seq`, not by the
+number; what the replay could buy is at most a listing the log has
+since revoked, for the staleness bound the group itself declared,
+attributable to the signers. A view carries no log
 heads: a service of class `view` cannot read the log, and a view
 claims nothing a service cannot check. Without a freshness bound a
 stale view would keep a removed member served indefinitely. A
@@ -3602,13 +3632,14 @@ ancestor of every named parent and whose `seq` is at least the
 the maximum `seq` over its named parents and an `epoch` at least
 the maximum `epoch` over its named parents.
 
-**RLTP-ACC-7870** — A reconciliation view MUST be signed by
-`min(m_registered, |identities|)` distinct identities, where
-`m_registered` is the maximum of the registered quorum sizes over
-its named parents and `identities` is the reconciliation view's
-own.
+**RLTP-ACC-7870** — A reconciliation view MUST be signed by `m`
+distinct identities, where `m` is the maximum of the effective
+quorum sizes over its named parents, with no reduction by the
+reconciliation view's own identity count; a reconciliation that
+cannot reach `m` is unconstructible and the binding ends in
+re-registration.
 
-**RLTP-ACC-7880** — The registered quorum size of a view MUST be
+**RLTP-ACC-7880** — The effective quorum size of a view MUST be
 computed by the recursion above, from the artifacts the presenter
 supplies, with exactly one value per view.
 
@@ -3628,12 +3659,13 @@ when its derived tip set has one element.
 when two removals with authority take effect concurrently (3.6),
 each branch's view drops its own subject, and the reconciliation
 is what brings the two lists together (S4b). After a mutual
-removal the remaining set can be smaller than any quorum
-registered before; taking the quorum from the reconciliation's own
-`identities`, capped by the strictest registered size of the
-parents, lets the remaining members sign the join instead of
-freezing the service with the removed members still served
-(S10c). The continuity cut is what makes a takeover impossible:
+removal the remaining set can be smaller than the quorum the
+parents require; the quorum is nevertheless taken from the parents,
+because a service that let the join's own size cap it would let one
+remaining signer join the branches over everybody else's head, and
+the honest case that fails, a group removing its whole quorum at
+once, ends in re-registration as stated (S10c). The continuity cut
+is what makes a takeover impossible:
 were the quorum drawn from the historical `predecessor` alone, an
 expelled quorum could fork at the anchor and join its own fork over
 the very view that removed it; a signer excluded by any named
@@ -3815,7 +3847,8 @@ effect in any replica's materialization.
 reach the same verdicts as one fed through any API.
 
 **RLTP-ACC-9060** — Only key operations resulting from canonical
-authority decisions MUST be handed to the key port.
+authority decisions, and the epoch transitions of lapsed
+operations (RLTP-ACC-3569), MUST be handed to the key port.
 
 *Rationale.* Whoever decides membership decides everything else;
 if that decision could be outsourced to replaceable machinery with
@@ -3842,9 +3875,19 @@ secret that no member it removes can derive (KV1).
 cryptographically secure random source, independent of every prior
 epoch secret of the group.
 
-**RLTP-ACC-9250** — Every new epoch secret MUST reach exactly the
-computed retained set (7.1), and under concurrency exactly the
-merged retained set (KV2).
+**RLTP-ACC-9250** — Every transition's epoch secret MUST reach
+exactly the retained set at the transition's position (7.1), no
+member more and none less (KV2).
+
+**RLTP-ACC-9255** — A merged state MUST obtain a key state that
+reaches exactly its merged retained set (7.1), by the adapter's
+merge of the concurrent secrets or by its healing (9.4), and until
+that key state is canonical, writes under any of the merged
+secrets MUST fail closed (KV6).
+
+**RLTP-ACC-9262** — A key state MUST be identified by the `id` of
+the transition that created it; the epoch number is a counter
+(7.1) and MUST NOT serve as the identifier of a key state.
 
 **RLTP-ACC-9260** — The authority log MUST bind each epoch to its
 secret without containing the secret (KV3).
@@ -3865,9 +3908,10 @@ force a new epoch secret without a membership change, after which
 a passive reader holding a captured device state reads nothing
 new (KV5).
 
-**RLTP-ACC-9310** — An adapter declaring KV6 MUST merge two
-concurrently arising epoch secrets deterministically without
-forking the group (KV6).
+**RLTP-ACC-9310** — An adapter MUST satisfy KV6 either by merging
+two concurrently arising epoch secrets deterministically into one
+key state, or by a healing transition over the merged state that
+succeeds every open key state (9.4), never by forking the group.
 
 **RLTP-ACC-9315** — An adapter MUST satisfy KV1 to KV4 and MUST
 declare in its registration whether it satisfies KV5, and how it
@@ -3932,8 +3976,9 @@ nothing about the group, or only who is in it, or the whole log;
 the group chooses, and the service declares it. Whatever it knows,
 four duties hold: it carries every authority operation whether or
 not it likes the author, it never drops anything silently, it
-tells a member it has stopped serving them, and it never freezes
-on a membership that honestly shrank.
+tells a member it has stopped serving them, and it treats the
+group's authority operations as evidence it carries, never as
+claims it judges.
 
 **RLTP-ACC-9560** — A registration (7.3) MUST declare the service
 class `blind`, `view` or `log`.
@@ -3948,7 +3993,9 @@ the key operations an authority operation binds by `keyOpDigest`.
 
 **RLTP-ACC-9510** — A service of class `view` or `log` MUST gate
 content and loose key operations by the authorization state it
-holds, and MUST serve only devices that state lists.
+holds, and MUST deliver content and loose key operations only to
+devices that state lists; evidence (3.6) follows evidence standing,
+not this gate.
 
 **RLTP-ACC-9520** — A service MUST NOT discard an accepted item
 silently.
@@ -3957,10 +4004,12 @@ silently.
 sender and retriable.
 
 **RLTP-ACC-9535** — A service MAY bound its intake by size, rate
-and syntactic validity per sender, visibly and retriably, and MUST
-NOT bound it by the sender's membership or by the author of an
-authority operation; a valid authority operation presented within
-the bound MUST eventually be admitted.
+and syntactic validity, and MUST then declare the bound in its
+registration as a positive budget per presenter and group over
+`stalenessBound`, apply it per presenter and group, and admit on
+presentation every valid authority operation within the declared
+budget; it MUST NOT bound intake by the sender's membership or by
+the author of an authority operation.
 
 **RLTP-ACC-9540** — A service that stops serving a removed member
 MUST deliver the removal notice (10.2) to that member once a member
@@ -4055,24 +4104,31 @@ whom, is stated here, and the rest is audit.
 #### 9.4.1 `linear/0.1`
 
 *In plain terms.* The adapter deployed today. One fresh content
-key per epoch, sealed to every retained member one by one, with
-the previous key embedded under the new one so history stays
+key per key state, sealed to every retained device one by one,
+with the previous key embedded under the new one so history stays
 readable. It cannot merge two concurrent enforcements; when they
-meet, the first key holder to see both rotates once more over the
-merged group, and until then nobody writes. It offers no
-post-compromise security against a captured device.
+meet, one named key holder rotates once more over the merged
+group, bridging both old keys, and until that rotation is
+canonical nobody writes. It offers no post-compromise security
+against a captured device.
+
+**Key states and distribution.**
+
+**RLTP-ACC-9705** — Under `linear/0.1`, a key state MUST be the
+content key of one transition, identified by that transition's
+`id`; two transitions with the same `newEpoch` are two key states.
 
 **RLTP-ACC-9700** — Under `linear/0.1`, the `keyDist` recipient set
-MUST equal exactly the bound, unrevoked devices of the computed
-retained set, one entry per device, without omission, stranger or
-duplicate.
+MUST equal exactly the bound, unrevoked devices of the retained set
+at the transition's position, one entry per device, without
+omission, stranger or duplicate.
 
 **RLTP-ACC-9710** — Under `linear/0.1`, `contentKeyCommitment` MUST
 be the multibase multihash over the raw 32 content-key bytes.
 
 **RLTP-ACC-9720** — Under `linear/0.1`, a transition whose
-`contentKeyCommitment` equals an earlier epoch's commitment in the
-group MUST be rejected as invalid.
+`contentKeyCommitment` equals an earlier transition's commitment in
+the group MUST be rejected as invalid.
 
 **RLTP-ACC-9730** — Under `linear/0.1`, `keyDist` MUST be an array
 with one `{ "recipient": <device did:key>, "envelope": <digest> }`
@@ -4086,22 +4142,15 @@ canonical u>, "newEpoch": <integer>, "recipient": <device did:key
 string> }`, and the keydist object as plaintext.
 
 **RLTP-ACC-9750** — Under `linear/0.1`, a key envelope MUST be
-sealed to the recipient device's current key-agreement key (its
-device card, 5.1) and travel via `key-delivery` (10.1).
+sealed to the recipient device's current key-agreement key (5.1)
+and travel via `key-delivery` (10.1).
 
 **RLTP-ACC-9860** — Under `linear/0.1`, `keyOpDigest` MUST be the
 multibase multihash over the JCS serialization of the operation's
 `keyDist` array, the empty array at the genesis.
 
-**RLTP-ACC-9865** — Under `linear/0.1`, a member who materializes two
-concurrent canonical transitions and holds either secret MUST issue
-an `epoch.rotate` over the merged state at once; until a rotation
-whose ancestry contains both transitions is canonical, writes MUST
-fail closed and each member reads under the sibling secrets it
-holds. This is the adapter's KV6.
-
 **RLTP-ACC-9840** — Under `linear/0.1`, `keys` MUST contain exactly
-`contentKey`, the epoch's 32-byte AES-256 content key.
+`contentKey`, the key state's 32-byte AES-256 content key.
 
 **RLTP-ACC-9850** — Under `linear/0.1`, every other key MUST be
 derived from the content key; the working key is `HKDF-SHA256(salt
@@ -4117,34 +4166,82 @@ canonical u form, L = 32)`.
 *Rationale.* One content key is the only transported secret;
 everything else derives from it with domain separation, so a
 helper cannot deliver a correct content key with a poisoned side
-secret. Sealing is bound to group, epoch and recipient, and the
-operation commits to the envelopes by digest, so an envelope
-cannot be replayed under another transition. The commitment check
-on the raw key bytes is the checkable core of freshness; a rotator
-re-committing an old key would revoke nothing. Two concurrent
-transitions leave two key worlds this adapter cannot fold into
-one; the healing rotation is deterministic in its duty, every key
-holder owes it on sight, and it is evidence-preserving, since both
-siblings stay in the log and both secrets stay readable to those
-who held them. Two members healing concurrently produce two
-healing secrets and one more healing; that converges as soon as
-the partition does.
+secret. Sealing is bound to group, epoch number and recipient
+device, and the operation commits to its envelopes by digest, so an
+envelope cannot be replayed under another transition even when two
+transitions share an epoch number: the operation's `id` tells them
+apart, and that `id` is what names the key state. The commitment
+check on the raw key bytes is the checkable core of freshness; a
+rotator re-committing an old key would revoke nothing. A
+distribution is judged at its own position only; what the merged
+group reads under is the healing rotation's key state, never a
+retrofit of an immutable distribution.
+
+**Healing: KV6 under `linear/0.1`.**
+
+**RLTP-ACC-9865** — Under `linear/0.1`, a healing need MUST exist
+whenever a member's materialization holds two or more canonical key
+states with no canonical key state descending from all of them; the
+need ends exactly when such a descendant is canonical.
+
+**RLTP-ACC-9866** — While a healing need exists, writes MUST fail
+closed, and each member reads under the key states it holds.
+
+**RLTP-ACC-9867** — Under a healing need, the member who holds at
+least one of the open key states and whose device identity is the
+smallest, in unsigned bytewise order, among the holders it knows
+MUST issue an `epoch.rotate` whose ancestry contains all open key
+states it knows, under that operation's rule key; any other key
+holder MAY.
+
+**RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
+key states under RLTP-ACC-9865, producing one further need.
+
+**RLTP-ACC-9869** — A member who holds no open key state MUST NOT
+issue a healing rotation; a removed member holding a sibling key
+state is not a member and MUST NOT issue one.
+
+*Rationale.* Two concurrent transitions leave two key worlds this
+adapter cannot fold into one. The need is defined over the key
+states themselves, so it is recognizable by anyone holding the
+materialization and it ends by construction when a common
+descendant exists; a historical pair of siblings below a canonical
+healing creates no new duty. The duty falls on one named holder so
+that honest members do not race each other into an endless chain
+of healings; who it falls on is a liveness choice without authority
+effect, so an arbitrary deterministic order is acceptable where a
+tie-break about membership would not be. Everyone else may heal
+too, and if two do, the result is one more need and one more
+healing, which terminates once the members see each other's
+rotations. The rotation stays under the group's own rule for
+rotations: where that rule asks for more than one signature, the
+obligated member collects them, and the group has chosen that
+delay. A member who was removed on one branch holds that branch's
+key but is no member of the merged state; healing is enforcement,
+and only members enforce.
 
 **History under `linear/0.1`: the epoch-key lineage.**
 
 **RLTP-ACC-9760** — Under `linear/0.1`, a transition MUST by default
-carry `lineage`, an object `{ "opens": <epoch>, "ct": … }` with
-`opens` = the previous epoch and `ct` the AEAD ciphertext of that
-epoch's content key under the new content key with AAD the UTF-8
-bytes of the JCS serialization of `{ "genesis", "newEpoch",
-"opens" }`.
+carry `lineage`, an array of one or more entries `{ "opens":
+<transition id>, "ct": … }`, one per key state it succeeds, `ct`
+being the AEAD ciphertext of the opened key state's content key
+under the new content key with AAD the UTF-8 bytes of the JCS
+serialization of `{ "genesis", "transition": <this transition's
+newEpoch>, "opens": <the opened transition's id> }`.
 
-**RLTP-ACC-9770** — Under `linear/0.1`, a recovery-form lineage
-(`opens` earlier than the previous epoch) MUST be gated only by the
-operation's own rule.
+**RLTP-ACC-9762** — Under `linear/0.1`, a healing rotation MUST carry
+one lineage entry per open key state its author holds, and MUST
+surface every open key state it does not hold as a missing bridge
+under RLTP-ACC-9780.
 
-**RLTP-ACC-9780** — Under `linear/0.1`, a skipped span MUST be
-surfaced as skipped and, once repaired, as repaired.
+**RLTP-ACC-9770** — Under `linear/0.1`, a lineage entry opening a key
+state other than a direct predecessor is the recovery form and MUST
+be gated only by the operation's own rule.
+
+**RLTP-ACC-9780** — Under `linear/0.1`, a key state not opened by any
+canonical lineage entry or repair MUST be surfaced as skipped and,
+once repaired, as repaired.
 
 **RLTP-ACC-9790** — Under `linear/0.1`, a transition without
 `lineage` is the narrowing act and its proof MUST satisfy
@@ -4152,30 +4249,35 @@ surfaced as skipped and, once repaired, as repaired.
 
 **RLTP-ACC-9800** — Under `linear/0.1`, `lineageVoid: true` MUST be
 valid only on a leave-discharging `epoch.rotate`, and the unbridged
-step MUST be surfaced as damage.
+key states MUST be surfaced as damage.
 
 **RLTP-ACC-9810** — Under `linear/0.1`, a transition with none of
 `lineage`, an authorized `historyNarrow`, or (on a discharge only)
 `lineageVoid` MUST be rejected as invalid.
 
 **RLTP-ACC-9820** — Under `linear/0.1`, members MUST verify a lineage
-entry on first decryption against the `opens` epoch's commitment,
-and the first canonical verifying `lineage.repair` entry per
-`(epoch, opens)` MUST count.
+entry on first decryption against the commitment of the key state
+it names, and the first canonical verifying `lineage.repair` entry
+per `(transition, opens)` pair of transition ids MUST count.
 
 **RLTP-ACC-9830** — Under `linear/0.1`, a member holding both keys of
-a skipped or failing lineage step MUST publish the `lineage.repair`
-entry upon materializing the skip.
+a skipped or failing lineage edge MUST publish the `lineage.repair`
+entry, body `{ "transition": <id>, "opens": <id>, "ct": … }`, upon
+materializing the gap.
 
-*Rationale.* Reachable history across a lineage step is exactly as
-durable as the set of members holding that step's keys: a lineage
-entry is constructible only by a key holder, and no rule can
-conjure a key nobody entitled still has. A declared skip grants no
-darkening power that a garbage ciphertext does not already grant;
-the skip is the more honest form, visible to every reader, and
-repairing it is a duty. Where no member holds both keys of a step,
-that span is dark under this form and every other; authority state
-in the span was never dark, at most content is, and at most until
+*Rationale.* Reachable history across a lineage edge is exactly as
+durable as the set of members holding that edge's keys: an entry is
+constructible only by a key holder, and no rule can conjure a key
+nobody entitled still has. Edges run between key states, named by
+transition id, because an epoch number no longer names one key: a
+healing rotation succeeds two or more key states and bridges each
+it can, and the ones its author does not hold are an honest gap
+with the ordinary repair duty on whoever holds them. A declared
+skip grants no darkening power that a garbage ciphertext does not
+already grant; the skip is the more honest form, visible to every
+reader. Where no member holds both keys of an edge, that key
+state's content is dark under this form and every other; authority
+state was never dark, at most content is, and at most until
 repaired. `lineage.repair` is a log operation of this adapter: it
 exists because the adapter keeps history in a chain of embedded
 ciphertexts, and it is valid only under this adapter.
@@ -4573,14 +4675,16 @@ its type URI.
 
 **RLTP-ACC-10350** — A removal notice MUST name in `op` the
 `member.remove`, in `subject` the removed anchor, in `epoch` the
-removal transition's `newEpoch`, and in `author` the operation's
-author.
+removal transition's `newEpoch`, in `author` the operation's
+author, and in `issuer` the member who produced the notice.
 
 **RLTP-ACC-10360** — A removal notice's `sig` MUST verify under
-`author`.
+`issuer`, and `issuer` MUST be a member of the state that
+materializes the named removal as canonical.
 
 **RLTP-ACC-10370** — A removal-notice document MUST carry no
-`proof`, and its `issuer` MUST equal `author`.
+`proof`; it MUST be delivered to every device of the removed
+anchor the service served (9.3).
 
 **RLTP-ACC-10380** — Before any effect, a recipient MUST check that
 the payload is schema-valid, that `sig` verifies, that
@@ -5254,11 +5358,13 @@ in both directions.
   lagging replica, transitive forwarding included.
 - *Views* (7.3) — registration with `class`; `seq` and `prevView`
   chain; epoch monotonicity; freshness window at acceptance; the
-  quorum `m_effective = min(m_registered, |identities|)`, including
-  a mutual removal that shrinks the identities below the registered
-  `m` without freezing the service (S10c); gap and divergence
-  persistently fail-closed; reconciliation; the terminal view and
-  its retention window.
+  quorum taken from the previous accepted view, a view listing fewer
+  identities than that quorum rejected, including a mutual removal
+  that shrinks the identities below `m` and freezes the service
+  (S10c, the stated residual of class `view`); a reconciliation
+  signed by the maximum of its parents' effective quorums; gap and
+  divergence persistently fail-closed; the terminal view and its
+  retention window.
 - *Services* — a registration without `class` invalid; each class
   receives no more than it grants; a service of every class carries
   authority operations of removed authors (S10c on both sides); a
