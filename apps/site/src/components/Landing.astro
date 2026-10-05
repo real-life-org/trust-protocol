@@ -1,6 +1,7 @@
 ---
 import Icon from './Icon.astro'
 import GroupPlace from './figures/GroupPlace.astro'
+import SharedSpace from './figures/SharedSpace.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -25,6 +26,12 @@ const encounter: Card[] = [
   ['wot', 'The ceremony', 'Show, scan, confirm. Connected or fully offline, switching freely.', spec('encounter-layer.md')],
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
   ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
+]
+const space: Card[] = [
+  ['lock', 'End-to-end encrypted', 'The relay sees neither contents nor keys.', '/understand/foundations/#groups'],
+  ['hard-drive', 'Complete on every device', 'Each member holds the whole space and works offline.', '/understand/foundations/#groups'],
+  ['waypoints', 'Changes merge', 'Concurrent edits converge; nobody has to settle them.', '/understand/foundations/#groups'],
+  ['shield', 'Former members read nothing new', 'Leaving ends access to everything that follows.', '/understand/foundations/#groups'],
 ]
 const services: Card[] = [
   ['plug', 'Delivery contract', 'Sealed envelopes, signed acknowledgements, a closed set of delivery states.', spec('delivery-contract.md')],
@@ -100,6 +107,21 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
     <GroupPlace />
+  </section>
+
+  <section class="tp-section flip" id="shared-space">
+    <div>
+      <div class="tp-badge">Shared space</div>
+      <h2>A shared space for the group's work</h2>
+      <p>Notes, places on a map, dates and lists: the group's documents live in one encrypted space, complete on every member's device.</p>
+      <p>Members work offline and at the same time. When devices meet again, their changes merge. The relay in between carries ciphertext only.</p>
+    </div>
+    <SharedSpace />
+    <div class="tp-props">
+      {space.map(([icon, name, desc, href]) => (
+        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+      ))}
+    </div>
   </section>
 
   <section class="tp-section flip band" id="services">

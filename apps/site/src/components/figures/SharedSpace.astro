@@ -1,0 +1,52 @@
+---
+/**
+ * The group's shared space: the same items on every member's device, a
+ * relay in the middle that carries ciphertext only, one device offline with
+ * a change of its own that merges when it returns. Same pieces as the group
+ * figure (site.css, .tp-group), plus the relay and the offline state.
+ */
+import { icons, type IconName } from '../icons'
+
+const items: IconName[] = ['map', 'calendar', 'kanban']
+type Device = { x: number; y: number; name: string; state: string; offline?: boolean }
+const devices: Device[] = [
+  { x: 60, y: 60, name: 'Anna', state: 'in sync' },
+  { x: 520, y: 60, name: 'Peter', state: 'in sync' },
+  { x: 60, y: 262, name: 'Frida', state: 'in sync' },
+  { x: 520, y: 262, name: 'Sam', state: 'offline · merges on return', offline: true },
+]
+// Dashed links from each device to the relay box (250..390 × 180..260).
+const links = [
+  [120, 108, 250, 186],
+  [520, 108, 390, 186],
+  [120, 310, 250, 254],
+  [520, 310, 390, 254],
+]
+---
+<figure class="tp-group space">
+  <svg viewBox="0 40 640 372" role="img" aria-labelledby="fig-space-title">
+    <title id="fig-space-title">The same three items, a place on a map, a date and a list, on the devices of Anna, Peter, Frida and Sam. A relay in the middle carries ciphertext only. Sam is offline and has added an entry, which merges when the device returns.</title>
+
+    {links.map(([x1, y1, x2, y2], i) => <line {x1} {y1} {x2} {y2} class={devices[i].offline ? 'link warn' : 'link'} />)}
+
+    {devices.map((d) => (
+      <g class={d.offline ? 'dev offline' : 'dev'}>
+        <rect x={d.x} y={d.y} width="60" height="96" rx="10" class="device" />
+        {items.map((name, i) => (
+          <g transform={`translate(${d.x + 23} ${d.y + 18 + i * 20}) scale(0.58)`} class="glyph item" set:html={icons[name]} />
+        ))}
+        {d.offline && <rect x={d.x + 20} y={d.y + 78} width="20" height="5" rx="2.5" class="mini new" />}
+        <text x={d.x + 30} y={d.y + 120} class="name" text-anchor="middle">{d.name}</text>
+        <text x={d.x + 30} y={d.y + 137} class="state" text-anchor="middle">{d.state}</text>
+      </g>
+    ))}
+
+    <rect x="250" y="180" width="140" height="80" rx="12" class="relay" />
+    <text x="320" y="202" class="kicker" text-anchor="middle">RELAY</text>
+    <rect x="276" y="214" width="88" height="5" rx="2.5" class="mini" />
+    <rect x="276" y="225" width="64" height="5" rx="2.5" class="mini" />
+    <g transform="translate(300 234) scale(0.5)" class="glyph lock" set:html={icons['lock']} />
+    <text x="318" y="245" class="by">ciphertext only</text>
+  </svg>
+  <figcaption>Every member holds the whole space. Changes made apart merge when devices meet again; the relay never sees a word of it.</figcaption>
+</figure>

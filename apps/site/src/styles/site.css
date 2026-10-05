@@ -337,3 +337,16 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-group .out .mini.strong { fill: var(--sl-color-gray-5); }
 .tp-group .out .name { fill: var(--sl-color-gray-2); }
 .tp-group .out .state { fill: var(--sl-color-gray-3); }
+/* The shared space: items on the screens, a relay instead of the circle, one device offline. */
+.tp-group .glyph.item { stroke: var(--sl-color-accent); }
+.tp-group .relay { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.tp-group .glyph.lock { stroke: var(--sl-color-gray-3); }
+.tp-group .space .kicker, .tp-group.space .kicker { fill: var(--sl-color-gray-3); }
+.tp-group .link.warn { stroke: var(--warning); }
+.tp-group .mini.new { fill: var(--warning); }
+.tp-group .offline .state { fill: var(--warning); }
+.tp-group .offline .device { stroke: color-mix(in oklab, var(--warning) 60%, var(--sl-color-gray-5)); }
+/* The properties of the space, under the figure, across both columns. */
+.tp-props { grid-column: 1 / -1; order: 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 3rem; border-bottom: 1px solid var(--sl-color-gray-6); }
+.tp-props .tp-item { padding: 1rem 0; }
+@media (max-width: 49.99rem) { .tp-props { grid-template-columns: 1fr; } }
