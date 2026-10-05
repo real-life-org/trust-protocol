@@ -59,7 +59,7 @@
 
 h1 { letter-spacing: -.04em; line-height: 1.1 !important; }
 h2, h3 { letter-spacing: -.02em; }
-.site-title { letter-spacing: -.03em; font-weight: 750; }
+.site-title { letter-spacing: -.03em; font-weight: 750; color: var(--sl-color-white); }
 
 /* Hero: copy left, the encounter picture right, a fading dot grid behind. */
 .hero { position: relative; padding-block: 3rem 1.5rem; }
