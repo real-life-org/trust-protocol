@@ -669,6 +669,65 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
+   "@id": "rltp:MemberAnchor",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Mitgliedsanker",
+     "@language": "de"
+    },
+    {
+     "@value": "Member anchor",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Der gruppenspezifische Kontextanker, unter dem ein Mitglied in einer Gruppe handelt (DTG-Geltungsbereich directed).",
+     "@language": "de"
+    },
+    {
+     "@value": "The per-group context anchor under which one member acts in one group (DTG scope directed).",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:CommunityAnchor",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Gemeinschaftsanker",
+     "@language": "de"
+    },
+    {
+     "@value": "Community anchor",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Der Anker der persönlichen Gemeinschaft einer Person, ein gewöhnlicher Mitgliedsanker nach Identity §6, der als selbstgewählte beziehungsübergreifende Koordinate der Person dient; er erscheint in keinem Artefakt der Zugangsschicht außer innerhalb von member-mapping@1.",
+     "@language": "de"
+    },
+    {
+     "@value": "The anchor of a person's personal community, an ordinary member anchor of Identity §6, serving as the person's chosen cross-relationship coordinate; it appears in no artifact of the Access Layer except inside member-mapping@1.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#55-member-mapping1--the-deliberate-crossing-of-the-group-boundary",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#6-context-labels-normative"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
    "@id": "rltp:DeviceCard",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
@@ -694,6 +753,35 @@
    ],
    "dct:source": [
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Service",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Dienst",
+     "@language": "de"
+    },
+    {
+     "@value": "Service",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Eine Partei, die die Einträge einer Gruppe speichert und weiterleitet, ohne ihre Schlüssel zu halten; ihre Klasse (blind, view, log) ist die registrierte Aussage darüber, was sie von der Gruppe weiß.",
+     "@language": "de"
+    },
+    {
+     "@value": "A party that stores and forwards a group's items without holding its keys; its class (blind, view, log) is the registered statement of what it knows of the group.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#93-the-service"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -785,6 +873,96 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
+   "@id": "rltp:Materialization",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Materialisierung",
+     "@language": "de"
+    },
+    {
+     "@value": "Materialization",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die deterministische Ableitung des Gruppenzustands aus dem Log; ihr Ergebnis ist der materialisierte Zustand.",
+     "@language": "de"
+    },
+    {
+     "@value": "The deterministic derivation of group state from the log; its result is the materialized state.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#35-materialization",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Canonical",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Kanonisch",
+     "@language": "de"
+    },
+    {
+     "@value": "Canonical",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Eine Operation ist kanonisch, wenn die Materialisierung an ihrer kausalen Position sie annimmt und keine Ergebnisregel aus 3.6 über sie verfügt.",
+     "@language": "de"
+    },
+    {
+     "@value": "An operation is canonical when materialization at its causal position accepts it and no outcome rule of 3.6 disposes of it.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#35-materialization",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:ReplicaBoundary",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Replikatgrenze",
+     "@language": "de"
+    },
+    {
+     "@value": "Replica boundary",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Menge der Parteien, die das replizierte Log der Gruppe bei einem gegebenen materialisierten Zustand halten und halten dürfen.",
+     "@language": "de"
+    },
+    {
+     "@value": "The set of parties holding, and entitled to hold, the group's replicated log at a given materialized state.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#22-terms",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#2-conventions-and-terminology"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
    "@id": "rltp:MaterializedState",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
@@ -808,6 +986,7 @@
      "@language": "en"
     }
    ],
+   "skos:broader": { "@id": "rltp:Materialization" },
    "dct:source": [
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#35-materialization",
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix"
