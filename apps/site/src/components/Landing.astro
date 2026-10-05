@@ -8,9 +8,9 @@ const spec = (file: string) => `${REPO}/blob/main/spec/${file}`
 const sim = (file: string) => `/simulator/${file}`
 
 const ways: { title: string; text: string; href: string; icon: IconName }[] = [
-  { title: 'Understand', text: 'Foundations for protocol developers: identifiers, credentials, trust, groups, the ports. Then a primer per layer, then the specifications.', href: '/understand/foundations/', icon: 'layers' },
-  { title: 'Try it', text: 'Three simulators in your browser: the app on three devices, one encounter under the microscope, the graph of who can prove what.', href: '/get-started/try-it/', icon: 'rocket' },
-  { title: 'Implement', text: 'The library on npm, test vectors to reproduce byte for byte, and a conformance runner.', href: '/get-started/implement/', icon: 'wrench' },
+  { title: 'Foundations', text: 'What a protocol developer needs first: identifiers, credentials, trust, groups, the ports. Then a primer per layer, then the specifications.', href: '/understand/foundations/', icon: 'layers' },
+  { title: 'Simulators', text: 'Three simulators in your browser: the app on three devices, one encounter under the microscope, the graph of who can prove what.', href: '/get-started/try-it/', icon: 'rocket' },
+  { title: 'Library', text: 'The library on npm, test vectors to reproduce byte for byte, and a conformance runner.', href: '/get-started/implement/', icon: 'wrench' },
 ]
 
 type Card = [IconName, string, string, string]
@@ -171,9 +171,9 @@ const dtg: Card[] = [
       <p>Run the simulators, read the layer documents, or install the library and reproduce the vectors.</p>
     </div>
     <div class="tp-actions">
-      <a class="tp-btn primary" href="/understand/foundations/">Understand →</a>
-      <a class="tp-btn" href="/get-started/try-it/">Try it</a>
-      <a class="tp-btn" href="/get-started/implement/">Implement</a>
+      <a class="tp-btn primary" href="/understand/foundations/">Foundations →</a>
+      <a class="tp-btn" href="/get-started/try-it/">Simulators</a>
+      <a class="tp-btn" href="/get-started/implement/">Library</a>
     </div>
   </section>
 </div>
