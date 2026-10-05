@@ -1949,8 +1949,10 @@ valid DTG attestation on its own. A DTG verifier that evaluates an
 *edge* needs the linkage between the two pair anchors and the
 relationship, which this layer keeps holder-local (4.4, Section 8);
 such a verifier sees two attestations between anchors it cannot
-attribute. The upstream issue on verifier-relative edges is to be
-linked here once posted.
+attribute. The upstream discussion is
+[dtgwg-cred-spec#72](https://github.com/trustoverip/dtgwg-cred-spec/issues/72),
+"Verifier-relative edges: a VRC as an edge for a verifier that
+already knows its issuer".
 
 ## Appendix C (informative): changelog
 
