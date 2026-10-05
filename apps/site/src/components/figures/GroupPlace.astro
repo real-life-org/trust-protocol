@@ -1,47 +1,68 @@
 ---
-/**
- * A group as a place, in the landing's own pieces: the authority log as a
- * card with the accent border, the same log on each member's device below,
- * one device outside, dashed, with ciphertext only. Three entries carry the
- * idea: a founding, a rule stated as data, the rule applied. Styles:
- * site.css, .tp-place.
- */
-import Icon from '../Icon.astro'
-import type { IconName } from '../icons'
-
-const log: { icon: IconName; op: string; by: string }[] = [
-  { icon: 'fingerprint', op: 'genesis', by: 'Anna founds' },
-  { icon: 'shield', op: 'rule: two admit', by: 'Anna, Peter' },
-  { icon: 'users', op: 'admit Sam', by: 'Peter, Frida' },
+// A group as a place: one authority log, replicated on every member's
+// device; a non-member sees ciphertext only. Colours from site.css (.tp-group).
+type Device = { x: number; y: number; label: string; laptop?: boolean }
+const devices: Device[] = [
+  { x: 34, y: 78, label: "Anna's phone" },
+  { x: 536, y: 78, label: "Peter's phone" },
+  { x: 14, y: 286, label: "Frida's laptop", laptop: true },
+  { x: 536, y: 278, label: "Sam's phone" },
 ]
-const members = ['Anna', 'Peter', 'Sam']
+const log: [string, string][] = [
+  ['genesis · Anna founds', ''],
+  ['admit Peter', 'Anna'],
+  ['rule: two admit', 'Anna, Peter'],
+  ['admit Frida', 'Anna, Peter'],
+  ['admit Sam', 'Peter, Frida'],
+]
 ---
-<figure class="tp-place" aria-label="A group. Its authority log: Anna founds it, the rule becomes that two members admit, Peter and Frida admit Sam. The same log is on the devices of Anna, Peter and Sam. A device outside the group holds ciphertext only.">
-  <div class="tp-place-log">
-    <div class="tp-place-log-head"><span>Authority log</span><strong>Garden group</strong></div>
-    <ol>
-      {log.map((e) => (
-        <li><Icon name={e.icon} /><span class="op">{e.op}</span><span class="by">{e.by}</span></li>
-      ))}
-    </ol>
-  </div>
+<figure class="tp-group">
+  <svg viewBox="0 0 640 450" role="img" aria-labelledby="fig-group-title">
+    <title id="fig-group-title">A group named Garden group, identified by the digest of its genesis. Its authority log reads: Anna founds it, Anna admits Peter, the rule becomes that two members admit, Anna and Peter admit Frida, Peter and Frida admit Sam. The same log is replicated on the devices of Anna, Peter, Frida and Sam. A non-member sees ciphertext only.</title>
 
-  <div class="tp-place-link" aria-hidden="true"><i></i><span>same log on every device</span><i></i></div>
+    <line x1="112" y1="132" x2="186" y2="170" class="link" />
+    <line x1="528" y1="132" x2="454" y2="170" class="link" />
+    <line x1="132" y1="320" x2="186" y2="290" class="link" />
+    <line x1="528" y1="330" x2="454" y2="290" class="link" />
 
-  <div class="tp-place-devices">
-    {members.map((name) => (
-      <div class="tp-place-device">
-        <span class="tp-place-screen"><i class="hd"></i><i></i><i class="short"></i></span>
-        <strong>{name}</strong>
-        <span class="state ok">holds the key</span>
-      </div>
+    {devices.map((d) => d.laptop ? (
+      <g>
+        <rect x={d.x} y={d.y} width="118" height="74" rx="8" class="device" />
+        <line x1={d.x - 8} y1={d.y + 82} x2={d.x + 126} y2={d.y + 82} class="device-base" />
+        <rect x={d.x + 30} y={d.y + 22} width="58" height="5" rx="2.5" class="mini strong" />
+        <rect x={d.x + 30} y={d.y + 34} width="44" height="5" rx="2.5" class="mini" />
+        <rect x={d.x + 30} y={d.y + 46} width="50" height="5" rx="2.5" class="mini" />
+        <text x={d.x + 59} y={d.y + 108} class="label" text-anchor="middle">{d.label}</text>
+      </g>
+    ) : (
+      <g>
+        <rect x={d.x} y={d.y} width="70" height="112" rx="12" class="device" />
+        <rect x={d.x + 16} y={d.y + 36} width="38" height="5" rx="2.5" class="mini strong" />
+        <rect x={d.x + 16} y={d.y + 48} width="28" height="5" rx="2.5" class="mini" />
+        <rect x={d.x + 16} y={d.y + 60} width="34" height="5" rx="2.5" class="mini" />
+        <text x={d.x + 35} y={d.y + 136} class="label" text-anchor="middle">{d.label}</text>
+      </g>
     ))}
-    <div class="tp-place-device out">
-      <span class="tp-place-screen"><i></i><i></i><i class="short"></i></span>
-      <strong>Outside</strong>
-      <span class="state">ciphertext only</span>
-    </div>
-  </div>
 
+    <text x="320" y="34" class="title" text-anchor="middle">Garden group</text>
+    <text x="320" y="54" class="mono" text-anchor="middle">id = digest of its genesis</text>
+    <circle cx="320" cy="230" r="150" class="place" />
+    <text x="230" y="140" class="kicker">AUTHORITY LOG</text>
+    <line x1="214" y1="166" x2="214" y2="314" class="spine" />
+    {log.map(([op, by], i) => (
+      <g>
+        <circle cx="214" cy={166 + i * 37} r="6.5" class={i === 0 ? 'dot genesis' : 'dot'} />
+        <text x="230" y={171 + i * 37} class="op">{op}{by && <tspan class="by"> · {by}</tspan>}</text>
+      </g>
+    ))}
+
+    <text x="320" y="344" class="note" text-anchor="middle">same log on every device</text>
+
+    <circle cx="262" cy="416" r="15" class="lock-ring" />
+    <rect x="255" y="413" width="14" height="10" rx="2" class="lock" />
+    <path d="M258 413 v-4 a4 4 0 0 1 8 0 v4" class="lock-shackle" />
+    <text x="286" y="412" class="note muted">not a member:</text>
+    <text x="286" y="428" class="note muted">ciphertext only</text>
+  </svg>
   <figcaption>Group state is a deterministic reading of the log, on each device. Only members can read it.</figcaption>
 </figure>
