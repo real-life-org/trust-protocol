@@ -108,18 +108,8 @@ anchor, not the person. Anyone can verify that a credential is
 properly signed, and anyone holding both credentials of an encounter
 can verify that they fit together. What that shows is that two
 anchors mutually assert an encounter, consistently. It does not show
-that a meeting took place, since two colluding key holders can
-produce the same pair. And the credential pair alone does not show
-who the two are; that takes a link one of the holders discloses, and
-either of them can, since each keeps a copy.
-
-What fresh anchors do not hide is the exchange itself. The codes are
-readable by anyone who sees the screens: the anchors, a name if the
-card carries one, and the field that ties the second code to the
-first. Someone watching both screens sees that these two anchors met
-just now. What they cannot see is any earlier encounter or any
-existing relationship of either person, because every act uses a new
-anchor.
+that a meeting took place, and it does not show who the two are
+unless one of the holders discloses the link.
 
 Meeting the same person again creates a new pair anchor. After the
 ceremony, a continuity probe over the fresh channel lets the two
