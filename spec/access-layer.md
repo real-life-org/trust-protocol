@@ -214,7 +214,7 @@ The names are those of the RLTP term register (`terms/rltp.skos.jsonld`).
   genesis operation; the sole source of authorization state (3.1).
 - **Operation** — a signed, causally anchored envelope (3.3).
 - **Materialization** — the deterministic derivation of group state
-  from the log (3.5, 3.6).
+  from the log (3.5, 3.6); the **materialized state** is its result.
 - **Canonical** — an operation is canonical when materialization at
   its causal position accepts it and no outcome rule of 3.6
   disposes of it.
@@ -223,6 +223,10 @@ The names are those of the RLTP term register (`terms/rltp.skos.jsonld`).
   concurrent with an enforcement operation.
 - **Policy** — group-defined data stating, per rule key, which
   proof satisfies the group's decision rule (Section 4).
+- **Policy proof** — the signatures and credentials an operation
+  carries to satisfy its rule key's requirement (4.3).
+- **Privileged operation** — an operation of the catalog (4.5) that
+  a policy rule key gates.
 - **Epoch** — a numbered period of the group's key world;
   enforcement takes effect as epoch transitions (Section 7); term
   aligned with MLS [RFC9420].
@@ -261,6 +265,9 @@ The names are those of the RLTP term register (`terms/rltp.skos.jsonld`).
 | Term | Fragment | | Term | Fragment |
 |---|---|---|---|---|
 | Group | `#Group` | | Epoch | `#Epoch` |
+| Member anchor | `#MemberAnchor` | | Community anchor | `#CommunityAnchor` |
+| Canonical | `#Canonical` | | Replica boundary | `#ReplicaBoundary` |
+| Service | `#Service` | | Materialization | `#Materialization` |
 | Authority log | `#AuthorityLog` | | Epoch-key lineage | `#EpochKeyLineage` |
 | Operation | `#Operation` | | Authorization view | `#AuthorizationView` |
 | Materialized state | `#MaterializedState` | | Privileged operation | `#PrivilegedOperation` |
@@ -932,10 +939,22 @@ bound and the divergence obligations of 7.3 alone; a service of
 class `log` reaches it by its own materialization.
 
 **RLTP-ACC-3565** — The forked state MUST end exactly when a
-`policy.change` whose ancestry contains both siblings is
-canonical, and the materialization MUST then be re-evaluated over
-the reconciled DAG; disposed operations become `removed-disposed`
-or `canonical` as that re-evaluation decides.
+`policy.change` whose ancestry contains both siblings is valid at
+its position; for that operation alone, the fork pairing in its
+ancestry MUST count as decided, so that RLTP-ACC-3440 does not
+apply to it.
+
+**RLTP-ACC-3567** — After the forked state ends, the materialization
+MUST be re-derived over the reconciled DAG by the ordinary rules of
+this section: the siblings and every operation building on them
+take effect in 3.5's order where their authority verdict allows,
+the resolving `policy.change` folds last and sets the policy, and
+every status is re-derived accordingly.
+
+**RLTP-ACC-3568** — While the forked state lasts, every operation
+building on either sibling MUST carry the status `forked`, and a
+removal carrying that status MUST NOT seed the removal
+disposition.
 
 *Rationale.* A policy change is a claim about which rule decides
 all later claims. Two concurrent ones cannot be raced: the rule
@@ -947,7 +966,11 @@ enforcement is the same kind of claim about the group's future.
 The group therefore stops changing membership and keys until a
 member writes a policy change that descends from both siblings,
 which is a decision about the conflict made in the open and
-signed. Content keeps flowing in the forked state; only
+signed. That resolving operation cannot itself be caught by the
+fork it ends, or no fork would ever end; once it stands, the
+siblings are ordinary operations again: a removal one of them
+carried takes effect, two rival policies are both folded and the
+resolving policy, folded last, is the one in force. Content keeps flowing in the forked state; only
 authorization answers fail closed. A malicious authorized member
 can force this state; that is denial of service by an insider
 against their own group, fail-closed and attributable, never an
@@ -4065,6 +4088,11 @@ binding beyond `keyOpDigest`.
 { "v": "rltp-access-material/0.24", "adapter": "beekem/0.1",
   "epoch": 7, "keys": { "op": "…base64url…" } }
 ```
+
+**RLTP-ACC-9895** — Under `beekem/0.1`, key operations and the
+material for an admitted device MUST travel as replication items
+beside the operation that caused them, addressed to all; the
+adapter registers no `key-delivery` kind.
 
 *Editor's note.* The registration exists because this adapter is
 the one under which all six invariants have been shown together
