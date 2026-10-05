@@ -1214,6 +1214,8 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
   check(E.keydistAad.object.recipient === D.parties.inviteeCandidate.anchor && E.keydistAad.object.genesis === uz.genesisDigest.u && E.lineageAad.object.genesis === uz.genesisDigest.u, 'AAD objects are tied to the party and digest oracles')
   check(jcs({ ...E.keydistAad.object, genesis: toU(E.fromZ.carried) }) === E.keydistAad.jcs, 'keydist AAD from a z-carried digest is byte-identical after canonicalization')
   check(jcs({ ...E.lineageAad.object, genesis: toU(E.fromZ.carried) }) === E.lineageAad.jcs, 'lineage AAD from a z-carried digest is byte-identical after canonicalization')
+  check(/^oid:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(E.lineageAad.object.opens) && Number.isInteger(E.lineageAad.object.newEpoch) && Object.keys(E.lineageAad.object).sort().join() === 'genesis,newEpoch,opens',
+    'lineage AAD opens a key state by its transition id and carries newEpoch (RLTP-ACC-9760, 7042)')
 
   // negatives BOUND to their declared failure: (a) an error at the declared
   // path exists, (b) repairing exactly the declared defect yields ZERO
@@ -1457,6 +1459,43 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     check(materialize(em.ops.filter((op) => op.label !== 'bob-removes-alice')).state === 'group',
       'access-conflicts: one removal fewer and the dissolution lapses into a group (RLTP-ACC-3460)')
   }
+  // after review 3: the prefix free of every open pairing (3566), nesting and the resolver ∥ enforcement (3564), the resolver's retained set (3565, 7015, 7030)
+  {
+    const lab = (c, l) => c.ops.find((op) => op.label === l).id
+    const ind = AC.cases.find((x) => x.scenario === 'fork: independent admission in the prefix')
+    check(ind.expected.state === 'forked' && 'eve' in ind.expected.members && ind.expected.status[lab(ind, 'alice-adds-eve-beside-the-fork')] === 'canonical',
+      'access-conflicts: an admission beside the fork that touches no pairing belongs to the fork-free prefix (RLTP-ACC-3566)')
+    const ev = AC.cases.find((x) => x.scenario === 'fork ended: resolver admitted beside the fork')
+    const evRes = lab(ev, 'eve-decides-the-fork')
+    check(ev.expected.state === 'group' && ev.expected.status[evRes] === 'canonical' && same(ev.expected.transitions[evRes].retainedAtPosition, ['alice', 'bob', 'dave', 'eve']),
+      'access-conflicts: a member admitted beside the fork resolves it, standing from the prefix; its retained set is the reconciled one (RLTP-ACC-3565, 3566, 7015)')
+    const nn = AC.cases.find((x) => x.scenario === 'fork: nested pairing')
+    const inner = nn.expected.transitions[lab(nn, 'bob-decides-the-inner-fork')]
+    const outer = nn.expected.transitions[lab(nn, 'alice-decides-the-outer-fork')]
+    check(inner.newEpoch === 3 && outer.newEpoch === 4 && nn.expected.epoch === 4 && nn.expected.state === 'group',
+      'access-conflicts: a nested pairing is one more open pairing; the outer resolver is one above every valid transition of its ancestry (RLTP-ACC-3564, 3565)')
+    check(materialize(nn.ops.slice(0, -1)).state === 'forked' && materialize(nn.ops.slice(0, -1)).status[lab(nn, 'bob-decides-the-inner-fork')] === 'forked',
+      'access-conflicts: without the outer resolver the inner resolution is a sibling of the outer fork and forked (RLTP-ACC-3564)')
+    const pe = AC.cases.find((x) => x.scenario === 'fork: resolver ∥ enforcement')
+    const peRes = lab(pe, 'bob-would-decide-the-fork')
+    check(pe.expected.state === 'forked' && pe.expected.status[peRes] === 'forked',
+      'access-conflicts: a resolver concurrent with an enforcement operation forks again and ends nothing (RLTP-ACC-3564)')
+    const noRot = pe.ops.filter((op) => op.label !== 'alice-rotates-on-her-change')
+    check(materialize(noRot).state === 'group' && materialize(noRot).status[peRes] === 'canonical',
+      'access-conflicts: without the concurrent rotation the same resolver ends the fork')
+    const pd = AC.cases.find((x) => x.scenario === 'fork ended: resolver ∥ enforcement decided')
+    check(pd.expected.state === 'group' && pd.expected.transitions[lab(pd, 'alice-decides-both')].newEpoch === 3,
+      'access-conflicts: a policy.change over both pairings ends the renewed fork (RLTP-ACC-3565, 7040)')
+    const em = AC.cases.find((x) => x.scenario === 'fork: resolver with an empty retained set')
+    const emRes = em.ops.at(-1)
+    check(em.expected.state === 'forked' && !(emRes.id in em.expected.transitions),
+      'access-conflicts: a resolver whose reconciled retained set is empty is invalid, the fork stays (RLTP-ACC-7030, 7015)')
+    const noLeave = em.ops.filter((op) => op.kind !== 'leave')
+    const res2 = { ...emRes, preds: [lab(em, 'alice-changes-policy'), lab(em, 'bob-removes-alice')] }; res2.id = opId(res2)
+    const r2 = materialize([...noLeave.slice(0, -1), res2])
+    check(r2.state === 'group' && r2.status[res2.id] === 'canonical' && same(r2.transitions[res2.id].retainedAtPosition, ['bob']),
+      'access-conflicts: without the leave the same resolver retains bob and ends the fork')
+  }
   check(['S4b', 'S4c', 'S4d', 'S4f', 'review #11', 'removal chain', 'delivery order'].every((s) => AC.cases.some((c) => c.scenario === s)),
     'access-conflicts: the scenarios RLTP-ACC-14050 names are all present')
   check(['fork: policy ∥ policy', 'fork: policy ∥ removal', 'dissolve ∥ removal: lapses', 'fork ended: policy ∥ policy'].every((s) => AC.cases.some((c) => c.scenario === s)),
@@ -1465,6 +1504,8 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the cases review 1 added are all present')
   check(['fork: resolver removed on a sibling', 'leave ∥ rotation: never lapses', 'removals empty the group: terminal'].every((s) => AC.cases.some((c) => c.scenario === s)),
     'access-conflicts: the cases review 2 added are all present')
+  check(['fork: independent admission in the prefix', 'fork ended: resolver admitted beside the fork', 'fork: nested pairing', 'fork: resolver ∥ enforcement', 'fork ended: resolver ∥ enforcement decided', 'fork: resolver with an empty retained set'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the cases review 3 added are all present')
 }
 
 // ── result ───────────────────────────────────────────────────────────────

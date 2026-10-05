@@ -177,7 +177,7 @@ const policyFork = () => {
     ['RLTP-ACC-3565', 'RLTP-ACC-3567', 'RLTP-ACC-3562', 'RLTP-ACC-7040'],
     ops,
     { deliveryOrders: [ids, [...ids].reverse(), [...ids].sort()],
-      comment: 'RLTP-ACC-3565/3567: the resolving policy.change is validated against the maximal prefix free of the fork pairing (here the setup: bob an admin, policy version 1), so its policyVersion is 2; its newEpoch follows RLTP-ACC-7040 over its whole ancestry: the valid transitions there are the two sibling policy.change operations (newEpoch 1 each) and the rotation built on alice\'s change (newEpoch 2), so the resolver\'s is 3. After the end both sibling policy.change operations are lapsed — their policy effect lapses, their transitions keep counting (RLTP-ACC-3569) — and the rotation is canonical. The state\'s epoch is the maximum over canonical and lapsed transitions, 3; the policy in effect is the resolver\'s. The resolver\'s retained set at its position is null: the state materialized from its ancestors is forked and has none (RLTP-ACC-7015), and RLTP-ACC-7010 does not say which set the resolving transition reaches.' })
+      comment: 'RLTP-ACC-3565/3567: the resolving policy.change is validated against the maximal prefix free of the fork pairing (here the setup: bob an admin, policy version 1), so its policyVersion is 2; its newEpoch follows RLTP-ACC-7040 over its whole ancestry: the valid transitions there are the two sibling policy.change operations (newEpoch 1 each) and the rotation built on alice\'s change (newEpoch 2), so the resolver\'s is 3. After the end both sibling policy.change operations are lapsed — their policy effect lapses, their transitions keep counting (RLTP-ACC-3569) — and the rotation is canonical. The state\'s epoch is the maximum over canonical and lapsed transitions, 3; the policy in effect is the resolver\'s. The resolver\'s retained set at its position is the merged retained set of the reconciled DAG (RLTP-ACC-3565, 7015): its ancestry with the pairing decided, members minus pending exits — {alice, bob, carol, dave}.' })
 }
 { // (e) case (b) ended: the removal takes effect once the fork is decided
   const s = setup(); const head = s.at(-1)
@@ -257,8 +257,77 @@ const twoAdmins = () => {
     { comment: 'Both removals take effect (RLTP-ACC-3410), the dissolution beside them lapses (RLTP-ACC-3460). RLTP-ACC-3460 makes the merged state not terminal "unless its membership is empty": here it is, so RLTP-ACC-5850 governs and the state is terminal; there is no retained set (RLTP-ACC-7015).' })
 }
 
+// After review 3: the prefix free of every open pairing (3566), nested
+// pairings and the resolver concurrent with an enforcement (3564), the
+// resolver's retained set and newEpoch (3565, 7015, 7030).
+const policyRemovalFork = () => {
+  const s = setup(); const head = s.at(-1)
+  const pa = op('alice-changes-policy', 'policy', 'alice', null, null, [head])
+  const rm = op('bob-removes-carol', 'remove', 'bob', 'carol', null, [head])
+  return { s, head, pa, rm }
+}
+{ // RLTP-ACC-3566 — an independent admission beside the fork belongs to the prefix
+  const { s, head, pa, rm } = policyRemovalFork()
+  const addEve = op('alice-adds-eve-beside-the-fork', 'add', 'alice', 'eve', 'admin', [head])
+  add('an admission concurrent with the fork that touches no pairing belongs to the fork-free prefix: eve is a member of the forked state', 'fork: independent admission in the prefix',
+    ['RLTP-ACC-3566', 'RLTP-ACC-3630', 'RLTP-ACC-3440'],
+    [...s, pa, rm, addEve],
+    { comment: 'RLTP-ACC-3566: the prefix is the maximal causally closed sub-DAG with no sibling of an open pairing and no descendant of one; alice-adds-eve is concurrent with both siblings but is neither, so it belongs to the prefix and the forked state lists eve (RLTP-ACC-3630). An admission is no enforcement operation, so it forms no pairing (RLTP-ACC-3495).' })
+}
+{ // RLTP-ACC-3566 continued — the independently admitted member resolves
+  const { s, head, pa, rm } = policyRemovalFork()
+  const addEve = op('alice-adds-eve-beside-the-fork', 'add', 'alice', 'eve', 'admin', [head])
+  const ops = [...s, pa, rm, addEve, op('eve-decides-the-fork', 'policy', 'eve', null, null, [pa, rm, addEve])]
+  const ids = ops.map((o) => o.id)
+  add('eve, admitted beside the fork, ends it: her standing comes from the prefix that contains her admission', 'fork ended: resolver admitted beside the fork',
+    ['RLTP-ACC-3566', 'RLTP-ACC-3565', 'RLTP-ACC-3567', 'RLTP-ACC-7015'],
+    ops, { deliveryOrders: [ids, [...ids].reverse(), [...ids].sort()],
+      comment: 'The resolver is validated against the maximal prefix of its ancestry free of every open pairing (RLTP-ACC-3565, 3566); that prefix holds eve\'s admission, so eve is an admin there and her policy.change is the resolving operation (policyVersion 2). A prefix read as the closure of the pairing alone would not hold eve, and her resolution would be invalid. Her retained set is the merged one of the reconciled ancestry: carol\'s removal takes effect, {alice, bob, dave, eve} (RLTP-ACC-7015).' })
+}
+const nestedFork = () => {
+  const { s, pa, rm } = policyRemovalFork()
+  const pb = op('bob-changes-policy-after-his-removal', 'policy', 'bob', null, null, [rm])
+  const rot = op('dave-rotates-after-the-removal', 'rotate', 'dave', null, null, [rm])
+  const rB = op('bob-decides-the-inner-fork', 'policy', 'bob', null, null, [pb, rot])
+  return { ops: [...s, pa, rm, pb, rot, rB], pa, rB }
+}
+{ // RLTP-ACC-3564 — a nested pairing inside a fork branch
+  const { ops: inner, pa, rB } = nestedFork()
+  const ops = [...inner, op('alice-decides-the-outer-fork', 'policy', 'alice', null, null, [pa, rB])]
+  const ids = ops.map((o) => o.id)
+  add('a pairing nested inside a fork branch, decided inside that branch, is one more open pairing of the outer prefix; the outer resolver ends both, one above every valid transition of its ancestry', 'fork: nested pairing',
+    ['RLTP-ACC-3564', 'RLTP-ACC-3565', 'RLTP-ACC-3566', 'RLTP-ACC-3569', 'RLTP-ACC-7040'],
+    ops, { deliveryOrders: [ids, [...ids].reverse(), [...ids].sort()],
+      comment: 'Branch 1: alice changes the policy. Branch 2: bob removes carol, then bob\'s policy.change and dave\'s rotation pair inside that branch, and bob decides that inner pairing. From the outer resolver\'s ancestry every operation of branch 2 is concurrent with alice\'s change, so all of them, bob\'s inner resolver included, are siblings of open pairings: the prefix is the setup (RLTP-ACC-3564, 3566). Bob\'s inner resolver is valid at its own position: its prefix is the setup with bob\'s removal (the removal pairs with nothing in that ancestry), its newEpoch is max(removal 1, policy 2, rotation 2) + 1 = 3, its retained set the reconciled {alice, bob, dave}. Alice\'s outer resolver counts every valid transition of its ancestry, bob\'s inner one included: newEpoch 4 (RLTP-ACC-3565, 7040). After the end the three sibling policy.change operations lapse and their transitions keep counting (RLTP-ACC-3569); the removal and the rotation are canonical.' })
+}
+{ // RLTP-ACC-3564 — the resolver concurrent with an enforcement operation forks again
+  const { s, pa, rm } = policyRemovalFork()
+  const rot = op('alice-rotates-on-her-change', 'rotate', 'alice', null, null, [pa])
+  const res = op('bob-would-decide-the-fork', 'policy', 'bob', null, null, [pa, rm])
+  add('a resolver concurrent with an enforcement operation forms a new pairing and does not end the fork', 'fork: resolver ∥ enforcement',
+    ['RLTP-ACC-3564', 'RLTP-ACC-3565', 'RLTP-ACC-3495', 'RLTP-ACC-3568'],
+    [...s, pa, rm, rot, res],
+    { comment: 'Bob\'s policy.change holds both siblings of alice-changes-policy ∥ bob-removes-carol, but alice\'s rotation on her own change is concurrent with it: the pair resolver ∥ rotation is a new fork pairing (RLTP-ACC-3495), so the resolver is not canonical and the fork it would have ended stays open (RLTP-ACC-3564, 3565). The rotation is no sibling of the first pairing (it descends from one and is concurrent only with the removal, an enforcement operation), but it builds on a sibling and is forked.' })
+  const ops = [...s, pa, rm, rot, res, op('alice-decides-both', 'policy', 'alice', null, null, [rot, res])]
+  const ids = ops.map((o) => o.id)
+  add('the fork of the resolver ∥ enforcement case ended by a policy.change over all of it', 'fork ended: resolver ∥ enforcement decided',
+    ['RLTP-ACC-3564', 'RLTP-ACC-3565', 'RLTP-ACC-3567', 'RLTP-ACC-7040', 'RLTP-ACC-7015'],
+    ops, { deliveryOrders: [ids, [...ids].reverse(), [...ids].sort()],
+      comment: 'Alice\'s policy.change holds every sibling of both pairings. Its newEpoch: the valid transitions of its ancestry are alice\'s change (1), the removal (1), the rotation (2) and bob\'s resolver, valid at its own position with newEpoch max(1, 1) + 1 = 2; so 3 (RLTP-ACC-3565, 7040). Both earlier policy.change operations lapse (RLTP-ACC-3567, 3569), the removal and the rotation are canonical; retained set {alice, bob, dave}.' })
+}
+{ // RLTP-ACC-7030 — a resolver whose merged retained set is empty
+  const s = twoAdmins(); const head = s.at(-1)
+  const pa = op('alice-changes-policy', 'policy', 'alice', null, null, [head])
+  const rmA = op('bob-removes-alice', 'remove', 'bob', 'alice', null, [head])
+  const leave = op('bob-leaves-after-removing-alice', 'leave', 'bob', 'bob', null, [rmA])
+  add('a resolver whose reconciled ancestry leaves no retained member is invalid, and the fork stays open', 'fork: resolver with an empty retained set',
+    ['RLTP-ACC-7030', 'RLTP-ACC-7015', 'RLTP-ACC-3565', 'RLTP-ACC-3462'],
+    [...s, pa, rmA, leave, op('bob-would-decide-the-fork', 'policy', 'bob', null, null, [pa, leave])],
+    { comment: 'Bob is an admin and no pending exit in the fork-free prefix (the two-admin setup), and no sibling removes him, so the resolver passes RLTP-ACC-3565\'s author checks. Its retained set is the merged one of the reconciled ancestry (RLTP-ACC-7015): alice removed, bob\'s leave beside alice\'s policy.change — an enforcement operation — merging as an ordinary leave (RLTP-ACC-3462), so bob is a pending exit and the set is empty; the resolving transition is invalid (RLTP-ACC-7030). It builds on both siblings and is forked; the state stays forked.' })
+}
+
 const vector = {
-  source: 'RLTP Access Layer 0.54 §3.5 (materialization), §3.6 (the conflict matrix: authority before concurrency, class rules, fork pairings, matrix, removal disposition), §5.4 (leave, pending exit), §7.1 (RLTP-ACC-7010, 7015, 7040); RLTP-ACC-14050. Scenarios S4b, S4c, S4d, S4f, review #11, the removal chain and delivery order, from the port experiments; visibility.change beside a removal and the fork cases (policy.change ∥ policy.change, policy.change ∥ member.remove, and the fork ended) from the vector plan of Access 14; after review 1 the lapsing dissolution (group.dissolve ∥ member.remove, and the dissolution issued anew), one surviving admission against admission-orphaned (RLTP-ACC-3572), transitions of unequal depth (RLTP-ACC-7040) and the merged retained set (RLTP-ACC-7010); after review 2 the resolver whose author a sibling removes (RLTP-ACC-3565), the last-member leave beside a rotation (RLTP-ACC-3462) and removals that empty the group (RLTP-ACC-5850), with lapsed transitions counting for the epoch (RLTP-ACC-3569, 7040) and every transition\'s retained set at its position (RLTP-ACC-7010). Generated by scripts/gen-access-conflicts-vector.mjs; the oracle is conformance/access-conflicts.mjs.',
+  source: 'RLTP Access Layer 0.54 §3.5 (materialization), §3.6 (the conflict matrix: authority before concurrency, class rules, fork pairings, matrix, removal disposition), §5.4 (leave, pending exit), §7.1 (RLTP-ACC-7010, 7015, 7040); RLTP-ACC-14050. Scenarios S4b, S4c, S4d, S4f, review #11, the removal chain and delivery order, from the port experiments; visibility.change beside a removal and the fork cases (policy.change ∥ policy.change, policy.change ∥ member.remove, and the fork ended) from the vector plan of Access 14; after review 1 the lapsing dissolution (group.dissolve ∥ member.remove, and the dissolution issued anew), one surviving admission against admission-orphaned (RLTP-ACC-3572), transitions of unequal depth (RLTP-ACC-7040) and the merged retained set (RLTP-ACC-7010); after review 2 the resolver whose author a sibling removes (RLTP-ACC-3565), the last-member leave beside a rotation (RLTP-ACC-3462) and removals that empty the group (RLTP-ACC-5850), with lapsed transitions counting for the epoch (RLTP-ACC-3569, 7040) and every transition\'s retained set at its position (RLTP-ACC-7010); after review 3 the prefix free of every open pairing with an independent admission in it (RLTP-ACC-3566), a nested pairing and a resolver concurrent with an enforcement operation (RLTP-ACC-3564), the resolver\'s retained set from the reconciled DAG and its emptiness (RLTP-ACC-3565, 7015, 7030). Generated by scripts/gen-access-conflicts-vector.mjs; the oracle is conformance/access-conflicts.mjs.',
   note: 'Abstract authority DAGs: no signatures, no policy objects, no key material. Party names stand for member anchors. An operation is judged by the state materialized from its own ancestors (RLTP-ACC-3385): an author holding role admin there satisfies member.add, member.remove, visibility.change, policy.change and the collective group.dissolve, any member satisfies epoch.rotate (default any-member, 4.1). A policy object has no content: which policy.change is in effect is the last canonical one folded. A position in the forked state answers fail-closed, except that a policy.change there is the resolving operation and is judged against the maximal prefix of its ancestry free of the fork pairing (RLTP-ACC-3565), whose author MUST NOT be the subject of a removal among the siblings. A leave is valid by its author alone at a position where the author is a member and no pending exit; at a position of sole membership it is the last-member leave (terminal class), which stays an ordinary leave beside an enforcement operation (RLTP-ACC-3462) or a canonical admission (RLTP-ACC-5840); a canonical transition whose ancestry holds a leave discharges it (RLTP-ACC-5830). A pending exit has no policy standing (RLTP-ACC-5750) but may rotate. No devices and no drained dissolve are modelled.',
   format: {
     'cases[].ops[]': '{ label, id, kind, author, subject, role, preds } — label informative; id = "oid:" + unpadded base64url SHA-256 over the JCS of { kind, author, subject, role, preds }; kind ∈ create (group.genesis), add (member.add), remove (member.remove), rotate (epoch.rotate), visibility (visibility.change), policy (policy.change), dissolve (group.dissolve, collective path), leave (member.leave; subject = author); role = the standing an add confers (admin | member), null otherwise; subject null for rotate, visibility, policy and dissolve; preds = op ids',
@@ -267,7 +336,7 @@ const vector = {
     'cases[].expected.pendingExits': 'the members whose leave is canonical and not discharged, sorted (5.4, RLTP-ACC-5830)',
     'cases[].expected.retained': 'the retained set of the merged state, sorted: its members minus its pending exits (RLTP-ACC-7015); null in the forked and the terminal state',
     'cases[].expected.epoch': 'the epoch of the materialized state: the maximum newEpoch over the canonical and lapsed transitions it contains (RLTP-ACC-7040, 3569)',
-    'cases[].expected.transitions': 'op id → { newEpoch, retainedAtPosition } for every enforcement operation valid at its position: newEpoch = its position\'s epoch + 1, a resolving policy.change\'s = the maximum newEpoch over the valid transitions of its whole ancestry + 1 (RLTP-ACC-7040, 3565); retainedAtPosition = the members of its position minus a removed subject minus the pending exits there, sorted (RLTP-ACC-7010), null for a resolving policy.change, whose ancestors materialize as forked',
+    'cases[].expected.transitions': 'op id → { newEpoch, retainedAtPosition } for every enforcement operation valid at its position: newEpoch = its position\'s epoch + 1, a resolving policy.change\'s = the maximum newEpoch over the valid transitions of its whole ancestry + 1 (RLTP-ACC-7040, 3565); retainedAtPosition = the members of its position minus a removed subject minus the pending exits there, sorted (RLTP-ACC-7010); for a resolving policy.change the merged retained set of the reconciled DAG — its ancestry materialized with every pairing it contains decided, members minus pending exits (RLTP-ACC-3565, 7015); an enforcement operation, the resolver included, whose retained set is empty is invalid (RLTP-ACC-7030)',
     'cases[].expected.policy': 'the id of the policy.change in effect (the last canonical one folded; after a fork ends, the resolver, 3567), null for the genesis policy',
     'cases[].expected.policyVersion': 'the policy version in effect: 1 at the genesis, a canonical policy.change\'s position version + 1, the resolver\'s the fork-free prefix\'s version + 1 (RLTP-ACC-3565)',
     'cases[].expected.status': `op id → one of ${STATUSES.join(', ')}: forked = a sibling of an open fork pairing or an operation building on one (RLTP-ACC-3440, 3568), greatest under RLTP-ACC-3562; invalid = no authority at its own position (it enters no concurrency rule, RLTP-ACC-3390); removed-disposed = valid but disposed by the removal disposition (RLTP-ACC-3520); lapsed = valid, confers no effect but its epoch transition (RLTP-ACC-3569): a group.dissolve concurrent with an enforcement operation (RLTP-ACC-3460), or a sibling policy.change of an ended fork, whose policy effect lapses (RLTP-ACC-3567); order forked ≻ removed-disposed ≻ lapsed ≻ canonical; canonical otherwise`,

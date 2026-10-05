@@ -11,9 +11,10 @@ import type { Json } from './core.js'
 
 /** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2) */
 export type AccessMaterial = ({
-  v: "rltp-access-material/0.24" | "rltp-access-keydist/0.24"
+  v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25"
   adapter: "linear/0.1" | "beekem/0.1"
   epoch: number
+  keyState: string
   keys: { [k: string]: Json }
 })
 
@@ -52,7 +53,10 @@ export type AccessRegistration = ({
   stalenessBound: string
   terminalRetention: string
   divergenceQuota: number
-  intakeBudget?: number
+  intakeBudget?: {
+    operations: number
+    bytes: number
+  }
   sig: string
   attestationKey: string
   registrationGeneration: number
@@ -303,6 +307,7 @@ export type PayloadKeyDelivery = {
   keyDelivery: ({
     group: string
     genesisDigest: string
+    subject: string
     epoch: number
     op: string
     kind: "keydist" | "re-welcome" | "refresh" | "material" | "request"
@@ -617,6 +622,6 @@ export type Welcome = {
   subject: string
   accept: string
   material: (AccessMaterial) & ({
-    v?: "rltp-access-material/0.24"
+    v?: "rltp-access-material/0.25"
   })
 }

@@ -475,9 +475,10 @@
     "access-material": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
       "document": {
-        "v": "rltp-access-material/0.24",
+        "v": "rltp-access-material/0.25",
         "adapter": "linear/0.1",
         "epoch": 7,
+        "keyState": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "keys": {
           "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         }
@@ -486,9 +487,10 @@
     "access-material-beekem": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
       "document": {
-        "v": "rltp-access-material/0.24",
+        "v": "rltp-access-material/0.25",
         "adapter": "beekem/0.1",
         "epoch": 7,
+        "keyState": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
         "keys": {
           "op": "AAECAwQFBgcICQoLDA0ODw"
         }
@@ -512,6 +514,10 @@
         "registrationGeneration": 1,
         "previousRegistration": null,
         "authorizationRoot": null,
+        "intakeBudget": {
+          "operations": 256,
+          "bytes": 1048576
+        },
         "sig": "z57NipiK2RxP3CpT3FNwZt9oHq6wvvFumQ2Gry9w9C7CPNQ9CqqVdbvZnY9fVixSdwo2FY3wQXkN4MM4BsNseu6iY"
       }
     },
@@ -521,6 +527,7 @@
         "keyDelivery": {
           "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
           "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
           "epoch": 7,
           "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "kind": "material",
@@ -583,6 +590,7 @@
         "keyDelivery": {
           "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
           "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
           "epoch": 7,
           "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "kind": "request",
@@ -605,6 +613,7 @@
         "keyDelivery": {
           "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
           "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "subject": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
           "epoch": 7,
           "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "kind": "request",
@@ -1213,10 +1222,79 @@
       }
     },
     {
+      "name": "registration: the intake budget is a block { operations, bytes }, not a bare number (RLTP-ACC-9535)",
+      "base": "access-registration",
+      "set": {
+        "/intakeBudget": 64
+      }
+    },
+    {
+      "name": "registration: a declared intake budget counts bytes as well as operations (RLTP-ACC-9535)",
+      "base": "access-registration",
+      "delete": "/intakeBudget/bytes"
+    },
+    {
       "name": "registration: a declared intake budget is positive (RLTP-ACC-9535)",
       "base": "access-registration",
       "set": {
-        "/intakeBudget": 0
+        "/intakeBudget/operations": 0
+      }
+    },
+    {
+      "name": "material: the 0.24 form without keyState is superseded under rltp-access@0.54 (Access 11, RLTP-ACC-9362)",
+      "base": "access-material",
+      "set": {
+        "/v": "rltp-access-material/0.24"
+      },
+      "delete": "/keyState"
+    },
+    {
+      "name": "material: the 0.25 form names the key state its keys belong to (RLTP-ACC-9360, 9362)",
+      "base": "access-material",
+      "delete": "/keyState"
+    },
+    {
+      "name": "keydist: the 0.25 form names the key state its keys belong to (RLTP-ACC-9362)",
+      "base": "access-material",
+      "set": {
+        "/v": "rltp-access-keydist/0.25"
+      },
+      "delete": "/keyState"
+    },
+    {
+      "name": "material: an epoch number never names a key state (RLTP-ACC-7042, 9262)",
+      "base": "access-material",
+      "set": {
+        "/keyState": "7"
+      }
+    },
+    {
+      "name": "material: under linear/0.1 a key state is a transition, named by its oid: (RLTP-ACC-9705, 9262)",
+      "base": "access-material",
+      "set": {
+        "/keyState": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA"
+      }
+    },
+    {
+      "name": "material (beekem/0.1): the helper names its current key state (RLTP-ACC-9897)",
+      "base": "access-material-beekem",
+      "delete": "/keyState"
+    },
+    {
+      "name": "key-delivery: a material document names the entitled anchor in subject (RLTP-ACC-10105)",
+      "base": "key-delivery-material",
+      "delete": "/keyDelivery/subject"
+    },
+    {
+      "name": "key-delivery: a request names the claiming anchor in subject (RLTP-ACC-10105)",
+      "base": "key-request-device",
+      "delete": "/keyDelivery/subject"
+    },
+    {
+      "name": "key-delivery: subject is a member anchor did:key, not an operation (RLTP-ACC-10105)",
+      "base": "key-delivery-material",
+      "set": {
+        "/keyDelivery/subject": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
       }
     }
   ]

@@ -2,20 +2,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
   "title": "RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2)",
-  "description": "The two plaintext shapes the adapter produces: rltp-access-material/0.24 (the welcome material of Membership section 4 — the MO-4 pin, adopted by Membership 0.9) and rltp-access-keydist/0.24 (the keydist/refresh plaintext of Access 9.4.1/10.1). Both forms carry the registered adapter id (Access 11: linear/0.1, beekem/0.1); keys is owned and CLOSED by the adapter registration (RLTP-ACC-9200, 9360). linear/0.1 carries exactly the content key — every further secret is DERIVED from it (HKDF info rltp/v1/epoch-secret/<genesis digest>), never transported, so the log's contentKeyCommitment authenticates all consensus-relevant material. beekem/0.1 (experimental, 9.4.2) carries its key operation as bytes; Access 0.54 names no closed keys schema for it, so this transcription closes keys to { op } and is expected to change with the adapter version.",
+  "description": "The two plaintext shapes the adapter produces under rltp-access@0.54 (Access 11): rltp-access-material/0.25 (the welcome material of Membership section 4 and the beekem/0.1 key-delivery kind material, 9.4.2) and rltp-access-keydist/0.25 (the keydist/refresh plaintext of Access 9.4.1/10.1). New in 0.25: the REQUIRED field keyState names the key state the keys belong to (RLTP-ACC-9360, 9362) — a key state is named by its transition's id (oid:…, RLTP-ACC-9262), or, for a state an adapter derives by merging without a transition, by the adapter's merge identifier (RLTP-ACC-9264; beekem/0.1: the multibase multihash over the JCS array of the merged identifiers in unsigned bytewise order); the epoch number is a counter and never names a key state (RLTP-ACC-7042). The receiver verifies the material against the log's binding of exactly that key state (9362, 10110). The 0.24 forms (without keyState) are superseded. Both forms carry the registered adapter id (Access 11: linear/0.1, beekem/0.1); keys is owned and CLOSED by the adapter registration (RLTP-ACC-9200, 9360). linear/0.1 carries exactly the content key — every further secret is DERIVED from it (HKDF info rltp/v1/epoch-secret/<genesis digest>), never transported, so the log's contentKeyCommitment authenticates all consensus-relevant material; it cannot merge (9705), so its keyState is always a transition id. beekem/0.1 (experimental, 9.4.2) carries its key operation as bytes; Access 0.54 names no closed keys schema for it, so this transcription closes keys to { op } and is expected to change with the adapter version.",
   "type": "object",
   "required": [
     "v",
     "adapter",
     "epoch",
+    "keyState",
     "keys"
   ],
   "additionalProperties": false,
   "properties": {
     "v": {
       "enum": [
-        "rltp-access-material/0.24",
-        "rltp-access-keydist/0.24"
+        "rltp-access-material/0.25",
+        "rltp-access-keydist/0.25"
       ]
     },
     "adapter": {
@@ -27,7 +28,13 @@
     },
     "epoch": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 0,
+      "description": "the epoch counter of the key state (RLTP-ACC-7040); a counter for views and monotonicity only, never the key state's identifier (7042) — at adoption it MUST equal the recipient's current epoch (10110)"
+    },
+    "keyState": {
+      "type": "string",
+      "pattern": "^(oid:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]|u[A-Za-z0-9_-]{45}[AQgw]|z[1-9A-HJ-NP-Za-km-z]{44,48})$",
+      "description": "the identifier of the key state the keys belong to (RLTP-ACC-9362): the oid: of the transition that created it (RLTP-ACC-9262), or a merge identifier — the multibase multihash (u… base64url or z… base58btc, sha2-256) the adapter's registration defines over the merged identifiers (RLTP-ACC-9264). For the key-delivery kind material (beekem/0.1) the helper's current key state (RLTP-ACC-9897); the receiver checks it is a key state of its own materialization (9898, 10110)"
     },
     "keys": {
       "type": "object"
@@ -60,6 +67,11 @@
                 "description": "base64url (unpadded) 32-byte AES-256 content key; its commitment is the multihash over the raw 32 bytes (Access 7.1); the per-epoch secret is derived, never transported"
               }
             }
+          },
+          "keyState": {
+            "type": "string",
+            "pattern": "^oid:",
+            "description": "linear/0.1 cannot merge: every key state is the content key of one transition, named by that transition's id (RLTP-ACC-9705)"
           }
         }
       }
@@ -88,7 +100,7 @@
                 "type": "string",
                 "pattern": "^[A-Za-z0-9_-]+$",
                 "maxLength": 65536,
-                "description": "base64url (unpadded) bytes of the adapter's key operation (Access 9.4.2, RLTP-ACC-9870, 9890), addressed to the material's recipient; the enforcement operation's keyOpDigest is the multibase multihash over exactly the key-operation bytes. In the key-delivery kind material (RLTP-ACC-9897) it is a key operation that gives the requesting device a leaf or path for the helper's current epoch, verified by the receiver against the keyOpDigest of the enforcement operation it answers. Transcription placeholder: Access 0.54 names no closed keys schema for beekem/0.1"
+                "description": "base64url (unpadded) bytes of the adapter's key operation (Access 9.4.2, RLTP-ACC-9870, 9890), addressed to the material's recipient; an enforcement operation's keyOpDigest is the multibase multihash over exactly the key-operation bytes. In the key-delivery kind material (RLTP-ACC-9897) it is a key operation freshly produced by the helper's device at the key state named in keyState that gives the requesting device a leaf or path there; the receiver checks that it applies to that key state under the adapter's rules and MUST NOT compare it with the keyOpDigest of any earlier operation (RLTP-ACC-9898). Transcription placeholder: Access 0.54 names no closed keys schema for beekem/0.1"
               }
             }
           }

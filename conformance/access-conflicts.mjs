@@ -23,18 +23,28 @@
 //      answers fail-closed (3440, 5870), except for a `policy.change` on a
 //      forked position: it is the resolving operation, judged against the
 //      state materialized from the maximal prefix of its ancestry free of
-//      the fork pairing — that prefix's members, policy and policy version
-//      — and invalid if its author is the subject of a removal among the
-//      siblings (3565). An enforcement operation whose retained set at its
-//      position is empty is invalid (7030). Every valid transition gets
-//      its newEpoch here: its position's epoch + 1, the resolver's the
-//      maximum newEpoch over the valid transitions of its whole ancestry
-//      + 1 (7040, 3565); and its retained set at its position (7010);
+//      every open fork pairing (3566: the maximal causally closed sub-DAG
+//      without a sibling of an open pairing or a descendant of one; every
+//      concurrent branch that touches no pairing belongs to it, a nested
+//      pairing inside a branch is one more open pairing, 3564) — that
+//      prefix's members, policy and policy version — and invalid if its
+//      author is the subject of a removal among the siblings (3565). An
+//      enforcement operation whose retained set at its position is empty
+//      is invalid (7030). Every valid transition gets its newEpoch here:
+//      its position's epoch + 1, the resolver's the maximum newEpoch over
+//      the valid transitions of its whole ancestry + 1 (7040, 3565); and
+//      its retained set at its position (7010) — the resolver's is the
+//      merged retained set of its reconciled ancestry (3565, 7015): its
+//      ancestors materialized with every pairing they contain decided,
+//      members minus pending exits, and 7030 applies to it as well;
 //   2. the one remaining fork pairing (RLTP-ACC-3495): an authorized
 //      `policy.change` concurrent with an authorized enforcement operation,
 //      another `policy.change` included. A pairing is decided when an
 //      authorized, non-forked `policy.change` has both siblings in its
-//      ancestry (3565); the rest are open. Every sibling of an open
+//      ancestry (3565); the rest are open. A resolver concurrent with an
+//      enforcement operation is itself a sibling of a new, open pairing,
+//      hence forked and no resolver: the fork it would have ended stays
+//      open (3564). Every sibling of an open
 //      pairing and every operation building on one is `forked` (3440,
 //      3568); the state is `forked`, and the member set, epoch and policy
 //      are those of the maximal prefix free of the open pairings (3630).
@@ -76,7 +86,7 @@
 //      `terminal` (3365), and so does empty membership (5850, before the
 //      "not terminal" of 3460); the retained set of a group state is its
 //      members minus its pending exits (RLTP-ACC-7015).
-// Not modelled: the terminal-versus-additive rules (3465, 3470), the drained
+// Not modelled: device revocation in the retained set (7015), the terminal-versus-additive rules (3465, 3470), the drained
 // dissolve, devices, and an operation other than a `policy.change`
 // positioned on an open fork (fail-closed: such an operation is `forked`
 // while the fork is open and `invalid` once the fork is decided).
@@ -110,7 +120,10 @@ export function linearize (ops) {
   return out
 }
 
-export function materialize (ops) {
+// opts.decideAll: materialize as if every pairing among `ops` were decided —
+// the reconciled DAG a resolver holding all of `ops` in its ancestry sees
+// (3565, 3567), used for the resolver's retained set (7015).
+export function materialize (ops, opts = {}) {
   const order = linearize(ops)
   const anc = new Map()           // id → strict ancestors
   for (const op of order) {
@@ -161,12 +174,18 @@ export function materialize (ops) {
         ? Math.max(0, ...sub.filter((o) => authorized.has(o.id) && newEpoch.has(o.id)).map((o) => newEpoch.get(o.id)))
         : st.epoch
       // 7010: members of the position minus the removed subject minus the
-      // pending exits in its ancestry; for a resolver the state materialized
-      // from its ancestors is forked and has no retained set (7015) — the
-      // text does not say which set the resolver's transition reaches
-      const retained = resolverOf ? null
-        : Object.keys(st.members).filter((m) => !st.pendingExits.includes(m) && !(op.kind === 'remove' && m === op.subject)).sort()
-      if (retained && !retained.length) ok = false                       // 7030
+      // pending exits in its ancestry; for a resolver the merged retained
+      // set of the reconciled DAG (3565, 7015): its ancestors with every
+      // pairing among them decided, members minus pending exits — none
+      // where that reconciled state is terminal
+      let retained
+      if (resolverOf) {
+        const rec = materialize(sub, { decideAll: true })
+        retained = rec.retained ?? []
+      } else {
+        retained = Object.keys(st.members).filter((m) => !st.pendingExits.includes(m) && !(op.kind === 'remove' && m === op.subject)).sort()
+      }
+      if (!retained.length) ok = false                                    // 7030
       else { newEpoch.set(op.id, base + 1); retainedAt.set(op.id, retained) }
     }
     if (ok && op.kind === 'leave' && Object.keys(st.members).length === 1) lastMember.add(op.id)
@@ -189,6 +208,7 @@ export function materialize (ops) {
   let forked
   let open
   for (;;) {
+    if (opts.decideAll) { open = []; forked = new Set(); break }
     open = pairs.filter(([a, b]) => !resolvers.some((r) => anc.get(r.id).has(a) && anc.get(r.id).has(b)))
     const siblings = new Set(open.flat())
     forked = new Set(order.filter((o) => siblings.has(o.id) || [...siblings].some((s) => anc.get(o.id).has(s))).map((o) => o.id))
