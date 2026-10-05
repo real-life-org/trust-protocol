@@ -4277,7 +4277,8 @@ rule key; any other key holder MAY.
 
 **RLTP-ACC-9871** — While a healing need exists, every enforcement
 operation a key holder issues MUST succeed the open key states the
-issuer holds, at least two and as many as the lineage bound allows,
+issuer holds, at least two and as many as the `succeeds` bound
+allows,
 so that any enforcement by any holder heals; this is a duty of the
 issuer, and a receiver MUST judge the operation only by the
 verifiability of the lineage entries it carries, surfacing open key
@@ -4285,11 +4286,12 @@ states it left unsucceeded (RLTP-ACC-9780) without rejecting it.
 
 **RLTP-ACC-9872** — The key states a transition succeeds MUST be
 exactly those its `succeeds` field names (7.1): the current key
-states of its position, all of them where the bound allows; a
-`lineage` entry MAY open any of them and no other, and a succeeded
-key state without a verifying lineage edge is a history gap
-(RLTP-ACC-9780), never an open key state. `prev` orders operations
-and names no key states.
+states of its position, all of them where the bound allows and
+without duplicates; a `lineage` entry MAY open any of them, or under
+the recovery form (RLTP-ACC-9770) an earlier key state its author
+holds, and a succeeded key state without a verifying lineage edge
+is a history gap (RLTP-ACC-9780), never an open key state. `prev`
+orders operations and names no key states.
 
 **RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
 key states under RLTP-ACC-9865, producing one further need.
@@ -4998,7 +5000,9 @@ edge opening the one transition of that epoch number in the
 operation's own ancestry, and MUST reject a `0.24` operation whose
 ancestry holds more than one transition of that epoch number, since
 its legacy forms cannot name a key state; verified under the AAD of
-its own version, unchanged. The welcome `material`
+its own version, unchanged. A `0.24` transition carries no
+`succeeds` and MUST be read as succeeding exactly the one maximal
+key state of its ancestry, whatever its lineage form. The welcome `material`
 Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
 under this profile; a receiver MUST accept `0.24` material without
 `keyState` only where the admission's ancestry holds exactly one
