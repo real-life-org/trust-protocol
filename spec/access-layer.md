@@ -4136,6 +4136,16 @@ within the floor gets through.
 
 What each class receives and learns is tabulated in Section 13.
 
+*Editor's note.* No class makes a service's withholding visible: a
+service that silently serves fewer items than it holds is caught
+only by the witness rules of the Replication Contract, not by this
+layer. Commitments over the served set (a Merkle root per group with
+a head version, as OpenVTC Data Rooms use for verified reads) would
+let members detect a withholding service and keep reading from it
+while refusing it writes; that is a candidate for the Replication
+Contract, noted here because the service classes are where it would
+attach.
+
 ### 9.4 Registered adapters
 
 **RLTP-ACC-9200** — An adapter registration MUST name its
@@ -4277,11 +4287,13 @@ rule key; any other key holder MAY.
 
 **RLTP-ACC-9871** — While a healing need exists, every enforcement
 operation a key holder issues MUST bridge, by lineage entries, every
-succeeded key state whose key the issuer holds; this is a duty of
-the issuer, and a receiver MUST judge the lineage only by the
-verifiability of the entries it carries, surfacing a succeeded key
-state without a verifying edge as a gap (RLTP-ACC-9780) without
-rejecting the operation.
+succeeded key state whose key the issuer holds, unless the operation
+carries an authorized `historyNarrow` (RLTP-ACC-9790) or the key
+state is narrowed (RLTP-ACC-9784); this is a duty of the issuer, and
+a receiver MUST judge the lineage only by the verifiability of the
+entries it carries, surfacing a succeeded key state without a
+verifying edge as a gap (RLTP-ACC-9780) — closed and narrowed edges
+excepted — without rejecting the operation.
 
 **RLTP-ACC-9872** — A transition's `succeeds` field MUST name exactly
 the current key states of the transition's position — all of them
@@ -4292,6 +4304,15 @@ invalid; the check is over the DAG alone and never over key
 possession. A `lineage` entry MAY open any succeeded key state, or
 under the recovery form (RLTP-ACC-9770) an earlier key state its
 author holds. `prev` orders operations and names no key states.
+
+**RLTP-ACC-9873** — The current key states of a position MUST be
+computed from the ancestor materialization alone: the genesis key
+state to begin with; every canonical or lapsed transition removes
+the key states its `succeeds` names and adds its own; and under an
+adapter that merges secrets (RLTP-ACC-9310), a set of more than one
+current transition-created key state counts as the single merged
+key state of RLTP-ACC-9264, which a later transition names in
+`succeeds`. Key possession plays no part in the computation.
 
 **RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
 key states under RLTP-ACC-9865, producing one further need.
@@ -4317,8 +4338,12 @@ without healing breaches a duty that every replica can see and
 attribute, and an insider who keeps doing so delays the group, as
 an insider always can, without gaining authority. If two
 heal at once, the result is one more need and one more healing;
-every healing succeeds at least two open states, so on a finite
-delivered DAG the count of open states falls to one. Where more
+every healing succeeds at least two open states, so once concurrent
+enforcements stop and the DAG is delivered, a sequence of healings
+over the delivered state brings the count of open states to one;
+while enforcements keep arriving concurrently, two healings may
+succeed the same pair and the count can hold or rise, which is the
+insider's delay, never a lock. Where more
 states are open than one lineage array can carry, healing proceeds
 in steps, each one honest about what it bridged and what remains. The rotation stays under the group's own rule for
 rotations: where that rule asks for more than one signature, the
@@ -4347,7 +4372,7 @@ RLTP-ACC-9780, with the repair duty on whoever holds them.
 
 **RLTP-ACC-9770** — Under `linear/0.1`, a lineage entry opening a key
 state other than a direct predecessor is the recovery form and MUST
-be gated only by the operation's own rule.
+be gated only by the operation's own rule, within RLTP-ACC-9784.
 
 **RLTP-ACC-9780** — Under `linear/0.1`, a lineage edge that is
 missing or fails verification MUST be surfaced per edge as a gap in
@@ -4356,10 +4381,23 @@ canonical repair opens it, as repaired.
 
 **RLTP-ACC-9782** — Under `linear/0.1`, every edge from a transition
 carrying an authorized `historyNarrow` (RLTP-ACC-9790) to the key
-states it succeeds MUST be a closed edge: not a gap, under no repair
-duty, and MUST NOT be opened by `lineage.repair` or by historical
-material (RLTP-ACC-10112) unless a canonical `history.expose`
-(Section 8) has since exposed the key state behind it.
+states it succeeds MUST be a closed edge: not a gap and under no
+repair duty.
+
+**RLTP-ACC-9784** — A key state MUST count as narrowed at a position
+when a canonical transition with an authorized `historyNarrow` lies
+in that position's ancestry and the key state lies in that
+transition's ancestry, unless a canonical `history.expose`
+(Section 8) in the position's ancestry names the key state; at such
+a position no lineage entry, no `lineage.repair` and no historical
+material (RLTP-ACC-10112) MAY open a narrowed key state, and a
+transition or repair that does so MUST be rejected as invalid.
+
+**RLTP-ACC-9786** — A replica MUST NOT follow a lineage path into a
+key state that is narrowed at its current position, whichever
+branch the path was made on; a bridge made concurrently with the
+narrowing stays in the log and is the stated residual of a
+narrowing that merges late.
 
 **RLTP-ACC-9790** — Under `linear/0.1`, a transition without
 `lineage` is the narrowing act and its proof MUST satisfy
@@ -4381,9 +4419,12 @@ one `(transition, opens)` edge the first in 3.5's fold order
 
 **RLTP-ACC-9830** — Under `linear/0.1`, a member holding both keys of
 a skipped or failing lineage edge that is not closed (RLTP-ACC-9782)
-MUST publish the `lineage.repair` entry, body `{ "transition":
-<id>, "opens": <id>, "ct": … }`, upon materializing the gap; a
-repair of a closed edge MUST be rejected as invalid.
+and whose opened state is not narrowed (RLTP-ACC-9784) MUST publish
+the `lineage.repair` entry, body `{ "transition": <id>, "opens":
+<id>, "ct": … }`, upon materializing the gap; a repair of a closed
+edge or into a narrowed key state MUST be rejected as invalid, and
+once a canonical `history.expose` names the key state, its edges
+cease to be closed and the repair duty applies again.
 
 *Rationale.* Reachable history across a lineage edge is exactly as
 durable as the set of members holding that edge's keys: an entry is
@@ -4452,6 +4493,13 @@ device and `keyState` as the adapter defines, and that it applies
 to that key state under the adapter's rules; it MUST NOT compare a
 fresh recovery operation with the `keyOpDigest` of any earlier
 operation.
+
+*Editor's note.* This adapter has no history form of its own: a
+newly admitted device reads history only through the key chain of
+later entries (RLTP-ACC-9340). An epoch-link chain, the previous
+application secret sealed under the new one at every key state, is
+the obvious candidate and is in use elsewhere (OpenVTC Data Rooms);
+it would be a `beekem/0.2` registration, not a rule of the port.
 
 *Editor's note.* The registration exists because this adapter is
 the one under which all six invariants have been shown together
@@ -4626,9 +4674,9 @@ accepted for the sole purpose of opening history under that key
 state (RLTP-ACC-9280), if its `epoch` names that key state's
 exposure epoch, the material verifies against the log's binding of
 that key state, the helper's device is bound and unrevoked in the
-recipient's current materialization, and no closed edge
-(RLTP-ACC-9782) lies between the recipient's current key state and
-the named one; it MUST NOT change the recipient's current key state,
+recipient's current materialization, and the named key state is not
+narrowed at the recipient's current position (RLTP-ACC-9784); it
+MUST NOT change the recipient's current key state,
 and RLTP-ACC-10110 and RLTP-ACC-10120 do not apply to it.
 
 **RLTP-ACC-10120** — A document violating RLTP-ACC-10100, or
@@ -5611,7 +5659,9 @@ in both directions.
    sound exercise mechanism.
 7. **OI-13 The membrane.** Group-issued outward credentials need a
    closed credential profile before a `credential.issue` operation
-   returns to the catalog.
+   returns to the catalog; attenuable, audience-bound and
+   short-lived membership attestations as OpenVTC's VAC issues them
+   are a precedent to compare against.
 8. **OI-14 Large groups.** Admission bounded at 4096 members, wire
    caps at 8192; membership beyond the bound is a named degraded
    state (3.6), recovery by attrition; devices bounded at 8 per
