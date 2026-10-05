@@ -721,6 +721,23 @@
           ]
         }
       }
+    },
+    "welcome-material-0.24": {
+      "schema": "https://real-life.org/rltp/v1/schemas/welcome.schema.json",
+      "document": {
+        "v": "rltp-welcome/0.1",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "accept": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
+        "material": {
+          "v": "rltp-access-material/0.24",
+          "adapter": "linear/0.1",
+          "epoch": 7,
+          "keys": {
+            "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        }
+      }
     }
   },
   "cases": [
@@ -1460,6 +1477,20 @@
       "base": "access-history-expose",
       "set": {
         "/body/keys/0/keyState": "7"
+      }
+    },
+    {
+      "name": "welcome: the welcome carries the material form, never the keydist form (RLTP-ACC-11100)",
+      "base": "welcome-material-0.24",
+      "set": {
+        "/material/v": "rltp-access-keydist/0.25"
+      }
+    },
+    {
+      "name": "welcome: 0.25 material in the welcome names its key state (RLTP-ACC-9362, 11100)",
+      "base": "welcome-material-0.24",
+      "set": {
+        "/material/v": "rltp-access-material/0.25"
       }
     }
   ]

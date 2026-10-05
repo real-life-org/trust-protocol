@@ -622,6 +622,6 @@ export type Welcome = {
   subject: string
   accept: string
   material: (AccessMaterial) & ({
-    v?: "rltp-access-material/0.25"
+    v?: "rltp-access-material/0.25" | "rltp-access-material/0.24"
   })
 }
