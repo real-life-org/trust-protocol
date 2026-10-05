@@ -46,16 +46,35 @@ export const manifestIds = (text) =>
 export function parseSpecRules (text) {
   const rules = []      // { id, line }
   const problems = []   // strings
-  let fenced = false
+  // Code fences: ``` or ~~~, three or more; the closing fence uses the
+  // same character and at least the same length (CommonMark). HTML
+  // comments may span lines. Both hide everything inside them.
+  let fence = null      // { ch, len } while inside a fence
+  let comment = false
   const lines = text.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const n = i + 1
-    if (/^\s*```/.test(line)) { fenced = !fenced; continue }
+    const f = line.match(/^\s{0,3}(`{3,}|~{3,})/)
+    if (!comment && f) {
+      const ch = f[1][0]; const len = f[1].length
+      if (!fence) { fence = { ch, len }; continue }
+      if (fence.ch === ch && len >= fence.len) { fence = null; continue }
+    }
+    const hidden = Boolean(fence) || comment
+    // Comment state for the NEXT lines: open without close → inside;
+    // close on this line → outside after it.
+    const opens = line.lastIndexOf('<!--'); const closes = line.lastIndexOf('-->')
+    const commentBefore = comment
+    if (!fence) {
+      if (opens >= 0 && opens > closes) comment = true
+      else if (closes >= 0) comment = false
+    }
     const m = line.match(/^(\s*)\*\*(RLTP-ENC-[^*]*)\*\*(.*)$/)
     if (!m) continue
     const [, indent, id, rest] = m
-    if (fenced) { problems.push(`${id} at line ${n}: rule marker inside a code fence`); continue }
+    if (fence) { problems.push(`${id} at line ${n}: rule marker inside a code fence`); continue }
+    if (hidden || commentBefore || (opens >= 0 && opens < line.indexOf('**'))) { problems.push(`${id} at line ${n}: rule marker inside an HTML comment`); continue }
     if (indent) { problems.push(`${id} at line ${n}: rule marker is indented`); continue }
     if (!ID.test(id) || !/^RLTP-ENC-\d{4,5}$/.test(id)) { problems.push(`"${id}" at line ${n}: malformed rule identifier`); continue }
     const body = rest.match(/^\s+—\s+(\S.*)$/)
@@ -109,10 +128,20 @@ export const resolveInventory = (explicit) => {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const args = process.argv.slice(2)
+  const USAGE = 'usage: check-encounter-trace.mjs [<inventory.md>] [--inventory <file>] [--spec <file>] [--manifest <file>]\n       check-encounter-trace.mjs --write-manifest <inventory.md> [--manifest <file>]'
+  const usage = (msg) => { console.error(`${msg}\n${USAGE}`); process.exit(2) }
+  const KNOWN = ['--inventory', '--spec', '--manifest', '--write-manifest']
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (!a.startsWith('--')) continue
+    if (!KNOWN.includes(a)) usage(`unknown option: ${a}`)
+    const v = args[i + 1]
+    if (v === undefined || v.startsWith('--')) usage(`option ${a} needs a value`)
+    i++
+  }
   const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined }
   if (args.includes('--write-manifest')) {
     const inv = opt('--write-manifest')
-    if (!inv) { console.error('usage: --write-manifest <inventory.md>'); process.exit(2) }
     const ids = inventoryIds(readFileSync(inv, 'utf8'))
     if (!ids.length) { console.error('inventory lists no rule identifiers'); process.exit(1) }
     const out = opt('--manifest') ?? DEFAULT_MANIFEST
@@ -121,6 +150,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exit(0)
   }
   const positional = args.filter((a, i) => !a.startsWith('--') && !(args[i - 1] ?? '').startsWith('--'))
+  if (positional.length > 1) usage(`unexpected argument: ${positional[1]}`)
   const { path: inventory } = resolveInventory(opt('--inventory') ?? positional[0] ?? process.env.ENCOUNTER_INVENTORY)
   const r = checkTrace({ spec: opt('--spec'), manifest: opt('--manifest'), inventory })
   for (const e of r.errors) console.error(`  ERROR ${e}`)

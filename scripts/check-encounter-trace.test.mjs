@@ -6,6 +6,8 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
 import { checkTrace, parseSpecRules, inventoryIds, manifestIds } from './check-encounter-trace.mjs'
 
 const dir = mkdtempSync(join(tmpdir(), 'enc-trace-'))
@@ -64,6 +66,35 @@ test('a missing manifest or an explicitly named missing inventory fails', () => 
 test('a manifest listing an ID twice or a malformed ID fails', () => {
   has(run(GOOD, ['RLTP-ENC-2010', 'RLTP-ENC-2010', 'RLTP-ENC-2020']), 'lists RLTP-ENC-2010 more than once')
   has(run(GOOD, ['RLTP-ENC-2010', 'RLTP-ENC-2020', 'ENC-9']), 'malformed identifier')
+})
+
+test('tilde fences, long fences and HTML comments hide rules', () => {
+  const ids = ['RLTP-ENC-2010', 'RLTP-ENC-2020']
+  has(run('~~~markdown\n' + GOOD + '\n~~~', ids), 'RLTP-ENC-2010: in the manifest, not a rule')
+  has(run('~~~markdown\n' + GOOD + '\n~~~', ids), 'inside a code fence')
+  has(run('<!--\n' + GOOD + '\n-->', ids), 'inside an HTML comment')
+  has(run('<!--\n' + GOOD + '\n-->', ids), 'RLTP-ENC-2020: in the manifest, not a rule')
+  has(run('<!-- **RLTP-ENC-2010** — Hidden. -->\n\n**RLTP-ENC-2020** — Visible.', ids), 'RLTP-ENC-2010: in the manifest, not a rule')
+  // a ``` fence is not closed by ~~~ nor by a shorter fence
+  has(run('````\n~~~\n```\n' + GOOD + '\n````', ids), 'inside a code fence')
+  // a fence inside a comment does not open; a closed fence frees the rules
+  assert.deepEqual(run('<!-- ``` -->\n' + GOOD, ids).errors, [])
+  assert.deepEqual(run('~~~\nx\n~~~~\n' + GOOD, ids).errors, [])
+})
+
+test('CLI: missing option value, unknown option and extra argument exit 2 with usage', () => {
+  const { spawnSync } = require('node:child_process')
+  const cli = (...a) => spawnSync(process.execPath, [new URL('./check-encounter-trace.mjs', import.meta.url).pathname, ...a], { encoding: 'utf8' })
+  for (const a of [['--inventory'], ['--spec'], ['--manifest'], ['--inventory', '--spec', 'x'], ['--bogus', 'x'], ['a.md', 'b.md']]) {
+    const r = cli(...a)
+    assert.equal(r.status, 2, `args ${JSON.stringify(a)} → status ${r.status}`)
+    assert.match(r.stderr, /usage:/)
+  }
+  const inv = inventory(['RLTP-ENC-2010', 'RLTP-ENC-2020'])
+  const ok = cli('--spec', spec(GOOD), '--manifest', manifest(['RLTP-ENC-2010', 'RLTP-ENC-2020']), '--inventory', inv)
+  assert.equal(ok.status, 0, ok.stderr)
+  const bad = cli('--spec', spec(GOOD), '--manifest', manifest(['RLTP-ENC-2010']), '--inventory', inv)
+  assert.equal(bad.status, 1)
 })
 
 test('parsers: inventory rows and manifest lines', () => {

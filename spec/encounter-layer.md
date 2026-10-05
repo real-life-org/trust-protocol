@@ -1457,8 +1457,9 @@ are measured, not estimated.
 *In plain terms.* Anyone can check that one credential is properly
 signed. Anyone holding both credentials of an enactment can check
 that they fit together. Nobody outside can tell from that whether the
-two people ever met, and under fresh pair anchors nobody outside can
-even tell who they are.
+two people ever met, and under fresh pair anchors the credential pair
+alone — without a mapping one of the holders chooses to disclose —
+does not tell who they are.
 
 **RLTP-ENC-8010** — A verifier MUST be able to verify a single
 credential from its content alone.
