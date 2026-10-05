@@ -356,7 +356,7 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-space-relay i { flex: 1; border-top: 2px dashed var(--sl-color-gray-4); }
 .tp-space-relay span { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .8rem; border-radius: 999px; border: 1px dashed var(--sl-color-gray-4); font-size: .72rem; color: var(--sl-color-gray-3); white-space: nowrap; }
 .tp-space-relay svg { width: .75rem; height: .75rem; }
-.tp-space-devices { list-style: none; margin: 0; padding: 0 1.5rem; display: flex; justify-content: space-between; gap: .5rem; }
+.tp-space-devices { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-items: center; gap: .5rem; }
 .tp-space-devices li { display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; min-width: 0; }
 .tp-space-devices b { width: 3.6rem; height: 5.75rem; box-sizing: border-box; border-radius: .6rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-black); display: grid; grid-template-columns: repeat(3, 1fr); gap: .25rem; padding: .75rem .55rem; align-content: start; }
 .tp-space-devices s { display: block; height: .7rem; border-radius: 2px; text-decoration: none; background: color-mix(in oklab, var(--c, var(--warning)) 30%, var(--sl-color-black)); border: 1px solid color-mix(in oklab, var(--c, var(--warning)) 70%, var(--sl-color-black)); }
@@ -378,8 +378,8 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-space-devices em { font-size: .6rem; }
 }
 /* The properties of the space: a compact list under the copy. */
-.tp-props { margin-top: 1.6rem; display: flex; flex-direction: column; border-bottom: 1px solid var(--sl-color-gray-6); }
-.tp-props .tp-item { padding: .7rem 0; gap: .8rem; align-items: center; }
+.tp-props { margin-top: 1.4rem; display: flex; flex-direction: column; border-bottom: 1px solid var(--sl-color-gray-6); }
+.tp-props .tp-item { padding: .6rem 0; gap: .8rem; align-items: center; }
 .tp-props .tp-icon.tile { width: 2rem; height: 2rem; border-radius: .5rem; }
 .tp-props .tp-icon svg { width: 1rem; height: 1rem; }
 .tp-props .tp-item strong { font-size: .92rem; margin-bottom: .05rem; }

@@ -21,13 +21,13 @@ const kinds: { name: string; icon: IconName; hue: string }[] = [
 const devices: { name: string; state: string; mode?: 'behind' | 'outside' }[] = [
   { name: 'Anna', state: 'in sync' },
   { name: 'Peter', state: 'in sync' },
-  { name: 'Sam', state: 'not in sync · merges on return', mode: 'behind' },
+  { name: 'Sam', state: 'not yet in sync', mode: 'behind' },
   { name: 'Outside', state: 'ciphertext only', mode: 'outside' },
 ]
 const svg = (name: IconName) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`
 ---
-<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, projects, tasks, offers, needs, persons, documents and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is behind and merges on return, a device outside holds ciphertext only.">
+<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, projects, tasks, offers, needs, persons, documents and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is not yet in sync and merges on return, a device outside holds ciphertext only.">
   <div class="tp-space-board">
     <div class="tp-space-head"><span class="tp-kicker">Shared space</span><span>one encrypted document</span></div>
     <ul class="tp-space-grid">
