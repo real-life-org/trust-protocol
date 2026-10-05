@@ -4,24 +4,32 @@
 //
 // The model abstracts from signatures and policies. An operation is
 //   { id, kind, author, subject, role, preds }
-// with kind ∈ create | add | remove | rotate | visibility | policy | dissolve.
+// with kind ∈ create | add | remove | rotate | visibility | policy | dissolve | leave.
 // `role` (admin | member) is the standing an `add` confers; an author's
 // standing at an operation's position stands for the policy: an `admin`
 // satisfies `member.add`, `member.remove`, `visibility.change`,
 // `policy.change` (default `strongest`), the collective `group.dissolve`
 // and creates the group; any member satisfies `epoch.rotate` (default
-// `any-member`, Access 4.1). A policy object has no content here: which
+// `any-member`, Access 4.1); a `member.leave` needs its author alone
+// (3300). A pending exit has no policy standing (5750) but may rotate (the
+// discharge, 5.4). A policy object has no content here: which
 // `policy.change` is in effect is the last canonical one folded.
 //
 // The fold follows the spec, in this order:
 //   1. authority first (RLTP-ACC-3385): each operation is judged by the
 //      state materialized from its own ancestors and by nothing else;
 //      an unauthorized operation is `invalid` and enters no concurrency
-//      rule (RLTP-ACC-3390). A position in the forked state answers
-//      fail-closed (3440), except for a `policy.change`: it is the
-//      resolving operation and is judged against the state materialized
-//      from the maximal prefix of its ancestry free of the fork pairing —
-//      that prefix's members, policy, policy version and epoch (3565);
+//      rule (RLTP-ACC-3390). A position in the forked or terminal state
+//      answers fail-closed (3440, 5870), except for a `policy.change` on a
+//      forked position: it is the resolving operation, judged against the
+//      state materialized from the maximal prefix of its ancestry free of
+//      the fork pairing — that prefix's members, policy and policy version
+//      — and invalid if its author is the subject of a removal among the
+//      siblings (3565). An enforcement operation whose retained set at its
+//      position is empty is invalid (7030). Every valid transition gets
+//      its newEpoch here: its position's epoch + 1, the resolver's the
+//      maximum newEpoch over the valid transitions of its whole ancestry
+//      + 1 (7040, 3565); and its retained set at its position (7010);
 //   2. the one remaining fork pairing (RLTP-ACC-3495): an authorized
 //      `policy.change` concurrent with an authorized enforcement operation,
 //      another `policy.change` included. A pairing is decided when an
@@ -31,14 +39,13 @@
 //      3568); the state is `forked`, and the member set, epoch and policy
 //      are those of the maximal prefix free of the open pairings (3630).
 //      Once decided, the pairing is no pairing: a sibling `policy.change`
-//      is `lapsed` (its policy effect lapses), every other sibling and
-//      what builds on it is re-derived by the rules below, and the
-//      resolving `policy.change` sets the policy (3567);
+//      is `lapsed` (its policy effect lapses, its transition counts, 3569),
+//      every other sibling and what builds on it is re-derived by the rules
+//      below, and the resolving `policy.change` sets the policy (3567);
 //   3. the lapsing dissolution (RLTP-ACC-3460): an authorized
-//      `group.dissolve` concurrent with an authorized enforcement
-//      operation is `lapsed` — no effect, the merged state is not
-//      terminal; a `group.dissolve` whose ancestry holds both is judged
-//      against that merged state and ends the group;
+//      `group.dissolve` concurrent with an authorized, non-forked
+//      enforcement operation is `lapsed`; a `group.dissolve` whose ancestry
+//      holds both is judged against that merged state and ends the group;
 //   4. the removal disposition (RLTP-ACC-3520 … 3580): one least fixpoint,
 //      seeded by every authorized, non-forked removal R of S with the
 //      operations concurrent to R that are additive and authored by S
@@ -48,24 +55,31 @@
 //      exactly when every admission carrying its membership at that
 //      operation's causal position is disposed (3572, 3585). A forked
 //      removal confers no effect (3345), so it seeds nothing;
-//   5. status: `forked` ≻ `removed-disposed` ≻ `lapsed` ≻ `canonical`
-//      (3562, `lapsed` placed by these vectors), an unauthorized operation
-//      outside the forked set `invalid`; removals with authority all take
-//      effect (3395, 3400, 3405, 3410), a rotation beside them too (3415,
-//      3417), and a visibility change (3418);
-//   6. state: canonical operations folded in ready-set order, smallest id
-//      first (RLTP-ACC-3340); the epoch of a canonical enforcement is its
-//      position's epoch + 1, the state's epoch the maximum over the
-//      canonical transitions it contains (RLTP-ACC-7040); the policy
-//      version of a canonical `policy.change` its position's version + 1
-//      (the resolver's: the prefix's + 1, 3565); a canonical
-//      `group.dissolve` makes the state `terminal` (3365); the retained
-//      set of a group state is its members minus its pending exits
-//      (RLTP-ACC-7010; no leaves are modelled, so: its members).
-// Not modelled: the terminal-versus-additive rules (3465, 3470), leaves,
-// devices, and an operation other than a `policy.change` positioned on an
-// open fork (fail-closed: such an operation is `forked` while the fork is
-// open and `invalid` once the fork is decided).
+//   5. the last-member leave (a leave at a position of sole membership,
+//      5860) is terminal unless an authorized, non-forked enforcement
+//      operation or a canonical admission is concurrent: then it never
+//      lapses, it merges as an ordinary leave with its discharge open
+//      (3462, 5840);
+//   6. status: `forked` ≻ `removed-disposed` ≻ `lapsed` ≻ `canonical`
+//      (3562), an unauthorized operation outside the forked set
+//      `invalid`; removals with authority all take effect (3395, 3400,
+//      3405, 3410), a rotation beside them too (3415, 3417), and a
+//      visibility change (3418);
+//   7. state: canonical operations folded in ready-set order, smallest id
+//      first (RLTP-ACC-3340); a canonical leave makes its author a pending
+//      exit, a canonical transition whose ancestry holds the leave
+//      discharges it (5830); the state's epoch is the maximum newEpoch over
+//      the canonical and lapsed transitions it contains (RLTP-ACC-7040,
+//      3569); the policy version of a canonical `policy.change` its
+//      position's version + 1 (the resolver's: the prefix's + 1, 3565); a
+//      canonical `group.dissolve` or terminal leave makes the state
+//      `terminal` (3365), and so does empty membership (5850, before the
+//      "not terminal" of 3460); the retained set of a group state is its
+//      members minus its pending exits (RLTP-ACC-7015).
+// Not modelled: the terminal-versus-additive rules (3465, 3470), the drained
+// dissolve, devices, and an operation other than a `policy.change`
+// positioned on an open fork (fail-closed: such an operation is `forked`
+// while the fork is open and `invalid` once the fork is decided).
 import { createHash } from 'node:crypto'
 import { jcs } from './lib.mjs'
 
@@ -78,7 +92,7 @@ export const opId = ({ kind, author, subject, role, preds }) =>
   'oid:' + createHash('sha256').update(jcs({ kind, author, subject, role, preds }), 'utf8').digest('base64url')
 
 const ENFORCEMENT = new Set(['remove', 'rotate', 'visibility', 'policy'])
-const TERMINAL = new Set(['dissolve'])
+const TERMINAL = new Set(['dissolve'])   // the last-member leave is terminal too; handled in step 5
 const ADDITIVE = new Set(['add'])
 
 // Ready-set linearization (RLTP-ACC-3340): repeatedly the smallest id
@@ -108,24 +122,54 @@ export function materialize (ops) {
 
   // 1. authority at each position, from the materialization of its ancestors;
   //    a policy.change on a forked position: from the fork-free prefix (3565)
-  const EMPTY = { members: {}, epoch: 0, policy: null, policyVersion: 0, state: 'empty' }
+  const EMPTY = { members: {}, pendingExits: [], epoch: 0, policy: null, policyVersion: 0, state: 'empty', status: {} }
   const position = new Map()
   const authorized = new Set()
+  const newEpoch = new Map()       // transition id → newEpoch (7040)
+  const retainedAt = new Map()     // transition id → retained set at its position (7010), null if not determinable
+  const resolverCandidates = new Set()
+  const lastMember = new Set()     // leaves at a position of sole membership (5860, terminal class)
   for (const op of order) {
     const sub = order.filter((o) => anc.get(op.id).has(o.id))
     let st = sub.length ? materialize(sub) : EMPTY
+    let resolverOf = null
     if (st.state === 'forked' && op.kind === 'policy') {
+      resolverOf = st
       const prefix = sub.filter((o) => st.status[o.id] !== 'forked')
       st = prefix.length ? materialize(prefix) : EMPTY
+      resolverCandidates.add(op.id)
     }
     position.set(op.id, st)
-    const role = st.state === 'group' ? st.members[op.author] : undefined   // forked, terminal: fail-closed
+    const live = st.state === 'group'                                   // forked, terminal: fail-closed
+    const role = live ? st.members[op.author] : undefined
+    const pending = live && st.pendingExits.includes(op.author)
+    const standing = role !== undefined && !pending                    // 5750: a pending exit has no policy standing
     let ok = false
     if (op.kind === 'create') ok = !sub.length && op.author === op.subject
-    else if (op.kind === 'add') ok = role === 'admin' && !(op.subject in st.members)
-    else if (op.kind === 'remove') ok = role === 'admin' && op.subject in st.members
+    else if (op.kind === 'add') ok = standing && role === 'admin' && !(op.subject in st.members)
+    else if (op.kind === 'remove') ok = standing && role === 'admin' && op.subject in st.members
     else if (op.kind === 'rotate') ok = role !== undefined
-    else if (op.kind === 'visibility' || op.kind === 'policy' || op.kind === 'dissolve') ok = role === 'admin'
+    else if (op.kind === 'leave') ok = standing && op.subject === op.author
+    else if (op.kind === 'visibility' || op.kind === 'policy' || op.kind === 'dissolve') ok = standing && role === 'admin'
+    // 3565: the resolver's author MUST NOT be the subject of a removal on either sibling
+    if (ok && resolverOf && sub.some((r) => r.kind === 'remove' && resolverOf.status[r.id] === 'forked' &&
+      r.subject === op.author && authorized.has(r.id))) ok = false
+    if (ok && ENFORCEMENT.has(op.kind)) {
+      // 7040: newEpoch = position's epoch + 1; the resolver's position for
+      // 7040 is its whole ancestry (3565): every valid transition in it
+      const base = resolverOf
+        ? Math.max(0, ...sub.filter((o) => authorized.has(o.id) && newEpoch.has(o.id)).map((o) => newEpoch.get(o.id)))
+        : st.epoch
+      // 7010: members of the position minus the removed subject minus the
+      // pending exits in its ancestry; for a resolver the state materialized
+      // from its ancestors is forked and has no retained set (7015) — the
+      // text does not say which set the resolver's transition reaches
+      const retained = resolverOf ? null
+        : Object.keys(st.members).filter((m) => !st.pendingExits.includes(m) && !(op.kind === 'remove' && m === op.subject)).sort()
+      if (retained && !retained.length) ok = false                       // 7030
+      else { newEpoch.set(op.id, base + 1); retainedAt.set(op.id, retained) }
+    }
+    if (ok && op.kind === 'leave' && Object.keys(st.members).length === 1) lastMember.add(op.id)
     if (ok) authorized.add(op.id)
   }
 
@@ -158,9 +202,10 @@ export function materialize (ops) {
   }
 
   // 3. the lapsing dissolution (3460)
+  const enforcementBeside = (d) => order.some((e) => ENFORCEMENT.has(e.kind) && authorized.has(e.id) && !forked.has(e.id) && concurrent(d, e))
   for (const d of order) {
     if (!TERMINAL.has(d.kind) || !authorized.has(d.id)) continue
-    if (order.some((e) => ENFORCEMENT.has(e.kind) && authorized.has(e.id) && concurrent(d, e))) lapsed.add(d.id)
+    if (enforcementBeside(d)) lapsed.add(d.id)
   }
 
   // 4. the removal disposition, one least fixpoint over all authorized,
@@ -189,9 +234,18 @@ export function materialize (ops) {
     if (disposed.size === before) break
   }
 
+  // a last-member leave stays a leave, its terminal effect yielding, beside
+  // an enforcement operation (3462) or a canonical admission (5840)
+  const terminalLeave = new Set([...lastMember].filter((id) => {
+    const l = order.find((o) => o.id === id)
+    return !enforcementBeside(l) &&
+      !order.some((a) => a.kind === 'add' && authorized.has(a.id) && !forked.has(a.id) && !disposed.has(a.id) && concurrent(a, l))
+  }))
+
   // 5./6. status and state
   const status = {}
   const members = {}
+  const pendingLeave = new Map()   // leaver → leave op id (undischarged)
   let epoch = 0
   let policy = null
   let policyVersion = 0
@@ -199,18 +253,34 @@ export function materialize (ops) {
   for (const op of order) {
     status[op.id] = forked.has(op.id) ? 'forked' : !authorized.has(op.id) ? 'invalid'
       : disposed.has(op.id) ? 'removed-disposed' : lapsed.has(op.id) ? 'lapsed' : 'canonical'
+    // 7040, 3569: canonical and lapsed transitions count for the epoch
+    if ((status[op.id] === 'canonical' || status[op.id] === 'lapsed') && newEpoch.has(op.id)) epoch = Math.max(epoch, newEpoch.get(op.id))
     if (status[op.id] !== 'canonical') continue
     if (op.kind === 'create') { members[op.subject] = 'admin'; policyVersion = 1 }
     else if (op.kind === 'add') members[op.subject] = op.role
-    else if (op.kind === 'remove') delete members[op.subject]
+    else if (op.kind === 'remove') { delete members[op.subject]; pendingLeave.delete(op.subject) }
     else if (op.kind === 'policy') { policy = op.id; policyVersion = position.get(op.id).policyVersion + 1 }
     else if (op.kind === 'dissolve') terminal = true
-    if (ENFORCEMENT.has(op.kind)) epoch = Math.max(epoch, position.get(op.id).epoch + 1)
+    else if (op.kind === 'leave') {
+      if (terminalLeave.has(op.id)) { terminal = true; delete members[op.author] } else pendingLeave.set(op.author, op.id)
+    }
+    // 5830: a canonical transition whose ancestry holds a leave discharges it
+    if (ENFORCEMENT.has(op.kind)) {
+      for (const [m, l] of [...pendingLeave]) if (anc.get(op.id).has(l)) { delete members[m]; pendingLeave.delete(m) }
+    }
   }
   const sorted = Object.fromEntries(Object.keys(members).sort().map((k) => [k, members[k]]))
-  const state = terminal ? 'terminal' : forked.size ? 'forked' : 'group'
-  const retained = state === 'group' ? Object.keys(sorted) : null
-  return { state, members: sorted, epoch, policy, policyVersion, retained, status }
+  const pendingExits = [...pendingLeave.keys()].filter((m) => m in members).sort()
+  // 5850: empty membership is terminal (it has precedence over 3460's "not terminal")
+  const empty = order.some((o) => o.kind === 'create' && status[o.id] === 'canonical') && !Object.keys(sorted).length
+  const state = terminal || (empty && !forked.size) ? 'terminal' : forked.size ? 'forked' : 'group'
+  const retained = state === 'group' ? Object.keys(sorted).filter((m) => !pendingExits.includes(m)) : null   // 7015
+  const transitions = {}
+  for (const op of order) {
+    if (!newEpoch.has(op.id) || !authorized.has(op.id)) continue
+    transitions[op.id] = { newEpoch: newEpoch.get(op.id), retainedAtPosition: retainedAt.get(op.id) }
+  }
+  return { state, members: sorted, pendingExits, epoch, policy, policyVersion, retained, transitions, status }
 }
 
 // Delivery in an arbitrary order: an operation waits until its predecessors

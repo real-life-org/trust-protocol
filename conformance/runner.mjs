@@ -1379,10 +1379,12 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     check(r.epoch === c.expected.epoch, `${c.scenario}: merged epoch ${c.expected.epoch}`)
     check(r.policyVersion === c.expected.policyVersion, `${c.scenario}: policy version ${c.expected.policyVersion}`)
     check(same(r.retained, c.expected.retained), `${c.scenario}: retained set ${JSON.stringify(c.expected.retained)}`)
+    check(same(r.pendingExits, c.expected.pendingExits), `${c.scenario}: pending exits ${JSON.stringify(c.expected.pendingExits)}`)
+    check(same(r.transitions, c.expected.transitions), `${c.scenario}: newEpoch and retained set at its position of every transition (RLTP-ACC-7010, 7040)`)
     check(same(r.status, c.expected.status), `${c.scenario}: status of every operation as declared`)
     for (const [i, order] of (c.deliveryOrders ?? []).entries()) {
       const d = deliver(c.ops, order)
-      check(same(d, r) && same({ state: d.state, members: d.members, retained: d.retained, epoch: d.epoch, policy: d.policy, policyVersion: d.policyVersion, status: d.status }, c.expected), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
+      check(same(d, r) && same({ state: d.state, members: d.members, pendingExits: d.pendingExits, retained: d.retained, epoch: d.epoch, policy: d.policy, policyVersion: d.policyVersion, transitions: d.transitions, status: d.status }, c.expected), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
     }
   }
   // the oracle can fail: the S4f DAG with the disposed admission declared canonical
@@ -1424,7 +1426,36 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     const d = AC.cases.find((x) => x.scenario === 'epoch: unequal depth')
     check(d.expected.epoch === 2, 'access-conflicts: transitions of unequal depth merge under the deeper epoch (RLTP-ACC-7040)')
     const rt = AC.cases.find((x) => x.scenario === 'retained set: merged state')
-    check(same(rt.expected.retained, ['alice', 'carol', 'x']), 'access-conflicts: the merged retained set is the merged membership, not the intersection (RLTP-ACC-7010)')
+    check(same(rt.expected.retained, ['alice', 'carol', 'x']), 'access-conflicts: the merged retained set is the merged membership, not the intersection (RLTP-ACC-7015)')
+    const rtAt = Object.fromEntries(rt.ops.filter((op) => rt.expected.transitions[op.id]).map((op) => [op.label, rt.expected.transitions[op.id].retainedAtPosition]))
+    check(same(rtAt, { 'alice-removes-bob': ['alice', 'carol'], 'carol-rotates': ['alice', 'bob', 'carol', 'x'] }),
+      'access-conflicts: each transition reaches the retained set of its own position, neither the merged one (RLTP-ACC-7010, 9250)')
+  }
+  // after review 2: the resolver's author, lapsed transitions in the epoch, the leave that never lapses, emptiness
+  {
+    const rz = AC.cases.find((x) => x.scenario === 'fork: resolver removed on a sibling')
+    const res = rz.ops.at(-1)
+    check(rz.expected.state === 'forked' && rz.expected.status[res.id] === 'forked',
+      'access-conflicts: a policy.change by the subject of a sibling removal does not resolve the fork (RLTP-ACC-3565)')
+    const byBob = { ...res, author: 'bob' }; byBob.id = opId(byBob)
+    const rb = materialize([...rz.ops.slice(0, -1), byBob])
+    check(rb.state === 'group' && !('alice' in rb.members) && rb.status[byBob.id] === 'canonical',
+      'access-conflicts: the same resolution by a member no sibling removes ends the fork, and the removal takes effect')
+    const e = AC.cases.find((x) => x.scenario === 'fork ended: policy ∥ policy')
+    const eRes = e.ops.at(-1).id
+    check(e.expected.transitions[eRes].newEpoch === 3 && e.expected.epoch === 3,
+      'access-conflicts: the resolver\'s newEpoch counts every valid transition of its ancestry, lapsed siblings included (RLTP-ACC-3565, 3569, 7040)')
+    const lv = AC.cases.find((x) => x.scenario === 'leave ∥ rotation: never lapses')
+    const leaveId = lv.ops.find((op) => op.kind === 'leave').id
+    check(lv.expected.state === 'group' && lv.expected.status[leaveId] === 'canonical' && same(lv.expected.pendingExits, ['alice']),
+      'access-conflicts: a last-member leave beside a rotation stays a leave, its author a pending exit (RLTP-ACC-3462)')
+    check(materialize(lv.ops.filter((op) => op.kind !== 'rotate')).state === 'terminal',
+      'access-conflicts: without the concurrent rotation the last-member leave ends the group (RLTP-ACC-5860)')
+    const em = AC.cases.find((x) => x.scenario === 'removals empty the group: terminal')
+    check(em.expected.state === 'terminal' && materialize(em.ops.filter((op) => op.kind !== 'dissolve')).state === 'terminal',
+      'access-conflicts: empty membership is terminal with or without the lapsed dissolution (RLTP-ACC-5850 before 3460)')
+    check(materialize(em.ops.filter((op) => op.label !== 'bob-removes-alice')).state === 'group',
+      'access-conflicts: one removal fewer and the dissolution lapses into a group (RLTP-ACC-3460)')
   }
   check(['S4b', 'S4c', 'S4d', 'S4f', 'review #11', 'removal chain', 'delivery order'].every((s) => AC.cases.some((c) => c.scenario === s)),
     'access-conflicts: the scenarios RLTP-ACC-14050 names are all present')
@@ -1432,6 +1463,8 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the fork cases of the Access 14 vector plan are all present (the dissolution case as it lapses, RLTP-ACC-3460)')
   check(['dissolve ∥ removal: issued anew', 'fork ended: policy ∥ removal', 'admission-orphaned: one admission survives', 'epoch: unequal depth', 'retained set: merged state'].every((s) => AC.cases.some((c) => c.scenario === s)),
     'access-conflicts: the cases review 1 added are all present')
+  check(['fork: resolver removed on a sibling', 'leave ∥ rotation: never lapses', 'removals empty the group: terminal'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the cases review 2 added are all present')
 }
 
 // ── result ───────────────────────────────────────────────────────────────
