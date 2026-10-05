@@ -73,6 +73,8 @@ h2, h3 { letter-spacing: -.02em; }
 .tp-section p:last-child { margin-bottom: 0; }
 .tp-section code { font-size: .92em; }
 .tp-status p a, .tp-section p a { color: var(--sl-color-accent); }
+.tp-section p a.tp-more { font-weight: 600; text-decoration: none; }
+.tp-section p a.tp-more:hover { text-decoration: underline; }
 
 /* Cards: the list card of the design system (rounded-lg, border only), one thought each. */
 .tp-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: stretch; }
