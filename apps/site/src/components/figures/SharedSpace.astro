@@ -1,52 +1,51 @@
 ---
 /**
- * The group's shared space: the same items on every member's device, a
- * relay in the middle that carries ciphertext only, one device offline with
- * a change of its own that merges when it returns. Same pieces as the group
- * figure (site.css, .tp-group), plus the relay and the offline state.
+ * The group's shared space as a collection: one stack per kind of item,
+ * every kind in its own hue, and room for more. Below, a blind relay and
+ * the devices: the same collection on each member's, one of them behind,
+ * one outside with ciphertext only. Styles: site.css, .tp-space.
  */
 import { icons, type IconName } from '../icons'
 
-const items: IconName[] = ['map', 'calendar', 'kanban']
-type Device = { x: number; y: number; name: string; state: string; offline?: boolean }
-const devices: Device[] = [
-  { x: 60, y: 60, name: 'Anna', state: 'in sync' },
-  { x: 520, y: 60, name: 'Peter', state: 'in sync' },
-  { x: 60, y: 262, name: 'Frida', state: 'in sync' },
-  { x: 520, y: 262, name: 'Sam', state: 'offline · merges on return', offline: true },
+const kinds: { name: string; icon: IconName; hue: string }[] = [
+  { name: 'Event', icon: 'calendar', hue: '#5b8cf6' },
+  { name: 'Place', icon: 'map', hue: '#3fb45c' },
+  { name: 'Project', icon: 'kanban', hue: '#a78bfa' },
+  { name: 'Task', icon: 'check-square', hue: '#8fd14f' },
+  { name: 'Offer', icon: 'gift', hue: '#e39a4a' },
+  { name: 'Need', icon: 'hand', hue: '#f0708a' },
+  { name: 'Person', icon: 'user', hue: '#38bdf8' },
+  { name: 'Document', icon: 'file-text', hue: '#c9b458' },
+  { name: 'Message', icon: 'message-square', hue: '#2dd4bf' },
 ]
-// Dashed links from each device to the relay box (250..390 × 180..260).
-const links = [
-  [120, 108, 250, 186],
-  [520, 108, 390, 186],
-  [120, 310, 250, 254],
-  [520, 310, 390, 254],
+const devices: { name: string; state: string; mode?: 'behind' | 'outside' }[] = [
+  { name: 'Anna', state: 'in sync' },
+  { name: 'Peter', state: 'in sync' },
+  { name: 'Sam', state: 'not in sync · merges on return', mode: 'behind' },
+  { name: 'Outside', state: 'ciphertext only', mode: 'outside' },
 ]
+const svg = (name: IconName) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`
 ---
-<figure class="tp-group space">
-  <svg viewBox="0 40 640 372" role="img" aria-labelledby="fig-space-title">
-    <title id="fig-space-title">The same three items, a place on a map, a date and a list, on the devices of Anna, Peter, Frida and Sam. A relay in the middle carries ciphertext only. Sam is offline and has added an entry, which merges when the device returns.</title>
-
-    {links.map(([x1, y1, x2, y2], i) => <line {x1} {y1} {x2} {y2} class={devices[i].offline ? 'link warn' : 'link'} />)}
-
+<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, projects, tasks, offers, needs, persons, documents and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is behind and merges on return, a device outside holds ciphertext only.">
+  <div class="tp-space-board">
+    <div class="tp-space-head"><span class="tp-kicker">Shared space</span><span>one encrypted document</span></div>
+    <ul class="tp-space-grid">
+      {kinds.map((k) => (
+        <li style={`--c: ${k.hue}`}><span class="stack"><i></i><span class="tile" set:html={svg(k.icon)} /></span><span class="kind">{k.name}</span></li>
+      ))}
+      <li class="new"><span class="stack"><span class="tile" set:html={svg('plus')} /></span><span class="kind">New</span></li>
+    </ul>
+  </div>
+  <div class="tp-space-relay" aria-hidden="true"><i></i><span><Fragment set:html={svg('lock')} />blind relay · ciphertext only · changes merge</span><i></i></div>
+  <ul class="tp-space-devices">
     {devices.map((d) => (
-      <g class={d.offline ? 'dev offline' : 'dev'}>
-        <rect x={d.x} y={d.y} width="60" height="96" rx="10" class="device" />
-        {items.map((name, i) => (
-          <g transform={`translate(${d.x + 23} ${d.y + 18 + i * 20}) scale(0.58)`} class="glyph item" set:html={icons[name]} />
-        ))}
-        {d.offline && <rect x={d.x + 20} y={d.y + 78} width="20" height="5" rx="2.5" class="mini new" />}
-        <text x={d.x + 30} y={d.y + 120} class="name" text-anchor="middle">{d.name}</text>
-        <text x={d.x + 30} y={d.y + 137} class="state" text-anchor="middle">{d.state}</text>
-      </g>
+      <li class={d.mode}>
+        <b>{kinds.map((k, i) => <s style={d.mode === 'behind' && i === kinds.length - 1 ? undefined : `--c: ${k.hue}`} />)}</b>
+        <strong>{d.name}</strong>
+        <em>{d.state}</em>
+      </li>
     ))}
-
-    <rect x="250" y="180" width="140" height="80" rx="12" class="relay" />
-    <text x="320" y="202" class="kicker" text-anchor="middle">RELAY</text>
-    <rect x="276" y="214" width="88" height="5" rx="2.5" class="mini" />
-    <rect x="276" y="225" width="64" height="5" rx="2.5" class="mini" />
-    <g transform="translate(300 234) scale(0.5)" class="glyph lock" set:html={icons['lock']} />
-    <text x="318" y="245" class="by">ciphertext only</text>
-  </svg>
-  <figcaption>Every member holds the whole space. Changes made apart merge when devices meet again; the relay never sees a word of it.</figcaption>
+  </ul>
+  <figcaption>Every member holds the whole collection. Changes made apart merge when devices meet again; the relay never sees a word of it.</figcaption>
 </figure>

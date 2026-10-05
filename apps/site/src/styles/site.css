@@ -337,15 +337,46 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-group .out .mini.strong { fill: var(--sl-color-gray-5); }
 .tp-group .out .name { fill: var(--sl-color-gray-2); }
 .tp-group .out .state { fill: var(--sl-color-gray-3); }
-/* The shared space: items on the screens, a relay instead of the circle, one device offline. */
-.tp-group .glyph.item { stroke: var(--sl-color-accent); }
-.tp-group .relay { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 5; }
-.tp-group .glyph.lock { stroke: var(--sl-color-gray-3); }
-.tp-group .space .kicker, .tp-group.space .kicker { fill: var(--sl-color-gray-3); }
-.tp-group .link.warn { stroke: var(--warning); }
-.tp-group .mini.new { fill: var(--warning); }
-.tp-group .offline .state { fill: var(--warning); }
-.tp-group .offline .device { stroke: color-mix(in oklab, var(--warning) 60%, var(--sl-color-gray-5)); }
+/* The shared space: one stack per kind of item, each kind in its own hue (--c),
+   a blind relay, and the devices holding the same collection. */
+.tp-space { margin: 0; display: flex; flex-direction: column; gap: 1.1rem; font-size: .8rem; }
+.tp-space-board { border-radius: 1rem; border: 1px solid color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); background: color-mix(in oklab, var(--sl-color-accent) 8%, var(--sl-color-bg-sidebar)); padding: 1rem 1.1rem 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
+.tp-space-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.tp-space-head span:last-child { font-size: .75rem; color: var(--sl-color-gray-3); }
+.tp-space-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem .4rem; justify-items: center; }
+.tp-space-grid li { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding-top: .3rem; min-width: 0; }
+.tp-space-grid .stack { position: relative; display: block; width: 2.75rem; height: 2.75rem; }
+.tp-space-grid .stack i { position: absolute; left: .25rem; top: -.3rem; width: 2.75rem; height: 2.75rem; border-radius: .7rem; background: color-mix(in oklab, var(--c) 12%, var(--sl-color-bg-sidebar)); border: 1px solid color-mix(in oklab, var(--c) 35%, var(--sl-color-bg-sidebar)); }
+.tp-space-grid .tile { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: .7rem; background: color-mix(in oklab, var(--c) 22%, var(--sl-color-bg-sidebar)); border: 1px solid color-mix(in oklab, var(--c) 55%, var(--sl-color-bg-sidebar)); color: var(--c); }
+.tp-space-grid .tile svg { width: 1.25rem; height: 1.25rem; }
+.tp-space-grid .kind { font-size: .66rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--sl-color-gray-3); }
+.tp-space-grid .new .tile { background: transparent; border: 1px dashed var(--sl-color-gray-4); color: var(--sl-color-gray-3); }
+.tp-space-grid .new .kind { color: var(--sl-color-gray-4); }
+.tp-space-relay { display: flex; align-items: center; gap: .75rem; }
+.tp-space-relay i { flex: 1; border-top: 2px dashed var(--sl-color-gray-4); }
+.tp-space-relay span { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .8rem; border-radius: 999px; border: 1px dashed var(--sl-color-gray-4); font-size: .72rem; color: var(--sl-color-gray-3); white-space: nowrap; }
+.tp-space-relay svg { width: .75rem; height: .75rem; }
+.tp-space-devices { list-style: none; margin: 0; padding: 0 1.5rem; display: flex; justify-content: space-between; gap: .5rem; }
+.tp-space-devices li { display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; min-width: 0; }
+.tp-space-devices b { width: 3.6rem; height: 5.75rem; box-sizing: border-box; border-radius: .6rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-black); display: grid; grid-template-columns: repeat(3, 1fr); gap: .25rem; padding: .75rem .55rem; align-content: start; }
+.tp-space-devices s { display: block; height: .7rem; border-radius: 2px; text-decoration: none; background: color-mix(in oklab, var(--c, var(--warning)) 30%, var(--sl-color-black)); border: 1px solid color-mix(in oklab, var(--c, var(--warning)) 70%, var(--sl-color-black)); }
+.tp-space-devices strong { font-size: .75rem; font-weight: 600; color: var(--sl-color-white); }
+.tp-space-devices em { font-style: normal; font-size: .66rem; line-height: 1.3; color: var(--success); }
+.tp-space-devices .behind b { border-color: color-mix(in oklab, var(--warning) 60%, var(--sl-color-gray-5)); }
+.tp-space-devices .behind em { color: var(--warning); }
+.tp-space-devices .outside b { border-style: dashed; }
+.tp-space-devices .outside s { background: var(--sl-color-gray-6); border-color: var(--sl-color-gray-5); }
+.tp-space-devices .outside strong { color: var(--sl-color-gray-2); }
+.tp-space-devices .outside em { color: var(--sl-color-gray-3); }
+.tp-space figcaption { font-size: .9rem; line-height: 1.55; color: var(--sl-color-gray-3); }
+@media (max-width: 49.99rem) {
+  .tp-space-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .8rem .2rem; }
+  .tp-space-grid .stack { width: 2.25rem; height: 2.25rem; }
+  .tp-space-grid .stack i, .tp-space-grid .tile { width: 2.25rem; height: 2.25rem; }
+  .tp-space-grid .kind { font-size: .58rem; }
+  .tp-space-devices { padding: 0; }
+  .tp-space-devices em { font-size: .6rem; }
+}
 /* The properties of the space, under the figure, across both columns. */
 .tp-props { grid-column: 1 / -1; order: 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 3rem; border-bottom: 1px solid var(--sl-color-gray-6); }
 .tp-props .tp-item { padding: 1rem 0; }
