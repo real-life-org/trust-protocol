@@ -150,6 +150,62 @@
         }
       }
     },
+    "access-genesis-0.24": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.24",
+        "op": "group.genesis",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 0,
+        "policyVersion": 1,
+        "prev": [],
+        "body": {
+          "members": [
+            "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+          ],
+          "card": {
+            "version": "rltp-card/0.25",
+            "anchor": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+            "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr",
+            "challenge": {
+              "value": "u8BPX31WVpE-kX4f4iPv60oqn7IldHWsNT3vXXvHHLLI",
+              "issuedAt": "2026-08-23T11:58:00Z"
+            },
+            "proof": {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "created": "2026-08-23T11:58:00Z",
+              "verificationMethod": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J#z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+              "proofPurpose": "assertionMethod",
+              "proofValue": "z3XJfyxwBXu3C2GF6gckqGEs1EDpvK8DzKMWfvPEob4JpAnw5BmMnSrdy3fNZvVTUBZbqp31jjq6MEcGcrns7vqMV"
+            }
+          },
+          "policy": {
+            "policyVersion": 1,
+            "rules": {}
+          },
+          "visibility": "private",
+          "adapter": "linear/0.1",
+          "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "serviceIdentity": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss"
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            },
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z22222222222222222222222222222222222222222222222222222222222222222222222222222222"
+            }
+          ]
+        }
+      }
+    },
     "access-remove": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
       "document": {
@@ -173,10 +229,55 @@
                 "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
               }
             ],
-            "lineage": {
-              "opens": 7,
-              "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            "lineage": [
+              {
+                "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
+          }
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
             }
+          ]
+        }
+      }
+    },
+    "access-remove-0.24": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.24",
+        "op": "member.remove",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {
+          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+          "transition": {
+            "newEpoch": 8,
+            "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "keyDist": [
+              {
+                "recipient": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+                "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ],
+            "lineage": [
+              {
+                "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
           }
         },
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -215,10 +316,12 @@
                 "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
               }
             ],
-            "lineage": {
-              "opens": 7,
-              "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-            }
+            "lineage": [
+              {
+                "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
           }
         },
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -295,10 +398,12 @@
                 "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
               }
             ],
-            "lineage": {
-              "opens": 7,
-              "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-            }
+            "lineage": [
+              {
+                "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ]
           }
         },
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -426,6 +531,101 @@
             "epk": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "nonce": "AAAAAAAAAAAAAAAA",
             "ciphertext": "AAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        }
+      }
+    },
+    "access-lineage-repair": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.25",
+        "op": "lineage.repair",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {
+          "transition": "oid:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA",
+          "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      }
+    },
+    "removal-notice": {
+      "schema": "https://real-life.org/trust-tasks/removal-notice/0.1",
+      "document": {
+        "v": "rltp-access-removal-notice/0.24",
+        "type": "removal-notice",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "epoch": 8,
+        "author": "did:key:z6Mkjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+        "issuer": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss",
+        "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    "key-request-device": {
+      "schema": "https://real-life.org/trust-tasks/key-delivery/0.1",
+      "document": {
+        "keyDelivery": {
+          "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "epoch": 7,
+          "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "kind": "request",
+          "card": {
+            "anchor": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+            "device": "did:key:z6Mkdddddddddddddddddddddddddddddddddddddddddddd",
+            "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr",
+            "serviceIdentity": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss",
+            "proof": {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z33333333333333333333333333333333333333333333333333333333333333333333333333333333"
+            }
+          }
+        }
+      }
+    },
+    "key-request-first-device": {
+      "schema": "https://real-life.org/trust-tasks/key-delivery/0.1",
+      "document": {
+        "keyDelivery": {
+          "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "epoch": 7,
+          "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "kind": "request",
+          "card": {
+            "version": "rltp-card/0.25",
+            "anchor": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+            "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr",
+            "challenge": {
+              "value": "u8BPX31WVpE-kX4f4iPv60oqn7IldHWsNT3vXXvHHLLI",
+              "issuedAt": "2026-08-23T11:58:00Z"
+            },
+            "proof": {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "created": "2026-08-23T11:58:00Z",
+              "verificationMethod": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J#z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+              "proofPurpose": "assertionMethod",
+              "proofValue": "z3XJfyxwBXu3C2GF6gckqGEs1EDpvK8DzKMWfvPEob4JpAnw5BmMnSrdy3fNZvVTUBZbqp31jjq6MEcGcrns7vqMV"
+            }
           }
         }
       }
@@ -681,7 +881,7 @@
       "name": "transition: a ciphertext too short to hold key, nonce and tag is not one",
       "base": "access-remove",
       "set": {
-        "/body/transition/lineage/ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "/body/transition/lineage/0/ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
       }
     },
     {
@@ -768,13 +968,6 @@
       }
     },
     {
-      "name": "envelope: the 0.24 envelope has no keyOpDigest and is not produced or accepted by Access 0.54 (Access 11)",
-      "base": "access-genesis",
-      "set": {
-        "/v": "rltp-access/0.24"
-      }
-    },
-    {
       "name": "transition: an enforcement without keyOpDigest binds no key operation (Access 4440, 7045, 9270)",
       "base": "access-remove",
       "delete": "/body/transition/keyOpDigest"
@@ -802,10 +995,12 @@
       "name": "transition: the bare form carries no linear/0.1 field — a half-linear transition is no form",
       "base": "access-rotate-beekem",
       "set": {
-        "/body/transition/lineage": {
-          "opens": 7,
-          "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        }
+        "/body/transition/lineage": [
+          {
+            "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        ]
       }
     },
     {
@@ -896,6 +1091,110 @@
       "name": "key-delivery: the beekem/0.1 material kind needs its sealed material (RLTP-ACC-9897, 10050)",
       "base": "key-delivery-material",
       "delete": "/keyDelivery/sealed"
+    },
+    {
+      "name": "envelope: under rltp-access/0.25 the genesis binds its key operation — keyOpDigest is required only there (RLTP-ACC-11100)",
+      "base": "access-genesis-0.24",
+      "set": {
+        "/v": "rltp-access/0.25"
+      }
+    },
+    {
+      "name": "envelope: under rltp-access/0.25 a transition without keyOpDigest binds no key operation (RLTP-ACC-11100, 7045)",
+      "base": "access-remove-0.24",
+      "set": {
+        "/v": "rltp-access/0.25"
+      }
+    },
+    {
+      "name": "envelope: only the wire versions 0.24 and 0.25 are accepted (RLTP-ACC-11100)",
+      "base": "access-remove",
+      "set": {
+        "/v": "rltp-access/0.23"
+      }
+    },
+    {
+      "name": "transition: lineage is an array of edges, not one entry (RLTP-ACC-9760)",
+      "base": "access-remove",
+      "set": {
+        "/body/transition/lineage": {
+          "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    {
+      "name": "transition: a lineage entry opens a key state by its transition id, never by an epoch number (RLTP-ACC-9705, 9760)",
+      "base": "access-remove",
+      "set": {
+        "/body/transition/lineage/0/opens": 7
+      }
+    },
+    {
+      "name": "transition: an empty lineage succeeds nothing — that is the narrowing act, not a lineage (RLTP-ACC-9760, 9790)",
+      "base": "access-remove",
+      "set": {
+        "/body/transition/lineage": []
+      }
+    },
+    {
+      "name": "lineage.repair: the edge is named by transition ids, not by epoch numbers (RLTP-ACC-9830)",
+      "base": "access-lineage-repair",
+      "set": {
+        "/body": {
+          "epoch": 8,
+          "opens": 7,
+          "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    {
+      "name": "lineage.repair: the edge needs the transition it belongs to (RLTP-ACC-9830)",
+      "base": "access-lineage-repair",
+      "delete": "/body/transition"
+    },
+    {
+      "name": "removal notice: the issuer who produced it is named (RLTP-ACC-10350)",
+      "base": "removal-notice",
+      "delete": "/issuer"
+    },
+    {
+      "name": "removal notice: closed — no document proof inside the payload (RLTP-ACC-10370)",
+      "base": "removal-notice",
+      "set": {
+        "/proof": {
+          "type": "DataIntegrityProof"
+        }
+      }
+    },
+    {
+      "name": "key request: a request under a member anchor alone is refused — a card is required (RLTP-ACC-5565, 10060)",
+      "base": "key-request-device",
+      "delete": "/keyDelivery/card"
+    },
+    {
+      "name": "key request: an unsigned device card binds no device (RLTP-ACC-5565, 5120)",
+      "base": "key-request-device",
+      "delete": "/keyDelivery/card/proof"
+    },
+    {
+      "name": "key request: a request seals nothing (RLTP-ACC-10050)",
+      "base": "key-request-first-device",
+      "set": {
+        "/keyDelivery/sealed": {
+          "rkid": "z6LShhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+          "epk": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "nonce": "AAAAAAAAAAAAAAAA",
+          "ciphertext": "AAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    {
+      "name": "registration: a declared intake budget is positive (RLTP-ACC-9535)",
+      "base": "access-registration",
+      "set": {
+        "/intakeBudget": 0
+      }
     }
   ]
 }

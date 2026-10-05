@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://real-life.org/rltp/v1/schemas/access-registration.schema.json",
  "title": "RLTP Service Registration (artifact 0.27, Access Layer section 7.3)",
- "description": "The versioned wire artifact by which a group registers at a service (trust-on-first-use binding genesisDigest -> view chain). Signature input = JCS serialization with sig omitted; sig MUST verify under the named identity field (the seq-0 service identity, which MUST also sign the seq-0 view). service names the ONE service this registration is for — a service MUST reject a registration not naming itself (no cross-service replay). Durations use the profile day/time subset with fixed-seconds arithmetic (Access 7.3); divergenceQuota is the retained-full-artifact bound of Access 7.3 obligation 5 (the digest skeleton is hard-bounded at 8 x divergenceQuota entries with mandatory compaction). Out-of-range values, missing fields, or a failing signature make the registration invalid — services MUST NOT repair or default them. Fields attestationKey, registrationGeneration, previousRegistration, authorizationRoot carry the generation chain, the group-authorized service rebind; a replayed old registration cannot re-open a superseded generation. New in 0.27: the REQUIRED field class (blind | view | log) declares the service class, what the service may receive and learn of the group (Access 9.3, RLTP-ACC-9560/9570); a registration without it is invalid (RLTP-ACC-7330).",
+ "description": "The versioned wire artifact by which a group registers at a service (trust-on-first-use binding genesisDigest -> view chain). Signature input = JCS serialization with sig omitted; sig MUST verify under the named identity field (the seq-0 service identity, which MUST also sign the seq-0 view). service names the ONE service this registration is for — a service MUST reject a registration not naming itself (no cross-service replay). Durations use the profile day/time subset with fixed-seconds arithmetic (Access 7.3); divergenceQuota is the retained-full-artifact bound of Access 7.3 obligation 5 (the digest skeleton is hard-bounded at 8 x divergenceQuota entries with mandatory compaction). Out-of-range values, missing fields, or a failing signature make the registration invalid — services MUST NOT repair or default them. Fields attestationKey, registrationGeneration, previousRegistration, authorizationRoot carry the generation chain, the group-authorized service rebind; a replayed old registration cannot re-open a superseded generation. New in 0.27: the REQUIRED field class (blind | view | log) declares the service class, what the service may receive and learn of the group (Access 9.3, RLTP-ACC-9560/9570); a registration without it is invalid (RLTP-ACC-7330). Optional intakeBudget: the declared intake budget of RLTP-ACC-9535.",
  "type": "object",
  "required": [
   "v",
@@ -72,6 +72,11 @@
    "minimum": 16,
    "maximum": 4096,
    "description": "bound on retained full view artifacts per group while fail-closed (Access 7.3 obligation 5); RECOMMENDED default 64"
+  },
+  "intakeBudget": {
+   "type": "integer",
+   "minimum": 1,
+   "description": "OPTIONAL: the declared intake bound of RLTP-ACC-9535 — a positive budget per presenter and group over stalenessBound. A service that bounds its intake by size, rate or syntactic validity MUST declare it here and apply it per presenter and group, admitting on presentation every valid authority operation within it; it MUST NOT bound intake by the sender's membership or by the author of an authority operation. Absent: the service declares no bound. Access 0.54 names neither the field nor the unit the budget counts in; the schema constrains only a positive integer."
   },
   "sig": {
    "type": "string",

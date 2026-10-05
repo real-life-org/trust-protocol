@@ -88,7 +88,7 @@
                 "type": "string",
                 "pattern": "^[A-Za-z0-9_-]+$",
                 "maxLength": 65536,
-                "description": "base64url (unpadded) bytes of the adapter's key operation (Access 9.4.2, RLTP-ACC-9870); the enforcement operation's keyOpDigest is the multibase multihash over exactly these bytes. Transcription placeholder: Access 0.54 names no closed keys schema for beekem/0.1"
+                "description": "base64url (unpadded) bytes of the adapter's key operation (Access 9.4.2, RLTP-ACC-9870, 9890), addressed to the material's recipient; the enforcement operation's keyOpDigest is the multibase multihash over exactly the key-operation bytes. In the key-delivery kind material (RLTP-ACC-9897) it is a key operation that gives the requesting device a leaf or path for the helper's current epoch, verified by the receiver against the keyOpDigest of the enforcement operation it answers. Transcription placeholder: Access 0.54 names no closed keys schema for beekem/0.1"
               }
             }
           }

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/key-delivery/0.1",
   "title": "Payload: key-delivery/0.1 (rltp-access@0.54, target Trust Tasks framework 0.4)",
-  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI). Epoch key material to a specific party, and the authenticated request for it: kind=keydist (transition key envelope; authority carrier = the transition whose keyDist commits this sealed envelope's digest, AAD-bound to genesis digest, newEpoch, and recipient — never the operation id), kind=re-welcome (welcome seal toward an admission subject) and kind=refresh (keydist-profile seal toward any currently entitled member) — both registered by linear/0.1 and both from fresh P4 material, adopted only if the unsealed content key matches the current epoch's contentKeyCommitment in the log (which authenticates ALL consensus-relevant material: side secrets are derived from the content key, never transported) — kind=material (registered by beekem/0.1, RLTP-ACC-9897: the answer to an entitled key request, a rltp-access-material/0.24 object with keys = { op } addressed to the requesting device, sealed to the request's card, verifiable against the current keyOpDigest chain) — and kind=request (signed claim under the key service duty; the task document's proof is REQUIRED and verifies under the claiming anchor, which equals the enclosed card's anchor; never pends). Material kinds carry NO document proof (one carrier). The group identity (genesisDigest) is computed over the proof-free genesis signature input (Access 3.2). Consistency and effects: Access 10.1.",
+  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI). Epoch key material to a specific party, and the authenticated request for it: kind=keydist (transition key envelope; authority carrier = the transition whose keyDist commits this sealed envelope's digest, AAD-bound to genesis digest, newEpoch, and recipient — never the operation id), kind=re-welcome (welcome seal toward an admission subject) and kind=refresh (keydist-profile seal toward any currently entitled member) — both registered by linear/0.1 and both from fresh P4 material, adopted only if the unsealed content key matches the current epoch's contentKeyCommitment in the log (which authenticates ALL consensus-relevant material: side secrets are derived from the content key, never transported) — kind=material (registered by beekem/0.1, RLTP-ACC-9897: the answer to an entitled key request, a rltp-access-material/0.24 object whose epoch is the helper's current epoch and whose keys.op is a key operation giving the requesting device a leaf or path for that epoch, sealed as re-welcome is sealed to the key-agreement key of the device card the request carries, recipient check applied to that device; the receiver verifies the operation against the keyOpDigest of the enforcement operation it answers) — and kind=request (signed claim under the key service duty, per device (RLTP-ACC-5560, 5565): it carries the requesting device's card, or for a first device the contact card whose derived binding (5125) is not revoked; a request under a member anchor alone is refused; the task document's proof is REQUIRED and verifies under the claiming anchor, which equals the enclosed card's anchor; never pends). Material kinds carry NO document proof (one carrier). The group identity (genesisDigest) is computed over the proof-free genesis signature input (Access 3.2). Consistency and effects: Access 10.1.",
   "type": "object",
   "required": [
     "keyDelivery"
@@ -38,7 +38,7 @@
         "op": {
           "type": "string",
           "pattern": "^oid:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
-          "description": "the transition (keydist), the canonical admission (re-welcome), any canonical admission of the recipient (refresh — none is distinguished, Access 5.3), or the operation the claim rests on (request); for material (beekem/0.1, 9.4.2) Access 0.54 does not name the operation — this transcription leaves it to the request it answers"
+          "description": "the transition (keydist), the canonical admission (re-welcome), any canonical admission of the recipient (refresh — none is distinguished, Access 5.3), the operation the claim rests on (request: a canonical admission of the requesting anchor or, for the founder, the genesis, RLTP-ACC-5560); for material (beekem/0.1) the enforcement operation whose keyOpDigest the material's key operation is verified against (RLTP-ACC-9897)"
         },
         "kind": {
           "enum": [
@@ -51,11 +51,20 @@
         },
         "sealed": {
           "$ref": "https://real-life.org/rltp/v1/schemas/sealed-envelope.schema.json",
-          "description": "REQUIRED for every material kind (keydist, re-welcome, refresh, material); absent for request. keydist: seal per Delivery section 5 with three deliberate differences (HKDF info rltp/v1/keydist; AAD = UTF-8 of JCS {genesis, newEpoch, recipient}; plaintext = rltp-access-keydist/0.24 object) whose digest the named transition commits. re-welcome: welcome seal per Membership section 4. refresh: keydist-profile seal from fresh P4 material at the sender's current position, sealed to the request's card; adopted only on commitment match (Access 10.1). material (beekem/0.1): seal of the rltp-access-material/0.24 object to the request's card (RLTP-ACC-9897)."
+          "description": "REQUIRED for every material kind (keydist, re-welcome, refresh, material); absent for request. keydist: seal per Delivery section 5 with three deliberate differences (HKDF info rltp/v1/keydist; AAD = UTF-8 of JCS {genesis, newEpoch, recipient}; plaintext = rltp-access-keydist/0.24 object) whose digest the named transition commits. re-welcome: welcome seal per Membership section 4. refresh: keydist-profile seal from fresh P4 material at the sender's current position, sealed to the request's card; adopted only on commitment match (Access 10.1). material (beekem/0.1): the rltp-access-material/0.24 object (epoch = the helper's current epoch, keys.op = a key operation giving the requesting device a leaf or path for that epoch) sealed as re-welcome is sealed, to the key-agreement key of the device card the request carries (RLTP-ACC-9897)."
         },
         "card": {
-          "$ref": "https://real-life.org/rltp/v1/schemas/contact-card.schema.json",
-          "description": "REQUIRED for request, absent otherwise: the requester's contact card in the displayed form (live key, no freshness claim), proof verifying under the requester's anchor"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/deviceCard",
+              "description": "the requesting device's card (Access 5.1), for a further device bound by device.add"
+            },
+            {
+              "$ref": "https://real-life.org/rltp/v1/schemas/contact-card.schema.json",
+              "description": "for a first device: the person's contact card in the displayed form, whose derived binding (RLTP-ACC-5125) is the device"
+            }
+          ],
+          "description": "REQUIRED for request, absent otherwise (RLTP-ACC-10060). Recovery is per device (RLTP-ACC-5565): the requesting device's card (5.1), or for a first device the contact card whose derived binding (5125) is not revoked; the helper checks that the device is bound to the requesting anchor and not revoked at its own current state (5560) and seals the answer to that device's key-agreement key (5580). A request under a member anchor alone is refused."
         }
       },
       "allOf": [
@@ -103,6 +112,63 @@
           }
         }
       ]
+    }
+  },
+  "$defs": {
+    "didKey": {
+      "type": "string",
+      "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+      "description": "did:key over an Ed25519 public key; MUST additionally decode to multicodec ed25519-pub + 32 bytes (Encounter 2.3)"
+    },
+    "deviceCard": {
+      "type": "object",
+      "required": [
+        "anchor",
+        "device",
+        "keyAgreement",
+        "serviceIdentity",
+        "proof"
+      ],
+      "additionalProperties": false,
+      "description": "device card (Access 5.1), transcribed from access-operation-envelope.schema.json $defs/deviceCard (keep both in step): binds a further device to its person's member anchor; carries exactly these fields (RLTP-ACC-5110); proof = { signer, sig } by a bound, unrevoked device of the same person (5120).",
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/didKey",
+          "description": "the member anchor of the device's person in this group"
+        },
+        "device": {
+          "$ref": "#/$defs/didKey",
+          "description": "the device's Ed25519 did:key, under which the device acts in the key port"
+        },
+        "keyAgreement": {
+          "type": "string",
+          "pattern": "^z6LS[1-9A-HJ-NP-Za-km-z]{44}$",
+          "description": "the device's X25519 key-agreement Multikey, to which key material for this device is sealed"
+        },
+        "serviceIdentity": {
+          "$ref": "#/$defs/didKey",
+          "description": "the device's derived service identity (Access 5.2)"
+        },
+        "proof": {
+          "type": "object",
+          "required": [
+            "signer",
+            "sig"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "signer": {
+              "$ref": "#/$defs/didKey"
+            },
+            "sig": {
+              "type": "string",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "minLength": 65,
+              "maxLength": 89
+            }
+          }
+        }
+      }
     }
   }
 }

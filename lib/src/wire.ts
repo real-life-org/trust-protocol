@@ -17,9 +17,9 @@ export type AccessMaterial = ({
   keys: { [k: string]: Json }
 })
 
-/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelope rltp-access/0.25) */
+/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelopes rltp-access/0.25 and rltp-access/0.24) */
 export type AccessOperationEnvelope = ({
-  v: "rltp-access/0.25"
+  v: "rltp-access/0.25" | "rltp-access/0.24"
   op: string
   group: string
   epoch: number
@@ -52,6 +52,7 @@ export type AccessRegistration = ({
   stalenessBound: string
   terminalRetention: string
   divergenceQuota: number
+  intakeBudget?: number
   sig: string
   attestationKey: string
   registrationGeneration: number
@@ -297,16 +298,25 @@ export type PayloadEncounterCredentialDelivery = {
   credential: EncounterCredential
 }
 
-/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.24, target Trust Tasks framework 0.4) */
+/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.54, target Trust Tasks framework 0.4) */
 export type PayloadKeyDelivery = {
   keyDelivery: ({
     group: string
     genesisDigest: string
     epoch: number
     op: string
-    kind: "keydist" | "re-welcome" | "refresh" | "request"
+    kind: "keydist" | "re-welcome" | "refresh" | "material" | "request"
     sealed?: SealedEnvelope
-    card?: ContactCard
+    card?: ({
+      anchor: string
+      device: string
+      keyAgreement: string
+      serviceIdentity: string
+      proof: {
+        signer: string
+        sig: string
+      }
+    }) | (ContactCard)
   })
 }
 
@@ -374,7 +384,7 @@ export type PayloadRegistryDeclaration = {
   }
 }
 
-/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.24 section 10.2) */
+/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.54 section 10.2) */
 export type PayloadRemovalNotice = {
   v: "rltp-access-removal-notice/0.24"
   type: "removal-notice"
@@ -384,6 +394,7 @@ export type PayloadRemovalNotice = {
   subject: string
   epoch: number
   author: string
+  issuer: string
   sig: string
 }
 
