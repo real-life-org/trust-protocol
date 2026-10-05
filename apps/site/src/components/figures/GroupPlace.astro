@@ -11,25 +11,26 @@ const log: { icon: IconName; op: string; by: string }[] = [
   { icon: 'fingerprint', op: 'genesis', by: 'by Anna' },
   { icon: 'shield', op: 'rule: two admit', by: 'by Anna, Peter' },
   { icon: 'users', op: 'admit Sam', by: 'by Anna, Peter' },
+  { icon: 'lock', op: 'remove Frida', by: 'by Peter, Sam · new key epoch' },
 ]
 type Device = { x: number; y: number; name: string; state: string; out?: boolean }
 const devices: Device[] = [
   { x: 60, y: 60, name: 'Anna', state: 'holds the key' },
   { x: 520, y: 60, name: 'Peter', state: 'holds the key' },
-  { x: 60, y: 262, name: 'Outside', state: 'ciphertext only', out: true },
+  { x: 60, y: 262, name: 'Frida', state: 'removed · ciphertext only', out: true },
   { x: 520, y: 262, name: 'Sam', state: 'holds the key' },
 ]
-// Dashed links from each device to the circle's edge (centre 320,220, r 150).
+// Dashed links from each device to the circle's edge (centre 320,220, r 160).
 const links = [
-  [120, 108, 189, 147],
-  [520, 108, 451, 147],
-  [120, 310, 186, 285],
-  [520, 310, 454, 285],
+  [120, 108, 180, 142],
+  [520, 108, 460, 142],
+  [120, 310, 174, 286],
+  [520, 310, 466, 286],
 ]
 ---
 <figure class="tp-group">
-  <svg viewBox="0 40 640 372" role="img" aria-labelledby="fig-group-title">
-    <title id="fig-group-title">A group. Its authority log: Anna founds it, the rule becomes that two members admit, Anna and Peter admit Sam. The same log is on the devices of Anna, Peter and Sam, who hold the key. A device outside the group holds ciphertext only.</title>
+  <svg viewBox="40 40 560 372" role="img" aria-labelledby="fig-group-title">
+    <title id="fig-group-title">A group. Its authority log: Anna founds it, the rule becomes that two members admit, Anna and Peter admit Sam, Peter and Sam remove Frida, which starts a new key epoch. The same log is on the devices of Anna, Peter and Sam, who hold the key. Frida's device is outside now and holds ciphertext only.</title>
 
     {links.map(([x1, y1, x2, y2]) => <line {x1} {y1} {x2} {y2} class="link" />)}
 
@@ -44,12 +45,13 @@ const links = [
       </g>
     ))}
 
-    <circle cx="320" cy="220" r="150" class="place" />
-    <text x="320" y="146" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
-    <line x1="254" y1="190" x2="254" y2="216" class="spine" />
-    <line x1="254" y1="244" x2="254" y2="270" class="spine" />
+    <circle cx="320" cy="220" r="160" class="place" />
+    <text x="320" y="112" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
+    <line x1="254" y1="154" x2="254" y2="176" class="spine" />
+    <line x1="254" y1="204" x2="254" y2="226" class="spine" />
+    <line x1="254" y1="254" x2="254" y2="276" class="spine" />
     {log.map((e, i) => {
-      const y = 162 + i * 54
+      const y = 126 + i * 50
       return (
         <g>
           <rect x="240" y={y} width="28" height="28" rx="7" class="tile" />
@@ -60,5 +62,4 @@ const links = [
       )
     })}
   </svg>
-  <figcaption>Group state is a deterministic reading of the log, on each device. Only members can read it.</figcaption>
 </figure>

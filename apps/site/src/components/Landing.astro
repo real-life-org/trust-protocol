@@ -104,6 +104,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <h2>Groups are places, not certificates</h2>
       <p>A group is an encrypted document replicated on every member's device, with a signed log of who joined, who left and which rules apply. Membership is a fact in that state and a capability: holding the key.</p>
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
+      <p>Group state is a deterministic reading of the log, on each device. Only members can read it.</p>
       <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
     <GroupPlace />
