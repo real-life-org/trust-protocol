@@ -276,3 +276,9 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
   has its own anchor and, toward every carrier, its own principal.
 
 More: [README of the specification repository](https://github.com/real-life-org/trust-protocol#what-is-different-about-it)
+
+## Next
+
+The [Encounter primer](/understand/encounter/) explains the first layer in
+detail. The [specifications](/get-started/read-the-spec/) follow in
+reading order.

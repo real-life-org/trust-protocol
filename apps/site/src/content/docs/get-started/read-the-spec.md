@@ -3,6 +3,10 @@ title: Read the spec
 description: The layer documents of RLTP, where to start and in which order.
 ---
 
+New to RLTP? Start with [Foundations](/understand/foundations/) and the
+[Encounter primer](/understand/encounter/); they explain the concepts the
+specifications assume.
+
 The specifications are written for implementers and reviewers: English,
 BCP 14 normative language, every document with Security and Privacy
 Considerations. They are dense. This order keeps the dependencies in view.
