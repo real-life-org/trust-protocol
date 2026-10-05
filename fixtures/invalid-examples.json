@@ -411,6 +411,24 @@
         "authorizationRoot": null,
         "sig": "z57NipiK2RxP3CpT3FNwZt9oHq6wvvFumQ2Gry9w9C7CPNQ9CqqVdbvZnY9fVixSdwo2FY3wQXkN4MM4BsNseu6iY"
       }
+    },
+    "key-delivery-material": {
+      "schema": "https://real-life.org/trust-tasks/key-delivery/0.1",
+      "document": {
+        "keyDelivery": {
+          "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "epoch": 7,
+          "op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "kind": "material",
+          "sealed": {
+            "rkid": "z6LShhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+            "epk": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "nonce": "AAAAAAAAAAAAAAAA",
+            "ciphertext": "AAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        }
+      }
     }
   },
   "cases": [
@@ -866,6 +884,18 @@
       "set": {
         "/adapter": "tree/0.1"
       }
+    },
+    {
+      "name": "key-delivery: an unregistered kind is rejected (RLTP-ACC-10040, 11050)",
+      "base": "key-delivery-material",
+      "set": {
+        "/keyDelivery/kind": "beekem-op"
+      }
+    },
+    {
+      "name": "key-delivery: the beekem/0.1 material kind needs its sealed material (RLTP-ACC-9897, 10050)",
+      "base": "key-delivery-material",
+      "delete": "/keyDelivery/sealed"
     }
   ]
 }

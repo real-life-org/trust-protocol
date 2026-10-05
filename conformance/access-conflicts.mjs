@@ -18,47 +18,58 @@
 //      state materialized from its own ancestors and by nothing else;
 //      an unauthorized operation is `invalid` and enters no concurrency
 //      rule (RLTP-ACC-3390). A position in the forked state answers
-//      fail-closed (3440), except for a `policy.change`: it is judged
-//      against its ancestry reconciled, every fork pairing in it counted
-//      as decided (the reading of 3565 the vectors fix: the closing
-//      `policy.change` is judged by the state its own decision produces
-//      from its ancestors);
-//   2. the fork pairings (RLTP-ACC-3495, 3460): an authorized
-//      `policy.change` concurrent with an authorized enforcement operation
-//      (another `policy.change` included), or an authorized terminal
-//      operation concurrent with an authorized enforcement operation. A
-//      pairing is decided when an authorized, non-forked `policy.change`
-//      has both siblings in its ancestry (3565); the rest are open. Every
-//      sibling of an open pairing and every operation building on one is
-//      `forked` (3440); the state is `forked`, and the member set, epoch
-//      and policy are those of the maximal prefix free of the open
-//      pairings (3630). Once decided, the pairing is no pairing: statuses
-//      are re-derived by the rules below over the reconciled DAG, so the
-//      former siblings become `canonical` or `removed-disposed` (3565);
-//   3. the removal disposition (RLTP-ACC-3520 … 3580): one least fixpoint,
+//      fail-closed (3440), except for a `policy.change`: it is the
+//      resolving operation and is judged against the state materialized
+//      from the maximal prefix of its ancestry free of the fork pairing —
+//      that prefix's members, policy, policy version and epoch (3565);
+//   2. the one remaining fork pairing (RLTP-ACC-3495): an authorized
+//      `policy.change` concurrent with an authorized enforcement operation,
+//      another `policy.change` included. A pairing is decided when an
+//      authorized, non-forked `policy.change` has both siblings in its
+//      ancestry (3565); the rest are open. Every sibling of an open
+//      pairing and every operation building on one is `forked` (3440,
+//      3568); the state is `forked`, and the member set, epoch and policy
+//      are those of the maximal prefix free of the open pairings (3630).
+//      Once decided, the pairing is no pairing: a sibling `policy.change`
+//      is `lapsed` (its policy effect lapses), every other sibling and
+//      what builds on it is re-derived by the rules below, and the
+//      resolving `policy.change` sets the policy (3567);
+//   3. the lapsing dissolution (RLTP-ACC-3460): an authorized
+//      `group.dissolve` concurrent with an authorized enforcement
+//      operation is `lapsed` — no effect, the merged state is not
+//      terminal; a `group.dissolve` whose ancestry holds both is judged
+//      against that merged state and ends the group;
+//   4. the removal disposition (RLTP-ACC-3520 … 3580): one least fixpoint,
 //      seeded by every authorized, non-forked removal R of S with the
 //      operations concurrent to R that are additive and authored by S
 //      (3525, 3530), and the concurrent admission of S itself (3485);
-//      closed over the additive operations of subjects whose admission it
-//      disposes (3540). A forked removal confers no effect (3345), so it
-//      seeds nothing;
-//   4. status: `forked` ≻ `removed-disposed` ≻ `canonical` (3562), an
-//      unauthorized operation outside the forked set `invalid`; removals
-//      with authority all take effect (3395, 3400, 3405, 3410), a rotation
-//      beside them too (3415), and a visibility change (3435);
-//   5. state: canonical operations folded in ready-set order, smallest id
+//      the step disposes the additive operations of admission-orphaned
+//      issuers (3540, 3570), an issuer being orphaned at an operation
+//      exactly when every admission carrying its membership at that
+//      operation's causal position is disposed (3572, 3585). A forked
+//      removal confers no effect (3345), so it seeds nothing;
+//   5. status: `forked` ≻ `removed-disposed` ≻ `lapsed` ≻ `canonical`
+//      (3562, `lapsed` placed by these vectors), an unauthorized operation
+//      outside the forked set `invalid`; removals with authority all take
+//      effect (3395, 3400, 3405, 3410), a rotation beside them too (3415,
+//      3417), and a visibility change (3418);
+//   6. state: canonical operations folded in ready-set order, smallest id
 //      first (RLTP-ACC-3340); the epoch of a canonical enforcement is its
-//      position's epoch + 1, the merged epoch the largest such number
-//      (RLTP-ACC-7040); a canonical `group.dissolve` makes the state
-//      `terminal` (3365).
+//      position's epoch + 1, the state's epoch the maximum over the
+//      canonical transitions it contains (RLTP-ACC-7040); the policy
+//      version of a canonical `policy.change` its position's version + 1
+//      (the resolver's: the prefix's + 1, 3565); a canonical
+//      `group.dissolve` makes the state `terminal` (3365); the retained
+//      set of a group state is its members minus its pending exits
+//      (RLTP-ACC-7010; no leaves are modelled, so: its members).
 // Not modelled: the terminal-versus-additive rules (3465, 3470), leaves,
-// and an operation other than a `policy.change` positioned on an open
-// fork (fail-closed: such an operation is `forked` while the fork is
+// devices, and an operation other than a `policy.change` positioned on an
+// open fork (fail-closed: such an operation is `forked` while the fork is
 // open and `invalid` once the fork is decided).
 import { createHash } from 'node:crypto'
 import { jcs } from './lib.mjs'
 
-export const STATUSES = ['canonical', 'removed-disposed', 'forked', 'invalid']
+export const STATUSES = ['canonical', 'lapsed', 'removed-disposed', 'forked', 'invalid']
 export const STATES = ['group', 'forked', 'terminal']
 
 // oid: + unpadded base64url SHA-256 over the JCS of the operation without id
@@ -85,7 +96,7 @@ export function linearize (ops) {
   return out
 }
 
-export function materialize (ops, { reconciled = false } = {}) {
+export function materialize (ops) {
   const order = linearize(ops)
   const anc = new Map()           // id → strict ancestors
   for (const op of order) {
@@ -95,13 +106,18 @@ export function materialize (ops, { reconciled = false } = {}) {
   }
   const concurrent = (a, b) => a.id !== b.id && !anc.get(a.id).has(b.id) && !anc.get(b.id).has(a.id)
 
-  // 1. authority at each position, from the materialization of its ancestors
+  // 1. authority at each position, from the materialization of its ancestors;
+  //    a policy.change on a forked position: from the fork-free prefix (3565)
+  const EMPTY = { members: {}, epoch: 0, policy: null, policyVersion: 0, state: 'empty' }
   const position = new Map()
   const authorized = new Set()
   for (const op of order) {
     const sub = order.filter((o) => anc.get(op.id).has(o.id))
-    let st = sub.length ? materialize(sub) : { members: {}, epoch: 0, policy: null, state: 'empty' }
-    if (st.state === 'forked' && op.kind === 'policy') st = materialize(sub, { reconciled: true })
+    let st = sub.length ? materialize(sub) : EMPTY
+    if (st.state === 'forked' && op.kind === 'policy') {
+      const prefix = sub.filter((o) => st.status[o.id] !== 'forked')
+      st = prefix.length ? materialize(prefix) : EMPTY
+    }
     position.set(op.id, st)
     const role = st.state === 'group' ? st.members[op.author] : undefined   // forked, terminal: fail-closed
     let ok = false
@@ -113,36 +129,50 @@ export function materialize (ops, { reconciled = false } = {}) {
     if (ok) authorized.add(op.id)
   }
 
-  // 2. the fork pairings; a pairing is decided by an authorized, non-forked
-  //    policy.change holding both siblings in its ancestry (greatest
-  //    fixpoint: start from every authorized policy.change, drop those that
-  //    end up forked themselves)
+  // 2. the fork pairing policy.change ∥ enforcement; decided by an
+  //    authorized, non-forked policy.change holding both siblings in its
+  //    ancestry (greatest fixpoint: start from every authorized
+  //    policy.change, drop those that end up forked themselves)
   const pairs = []
-  if (!reconciled) {
-    for (const [i, a] of order.entries()) {
-      for (const b of order.slice(i + 1)) {
-        if (!authorized.has(a.id) || !authorized.has(b.id) || !concurrent(a, b)) continue
-        const fork = (x, y) => (x.kind === 'policy' || TERMINAL.has(x.kind)) && ENFORCEMENT.has(y.kind)
-        if (fork(a, b) || fork(b, a)) pairs.push([a.id, b.id])
-      }
+  for (const [i, a] of order.entries()) {
+    for (const b of order.slice(i + 1)) {
+      if (!authorized.has(a.id) || !authorized.has(b.id) || !concurrent(a, b)) continue
+      const fork = (x, y) => x.kind === 'policy' && ENFORCEMENT.has(y.kind)
+      if (fork(a, b) || fork(b, a)) pairs.push([a.id, b.id])
     }
   }
   let resolvers = order.filter((o) => o.kind === 'policy' && authorized.has(o.id))
   let forked
+  let open
   for (;;) {
-    const open = pairs.filter(([a, b]) => !resolvers.some((r) => anc.get(r.id).has(a) && anc.get(r.id).has(b)))
+    open = pairs.filter(([a, b]) => !resolvers.some((r) => anc.get(r.id).has(a) && anc.get(r.id).has(b)))
     const siblings = new Set(open.flat())
     forked = new Set(order.filter((o) => siblings.has(o.id) || [...siblings].some((s) => anc.get(o.id).has(s))).map((o) => o.id))
     const kept = resolvers.filter((r) => !forked.has(r.id))
     if (kept.length === resolvers.length) break
     resolvers = kept
   }
+  const lapsed = new Set()
+  for (const [a, b] of pairs.filter((p) => !open.includes(p))) {
+    for (const id of [a, b]) if (order.find((o) => o.id === id).kind === 'policy') lapsed.add(id)
+  }
 
-  // 3. the removal disposition, one least fixpoint over all authorized,
+  // 3. the lapsing dissolution (3460)
+  for (const d of order) {
+    if (!TERMINAL.has(d.kind) || !authorized.has(d.id)) continue
+    if (order.some((e) => ENFORCEMENT.has(e.kind) && authorized.has(e.id) && concurrent(d, e))) lapsed.add(d.id)
+  }
+
+  // 4. the removal disposition, one least fixpoint over all authorized,
   //    non-forked removals
   const removals = order.filter((o) => o.kind === 'remove' && authorized.has(o.id) && !forked.has(o.id))
   const disposed = new Set()
-  const orphaned = new Set()      // subjects whose admission is disposed
+  // the admissions carrying `issuer`'s membership at `o`'s causal position
+  // (3585): its authorized admissions and the genesis in o's ancestry that
+  // no removal of the issuer in o's ancestry follows
+  const carrying = (issuer, o) => order.filter((a) =>
+    (a.kind === 'add' || a.kind === 'create') && a.subject === issuer && authorized.has(a.id) && anc.get(o.id).has(a.id) &&
+    !order.some((r) => r.kind === 'remove' && r.subject === issuer && authorized.has(r.id) && anc.get(o.id).has(r.id) && anc.get(r.id).has(a.id)))
   for (;;) {
     const before = disposed.size
     for (const r of removals) {
@@ -152,33 +182,35 @@ export function materialize (ops, { reconciled = false } = {}) {
       }
     }
     for (const o of order) {
-      if (disposed.has(o.id) && o.kind === 'add') orphaned.add(o.subject)
-    }
-    for (const o of order) {
-      if (authorized.has(o.id) && ADDITIVE.has(o.kind) && orphaned.has(o.author)) disposed.add(o.id)
+      if (disposed.has(o.id) || !authorized.has(o.id) || !ADDITIVE.has(o.kind)) continue
+      const legit = carrying(o.author, o)
+      if (legit.length && legit.every((a) => disposed.has(a.id))) disposed.add(o.id)   // 3572
     }
     if (disposed.size === before) break
   }
 
-  // 4./5. status and state
+  // 5./6. status and state
   const status = {}
   const members = {}
   let epoch = 0
   let policy = null
+  let policyVersion = 0
   let terminal = false
   for (const op of order) {
-    status[op.id] = forked.has(op.id) ? 'forked' : !authorized.has(op.id) ? 'invalid' : disposed.has(op.id) ? 'removed-disposed' : 'canonical'
+    status[op.id] = forked.has(op.id) ? 'forked' : !authorized.has(op.id) ? 'invalid'
+      : disposed.has(op.id) ? 'removed-disposed' : lapsed.has(op.id) ? 'lapsed' : 'canonical'
     if (status[op.id] !== 'canonical') continue
-    if (op.kind === 'create') members[op.subject] = 'admin'
+    if (op.kind === 'create') { members[op.subject] = 'admin'; policyVersion = 1 }
     else if (op.kind === 'add') members[op.subject] = op.role
     else if (op.kind === 'remove') delete members[op.subject]
-    else if (op.kind === 'policy') policy = op.id
+    else if (op.kind === 'policy') { policy = op.id; policyVersion = position.get(op.id).policyVersion + 1 }
     else if (op.kind === 'dissolve') terminal = true
     if (ENFORCEMENT.has(op.kind)) epoch = Math.max(epoch, position.get(op.id).epoch + 1)
   }
   const sorted = Object.fromEntries(Object.keys(members).sort().map((k) => [k, members[k]]))
   const state = terminal ? 'terminal' : forked.size ? 'forked' : 'group'
-  return { state, members: sorted, epoch, policy, status }
+  const retained = state === 'group' ? Object.keys(sorted) : null
+  return { state, members: sorted, epoch, policy, policyVersion, retained, status }
 }
 
 // Delivery in an arbitrary order: an operation waits until its predecessors

@@ -1377,10 +1377,12 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     check(r.policy === c.expected.policy, `${c.scenario}: policy in effect ${c.expected.policy ?? 'genesis'}`)
     check(same(r.members, c.expected.members), `${c.scenario}: members ${JSON.stringify(Object.keys(c.expected.members))} — ${c.name}`)
     check(r.epoch === c.expected.epoch, `${c.scenario}: merged epoch ${c.expected.epoch}`)
+    check(r.policyVersion === c.expected.policyVersion, `${c.scenario}: policy version ${c.expected.policyVersion}`)
+    check(same(r.retained, c.expected.retained), `${c.scenario}: retained set ${JSON.stringify(c.expected.retained)}`)
     check(same(r.status, c.expected.status), `${c.scenario}: status of every operation as declared`)
     for (const [i, order] of (c.deliveryOrders ?? []).entries()) {
       const d = deliver(c.ops, order)
-      check(d.state === c.expected.state && same(d.members, c.expected.members) && d.epoch === c.expected.epoch && d.policy === c.expected.policy && same(d.status, c.expected.status), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
+      check(same(d, r) && same({ state: d.state, members: d.members, retained: d.retained, epoch: d.epoch, policy: d.policy, policyVersion: d.policyVersion, status: d.status }, c.expected), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
     }
   }
   // the oracle can fail: the S4f DAG with the disposed admission declared canonical
@@ -1401,10 +1403,35 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     check(materialize(ended.ops.slice(0, -1)).state === 'forked',
       'access-conflicts: without its closing policy.change the ended fork is forked')
   }
+  // … a lapsed dissolution declared canonical, an issuer with a surviving admission declared orphaned
+  {
+    const c = AC.cases.find((x) => x.scenario === 'dissolve ∥ removal: lapses')
+    const forged = structuredClone(c.expected.status)
+    forged[Object.keys(forged).find((id) => forged[id] === 'lapsed')] = 'canonical'
+    check(!same(materialize(c.ops).status, forged) && materialize(c.ops).state !== 'terminal',
+      'access-conflicts: a lapsed dissolution declared canonical (terminal) is detected')
+    const anew = AC.cases.find((x) => x.scenario === 'dissolve ∥ removal: issued anew')
+    check(materialize(anew.ops.slice(0, -1)).state === 'group',
+      'access-conflicts: without the dissolution issued anew the lapsed one leaves a group')
+    const o = AC.cases.find((x) => x.scenario === 'admission-orphaned: one admission survives')
+    const yId = o.ops.find((op) => op.label === 'x-adds-y').id
+    check(materialize(o.ops).status[yId] === 'canonical' && 'x' in materialize(o.ops).members,
+      'access-conflicts: one surviving legitimizing admission keeps the issuer and what it issued (RLTP-ACC-3572)')
+    const lone = o.ops.filter((op) => op.label !== 'alice-adds-x').map((op) => op.label === 'x-adds-y' ? { ...op, preds: op.preds.filter((p) => o.ops.some((q) => q.id === p && q.label !== 'alice-adds-x')) } : op)
+    for (const op of lone) op.id = op.label === 'x-adds-y' ? opId(op) : op.id
+    check(Object.values(materialize(lone).status).filter((v) => v === 'removed-disposed').length === 2,
+      'access-conflicts: without the surviving admission the issuer is orphaned and its admission disposed')
+    const d = AC.cases.find((x) => x.scenario === 'epoch: unequal depth')
+    check(d.expected.epoch === 2, 'access-conflicts: transitions of unequal depth merge under the deeper epoch (RLTP-ACC-7040)')
+    const rt = AC.cases.find((x) => x.scenario === 'retained set: merged state')
+    check(same(rt.expected.retained, ['alice', 'carol', 'x']), 'access-conflicts: the merged retained set is the merged membership, not the intersection (RLTP-ACC-7010)')
+  }
   check(['S4b', 'S4c', 'S4d', 'S4f', 'review #11', 'removal chain', 'delivery order'].every((s) => AC.cases.some((c) => c.scenario === s)),
     'access-conflicts: the scenarios RLTP-ACC-14050 names are all present')
-  check(['fork: policy ∥ policy', 'fork: policy ∥ removal', 'fork: dissolve ∥ removal', 'fork ended: policy ∥ policy'].every((s) => AC.cases.some((c) => c.scenario === s)),
-    'access-conflicts: the fork cases of the Access 14 vector plan are all present')
+  check(['fork: policy ∥ policy', 'fork: policy ∥ removal', 'dissolve ∥ removal: lapses', 'fork ended: policy ∥ policy'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the fork cases of the Access 14 vector plan are all present (the dissolution case as it lapses, RLTP-ACC-3460)')
+  check(['dissolve ∥ removal: issued anew', 'fork ended: policy ∥ removal', 'admission-orphaned: one admission survives', 'epoch: unequal depth', 'retained set: merged state'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the cases review 1 added are all present')
 }
 
 // ── result ───────────────────────────────────────────────────────────────

@@ -730,7 +730,7 @@
               }
             }
           },
-          "description": "one entry per retained member (Access 7.1 computed retained set; linear/0.1 only, 9.4.1); recipients MUST be pairwise distinct (schema uniqueItems is object-level; the per-recipient uniqueness rule is normative text + vector)"
+          "description": "one entry per retained DEVICE: exactly the bound, unrevoked devices of the computed retained set (Access 7.1; linear/0.1 only, RLTP-ACC-9700, 9730), recipient = the device's did:key (a person's first device is its member anchor key, 5125), envelope = digest of the key envelope sealed to that device's key-agreement key (9740, 9750); recipients MUST be pairwise distinct (schema uniqueItems is object-level; the per-recipient uniqueness rule is normative text + vector). The 8 devices per member bound (RLTP-ACC-5145) is a validity rule, not a schema constraint."
         },
         "lineage": {
           "type": "object",
@@ -890,7 +890,7 @@
         "proof"
       ],
       "additionalProperties": false,
-      "description": "device card (Access 5.1): binds one device to its person's member anchor; carries exactly these fields (RLTP-ACC-5110). Signature input = JCS serialization with proof omitted; signed by a device of the same person already bound at the operation's position or, for the first device, under the member anchor (RLTP-ACC-5120). Access 0.54 names no proof object shape; this transcription uses the envelope's { signer, sig } form.",
+      "description": "device card (Access 5.1): binds a FURTHER device to its person's member anchor; carries exactly these fields (RLTP-ACC-5110). A person's first device has no card: it is derived from the contact card of the genesis or the membership-accept (RLTP-ACC-5125). Proof = { signer, sig } per the 5.1 table: signer = the did:key of the signing device, a device of the same person bound and not revoked at the operation's position (RLTP-ACC-5120, 5175); sig = multibase base58btc (z…) Ed25519 signature over the JCS serialization with proof omitted. At most 8 bound, unrevoked devices per member (RLTP-ACC-5145) and the re-binding of a revoked device key (5175) are validity rules, not schema constraints.",
       "properties": {
         "anchor": {
           "$ref": "#/$defs/didKey",
