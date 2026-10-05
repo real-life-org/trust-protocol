@@ -29,7 +29,7 @@ const links = [
 ---
 <figure class="tp-group">
   <svg viewBox="0 40 640 372" role="img" aria-labelledby="fig-group-title">
-    <title id="fig-group-title">A group named Garden group. Its authority log: Anna founds it, the rule becomes that two members admit, Anna and Peter admit Sam. The same log is on the devices of Anna, Peter and Sam, who hold the key. A device outside the group holds ciphertext only.</title>
+    <title id="fig-group-title">A group. Its authority log: Anna founds it, the rule becomes that two members admit, Anna and Peter admit Sam. The same log is on the devices of Anna, Peter and Sam, who hold the key. A device outside the group holds ciphertext only.</title>
 
     {links.map(([x1, y1, x2, y2]) => <line {x1} {y1} {x2} {y2} class="link" />)}
 
@@ -45,12 +45,11 @@ const links = [
     ))}
 
     <circle cx="320" cy="220" r="150" class="place" />
-    <text x="320" y="112" class="title" text-anchor="middle">Garden group</text>
-    <text x="320" y="132" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
-    <line x1="254" y1="178" x2="254" y2="204" class="spine" />
-    <line x1="254" y1="232" x2="254" y2="258" class="spine" />
+    <text x="320" y="146" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
+    <line x1="254" y1="190" x2="254" y2="216" class="spine" />
+    <line x1="254" y1="244" x2="254" y2="270" class="spine" />
     {log.map((e, i) => {
-      const y = 150 + i * 54
+      const y = 162 + i * 54
       return (
         <g>
           <rect x="240" y={y} width="28" height="28" rx="7" class="tile" />
@@ -60,7 +59,6 @@ const links = [
         </g>
       )
     })}
-    <text x="320" y="328" class="note" text-anchor="middle">same log on every device</text>
   </svg>
   <figcaption>Group state is a deterministic reading of the log, on each device. Only members can read it.</figcaption>
 </figure>

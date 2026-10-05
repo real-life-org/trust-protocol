@@ -320,7 +320,6 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-group svg { display: block; width: 100%; height: auto; overflow: visible; }
 .tp-group figcaption { margin-top: .75rem; font-size: .9rem; line-height: 1.55; color: var(--sl-color-gray-3); }
 .tp-group text { font-family: var(--font-sans); fill: var(--sl-color-gray-2); }
-.tp-group .title { font-size: 16px; font-weight: 700; fill: var(--sl-color-white); }
 .tp-group .kicker { font-size: 11.5px; font-weight: 650; letter-spacing: .08em; fill: var(--sl-color-accent); }
 .tp-group .place { fill: color-mix(in oklab, var(--sl-color-accent) 8%, var(--sl-color-bg-sidebar)); stroke: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); stroke-width: 1.5; }
 .tp-group .tile { fill: var(--tp-tint); }
@@ -328,7 +327,6 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-group .op { font-size: 14px; font-weight: 600; fill: var(--sl-color-white); }
 .tp-group .by { font-size: 12px; fill: var(--sl-color-gray-3); }
 .tp-group .spine { stroke: color-mix(in oklab, var(--sl-color-accent) 40%, transparent); stroke-width: 2; }
-.tp-group .note { font-size: 12.5px; font-weight: 600; fill: var(--sl-color-accent); }
 .tp-group .link { stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 5; }
 .tp-group .device { fill: var(--sl-color-black); stroke: var(--sl-color-gray-5); stroke-width: 1.5; }
 .tp-group .mini { fill: var(--sl-color-gray-5); }
