@@ -59,7 +59,9 @@ export function parseSpecRules (text) {
     if (!comment && f) {
       const ch = f[1][0]; const len = f[1].length
       if (!fence) { fence = { ch, len }; continue }
-      if (fence.ch === ch && len >= fence.len) { fence = null; continue }
+      // a closing fence carries nothing but whitespace after its characters
+      const bare = /^\s{0,3}(`{3,}|~{3,})\s*$/.test(line)
+      if (fence.ch === ch && len >= fence.len && bare) { fence = null; continue }
     }
     const hidden = Boolean(fence) || comment
     // Comment state for the NEXT lines: open without close → inside;

@@ -77,6 +77,10 @@ test('tilde fences, long fences and HTML comments hide rules', () => {
   has(run('<!-- **RLTP-ENC-2010** — Hidden. -->\n\n**RLTP-ENC-2020** — Visible.', ids), 'RLTP-ENC-2010: in the manifest, not a rule')
   // a ``` fence is not closed by ~~~ nor by a shorter fence
   has(run('````\n~~~\n```\n' + GOOD + '\n````', ids), 'inside a code fence')
+  // a closing fence is bare: fence characters followed by text do not close
+  has(run('~~~\n~~~ not-a-closing-fence\n' + GOOD + '\n~~~', ids), 'inside a code fence')
+  has(run('```\n``` not-a-closing-fence\n' + GOOD + '\n```', ids), 'inside a code fence')
+  assert.deepEqual(run('~~~\n~~~   \n' + GOOD, ids).errors, [])
   // a fence inside a comment does not open; a closed fence frees the rules
   assert.deepEqual(run('<!-- ``` -->\n' + GOOD, ids).errors, [])
   assert.deepEqual(run('~~~\nx\n~~~~\n' + GOOD, ids).errors, [])
