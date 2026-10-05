@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // encounter — the ceremony's TRANSMISSION on the normative forms:
-// Encounter 0.29 (wire 0.25: rltp-card/0.25 · encounter-scan@0.25)
+// Encounter 0.30 (wire 0.25: rltp-card/0.25 · encounter-scan@0.25)
 // carried by Delivery 0.79 — encounter-bundle/0.1 (§4.1),
 // encounter-credential-delivery/0.1 (§4.3), acknowledged with the
 // SIGNED delivery-ack/0.1 (§4.2/4.4 class rule: signature-class payloads

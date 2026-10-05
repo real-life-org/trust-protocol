@@ -11,7 +11,7 @@
 // validate-ceremonies.mjs: "a checker that has never been shown to fail is
 // not evidence of anything."
 
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPrivateKey, createPublicKey, diffieHellman, hkdfSync, createCipheriv, createHash } from 'node:crypto'
@@ -177,6 +177,23 @@ for (const f of specFiles) {
       else if (missing.length) err(`${label}: omits field(s) ${basename(schema.$id)} requires: ${missing.join(', ')}`)
       else ok(`${label}: elided example — fields all defined, all required fields shown`)
     }
+  }
+}
+
+// ── 6. Encounter rule trace (inventory ↔ numbered rules) ─────────────────
+// The rule inventory lives outside this repository; when it is absent the
+// check is skipped, not failed. Path: ENCOUNTER_INVENTORY, or the sibling
+// workshop checkout.
+{
+  const inventory = process.env.ENCOUNTER_INVENTORY
+    || join(ROOT, '..', 'rltp', 'design', 'encounter-0.30-regelinventar.md')
+  if (existsSync(inventory)) {
+    const { checkTrace } = await import('./check-encounter-trace.mjs')
+    const r = checkTrace(inventory)
+    for (const e of r.errors) err(`encounter trace: ${e}`)
+    if (!r.errors.length) ok(`encounter trace: ${r.inventory} inventory rules ↔ ${r.rules} rule identifiers, one-to-one`)
+  } else {
+    ok('encounter trace: skipped (inventory not present)')
   }
 }
 

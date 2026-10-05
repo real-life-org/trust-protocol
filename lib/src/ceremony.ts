@@ -3,7 +3,7 @@
 //
 // Graduated 05.09.2026 after a 25-round adversarial conformance loop
 // (design/encounter-nachzug-konvergenz-2026-09.md): this module implements
-// the one registered ceremony `encounter-scan@0.25` (Encounter 0.29, wire
+// the one registered ceremony `encounter-scan@0.25` (Encounter 0.30, wire
 // 0.25) carried by the Delivery Contract 0.79 —
 //
 //   encounter-bundle/0.1                 the scanner's sent card + step
