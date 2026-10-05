@@ -226,7 +226,7 @@
    "@id": "rltp:PairAnchor",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
-   "skos:broader": "rltp:Anchor",
+   "skos:broader": { "@id": "rltp:Anchor" },
    "skos:prefLabel": [
     {
      "@value": "Paaranker",
@@ -495,7 +495,7 @@
    "@id": "rltp:IncomingEdge",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
-   "skos:broader": "rltp:Edge",
+   "skos:broader": { "@id": "rltp:Edge" },
    "skos:prefLabel": [
     {
      "@value": "Eingehende Kante",
@@ -525,7 +525,7 @@
    "@id": "rltp:OutgoingEdge",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
-   "skos:broader": "rltp:Edge",
+   "skos:broader": { "@id": "rltp:Edge" },
    "skos:prefLabel": [
     {
      "@value": "Ausgehende Kante",
@@ -555,7 +555,7 @@
    "@id": "rltp:MutualEdge",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
-   "skos:broader": "rltp:Edge",
+   "skos:broader": { "@id": "rltp:Edge" },
    "skos:prefLabel": [
     {
      "@value": "Beidseitige Kante",
