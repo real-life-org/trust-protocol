@@ -926,6 +926,11 @@ members.
 **RLTP-ACC-3450** — Evidence of fork siblings and disposed
 operations MUST keep travelling to the replicas entitled to it.
 
+**RLTP-ACC-3455** — A service of class `view` MUST reach its
+fail-closed state for a forked group through the view freshness
+bound and the divergence obligations of 7.3 alone; a service of
+class `log` reaches it by its own materialization.
+
 **RLTP-ACC-3565** — The forked state MUST end exactly when a
 `policy.change` whose ancestry contains both siblings is
 canonical, and the materialization MUST then be re-evaluated over
@@ -1107,6 +1112,43 @@ authorized admission for good. Causal binding of legitimization
 closes the time machine: a re-admission later never heals an
 earlier puppet act. The genesis is its own root; a founder is
 reached only by an explicit removal.
+
+**The send-point recheck of every key-bearing duty.**
+
+**RLTP-ACC-3600** — Every key-bearing duty MUST serialize
+production, the final entitlement recheck and the send handoff
+under one materialization-generation token that changes with every
+authorization-relevant change of the helper's materialization:
+canonical application, any disposition change, membership change,
+epoch change and terminality.
+
+**RLTP-ACC-3605** — At production, the helper MUST verify that the
+recipient is a current member of the token's snapshot, that the
+admission entitling them is canonical, and that no
+membership-ending operation lies in that snapshot's ancestry for
+them, and MUST bind the material to exactly that snapshot's epoch.
+
+**RLTP-ACC-3610** — At the send handoff, the helper MUST re-read the
+token atomically with the handoff and, if it changed, discard the
+material and re-evaluate the slot against the new generation.
+
+**RLTP-ACC-3615** — A membership-ending operation MUST dispose every
+open healing duty and key-service slot for its subject
+non-effectingly.
+
+**RLTP-ACC-3620** — The normative entitlement check for a
+key-bearing duty MUST be the recheck at the send point, never a
+check at request receipt alone.
+
+*Rationale.* Between the moment a helper decides that someone is
+entitled to a key and the moment the key irreversibly leaves, the
+materialization can change: a removal arrives, a disposition flips,
+an epoch moves. A key sent on a stale decision reaches a former
+member. The token closes that window without a lock on the log:
+whatever changed the answer also changed the token, and a handoff
+that sees a changed token starts over. A slot is never discharged
+to a former member, so no welcome is ever issued from a decision the
+group has not kept.
 
 **The total disposition order.**
 
@@ -2023,7 +2065,11 @@ person's member anchor. A device card carries:
 | `device` | the device's Ed25519 `did:key`, under which the device acts in the key port |
 | `keyAgreement` | the device's X25519 key-agreement Multikey, to which key material for this device is sealed |
 | `serviceIdentity` | the device's derived service identity (5.2) |
-| `proof` | a signature per RLTP-ACC-5120 over the JCS serialization with `proof` omitted |
+| `proof` | `{ "signer": <the signing device's did:key, or the member anchor for a first device>, "sig": <base64url Ed25519 signature> }` over the JCS serialization with `proof` omitted (RLTP-ACC-5120) |
+
+A device card's **digest** is the multibase multihash over the JCS
+serialization of the card with `proof` omitted; `device.revoke`
+names a card by this digest (4.5).
 
 **RLTP-ACC-5100** — The key port MUST hold separate key material for
 each bound device of a member.
@@ -2037,8 +2083,12 @@ above, entered into the authority log by a `device.add` operation
 same person already bound at the operation's position or, for the
 person's first device, under the person's member anchor.
 
-**RLTP-ACC-5130** — Adding a device MUST be an operation of the key
-port and MUST NOT change membership.
+**RLTP-ACC-5125** — The card a genesis carries for its founder and
+the card a membership-accept carries for its subject MUST be that
+person's first device card; no `device.add` is needed for it.
+
+**RLTP-ACC-5130** — Adding a further device MUST be an operation of
+the key port and MUST NOT change membership.
 
 **RLTP-ACC-5140** — Admitting a person MUST bring every device bound
 to that person at that point into the key structure.
@@ -2050,9 +2100,12 @@ The card is the bridge between the person in the log and the device
 in the key structure; recorded in the log, it is replicated,
 ordered, and judged like every other binding. Without the
 signature of an existing device of the same person, a stranger
-could bind a device to someone else's name and read along. A second
-device is not a policy decision (S5); the person adds it, and
-membership does not move. A device already bound when its person is
+could bind a device to someone else's name and read along. The
+first device needs no separate binding: the card that founds the
+group or accepts the admission already names a device key, and
+that device is the one the key port gives the first leaf to. A
+second device is not a policy decision (S5); the person adds it,
+and membership does not move. A device already bound when its person is
 admitted would otherwise be left without keys.
 
 **RLTP-ACC-5150** — Removing a device MUST be an operation of the
@@ -3917,7 +3970,7 @@ device card, 5.1) and travel via `key-delivery` (10.1).
 
 **RLTP-ACC-9860** — Under `linear/0.1`, `keyOpDigest` MUST be the
 multibase multihash over the JCS serialization of the operation's
-`keyDist` array.
+`keyDist` array, the empty array at the genesis.
 
 **RLTP-ACC-9840** — Under `linear/0.1`, `keys` MUST contain exactly
 `contentKey`, the epoch's 32-byte AES-256 content key.
@@ -4002,6 +4055,16 @@ multihash over those bytes, and which declares KV5 and KV6.
 **RLTP-ACC-9880** — Under `beekem/0.1`, a member's devices MUST be
 leaves of one key tree, one leaf per bound device (5.1), and the
 removal of a member MUST remove every leaf of that member.
+
+**RLTP-ACC-9890** — Under `beekem/0.1`, `keys` MUST contain exactly
+`op`, the base64url encoding of the key operation addressed to the
+material's recipient, and a transition MUST carry no material
+binding beyond `keyOpDigest`.
+
+```json
+{ "v": "rltp-access-material/0.24", "adapter": "beekem/0.1",
+  "epoch": 7, "keys": { "op": "…base64url…" } }
+```
 
 *Editor's note.* The registration exists because this adapter is
 the one under which all six invariants have been shown together
@@ -4884,7 +4947,10 @@ in both directions.
   RLTP-ACC-14050, plus: a `visibility.change` concurrent with a
   removal (both take effect); `policy.change` concurrent with any
   enforcement operation, another `policy.change` included (forked
-  state, nothing building on either sibling canonical), and the fork
+  state: the member set is that of the maximal prefix free of the
+  fork pairing, every operation on either sibling carries status
+  `forked`, and a `policy.change` descending from both siblings
+  ends the state, after which statuses are re-derived), and the fork
   ended by a `policy.change` whose ancestry contains both siblings;
   a terminal operation concurrent with an enforcement operation
   (forked state).
