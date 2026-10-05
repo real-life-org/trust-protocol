@@ -1365,7 +1365,7 @@ section('carrier-proof.json — the duration grammar maps to exact milliseconds'
 // ── suite: access-conflicts.json — the conflict matrix of Access 0.54 §3.6 ──
 section('access-conflicts.json — authority DAGs materialize as declared (Access 3.5, 3.6)')
 {
-  const { opId, materialize, deliver, STATUSES } = await import('./access-conflicts.mjs')
+  const { opId, materialize, deliver, STATUSES, STATES } = await import('./access-conflicts.mjs')
   const AC = J('vectors/access-conflicts.json')
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
   for (const c of AC.cases) {
@@ -1373,12 +1373,14 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     check(c.ops.every((o) => STATUSES.includes(c.expected.status[o.id])) && Object.keys(c.expected.status).length === c.ops.length,
       `${c.scenario}: one declared status per operation`)
     const r = materialize(c.ops)
+    check(STATES.includes(c.expected.state) && r.state === c.expected.state, `${c.scenario}: state ${c.expected.state}`)
+    check(r.policy === c.expected.policy, `${c.scenario}: policy in effect ${c.expected.policy ?? 'genesis'}`)
     check(same(r.members, c.expected.members), `${c.scenario}: members ${JSON.stringify(Object.keys(c.expected.members))} — ${c.name}`)
     check(r.epoch === c.expected.epoch, `${c.scenario}: merged epoch ${c.expected.epoch}`)
     check(same(r.status, c.expected.status), `${c.scenario}: status of every operation as declared`)
     for (const [i, order] of (c.deliveryOrders ?? []).entries()) {
       const d = deliver(c.ops, order)
-      check(same(d.members, c.expected.members) && same(d.status, c.expected.status), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
+      check(d.state === c.expected.state && same(d.members, c.expected.members) && d.epoch === c.expected.epoch && d.policy === c.expected.policy && same(d.status, c.expected.status), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
     }
   }
   // the oracle can fail: the S4f DAG with the disposed admission declared canonical
@@ -1389,8 +1391,20 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     forged[disposedId] = 'canonical'
     check(!same(materialize(c.ops).status, forged), 'access-conflicts: a disposed admission declared canonical is detected')
   }
+  // … and a forked sibling declared canonical, or a fork declared ended without its closing policy.change
+  {
+    const c = AC.cases.find((x) => x.scenario === 'fork: policy ∥ removal')
+    const forged = structuredClone(c.expected.status)
+    forged[Object.keys(forged).find((id) => forged[id] === 'forked')] = 'canonical'
+    check(!same(materialize(c.ops).status, forged), 'access-conflicts: a forked sibling declared canonical is detected')
+    const ended = AC.cases.find((x) => x.scenario === 'fork ended: policy ∥ policy')
+    check(materialize(ended.ops.slice(0, -1)).state === 'forked',
+      'access-conflicts: without its closing policy.change the ended fork is forked')
+  }
   check(['S4b', 'S4c', 'S4d', 'S4f', 'review #11', 'removal chain', 'delivery order'].every((s) => AC.cases.some((c) => c.scenario === s)),
     'access-conflicts: the scenarios RLTP-ACC-14050 names are all present')
+  check(['fork: policy ∥ policy', 'fork: policy ∥ removal', 'fork: dissolve ∥ removal', 'fork ended: policy ∥ policy'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the fork cases of the Access 14 vector plan are all present')
 }
 
 // ── result ───────────────────────────────────────────────────────────────
