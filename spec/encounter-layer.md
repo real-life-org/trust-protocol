@@ -400,11 +400,13 @@ changes with that step, not before.
 
 ## 3. What an Encounter Establishes
 
-*In plain terms.* Two people scanned each other's fresh codes and
-each pressed "yes, I recognize this person". That proves that the keys
-were in the right hands at that moment and that two humans decided.
-It does not prove that they stood in the same room, that they are who
-their names say, or that either trusts the other.
+*In plain terms.* Two people exchanged fresh codes — by one scan or
+by two — and whoever issues a credential first pressed "yes, I
+recognize this person". That proves that the issuer's key was in the
+right hands at that moment and that a human decided; when both issue,
+it proves that for both. It does not prove that they stood in the
+same room, that they are who their names say, or that either trusts
+the other.
 
 An encounter establishes exactly four things:
 
@@ -438,7 +440,17 @@ relationship to whoever scans it.
 
 An encounter credential is issued by one party about another. It is
 complete on its own and is delivered to its subject, who holds it
-(7.4). The issuer keeps a copy; holding does not confer authority.
+(7.4). Holding does not confer authority.
+
+**RLTP-ENC-4005** — The issuer MUST retain a copy of each encounter
+credential it issues.
+
+*Rationale.* The issuer's `issued` state (4.2) and the receiver
+principle (7.4) both rest on the issuer holding what it issued:
+without the copy the issuer could not show its own side of the edge,
+and the statement that the subject gets no control over the issuer's
+copy would describe nothing. Holders therefore include the issuer
+(Section 14).
 
 ### 4.2 The edge is the relation, and it is per anchor pair
 
@@ -557,10 +569,13 @@ relationship.
 *In plain terms.* One registered ceremony: B shows a code, A scans
 it, A confirms and sends B a card and a credential — over the network
 if there is one, otherwise by showing a second code that B scans. B
-may confirm back, whenever. Every code is a single-use challenge; each
-side keeps a record of what it saw before it issues anything, and a
-credential is accepted only against such a record. Nothing about the
-meeting is decided by when a message arrives.
+may confirm back, whenever. Every code is a single-use challenge with
+a short lifetime: a card that reaches B after B's own challenge has
+aged out creates no record, whichever way it travelled. Each side
+keeps a record of what it saw before it issues anything, and a
+credential is accepted only against such a record. Once the records
+exist, a credential may arrive at any later time; its validity never
+depends on when it arrived.
 
 ### 5.1 Registered ceremonies
 
@@ -755,8 +770,9 @@ because the mark is set-only, concurrent unserialized writers can
 only agree, so the latch needs no lock. Whether an aged value is
 physically retained after the latch is unobservable. A rejection
 finalized outside the authoritative resolution races a concurrent
-record. "The displayed challenge" without a state model was
-ambiguous; every consumer therefore resolves. Binding the subject's
+record. Without a state model, "the displayed challenge" is ambiguous
+whenever challenges rotate — several issued values are live at once —
+so every consumer resolves instead. Binding the subject's
 challenge keeps acceptance checkable against the subject's own record
 however late the credential is delivered (5.6).
 
@@ -1323,10 +1339,11 @@ local state would vanish with it.
 An encounter credential belongs to its subject in authority, not in
 exclusivity.
 
-**RLTP-ENC-7110** — An implementation MUST NOT provide a directory, a
-publication mechanism, an operation by which an issuer can alter,
-revoke, or condition a delivered credential, or a protocol-level
-acceptance signal to the issuer.
+**RLTP-ENC-7110** — This layer defines no directory, no publication
+mechanism, no operation by which an issuer can alter, revoke, or
+condition a delivered credential, and no acceptance signal to the
+issuer; an implementation MUST NOT present any Encounter operation as
+providing one.
 
 **RLTP-ENC-7120** — A delivery acknowledgement (Delivery Contract 4.2)
 MUST NOT be presented as acceptance and MUST carry no statement about
@@ -1872,10 +1889,13 @@ drifts.
    the same edge. Under fresh-always enactment (4.4) every enactment
    carries new pair anchors, so two such enactments formally fall on
    two anchor pairs, joined only through the visibility layer's
-   continuity chain. Whether this document should separate *edge*
-   (per tuple) from *relationship* (per chain) at this point is
-   undecided; the vector "two enactments, one edge" stands as
-   written.
+   continuity chain. The two rules and the vector "two enactments,
+   one edge" (Section 15) therefore read "anchor pair" differently: as
+   one enactment tuple in 4.4, as the continuity-linked relationship
+   in 4.2 and the vector. Which reading governs counting — the tuple
+   edge or the chained relationship — is unresolved in this version;
+   an implementation that counts per relationship chain satisfies the
+   vector, one that counts per tuple does not.
 
 ## Appendix A (informative): implementation notes
 
@@ -1918,8 +1938,10 @@ the bounds of Section 8), the digest convention (2.3), and the DTG
 scope names for anchor classes (pair anchor = `pairwise`, member
 anchor = `directed`, persona = `public`); RLTP messages adopt Trust
 Tasks as private specifications; the message layer is the RLTP
-Delivery Contract. The participant-witness credential-type question
-remains the open upstream item (O12).
+Delivery Contract. Open upstream: whether the DTG credential family
+needs a participant-issued credential type for a witnessed enactment
+beside the third-party `WitnessCredential`, or whether the
+RelationshipCredential pair (7.1) is that type.
 
 *Editor's note (edge verifiability).* An encounter credential is a
 valid DTG attestation on its own. A DTG verifier that evaluates an

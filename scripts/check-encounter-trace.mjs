@@ -1,53 +1,129 @@
 #!/usr/bin/env node
-// Traceability check for the Encounter Layer: every rule of the rule
-// inventory (the 0.29 → 0.30 trace table, kept outside this repository)
-// appears exactly once in spec/encounter-layer.md as `**RLTP-ENC-nnnn**`,
-// and the specification carries no rule identifier the inventory does
-// not list.
+// Traceability check for the Encounter Layer's numbered rules.
 //
-//   usage: node scripts/check-encounter-trace.mjs <inventory.md> [spec.md]
+// Two sources of truth for the rule set:
+//   · the public manifest conformance/encounter-rule-ids-0.30.txt, one
+//     `RLTP-ENC-nnnn` per line, committed with the specification — this
+//     is what CI checks against;
+//   · the rule inventory (the 0.29 → 0.30 trace table, kept outside this
+//     repository) — checked additionally when present, and REQUIRED when
+//     ENCOUNTER_INVENTORY names it explicitly.
 //
-// Exit 1 on any violation. scripts/validate.mjs calls checkTrace() and
-// skips when the inventory is not present (CI has no copy of it).
-import { readFileSync } from 'node:fs'
+// A rule in the specification is a paragraph that starts, unindented and
+// outside any code fence, with `**RLTP-ENC-nnnn** — <statement>`. The
+// checker reports: an ID listed but not a rule; an ID that is a rule but
+// not listed; an ID that is a rule more than once (indented copies and
+// copies inside code fences are reported too); a bold rule marker that
+// is malformed (no separator, empty statement, ID not 4–5 digits); an
+// empty manifest or inventory.
+//
+//   usage: node scripts/check-encounter-trace.mjs [--inventory <file>] [--spec <file>] [--manifest <file>]
+//          node scripts/check-encounter-trace.mjs --write-manifest <inventory.md>
+//
+// Exit 1 on any violation, 2 on usage errors.
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const DEFAULT_SPEC = join(ROOT, 'spec/encounter-layer.md')
+export const DEFAULT_MANIFEST = join(ROOT, 'conformance/encounter-rule-ids-0.30.txt')
+export const DEFAULT_INVENTORY = join(ROOT, '..', 'rltp', 'design', 'encounter-0.30-regelinventar.md')
+
+const ID = /RLTP-ENC-\d{4,5}/
 
 // Inventory rows with an ID of their own start `| RLTP-ENC-nnnn |`;
 // rows starting `| = RLTP-ENC-…` are references to another row.
 export const inventoryIds = (text) =>
   [...text.matchAll(/^\|\s*(RLTP-ENC-\d+)\s*\|/gm)].map((m) => m[1])
 
-// A rule in the specification is `**RLTP-ENC-nnnn**` at a line start.
-export const specRuleIds = (text) =>
-  [...text.matchAll(/^\*\*(RLTP-ENC-\d+)\*\*/gm)].map((m) => m[1])
+// Manifest: one ID per line; blank lines and `#` comments ignored.
+export const manifestIds = (text) =>
+  text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
 
-export function checkTrace (inventoryPath, specPath = DEFAULT_SPEC) {
-  const inv = inventoryIds(readFileSync(inventoryPath, 'utf8'))
-  const spec = specRuleIds(readFileSync(specPath, 'utf8'))
-  const errors = []
-  const invSet = new Set(inv)
-  const dupInv = inv.filter((id, i) => inv.indexOf(id) !== i)
-  for (const id of new Set(dupInv)) errors.push(`inventory lists ${id} more than once`)
-  const count = new Map()
-  for (const id of spec) count.set(id, (count.get(id) ?? 0) + 1)
-  for (const id of inv) {
-    const n = count.get(id) ?? 0
-    if (n === 0) errors.push(`${id}: in the inventory, not a rule in the specification`)
-    else if (n > 1) errors.push(`${id}: appears ${n} times as a rule in the specification`)
+// Rule paragraphs of the specification, with everything the checker
+// needs to complain about.
+export function parseSpecRules (text) {
+  const rules = []      // { id, line }
+  const problems = []   // strings
+  let fenced = false
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const n = i + 1
+    if (/^\s*```/.test(line)) { fenced = !fenced; continue }
+    const m = line.match(/^(\s*)\*\*(RLTP-ENC-[^*]*)\*\*(.*)$/)
+    if (!m) continue
+    const [, indent, id, rest] = m
+    if (fenced) { problems.push(`${id} at line ${n}: rule marker inside a code fence`); continue }
+    if (indent) { problems.push(`${id} at line ${n}: rule marker is indented`); continue }
+    if (!ID.test(id) || !/^RLTP-ENC-\d{4,5}$/.test(id)) { problems.push(`"${id}" at line ${n}: malformed rule identifier`); continue }
+    const body = rest.match(/^\s+—\s+(\S.*)$/)
+    if (!body) { problems.push(`${id} at line ${n}: rule has no "— <statement>" after the identifier`); continue }
+    rules.push({ id, line: n })
   }
-  for (const id of count.keys()) if (!invSet.has(id)) errors.push(`${id}: a rule in the specification, not in the inventory`)
-  return { inventory: inv.length, rules: count.size, errors }
+  return { rules, problems }
+}
+
+export function checkTrace ({ spec = DEFAULT_SPEC, manifest = DEFAULT_MANIFEST, inventory = null } = {}) {
+  const errors = []
+  const specText = readFileSync(spec, 'utf8')
+  const { rules, problems } = parseSpecRules(specText)
+  errors.push(...problems)
+
+  // ID uniqueness in the specification — always.
+  const count = new Map()
+  for (const r of rules) count.set(r.id, (count.get(r.id) ?? 0) + 1)
+  for (const [id, n] of count) if (n > 1) errors.push(`${id}: appears ${n} times as a rule in the specification`)
+
+  const compare = (label, ids) => {
+    if (!ids.length) { errors.push(`${label} lists no rule identifiers`); return }
+    const seen = new Set()
+    for (const id of ids) {
+      if (!/^RLTP-ENC-\d{4,5}$/.test(id)) errors.push(`${label}: malformed identifier "${id}"`)
+      if (seen.has(id)) errors.push(`${label} lists ${id} more than once`)
+      seen.add(id)
+    }
+    for (const id of seen) if (!count.has(id)) errors.push(`${id}: in the ${label}, not a rule in the specification`)
+    for (const id of count.keys()) if (!seen.has(id)) errors.push(`${id}: a rule in the specification, not in the ${label}`)
+    return seen.size
+  }
+
+  if (!existsSync(manifest)) errors.push(`manifest not found: ${manifest}`)
+  const manifestCount = existsSync(manifest) ? compare('manifest', manifestIds(readFileSync(manifest, 'utf8'))) : 0
+  let inventoryCount = null
+  if (inventory) {
+    if (!existsSync(inventory)) errors.push(`inventory not found: ${inventory}`)
+    else inventoryCount = compare('inventory', inventoryIds(readFileSync(inventory, 'utf8')))
+  }
+  return { rules: count.size, manifest: manifestCount, inventory: inventoryCount, errors }
+}
+
+// Which inventory to use: an explicit ENCOUNTER_INVENTORY (or --inventory)
+// is mandatory; otherwise the sibling workshop checkout when present.
+export const resolveInventory = (explicit) => {
+  if (explicit) return { path: explicit, required: true }
+  if (existsSync(DEFAULT_INVENTORY)) return { path: DEFAULT_INVENTORY, required: false }
+  return { path: null, required: false }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const [inventoryPath, specPath] = process.argv.slice(2)
-  if (!inventoryPath) { console.error('usage: check-encounter-trace.mjs <inventory.md> [spec.md]'); process.exit(2) }
-  const r = checkTrace(inventoryPath, specPath)
+  const args = process.argv.slice(2)
+  const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined }
+  if (args.includes('--write-manifest')) {
+    const inv = opt('--write-manifest')
+    if (!inv) { console.error('usage: --write-manifest <inventory.md>'); process.exit(2) }
+    const ids = inventoryIds(readFileSync(inv, 'utf8'))
+    if (!ids.length) { console.error('inventory lists no rule identifiers'); process.exit(1) }
+    const out = opt('--manifest') ?? DEFAULT_MANIFEST
+    writeFileSync(out, `# Encounter Layer 0.30 — rule identifiers, one per line, generated from the rule inventory.\n# Regenerate: node scripts/check-encounter-trace.mjs --write-manifest <inventory.md>\n${ids.join('\n')}\n`)
+    console.log(`${ids.length} identifiers written to ${out}`)
+    process.exit(0)
+  }
+  const positional = args.filter((a, i) => !a.startsWith('--') && !(args[i - 1] ?? '').startsWith('--'))
+  const { path: inventory } = resolveInventory(opt('--inventory') ?? positional[0] ?? process.env.ENCOUNTER_INVENTORY)
+  const r = checkTrace({ spec: opt('--spec'), manifest: opt('--manifest'), inventory })
   for (const e of r.errors) console.error(`  ERROR ${e}`)
-  console.log(`${r.inventory} inventory rules, ${r.rules} rule identifiers in the specification${r.errors.length ? `, ${r.errors.length} error(s).` : ' — trace complete.'}`)
+  console.log(`${r.rules} rule identifiers in the specification, ${r.manifest} in the manifest${r.inventory === null ? ', inventory not checked' : `, ${r.inventory} in the inventory`}${r.errors.length ? `, ${r.errors.length} error(s).` : ' — trace complete.'}`)
   process.exit(r.errors.length ? 1 : 0)
 }

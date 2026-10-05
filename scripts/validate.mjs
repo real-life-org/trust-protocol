@@ -11,7 +11,7 @@
 // validate-ceremonies.mjs: "a checker that has never been shown to fail is
 // not evidence of anything."
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPrivateKey, createPublicKey, diffieHellman, hkdfSync, createCipheriv, createHash } from 'node:crypto'
@@ -180,21 +180,16 @@ for (const f of specFiles) {
   }
 }
 
-// ── 6. Encounter rule trace (inventory ↔ numbered rules) ─────────────────
-// The rule inventory lives outside this repository; when it is absent the
-// check is skipped, not failed. Path: ENCOUNTER_INVENTORY, or the sibling
-// workshop checkout.
+// ── 6. Encounter rule trace (manifest ↔ numbered rules) ──────────────────
+// Always against the committed manifest conformance/encounter-rule-ids-0.30.txt.
+// The private rule inventory is checked additionally when present, and is
+// REQUIRED when ENCOUNTER_INVENTORY names it.
 {
-  const inventory = process.env.ENCOUNTER_INVENTORY
-    || join(ROOT, '..', 'rltp', 'design', 'encounter-0.30-regelinventar.md')
-  if (existsSync(inventory)) {
-    const { checkTrace } = await import('./check-encounter-trace.mjs')
-    const r = checkTrace(inventory)
-    for (const e of r.errors) err(`encounter trace: ${e}`)
-    if (!r.errors.length) ok(`encounter trace: ${r.inventory} inventory rules ↔ ${r.rules} rule identifiers, one-to-one`)
-  } else {
-    ok('encounter trace: skipped (inventory not present)')
-  }
+  const { checkTrace, resolveInventory } = await import('./check-encounter-trace.mjs')
+  const { path: inventory } = resolveInventory(process.env.ENCOUNTER_INVENTORY)
+  const r = checkTrace({ inventory })
+  for (const e of r.errors) err(`encounter trace: ${e}`)
+  if (!r.errors.length) ok(`encounter trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
 }
 
 console.log(errors ? `\n${errors} error(s).` : '\nAll publication checks passed.')
