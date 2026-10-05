@@ -4,11 +4,12 @@
 //
 // The model abstracts from signatures and policies. An operation is
 //   { id, kind, author, subject, role, preds }
-// with kind ∈ create | add | remove | rotate. `role` (admin | member) is
+// with kind ∈ create | add | remove | rotate | visibility. `role` (admin | member) is
 // the standing an `add` confers; an author's standing at an operation's
 // position stands for the policy: an `admin` satisfies `member.add` and
-// `member.remove` (and creates the group), any member satisfies
-// `epoch.rotate` (its default `any-member`, Access 4.1).
+// `member.remove` and `visibility.change` (default `strongest`) and creates
+// the group; any member satisfies `epoch.rotate` (default `any-member`,
+// Access 4.1).
 //
 // The fold follows the spec, in this order:
 //   1. authority first (RLTP-ACC-3385): each operation is judged by the
@@ -22,7 +23,7 @@
 //      additive operations of subjects whose admission it disposes (3540);
 //   3. every other authorized operation is `canonical`; removals with
 //      authority all take effect (3395, 3400, 3405, 3410), a rotation
-//      beside them too (3415);
+//      beside them too (3415), and a visibility change (3435);
 //   4. state: canonical operations folded in ready-set order, smallest id
 //      first (RLTP-ACC-3340); the epoch of a canonical enforcement is its
 //      position's epoch + 1, the merged epoch the largest such number
@@ -38,7 +39,7 @@ export const STATUSES = ['canonical', 'removed-disposed', 'invalid']
 export const opId = ({ kind, author, subject, role, preds }) =>
   'oid:' + createHash('sha256').update(jcs({ kind, author, subject, role, preds }), 'utf8').digest('base64url')
 
-const ENFORCEMENT = new Set(['remove', 'rotate'])
+const ENFORCEMENT = new Set(['remove', 'rotate', 'visibility'])
 const ADDITIVE = new Set(['add'])
 
 // Ready-set linearization (RLTP-ACC-3340): repeatedly the smallest id
@@ -79,6 +80,7 @@ export function materialize (ops) {
     else if (op.kind === 'add') ok = role === 'admin' && !(op.subject in st.members)
     else if (op.kind === 'remove') ok = role === 'admin' && op.subject in st.members
     else if (op.kind === 'rotate') ok = role !== undefined
+    else if (op.kind === 'visibility') ok = role === 'admin'
     if (ok) authorized.add(op.id)
   }
 
