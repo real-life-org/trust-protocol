@@ -27,11 +27,11 @@ const encounter: Card[] = [
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
   ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
 ]
-const space: Card[] = [
-  ['lock', 'End-to-end encrypted', 'The relay sees neither contents nor keys.', '/understand/foundations/#groups'],
-  ['hard-drive', 'Complete on every device', 'Each member holds the whole space and works offline.', '/understand/foundations/#groups'],
-  ['waypoints', 'Changes merge', 'Concurrent edits converge; nobody has to settle them.', '/understand/foundations/#groups'],
-  ['shield', 'Former members read nothing new', 'Leaving ends access to everything that follows.', '/understand/foundations/#groups'],
+const space: [IconName, string][] = [
+  ['lock', 'End-to-end encrypted'],
+  ['hard-drive', 'Complete on every device'],
+  ['waypoints', 'Changes merge'],
+  ['shield', 'Former members read nothing new'],
 ]
 const services: Card[] = [
   ['plug', 'Delivery contract', 'Sealed envelopes, signed acknowledgements, a closed set of delivery states.', spec('delivery-contract.md')],
@@ -113,10 +113,10 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     <div>
       <div class="tp-badge">Shared space</div>
       <h2>A shared space for the group's work</h2>
-      <p>Events, places, projects, tasks, offers, needs, people, documents and messages: everything the group holds lives in one encrypted space. Members work offline and at the same time; when devices meet again, their changes merge.</p>
+      <p>Events, places, projects, offers, needs, people and messages: everything the group holds lives in one encrypted space. The relay in between sees ciphertext only.</p>
       <div class="tp-props">
-        {space.map(([icon, name, desc, href]) => (
-          <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+        {space.map(([icon, name]) => (
+          <div class="tp-item"><Icon name={icon} /><strong>{name}</strong></div>
         ))}
       </div>
     </div>

@@ -11,11 +11,9 @@ const kinds: { name: string; icon: IconName; hue: string }[] = [
   { name: 'Event', icon: 'calendar', hue: '#5b8cf6' },
   { name: 'Place', icon: 'map', hue: '#3fb45c' },
   { name: 'Project', icon: 'kanban', hue: '#a78bfa' },
-  { name: 'Task', icon: 'check-square', hue: '#8fd14f' },
   { name: 'Offer', icon: 'gift', hue: '#e39a4a' },
   { name: 'Need', icon: 'hand', hue: '#f0708a' },
   { name: 'Person', icon: 'user', hue: '#38bdf8' },
-  { name: 'Document', icon: 'file-text', hue: '#c9b458' },
   { name: 'Message', icon: 'message-square', hue: '#2dd4bf' },
 ]
 const devices: { name: string; state: string; mode?: 'behind' | 'outside' }[] = [
@@ -27,7 +25,7 @@ const devices: { name: string; state: string; mode?: 'behind' | 'outside' }[] = 
 const svg = (name: IconName) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`
 ---
-<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, projects, tasks, offers, needs, persons, documents and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is not yet in sync and merges on return, a device outside holds ciphertext only.">
+<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, projects, offers, needs, persons and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is not yet in sync and merges on return, a device outside holds ciphertext only.">
   <div class="tp-space-board">
     <div class="tp-space-head"><span class="tp-kicker">Shared space</span><span>one encrypted document</span></div>
     <ul class="tp-space-grid">
@@ -41,11 +39,10 @@ const svg = (name: IconName) =>
   <ul class="tp-space-devices">
     {devices.map((d) => (
       <li class={d.mode}>
-        <b>{kinds.map((k, i) => <s style={d.mode === 'behind' && i === kinds.length - 1 ? undefined : `--c: ${k.hue}`} />)}</b>
+        <b>{kinds.map((k, i) => <s style={d.mode === 'behind' && i === kinds.length - 1 ? undefined : `--c: ${k.hue}`} />)}<s class="empty" /></b>
         <strong>{d.name}</strong>
         <em>{d.state}</em>
       </li>
     ))}
   </ul>
-  <figcaption>Every member holds the whole collection. Changes made apart merge when devices meet again; the relay never sees a word of it.</figcaption>
 </figure>
