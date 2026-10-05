@@ -9,10 +9,10 @@ import { icons, type IconName } from '../icons'
 
 const kinds: { name: string; icon: IconName; hue: string }[] = [
   { name: 'Event', icon: 'calendar', hue: '#5b8cf6' },
-  { name: 'Place', icon: 'map', hue: '#3fb45c' },
-  { name: 'Project', icon: 'kanban', hue: '#a78bfa' },
+  { name: 'Place', icon: 'map-pin', hue: '#3fb45c' },
   { name: 'Offer', icon: 'gift', hue: '#e39a4a' },
   { name: 'Need', icon: 'hand', hue: '#f0708a' },
+  { name: 'Task', icon: 'check-square', hue: '#a78bfa' },
   { name: 'Person', icon: 'user', hue: '#38bdf8' },
   { name: 'Message', icon: 'message-square', hue: '#2dd4bf' },
 ]
@@ -25,7 +25,7 @@ const devices: { name: string; state: string; mode?: 'behind' | 'outside' }[] = 
 const svg = (name: IconName) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`
 ---
-<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, projects, offers, needs, persons and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is not yet in sync and merges on return, a device outside holds ciphertext only.">
+<figure class="tp-space" aria-label="The group's shared space: one stack each of events, places, offers, needs, tasks, persons and messages, with room for more. A blind relay carries ciphertext only. Anna's and Peter's devices hold the same collection in sync, Sam's is not yet in sync and merges on return, a device outside holds ciphertext only.">
   <div class="tp-space-board">
     <div class="tp-space-head"><span class="tp-kicker">Shared space</span><span>one encrypted document</span></div>
     <ul class="tp-space-grid">
