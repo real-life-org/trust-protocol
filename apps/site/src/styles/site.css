@@ -90,8 +90,8 @@ h2, h3 { letter-spacing: -.02em; }
 .tp-encounter { margin: 0; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; border-radius: 1.25rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-bg-sidebar); box-shadow: 0 30px 60px -30px oklch(0% 0 0 / .7); font-size: .8rem; }
 .tp-encounter-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .tp-kicker { font-size: .72rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--sl-color-gray-3); }
-.tp-offline { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; font-weight: 600; color: var(--warning); }
-.tp-offline::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: var(--warning); }
+.tp-offline { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; font-weight: 600; color: var(--sl-color-accent); }
+.tp-offline::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: var(--sl-color-accent); }
 .tp-devices { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; }
 .tp-devices::before { content: ''; position: absolute; left: 50%; top: 50%; width: 2.5rem; transform: translate(-50%, -50%); border-top: 2px dashed var(--sl-color-gray-4); }
 .tp-device { min-width: 0; display: flex; flex-direction: column; gap: .6rem; padding: .9rem; border-radius: .9rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-black); }
@@ -272,6 +272,8 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-btn.primary:hover { color: var(--tp-primary-fg); }
 
 /* Footer: part of the Real Life project */
+/* The splash page has no edit link or pagination; Starlight's footer there is empty space. */
+[data-has-hero] footer.sl-flex { display: none; }
 .tp-family { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--sl-color-gray-5); font-size: .85rem; color: var(--sl-color-gray-2); display: grid; gap: .5rem; }
 .tp-family nav { display: flex; flex-wrap: wrap; gap: 1rem; }
 .tp-family a { color: inherit; }
