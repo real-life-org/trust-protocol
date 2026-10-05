@@ -582,6 +582,151 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
+   "@id": "rltp:AuthorityPort",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Autoritäts-Port",
+     "@language": "de"
+    },
+    {
+     "@value": "Authority port",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Der Teil der Zugangsschicht, der über Mitgliedschaft, Policy und Berechtigung entscheidet: Log, Materialisierung, Konfliktmatrix, Policy, Sichten. Nicht durch einen Adapter ersetzbar.",
+     "@language": "de"
+    },
+    {
+     "@value": "The part of the Access Layer that decides membership, policy and authorization: log, materialization, conflict matrix, policy, views. Not replaceable by an adapter.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#91-the-authority-port"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:KeyPort",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Schlüssel-Port",
+     "@language": "de"
+    },
+    {
+     "@value": "Key port",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Schnittstelle, über die ein registrierter Adapter Epochengeheimnisse erzeugt, die die Invarianten KV1 bis KV6 erfüllen.",
+     "@language": "de"
+    },
+    {
+     "@value": "The interface through which a registered adapter produces epoch secrets satisfying the invariants KV1 to KV6.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#92-the-key-port"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Healing",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Heilung",
+     "@language": "de"
+    },
+    {
+     "@value": "Healing",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Korrektur der Schlüsselstruktur durch den Schlüssel-Port an die materialisierte Mitgliedschaft; das Log entscheidet, die Schlüssel folgen.",
+     "@language": "de"
+    },
+    {
+     "@value": "The key port's correction of its key structure to the materialized membership; the log decides, the keys follow.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#92-the-key-port"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:DeviceCard",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Gerätekarte",
+     "@language": "de"
+    },
+    {
+     "@value": "Device card",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die signierte Bindung des Schlüsselmaterials eines Geräts an den Mitgliedsanker der Person, der es gehört; steht im Autoritäts-Log.",
+     "@language": "de"
+    },
+    {
+     "@value": "The signed binding of one device's key material to the member anchor of the person it belongs to; recorded in the authority log.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:ServiceClass",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Dienstklasse",
+     "@language": "de"
+    },
+    {
+     "@value": "Service class",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die bei der Registrierung erklärte Aussage, was ein Dienst von einer Gruppe weiß: blind (nur Chiffrat), view (auch Berechtigungssichten) oder log (auch das Autoritäts-Log). Die Wahl trifft die Gruppe.",
+     "@language": "de"
+    },
+    {
+     "@value": "The statement, declared at registration, of what a service knows of a group: blind (ciphertext only), view (also authorization views) or log (also the authority log). The group chooses.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#93-the-service"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
    "@id": "rltp:Attestation",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
