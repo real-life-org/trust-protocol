@@ -313,3 +313,24 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-cred { flex-wrap: wrap; }
   .tp-cred code { width: 100%; padding-left: 1.6rem; }
 }
+
+/* Why page: the quote, and the two figures, plain, in the colours of the docs. */
+.sl-markdown-content .tp-quote { border: 0; padding: 0; margin: 1.5rem 0; }
+.sl-markdown-content .tp-quote p { font-style: italic; font-weight: 600; color: var(--sl-color-white); margin: 0; }
+.sl-markdown-content .tp-quote .who { font-style: normal; font-weight: 400; text-align: right; margin-top: .5rem; color: var(--sl-color-gray-3); }
+.sl-markdown-content .tp-half { margin: 1.5rem auto; max-width: 26rem; }
+.tp-half svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tp-half svg text { font-family: var(--font-sans); fill: var(--sl-color-gray-2); }
+.tp-half svg .label { font-size: 17px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-half svg .note, .tp-half svg .tag { font-size: 14px; fill: var(--sl-color-gray-3); }
+.tp-half svg .chain { font-size: 16px; font-weight: 500; }
+.tp-half .box { fill: none; stroke: var(--sl-color-gray-4); stroke-width: 1.2; }
+.tp-half .cp-box { fill: none; stroke: var(--sl-color-gray-3); }
+.tp-half .cp-log { fill: var(--sl-color-bg); stroke: var(--sl-color-gray-4); stroke-width: 1; }
+.tp-half .cp-line { stroke: var(--sl-color-gray-3); stroke-width: 1.3; }
+.tp-half text.cp-fill, .tp-half path.cp-fill { fill: var(--sl-color-gray-3); }
+.tp-half .inv-box { fill: none; stroke: var(--sl-color-accent); }
+.tp-half .inv-line { stroke: var(--sl-color-accent); stroke-width: 1.3; }
+.tp-half .inv-fill, .tp-half text.inv-fill { fill: var(--sl-color-accent); }
+.tp-half .node { fill: var(--sl-color-bg); stroke: var(--sl-color-accent); stroke-width: 1.2; }
+.tp-half .trust { stroke: var(--sl-color-gray-4); stroke-width: 1.1; }

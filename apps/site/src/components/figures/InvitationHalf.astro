@@ -1,0 +1,41 @@
+---
+// Right half of the checkpoint/invitation figure: the host checks their own graph.
+---
+<svg class="tp-fig-half" viewBox="0 40 420 262" role="img" aria-labelledby="fig-inv-title">
+  <title id="fig-inv-title">Invitation: a person consults their own graph of friends, groups, events and places, asks where they know someone from, and invites them into a shared place. No third party; the decision stands as a relationship.</title>
+  <defs>
+    <marker id="inv-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="inv-fill" /></marker>
+  </defs>
+
+  <line x1="92" y1="112" x2="50" y2="68" class="trust" />
+  <line x1="92" y1="112" x2="146" y2="72" class="trust" />
+  <line x1="92" y1="112" x2="152" y2="140" class="trust" />
+  <line x1="92" y1="112" x2="58" y2="166" class="trust" />
+  <circle cx="92" cy="112" r="11" class="inv-fill" />
+  <circle cx="50" cy="68" r="6.5" class="node" /><text x="40" y="54" class="tag" text-anchor="middle">friend</text>
+  <circle cx="146" cy="72" r="6.5" class="node" /><text x="156" y="58" class="tag" text-anchor="middle">group</text>
+  <circle cx="152" cy="140" r="6.5" class="node" /><text x="160" y="164" class="tag" text-anchor="middle">event</text>
+  <circle cx="58" cy="166" r="6.5" class="node" /><text x="40" y="190" class="tag" text-anchor="middle">place</text>
+  <text x="100" y="216" class="label" text-anchor="middle">your graph</text>
+  <text x="100" y="237" class="note" text-anchor="middle">“where do we know</text>
+  <text x="100" y="255" class="note" text-anchor="middle">each other from?”</text>
+
+  <line x1="176" y1="112" x2="232" y2="112" class="inv-line" marker-end="url(#inv-arrow)" />
+  <text x="204" y="101" class="note inv-fill" text-anchor="middle">invites</text>
+
+  <rect x="236" y="52" width="176" height="122" rx="6" class="box inv-box" />
+  <text x="324" y="80" class="label" text-anchor="middle">shared place</text>
+  <line x1="284" y1="114" x2="324" y2="134" class="trust" />
+  <line x1="324" y1="134" x2="364" y2="110" class="trust" />
+  <line x1="284" y1="114" x2="364" y2="110" class="trust" />
+  <circle cx="284" cy="114" r="6.5" class="inv-fill" />
+  <circle cx="324" cy="134" r="6.5" class="inv-fill" />
+  <circle cx="364" cy="110" r="6.5" class="inv-fill" />
+  <text x="324" y="162" class="note" text-anchor="middle">share · build together</text>
+
+  <text x="324" y="200" class="note" text-anchor="middle">no third party</text>
+  <text x="324" y="219" class="note" text-anchor="middle">the decision stands</text>
+  <text x="324" y="238" class="note" text-anchor="middle">as a relationship</text>
+
+  <text x="210" y="290" class="chain inv-fill" text-anchor="middle">know → invite → share</text>
+</svg>
