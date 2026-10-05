@@ -2,15 +2,16 @@
 import Icon from './Icon.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
+import info from '../../public/build-info.json'
 
 const REPO = 'https://github.com/real-life-org/trust-protocol'
 const spec = (file: string) => `${REPO}/blob/main/spec/${file}`
 const sim = (file: string) => `/simulator/${file}`
 
-const ways: { title: string; text: string; href: string; icon: IconName }[] = [
-  { title: 'Foundations', text: 'What a protocol developer needs first: identifiers, credentials, trust, groups, the ports. Then a primer per layer, then the specifications.', href: '/understand/foundations/', icon: 'layers' },
-  { title: 'Simulators', text: 'Three simulators in your browser: the app on three devices, one encounter under the microscope, the graph of who can prove what.', href: '/get-started/try-it/', icon: 'rocket' },
-  { title: 'Library', text: 'The library on npm, test vectors to reproduce byte for byte, and a conformance runner.', href: '/get-started/implement/', icon: 'wrench' },
+const ways: { title: string; text: string; href: string; icon: IconName; cta: string }[] = [
+  { title: 'Foundations', text: 'What a protocol developer needs first: identifiers, credentials, trust, groups, the ports. Then a primer per layer, then the specifications.', href: '/understand/foundations/', icon: 'layers', cta: 'Start reading →' },
+  { title: 'Simulators', text: 'Three simulators in your browser: the app on three devices, one encounter under the microscope, the graph of who can prove what.', href: '/get-started/try-it/', icon: 'rocket', cta: 'Open a simulator →' },
+  { title: 'Library', text: 'The library on npm, test vectors to reproduce byte for byte, and a conformance runner.', href: '/get-started/implement/', icon: 'wrench', cta: 'npm install →' },
 ]
 
 type Card = [IconName, string, string, string]
@@ -32,27 +33,22 @@ const access: Card[] = [
 const services: Card[] = [
   ['plug', 'Delivery contract', 'Sealed envelopes, signed acknowledgements, a closed set of delivery states.', spec('delivery-contract.md')],
   ['database', 'Replication contract', 'Signed, causally linked entries; key-blind by construction.', spec('replication-contract.md')],
-  ['server', 'VTI mediator adapter', 'Delivery over the Verifiable Trust Infrastructure.', spec('adapter-vti-mediator.md')],
 ]
-const sims: Card[] = [
-  ['globe', 'The app', 'The same app on three devices side by side: verify, introduce, trust, found and join groups. Every sealed envelope on the wire, with fault injection.', sim('network.html')],
-  ['wot', 'The ceremony', 'One encounter under the microscope: two devices, one delivery channel, every receive stage, clock skew.', sim('index.html')],
-  ['waypoints', 'The graph', 'The same world from above: who can prove what about whom, told in eight chapters.', sim('graph.html')],
-]
-const dtg: Card[] = [
-  ['shield-check', 'Credentials', 'Encounter credentials are typed as DTG relationship credentials, invitations as DTG invitation credentials. The move to the current DTG context follows its implementer\'s draft.', 'https://github.com/trustoverip/dtgwg-cred-spec'],
-  ['message-square', 'Trust Tasks', 'Every document between devices is a Trust Task document of a private type.', 'https://github.com/trustoverip/dtgwg-trust-tasks-spec'],
-  ['server', 'Transport', 'An adapter for the VTI mediator is specified and implemented; it is being updated to TSP revision 3.', spec('adapter-vti-mediator.md')],
+const dtg: { label: string; text: string; href: string; repo: string }[] = [
+  { label: 'Credentials', text: 'Encounter credentials are typed as DTG relationship credentials, invitations as DTG invitation credentials. The move to the current DTG context follows its implementer\'s draft.', href: 'https://github.com/trustoverip/dtgwg-cred-spec', repo: 'dtgwg-cred-spec' },
+  { label: 'Trust Tasks', text: 'Every document between devices is a Trust Task document of a private type.', href: 'https://github.com/trustoverip/dtgwg-trust-tasks-spec', repo: 'dtgwg-trust-tasks-spec' },
+  { label: 'Transport', text: 'An adapter for the VTI mediator is specified and implemented; it is being updated to TSP revision 3.', href: spec('adapter-vti-mediator.md'), repo: 'adapter-vti-mediator.md' },
 ]
 ---
 <div class="tp-landing not-content">
   <section class="tp-ways" id="get-started">
     <div class="tp-cards three">
-      {ways.map((w) => (
-        <a class="tp-card" href={w.href}>
-          <Icon name={w.icon} />
+      {ways.map((w, i) => (
+        <a class="tp-card way" href={w.href}>
+          <div class="tp-card-head"><Icon name={w.icon} /><code>0{i + 1}</code></div>
           <strong>{w.title}</strong>
           <span>{w.text}</span>
+          <em class="tp-cta">{w.cta}</em>
         </a>
       ))}
     </div>
@@ -68,62 +64,67 @@ const dtg: Card[] = [
     <Fragment set:html={layerDiagramHtml()} />
   </section>
 
-  <section class="tp-section" id="identity">
+  <section class="tp-section numbered" id="identity" data-n="01">
     <div>
-      <div class="tp-badge">Layer 1</div>
-      <h2>Identity: one seed, an anchor per context</h2>
+      <div class="tp-badge">Layer 1 · Identity</div>
+      <h2>One seed, an anchor per context</h2>
       <p>A person is one mnemonic. Every identifier toward a relationship, a group or the public is derived from it as a <code>did:key</code>.</p>
       <p>Contexts never link unless their holder decides to link them.</p>
       <p><a class="tp-more" href="/understand/foundations/#identifiers">Identifiers in Foundations →</a></p>
     </div>
-    <div class="tp-cards one">
+    <div class="tp-list">
       {identity.map(([icon, name, desc, href]) => (
-        <a class="tp-card row" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
       ))}
     </div>
   </section>
 
-  <section class="tp-section flip" id="encounter">
+  <section class="tp-section flip numbered band" id="encounter" data-n="02">
     <div>
-      <div class="tp-badge">Layer 2</div>
-      <h2>Encounter: credentials from recognition</h2>
+      <div class="tp-badge">Layer 2 · Encounter</div>
+      <h2>Credentials from recognition</h2>
       <p>Two people scan each other, connected or fully offline, and each issues a verifiable credential to the other under a fresh identifier.</p>
       <p>An encounter establishes key control, freshness and deliberate recognition, and nothing more. The specification says so.</p>
       <p><a class="tp-more" href="/understand/encounter/">Read the Encounter primer →</a></p>
     </div>
-    <div class="tp-cards one">
+    <div class="tp-list">
       {encounter.map(([icon, name, desc, href]) => (
-        <a class="tp-card row" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
       ))}
     </div>
   </section>
 
-  <section class="tp-section" id="access">
+  <section class="tp-section numbered" id="access" data-n="03">
     <div>
-      <div class="tp-badge">Layer 3</div>
-      <h2>Access: groups are places, not certificates</h2>
+      <div class="tp-badge">Layer 3 · Access</div>
+      <h2>Groups are places, not certificates</h2>
       <p>A group is an encrypted document replicated on every member's device, with a signed log of who joined, who left and which rules apply. Membership is a fact in that state and a capability: holding the key.</p>
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
       <p><a class="tp-more" href="/understand/foundations/#groups">Groups in Foundations →</a></p>
     </div>
-    <div class="tp-cards one">
+    <div class="tp-list">
       {access.map(([icon, name, desc, href]) => (
-        <a class="tp-card row" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
       ))}
     </div>
   </section>
 
-  <section class="tp-section flip" id="services">
+  <section class="tp-section flip band" id="services">
     <div>
       <div class="tp-badge">Services</div>
       <h2>Delivery and replication behind ports</h2>
       <p>Documents travel sealed end to end, with signed acknowledgements and a closed set of delivery states.</p>
       <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it.</p>
     </div>
-    <div class="tp-cards one">
+    <div class="tp-cards two">
       {services.map(([icon, name, desc, href]) => (
-        <a class="tp-card row" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+        <a class="tp-card port" href={href}><Icon name={icon} /><strong>{name}</strong><span>{desc}</span></a>
       ))}
+      <a class="tp-card port row span" href={spec('adapter-vti-mediator.md')}>
+        <Icon name="server" />
+        <div><strong>VTI mediator adapter</strong><span>Delivery over the Verifiable Trust Infrastructure.</span></div>
+        <em class="tp-tag">one adapter</em>
+      </a>
     </div>
   </section>
 
@@ -134,34 +135,78 @@ const dtg: Card[] = [
       <p>Three simulators in your browser. Real Ed25519, X25519 and AES-GCM, no installation, nothing leaves your tab.</p>
     </div>
     <div class="tp-cards three">
-      {sims.map(([icon, name, desc, href]) => (
-        <a class="tp-card" href={href}><Icon name={icon} /><strong>{name}</strong><span>{desc}</span></a>
+      <a class="tp-card shot" href={sim('network.html')}>
+        <div class="tp-shot devices" aria-hidden="true">
+          <span class="tp-phone"><i class="hd"></i><i></i><i></i><i class="short"></i></span>
+          <span class="tp-phone tall"><i class="hd"></i><i></i><i class="ok"></i><i></i><i class="short"></i></span>
+          <span class="tp-phone"><i class="hd"></i><i></i><i class="warn"></i><i class="short"></i></span>
+        </div>
+        <div class="tp-shot-copy">
+          <strong>The app</strong>
+          <span>The same app on three devices side by side: verify, introduce, trust, found and join groups. Every sealed envelope on the wire, with fault injection.</span>
+          <em class="tp-cta">Open network.html →</em>
+        </div>
+      </a>
+      <a class="tp-card shot" href={sim('index.html')}>
+        <div class="tp-shot ceremony" aria-hidden="true">
+          <span class="tp-phone wide"><i class="qr"></i></span>
+          <span class="tp-channel"><i></i><code>+340 ms</code><i></i></span>
+          <span class="tp-phone wide"><Icon name="shield-check" tile={false} /></span>
+        </div>
+        <div class="tp-shot-copy">
+          <strong>The ceremony</strong>
+          <span>One encounter under the microscope: two devices, one delivery channel, every receive stage, clock skew.</span>
+          <em class="tp-cta">Open index.html →</em>
+        </div>
+      </a>
+      <a class="tp-card shot" href={sim('graph.html')}>
+        <div class="tp-shot graph" aria-hidden="true">
+          <i class="edge e1"></i><i class="edge e2"></i><i class="edge e3 ok"></i><i class="edge e4 warn"></i>
+          <b class="node n1"></b><b class="node n2"></b><b class="node n3"></b><b class="node n4 ok"></b>
+          <code>chapter 3 / 8</code>
+        </div>
+        <div class="tp-shot-copy">
+          <strong>The graph</strong>
+          <span>The same world from above: who can prove what about whom, told in eight chapters.</span>
+          <em class="tp-cta">Open graph.html →</em>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <section class="tp-section wide band" id="dtg">
+    <div class="tp-head-row">
+      <div>
+        <div class="tp-badge">Interoperability</div>
+        <h2>Where it meets the DTG</h2>
+        <p>RLTP builds on the work of the ToIP Decentralized Trust Graph Working Group: its credentials, its Trust Tasks, its transport.</p>
+      </div>
+      <span class="tp-pill">Trust over IP · DTG WG</span>
+    </div>
+    <div class="tp-cards three">
+      {dtg.map((d) => (
+        <a class="tp-card ref" href={d.href}>
+          <span class="tp-kicker">{d.label}</span>
+          <span class="text">{d.text}</span>
+          <code>{d.repo}</code>
+        </a>
       ))}
     </div>
   </section>
 
-  <section class="tp-section" id="dtg">
-    <div>
-      <div class="tp-badge">Interoperability</div>
-      <h2>Where it meets the DTG</h2>
-      <p>RLTP builds on the work of the ToIP Decentralized Trust Graph Working Group: its credentials, its Trust Tasks, its transport.</p>
-    </div>
-    <div class="tp-cards one">
-      {dtg.map(([icon, name, desc, href]) => (
-        <a class="tp-card row" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
-      ))}
-    </div>
-  </section>
-
-  <section class="tp-section wide" id="status">
+  <section class="tp-section" id="status">
     <div>
       <div class="tp-badge">Status</div>
       <h2>Where it stands</h2>
-    </div>
-    <div class="tp-status">
       <p>Editor's drafts. Identity, Encounter, Access, Delivery, Membership, Replication, Network Visibility and Personhood Predicates converged through adversarial review.</p>
       <p>The library is on npm with provenance. The first application is being built.</p>
       <p>The previous generation, <a href="https://github.com/real-life-org/wot-spec">wot-spec</a>, runs in production.</p>
+    </div>
+    <div class="tp-stats">
+      <div class="tp-stat"><strong>8</strong><span>specifications converged</span></div>
+      <div class="tp-stat"><strong>{info.lib}</strong><span>library on npm, with provenance</span></div>
+      <div class="tp-stat"><strong>3</strong><span>simulators, in your browser</span></div>
+      <div class="tp-stat live"><strong>In production</strong><span>wot-spec, the previous generation</span></div>
     </div>
   </section>
 

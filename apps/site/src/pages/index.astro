@@ -1,6 +1,12 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
 import Landing from '../components/Landing.astro'
+import { encounterHtml } from '../lib/encounter'
+import info from '../../public/build-info.json'
+
+// The hero's eyebrow sits in the tagline; site.css lifts it above the title.
+const chip = `<span class="tp-chip"><span class="tag">Editor's drafts</span><code>@real-life/trust-protocol ${info.lib}</code></span>`
+const tagline = `${chip}<p>DIDs and verifiable credentials, issued when two people recognize each other. Groups as shared, end-to-end encrypted places with their own rules, replicated on every member's device. Documents that travel as Trust Tasks.</p>`
 ---
 <StarlightPage frontmatter={{
   title: 'Real Life Trust Protocol',
@@ -9,7 +15,8 @@ import Landing from '../components/Landing.astro'
   tableOfContents: false,
   hero: {
     title: 'Trust through <span class="tp-accent">real encounters</span>',
-    tagline: 'DIDs and verifiable credentials, issued when two people recognize each other. Groups as shared, end-to-end encrypted places with their own rules, replicated on every member\'s device. Documents that travel as Trust Tasks.',
+    tagline,
+    image: { html: encounterHtml() },
     actions: [
       { text: 'Foundations', link: '/understand/foundations/', icon: 'open-book', variant: 'primary' },
       { text: 'Simulators', link: '/get-started/try-it/', icon: 'right-arrow', variant: 'secondary' },
