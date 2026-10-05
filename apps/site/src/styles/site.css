@@ -314,28 +314,28 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-cred code { width: 100%; padding-left: 1.6rem; }
 }
 
-/* Landing, Access: the group as a place. */
+/* Landing, Access: the group as a place. The circle takes the layer bands'
+   border and tint; the devices the simulators' screen glyph. */
 .tp-group { margin: 0; }
 .tp-group svg { display: block; width: 100%; height: auto; overflow: visible; }
 .tp-group figcaption { margin-top: .75rem; font-size: .9rem; line-height: 1.55; color: var(--sl-color-gray-3); }
 .tp-group text { font-family: var(--font-sans); fill: var(--sl-color-gray-2); }
-.tp-group .title { font-size: 19px; font-weight: 700; fill: var(--sl-color-white); }
-.tp-group .mono { font-family: var(--font-mono); font-size: 13px; fill: var(--sl-color-gray-3); }
-.tp-group .kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .12em; fill: var(--sl-color-gray-3); }
-.tp-group .label { font-size: 14px; fill: var(--sl-color-gray-2); }
-.tp-group .note { font-size: 13px; fill: var(--sl-color-accent); }
-.tp-group .note.muted { fill: var(--sl-color-gray-3); }
-.tp-group .op { font-size: 14px; fill: var(--sl-color-white); }
-.tp-group .by { fill: var(--sl-color-gray-3); }
-.tp-group .place { fill: color-mix(in oklab, var(--sl-color-accent) 7%, var(--sl-color-bg)); stroke: var(--sl-color-accent); stroke-width: 1.5; }
-.tp-group .spine { stroke: var(--sl-color-accent); stroke-width: 2; }
-.tp-group .dot { fill: var(--sl-color-accent); }
-.tp-group .dot.genesis { fill: var(--sl-color-white); stroke: var(--sl-color-accent); stroke-width: 2; }
-.tp-group .device { fill: var(--sl-color-bg); stroke: var(--sl-color-gray-3); stroke-width: 1.5; }
-.tp-group .device-base { stroke: var(--sl-color-gray-3); stroke-width: 3; stroke-linecap: round; }
-.tp-group .mini { fill: color-mix(in oklab, var(--sl-color-accent) 30%, transparent); }
+.tp-group .title { font-size: 17px; font-weight: 700; fill: var(--sl-color-white); }
+.tp-group .kicker { font-size: 11.5px; font-weight: 650; letter-spacing: .08em; fill: var(--sl-color-accent); }
+.tp-group .place { fill: color-mix(in oklab, var(--sl-color-accent) 8%, var(--sl-color-bg-sidebar)); stroke: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); stroke-width: 1.5; }
+.tp-group .tile { fill: var(--tp-tint); }
+.tp-group .glyph { fill: none; stroke: var(--sl-color-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tp-group .op { font-size: 14px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-group .by { font-size: 12px; fill: var(--sl-color-gray-3); }
+.tp-group .rule { stroke: color-mix(in oklab, var(--sl-color-accent) 25%, transparent); stroke-width: 1; }
+.tp-group .note { font-size: 12.5px; font-weight: 600; fill: var(--sl-color-accent); }
+.tp-group .link { stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.tp-group .device { fill: var(--sl-color-black); stroke: var(--sl-color-gray-5); stroke-width: 1.5; }
+.tp-group .mini { fill: var(--sl-color-gray-5); }
 .tp-group .mini.strong { fill: var(--sl-color-accent); }
-.tp-group .link { stroke: var(--sl-color-accent); stroke-width: 1.3; stroke-dasharray: 5 5; }
-.tp-group .lock-ring { fill: none; stroke: var(--sl-color-gray-4); stroke-width: 1.3; stroke-dasharray: 3 3; }
-.tp-group .lock { fill: var(--sl-color-gray-4); }
-.tp-group .lock-shackle { fill: none; stroke: var(--sl-color-gray-4); stroke-width: 1.8; }
+.tp-group .name { font-size: 13px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-group .state { font-size: 11px; fill: var(--success); }
+.tp-group .out .device { stroke-dasharray: 4 4; }
+.tp-group .out .mini.strong { fill: var(--sl-color-gray-5); }
+.tp-group .out .name { fill: var(--sl-color-gray-2); }
+.tp-group .out .state { fill: var(--sl-color-gray-3); }
