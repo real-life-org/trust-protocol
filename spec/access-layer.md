@@ -2941,11 +2941,11 @@ to a service by presenting a registration, a versioned wire artifact
 
 ```json
 { "v": "rltp-access-registration/0.27",
-  "type": "service-registration", "group", "genesisDigest",
-  "identity", "service", "m": 1, "class", "stalenessBound",
-  "terminalRetention", "divergenceQuota",
-  "attestationKey", "registrationGeneration",
-  "previousRegistration", "authorizationRoot", "sig" }
+  "type": "service-registration", "group": "…", "genesisDigest": "…",
+  "identity": "…", "service": "…", "m": 1, "class": "view",
+  "stalenessBound": "…", "terminalRetention": "…", "divergenceQuota": …,
+  "attestationKey": "…", "registrationGeneration": …,
+  "previousRegistration": …, "authorizationRoot": …, "sig": "…" }
 ```
 
 **RLTP-ACC-7230** — At first contact a group MUST present a

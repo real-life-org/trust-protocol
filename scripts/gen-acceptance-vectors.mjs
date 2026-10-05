@@ -43,13 +43,14 @@ const genesisDigest = digestU({ vector: 'rltp/acceptance-anchoring', genesis: tr
 const viewRootDigest = (n) => digestU({ vector: 'sole-tip-view-signature-input', seq: n })
 
 const base = {
-  v: 'rltp-access-registration/0.26',
+  v: 'rltp-access-registration/0.27',
   type: 'service-registration',
   group: did.identity,
   genesisDigest,
   identity: did.identity,
   service: 'https://relay.example/rltp',
   m: 1,
+  class: 'view',
   stalenessBound: 'P7D',
   terminalRetention: 'P30D',
   divergenceQuota: 64,

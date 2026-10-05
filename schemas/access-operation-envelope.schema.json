@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
-  "title": "RLTP Access Operation Envelope (transcription of Access Layer draft 0.24 section 3.3)",
-  "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization.",
+  "title": "RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelope rltp-access/0.25)",
+  "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization. New in 0.25 (Access 9.2, 11): keyOpDigest — the digest of the adapter's key operation — in the genesis body and in every transition (RLTP-ACC-9270, 7045, 4440); the transition carries the adapter's material binding, which for linear/0.1 is contentKeyCommitment, keyDist and the lineage choice (9.4.1), and for an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2) nothing beyond newEpoch and keyOpDigest; device.add and device.revoke bind and revoke device cards (Access 5.1).",
   "type": "object",
   "required": [
     "v",
@@ -19,7 +19,7 @@
   "additionalProperties": true,
   "properties": {
     "v": {
-      "const": "rltp-access/0.24"
+      "const": "rltp-access/0.25"
     },
     "op": {
       "type": "string",
@@ -36,6 +36,8 @@
         "lineage.repair",
         "document.attach",
         "document.detach",
+        "device.add",
+        "device.revoke",
         "group.dissolve",
         "service-identity.announce"
       ]
@@ -192,7 +194,7 @@
               "policy",
               "visibility",
               "adapter",
-              "contentKeyCommitment",
+              "keyOpDigest",
               "serviceIdentity"
             ],
             "additionalProperties": false,
@@ -223,16 +225,36 @@
                 ]
               },
               "adapter": {
-                "type": "string",
-                "maxLength": 64
+                "$ref": "#/$defs/adapter"
               },
               "contentKeyCommitment": {
-                "$ref": "#/$defs/digest"
+                "$ref": "#/$defs/digest",
+                "description": "the epoch-0 binding of linear/0.1 (Access 4.5, 9.4.1): REQUIRED when adapter is linear/0.1"
+              },
+              "keyOpDigest": {
+                "$ref": "#/$defs/digest",
+                "description": "digest of the adapter's epoch-0 key operation as the adapter defines it (Access 9.2, RLTP-ACC-3260, 9270)"
               },
               "serviceIdentity": {
                 "$ref": "#/$defs/didKey"
               }
-            }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "adapter": {
+                      "const": "linear/0.1"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "contentKeyCommitment"
+                  ]
+                }
+              }
+            ]
           }
         }
       }
@@ -573,6 +595,67 @@
       "if": {
         "properties": {
           "op": {
+            "const": "device.add"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "required": [
+              "card"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "card": {
+                "$ref": "#/$defs/deviceCard"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "device.revoke"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "required": [
+              "subject",
+              "device",
+              "transition"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "subject": {
+                "$ref": "#/$defs/didKey",
+                "description": "the member anchor of the revoked device's person (Access 4.5)"
+              },
+              "device": {
+                "$ref": "#/$defs/digest",
+                "description": "the digest of the revoked device card (Access 4.5)"
+              },
+              "transition": {
+                "$ref": "#/$defs/transition",
+                "description": "device.revoke is an enforcement operation (Access 4.5, 5.1): the revoked device cannot derive the new epoch secret (RLTP-ACC-5160)"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
             "enum": [
               "member.leave",
               "group.dissolve"
@@ -611,8 +694,7 @@
       "type": "object",
       "required": [
         "newEpoch",
-        "contentKeyCommitment",
-        "keyDist"
+        "keyOpDigest"
       ],
       "additionalProperties": false,
       "properties": {
@@ -620,9 +702,13 @@
           "type": "integer",
           "minimum": 1
         },
+        "keyOpDigest": {
+          "$ref": "#/$defs/digest",
+          "description": "digest of the transition's key operation as its adapter defines it (Access 9.2, RLTP-ACC-7045, 9270); under linear/0.1 the multibase multihash over the JCS serialization of keyDist (9860); under beekem/0.1 over the key-operation bytes (9870)"
+        },
         "contentKeyCommitment": {
           "$ref": "#/$defs/digest",
-          "description": "multibase multihash over the RAW key bytes (Access 7.1 commitment rule), not over any JSON or base64url form"
+          "description": "multibase multihash over the RAW key bytes (Access 7.1 commitment rule), not over any JSON or base64url form; linear/0.1 only"
         },
         "keyDist": {
           "type": "array",
@@ -644,7 +730,7 @@
               }
             }
           },
-          "description": "one entry per retained member (Access 7.1 computed retained set); recipients MUST be pairwise distinct (schema uniqueItems is object-level; the per-recipient uniqueness rule is normative text + vector)"
+          "description": "one entry per retained member (Access 7.1 computed retained set; linear/0.1 only, 9.4.1); recipients MUST be pairwise distinct (schema uniqueItems is object-level; the per-recipient uniqueness rule is normative text + vector)"
         },
         "lineage": {
           "type": "object",
@@ -669,11 +755,6 @@
           "const": true,
           "description": "explicit narrowing act; requires the history.narrow aspect rule (default strongest) satisfied by this operation's proof in addition to the operation's own rule"
         },
-        "lineageForm": {
-          "type": "string",
-          "maxLength": 64,
-          "description": "registered adapter id whose non-native P3 form (e.g. causal encryption) carries the history invariant for this transition (Access 9.4)"
-        },
         "lineageVoid": {
           "const": true,
           "description": "declared unbridged state, valid ONLY on a leave-discharging epoch.rotate (Access 7.1/5.4): the discharger holds no prior epoch key; ungated, surfaced as damage, under the standing repair duty of key-holding members; the discharge-only restriction is a materialization rule, not a schema rule"
@@ -681,116 +762,108 @@
       },
       "oneOf": [
         {
+          "description": "linear/0.1 form (Access 9.4.1): contentKeyCommitment, keyDist, and exactly one of lineage, historyNarrow, lineageVoid (RLTP-ACC-9810)",
           "required": [
-            "lineage"
+            "contentKeyCommitment",
+            "keyDist"
           ],
-          "allOf": [
+          "oneOf": [
             {
-              "not": {
-                "required": [
-                  "historyNarrow"
-                ]
-              }
+              "required": [
+                "lineage"
+              ],
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "historyNarrow"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "lineageVoid"
+                    ]
+                  }
+                }
+              ]
             },
             {
-              "not": {
-                "required": [
-                  "lineageForm"
-                ]
-              }
+              "required": [
+                "historyNarrow"
+              ],
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "lineage"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "lineageVoid"
+                    ]
+                  }
+                }
+              ]
             },
             {
-              "not": {
-                "required": [
-                  "lineageVoid"
-                ]
-              }
+              "required": [
+                "lineageVoid"
+              ],
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "lineage"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "historyNarrow"
+                    ]
+                  }
+                }
+              ]
             }
           ]
         },
         {
-          "required": [
-            "historyNarrow"
-          ],
-          "allOf": [
-            {
-              "not": {
+          "description": "form of an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2): newEpoch and keyOpDigest only",
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "contentKeyCommitment"
+                ]
+              },
+              {
+                "required": [
+                  "keyDist"
+                ]
+              },
+              {
                 "required": [
                   "lineage"
                 ]
-              }
-            },
-            {
-              "not": {
+              },
+              {
                 "required": [
-                  "lineageForm"
+                  "historyNarrow"
                 ]
-              }
-            },
-            {
-              "not": {
+              },
+              {
                 "required": [
                   "lineageVoid"
                 ]
               }
-            }
-          ]
-        },
-        {
-          "required": [
-            "lineageForm"
-          ],
-          "allOf": [
-            {
-              "not": {
-                "required": [
-                  "lineage"
-                ]
-              }
-            },
-            {
-              "not": {
-                "required": [
-                  "historyNarrow"
-                ]
-              }
-            },
-            {
-              "not": {
-                "required": [
-                  "lineageVoid"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "required": [
-            "lineageVoid"
-          ],
-          "allOf": [
-            {
-              "not": {
-                "required": [
-                  "lineage"
-                ]
-              }
-            },
-            {
-              "not": {
-                "required": [
-                  "historyNarrow"
-                ]
-              }
-            },
-            {
-              "not": {
-                "required": [
-                  "lineageForm"
-                ]
-              }
-            }
-          ]
+            ]
+          }
         }
       ]
     },
@@ -799,6 +872,63 @@
       "pattern": "^[A-Za-z0-9_-]{80,}$",
       "maxLength": 512,
       "description": "base64url (unpadded) AEAD ciphertext incl. nonce and tag; minimum 80 chars = 32-byte key + 12-byte nonce + 16-byte tag"
+    },
+    "adapter": {
+      "enum": [
+        "linear/0.1",
+        "beekem/0.1"
+      ],
+      "description": "registered adapter identifier of the key port (Access 9.4, 11)"
+    },
+    "deviceCard": {
+      "type": "object",
+      "required": [
+        "anchor",
+        "device",
+        "keyAgreement",
+        "serviceIdentity",
+        "proof"
+      ],
+      "additionalProperties": false,
+      "description": "device card (Access 5.1): binds one device to its person's member anchor; carries exactly these fields (RLTP-ACC-5110). Signature input = JCS serialization with proof omitted; signed by a device of the same person already bound at the operation's position or, for the first device, under the member anchor (RLTP-ACC-5120). Access 0.54 names no proof object shape; this transcription uses the envelope's { signer, sig } form.",
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/didKey",
+          "description": "the member anchor of the device's person in this group"
+        },
+        "device": {
+          "$ref": "#/$defs/didKey",
+          "description": "the device's Ed25519 did:key, under which the device acts in the key port"
+        },
+        "keyAgreement": {
+          "type": "string",
+          "pattern": "^z6LS[1-9A-HJ-NP-Za-km-z]{44}$",
+          "description": "the device's X25519 key-agreement Multikey, to which key material for this device is sealed"
+        },
+        "serviceIdentity": {
+          "$ref": "#/$defs/didKey",
+          "description": "the device's derived service identity (Access 5.2)"
+        },
+        "proof": {
+          "type": "object",
+          "required": [
+            "signer",
+            "sig"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "signer": {
+              "$ref": "#/$defs/didKey"
+            },
+            "sig": {
+              "type": "string",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "minLength": 65,
+              "maxLength": 89
+            }
+          }
+        }
+      }
     }
   }
 }

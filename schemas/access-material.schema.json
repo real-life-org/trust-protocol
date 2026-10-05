@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
-  "title": "RLTP Access key material (Access Layer 0.24 sections 7.1 and 9.5)",
-  "description": "The two plaintext shapes the adapter produces: rltp-access-material/0.24 (the welcome material of Membership section 4 — the MO-4 pin, adopted by Membership 0.9) and rltp-access-keydist/0.24 (the keydist/refresh plaintext of Access 7.1/10.1). Both forms carry the registered adapter id; keys is owned and CLOSED by the adapter registration. linear/0.1 carries exactly the content key — every further secret is DERIVED from it (HKDF info rltp/v1/epoch-secret/<genesis digest>), never transported, so the log's contentKeyCommitment authenticates all consensus-relevant material.",
+  "title": "RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2)",
+  "description": "The two plaintext shapes the adapter produces: rltp-access-material/0.24 (the welcome material of Membership section 4 — the MO-4 pin, adopted by Membership 0.9) and rltp-access-keydist/0.24 (the keydist/refresh plaintext of Access 9.4.1/10.1). Both forms carry the registered adapter id (Access 11: linear/0.1, beekem/0.1); keys is owned and CLOSED by the adapter registration (RLTP-ACC-9200, 9360). linear/0.1 carries exactly the content key — every further secret is DERIVED from it (HKDF info rltp/v1/epoch-secret/<genesis digest>), never transported, so the log's contentKeyCommitment authenticates all consensus-relevant material. beekem/0.1 (experimental, 9.4.2) carries its key operation as bytes; Access 0.54 names no closed keys schema for it, so this transcription closes keys to { op } and is expected to change with the adapter version.",
   "type": "object",
   "required": [
     "v",
@@ -19,9 +19,11 @@
       ]
     },
     "adapter": {
-      "type": "string",
-      "maxLength": 64,
-      "description": "the registered adapter id"
+      "enum": [
+        "linear/0.1",
+        "beekem/0.1"
+      ],
+      "description": "the registered adapter id (Access 9.4, 11); an unregistered adapter is a new identifier (RLTP-ACC-11040)"
     },
     "epoch": {
       "type": "integer",
@@ -56,6 +58,37 @@
                 "type": "string",
                 "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
                 "description": "base64url (unpadded) 32-byte AES-256 content key; its commitment is the multihash over the raw 32 bytes (Access 7.1); the per-epoch secret is derived, never transported"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "adapter"
+        ],
+        "properties": {
+          "adapter": {
+            "const": "beekem/0.1"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "keys": {
+            "type": "object",
+            "required": [
+              "op"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "maxLength": 65536,
+                "description": "base64url (unpadded) bytes of the adapter's key operation (Access 9.4.2, RLTP-ACC-9870); the enforcement operation's keyOpDigest is the multibase multihash over exactly these bytes. Transcription placeholder: Access 0.54 names no closed keys schema for beekem/0.1"
               }
             }
           }

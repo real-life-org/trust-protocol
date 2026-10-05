@@ -22,13 +22,14 @@
  },
  "registrations": {
   "gen1": {
-   "v": "rltp-access-registration/0.26",
+   "v": "rltp-access-registration/0.27",
    "type": "service-registration",
    "group": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "genesisDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
    "identity": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "service": "https://relay.example/rltp",
    "m": 1,
+   "class": "view",
    "stalenessBound": "P7D",
    "terminalRetention": "P30D",
    "divergenceQuota": 64,
@@ -36,129 +37,133 @@
    "registrationGeneration": 1,
    "previousRegistration": null,
    "authorizationRoot": null,
-   "sig": "z2tXYjY85qwLUjrG6AWxPxWTDbueHpXUhYeiW5BCEuzhrVmj9HLkC8DtntNG9Rzxv1v24WwcyWBrWG6zMVfG2kuTm"
+   "sig": "z57NipiK2RxP3CpT3FNwZt9oHq6wvvFumQ2Gry9w9C7CPNQ9CqqVdbvZnY9fVixSdwo2FY3wQXkN4MM4BsNseu6iY"
   },
   "gen2": {
-   "v": "rltp-access-registration/0.26",
+   "v": "rltp-access-registration/0.27",
    "type": "service-registration",
    "group": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "genesisDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
    "identity": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "service": "https://relay.example/rltp",
    "m": 1,
+   "class": "view",
    "stalenessBound": "P7D",
    "terminalRetention": "P30D",
    "divergenceQuota": 64,
    "attestationKey": "z6MkfJJAaw3vQ5j8HyvZdAz9XFY6ghBidgPiaKdTESX5BHJC",
    "registrationGeneration": 2,
-   "previousRegistration": "uEiDAxYv5zjK9ayPDc3Q3nWHRiDgAkzkX22vXEMZ-ydGCwA",
+   "previousRegistration": "uEiDgz4pryIRFyOpRUezXQrySvw21WXoRcT62GdG_uZxrAw",
    "authorizationRoot": "uEiAwW-ZXgqnRdDUaXKJuxP_ISC5dwp4Miq04zJCykmiLDQ",
    "authorization": [
     {
      "signer": "did:key:z6Mkgs3CAz2axZFJqR8n5zvV4yNVrvRBkNwWJYoQg1Ke96Hx",
-     "sig": "z3oLqCTY9c832NDiWjMFYrUs4d1kLj8JM7iVKb17gtSFRBoUkdm7chk9svMg1w6rSgbo6ZQzZX5ZxeXMS68Q829HA"
+     "sig": "z2spQpMTTpLV2fJySi83KkkCfL4726jTUiqK19J3QTCm42gPctW9mP6ZpNu7sPJDSqWfkqgMPypJF39pti2bRBw6x"
     },
     {
      "signer": "did:key:z6MktmRKnN9ixp8r6J1PVqcUhdREbPo4C9k7sFCs4byaqako",
-     "sig": "z5GWrQUBMudR2Ck5engCGerLhmmWMMtR66dztLb2rFpyv7brmaAyKiKzzv6m4ms5hURLDbVXRySvv4SdwVgEQ7U9d"
+     "sig": "z5wwxwzeuUJDtL8qoe1LszepYRsMFjcuoFPCJVnU1SCf4Uo2mu8j9bez5t4MkxT8zzMRsfP9gMKcMQevMNBCvNRPw"
     }
    ],
-   "sig": "z2wKmxBiUeDEGe2ZsNxkW9JrQpiWa4CAKVaDxLqLQBBsebxdmPAvL5EJMw4r4T2cSG79YXiENEk3MaiaGdRwo5buq"
+   "sig": "zRXPeaX566LKuW5Wt8bETySQf4mxzefRaGiDHRhoZC7LzhWADst8m5wtLLwmYgFVPmFpRkxCBb86NoMEy77DEYjW"
   },
   "gen3": {
-   "v": "rltp-access-registration/0.26",
+   "v": "rltp-access-registration/0.27",
    "type": "service-registration",
    "group": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "genesisDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
    "identity": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "service": "https://relay.example/rltp",
    "m": 1,
+   "class": "view",
    "stalenessBound": "P7D",
    "terminalRetention": "P30D",
    "divergenceQuota": 64,
    "attestationKey": "z6Mkv73rZocwY7iwL9V7MRxtDaojuYiebu96ePKHegwPqjbn",
    "registrationGeneration": 3,
-   "previousRegistration": "uEiAdIAFvdhKV1H_YtaTCUkiLXeqULn_LizHB93fYFE0MLA",
+   "previousRegistration": "uEiCFlOGCeSOs-6mbKgw3Tpc2-eBzG6UviiIJKSplr6AK-g",
    "authorizationRoot": "uEiDwE22BiGNM7VqCwogRU9suHSeV2Lrd6xGjWwiW9T8BLA",
    "authorization": [
     {
      "signer": "did:key:z6Mkgs3CAz2axZFJqR8n5zvV4yNVrvRBkNwWJYoQg1Ke96Hx",
-     "sig": "z4gMn35UqrQSG2oUMuiXGLD2VGAg6KygsA48z1AECbjnXVgQf71SntzjCb15Y66pqx4Z1LzPa7Re6vgtf8UUBeS9r"
+     "sig": "zfaEDyuw3D9sCSeJfetn7TVuUsLyU86VWdsgQayZQ6SViq77nCQKDwL4f3yV4adn5njpYciqosxtEYAZVHGXKSx2"
     },
     {
      "signer": "did:key:z6MktmRKnN9ixp8r6J1PVqcUhdREbPo4C9k7sFCs4byaqako",
-     "sig": "z4wrTY4jXxGDp3DPg3rDpMPjHGPdBy4qqJQmrvXuqUJxzmc1XzYV8kTxtB32XnEFzmzL9owzCbD9Zzb7gNBNbZBnv"
+     "sig": "z2GZvC4WGtCGXhd7pzQeGTmL3E2iAbovMnq8ZbiN9uh2zAoq63zDcM6nJg9E4T3fZgEyZoaohpFuKuoL6pc231ZGb"
     }
    ],
-   "sig": "z2wsxv9Ni71nfMni76v34LU2D6pFwouG6ev6k2U1dUJBjnjNNjWPpVvCywvd7fcA2fEvoqdD9WC166Mp6cnR5aM5n"
+   "sig": "z5QRAX1wDQrjaKK29MbKY3GHyugzQZ792tFt2iQdT3KBX6cwGR1gMKW627qJXTT5ixDq391GtvqkgsEKxcHorDRBx"
   },
   "gen2twin": {
-   "v": "rltp-access-registration/0.26",
+   "v": "rltp-access-registration/0.27",
    "type": "service-registration",
    "group": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "genesisDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
    "identity": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "service": "https://relay.example/rltp",
    "m": 1,
+   "class": "view",
    "stalenessBound": "P9D",
    "terminalRetention": "P30D",
    "divergenceQuota": 64,
    "attestationKey": "z6MkrRtSBXPCnCJrk31RJmKg5vDY8NBnRNHCZMNmyisGcj5u",
    "registrationGeneration": 2,
-   "previousRegistration": "uEiDAxYv5zjK9ayPDc3Q3nWHRiDgAkzkX22vXEMZ-ydGCwA",
+   "previousRegistration": "uEiDgz4pryIRFyOpRUezXQrySvw21WXoRcT62GdG_uZxrAw",
    "authorizationRoot": "uEiAwW-ZXgqnRdDUaXKJuxP_ISC5dwp4Miq04zJCykmiLDQ",
    "authorization": [
     {
      "signer": "did:key:z6Mkgs3CAz2axZFJqR8n5zvV4yNVrvRBkNwWJYoQg1Ke96Hx",
-     "sig": "zz3pyzgszexNsKoB53btVFHQuTtW4jJbCGQEXif5k14yVS7j1Z81BtGyx682YEUmYQES2dGg3a3zFfcSDsbGYqk2"
+     "sig": "z2bBjDafpmQALKmxevfVYZwLtCMwsKunuPG5KiPKcs9TwvK2YfVH9RnW3H2nWR3WtfJ3X8e4h6Vf8gNb4En1MSjKg"
     },
     {
      "signer": "did:key:z6MktmRKnN9ixp8r6J1PVqcUhdREbPo4C9k7sFCs4byaqako",
-     "sig": "z5t3tku4C9YFUJ6uzL9WLggi52GiqEjo9qoGGfKEFDxf7gwMdYQWoLEeo5Zj5wtC7WkewR9YGDH6w1L1pkUAjb7wd"
+     "sig": "z3A2cJoA3aM4o7ZojJxLHUpu9VTTRTkf6TzwDsBdcpNonZ8VMLeUF5MMKZ1g5e2jqfqRNLxCwQgJcwRB9nCkF1GgP"
     }
    ],
-   "sig": "z46Nq5cH6VEdbLmePEiR5XaJE4vq5ms7hXnJU64HPxo1esvpsUjS9zi7Z7gX2JFZD7K2M38rmuGKR5f7UserszMdg"
+   "sig": "z589fogUiESP8MB7nxn3YfB24bfyp1BqAatqZS8BVFw64UtTpuq73Q9ySTznNtPjk9ido7mPbcgBJBib5sBjvF8fp"
   },
   "gen3never": {
-   "v": "rltp-access-registration/0.26",
+   "v": "rltp-access-registration/0.27",
    "type": "service-registration",
    "group": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "genesisDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
    "identity": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
    "service": "https://relay.example/rltp",
    "m": 1,
+   "class": "view",
    "stalenessBound": "P7D",
    "terminalRetention": "P30D",
    "divergenceQuota": 64,
    "attestationKey": "z6MknZmbrtqj5v5Yy7Xy1o4NwCNuEL311PXGV5wGmDmRDjUw",
    "registrationGeneration": 3,
-   "previousRegistration": "uEiAdIAFvdhKV1H_YtaTCUkiLXeqULn_LizHB93fYFE0MLA",
+   "previousRegistration": "uEiCFlOGCeSOs-6mbKgw3Tpc2-eBzG6UviiIJKSplr6AK-g",
    "authorizationRoot": "uEiA4oxAR9DjnO5tZmrB5seHB1HhQuq7C9OKGfIeRh8mvSw",
    "authorization": [
     {
      "signer": "did:key:z6Mkgs3CAz2axZFJqR8n5zvV4yNVrvRBkNwWJYoQg1Ke96Hx",
-     "sig": "z3LqnCStbhCEVHnmwiH7bkNn4TygF1SQjaRXPgBq2ZBkxKftZrraQ15Vkwov5XQBtpuJgeJZ8iV7xyLmLzUBTpda6"
+     "sig": "z5sosb8p7KMqRJ3uzY48YUsvTPDqGD7EXPc2qLE5STRFTU7XPKSdCW1UFw12NcWy6SCkeGWiRFzPMvoYZjACnoahx"
     },
     {
      "signer": "did:key:z6MktmRKnN9ixp8r6J1PVqcUhdREbPo4C9k7sFCs4byaqako",
-     "sig": "z64YzksERPCbwKuYZ3eMPVNhRxhKVYJwRtPELBG4F7cxCHjaH4haisS4a3Rt3D3inYF3MAXp6fxNLA5LVX52AR9gY"
+     "sig": "zr58w65NVSCmRdZNkPgpXMWKNaBwNbiYnZDAN6VUUGjyJWm55Jwf7QDt626QGkCGyBSeTCMSnTm7t9ZKL4o4KHfn"
     }
    ],
-   "sig": "zAESbRoqEV1xWJRsS9R9BAnEG2mBfegwJLWM4naBMt57kNZoGWrgnbZoyEEC14x4vu5RX9K1vVFAatzbWiCrfQUK"
+   "sig": "z2uZJDJs1iL6mc4AVhjtv123gqG69sUhfERyJ6UntRoP3AsYBDXPGESyoMmywePc5SznqaaEQzx9EsXANTVBFnAWA"
   }
  },
  "selfAcceptance": {
   "v": "vector-self-acceptance",
-  "accepted": "uEiAXo-GoHiIhFDzMdVAhZaFdXJtsbodJz6iqY_lTG21IVw",
-  "sig": "z2PaCXsoQPMwwHwpFr4C4PzjfnNwHL98C8UGfhmdbkaBMCSWTGtQ3fVhTJgtC87Ry7cDGFuD9WxxGgGfeMShQnbCC"
+  "accepted": "uEiC0OB8sxE1bXGdpCtVDKa_0nOATVUrDZ9Zvdli6VWY6IA",
+  "sig": "z2JaSM2d96FChzjnvn86tFRCbrZaeNYjMsp6AKajcYVy1ozpoCgGCT66hsU4NApFoKKfB2c7XNBq3q6gCowqGHheG"
  },
  "intermediate": {
   "coreDigests": {
-   "gen1": "uEiDAxYv5zjK9ayPDc3Q3nWHRiDgAkzkX22vXEMZ-ydGCwA",
-   "gen2": "uEiAdIAFvdhKV1H_YtaTCUkiLXeqULn_LizHB93fYFE0MLA",
-   "gen3": "uEiAnR2OvGU2HIA4nbziZFRSxw3pxd1LmYYV1MqU0mbmhAA",
-   "gen2twin": "uEiC7x9doGME2tR2PCkdbA856UBoFJIg8RnDbefw7VzsEhg",
-   "gen3never": "uEiAXo-GoHiIhFDzMdVAhZaFdXJtsbodJz6iqY_lTG21IVw"
+   "gen1": "uEiDgz4pryIRFyOpRUezXQrySvw21WXoRcT62GdG_uZxrAw",
+   "gen2": "uEiCFlOGCeSOs-6mbKgw3Tpc2-eBzG6UviiIJKSplr6AK-g",
+   "gen3": "uEiAXAgrlas-hnPQWgJzt5tn5cf9Ecro7sorzruFwZUE-Mg",
+   "gen2twin": "uEiCmnUIcO6igxBCSvfDGwwvVOlB7pdi4Lq8GbXOwiPi5gQ",
+   "gen3never": "uEiC0OB8sxE1bXGdpCtVDKa_0nOATVUrDZ9Zvdli6VWY6IA"
   }
  },
  "anchorCases": [
@@ -370,7 +375,7 @@
    "name": "tampered previousRegistration breaks the identity signature",
    "registration": "gen2",
    "set": {
-    "previousRegistration": "uEiAdIAFvdhKV1H_YtaTCUkiLXeqULn_LizHB93fYFE0MLA"
+    "previousRegistration": "uEiCFlOGCeSOs-6mbKgw3Tpc2-eBzG6UviiIJKSplr6AK-g"
    },
    "mustFail": "identity-signature"
   },

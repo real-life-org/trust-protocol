@@ -9,17 +9,17 @@
 // Validate against SCHEMAS before treating any value as a wire artifact.
 import type { Json } from './core.js'
 
-/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.24 sections 7.1 and 9.5) */
+/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2) */
 export type AccessMaterial = ({
   v: "rltp-access-material/0.24" | "rltp-access-keydist/0.24"
-  adapter: string
+  adapter: "linear/0.1" | "beekem/0.1"
   epoch: number
   keys: { [k: string]: Json }
 })
 
-/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer draft 0.24 section 3.3) */
+/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelope rltp-access/0.25) */
 export type AccessOperationEnvelope = ({
-  v: "rltp-access/0.24"
+  v: "rltp-access/0.25"
   op: string
   group: string
   epoch: number
@@ -39,15 +39,16 @@ export type AccessOperationEnvelope = ({
   })
 })
 
-/** schemas/access-registration.schema.json — RLTP Service Registration (artifact 0.26, Access Layer section 7.3) */
+/** schemas/access-registration.schema.json — RLTP Service Registration (artifact 0.27, Access Layer section 7.3) */
 export type AccessRegistration = ({
-  v: "rltp-access-registration/0.26"
+  v: "rltp-access-registration/0.27"
   type: "service-registration"
   group: string
   genesisDigest: string
   identity: string
   service: string
   m: 1
+  class: "blind" | "view" | "log"
   stalenessBound: string
   terminalRetention: string
   divergenceQuota: number

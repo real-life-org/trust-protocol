@@ -96,7 +96,7 @@
     "access-genesis": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
       "document": {
-        "v": "rltp-access/0.24",
+        "v": "rltp-access/0.25",
         "op": "group.genesis",
         "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
         "epoch": 0,
@@ -130,6 +130,7 @@
           "visibility": "private",
           "adapter": "linear/0.1",
           "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "keyOpDigest": "uEiBPU82hjCuqDANUu1-aPsvl7RKrTY4Ruoc8LxEWEgK5RQ",
           "serviceIdentity": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss"
         },
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -152,7 +153,7 @@
     "access-remove": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
       "document": {
-        "v": "rltp-access/0.24",
+        "v": "rltp-access/0.25",
         "op": "member.remove",
         "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
         "epoch": 7,
@@ -164,6 +165,7 @@
           "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
           "transition": {
             "newEpoch": 8,
+            "keyOpDigest": "uEiBRct4cQ_YT7Ile8dhAlriiuWbd2sQzHOL_oJP8O8OFiQ",
             "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "keyDist": [
               {
@@ -193,7 +195,7 @@
     "access-remove-unknown-envelope-field": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
       "document": {
-        "v": "rltp-access/0.24",
+        "v": "rltp-access/0.25",
         "op": "member.remove",
         "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
         "epoch": 7,
@@ -205,6 +207,7 @@
           "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
           "transition": {
             "newEpoch": 8,
+            "keyOpDigest": "uEiBRct4cQ_YT7Ile8dhAlriiuWbd2sQzHOL_oJP8O8OFiQ",
             "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "keyDist": [
               {
@@ -221,6 +224,115 @@
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
         "someFutureExtension": "ignored per 3.3",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      }
+    },
+    "access-device-add": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.25",
+        "op": "device.add",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {
+          "card": {
+            "anchor": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+            "device": "did:key:z6Mkdddddddddddddddddddddddddddddddddddddddddddd",
+            "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr",
+            "serviceIdentity": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss",
+            "proof": {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z33333333333333333333333333333333333333333333333333333333333333333333333333333333"
+            }
+          }
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      }
+    },
+    "access-device-revoke": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.25",
+        "op": "device.revoke",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {
+          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+          "device": "uEiBPU82hjCuqDANUu1-aPsvl7RKrTY4Ruoc8LxEWEgK5RQ",
+          "transition": {
+            "newEpoch": 8,
+            "keyOpDigest": "uEiBRct4cQ_YT7Ile8dhAlriiuWbd2sQzHOL_oJP8O8OFiQ",
+            "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "keyDist": [
+              {
+                "recipient": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+                "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              }
+            ],
+            "lineage": {
+              "opens": 7,
+              "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+          }
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "proof": {
+          "mechanism": "signature-set",
+          "signatures": [
+            {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      }
+    },
+    "access-rotate-beekem": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
+      "document": {
+        "v": "rltp-access/0.25",
+        "op": "epoch.rotate",
+        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "epoch": 7,
+        "policyVersion": 3,
+        "prev": [
+          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "body": {
+          "transition": {
+            "newEpoch": 8,
+            "keyOpDigest": "uEiBRct4cQ_YT7Ile8dhAlriiuWbd2sQzHOL_oJP8O8OFiQ"
+          }
+        },
+        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
         "proof": {
           "mechanism": "signature-set",
           "signatures": [
@@ -266,6 +378,38 @@
         "keys": {
           "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         }
+      }
+    },
+    "access-material-beekem": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
+      "document": {
+        "v": "rltp-access-material/0.24",
+        "adapter": "beekem/0.1",
+        "epoch": 7,
+        "keys": {
+          "op": "AAECAwQFBgcICQoLDA0ODw"
+        }
+      }
+    },
+    "access-registration": {
+      "schema": "https://real-life.org/rltp/v1/schemas/access-registration.schema.json",
+      "document": {
+        "v": "rltp-access-registration/0.27",
+        "type": "service-registration",
+        "group": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
+        "genesisDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
+        "identity": "did:key:z6Mki1ZyscBEnxYKqTWKEJdiJQw3LJUKKyKaPCwhrEUye8VP",
+        "service": "https://relay.example/rltp",
+        "m": 1,
+        "class": "view",
+        "stalenessBound": "P7D",
+        "terminalRetention": "P30D",
+        "divergenceQuota": 64,
+        "attestationKey": "z6MkorYZJzNkMLME9nTxuoTD82WDXGhjLGFa3Z4MHph7otn2",
+        "registrationGeneration": 1,
+        "previousRegistration": null,
+        "authorizationRoot": null,
+        "sig": "z57NipiK2RxP3CpT3FNwZt9oHq6wvvFumQ2Gry9w9C7CPNQ9CqqVdbvZnY9fVixSdwo2FY3wQXkN4MM4BsNseu6iY"
       }
     }
   },
@@ -509,7 +653,7 @@
       }
     },
     {
-      "name": "transition: a transition must state its history disposition — lineage, narrowing, or an adapter form",
+      "name": "transition: a linear/0.1 transition must state its history disposition — lineage, narrowing, or a declared void",
       "base": "access-remove",
       "delete": [
         "/body/transition/lineage"
@@ -586,6 +730,141 @@
       "base": "access-material",
       "set": {
         "/keys/contentKey": "AAAA"
+      }
+    },
+    {
+      "name": "genesis: the key operation of epoch 0 is bound by keyOpDigest (Access 9.2, 3260)",
+      "base": "access-genesis",
+      "delete": "/body/keyOpDigest"
+    },
+    {
+      "name": "genesis: under linear/0.1 the epoch-0 binding is contentKeyCommitment (Access 4.5, 9.4.1)",
+      "base": "access-genesis",
+      "delete": "/body/contentKeyCommitment"
+    },
+    {
+      "name": "genesis: only a registered adapter can be named (Access 3255, 11)",
+      "base": "access-genesis",
+      "set": {
+        "/body/adapter": "tree/0.1"
+      }
+    },
+    {
+      "name": "envelope: the 0.24 envelope has no keyOpDigest and is not produced or accepted by Access 0.54 (Access 11)",
+      "base": "access-genesis",
+      "set": {
+        "/v": "rltp-access/0.24"
+      }
+    },
+    {
+      "name": "transition: an enforcement without keyOpDigest binds no key operation (Access 4440, 7045, 9270)",
+      "base": "access-remove",
+      "delete": "/body/transition/keyOpDigest"
+    },
+    {
+      "name": "transition: keyOpDigest is a multibase multihash",
+      "base": "access-remove",
+      "set": {
+        "/body/transition/keyOpDigest": "AAAA"
+      }
+    },
+    {
+      "name": "transition: a linear/0.1 transition without keyDist reaches nobody (Access 9.4.1)",
+      "base": "access-remove",
+      "delete": "/body/transition/keyDist"
+    },
+    {
+      "name": "transition: lineageForm no longer exists — the history disposition is the adapter's (Access 9.4.1)",
+      "base": "access-remove",
+      "set": {
+        "/body/transition/lineageForm": "causal/0.1"
+      }
+    },
+    {
+      "name": "transition: the bare form carries no linear/0.1 field — a half-linear transition is no form",
+      "base": "access-rotate-beekem",
+      "set": {
+        "/body/transition/lineage": {
+          "opens": 7,
+          "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    {
+      "name": "device.add: the device card carries exactly its five fields (Access 5110)",
+      "base": "access-device-add",
+      "set": {
+        "/body/card/name": "phone"
+      }
+    },
+    {
+      "name": "device.add: a device card without key-agreement key has nowhere to receive keys",
+      "base": "access-device-add",
+      "delete": "/body/card/keyAgreement"
+    },
+    {
+      "name": "device.add: an unsigned device card binds nothing (Access 5120)",
+      "base": "access-device-add",
+      "delete": "/body/card/proof"
+    },
+    {
+      "name": "device.add: additive — it carries no transition (Access 4.5)",
+      "base": "access-device-add",
+      "set": {
+        "/body/transition": {
+          "newEpoch": 8,
+          "keyOpDigest": "uEiBRct4cQ_YT7Ile8dhAlriiuWbd2sQzHOL_oJP8O8OFiQ"
+        }
+      }
+    },
+    {
+      "name": "device.revoke: an enforcement — the transition travels in the same envelope (Access 4440, 5160)",
+      "base": "access-device-revoke",
+      "delete": "/body/transition"
+    },
+    {
+      "name": "device.revoke: the device is named by the digest of its card, not by its key",
+      "base": "access-device-revoke",
+      "set": {
+        "/body/device": "did:key:z6Mkdddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    },
+    {
+      "name": "device.revoke: the device's person is named",
+      "base": "access-device-revoke",
+      "delete": "/body/subject"
+    },
+    {
+      "name": "registration: class is required — no default service class (Access 7230, 7330, 9560)",
+      "base": "access-registration",
+      "delete": "/class"
+    },
+    {
+      "name": "registration: the service class is one of blind, view, log",
+      "base": "access-registration",
+      "set": {
+        "/class": "relay"
+      }
+    },
+    {
+      "name": "registration: the 0.26 form has no class and is superseded (Access 11)",
+      "base": "access-registration",
+      "set": {
+        "/v": "rltp-access-registration/0.26"
+      }
+    },
+    {
+      "name": "material: beekem/0.1 keys are closed — no linear/0.1 content key beside the key operation",
+      "base": "access-material-beekem",
+      "set": {
+        "/keys/contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "material: only a registered adapter owns a key shape (Access 11)",
+      "base": "access-material",
+      "set": {
+        "/adapter": "tree/0.1"
       }
     }
   ]
