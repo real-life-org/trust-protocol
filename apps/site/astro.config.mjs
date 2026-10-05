@@ -30,6 +30,8 @@ export default defineConfig({
       description: 'A trust protocol rooted in encounters between people: specifications, library, simulators.',
       customCss: ['./src/styles/tokens.css', './src/styles/site.css'],
       components: { Footer: './src/components/Footer.astro' },
+      favicon: '/favicon.svg',
+      head: [{ tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } }],
       social: [{ icon: 'github', label: 'GitHub', href: REPO }],
       editLink: { baseUrl: `${REPO}/edit/main/apps/site/` },
       sidebar: [
