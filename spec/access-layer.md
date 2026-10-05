@@ -8,12 +8,11 @@
 - **Date:** 2026-10-06
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Conformance profile:** `rltp-access@0.54` (draft). Wire forms:
-  the operation envelope `rltp-access/0.25`, the `0.24` family
-  (`rltp-access-view/0.24`, `rltp-access-material/0.25`,
-  `rltp-access-keydist/0.25`,
+  the operation envelope `rltp-access/0.25`, key material and key
+  distribution `/0.25`, the service registration `/0.27`, the
+  unchanged forms `rltp-access-view/0.24`,
   `rltp-access-removal-notice/0.24`,
-  `rltp-access-member-mapping/0.24`),
-  `rltp-access-registration/0.27`, the session-plane evidence
+  `rltp-access-member-mapping/0.24`, the session-plane evidence
   forms `…/1` (3.6), the vouch (`vouch@2`, 5.3) as a W3C VC in
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
@@ -558,7 +557,14 @@ always constructible. A duplicated delivery must not have a
 duplicated effect.
 
 **RLTP-ACC-3170** — `prev` MUST list the op-ids of the DAG heads
-known to the author at authoring time.
+known to the author at authoring time, up to the schema's bound;
+where more heads are known, it MUST list the bound's number of
+them, smallest first in unsigned bytewise order, and the omitted
+heads remain heads to be joined by later operations.
+
+**RLTP-ACC-3172** — The catalog operation `dag.join` (4.5) MUST be
+additive with an empty body and no effect beyond its `prev`, so
+that heads can be joined without any other decision.
 
 **RLTP-ACC-3175** — `epoch` and `policyVersion` MUST equal those of
 the state materialized from the operation's ancestors.
@@ -979,10 +985,10 @@ set included (RLTP-ACC-7030), ends nothing and is invalid, not
 `forked`.
 
 **RLTP-ACC-3566** — The maximal prefix free of the open fork
-pairings MUST be the maximal causally closed sub-DAG of the accepted
-entries that contains no member of any open fork pairing and no
-descendant of such a member; it contains every concurrent branch
-that touches no pairing.
+pairings MUST be the maximal causally closed sub-DAG of the
+resolver's ancestors that contains no member of any open fork
+pairing and no descendant of such a member; it contains every
+concurrent branch that touches no pairing.
 
 **RLTP-ACC-3564** — A resolving `policy.change` that is itself
 concurrent with an enforcement operation forms a new fork pairing
@@ -1741,6 +1747,7 @@ table below.
 | `history.expose` | `strongest` |
 | `history.narrow` (aspect; `linear/0.1`, 9.4.1) | `strongest` |
 | `lineage.repair` (`linear/0.1`, 9.4.1) | `any-member` |
+| `dag.join` | `any-member` |
 | `document.attach` | `any-member` |
 | `document.detach` | `strongest` |
 | `device.revoke` (a device of another member) | `strongest` |
@@ -2040,6 +2047,7 @@ effect, and closed body profile that the following table states.
 | `document.attach` | additive | none | `document` (identifier), `dataPolicy` (Layer-4 disposition declaration) |
 | `document.detach` | enforcement | **transition, atomic** | `document`, `transition` |
 | `device.add` | additive | none | `card` (the device card, 5.1); the author is the device's person |
+| `dag.join` | additive | none | empty; joins DAG heads (RLTP-ACC-3172) |
 | `device.revoke` | enforcement | **transition, atomic** | `subject` (the device's person), `device` (the digest of the revoked device card), `transition` |
 | `group.dissolve` | terminal | terminal | empty (three paths, 5.4) |
 | `service-identity.announce` | additive | none | `serviceIdentity` (5.2) |
@@ -3803,12 +3811,13 @@ epochs before `E`.
 **RLTP-ACC-8080** — A present `toEpoch` MUST satisfy
 `fromEpoch < toEpoch ≤ E`; an absent `toEpoch` defaults to `E`.
 
-**RLTP-ACC-8090** — `keys` MUST contain exactly the content keys of
-every key state whose transition's `newEpoch` lies in
-`[fromEpoch, toEpoch)`, keyed by key-state identifier, in the form
+**RLTP-ACC-8090** — `keys` MUST be an array of at most 4096 entries
+`{ "keyState": <identifier>, "key": … }`, one per key state whose
+transition's `newEpoch` lies in `[fromEpoch, toEpoch)`, in the form
 the group's adapter defines (for `linear/0.1`, 9.4.1), each
 verified at materialization against the log's binding of its key
-state (Section
+state, a span with more key states exposed in several operations
+(Section
 9.2).
 
 **RLTP-ACC-8100** — One `history.expose` MUST cover at most 4096
@@ -3932,11 +3941,13 @@ the genesis operation's `id`; the epoch number is a counter (7.1)
 and MUST NOT serve as the identifier of a key state.
 
 **RLTP-ACC-9264** — A key state an adapter derives by merging
-without a transition MUST be identified deterministically from the
-`id`s of the merged key states as the adapter's registration
-defines (for `beekem/0.1`: the multibase multihash over the JCS
-array of the merged identifiers in unsigned bytewise order), so that
-every replica names the same merged state.
+without a transition MUST be identified by the multibase multihash
+over the JCS array, in unsigned bytewise order, of the `id`s of all
+transition-created key states it merges, directly or through
+earlier merges; a transition after a merge creates a new
+transition-created key state and the set starts over. The
+identifier is therefore a function of the merged transitions alone
+and the same on every replica whatever the order of merging.
 
 **RLTP-ACC-9270** — Every enforcement operation and the genesis
 MUST carry `keyOpDigest`, the digest of its key operation as its
@@ -3956,8 +3967,10 @@ new (KV5).
 
 **RLTP-ACC-9310** — An adapter MUST satisfy KV6 either by merging
 two concurrently arising epoch secrets deterministically into one
-key state, or by a healing transition over the merged state that
-succeeds every open key state (9.4), never by forking the group.
+key state, or by healing transitions over the merged state, each
+succeeding at least two open key states and as many as its wire
+form allows, until one key state remains (9.4), never by forking
+the group.
 
 **RLTP-ACC-9315** — An adapter MUST satisfy KV1 to KV4 and MUST
 declare in its registration whether it satisfies KV5, and how it
@@ -4135,10 +4148,13 @@ request, the key material the log binds.
 material object MUST be this layer's, and `keys` MUST be closed by
 the adapter registration.
 
-**RLTP-ACC-9362** — A material or keydist object MUST name in
-`keyState` the identifier (RLTP-ACC-9262, RLTP-ACC-9264) of the key
-state its `keys` belong to, and a receiver MUST verify the material
-against the log's binding of exactly that key state.
+**RLTP-ACC-9362** — A material object produced after its transition
+— welcome, re-welcome, refresh, recovery — MUST name in `keyState`
+the identifier (RLTP-ACC-9262, RLTP-ACC-9264) of the key state its
+`keys` belong to, and a receiver MUST verify it against the log's
+binding of exactly that key state; a keydist object that the
+transition itself commits to MUST NOT carry `keyState`, its key
+state being the committing transition (RLTP-ACC-3005).
 
 **RLTP-ACC-9370** — Welcome material MUST be re-derivable at any
 later materialized position of the same epoch.
@@ -4215,7 +4231,7 @@ canonical u form, L = 32)`.
 
 ```json
 { "v": "rltp-access-keydist/0.25", "adapter": "linear/0.1",
-  "epoch": 7, "keyState": "oid:…", "keys": { "contentKey": "…base64url, 32 bytes…" } }
+  "epoch": 7, "keys": { "contentKey": "…base64url, 32 bytes…" } }
 ```
 
 *Rationale.* One content key is the only transported secret;
@@ -4250,10 +4266,16 @@ succeeding the open key states it knows, under that operation's
 rule key; any other key holder MAY.
 
 **RLTP-ACC-9871** — While a healing need exists, every enforcement
-operation a key holder issues MUST succeed every open key state in
-the issuer's materialization that it can bridge, so that any
-enforcement by any holder heals; an enforcement that leaves an open
-key state it could have succeeded MUST be rejected as invalid.
+operation a key holder issues MUST succeed the open key states the
+issuer holds, at least two and as many as the lineage bound allows,
+so that any enforcement by any holder heals; this is a duty of the
+issuer, and a receiver MUST judge the operation only by the
+verifiability of the lineage entries it carries, surfacing open key
+states it left unsucceeded (RLTP-ACC-9780) without rejecting it.
+
+**RLTP-ACC-9872** — The key states a transition succeeds MUST be
+exactly those its `lineage` entries name; `prev` orders operations
+and names no key states.
 
 **RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
 key states under RLTP-ACC-9865, producing one further need.
@@ -4341,7 +4363,8 @@ materializing the gap.
 durable as the set of members holding that edge's keys: an entry is
 constructible only by a key holder, and no rule can conjure a key
 nobody entitled still has. Edges run between key states, named by
-transition id, because an epoch number no longer names one key: a
+transition id, because an epoch number does not uniquely name a key
+state: a
 healing rotation succeeds two or more key states and bridges each
 it can, and the ones its author does not hold are an honest gap
 with the ordinary repair duty on whoever holds them. A declared
@@ -4391,12 +4414,16 @@ seals `re-welcome` to the key-agreement key of the requesting
 device, with the recipient check of 10.1 applied to that device.
 
 **RLTP-ACC-9898** — A receiver of a `material` document MUST verify
-that the named `keyState` is a key state of its own materialization
-(RLTP-ACC-9262, RLTP-ACC-9264), that the helper's device is bound
-and unrevoked for a member of that state, and that `keys.op`
-applies to that key state under the adapter's rules; it MUST NOT
-compare a fresh recovery operation with the `keyOpDigest` of any
-earlier operation.
+that the named `keyState` is the current key state of its own
+materialization — a historical key state is acceptable only to
+open history, never to adopt as current — that the helper's device
+is bound and unrevoked for a member of the receiver's current
+materialization, that `keys.op` carries the helper device's
+signature over the operation, the request digest, the recipient
+device and `keyState` as the adapter defines, and that it applies
+to that key state under the adapter's rules; it MUST NOT compare a
+fresh recovery operation with the `keyOpDigest` of any earlier
+operation.
 
 *Editor's note.* The registration exists because this adapter is
 the one under which all six invariants have been shown together
@@ -4481,6 +4508,7 @@ The `payload` is a `keyDelivery` object with these fields:
 | `genesisDigest` | the group's identity (3.2) |
 | `epoch` | the epoch the material belongs to; for `request`, the requester's best knowledge, informative |
 | `op` | the `oid:` of the operation this document serves; for `request`, the operation the claim rests on |
+| `subject` | the entitled member anchor (RLTP-ACC-10105) |
 | `kind` | `request`, or a material kind the group's adapter registers |
 | `sealed` | for material kinds: the sealed material, shape per `sealed-envelope.schema.json` and per kind; absent for `request` |
 | `card` | for `request`: the requester's contact card in the displayed form; absent otherwise |
@@ -4545,12 +4573,17 @@ state, is a current member of it, and that the document's
 for `request`, proof and card per RLTP-ACC-10060 to RLTP-ACC-10090.
 
 **RLTP-ACC-10105** — A key-delivery payload MUST name the entitled
-member anchor in `keyDelivery.subject` and the device the material
-is sealed to in the document's `recipient`, for every kind including
-`request`; entitlement is checked against the subject, binding,
-revocation and the seal against the recipient device, and the
-Delivery Contract's recipient check applies to the device's own
-anchor through its binding (5.1).
+member anchor in `keyDelivery.subject`; a material document MUST
+name the device the material is sealed to in the document's
+`recipient`, and a `request` MUST name the helper device it is
+addressed to in `recipient` while its card names the requesting
+device; entitlement is checked against the subject, binding,
+revocation and the seal against the requesting device.
+
+**RLTP-ACC-10107** — For key-delivery documents, a device is the
+Delivery Contract's recipient principal: its `did:key` satisfies the
+consumer's own-anchor check of Delivery §6 step 5, and this layer's
+binding check (5.1) follows at step 8.
 
 **RLTP-ACC-10110** — At adoption, the unsealed material's `epoch`
 MUST equal the recipient's current epoch and its `keyState` MUST
@@ -4780,8 +4813,10 @@ materializes the named removal as canonical.
 **RLTP-ACC-10370** — A removal-notice document MUST carry no
 `proof`; its issuer MUST address it to the service identity of
 every device bound to the removed anchor in the issuer's
-materialization, and a service MUST deliver it to each addressed
-identity it served (9.3).
+materialization where the Identity layer defines a per-device
+derivation (5.2), and until then to the removed anchor's service
+identity, and a service MUST deliver it to each addressed identity
+it served (9.3).
 
 **RLTP-ACC-10380** — Before any effect, a recipient MUST check that
 the payload is schema-valid, that `sig` verifies, that
@@ -4847,10 +4882,11 @@ Profile `rltp-access@0.54` produces and accepts these wire forms:
 
 | Artifact | Wire version |
 |---|---|
-| operation envelope (3.3) | `rltp-access/0.25` |
+| operation envelope (3.3), `keyOpDigest`, `lineage` as an array | `rltp-access/0.25`; `rltp-access/0.24` accepted in `access-operation/0.1` (RLTP-ACC-11100) |
 | authorization view (7.3) | `rltp-access-view/0.24` |
-| key material, key distribution (9.4, 9.4.1) | `rltp-access-material/0.25`, `rltp-access-keydist/0.25` (with `keyState`) |
-| service registration (7.3), with the field `class` (Section 9.3) | `rltp-access-registration/0.27` |
+| key material (9.4), with `keyState` | `rltp-access-material/0.25`; `/0.24` accepted in the welcome (RLTP-ACC-11100) |
+| key distribution (9.4.1), per device, without `keyState` | `rltp-access-keydist/0.25` |
+| service registration (7.3), with `class` (9.3) and the optional `intakeBudget` block (RLTP-ACC-9535) | `rltp-access-registration/0.27` |
 | removal notice (10.2) | `rltp-access-removal-notice/0.24` |
 | member mapping (5.5) | `rltp-access-member-mapping/0.24` |
 | evidence session (Section 3.6) | `rltp-access-evidence-claim/1`, `rltp-access-evidence-request/1`, `rltp-access-evidence-response/1`, `rltp-access-evidence-supplement/1`, `rltp-access-evidence-part/1` |
@@ -4940,8 +4976,8 @@ holds at most one transition per epoch number — verified under the
 AAD of its own version, unchanged. The welcome `material`
 Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
 under this profile; a receiver MUST accept `0.24` material without
-`keyState` as naming the key state of the admission's own
-transition, until the companion's pin advances.
+`keyState` as naming the key state of the most recent transition in
+the admission's ancestry, until the companion's pin advances.
 
 *Rationale.* A companion pin that lags one wire version is a
 compatibility statement, not a contradiction, as long as the
