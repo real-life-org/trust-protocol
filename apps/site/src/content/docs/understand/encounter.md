@@ -6,10 +6,9 @@ description: How two people record that they met. The card, the challenge, the o
 ## What an encounter records
 
 Two people stand together. One shows a code, the other scans it,
-and whoever presses the button that says "I recognize this person"
-produces a credential that the other person keeps. Often both press.
-One press is enough for an encounter in RLTP; the second is a free
-decision, not a requirement.
+and each presses a button that says "I recognize this person". Each
+press produces a credential that the other person keeps. That is an
+encounter in RLTP.
 
 The credential proves four things and nothing more:
 
