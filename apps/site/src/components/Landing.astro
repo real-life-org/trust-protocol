@@ -70,7 +70,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <h2>One seed, an anchor per context</h2>
       <p>A person is one mnemonic. Every identifier toward a relationship, a group or the public is derived from it as a <code>did:key</code>.</p>
       <p>Contexts never link unless their holder decides to link them.</p>
-      <p><a class="tp-more" href="/understand/foundations/#identifiers">Identifiers in Foundations →</a></p>
+      <p><a class="tp-more" href="/understand/foundations/#identifiers" aria-label="More on identifiers, in Foundations">More →</a></p>
     </div>
     <div class="tp-list">
       {identity.map(([icon, name, desc, href]) => (
@@ -85,7 +85,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <h2>Credentials from recognition</h2>
       <p>Two people scan each other, connected or fully offline, and each issues a verifiable credential to the other under a fresh identifier.</p>
       <p>An encounter establishes key control, freshness and deliberate recognition, and nothing more. The specification says so.</p>
-      <p><a class="tp-more" href="/understand/encounter/">Read the Encounter primer →</a></p>
+      <p><a class="tp-more" href="/understand/encounter/" aria-label="More on encounters, the Encounter primer">More →</a></p>
     </div>
     <div class="tp-list">
       {encounter.map(([icon, name, desc, href]) => (
@@ -100,7 +100,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <h2>Groups are places, not certificates</h2>
       <p>A group is an encrypted document replicated on every member's device, with a signed log of who joined, who left and which rules apply. Membership is a fact in that state and a capability: holding the key.</p>
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
-      <p><a class="tp-more" href="/understand/foundations/#groups">Groups in Foundations →</a></p>
+      <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
     <div class="tp-list">
       {access.map(([icon, name, desc, href]) => (
