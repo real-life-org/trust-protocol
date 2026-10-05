@@ -219,8 +219,8 @@ The names are those of the RLTP term register (`terms/rltp.skos.jsonld`).
   its causal position accepts it and no outcome rule of 3.6
   disposes of it.
 - **Forked state** — the fail-closed materialization outcome of the
-  fork pairings that 3.6 names: a policy change or a dissolution
-  concurrent with an enforcement operation.
+  fork pairing that 3.6 names: a policy change concurrent with an
+  enforcement operation.
 - **Policy** — group-defined data stating, per rule key, which
   proof satisfies the group's decision rule (Section 4).
 - **Policy proof** — the signatures and credentials an operation
@@ -787,8 +787,9 @@ group state, the terminal state (5.4), or the forked state (Section
 re-judges an operation at its position, it only decides what the
 operation confers in the merged state. Same data, same verdict.
 What a later branch can change is closed and listed in Section 3.6
-— the remaining fork pairings, a canonical dissolution prevailing,
-the removal disposition, a removal with authority taking effect,
+— the remaining fork pairing, a dissolution lapsing beside an
+enforcement or prevailing over additive operations, the removal
+disposition, a removal with authority taking effect,
 and the revision of a terminality-by-emptiness verdict (5.4) —
 and nothing else; an open list would let a merge revoke an
 admission whose welcome was already delivered. Same-subject
@@ -924,16 +925,18 @@ operations that confer standing — never the enforcement the
 subject was entitled to make. A rotation beside a removal is the
 same case with one secret fewer to argue about (S4d).
 
-**The remaining fork pairings.**
+**The remaining fork pairing.**
 
 **RLTP-ACC-3495** — A `policy.change` and a concurrent enforcement
 operation, another `policy.change` included, MUST produce the
 forked state.
 
-**RLTP-ACC-3460** — A `group.dissolve` concurrent with an
-enforcement operation MUST lapse: the enforcement takes effect, the
-merged state is not terminal, and a dissolution of the merged state
-requires a new `group.dissolve`.
+**RLTP-ACC-3460** — A `group.dissolve` concurrent with a canonical
+enforcement operation, a `policy.change` included, MUST lapse: the
+enforcement takes effect, the merged state is not terminal, and a
+dissolution of the merged state requires a new `group.dissolve`;
+the last-member leave and the drained dissolve of 5.4 are
+dissolutions for this rule.
 
 **RLTP-ACC-3440** — In the forked state an operation building on
 either fork sibling MUST NOT be canonical, and every authorization
@@ -954,16 +957,29 @@ class `log` reaches it by its own materialization.
 `policy.change` whose ancestry contains both siblings is valid as
 the resolving operation: it MUST be validated against the state
 materialized from the maximal prefix free of the fork pairing — its
-members, policy, policy version and epoch — its `policyVersion`
-MUST be that prefix's version plus one, and RLTP-ACC-3440 MUST NOT
+members, policy and policy version — its `policyVersion` MUST be
+that prefix's version plus one, its `newEpoch` follows
+RLTP-ACC-7040 over its whole ancestry, its author MUST NOT be the
+subject of a removal on either sibling, and RLTP-ACC-3440 MUST NOT
 apply to it.
+
+**RLTP-ACC-3566** — The maximal prefix free of a fork pairing MUST
+be the maximal causally closed sub-DAG of the accepted entries that
+contains no member of the pairing and no descendant of a member;
+for a pairing P → {T₁, T₂} it is exactly the closure of P.
 
 **RLTP-ACC-3567** — After the forked state ends, the materialization
 MUST be re-derived over the reconciled DAG by the ordinary rules of
-this section: the siblings' policy effects MUST lapse, their other
-effects and every operation building on them take effect in 3.5's
-order where their authority verdict allows, and the resolving
-`policy.change` folds last and sets the policy.
+this section: the siblings' policy effects MUST lapse, their epoch
+transitions and other effects and every operation building on them
+take effect in 3.5's order where their authority verdict allows,
+and the resolving `policy.change` folds last and sets the policy.
+
+**RLTP-ACC-3569** — An operation whose authority effect lapses under
+RLTP-ACC-3460 or RLTP-ACC-3567 MUST carry the status `lapsed`: it
+remains valid at its position, its epoch transition, if any,
+counts for RLTP-ACC-7040 and for the key port, and it confers no
+other effect.
 
 **RLTP-ACC-3568** — While the forked state lasts, every operation
 building on either sibling MUST carry the status `forked`, and a
@@ -1090,8 +1106,10 @@ transitively over admissions by, and additive operations of,
 subjects whose own admission it disposes.
 
 **RLTP-ACC-3545** — The subject of a disposed admission MUST NOT
-be a member of the merged state, and its accept MUST count as
-consumed.
+be a member of the merged state through that admission, and its
+accept MUST count as consumed; a concurrent canonical admission of
+the same subject keeps the subject a member (RLTP-ACC-3475,
+RLTP-ACC-3572).
 
 **RLTP-ACC-3550** — The removal disposition MUST be recomputed over
 the whole DAG on merge without re-validating any operation.
@@ -1206,8 +1224,8 @@ group has not kept.
 **RLTP-ACC-3562** — Where an operation is both a fork-sibling
 descendant and in the removal-disposition set, its disposition
 MUST be the greatest under the order `forked` ≻
-`removed-disposed` ≻ `canonical`, and transitions MUST be closed
-under that order.
+`removed-disposed` ≻ `lapsed` ≻ `canonical`, and transitions MUST
+be closed under that order.
 
 *Rationale.* One operation can fall under two outcome rules at
 once. A total order over the outcomes keeps the answer single and
@@ -1216,8 +1234,9 @@ the same everywhere.
 
 **Evidence transport.** Entries that are admitted but not
 canonically applicable are the fork siblings of the remaining fork
-pairings (RLTP-ACC-3495, RLTP-ACC-3460) with their descendants, and
-the operations under the removal disposition. They travel as
+pairing (RLTP-ACC-3495) with their descendants, the lapsed
+operations (RLTP-ACC-3569), and the operations under the removal
+disposition. They travel as
 evidence under an authorization of their own.
 
 **RLTP-ACC-3625** — Admitted but non-canonical entries MUST
@@ -1225,7 +1244,7 @@ continue to replicate as non-effecting evidence.
 
 **RLTP-ACC-3630** — The peers entitled to evidence MUST be the
 members of the materialization of the maximal prefix free of the
-remaining fork pairings; where no fork exists, removals and the
+remaining fork pairing; where no fork exists, removals and the
 removal disposition included, they MUST be the current members.
 
 **RLTP-ACC-3635** — An item causally newer than a peer's removal
@@ -1264,7 +1283,7 @@ closure).
 authenticated by the ordinary challenge-possession mechanism and
 judged against a presented prefix claim instead of the current
 head, for evidence of the removal disposition, of the remaining
-fork pairings, and of service and replica target roots.
+fork pairing, and of service and replica target roots.
 
 **RLTP-ACC-3650** — An evidence session MUST open with exactly one
 canonical prefix claim, `rltp-access-evidence-claim/1`; no other
@@ -1365,7 +1384,7 @@ including its closed variants.
 
 | Root | Response |
 |---|---|
-| disputed transition (`rootKind` `"transition"`), a fork sibling of the remaining fork pairings | both siblings |
+| disputed transition (`rootKind` `"transition"`), a fork sibling of the remaining fork pairing | both siblings |
 | disposed operation (`"disposition"`) | the operation and the removal that disposes it |
 | replica target (`"target"`, `admitted` scope; no chain, no generation) | the current in-session span, root and baseline of the same session: baseline `null` → the full root-session span back to seq 1; a known same-session ancestor of the root → the span down to it; a foreign or unknown session, or a known same-session non-ancestor → the variant `foreign-session-baseline` or `non-ancestor-baseline`, answered with the full root-session span |
 | service target (`"target"`, `stored` scope) | the target chain from the named target back to `lastKnownTargetDigest` (`digest \| null`): `null` → back to the chain's `seq = 1`; a non-ancestor or foreign-generation digest → the variant `unknown-baseline`, answered with the full chain of the current generation; a chain restart inside the span → back to the restart marker, which carries its own continuity statement |
@@ -1538,9 +1557,10 @@ material, view `identities`) MUST accept up to 8192 entries, twice
 the admission bound, as denial-of-service ceilings and not group
 bounds.
 
-**RLTP-ACC-3810** — Beyond 8192 members, operations whose artifacts
-scale with membership MUST fail closed at construction, membership
-itself untouched.
+**RLTP-ACC-3810** — Beyond 8192 entries of a membership-scaled
+field — members for views, bound devices for a per-device key
+distribution — operations whose artifacts scale with it MUST fail
+closed at construction, membership itself untouched.
 
 **RLTP-ACC-3815** — `member.leave` and `group.dissolve`, and
 additive operations whose artifacts do not scale with membership,
@@ -1575,8 +1595,9 @@ from the named outcome rules of this section.
 
 **RLTP-ACC-3820** — A merge MUST NOT revise an operation's validity
 or effect except through exactly these outcome rules: the remaining
-fork pairings (RLTP-ACC-3495, RLTP-ACC-3460), the terminal prevail
-rule (RLTP-ACC-3470), the enforcement-prevails pairings
+fork pairing (RLTP-ACC-3495), the lapsing dissolution
+(RLTP-ACC-3460), the terminal prevail rule (RLTP-ACC-3470), the
+enforcement-prevails pairings
 (RLTP-ACC-3485, RLTP-ACC-3505), the removal disposition applied
 only by removals with authority (RLTP-ACC-3385, RLTP-ACC-3390,
 RLTP-ACC-3520), and the terminality-by-emptiness verdict of 5.4.
@@ -2889,7 +2910,9 @@ ancestors, minus the operation's `subject` where it is a
 `member.remove`, minus every member whose undischarged
 `member.leave` lies in its ancestry; the retained set of a merged
 state MUST be the members of the merged materialization minus its
-pending exits, and in devices, minus the devices revoked in it.
+pending exits, and in devices, minus the devices revoked in it; the
+forked and the terminal state have no retained set, because no
+transition is valid there.
 
 **RLTP-ACC-7020** — A rotation MUST NOT shrink membership other than
 by discharging the pending leaves in its ancestry.
@@ -4183,10 +4206,13 @@ material for an admitted device MUST travel as replication items
 beside the operation that caused them, addressed to all.
 
 **RLTP-ACC-9897** — `beekem/0.1` MUST register the `key-delivery`
-kind `material`: the answer to an entitled key request (5.3) is a
-material object with `keys = { "op" }` addressed to the requesting
-device, sealed to the request's card, verifiable against the
-current `keyOpDigest` chain.
+kind `material`: its document is the material object of 9.4
+(`epoch` = the helper's current epoch, `keys.op` = a key operation
+that gives the requesting device a leaf or path for that epoch),
+sealed as 10.1 seals `re-welcome` to the key-agreement key of the
+device card the request carries, with the recipient check of 10.1
+applied to that device; the receiver verifies the operation against
+the `keyOpDigest` of the enforcement operation it answers.
 
 *Editor's note.* The registration exists because this adapter is
 the one under which all six invariants have been shown together
