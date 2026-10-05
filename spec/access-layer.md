@@ -3924,8 +3924,9 @@ writes under any of the merged secrets MUST fail closed (KV6).
 its secret without containing the secret (KV3).
 
 **RLTP-ACC-9262** — A key state created by a transition MUST be
-identified by that transition's `id`; the epoch number is a counter
-(7.1) and MUST NOT serve as the identifier of a key state.
+identified by that transition's `id`, and the genesis key state by
+the genesis operation's `id`; the epoch number is a counter (7.1)
+and MUST NOT serve as the identifier of a key state.
 
 **RLTP-ACC-9264** — A key state an adapter derives by merging
 without a transition MUST be identified deterministically from the
@@ -4377,8 +4378,10 @@ beside the operation that caused them, addressed to all.
 
 **RLTP-ACC-9897** — `beekem/0.1` MUST register the `key-delivery`
 kind `material`: its document is the material object of 9.4
-(`epoch` = the helper's current epoch, `keyState` = the identifier
-of the helper's current key state, `keys.op` = a key operation,
+(`op` = the admission of the subject, or the genesis for a founder,
+as for `re-welcome`; `epoch` = the helper's current epoch,
+`keyState` = the identifier of the helper's current key state,
+`keys.op` = a key operation,
 freshly produced by the helper's device at that key state, that
 gives the requesting device a leaf or path there), sealed as 10.1
 seals `re-welcome` to the key-agreement key of the requesting
@@ -4538,12 +4541,13 @@ state, is a current member of it, and that the document's
 `recipient` is a device bound and unrevoked for that anchor there;
 for `request`, proof and card per RLTP-ACC-10060 to RLTP-ACC-10090.
 
-**RLTP-ACC-10105** — A key-delivery document MUST name the entitled
-member anchor in `subject` and the device the material is sealed to
-in `recipient`; entitlement is checked against `subject`, binding,
-revocation and the seal against `recipient`, and the Delivery
-Contract's recipient check applies to the device's own anchor
-through its binding (5.1).
+**RLTP-ACC-10105** — A key-delivery payload MUST name the entitled
+member anchor in `keyDelivery.subject` and the device the material
+is sealed to in the document's `recipient`, for every kind including
+`request`; entitlement is checked against the subject, binding,
+revocation and the seal against the recipient device, and the
+Delivery Contract's recipient check applies to the device's own
+anchor through its binding (5.1).
 
 **RLTP-ACC-10110** — At adoption, the unsealed material's `epoch`
 MUST equal the recipient's current epoch and its `keyState` MUST
