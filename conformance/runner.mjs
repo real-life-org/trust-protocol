@@ -1362,6 +1362,37 @@ section('carrier-proof.json — the duration grammar maps to exact milliseconds'
     'duration grammar: an out-of-grammar lexeme is rejected, never rounded or truncated (round-32 B-2)')
 }
 
+// ── suite: access-conflicts.json — the conflict matrix of Access 0.54 §3.6 ──
+section('access-conflicts.json — authority DAGs materialize as declared (Access 3.5, 3.6)')
+{
+  const { opId, materialize, deliver, STATUSES } = await import('./access-conflicts.mjs')
+  const AC = J('vectors/access-conflicts.json')
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  for (const c of AC.cases) {
+    check(c.ops.every((o) => o.id === opId(o)), `${c.scenario}: every operation id recomputes`)
+    check(c.ops.every((o) => STATUSES.includes(c.expected.status[o.id])) && Object.keys(c.expected.status).length === c.ops.length,
+      `${c.scenario}: one declared status per operation`)
+    const r = materialize(c.ops)
+    check(same(r.members, c.expected.members), `${c.scenario}: members ${JSON.stringify(Object.keys(c.expected.members))} — ${c.name}`)
+    check(r.epoch === c.expected.epoch, `${c.scenario}: merged epoch ${c.expected.epoch}`)
+    check(same(r.status, c.expected.status), `${c.scenario}: status of every operation as declared`)
+    for (const [i, order] of (c.deliveryOrders ?? []).entries()) {
+      const d = deliver(c.ops, order)
+      check(same(d.members, c.expected.members) && same(d.status, c.expected.status), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
+    }
+  }
+  // the oracle can fail: the S4f DAG with the disposed admission declared canonical
+  {
+    const c = AC.cases.find((x) => x.scenario === 'S4f')
+    const forged = structuredClone(c.expected.status)
+    const disposedId = Object.keys(forged).find((id) => forged[id] === 'removed-disposed')
+    forged[disposedId] = 'canonical'
+    check(!same(materialize(c.ops).status, forged), 'access-conflicts: a disposed admission declared canonical is detected')
+  }
+  check(['S4b', 'S4c', 'S4d', 'S4f', 'review #11', 'removal chain', 'delivery order'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the scenarios RLTP-ACC-14050 names are all present')
+}
+
 // ── result ───────────────────────────────────────────────────────────────
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) { console.error('conformance: FAILED'); process.exit(1) }
