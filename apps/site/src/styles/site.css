@@ -72,7 +72,12 @@ h2, h3 { letter-spacing: -.02em; }
 .tp-chip code { font-size: .75rem; background: none; padding: 0; color: inherit; }
 .tp-accent { color: var(--sl-color-accent); }
 .hero h1 .tp-accent { display: block; }
+/* The hero buttons take the shape of the landing's buttons (.tp-btn). */
+.hero .sl-link-button { min-height: 3.125rem; box-sizing: border-box; border-radius: var(--radius-xl); padding: .7rem 1.4rem; font-size: 1rem; font-weight: 600; gap: .6rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-bg-sidebar); color: var(--sl-color-white); }
+.hero .sl-link-button:hover { border-color: var(--sl-color-accent); color: var(--sl-color-white); }
 .hero .sl-link-button.primary { background: var(--tp-primary-bg); border-color: var(--tp-primary-bg); color: var(--tp-primary-fg); }
+.hero .sl-link-button.primary:hover { color: var(--tp-primary-fg); }
+.hero .actions { gap: .75rem !important; }
 @media (min-width: 50rem) {
   .hero { grid-template-columns: 6fr 5fr !important; gap: 3rem !important; }
   .hero > .hero-html { width: 100% !important; max-width: 32rem; }
@@ -152,7 +157,8 @@ a.tp-card:hover { border-color: var(--sl-color-accent); }
 .tp-card-head { display: flex; align-items: center; justify-content: space-between; }
 .tp-card-head .tp-icon.tile { margin-bottom: 0; }
 .tp-card-head code { font-size: .8rem; color: var(--sl-color-gray-4); background: none; padding: 0; }
-/* Behind ports: dashed, like the service bands of the diagram. */
+/* The two contracts behind ports: dashed, like the service bands of the
+   diagram. The adapter is an implementation, so it keeps the solid card. */
 .tp-card.port { border-style: dashed; background: var(--sl-color-black); gap: .5rem; }
 .tp-card.port .tp-icon.tile { margin-bottom: .2rem; }
 /* The DTG references: a kicker, the text, the repository in mono. */

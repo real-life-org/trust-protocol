@@ -120,7 +120,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       {services.map(([icon, name, desc, href]) => (
         <a class="tp-card port" href={href}><Icon name={icon} /><strong>{name}</strong><span>{desc}</span></a>
       ))}
-      <a class="tp-card port row span" href={spec('adapter-vti-mediator.md')}>
+      <a class="tp-card row span" href={spec('adapter-vti-mediator.md')}>
         <Icon name="server" />
         <div><strong>VTI mediator adapter</strong><span>Delivery over the Verifiable Trust Infrastructure.</span></div>
         <em class="tp-tag">one adapter</em>
