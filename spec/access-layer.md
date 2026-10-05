@@ -943,7 +943,9 @@ merged state requires a new `group.dissolve`.
 **RLTP-ACC-3462** — A last-member leave or a drained dissolve
 concurrent with an enforcement operation MUST NOT lapse as a leave:
 the leave merges as an ordinary `member.leave` with its discharge
-open (5.4), and only its terminal effect yields to RLTP-ACC-3460.
+open (5.4), and only its terminal effect yields to RLTP-ACC-3460;
+where every remaining member is then a pending exit, the drained
+path of 5.4 applies.
 
 **RLTP-ACC-3440** — In the forked state an operation building on
 either fork sibling MUST NOT be canonical, and every authorization
@@ -965,10 +967,12 @@ class `log` reaches it by its own materialization.
 the resolving operation: it MUST be validated against the state
 materialized from the maximal prefix free of the fork pairing — its
 members, policy and policy version — its `policyVersion` MUST be
-that prefix's version plus one, its `newEpoch` follows
-RLTP-ACC-7040 over its whole ancestry, its author MUST NOT be the
-subject of a removal on either sibling, and RLTP-ACC-3440 MUST NOT
-apply to it.
+that prefix's version plus one, its `newEpoch` MUST be one above
+the maximum `newEpoch` of every transition valid at its position in
+the resolver's ancestry, its retained set MUST be the merged
+retained set of the reconciled DAG (RLTP-ACC-7015), its author
+MUST NOT be the subject of a `member.remove` that is a sibling or
+descends from a sibling, and RLTP-ACC-3440 MUST NOT apply to it.
 
 **RLTP-ACC-3566** — The maximal prefix free of a fork pairing MUST
 be the maximal causally closed sub-DAG of the accepted entries that
@@ -2018,7 +2022,7 @@ effect, and closed body profile that the following table states.
 | `policy.change` | enforcement | **transition, atomic** | `policy` (the complete new object, 4.1), `transition` |
 | `visibility.change` | enforcement | **transition, atomic** | `mode`, `transition` (Section 8) |
 | `history.expose` | additive | none | `fromEpoch`, `toEpoch` (optional), `keys` (Section 8) |
-| `lineage.repair` | additive | none | `epoch`, `opens`, `ct`; valid only under `linear/0.1` (9.4.1) |
+| `lineage.repair` | additive | none | `transition`, `opens` (operation ids), `ct`; valid only under `linear/0.1` (9.4.1) |
 | `document.attach` | additive | none | `document` (identifier), `dataPolicy` (Layer-4 disposition declaration) |
 | `document.detach` | enforcement | **transition, atomic** | `document`, `transition` |
 | `device.add` | additive | none | `card` (the device card, 5.1); the author is the device's person |
@@ -4005,11 +4009,12 @@ sender and retriable.
 
 **RLTP-ACC-9535** — A service MAY bound its intake by size, rate
 and syntactic validity, and MUST then declare the bound in its
-registration as a positive budget per presenter and group over
-`stalenessBound`, apply it per presenter and group, and admit on
-presentation every valid authority operation within the declared
-budget; it MUST NOT bound intake by the sender's membership or by
-the author of an authority operation.
+registration as `intakeBudget`, the number of operations it admits
+per presenter and group within one `stalenessBound`, apply it per
+presenter and group, and admit on presentation every valid
+authority operation within the declared budget; it MUST NOT bound
+intake by the sender's membership or by the author of an authority
+operation.
 
 **RLTP-ACC-9540** — A service that stops serving a removed member
 MUST deliver the removal notice (10.2) to that member once a member
@@ -4227,7 +4232,7 @@ carry `lineage`, an array of one or more entries `{ "opens":
 <transition id>, "ct": … }`, one per key state it succeeds, `ct`
 being the AEAD ciphertext of the opened key state's content key
 under the new content key with AAD the UTF-8 bytes of the JCS
-serialization of `{ "genesis", "transition": <this transition's
+serialization of `{ "genesis", "newEpoch": <this transition's
 newEpoch>, "opens": <the opened transition's id> }`.
 
 **RLTP-ACC-9762** — Under `linear/0.1`, a healing rotation MUST carry
@@ -4423,7 +4428,8 @@ kind and absent for `request`, in the shape the kind defines.
 otherwise.
 
 **RLTP-ACC-10065** — A request's `card` proof MUST verify under the
-requester's anchor.
+card's signer: the requester's anchor for a contact card, the
+signing device for a device card (5.1).
 
 **RLTP-ACC-10070** — A document of a material kind MUST NOT carry a
 `proof`.
@@ -4432,7 +4438,7 @@ requester's anchor.
 the document `issuer`.
 
 **RLTP-ACC-10090** — A `request`'s `issuer` MUST equal the claiming
-anchor and the enclosed card's anchor.
+anchor and the anchor the enclosed card binds to.
 
 *Rationale.* Authenticity of material is content-bound: a `keydist`
 envelope is committed by digest in the named transition and bound
@@ -4660,7 +4666,8 @@ the payload is the compact notice object, schema
   "subject": "did:key:z6Mk…removed",
   "epoch": 8,
   "author": "did:key:z6Mk…remover",
-  "sig": "…author's signature over the JCS serialization with
+  "issuer": "did:key:z6Mk…member who produced the notice",
+  "sig": "…issuer's signature over the JCS serialization with
           sig omitted…" }
 ```
 
@@ -4834,7 +4841,9 @@ Membership Tasks (0.16, pinned to envelope `rltp-access/0.24`) MUST
 transport envelopes of version `rltp-access/0.25` under this
 profile; a receiver MUST accept both versions in that payload until
 the companion's pin advances, and `keyOpDigest` is required only
-under `0.25`.
+under `0.25`, and a `0.24` envelope carries the single-object
+`lineage` form of its version, which receivers MUST accept as one
+edge opening the previous epoch's transition.
 
 *Rationale.* A companion pin that lags one wire version is a
 compatibility statement, not a contradiction, as long as the
@@ -5221,8 +5230,10 @@ in both directions.
   `forked`, and a `policy.change` descending from both siblings
   ends the state, after which statuses are re-derived), and the fork
   ended by a `policy.change` whose ancestry contains both siblings;
-  a terminal operation concurrent with an enforcement operation
-  (forked state).
+  a `group.dissolve` concurrent with an enforcement operation
+  (lapsed, the enforcement in effect, terminal only on emptiness);
+  a last-member leave concurrent with a rotation (pending exit, not
+  lapsed).
 
 **Test goals not yet in a vector file**, by area:
 
@@ -5372,7 +5383,8 @@ in both directions.
   (S10a) visibly and retriably; a removed member receives the
   removal notice.
 - *Removal notice* — `$id` equal to the type URI; document proof
-  absent, `issuer` equal to `author`; consistency failures
+  absent, `issuer` a member materializing the removal and `sig`
+  under `issuer`; consistency failures
   `failed(validation-failed)`; `unique` on first surfacing and
   `duplicate-known` on redelivery; no state effect, a notice naming
   a fabricated `op` surfaced and inert; no re-alert by `op` after the
