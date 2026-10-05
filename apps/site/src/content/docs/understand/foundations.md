@@ -33,8 +33,9 @@ identifier: `pairwise` is known to one counterpart, `directed` to a
 set the holder chooses, `public` to anyone. A pair anchor is
 `pairwise`; a member anchor is `directed`, because every member of
 the group can correlate it; a persona is `public`, because its
-profile is meant for everyone. RLTP has no persona for a chosen set;
-what the DTG calls a directed persona is, here, a member anchor.
+profile is meant for everyone. Personas are specified but not yet
+built, and whether RLTP also needs personas toward a chosen set is an
+open question; today that role falls to the member anchor.
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
