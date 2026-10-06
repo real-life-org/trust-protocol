@@ -40,6 +40,9 @@ export default defineConfig({
           { label: 'Read the spec', link: '/get-started/read-the-spec/' },
           { label: 'Implement', link: '/get-started/implement/' },
         ] },
+        { label: 'Why', items: [
+          { label: 'Invitation, not checkpoint', link: '/understand/why/' },
+        ] },
         { label: 'Understand', items: [
           { label: 'Foundations', link: '/understand/foundations/' },
           { label: 'Encounter', link: '/understand/encounter/' },

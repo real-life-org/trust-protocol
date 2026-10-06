@@ -1,0 +1,145 @@
+---
+title: Invitation, not checkpoint
+description: Why RLTP is built around invitations into shared places rather than credentials presented at a door, and where each of the two belongs.
+---
+
+import CheckpointHalf from '../../../components/figures/CheckpointHalf.astro'
+import InvitationHalf from '../../../components/figures/InvitationHalf.astro'
+
+Digital trust is built around one of two figures: the checkpoint or the
+invitation. Most work starts at the checkpoint. A person presents a
+credential at a door, someone they have never met checks it, and the
+door opens or stays shut. RLTP is built around real encounters and the
+invitations that follow from them. It started with what we wanted from
+our own network:
+
+<blockquote class="tp-quote">
+  <p>“We want our own graph. To see how we're connected to anyone we meet. To watch it grow. To create together with the people in it.”</p>
+</blockquote>
+
+Showing proof does not come up in that wish, because the graph is alive,
+a field you tend rather than an archive you carry. Neither figure is
+wrong. Each answers a different problem.
+
+## The checkpoint
+
+A person carries credentials issued by institutions and presents them at
+a door. A stranger checks them against a policy and admits the person or
+not. Every passage is checked again, and the log grows.
+
+<figure class="tp-half"><CheckpointHalf /></figure>
+
+The checkpoint comes from self-sovereign identity, which began with an
+institutional problem: a person has to prove something to an
+organisation at a distance, without a platform becoming the gatekeeper.
+Bank checks, diplomas, driving licences, proof of age. The other side is
+a stranger by definition. No relationship, and none wanted; proof is the
+only currency. Issuer, holder, verifier: the roles of the paper ID card.
+Presenting was never a design choice. It was inherited.
+
+## The invitation
+
+Nobody presents anything. You consult your own graph: where do we know
+each other from, what do we share? A friend, a group, an event, a place.
+Then you invite into a shared place. The decision stays with you and
+becomes a relationship. The graph itself grows out of
+[real encounters](/understand/encounter/): two people meet, and each
+confirms that they recognize the other.
+
+<figure class="tp-half"><InvitationHalf /></figure>
+
+The invitation comes from community organising and local-first
+software: maps, camps, festivals, regional networks. There, trust comes
+first. It begins when people meet; software can remember it and carry
+it, but it cannot create it. People who know each other never needed to
+present anything.
+
+## What makes a checkpoint
+
+A checkpoint is more than a check. It takes three things together:
+someone who does not know you decides, the proof can be carried
+elsewhere and shown again, and a third party can keep a record of who
+was checked.
+
+RLTP checks too: when two people meet, when someone joins a group, when
+a document arrives. But none of the three applies. The person who
+invites decides. What remains is a relationship, not a proof to show
+elsewhere. And the check happens on the devices of those involved, so
+nobody outside can keep a record of it.
+
+## Who is the trust statement for?
+
+Underneath the two figures lies one question: who is the trust
+statement for? A statement meant for strangers needs an issuer they
+accept and infrastructure they can reach. Trust that comes from your
+own relationships needs neither. That is why the invitation works
+offline, on a festival field or in a village without a connection: no
+server and no authority stands in the path.
+
+Inside RLTP, a trust statement is for one person. Every encounter uses
+fresh identifiers, and when you trust someone, you link your
+identifiers for that one person, in a form only they can check. It
+tells your contact who you are. It gives them nothing they could
+present to anyone else, so your graph never turns into a list someone
+can collect.
+
+A credential freezes trust. A relationship keeps it alive. A frozen
+object can be checked by someone who knows nothing else about you; a
+living relationship needs people who know each other. So each figure
+works where the other fails. The invitation fails between strangers:
+when two people share nothing, the graph has nothing to say. That is not
+a gap to close. Border crossings, proof of age and admissions among
+strangers need checkpoints. The checkpoint fails inside a community: a
+community that checks its own members' credentials has stopped being
+one. Checkpoints belong at the edges of social space; invitations
+belong inside it.
+
+## Membership isn't a proof, it's a key
+
+The usual architecture for decentralized identity has five building
+blocks: the identifier, the credential, the presentation, the status and
+the wallet. Each is a statement about someone, held by someone, shown to
+someone. A group is not one of them. Systems built this way add it on
+top: as an issuer of membership credentials, as a registry, or as an
+encrypted room on a server. In such a room the server holds the data and
+an owner decides who gets in; to read or write, members need the server
+to be there.
+
+RLTP uses the same identifiers and credentials, and adds the group as a
+building block of its own:
+[a place its members hold together](/understand/foundations/#groups).
+It is an encrypted document on every member's device, with a log of who
+joined, who left and which rules apply. No owner decides; the group's
+own rule does. Members read and write without a server, and their
+copies merge when they meet again. Whoever is inside holds the key, and the key opens the
+shared data. Being a member means holding a place, not holding a claim.
+
+| Statement | Place |
+|---|---|
+| Signed, portable, presented. Grants nothing by itself; a verifier grants access each time. | Shared, encrypted, governed by its own rules. You are invited in, and inside you hold the key. |
+| Things you carry: ID card, certificate, contract. | What you share: group, space, relationship. |
+
+A checkpoint is what you build when there is no shared place.
+Invitations exist because there is one.
+
+## Where the two worlds meet
+
+The two worlds meet, and statements cross in both directions. An
+encounter credential can serve as evidence where a stranger needs it,
+and a credential from the institutional world can tell you something
+about a person before you meet. What does not cross is the checking
+itself: no registry, no duty to present, no log of who was checked. And
+the place stays a place: whatever is said about it outside, its rules
+and its data stay with its members.
+
+
+## Decentralized identity meets local-first
+
+RLTP builds a bridge between decentralized identity and local-first
+software. From the ToIP Decentralized Trust Graph
+work it takes credentials, Trust Tasks and transport. From local-first
+software it takes replicated data, group keys and event logs. What is
+new is the joining: groups that are places, entered through trust
+between people.
+
+We don't ask for papers. We ask where we know each other from.
