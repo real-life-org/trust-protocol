@@ -1,0 +1,38 @@
+---
+/**
+ * Behind the ports: the architecture picture's dashed rail, seen from the
+ * services' side. Two rows lead off it, one per port: a contract, and at
+ * its right what keeps the contract and may plug in. Styles: site.css,
+ * .tp-ports.
+ */
+import { icons } from '../icons'
+
+const REPO = 'https://github.com/real-life-org/trust-protocol'
+const spec = (file: string) => `${REPO}/blob/main/spec/${file}`
+const svg = (name: keyof typeof icons) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`
+---
+<figure class="tp-ports" aria-label="Two ports. Behind the delivery port a contract: sealed, acknowledged, a closed set of states; the VTI mediator adapter keeps it, any transport may. Behind the replication port a contract: signed, causally linked, key-blind; any substrate that keeps it may plug in.">
+  <span class="rail" aria-hidden="true"><em>ports</em></span>
+
+  <i class="tick" aria-hidden="true"></i>
+  <a class="contract" href={spec('delivery-contract.md')}>
+    <span class="tp-kicker">Delivery contract</span>
+    <span>sealed · acknowledged · closed set of states</span>
+  </a>
+  <i class="tick plain" aria-hidden="true"></i>
+  <div class="subs">
+    <a class="chip" href={spec('adapter-vti-mediator.md')}><Fragment set:html={svg('server')} />VTI mediator</a>
+    <span class="chip ghost"><Fragment set:html={svg('plus')} />any transport</span>
+  </div>
+
+  <i class="tick" aria-hidden="true"></i>
+  <a class="contract" href={spec('replication-contract.md')}>
+    <span class="tp-kicker">Replication contract</span>
+    <span>signed, causally linked · key-blind</span>
+  </a>
+  <i class="tick plain" aria-hidden="true"></i>
+  <div class="subs">
+    <span class="chip ghost"><Fragment set:html={svg('plus')} />any substrate</span>
+  </div>
+</figure>
