@@ -28,11 +28,11 @@ const encounter: Card[] = [
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
   ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
 ]
-const space: [IconName, string][] = [
-  ['lock', 'End-to-end encrypted'],
-  ['hard-drive', 'Complete on every device'],
-  ['waypoints', 'Changes merge'],
-  ['shield', 'Former members read nothing new'],
+const space: [IconName, string, string][] = [
+  ['lock', 'End-to-end encrypted', 'AES-256 · epoch keys only on member devices'],
+  ['hard-drive', 'Complete on every device', 'full replica · offline first'],
+  ['waypoints', 'Changes merge', 'CRDT · signed, causally linked entries'],
+  ['shield', 'Former members read nothing new', 'key rotation · a removal starts a new epoch'],
 ]
 const dtg: { label: string; text: string; href: string; repo: string }[] = [
   { label: 'Credentials', text: 'Encounter credentials are typed as DTG relationship credentials, invitations as DTG invitation credentials. The move to the current DTG context follows its implementer\'s draft.', href: 'https://github.com/trustoverip/dtgwg-cred-spec', repo: 'dtgwg-cred-spec' },
@@ -113,8 +113,8 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <h2>A shared space for the group's work</h2>
       <p>Events, places, offers, needs, tasks, people and messages: everything the group holds lives in one encrypted space. The relay in between sees ciphertext only.</p>
       <div class="tp-props">
-        {space.map(([icon, name]) => (
-          <div class="tp-item"><Icon name={icon} /><strong>{name}</strong></div>
+        {space.map(([icon, name, detail]) => (
+          <div class="tp-item"><Icon name={icon} /><div><strong>{name}</strong><code>{detail}</code></div></div>
         ))}
       </div>
     </div>
