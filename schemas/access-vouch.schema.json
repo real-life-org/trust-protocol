@@ -1,7 +1,7 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://real-life.org/rltp/v1/schemas/access-vouch.schema.json",
- "title": "DTG AdmissionVouch (vouch@2, wire 0.24 family)",
+ "title": "DTG AdmissionVouch (vouch@2, Access Layer 0.55 section 5.3)",
  "description": "One member's vouching statement for one admission candidate as a conformant DTG EndorsementCredential (DTGWG Core Credentials WD01; Access 4.2/4.3/5.3). Endorsement vocabulary AdmissionVouch is community-defined by the Access layer: genesisDigest binds the group, accept binds the consented candidacy (no standing vouch), provenance is self-asserted. Proof: DataIntegrityProof eddsa-jcs-2022 incl. the mandatory proof @context copy.",
  "type": "object",
  "additionalProperties": false,

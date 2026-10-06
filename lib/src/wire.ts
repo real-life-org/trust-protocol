@@ -72,7 +72,7 @@ export type AccessRegistration = ({
   authorizationRoot: (null) | (string)
 })
 
-/** schemas/access-vouch.schema.json — DTG AdmissionVouch (vouch@2, wire 0.24 family) */
+/** schemas/access-vouch.schema.json — DTG AdmissionVouch (vouch@2, Access Layer 0.55 section 5.3) */
 export type AccessVouch = {
   "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
   type: (Json[])
