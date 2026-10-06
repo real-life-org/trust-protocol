@@ -7,8 +7,9 @@ description: How a group holds itself together. A place on its members' devices,
 
 A group is a place its members hold together: an encrypted document on
 each member's device, with a log of who joined, who left and which
-rules apply. Inside it the members work with whatever their app brings,
-a map, a calendar, a list. The protocol does not care what the data is;
+rules apply. Inside it is the group's shared space:
+replicated state on every member's device, which the app fills with
+whatever it needs, a map, a calendar, a list. The protocol does not care what the data is;
 it cares who may read and change it.
 
 The log is the group's memory of itself. Every entry is a signed act of
