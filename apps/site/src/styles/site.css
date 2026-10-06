@@ -403,17 +403,17 @@ a.tp-ports-chip:hover, .tp-ports a.chip:hover { border-color: var(--sl-color-acc
 .tp-anchors { margin: 0; }
 .tp-anchors svg { display: block; width: 100%; height: auto; overflow: visible; }
 .tp-anchors text { font-family: var(--font-sans); }
-.tp-anchors .derive { stroke: var(--sl-color-accent); stroke-width: 1.5; stroke-dasharray: 4 4; }
-.tp-anchors .faces { stroke: var(--sl-color-gray-4); stroke-width: 1.5; }
+.tp-anchors .derive { stroke: var(--sl-color-accent); stroke-width: 1.75; stroke-dasharray: 5 5; }
+.tp-anchors .faces { stroke: var(--sl-color-gray-4); stroke-width: 1.75; }
 .tp-anchors .seed { fill: var(--sl-color-accent); }
-.tp-anchors .name { font-size: 17px; font-weight: 700; fill: var(--tp-primary-fg); }
-.tp-anchors .sub { font-size: 11.5px; fill: var(--tp-primary-fg); opacity: .85; }
+.tp-anchors .name { font-size: 19px; font-weight: 700; fill: var(--tp-primary-fg); }
+.tp-anchors .sub { font-size: 12.5px; fill: var(--tp-primary-fg); opacity: .85; }
 .tp-anchors .chip { fill: var(--sl-color-black); stroke: var(--sl-color-gray-5); stroke-width: 1; }
-.tp-anchors .mono { font-family: var(--font-mono); font-size: 11.5px; fill: var(--sl-color-gray-1); }
+.tp-anchors .mono { font-family: var(--font-mono); font-size: 13px; fill: var(--sl-color-gray-1); }
 .tp-anchors .person { fill: var(--tp-tint); stroke: var(--sl-color-accent); stroke-width: 1.5; }
-.tp-anchors .initial { font-size: 13px; font-weight: 700; fill: var(--sl-color-accent); }
-.tp-anchors .group { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.tp-anchors .initial { font-size: 14px; font-weight: 700; fill: var(--sl-color-accent); }
+.tp-anchors .group { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .tp-anchors .member { fill: var(--sl-color-accent); }
 .tp-anchors .public { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; }
 .tp-anchors .glyph { fill: none; stroke: var(--sl-color-gray-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.tp-anchors .label { font-size: 14px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-anchors .label { font-size: 15.5px; font-weight: 600; fill: var(--sl-color-white); }
