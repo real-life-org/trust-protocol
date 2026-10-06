@@ -2194,7 +2194,10 @@ above, entered into the authority log by a `device.add` operation
 (4.5) authored by that member anchor.
 
 **RLTP-ACC-5120** — A device card MUST be signed by a device of the
-same person bound and not revoked at the operation's position.
+same person bound and not revoked at the operation's position, or,
+where the person has no such device, under the person's member
+anchor in a `device.add` that satisfies the `device.revoke` rule
+key (4.1) in addition to its own.
 
 **RLTP-ACC-5125** — A person's first device binding MUST be derived
 from the contact card its genesis or membership-accept carries:
@@ -2232,7 +2235,11 @@ The card is the bridge between the person in the log and the device
 in the key structure; recorded in the log, it is replicated,
 ordered, and judged like every other binding. Without the
 signature of an existing device of the same person, a stranger
-could bind a device to someone else's name and read along. The
+could bind a device to someone else's name and read along. A
+person whose last device was revoked recovers the anchor from the
+recovery words and has no device left to sign with; the group then
+binds the new device under the same rule that revoked the old one,
+so re-binding costs what revoking cost and no less. The
 first device needs no separate binding: the contact card that
 founds the group or accepts the admission already carries the
 anchor's key and a key-agreement key, and the key port gives its
@@ -4077,11 +4084,12 @@ and syntactic validity, and MUST then declare the bound in its
 registration as `intakeBudget`, a block `{ "operations", "bytes" }`
 naming the operations and the bytes it admits per presenter and
 group within one `stalenessBound`, apply it per presenter and group,
-check only syntax and signature at intake, and admit on
-presentation every syntactically and cryptographically valid
-authority operation within the declared budget; it MUST NOT bound
-intake by the sender's membership or by the author of an authority
-operation.
+check at intake only what its class lets it see — size and syntax
+of the transport artifact for `blind` and `view`, the operation's
+signatures as well for `log` — and admit on presentation every
+item that passes that check within the declared budget; it MUST
+NOT bound intake by the sender's membership or by the author of an
+authority operation.
 
 **RLTP-ACC-9540** — A service that stops serving a removed member
 MUST deliver the removal notice (10.2) to that member once a member
