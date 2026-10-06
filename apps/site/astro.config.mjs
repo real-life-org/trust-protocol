@@ -44,7 +44,6 @@ export default defineConfig({
           { label: 'Why', link: '/understand/why/' },
           { label: 'Foundations', link: '/understand/foundations/' },
           { label: 'Encounter', link: '/understand/encounter/' },
-          { label: 'RLTP and OpenVTC', link: '/understand/openvtc/' },
         ] },
         { label: 'Reference', items: [
           { label: 'Specifications', link: '/reference/specifications/' },
