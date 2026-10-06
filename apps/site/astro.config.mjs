@@ -41,7 +41,9 @@ export default defineConfig({
           { label: 'Implement', link: '/get-started/implement/' },
         ] },
         { label: 'Understand', items: [
-          { label: 'Why', link: '/understand/why/' },
+          { label: 'Why', items: [
+            { label: 'Invitation, not checkpoint', link: '/understand/why/' },
+          ] },
           { label: 'Foundations', link: '/understand/foundations/' },
           { label: 'Encounter', link: '/understand/encounter/' },
         ] },
