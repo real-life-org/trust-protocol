@@ -37,7 +37,7 @@ test('a pin broken across lines is read', () => {
 test('a pin ahead of the companion is an error', () => {
   const r = checkPins(specDir({ Membership: head('1.0', '- **Position:** on top of the RLTP Access Layer 1.3.\n') }))
   assert.equal(r.errors.length, 1)
-  assert.match(r.errors[0].msg, /does not|is at 1\.0/)
+  assert.match(r.errors[0].msg, /pins Access Layer 1\.3, but access-layer\.md is at 1\.0/)
 })
 
 test('only companion and position fields count; wire versions and the body do not', () => {
