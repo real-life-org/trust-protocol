@@ -266,7 +266,7 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
 
 - **Groups are protocol objects.** Membership is a fact in replicated
   group state and the holding of a key, not a certificate in a wallet.
-- **Rooms and invitations, not checkpoints.** The host consults their
+- **Rooms and invitations, not checkpoints** ([why](/understand/why/)). The host consults their
   own graph and invites; nobody presents a credential at a door.
 - **There are no admins.** Privileged operations are gated by a rule
   the group states as data.
