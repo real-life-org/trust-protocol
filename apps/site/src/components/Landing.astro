@@ -27,7 +27,7 @@ const encounter: Card[] = [
 const space: [IconName, string, string][] = [
   ['lock', 'End-to-end encrypted', 'AES-256 · epoch keys only on member devices'],
   ['hard-drive', 'Complete on every device', 'full replica · offline first'],
-  ['waypoints', 'Changes merge', 'CRDT · signed, causally linked entries'],
+  ['waypoints', 'Changes merge', 'signed, causally linked entries · CRDT or log, left open'],
   ['shield', 'Former members read nothing new', 'key rotation · a removal starts a new epoch'],
 ]
 const dtg: { label: string; text: string; href: string; repo: string }[] = [
@@ -66,7 +66,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <div class="tp-badge">Identity</div>
       <h2>One seed, an anchor per context</h2>
       <p>A person is one mnemonic. Every identifier toward a relationship, a group or the public is derived from it as a <code>did:key</code>.</p>
-      <p>Contexts never link unless their holder decides to link them. The mnemonic restores every key.</p>
+      <p>Contexts never link unless their holder decides to link them. The mnemonic restores every key; which contexts exist is data in the person's encrypted state, and recovery needs both.</p>
       <p><a class="tp-more" href="/understand/foundations/#identifiers" aria-label="More on identifiers, in Foundations">More →</a></p>
     </div>
     <Anchors />
