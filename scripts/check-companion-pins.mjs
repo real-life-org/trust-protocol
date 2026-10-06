@@ -16,7 +16,7 @@
 //
 // Exit 1 on any error, 2 on usage errors.
 import { readFileSync, readdirSync } from 'node:fs'
-import { join, dirname, relative } from 'node:path'
+import { join, dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -91,11 +91,11 @@ export function checkPins(dir) {
   return { errors, stale }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const args = process.argv.slice(2)
   const strict = args.includes('--strict')
   const di = args.indexOf('--dir')
-  if (args.some((a, i) => !['--strict', '--dir'].includes(a) && args[i - 1] !== '--dir') || (di !== -1 && !args[di + 1])) {
+  if (args.some((a, i) => !['--strict', '--dir'].includes(a) && args[i - 1] !== '--dir') || (di !== -1 && (!args[di + 1] || args[di + 1].startsWith('--')))) {
     console.error('usage: node scripts/check-companion-pins.mjs [--strict] [--dir <spec dir>]')
     process.exit(2)
   }
