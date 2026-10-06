@@ -8,8 +8,8 @@ description: How a group holds itself together. A place on its members' devices,
 A group is a place its members hold together: an encrypted document on
 each member's device, with a log of who joined, who left and which
 rules apply. Inside it is the group's shared space:
-replicated state on every member's device, which the app fills with
-whatever it needs, a map, a calendar, a list. The protocol does not care what the data is;
+replicated state the app fills with whatever it needs, a map, a
+calendar, a list. The protocol does not care what the data is;
 it cares who may read and change it.
 
 The log is the group's memory of itself. Every entry is a signed act of
@@ -19,9 +19,7 @@ arrives at the same answer to who belongs and what is allowed. No
 server keeps a list of members, and none is asked.
 
 The group's identity is the digest of its founding entry, not a key
-anyone holds. Nobody owns the group, and nobody can take it over by
-taking a key. The group also has an address for reaching it, but the
-address is not what makes it the group.
+anyone holds, so nobody owns the group or can take it over.
 
 Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#3-the-authority-log)
 
@@ -29,10 +27,9 @@ Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/ma
 
 The group states its own rules as data: who may invite, who may admit,
 who may remove, whether a newcomer needs vouches, and who may change
-the rules. Every device checks them before it accepts a change, so a
-rule holds even when nobody is watching.
+the rules. Every device checks them before it accepts a change.
 
-There are no admins. A founder in charge is only the simplest rule,
+A founder in charge is only the simplest rule,
 and the group can replace it, for example with two members deciding
 together, or with every member having a say in removals. The rules for
 changing the rules are protected in the same way, so a group cannot
@@ -43,8 +40,7 @@ Spec: [Access Layer §4](https://github.com/real-life-org/trust-protocol/blob/ma
 ## Joining
 
 Someone who knows you invites you. The invitation carries no keys; it
-names you and the group, and it expires. You accept or decline, and
-nobody joins without consenting.
+names you and the group, and it expires. Nobody joins without accepting.
 
 When you accept, a member who may admit writes your admission into the
 log, with the invitation and your acceptance enclosed as proof. A
@@ -61,13 +57,12 @@ Spec: [Access Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/
 ## Leaving and removal
 
 You can leave at any time. A member can be removed when the group's
-rule allows it. Either way, the group moves to a new key epoch at the
-same moment, and so does it when a device is lost.
+rule allows it. Either way, and when a device is lost, the group moves
+to a new key epoch at the same moment.
 
 What is written afterwards stays unreadable to whoever lost access.
 What they already read, they keep; no protocol can make someone forget.
-Nothing waits for an expiry date, and the person who was removed is
-told so.
+The person who was removed is told so.
 
 A group can also end itself. Dissolving it is one more entry in the
 log, made under the group's rules like any other.
@@ -81,9 +76,7 @@ Members are people, not devices. Each of a member's devices holds its
 own key and is tied to the person by a signed device card in the log.
 The person adds their own devices, up to eight.
 
-So a lost phone can be cut off without its owner leaving the group:
-the device goes, the person stays, and the next key no longer reaches
-the lost phone. A member whose devices are all gone is still a member.
+So a lost phone can be cut off without its owner leaving the group. A member whose devices are all gone is still a member.
 
 Spec: [Access Layer §5.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity)
 
