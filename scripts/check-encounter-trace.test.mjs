@@ -240,3 +240,22 @@ test('membership profile checks: a declaration the registry does not match fails
   assert.ok(membershipProfileChecks({ specText: noProfile, manifest }).some((c) => !c.ok && c.rules.includes('RLTP-MT-10010')))
   assert.ok(membershipProfileChecks({ specText: real, manifest: new Set(['RLTP-MT-2010']) }).some((c) => !c.ok && c.rules.includes('RLTP-MT-10090')))
 })
+
+test('membership coverage: complete, partial and state-dependent sets of Section 10.3', async () => {
+  const { coverageSets, checkCoverage } = await import('./membership-checks.mjs')
+  const text = '### 10.3 Rule coverage\n\n**State-dependent and interactive set** (RLTP-MT-10080):\n\n- RLTP-MT-2030 · RLTP-MT-3480.\n\n**Vector-checked set** — every other rule: RLTP-MT-3005 · RLTP-MT-3270 · RLTP-MT-10100.\n\n**Partially proved.** Named in part:\n\n- RLTP-MT-3270 — the bound on proof.created.\n\n### 10.4 Next\n\nRLTP-MT-9999\n'
+  const c = coverageSets({ specText: text })
+  assert.deepEqual(c.state, ['RLTP-MT-2030', 'RLTP-MT-3480'])
+  assert.deepEqual(c.partial, ['RLTP-MT-3270'])
+  assert.deepEqual(c.full, ['RLTP-MT-3005', 'RLTP-MT-10100'])
+  const M = ['RLTP-MT-2030', 'RLTP-MT-3480', 'RLTP-MT-3005', 'RLTP-MT-3270', 'RLTP-MT-10100']
+  const base = { manifest: M, full: c.full, partial: c.partial, stateDependent: c.state }
+  assert.deepEqual(checkCoverage({ ...base, proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], partialNamed: ['RLTP-MT-3270'] }).errors, [])
+  has(checkCoverage({ ...base, proven: ['RLTP-MT-3005', 'RLTP-MT-10100', 'RLTP-MT-3270'], partialNamed: [] }), 'RLTP-MT-3270: listed as partially checked, proven completely')
+  has(checkCoverage({ ...base, proven: ['RLTP-MT-10100'], partialNamed: ['RLTP-MT-3270', 'RLTP-MT-3005'] }), 'RLTP-MT-3005: listed as completely checked, checked only in part')
+  has(checkCoverage({ ...base, proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], partialNamed: [] }), 'RLTP-MT-3270: listed as partially checked, named by no check')
+  has(checkCoverage({ ...base, proven: ['RLTP-MT-3005', 'RLTP-MT-10100', 'RLTP-MT-2030'], partialNamed: ['RLTP-MT-3270'] }), 'RLTP-MT-2030: proven by a check and listed as state-dependent')
+  has(checkCoverage({ ...base, partial: ['RLTP-MT-3270', 'RLTP-MT-2030'], proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], partialNamed: ['RLTP-MT-3270', 'RLTP-MT-2030'] }), 'RLTP-MT-2030: partially checked and in the state-dependent set')
+  has(checkCoverage({ ...base, manifest: [...M, 'RLTP-MT-4444'], proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], partialNamed: ['RLTP-MT-3270'] }), 'RLTP-MT-4444: neither vector-checked nor in the state-dependent set')
+  assert.match(coverageSets({ specText: '# none' }).error, /names no state-dependent and vector-checked/)
+})

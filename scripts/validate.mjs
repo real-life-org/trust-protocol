@@ -202,7 +202,7 @@ for (const f of specFiles) {
       const c = membershipCoverage({ spec: LAYERS.membership.spec, manifestPath: LAYERS.membership.manifest, stateFile: process.env.MEMBERSHIP_STATE_DEPENDENT || null })
       for (const k of c.checks) if (k.ok) ok(`membership: ${k.msg} [${k.rules.join(', ')}]`)
       for (const e of c.errors) err(`membership coverage: ${e}`)
-      if (!c.errors.length) ok(`membership coverage: ${c.counts.manifest} rules = ${c.counts.runner} runner-proven ∪ ${c.counts.validate} validate-proven ∪ ${c.counts.stateDependent} state-dependent (${c.stateSource}), disjoint [RLTP-MT-10080, RLTP-MT-10100]`)
+      if (!c.errors.length) ok(`membership coverage: ${c.counts.manifest} rules = ${c.counts.full} checked completely (${c.counts.runner} runner, ${c.counts.validate} validate) ∪ ${c.counts.partial} in part ∪ ${c.counts.stateDependent} state-dependent (${c.stateSource}), disjoint [RLTP-MT-10080, RLTP-MT-10100]`)
     }
   }
 }

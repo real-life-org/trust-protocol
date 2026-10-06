@@ -38,9 +38,11 @@ This is an Editor's Draft with no standing beyond its own argument.
 The reference library implements its payload schemas and the welcome
 seal; the bootstrap lifecycle it references is the Access layer's
 and is exercised there. The next expected changes are the carrier
-for a bootstrap under the experimental adapter `beekem/0.1` (MO-7)
-and the move to Trust Tasks framework 0.7.0 together with the Access
-layer and the Delivery Contract; each is a new version. Open
+for a bootstrap under the experimental adapter `beekem/0.1` (MO-7),
+the request and the recovery bootstrap for a bound device that the
+Access layer still has to define (MO-8, MO-9), and the move to
+Trust Tasks framework 0.7.0 together with the Access layer and the
+Delivery Contract; each is a new version. Open
 questions are listed in Section 9, and feedback is welcome via the
 issues of the publication repository
 (github.com/real-life-org/trust-protocol).
@@ -300,7 +302,11 @@ to every artifact of this document.
 
 **RLTP-MT-2120** — The document profile, sealed envelope, staged
 dispositions, and acknowledgement rules of the Delivery Contract
-(Sections 3 to 6) MUST apply to every type registered here.
+(Sections 3 to 6) MUST apply to every type registered here: a
+payload that fails its schema is `failed(malformed)` at Contract 6.2
+step 7, a failed consistency rule of this document is
+`failed(validation-failed)` at step 8, and `duplicate-known` applies
+only to a document whose effect has completed.
 
 **RLTP-MT-2130** — A task proof of this document (on the accept)
 MUST verify under the key bound to the document `issuer` anchor
@@ -671,10 +677,13 @@ MUST verify: the proof verifies under `issuer`; `issuer` =
 `accept.group` = that invite's `credentialSubject.group`;
 `accept.card` verifies and its anchor equals `accept.subject`; and
 the accept's `issuedAt` and its `proof.created` are each at most the
-invite's `validUntil` plus `membership-skew` (Section 5).
+invite's `validUntil` plus `membership-skew`, compared per
+RLTP-MT-5050.
 
-**RLTP-MT-3275** — Any failure of RLTP-MT-3270 MUST be disposed
-`failed(validation-failed)` without acknowledgement.
+**RLTP-MT-3275** — A payload that fails its schema MUST be disposed
+`failed(malformed)` as Contract 6.2 states; a failure of RLTP-MT-3270
+past the schema MUST be disposed `failed(validation-failed)`; neither
+earns an acknowledgement.
 
 *Rationale.* An inviter that recorded an unchecked accept would carry
 forged or mis-bound consent into an admission, where materialization
@@ -765,15 +774,16 @@ operation is an admitting `member.add`, that the document
 with the welcome's binding fields matching the operation (Section
 4).
 
-**RLTP-MT-3345** — A violation of RLTP-MT-3330 to RLTP-MT-3340 MUST
-be disposed `failed(validation-failed)` and MUST earn no
-acknowledgement.
+**RLTP-MT-3345** — A payload that fails its schema MUST be disposed
+`failed(malformed)` as Contract 6.2 states; a violation of
+RLTP-MT-3330 to RLTP-MT-3340 past the schema MUST be disposed
+`failed(validation-failed)`; neither earns an acknowledgement.
 
 **RLTP-MT-3350** — The payload's operation MUST be an admitting
 `member.add` carrying its welcome; a payload whose `op` is anything
 else, or an admitting `member.add` without a welcome, is
-non-conformant at the sender and `failed(validation-failed)` at the
-receiver.
+non-conformant at the sender and schema-rejected at the receiver
+(RLTP-MT-3345).
 
 *Rationale.* The pre-buffer checks need no group state and bound
 what an unauthenticated sender can make a receiver store. The
@@ -781,7 +791,10 @@ outer/inner checks make the document and its enclosed operation
 speak about the same admission, so a valid operation cannot be
 wrapped for the wrong recipient or paired with another admission's
 keys. The admission-only rule leaves no generic hole through which a
-later operation type could cross the boundary unexamined.
+later operation type could cross the boundary unexamined. The
+Contract's stages decide the disposition: what the schema rejects is
+`malformed` there, before any check of this document runs; what
+passes the schema and fails here is `validation-failed`.
 
 **RLTP-MT-3355** — The enclosed operation MUST carry a transported
 variant proof of at most 64 signatures and 16 credentials of at
@@ -791,10 +804,11 @@ proof (RLTP-ACC-5310, RLTP-ACC-5320).
 **RLTP-MT-3360** — Where the complete document cannot fit the
 Contract's plaintext limit under the sender's final serialized-size
 check (RLTP-MT-2220), the self-contained bootstrap of Access 10.1
-MUST travel instead, as `key-delivery/0.1` in the recovery kind the
-group's adapter registers (RLTP-ACC-5340, RLTP-ACC-5580), and the
-admission evidence reaches the subject through replication
-afterwards; no admission is undeliverable.
+MUST travel instead as `key-delivery/0.1` kind `re-welcome` under
+`linear/0.1` (RLTP-ACC-5340), and the admission evidence reaches the
+subject through replication afterwards; under `linear/0.1` no
+admission is undeliverable, and under `beekem/0.1` the bootstrap
+carrier is open (MO-7).
 
 **RLTP-MT-3365** — An envelope carrying a transition (`member.remove`,
 `epoch.rotate`, `policy.change`, `visibility.change`,
@@ -1009,8 +1023,11 @@ pending entry here. The pending record holds the wire document; the
 provisional state holds the unsealed material; a wipe of one is not
 a wipe of the other.
 
-**RLTP-MT-3550** — Redelivery of the same document MUST be disposed
-`duplicate-known` with a byte-identical re-acknowledgement.
+**RLTP-MT-3550** — Redelivery of a document whose effect has
+completed MUST be disposed `duplicate-known` with a byte-identical
+re-acknowledgement; redelivery of a document held pending
+(RLTP-MT-3530) MUST be evaluated afresh and MUST NOT create a
+completed-effect entry.
 
 **RLTP-MT-3555** — A different document carrying the same operation
 MUST merge idempotently by operation id, effects keyed to new
@@ -1024,9 +1041,11 @@ binding, which the Access layer derives from the accept's card
 (RLTP-MT-3305, RLTP-ACC-5140).
 
 **RLTP-MT-3565** — After every held candidate has failed or the
-window has closed, the invitee MUST request afresh from its
-still-held invite and accept by an authenticated key request
-(RLTP-ACC-10330).
+window has closed, the invitee MUST request afresh by an
+authenticated key request (RLTP-ACC-10330), naming in `op` the
+admission its candidate named where it holds one; an invitee that
+holds no canonical admission identifier has no request form today
+(MO-8).
 
 **RLTP-MT-3570** — `access-operation/0.1` MUST travel through the
 Delivery port (RLTP-ACC-10010) and MUST NOT be stored or forwarded
@@ -1116,7 +1135,8 @@ both enclosed documents carry the enclosed invite document's
 `threadId`, which equals `invite.taskContext`; `invite.validUntil`
 is at or after `invite.validFrom`; the enclosed accept document's
 `issuedAt` and its `proof.created` are each at most
-`invite.validUntil` plus `membership-skew`; and card ownership holds
+`invite.validUntil` plus `membership-skew`, compared per
+RLTP-MT-5050; and card ownership holds
 per RLTP-MT-3045 to RLTP-MT-3050 and RLTP-MT-3235 to RLTP-MT-3245.
 
 **RLTP-MT-3810** — Before any effect, the receiver MUST verify that
@@ -1131,8 +1151,11 @@ enclosed accept document, and
 **RLTP-MT-3730** — No check of RLTP-MT-3725 or RLTP-MT-3810 MUST
 reference an operation.
 
-**RLTP-MT-3735** — Any failure of RLTP-MT-3725 or RLTP-MT-3810 MUST
-be disposed `failed(validation-failed)` without acknowledgement.
+**RLTP-MT-3735** — A payload that fails its schema, the enclosed
+documents' and vouches' schemas included, MUST be disposed
+`failed(malformed)` as Contract 6.2 states; a failure of RLTP-MT-3725
+or RLTP-MT-3810 past the schema MUST be disposed
+`failed(validation-failed)`; neither earns an acknowledgement.
 
 *Rationale.* In these checks `invite` names the enclosed invite
 credential (the `payload.invite` of the enclosed invite document)
@@ -1164,7 +1187,9 @@ admit against its group state before the effect.
 **RLTP-MT-3750** — A receiver holding no state for the group MUST
 dispose the document `incomplete(missing: group-state)` under the
 pending mechanics of RLTP-MT-3530, keyed by document digest, with
-retention from first receipt of at least `bootstrap-retention`.
+retention from first receipt of at least `bootstrap-retention`; a
+redelivery of a document held pending MUST be evaluated afresh and
+MUST NOT create a completed-effect entry (RLTP-MT-3550).
 
 **RLTP-MT-3755** — A receiver that resolves the group state and
 finds itself unauthorized MUST then dispose the document
@@ -1382,9 +1407,10 @@ reset that time.
 on a document's arrival time (Contract §7; RLTP-ACC-3180).
 
 **RLTP-MT-5050** — The comparison of an accept's `issuedAt` and
-`proof.created` against `invite.validUntil` MUST be the only
-issuance-time window of this document, and `membership-skew` MUST
-only widen it.
+`proof.created` against `invite.validUntil` plus `membership-skew`
+MUST be the only issuance-time window of this document, MUST compare
+exact RFC 3339 instants — a missing fractional part read as `.000`,
+nothing rounded — and `membership-skew` MUST only widen it.
 
 **RLTP-MT-5060** — `provisional-window` MUST be the Access layer's
 parameter (RLTP-ACC-10300), and this document MUST NOT register a
@@ -1405,7 +1431,11 @@ change with it. The retention floor is counted from first receipt
 so that a sender who redelivers cannot keep a document alive
 indefinitely, and a receiver cannot drop it earlier than the invitee
 may need. The provisional window belongs to the lifecycle the Access
-layer owns; a second value here could only disagree with it.
+layer owns; a second value here could only disagree with it. The
+window is compared at full precision because Encounter's
+whole-second rule governs its own comparisons only and leaves a
+companion's windows to the companion (RLTP-ENC-2200); rounding would
+let two verifiers judge the same accept differently at the boundary.
 
 
 ## 6. What is deliberately absent
@@ -1604,7 +1634,8 @@ delivery layer resolved (RLTP-MT-3440); the recovery of a member's
 device under Access 5.3 — answered to a device bound to the member's
 anchor and not revoked at the helper's state, sealed to that
 device's key (RLTP-ACC-5560, RLTP-ACC-5565, RLTP-ACC-5580) — is not
-a bootstrap and is not restricted by this rule.
+a bootstrap and is not restricted by this rule; a bound device
+holding no replica yet has no adoption path today (MO-9).
 
 *Rationale.* A person who never accepts never holds group material,
 and a substituted card breaks a mandatory check at receipt, at
@@ -1748,6 +1779,19 @@ results.
    RLTP-ACC-10200 states for the re-welcome, is to be settled with
    the Access layer; until then a bootstrap under `beekem/0.1` is
    experimental.
+5. **MO-8 Request without a known admission identifier.** The key
+   request of Access 10.1 names the canonical admission it claims
+   under in `op`; an invitee whose candidates have all failed holds
+   its invite and accept, which carry no such identifier. The Access
+   layer needs a request that identifies the admission by genesis
+   digest, subject and accept digest.
+6. **MO-9 Recovery bootstrap for a bound device without a replica.**
+   Recovery material for a bound device that holds no replica yet is
+   disposed pending (RLTP-ACC-10190), and provisional adoption exists
+   only for the re-welcome sealed to the accept card (RLTP-ACC-10200).
+   The Access layer needs a recovery bootstrap: binding to the
+   device's own request, provisional limits, and verification of
+   admission, membership, device binding and revocation at the log.
 
 
 ## 10. Conformance
@@ -1779,9 +1823,14 @@ accept only the wire versions RLTP-MT-10020 pins, and MUST reject an
 envelope or material of any other version, even where the shared
 Access transcription admits it.
 
-**RLTP-MT-10060** — No Access section number cited in this document
-MUST be read against an Access wire other than `0.25` without a new
-version of this document.
+**RLTP-MT-10060** — An Access section number cited in this document
+MUST be read against the Access document 0.54; the wire pin of
+RLTP-MT-10020 MUST cover only the envelope `rltp-access/0.25` and the
+material `rltp-access-material/0.25`, and every other Access form
+this document cites (`rltp-access-view/0.24`,
+`rltp-access-removal-notice/0.24`, `rltp-access-member-mapping/0.24`,
+registration `rltp-access-registration/0.27`) MUST be read at the
+version Access 0.54 names for it.
 
 *Rationale.* The Access transcriptions are shared between the Access
 layer and its companions and change under the same `$id` when Access
@@ -1794,7 +1843,15 @@ RLTP-ACC-11100 from every receiver of this profile: a `0.24`
 material names no key state, and a receiver that accepted it would
 have to guess which keys it holds after a merge of concurrent
 transitions. Section numbers drift between Access versions, and a
-citation read against the wrong version points at a different rule.
+citation read against the wrong version points at a different rule,
+and a pin wider than the two forms this document carries would
+contradict the versions Access gives its other forms.
+
+*Editor's note.* The Delivery Contract 0.79 (4.4) still registers
+`membership-evidence/0.1`, and Access RLTP-ACC-14020 still names
+Membership Tasks 0.16; both follow in their next versions. Until
+then the registration of this document's types is the one this
+document states, as their owner.
 
 **RLTP-MT-10070** — The following schemas MUST be normative and MUST
 ship with offline closure: `schemas/payload-membership-invite.schema.json`
@@ -1812,12 +1869,12 @@ transcriptions `schemas/access-operation-envelope.schema.json`,
 `schemas/sealed-envelope.schema.json`, and
 `schemas/contact-card.schema.json`.
 
-**RLTP-MT-10080** — Every rule of this document MUST be either
-vector-checked — named by a vector case, or by a check of the
-conformance runner or the validation script — or listed in the
-state-dependent and interactive set of 10.3, and no rule MUST be in
-both; a rule of that set MUST be exercised as a scenario with
-controlled state and clock where it is testable at all.
+**RLTP-MT-10080** — Every rule of this document MUST be in exactly
+one of three sets of 10.3: fully proved, where every duty it states
+has a vector case or a check of the conformance runner or the
+validation script; partially proved, where a case or check names it
+but some duty, named in 10.3, has none; or state-dependent and
+interactive.
 
 **RLTP-MT-10090** — A vector and a conformance report MUST reference
 rules by their `RLTP-MT` identifiers, against the identifier list
@@ -1825,8 +1882,11 @@ rules by their `RLTP-MT` identifiers, against the identifier list
 
 **RLTP-MT-10100** — The identifier list
 `conformance/membership-rule-ids-0.17.txt` MUST equal the union of
-the vector-checked rules and the set of 10.3, and the validation
-script MUST check this equality mechanically on every run.
+the three sets of 10.3, the validation script MUST check on every run
+that the sets are disjoint, that every fully proved rule is proved in
+full and every partially proved rule is named by a check, and a
+partially proved rule MUST NOT count as covered: naming a rule is not
+proving it.
 
 *Rationale.* A verifier needs the shapes offline, without resolving
 anything. A rule without a vector, and without a named reason for
@@ -2638,9 +2698,11 @@ written.
 
 ### 10.3 Rule coverage
 
-Every rule of this document is in exactly one of the two sets below.
-The set of RLTP-MT-10080 has 83 rules; the vector-checked
-set has 109.
+Every rule of this document is in exactly one of the
+state-dependent and interactive set and the vector-checked set; the
+vector-checked set splits into fully proved and partially proved
+rules. The counts are 94 fully proved, 15 partially proved and 83
+state-dependent or interactive.
 
 **State-dependent and interactive set** (RLTP-MT-10080), by reason:
 
@@ -2650,17 +2712,37 @@ set has 109.
   with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080.
 - *Interaction and display* — the rule binds a human decision, an
   application's display, a sender's belief or an optional behaviour
-  that no artifact records: RLTP-MT-2300 · RLTP-MT-3095 · RLTP-MT-3400 · RLTP-MT-3700 · RLTP-MT-3740 · RLTP-MT-3775 · RLTP-MT-3780 · RLTP-MT-3785 · RLTP-MT-3790 · RLTP-MT-5010 · RLTP-MT-7010 · RLTP-MT-7020 · RLTP-MT-7050 · RLTP-MT-8070.
+  that no artifact records: RLTP-MT-2300 · RLTP-MT-3095 · RLTP-MT-3400 · RLTP-MT-3700 · RLTP-MT-3740 · RLTP-MT-3765 · RLTP-MT-3780 · RLTP-MT-3785 · RLTP-MT-3790 · RLTP-MT-5010 · RLTP-MT-7010 · RLTP-MT-7020 · RLTP-MT-7050 · RLTP-MT-8070.
 - *Statements of scope and reading* — the rule allocates a question
   to another rule or document and is tested through the rules it
   defers to: RLTP-MT-2010 · RLTP-MT-2020 · RLTP-MT-3450 · RLTP-MT-3515 · RLTP-MT-5060 · RLTP-MT-6010 · RLTP-MT-7040 · RLTP-MT-10040 · RLTP-MT-10060.
 
 **Vector-checked set** — every other rule, each named by a vector
 case or by a check of the conformance runner or the validation
-script. Of these, RLTP-MT-3085 · RLTP-MT-3375 · RLTP-MT-3760 · RLTP-MT-10010 · RLTP-MT-10030 · RLTP-MT-10070 · RLTP-MT-10080 · RLTP-MT-10090 · RLTP-MT-10100 are checked by the validation script over
-the shipped schemas, the task registry and the identifier list
-rather than by a vector case; the rest are checked by vector cases:
-RLTP-MT-2110 · RLTP-MT-2120 · RLTP-MT-2130 · RLTP-MT-2140 · RLTP-MT-2150 · RLTP-MT-2160 · RLTP-MT-2170 · RLTP-MT-2180 · RLTP-MT-2200 · RLTP-MT-2210 · RLTP-MT-2220 · RLTP-MT-2240 · RLTP-MT-2250 · RLTP-MT-2260 · RLTP-MT-2270 · RLTP-MT-2280 · RLTP-MT-2290 · RLTP-MT-3005 · RLTP-MT-3010 · RLTP-MT-3015 · RLTP-MT-3020 · RLTP-MT-3025 · RLTP-MT-3030 · RLTP-MT-3035 · RLTP-MT-3040 · RLTP-MT-3045 · RLTP-MT-3050 · RLTP-MT-3055 · RLTP-MT-3060 · RLTP-MT-3065 · RLTP-MT-3070 · RLTP-MT-3075 · RLTP-MT-3080 · RLTP-MT-3200 · RLTP-MT-3205 · RLTP-MT-3215 · RLTP-MT-3220 · RLTP-MT-3225 · RLTP-MT-3230 · RLTP-MT-3235 · RLTP-MT-3240 · RLTP-MT-3245 · RLTP-MT-3250 · RLTP-MT-3255 · RLTP-MT-3260 · RLTP-MT-3265 · RLTP-MT-3270 · RLTP-MT-3275 · RLTP-MT-3300 · RLTP-MT-3310 · RLTP-MT-3315 · RLTP-MT-3320 · RLTP-MT-3325 · RLTP-MT-3330 · RLTP-MT-3335 · RLTP-MT-3340 · RLTP-MT-3345 · RLTP-MT-3350 · RLTP-MT-3355 · RLTP-MT-3365 · RLTP-MT-3370 · RLTP-MT-3380 · RLTP-MT-3405 · RLTP-MT-3410 · RLTP-MT-3415 · RLTP-MT-3420 · RLTP-MT-3425 · RLTP-MT-3430 · RLTP-MT-3435 · RLTP-MT-3440 · RLTP-MT-3445 · RLTP-MT-3465 · RLTP-MT-3520 · RLTP-MT-3705 · RLTP-MT-3710 · RLTP-MT-3715 · RLTP-MT-3720 · RLTP-MT-3725 · RLTP-MT-3730 · RLTP-MT-3735 · RLTP-MT-3765 · RLTP-MT-3805 · RLTP-MT-3810 · RLTP-MT-3815 · RLTP-MT-4020 · RLTP-MT-4030 · RLTP-MT-4040 · RLTP-MT-4060 · RLTP-MT-4070 · RLTP-MT-4080 · RLTP-MT-4090 · RLTP-MT-4100 · RLTP-MT-4110 · RLTP-MT-4130 · RLTP-MT-5020 · RLTP-MT-5050 · RLTP-MT-6020 · RLTP-MT-8090 · RLTP-MT-10020 · RLTP-MT-10050.
+script. Checked by the validation script over the shipped schemas,
+the task registry and the identifier list: RLTP-MT-3085 · RLTP-MT-3375 · RLTP-MT-3760 · RLTP-MT-10010 · RLTP-MT-10030 · RLTP-MT-10070 · RLTP-MT-10080 · RLTP-MT-10090 · RLTP-MT-10100. Checked by
+vector cases: RLTP-MT-2110 · RLTP-MT-2120 · RLTP-MT-2130 · RLTP-MT-2140 · RLTP-MT-2150 · RLTP-MT-2160 · RLTP-MT-2170 · RLTP-MT-2180 · RLTP-MT-2200 · RLTP-MT-2210 · RLTP-MT-2220 · RLTP-MT-2240 · RLTP-MT-2250 · RLTP-MT-2260 · RLTP-MT-2270 · RLTP-MT-2280 · RLTP-MT-2290 · RLTP-MT-3005 · RLTP-MT-3010 · RLTP-MT-3015 · RLTP-MT-3020 · RLTP-MT-3025 · RLTP-MT-3030 · RLTP-MT-3035 · RLTP-MT-3040 · RLTP-MT-3045 · RLTP-MT-3050 · RLTP-MT-3055 · RLTP-MT-3060 · RLTP-MT-3065 · RLTP-MT-3070 · RLTP-MT-3075 · RLTP-MT-3080 · RLTP-MT-3200 · RLTP-MT-3205 · RLTP-MT-3215 · RLTP-MT-3220 · RLTP-MT-3225 · RLTP-MT-3230 · RLTP-MT-3235 · RLTP-MT-3240 · RLTP-MT-3245 · RLTP-MT-3250 · RLTP-MT-3255 · RLTP-MT-3260 · RLTP-MT-3265 · RLTP-MT-3270 · RLTP-MT-3275 · RLTP-MT-3300 · RLTP-MT-3310 · RLTP-MT-3315 · RLTP-MT-3320 · RLTP-MT-3325 · RLTP-MT-3330 · RLTP-MT-3335 · RLTP-MT-3340 · RLTP-MT-3345 · RLTP-MT-3350 · RLTP-MT-3355 · RLTP-MT-3365 · RLTP-MT-3370 · RLTP-MT-3380 · RLTP-MT-3405 · RLTP-MT-3410 · RLTP-MT-3415 · RLTP-MT-3420 · RLTP-MT-3425 · RLTP-MT-3430 · RLTP-MT-3435 · RLTP-MT-3440 · RLTP-MT-3445 · RLTP-MT-3465 · RLTP-MT-3520 · RLTP-MT-3705 · RLTP-MT-3710 · RLTP-MT-3715 · RLTP-MT-3720 · RLTP-MT-3725 · RLTP-MT-3730 · RLTP-MT-3735 · RLTP-MT-3775 · RLTP-MT-3805 · RLTP-MT-3810 · RLTP-MT-3815 · RLTP-MT-4020 · RLTP-MT-4030 · RLTP-MT-4040 · RLTP-MT-4060 · RLTP-MT-4070 · RLTP-MT-4080 · RLTP-MT-4090 · RLTP-MT-4100 · RLTP-MT-4110 · RLTP-MT-4130 · RLTP-MT-5020 · RLTP-MT-5050 · RLTP-MT-6020 · RLTP-MT-8090 · RLTP-MT-10020 · RLTP-MT-10050.
+
+**Partially proved** — vector-checked rules whose cases prove only
+some of their duties; each is listed with the duty that no case or
+check proves yet, and none counts as covered until that duty is
+proved:
+
+- RLTP-MT-2110 — the Encounter 2.3 profile is checked through DI proofs, did:key decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them.
+- RLTP-MT-2120 — duplicate-known only after a completed effect, and the stage order of Contract 6.2, need a receiver with state.
+- RLTP-MT-2180 — consumption and idempotency keyed by the credential digest are materialization and store behaviour.
+- RLTP-MT-2240 — no schema-valid linear/0.1 welcome reaches the bound, so the rejection of an oversized welcome is not vectored.
+- RLTP-MT-3010 — conformance to DTGWG Core Credentials WD01 is checked through the schema only.
+- RLTP-MT-3020 — that the issuer is a member anchor of the group is checked positively against the genesis; a non-member issuer is rejected at materialization.
+- RLTP-MT-3035 — an invite naming another group DID than the genesis is rejected at bootstrap against the fetched genesis.
+- RLTP-MT-3040 — a fetched genesis that differs from the pinned digest is a bootstrap scenario with state.
+- RLTP-MT-3055 — that validFrom is the issuance time, and the retention validUntil bounds, are sender behaviour.
+- RLTP-MT-3075 — freshness of the opening threadId is a sender property.
+- RLTP-MT-3200 — validity of the enclosed accept beyond schema and the invitee's own-accept check is judged at materialization.
+- RLTP-MT-3205 — non-conformance of issuing a member.add without a valid accept is judged at materialization.
+- RLTP-MT-3245 — card ownership at materialization is not vectored here.
+- RLTP-MT-3355 — the cap of 2048 JCS bytes per credential and the ban on a merged proof are prose; no schema-valid vouch reaches the cap.
+- RLTP-MT-3815 — that a sender issues membership-evidence/0.2 is sender behaviour.
 
 
 ## Appendix A (informative): changelog

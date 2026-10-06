@@ -237,7 +237,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const r = membershipCoverage({ spec: opt('--spec') ?? L.spec, manifestPath: opt('--manifest') ?? L.manifest, stateFile: opt('--state-dependent') ?? process.env.MEMBERSHIP_STATE_DEPENDENT ?? null })
     for (const c of r.checks) console.log(`  ${c.ok ? 'ok   ' : 'ERROR'} ${c.msg} [${c.rules.join(', ')}]`)
     for (const e of r.errors) console.error(`  ERROR ${e}`)
-    console.log(`${r.counts.manifest} rules: ${r.counts.runner} proven by the conformance runner, ${r.counts.validate} by the validation script, ${r.counts.stateDependent} state-dependent (${r.stateSource})${r.errors.length ? `, ${r.errors.length} error(s).` : ' — coverage closed.'}`)
+    console.log(`${r.counts.manifest} rules: ${r.counts.full} checked completely (${r.counts.runner} by the conformance runner, ${r.counts.validate} by the validation script), ${r.counts.partial} in part, ${r.counts.stateDependent} state-dependent (${r.stateSource})${r.errors.length ? `, ${r.errors.length} error(s).` : ' — coverage closed.'}`)
     process.exit(r.errors.length ? 1 : 0)
   }
   const write = (ids, source, how) => {

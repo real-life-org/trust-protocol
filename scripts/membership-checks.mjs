@@ -27,24 +27,46 @@ export const ruleText = (spec, id) => {
 }
 export const manifestIds = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
 
-// ── state-dependent and interactive set ──────────────────────────────────
-// From a file (one ID per line) when given, else from Section 10.3 of the
-// specification: every identifier between the heading of that set and
-// the heading of the vector-checked set, the heading line excluded.
+// ── the coverage sets of Section 10.3 ────────────────────────────────────
+// The specification partitions its rules: the state-dependent and
+// interactive set, and the vector-checked set, of which the rules under
+// "Partially proved" are checked only in part. Each set runs from its
+// bold heading to the next one (or the next section heading); a rule in
+// parentheses right after a heading defines the set and is not a member.
+const SECTION = { state: '**State-dependent and interactive set**', vector: '**Vector-checked set**', partial: '**Partially proved' }
+export function coverageSets ({ specText }) {
+  const at = Object.fromEntries(Object.entries(SECTION).map(([k, h]) => [k, specText.indexOf(h)]))
+  if (at.state < 0 || at.vector < 0) return { error: 'the specification names no state-dependent and vector-checked sets (Section 10.3)' }
+  const starts = Object.values(at).filter((x) => x >= 0)
+  const body = (k) => {
+    if (at[k] < 0) return []
+    // skip the heading and a parenthesised defining rule right after it
+    const h = specText.slice(at[k] + SECTION[k].length).match(/^[^*\n]*?\*{0,2}\s*(\(RLTP-MT-\d+\))?/)
+    const from = at[k] + SECTION[k].length + (h ? h[0].length : 0)
+    const ends = [...starts.filter((x) => x > at[k]), ...[...specText.matchAll(/^#{2,3} /gm)].map((m) => m.index).filter((x) => x > at[k])]
+    return ids(specText.slice(from, ends.length ? Math.min(...ends) : undefined))
+  }
+  const partial = body('partial')
+  const vector = body('vector')
+  return { state: body('state'), partial, full: vector.filter((x) => !partial.includes(x)), vector, error: null }
+}
+// the state-dependent set from a file (one ID per line) — until the
+// specification carries Section 10.3
+export const stateDependentFile = (file) => manifestIds(readFileSync(file, 'utf8'))
+// kept for callers that want the state set alone
 export function stateDependentIds ({ specText, file = null }) {
-  if (file) return { source: file, ids: manifestIds(readFileSync(file, 'utf8')), error: null }
-  const a = specText.indexOf('**State-dependent and interactive set**')
-  const b = specText.indexOf('**Vector-checked set**')
-  if (a < 0 || b < a) return { source: 'spec', ids: [], error: 'the specification names no state-dependent and interactive set (Section 10.3)' }
-  // the heading line itself names the rule that defines the set, not a member of it
-  return { source: 'spec §10.3', ids: ids(specText.slice(specText.indexOf('\n', a), b)), error: null }
+  if (file) return { source: file, ids: stateDependentFile(file), error: null }
+  const c = coverageSets({ specText })
+  if (c.error) return { source: 'spec', ids: [], error: 'the specification names no state-dependent and interactive set (Section 10.3)' }
+  return { source: 'spec §10.3', ids: c.state, error: null }
 }
 
-// ── the rules the conformance runner proves ──────────────────────────────
+// ── the rules the conformance runner proves, completely and in part ──────
 export function runnerCoverage (root = ROOT) {
   const r = spawnSync(process.execPath, [join(root, 'conformance/runner.mjs'), '--coverage', 'membership'], { encoding: 'utf8', maxBuffer: 1 << 24 })
-  if (r.status !== 0) return { ids: [], error: `conformance runner failed (exit ${r.status}): ${(r.stderr || '').trim().split('\n').slice(-3).join(' | ')}` }
-  return { ids: manifestIds(r.stdout), error: null }
+  if (r.status !== 0) return { ids: [], partial: [], error: `conformance runner failed (exit ${r.status}): ${(r.stderr || '').trim().split('\n').slice(-3).join(' | ')}` }
+  const lines = manifestIds(r.stdout)
+  return { ids: lines.filter((l) => !l.startsWith('partial ')), partial: lines.filter((l) => l.startsWith('partial ')).map((l) => l.slice(8)), error: null }
 }
 
 // ── the checks of the validation script ──────────────────────────────────
@@ -93,34 +115,51 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
 
   // RLTP-MT-10090: every rule a vector names is an identifier of the list
   const named2 = []
-  const collect = (node) => { if (Array.isArray(node)) node.forEach(collect); else if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) { if (k === 'rules' && Array.isArray(v)) named2.push(...v.filter((x) => typeof x === 'string' && x.startsWith(PREFIX))); else collect(v) } }
+  const collect = (node) => { if (Array.isArray(node)) node.forEach(collect); else if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) { if (k === 'rules' && Array.isArray(v)) named2.push(...v.filter((x) => typeof x === 'string' && x.startsWith(PREFIX))); else if (k === 'rulesPartial' && v && typeof v === 'object') named2.push(...Object.keys(v)); else collect(v) } }
   for (const f of ['vectors/membership-tasks.json', 'vectors/dtg-credentials.json', 'fixtures/invalid-examples.json']) collect(JSON.parse(readFileSync(join(root, f), 'utf8')))
   const unknown = named2.filter((x) => !manifest.has(x))
   add(['RLTP-MT-10090'], named2.length > 0 && unknown.length === 0, `${named2.length} rule references in the vectors and fixtures, all identifiers of the list${unknown.length ? ' — unknown: ' + [...new Set(unknown)].join(', ') : ''}`)
   return out
 }
 
-// ── coverage: manifest = proven ∪ state-dependent, disjoint ──────────────
-export function checkCoverage ({ manifest, proven, stateDependent }) {
+// ── coverage ─────────────────────────────────────────────────────────────
+// manifest = complete ∪ partial ∪ state-dependent, pairwise disjoint; a
+// rule listed as completely checked is proven completely, a rule listed
+// as partial is named in part (and not proven completely — then the list
+// is out of date), a state-dependent rule is named by no check.
+export function checkCoverage ({ manifest, proven, partialNamed = [], full = null, partial = [], stateDependent }) {
   const errors = []
-  const P = new Set(proven); const D = new Set(stateDependent); const Mf = new Set(manifest)
-  for (const id of Mf) if (!P.has(id) && !D.has(id)) errors.push(`${id}: neither vector-checked nor in the state-dependent set`)
-  for (const id of P) if (D.has(id)) errors.push(`${id}: vector-checked and in the state-dependent set`)
-  for (const id of new Set([...P, ...D])) if (!Mf.has(id)) errors.push(`${id}: named as covered, not an identifier of the list`)
-  return { errors, manifest: Mf.size, proven: [...P].filter((x) => Mf.has(x)).length, stateDependent: [...D].filter((x) => Mf.has(x)).length }
+  const P = new Set(proven); const PN = new Set(partialNamed.filter((x) => !P.has(x)))
+  const D = new Set(stateDependent); const Mf = new Set(manifest)
+  // without the sets of Section 10.3 the complete set is what is proven
+  const F = new Set(full ?? [...P]); const Q = new Set(full ? partial : [...PN])
+  for (const id of Mf) if (!F.has(id) && !Q.has(id) && !D.has(id)) errors.push(`${id}: neither vector-checked nor in the state-dependent set`)
+  for (const id of F) { if (D.has(id)) errors.push(`${id}: vector-checked and in the state-dependent set`); if (Q.has(id)) errors.push(`${id}: listed as completely and as partially checked`) }
+  for (const id of Q) if (D.has(id)) errors.push(`${id}: partially checked and in the state-dependent set`)
+  for (const id of new Set([...F, ...Q, ...D, ...P, ...PN])) if (!Mf.has(id)) errors.push(`${id}: named as covered, not an identifier of the list`)
+  if (full) {
+    for (const id of P) if (D.has(id)) errors.push(`${id}: proven by a check and listed as state-dependent`)
+    for (const id of PN) if (D.has(id)) errors.push(`${id}: checked in part and listed as state-dependent`)
+    for (const id of F) if (!P.has(id)) errors.push(`${id}: listed as completely checked, ${PN.has(id) ? 'checked only in part' : 'named by no check'}`)
+    for (const id of Q) { if (P.has(id)) errors.push(`${id}: listed as partially checked, proven completely`); else if (!PN.has(id)) errors.push(`${id}: listed as partially checked, named by no check`) }
+  }
+  return { errors, manifest: Mf.size, full: [...F].filter((x) => Mf.has(x)).length, partial: [...Q].filter((x) => Mf.has(x)).length, stateDependent: [...D].filter((x) => Mf.has(x)).length }
 }
 
-// The whole Membership coverage run: profile checks, runner, state set.
-// RLTP-MT-10080 and RLTP-MT-10100 are the rules of this very equality check.
+// The whole Membership coverage run: profile checks, runner, Section 10.3
+// (or a state-dependent file in its place). RLTP-MT-10080 and
+// RLTP-MT-10100 are the rules of this very equality check.
 export function membershipCoverage ({ root = ROOT, spec, manifestPath, stateFile = null }) {
   const specText = readFileSync(spec, 'utf8')
   const manifest = new Set(manifestIds(readFileSync(manifestPath, 'utf8')))
   const checks = membershipProfileChecks({ root, specText, manifest })
   const runner = runnerCoverage(root)
-  const state = stateDependentIds({ specText, file: stateFile })
   const validated = checks.filter((c) => c.ok).flatMap((c) => c.rules)
   const proven = [...runner.ids, ...validated, 'RLTP-MT-10080', 'RLTP-MT-10100']
-  const cov = checkCoverage({ manifest: [...manifest], proven, stateDependent: state.ids })
-  const errors = [...checks.filter((c) => !c.ok).map((c) => c.msg), ...(runner.error ? [runner.error] : []), ...(state.error ? [state.error] : []), ...cov.errors]
-  return { checks, errors, counts: { manifest: cov.manifest, runner: new Set(runner.ids).size, validate: new Set([...validated, 'RLTP-MT-10080', 'RLTP-MT-10100']).size, stateDependent: cov.stateDependent }, stateSource: state.source }
+  let sets; let source
+  if (stateFile) { sets = { state: stateDependentFile(stateFile), full: null, partial: [], error: null }; source = stateFile }
+  else { sets = coverageSets({ specText }); source = 'spec §10.3' }
+  const cov = sets.error ? { errors: [], manifest: manifest.size, full: 0, partial: 0, stateDependent: 0 } : checkCoverage({ manifest: [...manifest], proven, partialNamed: runner.partial, full: sets.full, partial: sets.partial, stateDependent: sets.state })
+  const errors = [...checks.filter((c) => !c.ok).map((c) => c.msg), ...(runner.error ? [runner.error] : []), ...(sets.error ? [sets.error] : []), ...cov.errors]
+  return { checks, errors, counts: { manifest: cov.manifest, full: cov.full, partial: cov.partial, runner: new Set(runner.ids).size, runnerPartial: new Set(runner.partial).size, validate: new Set([...validated, 'RLTP-MT-10080', 'RLTP-MT-10100']).size, stateDependent: cov.stateDependent }, stateSource: source }
 }

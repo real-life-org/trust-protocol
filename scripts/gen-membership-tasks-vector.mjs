@@ -31,6 +31,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
 import { jcs, sha, hkdf, digestU, privEd, privX, pubRaw, xRawOfMk, pubFromRaw, XS, didOf, mkOf, b58 } from '../conformance/lib.mjs'
+import { splitRules } from '../conformance/membership-partial.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const J = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'))
@@ -131,7 +132,7 @@ const makePair = (o = {}) => {
     '@context': clone(DTG.invite.payload.invite['@context']),
     type: clone(DTG.invite.payload.invite.type),
     issuer: founder,
-    credentialSubject: { id: subject, group: groupDid, genesisDigest, card: fCard, name: 'F.', note: 'membership vector invite', ...(o.subjectExtra ?? {}) },
+    credentialSubject: { id: subject, group: groupDid, genesisDigest: o.genesis ?? genesisDigest, card: fCard, name: 'F.', note: 'membership vector invite', ...(o.subjectExtra ?? {}) },
     validFrom: T.validFrom,
     validUntil: o.validUntil ?? T.validUntil,
     taskContext: UUID.thread,
@@ -142,11 +143,18 @@ const makePair = (o = {}) => {
     threadId: o.invThread ?? UUID.thread, issuedAt: T.validFrom, payload: { invite: cred },
   }
   const accIssued = o.acceptIssued ?? T.accept
-  const accDoc = diSign({
+  const signAccept = (extra) => diSign({
     id: o.acceptId ?? UUID.accept, type: P + 'membership-accept/0.2', issuer: invitee, recipient: o.acceptRecipient ?? founder,
     threadId: o.acceptThread ?? UUID.thread, issuedAt: accIssued,
-    payload: { accept: { group: o.acceptGroup ?? groupDid, subject: invitee, ref: o.ref ?? digestU(cred), card: iCard, candidacy: o.candidacy ?? true } },
-  }, o.acceptSigner ?? inviteeSeed, accIssued, false)
+    payload: { accept: { group: o.acceptGroup ?? groupDid, subject: invitee, ref: o.ref ?? digestU(cred), card: iCard, ...(o.noCandidacy ? {} : { candidacy: o.candidacy ?? true }) } },
+    ...extra,
+  }, o.acceptSigner ?? inviteeSeed, o.acceptCreated ?? accIssued, false)
+  let accDoc = signAccept({})
+  // a signed accept padded through its ceremony to exactly `acceptBytes` JCS bytes
+  if (o.acceptBytes) {
+    let n = o.acceptBytes - Buffer.byteLength(jcs(signAccept({ ceremony: { pad: '' } })), 'utf8')
+    for (let i = 0; i < 8; i++) { accDoc = signAccept({ ceremony: { pad: 'x'.repeat(n) } }); const d = o.acceptBytes - Buffer.byteLength(jcs(accDoc), 'utf8'); if (d === 0) break; n += d }
+  }
   return { invDoc, accDoc }
 }
 const { invDoc, accDoc } = makePair()
@@ -183,6 +191,29 @@ const { op: operation } = envelope({
 }, [founderSeed])
 const payload = { operation, welcome: { sealed } }
 const document = { id: UUID.carrier, type: P + 'access-operation/0.1', issuer: founder, recipient: invitee, threadId: UUID.thread, issuedAt: T.carrier, payload }
+
+// a digest in its base58btc rendering: the same multihash bytes (Encounter 2.3)
+const zOf = (u) => 'z' + b58(Buffer.from(u.slice(1), 'base64url'))
+// a complete admission task, built coherently: welcome, seal, digest, the
+// operation re-signed and the document re-addressed for every variant, so
+// a variant differs from the vector's task in exactly its declared point.
+// Each variant seals under its own ephemeral key and nonce (`tag`).
+const makeAdmission = (o = {}) => {
+  const aDoc = o.accept ?? accDoc
+  const iDoc = o.invite ?? invDoc
+  const subject = o.subject ?? invitee
+  const group = o.group ?? groupDid
+  const w = { ...clone(welcome), group, subject, accept: o.welcomeAccept ?? digestU(aDoc), ...(o.welcomeExtra ?? {}) }
+  const rkid = o.sealTo === 'other' ? mkOf(inviteeOtherX) : aDoc.payload.accept.card.keyAgreement
+  const s = seal(w, rkid, INFO.ephemeral + '/' + o.tag, INFO.nonce + '/' + o.tag)
+  const { op } = envelope({
+    v: 'rltp-access/0.25', op: 'member.add', group, epoch: 0, policyVersion: 1, prev: [genesis.id],
+    body: { subject, admission: { invite: iDoc, accept: aDoc, welcome: o.admissionWelcome ?? digestU(w) }, ...(o.bodyExtra ?? {}) },
+    id: '', author: founder,
+  }, [founderSeed])
+  const pl = { operation: op, welcome: { sealed: s } }
+  return { payload: pl, document: { ...document, recipient: subject, payload: pl } }
+}
 
 // the self-contained bootstrap: key-delivery/0.1, kind re-welcome (Access 10.1)
 const reWelcome = { keyDelivery: { group: groupDid, genesisDigest, subject: invitee, epoch: 0, op: operation.id, kind: 're-welcome', sealed } }
@@ -246,7 +277,10 @@ const negatives = [
 // signature covers the changed field; each MUST fail exactly the named
 // checks of its predicate and be disposed `expected`
 const VF = 'failed(validation-failed)'
-const pairCase = (name, rules, o, fails, extra = {}) => ({ name, rules, artifact: pairOf(makePair(o)), fails, expected: fails.length ? VF : 'accepted', ...extra })
+const MF = 'failed(malformed)'
+// a schema failure is failed(malformed) (Contract 6.2), every later failure failed(validation-failed)
+const verdict = (fails) => (fails.includes('schema') ? MF : fails.length ? VF : 'accepted')
+const pairCase = (name, rules, o, fails, extra = {}) => ({ name, rules, artifact: pairOf(makePair(o)), fails, expected: verdict(fails), ...extra })
 const tamperedAccept = makePair(); tamperedAccept.accDoc.payload.accept.candidacy = false
 const tamperedInvite = makePair(); tamperedInvite.invDoc.payload.invite.credentialSubject.note = 'changed after signing'
 const withDocProof = makePair(); withDocProof.invDoc.proof = clone(accDoc.proof)
@@ -263,6 +297,8 @@ const pairNegatives = [
   pairCase('invite-document-thread-not-task-context', R(3060, 3075), { invThread: UUID.other, acceptThread: UUID.other }, ['thread']),
   pairCase('invite-validity-inverted', R(3055), { validUntil: '2026-09-01T09:59:00Z', acceptIssued: '2026-09-01T10:03:00Z' }, ['validity']),
   pairCase('accept-after-skew', R(5020, 5050), { acceptIssued: plus(T.validUntil, 301) }, ['skew']),
+  pairCase('accept-issued-999ms-past-skew', R(5050), { acceptIssued: '2026-11-30T10:05:00.999Z', acceptCreated: '2026-11-30T10:05:00Z' }, ['skew'], { note: 'issuedAt one millisecond short of a second past validUntil + PT5M: no rounding' }),
+  pairCase('accept-proof-created-999ms-past-skew', R(5050), { acceptIssued: '2026-11-30T10:05:00Z', acceptCreated: '2026-11-30T10:05:00.999Z' }, ['skew'], { note: 'proof.created past the window while issuedAt is inside it' }),
   pairCase('invite-document-issuer-not-credential-issuer', R(3020), { invDocIssuer: third }, ['inviteIssuer']),
   pairCase('invite-document-recipient-not-subject', R(3025), { invDocRecipient: third }, ['inviteRecipient']),
   pairCase('accept-proof-under-another-key', R(2140, 2130, 3220), { acceptSigner: founderSeed }, ['acceptProof']),
@@ -273,15 +309,22 @@ const pairNegatives = [
   pairCase('accept-card-sent-form', R(2260), { inviteeCard: makeCard(inviteeSeed, inviteeX, T.inviteeCard, { sentTo: founder, boundTo: 'AAAAAAAAAAAAAAAAAAAAAA' }) }, ['cards']),
   { name: 'accept-tampered', rules: R(2130, 3260), artifact: pairOf(tamperedAccept), fails: ['acceptProof'], expected: VF },
   { name: 'invite-tampered', rules: R(2150, 3070), artifact: pairOf(tamperedInvite), fails: ['inviteProof', 'ref'], expected: VF, note: 'the accept still names the credential as signed' },
-  { name: 'invite-document-with-proof', rules: R(2150, 3080), artifact: pairOf(withDocProof), fails: ['inviteNoProof', 'schema'], expected: VF },
+  { name: 'invite-document-with-proof', rules: R(2150, 3080), artifact: pairOf(withDocProof), fails: ['inviteNoProof', 'schema'], expected: MF },
+  pairCase('accept-without-candidacy-signed', R(3250), { noCandidacy: true }, ['schema'], { note: 'a signed accept without candidacy: failed(malformed)' }),
   { name: 'invite-document-with-enactment', rules: R(2170), artifact: pairOf(enacted), fails: ['enactment'], expected: VF, note: 'an invitation credential carries no enactmentBinding, so a present ceremony.enactment cannot recompute (Contract §3) and the document is rejected' },
+  pairCase('accept-document-over-budget', R(2200, 2210), { acceptBytes: 16385 }, ['sizes'], { note: 'a signed accept padded through its ceremony to exactly 16385 JCS bytes' }),
   { name: 'invite-document-over-budget', rules: R(2200, 2210), artifact: pairOf(padded), fails: ['sizes'], expected: VF, note: 'padded through ceremony to exactly 16385 JCS bytes' },
 ]
 const pairPositives = [
   pairCase('accept-at-skew-boundary', R(5020, 5050), { acceptIssued: plus(T.validUntil, 300) }, [], { note: 'issuedAt and proof.created = validUntil + 300 s: the last accepted second' }),
+  pairCase('accept-at-skew-boundary-with-fraction', R(5050), { acceptIssued: '2026-11-30T10:05:00.000Z', acceptCreated: '2026-11-30T10:05:00Z' }, [], { note: 'validUntil + PT5M exactly, once with and once without a fractional part' }),
+  pairCase('accept-ref-as-z', R(3230), { ref: zOf(digestU(inv)) }, [], { note: 'accept.ref in base58btc: the same credential digest by decoded multihash bytes' }),
   pairCase('inviter-card-long-before', R(2290), { founderCardCreated: '2025-01-01T00:00:00Z' }, [], { note: 'a card created 20 months earlier: no freshness requirement' }),
   { name: 'invite-document-wrapper-changed', rules: R(2160), artifact: pairOf(wrapper), fails: [], expected: 'accepted', note: 'id, issuedAt and a ceremony without enactment changed on the unsigned invite document: no verdict changes' },
-  pairCase('candidacy-refused', R(3765), { candidacy: false }, [], { surfaceable: false, note: 'a valid pair whose accept refuses candidacy: valid evidence, never surfaceable' }),
+  pairCase('candidacy-refused', R(3775), { candidacy: false }, [], { surfaceable: false, note: 'a valid pair whose accept refuses candidacy: valid evidence, never surfaceable' }),
+]
+const vouchPositives = [
+  { name: 'vouch-digests-as-z', rules: R(3810), artifact: makeVouch({ accept: zOf(digestU(accDoc)), genesis: zOf(genesisDigest) }), fails: [], expected: 'accepted', note: 'endorsement digests in base58btc: equal by decoded bytes' },
 ]
 const vouchNegatives = [
   { name: 'vouch-for-another-subject', rules: R(3810), artifact: makeVouch({ subject: third }), fails: ['subject'], expected: VF },
@@ -293,23 +336,35 @@ const vouchNegatives = [
 // mutations of the payload; the invitee's own accept and invite are the
 // vector's own
 const otherAccept = makePair({ acceptId: UUID.other }).accDoc
+const makeAdmissionWelcome = () => ({ ...clone(welcome) })
 const otherInvite = makePair({ invThread: UUID.thread, subjectExtra: { note: 'another invite' } }).invDoc
+// the document is stored without its payload (it carries `payload`)
+const docOnly = (d) => { const { payload: _p, ...rest } = d; return rest }
+const inviteeCase = (name, rules, o, fails, extra = {}) => { const a = makeAdmission({ tag: name, ...o }); return { name, rules, payload: a.payload, document: docOnly(a.document), fails, ...extra } }
+const wrongId = clone(payload); wrongId.operation.id = 'oid:' + b64u(sha('another operation'))
+const wrongSig = clone(payload); wrongSig.operation.proof.signatures[0].sig = 'z' + b58(crypto.sign(null, Buffer.from('other bytes'), privEd(founderSeed)))
 const inviteeNegatives = [
-  { name: 'admission-encloses-another-accept', rules: R(3425), set: { '/operation/body/admission/accept': otherAccept }, fails: ['ownAccept'] },
-  { name: 'admission-encloses-another-invite', rules: R(3430), set: { '/operation/body/admission/invite': otherInvite }, fails: ['ownInvite'] },
-  { name: 'admission-for-another-subject', rules: R(3435), set: { '/operation/body/subject': third }, fails: ['subjectGroup'] },
-  { name: 'admission-in-another-group', rules: R(3435), set: { '/operation/group': third }, fails: ['subjectGroup'] },
-  { name: 'welcome-sealed-to-another-own-key', rules: R(3440, 4110), set: { '/welcome/sealed': sealedOtherKey }, fails: ['sealKey'], note: 'opens under another key-agreement key of the same person — rejected all the same' },
-  { name: 'welcome-digest-mismatch', rules: R(4080, 3340), set: { '/operation/body/admission/welcome': digestU({ ...welcome, material: { ...welcome.material, epoch: 1 } }) }, fails: ['welcomeDigest'] },
-  { name: 'operation-id-does-not-recompute', rules: R(3335), set: { '/operation/epoch': 1 }, fails: ['id'] },
-  { name: 'operation-signature-by-another-key', rules: R(3335), set: { '/operation/proof/signatures/0/signer': third }, fails: ['sigs'] },
+  inviteeCase('admission-encloses-another-accept', R(3425), { accept: otherAccept }, ['ownAccept']),
+  inviteeCase('admission-encloses-another-invite', R(3430), { invite: otherInvite }, ['ownInvite']),
+  inviteeCase('admission-for-another-subject', R(3435), { subject: third }, ['subjectGroup']),
+  inviteeCase('admission-in-another-group', R(3435), { group: third }, ['subjectGroup']),
+  inviteeCase('welcome-sealed-to-another-own-key', R(3440, 4110), { sealTo: 'other' }, ['sealKey'], { note: 'opens under another key-agreement key the same person holds — rejected all the same' }),
+  inviteeCase('welcome-digest-mismatch', R(4080), { admissionWelcome: digestU({ ...welcome, material: { ...welcome.material, epoch: 1 } }) }, ['welcomeDigest']),
+  inviteeCase('welcome-for-another-group', R(4090), { welcomeExtra: { group: third } }, ['binding']),
+  inviteeCase('welcome-for-another-subject', R(4090), { welcomeExtra: { subject: third } }, ['binding']),
+  inviteeCase('welcome-for-another-accept', R(4090), { welcomeAccept: digestU(invDoc) }, ['binding']),
+  inviteeCase('admission-added-by-signed', R(3405), { bodyExtra: { addedBy: founder } }, ['schema'], { note: 'a signed, authentic operation whose body asserts addedBy: failed(malformed)' }),
+  inviteeCase('welcome-material-unregistered-key', R(3445), { welcomeExtra: { material: { ...welcome.material, keys: { ...welcome.material.keys, history: b64u(contentKeyRaw) } } } }, ['material']),
+  { name: 'operation-id-does-not-recompute', rules: R(3335), payload: wrongId, document: docOnly(document), fails: ['id'], note: 'the id field replaced; the signature over the id input stays valid' },
+  { name: 'operation-signature-does-not-verify', rules: R(3335), payload: wrongSig, document: docOnly(document), fails: ['sigs'], note: 'a founder signature over other bytes' },
 ]
-const bindingNegatives = [
-  { name: 'welcome-for-another-group', rules: R(4090), setPlaintext: { '/group': third }, note: 'a coherently re-digested welcome whose group is not operation.group' },
-  { name: 'welcome-for-another-subject', rules: R(4090), setPlaintext: { '/subject': third }, note: 'a coherently re-digested welcome whose subject is not body.subject' },
-  { name: 'welcome-for-another-accept', rules: R(4090), setPlaintext: { '/accept': digestU(invDoc) }, note: 'a coherently re-digested welcome whose accept is not the digest of admission.accept' },
+// positives: the same digest in its z rendering compares by decoded bytes
+const inviteePositives = [
+  inviteeCase('admission-welcome-digest-as-z', R(4080), { admissionWelcome: zOf(digestU(makeAdmissionWelcome())) }, []),
+  inviteeCase('welcome-accept-as-z', R(4090), { welcomeAccept: zOf(digestU(accDoc)) }, []),
 ]
 const documentNegatives = [
+  { name: 'carrier-over-plaintext-limit', rules: R(2220), set: { '/ceremony': { pad: '' } }, padTo: { '/ceremony/pad': 65537 }, fails: ['sizes'], note: 'the complete task padded with x through its ceremony to exactly 65537 JCS bytes, one past the Delivery plaintext limit' },
   { name: 'carrier-issuer-neither-author-nor-signer', rules: R(3330), set: { '/issuer': third }, fails: ['issuer'] },
   { name: 'carrier-with-document-proof', rules: R(3325), set: { '/proof': clone(accDoc.proof) }, fails: ['noProof'] },
   { name: 'carrier-on-another-thread', rules: R(3320), set: { '/threadId': UUID.other }, fails: ['thread'] },
@@ -318,15 +373,27 @@ const documentNegatives = [
 const reWelcomeNegatives = [
   { name: 're-welcome-other-genesis', rules: R(3420), set: { '/keyDelivery/genesisDigest': digestU(accDoc) }, fails: ['pin'] },
   { name: 're-welcome-other-group', rules: R(3420), set: { '/keyDelivery/group': third }, fails: ['pin'] },
-  { name: 're-welcome-sealed-to-another-own-key', rules: R(3420, 3440), set: { '/keyDelivery/sealed': sealedOtherKey }, fails: ['sealKey', 'material'], note: 'the material cannot be read without the own card key' },
+  { name: 're-welcome-sealed-to-another-own-key', rules: R(3420, 3440), set: { '/keyDelivery/sealed': sealedOtherKey }, fails: ['sealKey'], note: 'opens under another key the same person holds — rejected all the same' },
+]
+// the invitee's receipt of an invite (RLTP-MT-3030): its own derivation of
+// the member anchor from the pinned genesis digest decides, never the channel
+const inviteReceiptCases = [
+  { name: 'invite-as-sent', rules: R(3030, 8090, 3025), artifact: invDoc, fails: [] },
+  { name: 'invite-genesis-digest-as-z', rules: R(3030), artifact: makePair({ genesis: zOf(genesisDigest) }).invDoc, fails: [], note: 'the anchor derives from the canonical u re-encoding' },
+  { name: 'invite-for-another-anchor', rules: R(3030, 8090, 3025), artifact: makePair({ subject: third, invDocRecipient: invitee }).invDoc, fails: ['derivation', 'subjectIsRecipient'], note: 'addressed to the invitee, naming an anchor its derivation does not produce' },
+  { name: 'invite-under-another-genesis', rules: R(3030, 8090), artifact: makePair({ genesis: digestU(accDoc) }).invDoc, fails: ['derivation'], note: 'the invitee anchor of the real genesis, pinned to a different digest' },
 ]
 const evidenceDocumentNegatives = [
   { name: 'evidence-on-another-thread', rules: R(3715), set: { '/threadId': UUID.other }, fails: ['thread'] },
   { name: 'evidence-with-document-proof', rules: R(3720), set: { '/proof': clone(accDoc.proof) }, fails: ['noProof'] },
 ]
 
+// rules a case checks only in part move to rulesPartial (conformance/membership-partial.mjs)
+for (const list of [negatives, pairNegatives, pairPositives, vouchNegatives, vouchPositives, inviteeNegatives, inviteePositives, documentNegatives, reWelcomeNegatives, evidenceDocumentNegatives, inviteReceiptCases]) {
+  for (const c of list) { const { rules, rulesPartial } = splitRules(c.rules); c.rules = rules; if (Object.keys(rulesPartial).length) c.rulesPartial = rulesPartial }
+}
 const vector = {
-  source: 'RLTP Membership Tasks 0.17 (rltp-membership@0.17) over Access Layer 0.54 (wire rltp-access/0.25, rltp-access-material/0.25): one admission chain from a real genesis. Generated by scripts/gen-membership-tasks-vector.mjs (deterministic); re-derived by conformance/runner.mjs. Every case names the RLTP-MT rules it proves in `rules` (RLTP-MT-10090). Two genesis fields, serviceIdentity and keyOpDigest, are stand-ins whose derivations the Access vectors own; the runner check that would depend on them is marked [not-proven] and proves no rule.',
+  source: 'RLTP Membership Tasks 0.17 (rltp-membership@0.17) over Access Layer 0.54 (wire rltp-access/0.25, rltp-access-material/0.25): one admission chain from a real genesis. Generated by scripts/gen-membership-tasks-vector.mjs (deterministic); re-derived by conformance/runner.mjs. Every case names the RLTP-MT rules it proves completely in `rules` (RLTP-MT-10090), and a rule it checks only in part in `rulesPartial`, with the obligation that stays unchecked; only `rules` counts as coverage. Two genesis fields, serviceIdentity and keyOpDigest, are stand-ins whose derivations the Access vectors own; the runner check that would depend on them is marked [not-proven] and proves no rule.',
   format: {
     inputs: 'vector-only HKDF info strings: founder (the founding context anchor, a stand-in for the nonce-based pair class of RLTP-ACC-3275), founderX, groupDid, third (a third member, the evidence recipient) under the second-party IKM of vectors/dtg-credentials.json; contentKey, ephemeral, nonce (first 12 bytes), inviteeOtherX under the oracle IKM of vectors/identity-derivation.json. The invitee is the oracle under the group/<genesisDigest> context (Access 5.1). serviceIdentity and keyOpDigest of the genesis are stand-ins (Access vectors own their derivations).',
     genesis: 'a group.genesis (rltp-access/0.25) signed by the group DID and the founder; genesisDigest = multibase multihash over its signature input (RLTP-ACC-3030); its id names the first key state (linear/0.1)',
@@ -334,8 +401,8 @@ const vector = {
     payload: 'the access-operation/0.1 payload; document: the task document carrying it',
     reWelcome: 'the self-contained bootstrap: key-delivery/0.1 kind re-welcome carrying the same welcome seal',
     evidence: 'evidence01 / evidence02 payloads and evidenceDocuments: membership-evidence/0.1 and /0.2 documents from the invitee to a third member',
-    negatives: 'declared mutations of one artifact (set: pointer → value; delete: pointers; fill: pointer → n copies of the first element) that MUST fail `schema` with an error at `at`; the unmutated artifact passes',
-    receiverChecks: 'pairNegatives / pairPositives (evidence pair checks of RLTP-MT-3725), vouchNegatives (RLTP-MT-3810), inviteeNegatives and bindingNegatives (the embedded-welcome checks of RLTP-MT-3415), documentNegatives (the carrier document), reWelcomeNegatives (RLTP-MT-3420), evidenceDocumentNegatives: each MUST fail the named checks `fails` and be disposed `expected` — exactly those checks, except inviteeNegatives, whose change to the signed operation also breaks its id or signatures; positives pass every check',
+    negatives: 'declared mutations of one artifact (set: pointer → value; delete: pointers; fill: pointer → n copies of the first element; padTo: pointer to a string → append x until the whole artifact is exactly n JCS bytes) that MUST fail `schema` with an error at `at`; the unmutated artifact passes',
+    receiverChecks: 'pairNegatives / pairPositives (evidence pair checks of RLTP-MT-3725), vouchNegatives / vouchPositives (RLTP-MT-3810), inviteeNegatives / inviteePositives (the embedded-welcome checks of RLTP-MT-3415; each a complete task — payload, and the document without its payload — whose operation is re-signed and whose welcome is re-sealed, so it differs in its declared point only), documentNegatives (the carrier document), reWelcomeNegatives (RLTP-MT-3420), evidenceDocumentNegatives, inviteReceiptCases (the own derivation check of the invitee on a received invite, RLTP-MT-3030): each MUST fail exactly the named checks `fails`; a schema failure is disposed failed(malformed), every other failure failed(validation-failed) (Contract 6.2), never acknowledged and with nothing written; positives pass every check. Digests compare as decoded multihash bytes, u and z alike; time windows compare exact RFC 3339 instants, a missing fraction read as .000',
   },
   inputs: INFO,
   parties: { founder, groupDid, invitee, third, inviteeKeyAgreement: mkOf(inviteeX), inviteeOtherKeyAgreement: mkOf(inviteeOtherX) },
@@ -359,8 +426,10 @@ const vector = {
   pairNegatives,
   pairPositives,
   vouchNegatives,
+  vouchPositives,
+  inviteReceiptCases,
   inviteeNegatives,
-  bindingNegatives,
+  inviteePositives,
   documentNegatives,
   reWelcomeNegatives,
   evidenceDocumentNegatives,
