@@ -180,16 +180,19 @@ for (const f of specFiles) {
   }
 }
 
-// ── 6. Encounter rule trace (manifest ↔ numbered rules) ──────────────────
-// Always against the committed manifest conformance/encounter-rule-ids-0.30.txt.
-// The private rule inventory is checked additionally when present, and is
-// REQUIRED when ENCOUNTER_INVENTORY names it.
+// ── 6. Rule traces (manifest ↔ numbered rules), Encounter and Access ──────
+// Always against the committed manifests conformance/encounter-rule-ids-0.30.txt
+// and conformance/access-rule-ids-0.54.txt. The private rule inventory of each
+// layer is checked additionally when present, and is REQUIRED when
+// ENCOUNTER_INVENTORY / ACCESS_INVENTORY names it.
 {
-  const { checkTrace, resolveInventory } = await import('./check-encounter-trace.mjs')
-  const { path: inventory } = resolveInventory(process.env.ENCOUNTER_INVENTORY)
-  const r = checkTrace({ inventory })
-  for (const e of r.errors) err(`encounter trace: ${e}`)
-  if (!r.errors.length) ok(`encounter trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
+  const { checkTrace, resolveInventory, LAYERS } = await import('./check-encounter-trace.mjs')
+  for (const layer of ['encounter', 'access']) {
+    const { path: inventory } = resolveInventory(process.env[LAYERS[layer].env], layer)
+    const r = checkTrace({ layer, inventory })
+    for (const e of r.errors) err(`${layer} trace: ${e}`)
+    if (!r.errors.length) ok(`${layer} trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
+  }
 }
 
 // ── 7. SKOS hierarchy links are IRIs, not literals ───────────────────────
