@@ -1645,6 +1645,7 @@
     },
     {
       "name": "welcome: the welcome carries the material form, never the keydist form (Membership 4, RLTP-ACC-9362)",
+      "rules": ["RLTP-MT-4040", "RLTP-MT-3445"],
       "base": "welcome",
       "set": {
         "/material/v": "rltp-access-keydist/0.25"
@@ -1653,6 +1654,7 @@
     },
     {
       "name": "welcome: legacy material rltp-access-material/0.24 is no longer accepted (Membership 0.17 D-2, RLTP-ACC-11100)",
+      "rules": ["RLTP-MT-10020", "RLTP-MT-10050", "RLTP-MT-4040"],
       "base": "welcome",
       "set": {
         "/material/v": "rltp-access-material/0.24"
@@ -1661,6 +1663,7 @@
     },
     {
       "name": "welcome: the material names its key state (Membership 4, RLTP-ACC-9362)",
+      "rules": ["RLTP-MT-4040", "RLTP-MT-3445"],
       "base": "welcome",
       "delete": "/material/keyState"
     }

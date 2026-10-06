@@ -20,10 +20,18 @@ import crypto from 'node:crypto'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let pass = 0, fail = 0
-const ok = (m) => { pass++; console.log(`  ok    ${m}`) }
+// `--coverage membership` prints the RLTP-MT identifiers the passing
+// checks prove, one per line, and nothing else (scripts/check-encounter-trace.mjs
+// --layer membership --coverage)
+const COVERAGE = process.argv.includes('--coverage') ? process.argv[process.argv.indexOf('--coverage') + 1] : null
+const out = COVERAGE ? () => {} : (m) => console.log(m)
+const PROVEN = new Set()
+const ok = (m) => { pass++; out(`  ok    ${m}`) }
 const err = (m) => { fail++; console.error(`  FAIL  ${m}`) }
 const check = (cond, m) => (cond ? ok(m) : err(m))
-const section = (t) => console.log(`\n── ${t}`)
+// a check that proves the rules it names; a failing one proves nothing
+const checkR = (rules, cond, m) => { const r = [].concat(rules); if (cond) for (const id of r) PROVEN.add(id); return check(cond, `${m} [${r.join(', ')}]`) }
+const section = (t) => out(`\n── ${t}`)
 const J = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'))
 
 import {
@@ -1233,7 +1241,7 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
     const spec = NEG[n.name]
     if (!spec) { err(`unknown negative ${n.name}`); continue }
     const errs = validate(n.artifact, sch, sch)
-    check(errs.length > 0 && errs.some((e) => e.includes(spec.frag)), `${n.name}: fails AT the declared point (${spec.frag})`)
+    checkR(n.rules ?? [], errs.length > 0 && errs.some((e) => e.includes(spec.frag)), `${n.name}: fails AT the declared point (${spec.frag})`)
     const repaired = JSON.parse(JSON.stringify(n.artifact))
     spec.repair(repaired)
     check(validate(repaired, sch, sch).length === 0, `${n.name}: repairing exactly the declared defect makes it valid (broken nowhere else)`)
@@ -1513,16 +1521,17 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the cases review 3 added are all present')
 }
 
-// ── suite: membership-tasks.json — the admission carrier and the evidence relay ──
-section('membership-tasks.json — access-operation/0.1 with welcome, membership-evidence/0.1 and /0.2 (Membership 0.17)')
+// ── suite: membership-tasks.json — Membership Tasks 0.17 from a real genesis ──
+// Every check that proves a Membership rule names it (checkR, `rules` of
+// the vector cases); `--coverage membership` prints the proven set.
+section('membership-tasks.json — Membership Tasks 0.17: genesis → invite → accept → welcome → member.add, evidence, re-welcome')
 {
   const M = J('vectors/membership-tasks.json')
-  const D = J('vectors/dtg-credentials.json')
-  const md = D.memberAnchorDerivation
   const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
-  const op = M.payload.operation
-  const adm = op.body.admission
   const P = 'https://real-life.org/trust-tasks/'
+  const VF = 'failed(validation-failed)'
+  const MEMBERSHIP_SKEW = 300 // PT5M (RLTP-MT-5020)
+  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.17.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
   const ptr = (p) => p.split('/').slice(1).map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'))
   const mutate = (base, m) => {
     const doc = JSON.parse(JSON.stringify(base))
@@ -1533,92 +1542,246 @@ section('membership-tasks.json — access-operation/0.1 with welcome, membership
     return doc
   }
   const errsOf = (data, file) => { const s = SCHEMAS[file]; return s ? validate(data, s, s) : [`schema ${file} not shipped`] }
+  const valid = (data, file) => errsOf(data, file).length === 0
+  const toU = (z) => { if (typeof z !== 'string') return null; if (z[0] === 'u') return z; if (z[0] !== 'z') return null; const b = fromB58(z.slice(1)); return b && b.length === 34 && b[0] === 0x12 && b[1] === 0x20 && 'z' + b58(b) === z ? 'u' + b.toString('base64url') : null }
+  const sameDigest = (a, b) => toU(a) !== null && toU(a) === toU(b)
+  const tsec = (t) => Math.floor(Date.parse(t) / 1000)
+  const mh = (bytes) => 'u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(bytes)]).toString('base64url')
+  const failing = (checks) => Object.entries(checks).filter(([, v]) => !v).map(([k]) => k)
+  const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x))
+  // a receiver's verdict: any failed check is disposed failed(validation-failed), never acknowledged
+  const dispose = (fails) => (fails.length ? { disposition: VF, ack: false } : { disposition: 'accepted', ack: true })
 
-  // (a) the valid admission carrier
-  check(M.payload.operation.v === 'rltp-access/0.25' && M.welcome.plaintext.material.v === 'rltp-access-material/0.25', 'carrier transports rltp-access/0.25 and welcome material rltp-access-material/0.25 (D-2)')
-  schemaOK(M.payload, 'payload-access-operation.schema.json', 'access-operation/0.1 payload (member.add, envelope 0.25)')
-  schemaOK(op, 'access-operation-envelope.schema.json', 'enclosed operation')
-  schemaOK(M.welcome.plaintext, 'welcome.schema.json', 'welcome plaintext (material 0.25 with keyState)')
-  schemaOK(M.welcome.plaintext.material, 'access-material.schema.json', 'welcome material')
-  schemaOK(adm.invite, 'rltp-delivery-document.schema.json', 'enclosed invite document')
-  schemaOK(adm.accept, 'rltp-delivery-document.schema.json', 'enclosed accept document')
-  check(jcs(adm.invite) === jcs(D.invite.document) && jcs(adm.accept) === jcs(D.accept.document), 'the enclosed consent pair is the dtg-credentials pair, unchanged')
-  check(M.welcome.sealed && schemaOK(M.payload.welcome.sealed, 'sealed-envelope.schema.json', 'welcome seal') && jcs(M.payload.welcome.sealed) === jcs(M.welcome.sealed), 'payload carries exactly the vector seal')
-  // the task document: issuer is the author, recipient the subject, no proof
-  schemaOK(M.document, 'rltp-delivery-document.schema.json', 'access-operation/0.1 task document')
-  check(M.document.type === P + 'access-operation/0.1' && SCHEMAS['payload-access-operation.schema.json'].$id === M.document.type, 'task document type = the payload schema $id (Trust Tasks 6.3), access-operation/0.1 (D-3)')
-  check(!('proof' in M.document) && M.document.issuer === op.author && M.document.recipient === op.body.subject && jcs(M.document.payload) === jcs(M.payload), 'task document: no proof, issuer = operation author, recipient = body.subject (Membership 3.3)')
-  // operation id and signature recompute (RLTP-ACC-3100, 3105)
-  const { proof: opProof, ...opNoProof } = op
-  const sigInput = Buffer.from(jcs({ ...opNoProof, id: '' }), 'utf8')
-  check(op.id === 'oid:' + sha(sigInput).toString('base64url'), 'operation id recomputes over JCS with id empty and proof omitted (RLTP-ACC-3100)')
-  const inviterSeed = hkdf(IKM2, md.edInfo)
-  check(didOf(inviterSeed) === op.author && op.author === D.parties.inviterVoucher.anchor, 'author = the inviter party; signing seed recomputes from the second-party IKM')
-  check(opProof.signatures.length === 1 && opProof.signatures[0].signer === op.author && verifyRaw(op.author, sigInput, opProof.signatures[0].sig), 'the author signature verifies over the id input (RLTP-ACC-3105)')
-  // material names its key state: under linear/0.1 the genesis stand-in this admission succeeds
-  check(M.inputs.genesisOid === 'oid:' + sha(Buffer.from(M.inputs.genesis, 'utf8')).toString('base64url') && op.prev[0] === M.inputs.genesisOid && M.welcome.plaintext.material.keyState === M.inputs.genesisOid, 'material keyState = the genesis stand-in the operation succeeds (RLTP-ACC-9362, 9262)')
-  check(M.welcome.plaintext.material.keys.contentKey === hkdf(IKM, M.inputs.contentKey).toString('base64url'), 'content key recomputes from the oracle')
-  // (i) open the seal under the invitee's accept-card key and bind it
-  const invXSeed = hkdf(IKM, md.xInfo)
-  const openWelcome = (sealed, xSeed) => {
+  // every rule a vector case names is an identifier of this document (RLTP-MT-10090)
+  const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'inviteeNegatives', 'bindingNegatives', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives']
+  const allCases = caseLists.flatMap((l) => M[l])
+  check(allCases.every((c) => Array.isArray(c.rules) && c.rules.length > 0 && c.rules.every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.17.txt`)
+
+  // ── the genesis: a real one, its digest the group identity ──────────────
+  const G = M.genesis
+  const { proof: gProof, ...gNoProof } = G
+  const gInput = Buffer.from(jcs({ ...gNoProof, id: '' }), 'utf8')
+  schemaOK(G, 'access-operation-envelope.schema.json', 'genesis (rltp-access/0.25 group.genesis)')
+  check(G.id === 'oid:' + sha(gInput).toString('base64url') && gProof.signatures.length === 2 && gProof.signatures.every((s) => verifyRaw(s.signer, gInput, s.sig)) && sameSet(gProof.signatures.map((s) => s.signer), [G.group, G.author]),
+    'genesis id recomputes; signed by the group DID and the founder (RLTP-ACC-3100, 3225)')
+  check(didOf(hkdf(IKM2, M.inputs.groupDid)) === G.group && didOf(hkdf(IKM2, M.inputs.founder)) === G.author && G.body.members[0] === G.author, 'group DID and founder recompute from the second-party IKM; members = [founder]')
+  check(G.body.contentKeyCommitment === mh(hkdf(IKM, M.inputs.contentKey)), 'genesis contentKeyCommitment = multihash over the raw content key (linear/0.1)')
+  check(true, '[not-proven] genesis serviceIdentity and keyOpDigest are stand-ins; their derivations are Access vectors\' (Access 5.2, 9.2)')
+  check(M.genesisDigest === mh(gInput) && M.genesisDigest.slice(1) === Buffer.concat([Buffer.from([0x12, 0x20]), Buffer.from(G.id.slice(4), 'base64url')]).toString('base64url'), 'genesisDigest = multibase multihash over the genesis signature input, the same hash bytes as its id (RLTP-ACC-3030)')
+
+  // ── the pair: invite and accept ─────────────────────────────────────────
+  const invDoc = M.invite.document, inv = invDoc.payload.invite, accDoc = M.accept.document, acc = accDoc.payload.accept
+  const edInfo = 'rltp/anchor/ed/group/' + M.genesisDigest, xInfo = 'rltp/anchor/x/group/' + M.genesisDigest
+  const inviteeSeed = hkdf(IKM, edInfo), inviteeX = hkdf(IKM, xInfo)
+  checkR(['RLTP-MT-3040', 'RLTP-MT-3035'], inv.credentialSubject.genesisDigest === mh(gInput) && inv.credentialSubject.group === G.group, 'invite genesisDigest = digest of the real genesis, group = its group DID')
+  checkR(['RLTP-MT-3030', 'RLTP-MT-8090', 'RLTP-MT-2250'], didOf(inviteeSeed) === inv.credentialSubject.id && inv.credentialSubject.id === M.parties.invitee && mkOf(inviteeX) === acc.card.keyAgreement, 'invitee derives its member anchor from the invite genesisDigest (group/<u> context) and it equals credentialSubject.id; the accept signs under that anchor')
+  checkR(['RLTP-MT-2250'], inv.issuer === G.body.members[0], 'the inviter anchor is the one the materialized membership carries (the founder of the genesis)')
+  checkR(['RLTP-MT-3010', 'RLTP-MT-3015'], valid(invDoc.payload, 'payload-membership-invite.schema.json'), 'invite payload is a conformant DTG InvitationCredential with the pinned @context and type')
+  checkR(['RLTP-MT-3065'], typeof inv.credentialSubject.name === 'string' && typeof inv.credentialSubject.note === 'string' && valid(invDoc.payload, 'payload-membership-invite.schema.json'), 'invite carries the display fields name and note within the schema bounds')
+  checkR(['RLTP-MT-2180'], M.invite.credentialDigest === digestU(inv) && M.invite.credentialDigest !== digestU(invDoc) && sameDigest(acc.ref, M.invite.credentialDigest), 'invitation identity = credential digest over payload.invite incl. proof, never the document digest; accept.ref names it')
+  checkR(['RLTP-MT-3245'], valid(accDoc.payload, 'payload-membership-accept.schema.json') && valid(inv.credentialSubject.card, 'contact-card.schema.json') && valid(acc.card, 'contact-card.schema.json'), 'accept payload and both enclosed cards valid against their schemas')
+  checkR(['RLTP-MT-2120'], valid(invDoc, 'rltp-delivery-document.schema.json') && valid(accDoc, 'rltp-delivery-document.schema.json') && invDoc.type === P + 'membership-invite/0.2' && accDoc.type === P + 'membership-accept/0.2', 'invite and accept documents follow the Delivery document profile under their registered type URIs')
+
+  // THE evidence pair check set (RLTP-MT-3725), a function of the payload
+  // alone — no operation exists for it to consult (RLTP-MT-3730)
+  const pairChecks = (ev) => {
+    const iD = ev.evidence.invite, aD = ev.evidence.accept
+    const i = iD?.payload?.invite, a = aD?.payload?.accept
+    const cardOK = (c, anchor) => !!c && diVerify(c, c.anchor).ok && c.anchor === anchor && !('sentTo' in c) && !('boundTo' in c) && !('deliveryHints' in c)
+    return {
+      schema: valid(ev, 'payload-membership-evidence.schema.json') && valid(iD, 'rltp-delivery-document.schema.json') && valid(aD, 'rltp-delivery-document.schema.json'),
+      inviteProof: diVerify(i, i.issuer).ok && i.proof['@context'] !== undefined && jcs(i.proof['@context']) === jcs(i['@context']),
+      inviteIssuer: iD.issuer === i.issuer,
+      inviteRecipient: iD.recipient === i.credentialSubject.id,
+      inviteNoProof: !('proof' in iD),
+      acceptProof: diVerify(aD, a.subject).ok && aD.issuer === a.subject,
+      ref: sameDigest(a.ref, digestU(i)),
+      subject: a.subject === i.credentialSubject.id,
+      group: a.group === i.credentialSubject.group,
+      acceptRecipient: aD.recipient === i.issuer,
+      thread: iD.threadId === i.taskContext && aD.threadId === iD.threadId,
+      validity: tsec(i.validUntil) >= tsec(i.validFrom),
+      skew: tsec(aD.issuedAt) <= tsec(i.validUntil) + MEMBERSHIP_SKEW && tsec(aD.proof.created) <= tsec(i.validUntil) + MEMBERSHIP_SKEW,
+      cards: cardOK(i.credentialSubject.card, i.issuer) && cardOK(a.card, a.subject),
+      sizes: Buffer.byteLength(jcs(iD), 'utf8') <= 16384 && Buffer.byteLength(jcs(aD), 'utf8') <= 16384,
+      // a present ceremony.enactment MUST recompute against the enclosed
+      // material (Contract §3); an invitation credential carries no
+      // enactmentBinding, so none can (RLTP-MT-2170)
+      enactment: !(iD.ceremony && 'enactment' in iD.ceremony) || (i.credentialSubject.enactmentBinding !== undefined && iD.ceremony.enactment === i.credentialSubject.enactmentBinding),
+    }
+  }
+  const PAIR_RULES = ['RLTP-MT-3725', 'RLTP-MT-2110', 'RLTP-MT-2130', 'RLTP-MT-2140', 'RLTP-MT-2150', 'RLTP-MT-3020', 'RLTP-MT-3025', 'RLTP-MT-3045', 'RLTP-MT-3050', 'RLTP-MT-3055', 'RLTP-MT-3060', 'RLTP-MT-3070', 'RLTP-MT-3075', 'RLTP-MT-3080', 'RLTP-MT-3215', 'RLTP-MT-3220', 'RLTP-MT-3225', 'RLTP-MT-3230', 'RLTP-MT-3235', 'RLTP-MT-3240', 'RLTP-MT-3255', 'RLTP-MT-3260', 'RLTP-MT-3265', 'RLTP-MT-2200', 'RLTP-MT-2260', 'RLTP-MT-2280', 'RLTP-MT-5020', 'RLTP-MT-5050']
+  const basePair = failing(pairChecks({ evidence: { invite: invDoc, accept: accDoc } }))
+  checkR(PAIR_RULES, basePair.length === 0, `the vector pair passes every check of the pair set${basePair.length ? ' — fails ' + basePair : ''}`)
+  checkR(['RLTP-MT-2270'], !('challenge' in inv.credentialSubject.card) && !('challenge' in acc.card) && basePair.length === 0, 'enclosed cards carry no challenge and the pair set passes without one')
+  checkR(['RLTP-MT-3730'], pairChecks.length === 1 && !('operation' in M.evidence02) && failing(pairChecks(M.evidence02)).length === 0, 'the pair set is a function of the evidence payload alone and passes where no operation exists')
+  for (const c of [...M.pairNegatives, ...M.pairPositives]) {
+    const f = failing(pairChecks(c.artifact))
+    const d = dispose(f)
+    checkR(c.rules, sameSet(f, c.fails) && d.disposition === c.expected && d.ack === (c.expected === 'accepted'), `${c.name}: pair checks fail exactly [${c.fails}] → ${c.expected}${c.expected === VF ? ', no acknowledgement' : ''}${sameSet(f, c.fails) ? '' : ' — got [' + f + ']'}`)
+    if (c.expected === VF) checkR(['RLTP-MT-3735', 'RLTP-MT-3275'], d.disposition === VF && !d.ack, `${c.name}: disposed failed(validation-failed) without acknowledgement`)
+  }
+  // inviter-side accept receipt (RLTP-MT-3270): the accept answers an invite this recipient sent on this thread
+  const SENT = [invDoc]
+  const acceptReceipt = (aD) => {
+    const a = aD.payload.accept
+    const sent = SENT.find((d) => d.threadId === aD.threadId && sameDigest(a.ref, digestU(d.payload.invite)))
+    return { proof: diVerify(aD, aD.issuer).ok && aD.issuer === a.subject, sentInvite: !!sent, subject: !!sent && a.subject === sent.payload.invite.credentialSubject.id, group: !!sent && a.group === sent.payload.invite.credentialSubject.group, card: diVerify(a.card, a.card.anchor).ok && a.card.anchor === a.subject, skew: !!sent && tsec(aD.issuedAt) <= tsec(sent.payload.invite.validUntil) + MEMBERSHIP_SKEW }
+  }
+  checkR(['RLTP-MT-3270'], failing(acceptReceipt(accDoc)).length === 0, 'inviter receipt: the accept verifies under its subject, answers an invite sent on its thread, subject/group/card/skew hold')
+  for (const n of M.pairNegatives.filter((c) => ['accept-ref-is-document-digest', 'accept-on-another-thread', 'accept-tampered', 'accept-for-another-group'].includes(c.name))) {
+    const f = failing(acceptReceipt(n.artifact.evidence.accept))
+    checkR(['RLTP-MT-3270', 'RLTP-MT-3275'], f.length > 0 && dispose(f).disposition === VF && !dispose(f).ack, `${n.name}: inviter receipt rejects [${f}] → failed(validation-failed), no acknowledgement`)
+  }
+  // the original accept forwarded to a third member: the receiver principle rejects it (RLTP-MT-3705)
+  const addressedTo = (doc, me) => doc.recipient === me
+  checkR(['RLTP-MT-3705'], !addressedTo(accDoc, M.parties.third) && addressedTo(M.evidenceDocuments.v02, M.parties.third) && jcs(M.evidenceDocuments.v02.payload.evidence.accept) === jcs(accDoc), 'the original accept re-sent to a third member fails its recipient (failed(wrong-recipient)); enclosed in evidence it reaches that member unchanged')
+  // size budget at the exact boundary (RLTP-MT-2200, 2210)
+  const big = M.pairNegatives.find((c) => c.name === 'invite-document-over-budget').artifact.evidence.invite
+  checkR(['RLTP-MT-2200', 'RLTP-MT-2210'], Buffer.byteLength(jcs(big), 'utf8') === 16385 && Buffer.byteLength(jcs({ ...big, ceremony: { pad: big.ceremony.pad.slice(1) } }), 'utf8') === 16384 && failing(pairChecks({ evidence: { invite: { ...big, ceremony: { pad: big.ceremony.pad.slice(1) } }, accept: accDoc } })).length === 0, 'an invite document of exactly 16384 JCS bytes passes, 16385 fails')
+
+  // ── vouches (RLTP-MT-3810) ───────────────────────────────────────────────
+  const vouchChecks = (v, ev) => ({
+    schema: valid(v, 'access-vouch.schema.json'),
+    proof: diVerify(v, v.issuer).ok && v.proof['@context'] !== undefined && jcs(v.proof['@context']) === jcs(v['@context']),
+    subject: v.credentialSubject.id === ev.evidence.accept.payload.accept.subject,
+    accept: sameDigest(v.credentialSubject.endorsement.accept, digestU(ev.evidence.accept)),
+    genesis: sameDigest(v.credentialSubject.endorsement.genesisDigest, ev.evidence.invite.payload.invite.credentialSubject.genesisDigest),
+  })
+  checkR(['RLTP-MT-3810', 'RLTP-MT-2110'], M.evidence02.evidence.vouches.every((v) => failing(vouchChecks(v, M.evidence02)).length === 0), 'every enclosed vouch: schema, proof under its issuer with @context copy, subject = accept.subject, endorsement binds the accept document digest and the genesis digest')
+  for (const c of M.vouchNegatives) {
+    const f = failing(vouchChecks(c.artifact, M.evidence02))
+    checkR(c.rules, sameSet(f, c.fails) && dispose(f).disposition === c.expected, `${c.name}: vouch checks fail exactly [${c.fails}] → ${c.expected}${sameSet(f, c.fails) ? '' : ' — got [' + f + ']'}`)
+    checkR(['RLTP-MT-3735'], !dispose(f).ack, `${c.name}: no acknowledgement`)
+  }
+
+  // ── evidence relay (RLTP-MT-3805, 3815, 3715, 3720, 3765) ──────────────
+  check(SCHEMAS['payload-membership-evidence.schema.json']?.$id === P + 'membership-evidence/0.2' && SCHEMAS['payload-membership-evidence-0.1.schema.json']?.$id === P + 'membership-evidence/0.1', 'evidence schemas: $id = type URI, /0.2 current and /0.1 accepted (Trust Tasks 6.3)')
+  checkR(['RLTP-MT-3805', 'RLTP-MT-3710'], valid(M.evidence02, 'payload-membership-evidence.schema.json'), 'membership-evidence/0.2 payload with one vouch, enclosing the complete pair')
+  for (const v of M.validEvidence) checkR(v.rules, valid(mutate(M.evidence02, v), 'payload-membership-evidence.schema.json'), `${v.name} valid`)
+  checkR(['RLTP-MT-3815'], valid(M.evidence01, 'payload-membership-evidence-0.1.schema.json') && valid(M.evidence01, 'payload-membership-evidence.schema.json') && failing(pairChecks(M.evidence01)).length === 0 && M.evidenceDocuments.v01.type === P + 'membership-evidence/0.1', 'membership-evidence/0.1: valid under its own schema, a /0.2 payload without vouches, the same pair checks pass')
+  const evDocChecks = (d) => ({ schema: valid(d, 'rltp-delivery-document.schema.json'), thread: d.threadId === d.payload.evidence.invite.threadId, noProof: !('proof' in d) })
+  for (const d of [M.evidenceDocuments.v02, M.evidenceDocuments.v01]) checkR(['RLTP-MT-3715', 'RLTP-MT-3720'], failing(evDocChecks(d)).length === 0, `${d.type.split('/').slice(-2).join('/')} document: on the membership thread, no document proof`)
+  for (const c of M.evidenceDocumentNegatives) {
+    const f = failing(evDocChecks(mutate(M.evidenceDocuments.v02, c)))
+    checkR(c.rules, sameSet(f, c.fails), `${c.name}: evidence document checks fail exactly [${c.fails}]${sameSet(f, c.fails) ? '' : ' — got [' + f + ']'}`)
+  }
+  const surfaceable = (ev) => failing(pairChecks(ev)).length === 0 && ev.evidence.accept.payload.accept.candidacy === true
+  const refused = M.pairPositives.find((c) => c.name === 'candidacy-refused')
+  checkR(['RLTP-MT-3765'], surfaceable(M.evidence02) && !surfaceable(refused.artifact) && refused.surfaceable === false, 'a verified pair with candidacy true is surfaceable; with candidacy false it is valid evidence and never surfaceable')
+
+  // ── the welcome, its seal, and the admitting operation ──────────────────
+  const op = M.payload.operation, adm = op.body.admission, W = M.welcome.plaintext
+  checkR(['RLTP-MT-3310', 'RLTP-MT-10020', 'RLTP-MT-10050', 'RLTP-MT-3380', 'RLTP-MT-3315'], valid(M.payload, 'payload-access-operation.schema.json') && op.v === 'rltp-access/0.25' && valid(op, 'access-operation-envelope.schema.json'), 'access-operation/0.1 payload: rltp-access/0.25 member.add, enclosed invite and accept valid through the profile schema, welcome seal present')
+  checkR(['RLTP-MT-4020', 'RLTP-MT-4040', 'RLTP-MT-10020'], valid(W, 'welcome.schema.json') && W.material.v === 'rltp-access-material/0.25' && valid(W.material, 'access-material.schema.json'), 'welcome plaintext rltp-welcome/0.1 with material rltp-access-material/0.25 naming its keyState')
+  checkR(['RLTP-MT-4040'], W.material.keyState === G.id && op.prev[0] === G.id && W.material.keys.contentKey === hkdf(IKM, M.inputs.contentKey).toString('base64url'), 'material keyState = the genesis id, the key state the genesis opened; the content key recomputes')
+  checkR(['RLTP-MT-2240'], Buffer.byteLength(M.welcome.plaintextJcs, 'utf8') <= 16384, 'welcome plaintext within 16384 JCS bytes')
+  check(errsOf(mutate(op, { set: { '/v': 'rltp-access/0.24' } }), 'access-operation-envelope.schema.json').length === 0, 'the Access-owned envelope schema still accepts rltp-access/0.24; the carrier pin rejects it (Membership 10)')
+  check(errsOf(mutate(W.material, { set: { '/v': 'rltp-access-material/0.24' }, delete: ['/keyState'] }), 'access-material.schema.json').length === 0, 'the Access-owned material schema still accepts rltp-access-material/0.24; the welcome pin rejects it (Membership 10)')
+  const openSeal = (sealed, xSeed, info = 'rltp/v1/welcome') => {
     try {
-      if (sealed.rkid !== mkOf(xSeed)) return null
       const shared = ecdhRaw(xSeed, Buffer.from(sealed.epk, 'base64url'))
-      const key = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from('rltp/v1/welcome', 'utf8'), 32))
+      const key = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from(info, 'utf8'), 32))
       const ct = Buffer.from(sealed.ciphertext, 'base64url')
       const d = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(sealed.nonce, 'base64url'))
       d.setAuthTag(ct.subarray(ct.length - 16))
       return Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]).toString('utf8')
     } catch { return null }
   }
-  // THE binding predicate (Membership 4): the digest the operation commits
-  // to is the digest of the opened plaintext, and its binding fields name
-  // this operation's group, subject and accept
-  const welcomeBindOK = (o, pt) => o.body.admission.welcome === digestU(pt) && pt.group === o.group && pt.subject === o.body.subject && pt.accept === digestU(o.body.admission.accept)
-  check(M.payload.welcome.sealed.rkid === adm.accept.payload.accept.card.keyAgreement && mkOf(invXSeed) === adm.accept.payload.accept.card.keyAgreement, 'seal recipient = the accept card keyAgreement, whose private key recomputes from the oracle (Membership 4)')
-  const opened = openWelcome(M.payload.welcome.sealed, invXSeed)
-  check(opened !== null && opened === M.welcome.plaintextJcs && opened === jcs(M.welcome.plaintext), 'welcome seal opens under the invitee key with HKDF info rltp/v1/welcome to exactly the plaintext JCS')
+  const opened = openSeal(M.payload.welcome.sealed, inviteeX)
+  checkR(['RLTP-MT-4100'], opened === M.welcome.plaintextJcs && openSeal(M.payload.welcome.sealed, inviteeX, 'rltp/v1/seal') === null, 'the welcome seal opens under HKDF info rltp/v1/welcome to exactly the plaintext JCS, and never under the delivery info rltp/v1/seal')
   const ephSeed = hkdf(IKM, M.inputs.ephemeral)
   check(M.welcome.sealed.epk === pubRaw(privX(ephSeed)).toString('base64url') && M.welcome.sealed.nonce === hkdf(IKM, M.inputs.nonce).subarray(0, 12).toString('base64url'), 'ephemeral key and nonce recompute from the oracle')
-  check((() => { const s = M.welcome.sealed; const shared = ecdhRaw(invXSeed, Buffer.from(s.epk, 'base64url')); const k = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from('rltp/v1/seal', 'utf8'), 32)); try { const ct = Buffer.from(s.ciphertext, 'base64url'); const d = crypto.createDecipheriv('aes-256-gcm', k, Buffer.from(s.nonce, 'base64url')); d.setAuthTag(ct.subarray(ct.length - 16)); d.update(ct.subarray(0, ct.length - 16)); d.final(); return false } catch { return true } })(), 'the welcome seal does NOT open under the delivery info rltp/v1/seal (domain separation, Membership 4)')
-  check(openWelcome(M.payload.welcome.sealed, hkdf(IKM2, md.xInfo)) === null, 'the welcome seal does not open under another party key')
-  check(M.welcome.digest === digestU(JSON.parse(opened)) && adm.welcome === M.welcome.digest, 'admission.welcome = multibase multihash over JCS of the opened plaintext (Membership 4)')
-  check(welcomeBindOK(op, JSON.parse(opened)), 'welcome binding: digest, group = operation.group, subject = body.subject, accept = digest of admission.accept (Membership 4)')
+  // the invitee's own state: its accept, its invite, its anchor, its card key
+  const own = { accept: accDoc, invite: invDoc, anchor: didOf(inviteeSeed), xSeed: inviteeX }
+  // THE embedded-welcome check set (RLTP-MT-3415): 3335, 3330–3345, 3425–3445
+  const inviteeChecks = (pl, doc) => {
+    const o = pl.operation, a = o?.body?.admission
+    const { proof: pr, ...noProof } = o
+    const input = Buffer.from(jcs({ ...noProof, id: '' }), 'utf8')
+    const sigs = pr?.signatures ?? []
+    const pt = openSeal(pl.welcome?.sealed ?? {}, own.xSeed)
+    const ptObj = pt ? JSON.parse(pt) : null
+    return {
+      schema: valid(pl, 'payload-access-operation.schema.json') && (!ptObj || valid(ptObj, 'welcome.schema.json')),
+      id: o.id === 'oid:' + sha(input).toString('base64url'),
+      sigs: sigs.length > 0 && sigs.every((s) => verifyRaw(s.signer, input, s.sig)),
+      issuer: doc.issuer === o.author || sigs.some((s) => s.signer === doc.issuer),
+      noProof: !('proof' in doc),
+      thread: doc.threadId === own.invite.threadId,
+      admitting: o.op === 'member.add' && !!pl.welcome,
+      recipient: doc.recipient === o.body?.subject,
+      welcomeDigest: !!ptObj && a?.welcome === digestU(ptObj),
+      binding: !!ptObj && ptObj.group === o.group && ptObj.subject === o.body.subject && ptObj.accept === digestU(a.accept),
+      ownAccept: digestU(a.accept) === digestU(own.accept),
+      ownInvite: sameDigest(digestU(a.invite.payload.invite), own.accept.payload.accept.ref),
+      subjectGroup: o.body.subject === own.anchor && o.body.subject === a.accept.payload.accept.subject && o.group === own.accept.payload.accept.group,
+      sealKey: pl.welcome.sealed.rkid === own.accept.payload.accept.card.keyAgreement && pt !== null,
+      material: !!ptObj && valid(ptObj.material, 'access-material.schema.json') && ptObj.material.v === 'rltp-access-material/0.25',
+      sizes: !!pt && Buffer.byteLength(pt, 'utf8') <= 16384 && Buffer.byteLength(jcs(doc), 'utf8') <= 65536,
+    }
+  }
+  const INVITEE_RULES = ['RLTP-MT-3410', 'RLTP-MT-3415', 'RLTP-MT-3335', 'RLTP-MT-3330', 'RLTP-MT-3325', 'RLTP-MT-3320', 'RLTP-MT-3340', 'RLTP-MT-3300', 'RLTP-MT-3350', 'RLTP-MT-4080', 'RLTP-MT-4090', 'RLTP-MT-3425', 'RLTP-MT-3430', 'RLTP-MT-3435', 'RLTP-MT-3440', 'RLTP-MT-3445', 'RLTP-MT-4110', 'RLTP-MT-2220']
+  const baseInvitee = failing(inviteeChecks(M.payload, M.document))
+  checkR(INVITEE_RULES, baseInvitee.length === 0 && M.document.type === P + 'access-operation/0.1' && valid(M.document, 'rltp-delivery-document.schema.json'), `the task passes the complete embedded-welcome check set${baseInvitee.length ? ' — fails ' + baseInvitee : ''}`)
+  check(op.proof.signatures.every((s) => verifyRaw(s.signer, Buffer.from(jcs({ ...Object.fromEntries(Object.entries(op).filter(([k]) => k !== 'proof')), id: '' }), 'utf8'), s.sig)) && op.author === G.author, 'the admitting operation is signed by the founder over its id input (RLTP-ACC-3105)')
+  checkR(['RLTP-MT-2220'], Buffer.byteLength(jcs(M.document), 'utf8') <= 65536 && Buffer.byteLength(jcs(M.document), 'utf8') > 16384 === false, 'the complete serialized task is within the Delivery plaintext limit (65536) before sealing')
+  for (const c of M.inviteeNegatives) {
+    const f = failing(inviteeChecks(mutate(M.payload, c), M.document))
+    const d = dispose(f)
+    checkR(c.rules, c.fails.every((x) => f.includes(x)) && errsOf(mutate(M.payload, c), 'payload-access-operation.schema.json').length === 0, `${c.name}: schema-valid, the invitee check set rejects it at [${c.fails}]${c.fails.every((x) => f.includes(x)) ? '' : ' — got [' + f + ']'}`)
+    checkR(['RLTP-MT-3345', 'RLTP-MT-3465'], d.disposition === VF && !d.ack, `${c.name}: failed(validation-failed), no acknowledgement, nothing adopted`)
+  }
   for (const b of M.bindingNegatives) {
-    let o = op, pt = JSON.parse(opened)
-    if (b.set) o = mutate(M.payload, { set: b.set }).operation
-    if (b.setPlaintext) { pt = mutate(pt, { set: b.setPlaintext }); o = mutate(M.payload, { set: { '/operation/body/admission/welcome': digestU(pt) } }).operation }
-    check(errsOf({ ...M.payload, operation: o }, 'payload-access-operation.schema.json').length === 0 && errsOf(pt, 'welcome.schema.json').length === 0 && !welcomeBindOK(o, pt), `${b.name}: schema-valid, and the welcome binding REJECTS it`)
+    const pt = mutate(JSON.parse(opened), { set: b.setPlaintext })
+    const o = mutate(M.payload, { set: { '/operation/body/admission/welcome': digestU(pt) } }).operation
+    const bindOK = (oo, p) => oo.body.admission.welcome === digestU(p) && p.group === oo.group && p.subject === oo.body.subject && p.accept === digestU(oo.body.admission.accept)
+    checkR(b.rules, valid(pt, 'welcome.schema.json') && !bindOK(o, pt) && bindOK(op, JSON.parse(opened)), `${b.name}: schema-valid, the welcome binding rejects it`)
+  }
+  for (const c of M.documentNegatives) {
+    const f = failing(inviteeChecks(M.payload, mutate(M.document, c)))
+    checkR(c.rules, sameSet(f, c.fails) && dispose(f).disposition === VF, `${c.name}: carrier document checks fail exactly [${c.fails}] → failed(validation-failed)${sameSet(f, c.fails) ? '' : ' — got [' + f + ']'}`)
+  }
+  // the seal opens under another key of the same person, and is rejected all the same (RLTP-MT-3440)
+  const otherX = hkdf(IKM, M.inputs.inviteeOtherX)
+  const other = M.inviteeNegatives.find((c) => c.name === 'welcome-sealed-to-another-own-key').set['/welcome/sealed']
+  checkR(['RLTP-MT-3440', 'RLTP-MT-4110'], openSeal(other, otherX) === M.welcome.plaintextJcs && other.rkid === mkOf(otherX) && openSeal(other, inviteeX) === null, 'the other-key seal does open under the person\'s other key-agreement key — the check rejects it by key, not by luck')
+
+  // ── the self-contained bootstrap (RLTP-MT-3420, RLTP-ACC-10200) ─────────
+  const reWelcomeChecks = (kd) => {
+    const k = kd.keyDelivery
+    const pt = openSeal(k.sealed, own.xSeed)
+    return {
+      schema: valid(kd, 'payload-key-delivery.schema.json'),
+      sealKey: k.sealed.rkid === own.accept.payload.accept.card.keyAgreement && pt !== null,
+      pin: k.group === own.invite.payload.invite.credentialSubject.group && sameDigest(k.genesisDigest, own.invite.payload.invite.credentialSubject.genesisDigest),
+      material: !!pt && valid(JSON.parse(pt).material, 'access-material.schema.json') && JSON.parse(pt).material.v === 'rltp-access-material/0.25',
+    }
+  }
+  checkR(['RLTP-MT-3420'], M.reWelcome.keyDelivery.kind === 're-welcome' && failing(reWelcomeChecks(M.reWelcome)).length === 0, 'the re-welcome passes the carrier-independent subset: seal under the own accept card, pin of the own invite, material well-formed — no operation consulted')
+  for (const c of M.reWelcomeNegatives) {
+    const f = failing(reWelcomeChecks(mutate(M.reWelcome, c)))
+    checkR(c.rules, sameSet(f, c.fails), `${c.name}: re-welcome checks fail exactly [${c.fails}]${sameSet(f, c.fails) ? '' : ' — got [' + f + ']'}`)
+    checkR(['RLTP-MT-3465'], dispose(f).disposition === VF && !dispose(f).ack, `${c.name}: failed(validation-failed), nothing adopted`)
   }
 
-  // (b)–(h) declared negatives: fail AT the declared point; the unmutated artifact passes
-  const ART = { payload: M.payload, welcome: M.welcome.plaintext, evidence01: M.evidence01, evidence02: M.evidence02 }
+  // ── schema negatives: fail AT the declared point; the unmutated artifact passes ──
+  const ART = { payload: M.payload, welcome: W, evidence01: M.evidence01, evidence02: M.evidence02, invitePayload: invDoc.payload, acceptPayload: accDoc.payload }
   for (const n of M.negatives) {
     const base = ART[n.artifact]
     if (!base) { err(`${n.name}: unknown artifact ${n.artifact}`); continue }
-    check(errsOf(base, n.schema).length === 0, `${n.name}: the unmutated ${n.artifact} passes ${n.schema}`)
     const errs = errsOf(mutate(base, n), n.schema)
-    check(errs.some((e) => e.includes(n.at)), `${n.name}: rejected by ${n.schema} AT ${n.at} (${n.rule})${errs.length && !errs.some((e) => e.includes(n.at)) ? ' — got ' + errs[0] : ''}`)
+    checkR(n.rules, valid(base, n.schema) && errs.some((e) => e.includes(n.at)), `${n.name}: rejected by ${n.schema} AT ${n.at}${errs.length && !errs.some((e) => e.includes(n.at)) ? ' — got ' + errs[0] : ''}`)
   }
-  // the Access-owned schemas keep their legacy forms (D-2): the pin sits in Membership's own schemas
-  check(errsOf(mutate(op, { set: { '/v': 'rltp-access/0.24' } }), 'access-operation-envelope.schema.json').length === 0, 'the Access-owned envelope schema still accepts rltp-access/0.24; the carrier pin rejects it (D-2)')
-  check(errsOf(mutate(M.welcome.plaintext.material, { set: { '/v': 'rltp-access-material/0.24' }, delete: ['/keyState'] }), 'access-material.schema.json').length === 0, 'the Access-owned material schema still accepts rltp-access-material/0.24; the welcome pin rejects it (D-2)')
-  const NEED = ['envelope-0.24', 'welcome-material-0.24', 'welcome-material-without-keyState', 'welcome-keydist-form', 'operation-with-transition', 'operation-not-member-add', 'evidence-0.2-17-vouches', 'evidence-0.1-with-vouches']
-  check(NEED.every((x) => M.negatives.some((n) => n.name === x)), 'every negative of the 0.17 vector plan is present')
-
-  // (h) evidence relay, both type versions (D-4)
-  check(SCHEMAS['payload-membership-evidence.schema.json']?.$id === P + 'membership-evidence/0.2' && SCHEMAS['payload-membership-evidence-0.1.schema.json']?.$id === P + 'membership-evidence/0.1', 'evidence schemas: $id = type URI, /0.2 current and /0.1 accepted (Trust Tasks 6.3)')
-  schemaOK(M.evidence01, 'payload-membership-evidence-0.1.schema.json', 'membership-evidence/0.1 payload without vouches')
-  schemaOK(M.evidence01, 'payload-membership-evidence.schema.json', 'a /0.1 payload is a /0.2 payload without vouches')
-  schemaOK(M.evidence02, 'payload-membership-evidence.schema.json', 'membership-evidence/0.2 payload with one vouch')
-  for (const v of M.validEvidence) schemaOK(mutate(M.evidence02, v), 'payload-membership-evidence.schema.json', v.name)
-  check(M.validEvidence.some((v) => v.delete?.includes('/evidence/vouches')) && M.validEvidence.some((v) => v.fill?.['/evidence/vouches'] === 16), 'evidence boundaries present: no vouches, 16 vouches (valid), 17 (negative)')
-  const ev = M.evidence02.evidence, vch = ev.vouches[0]
-  check(diVerify(vch, vch.issuer).ok && vch.credentialSubject.id === ev.accept.payload.accept.subject && vch.credentialSubject.endorsement.accept === digestU(ev.accept) && vch.credentialSubject.endorsement.genesisDigest === ev.invite.payload.invite.credentialSubject.genesisDigest,
-    'enclosed vouch: verifies under its issuer, subject = accept.subject, endorsement binds the enclosed accept and the genesis digest (Membership 3.4)')
 }
 
 // ── result ───────────────────────────────────────────────────────────────
+if (COVERAGE) {
+  if (COVERAGE !== 'membership') { console.error(`--coverage: unknown layer ${COVERAGE}`); process.exit(2) }
+  if (fail) { console.error(`conformance: ${fail} failed — no coverage claimed`); process.exit(1) }
+  for (const id of [...PROVEN].filter((x) => x.startsWith('RLTP-MT-')).sort((a, b) => Number(a.slice(8)) - Number(b.slice(8)))) console.log(id)
+  process.exit(0)
+}
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) { console.error('conformance: FAILED'); process.exit(1) }
-console.log('conformance: all vector claims reproduce.')
+console.log(`conformance: all vector claims reproduce. Membership rules proven: ${[...PROVEN].filter((x) => x.startsWith('RLTP-MT-')).length}.`)

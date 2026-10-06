@@ -202,3 +202,41 @@ test('membership CLI: --layer membership checks and writes the manifest from the
   assert.equal(ok.status, 0, ok.stderr)
   assert.equal(cli('--layer', 'membership', '--spec', s, '--manifest', out, '--inventory', minventory(['RLTP-MT-2010'])).status, 1)
 })
+
+// ── Membership coverage (`--layer membership --coverage`) ───────────────
+test('membership coverage: manifest = proven ∪ state-dependent, disjoint', async () => {
+  const { checkCoverage } = await import('./membership-checks.mjs')
+  const M = ['RLTP-MT-2010', 'RLTP-MT-3005', 'RLTP-MT-10100']
+  assert.deepEqual(checkCoverage({ manifest: M, proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], stateDependent: ['RLTP-MT-2010'] }).errors, [])
+  const gap = checkCoverage({ manifest: M, proven: ['RLTP-MT-3005'], stateDependent: ['RLTP-MT-2010'] })
+  has(gap, 'RLTP-MT-10100: neither vector-checked nor in the state-dependent set')
+  const both = checkCoverage({ manifest: M, proven: ['RLTP-MT-3005', 'RLTP-MT-10100', 'RLTP-MT-2010'], stateDependent: ['RLTP-MT-2010'] })
+  has(both, 'RLTP-MT-2010: vector-checked and in the state-dependent set')
+  has(checkCoverage({ manifest: M, proven: ['RLTP-MT-3005', 'RLTP-MT-10100', 'RLTP-MT-9999'], stateDependent: ['RLTP-MT-2010'] }), 'RLTP-MT-9999: named as covered, not an identifier of the list')
+  has(checkCoverage({ manifest: M, proven: M, stateDependent: ['RLTP-MT-4444'] }), 'RLTP-MT-4444: named as covered, not an identifier of the list')
+})
+
+test('membership coverage: the state-dependent set comes from Section 10.3 or from a file', async () => {
+  const { stateDependentIds, ruleText } = await import('./membership-checks.mjs')
+  const text = '### 10.3 Rule coverage\n\n**State-dependent and interactive set** (RLTP-MT-10080), by reason:\n\n- *State* — RLTP-MT-2030 · RLTP-MT-3480.\n- *Scope* — RLTP-MT-2010.\n\n**Vector-checked set** — every other rule: RLTP-MT-3005.\n'
+  assert.deepEqual(stateDependentIds({ specText: text }).ids, ['RLTP-MT-2030', 'RLTP-MT-3480', 'RLTP-MT-2010'])
+  assert.ok(!stateDependentIds({ specText: text }).ids.includes('RLTP-MT-3005'), 'the vector-checked set is not read as state-dependent')
+  assert.match(stateDependentIds({ specText: '# no section' }).error, /names no state-dependent/)
+  assert.deepEqual(stateDependentIds({ specText: '', file: file('# x\nRLTP-MT-2030\n\nRLTP-MT-3480\n') }).ids, ['RLTP-MT-2030', 'RLTP-MT-3480'])
+  assert.equal(ruleText('**RLTP-MT-3375** — The type MUST be declared with side effects\n*mutating* (log merge).\n\nnext', 'RLTP-MT-3375'), 'The type MUST be declared with side effects mutating (log merge).')
+})
+
+test('membership profile checks: a declaration the registry does not match fails its rule', async () => {
+  const { membershipProfileChecks } = await import('./membership-checks.mjs')
+  const { readFileSync } = await import('node:fs')
+  const real = readFileSync(new URL('../spec/membership-tasks.md', import.meta.url), 'utf8')
+  const manifest = new Set(manifestIds(readFileSync(new URL('../conformance/membership-rule-ids-0.17.txt', import.meta.url), 'utf8')))
+  const ok = membershipProfileChecks({ specText: real, manifest })
+  assert.ok(ok.every((c) => c.ok), JSON.stringify(ok.filter((c) => !c.ok)))
+  const wrong = real.replace(/side effects\n?\s*\*mutating\*/, 'side effects *read-only*')
+  assert.notEqual(wrong, real)
+  assert.ok(membershipProfileChecks({ specText: wrong, manifest }).some((c) => !c.ok && c.rules.includes('RLTP-MT-3375')))
+  const noProfile = real.replace('`rltp-membership@0.17` (draft)', '`rltp-membership@0.18` (draft)')
+  assert.ok(membershipProfileChecks({ specText: noProfile, manifest }).some((c) => !c.ok && c.rules.includes('RLTP-MT-10010')))
+  assert.ok(membershipProfileChecks({ specText: real, manifest: new Set(['RLTP-MT-2010']) }).some((c) => !c.ok && c.rules.includes('RLTP-MT-10090')))
+})

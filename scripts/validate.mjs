@@ -193,6 +193,17 @@ for (const f of specFiles) {
     const r = checkTrace({ layer, inventory })
     for (const e of r.errors) err(`${layer} trace: ${e}`)
     if (!r.errors.length) ok(`${layer} trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
+    // Membership rule coverage (RLTP-MT-10080, 10100): every rule of the
+    // manifest is proven by a vector case or runner check, or by a check of
+    // this script, or listed in the state-dependent set of Section 10.3
+    // (MEMBERSHIP_STATE_DEPENDENT names a file in its place) — never both.
+    if (layer === 'membership') {
+      const { membershipCoverage } = await import('./membership-checks.mjs')
+      const c = membershipCoverage({ spec: LAYERS.membership.spec, manifestPath: LAYERS.membership.manifest, stateFile: process.env.MEMBERSHIP_STATE_DEPENDENT || null })
+      for (const k of c.checks) if (k.ok) ok(`membership: ${k.msg} [${k.rules.join(', ')}]`)
+      for (const e of c.errors) err(`membership coverage: ${e}`)
+      if (!c.errors.length) ok(`membership coverage: ${c.counts.manifest} rules = ${c.counts.runner} runner-proven ∪ ${c.counts.validate} validate-proven ∪ ${c.counts.stateDependent} state-dependent (${c.stateSource}), disjoint [RLTP-MT-10080, RLTP-MT-10100]`)
+    }
   }
 }
 

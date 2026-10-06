@@ -210,12 +210,14 @@ export const resolveInventory = (explicit, layer = 'encounter') => {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const args = process.argv.slice(2)
   const LAYER = `[--layer ${Object.keys(LAYERS).join('|')}]`
-  const USAGE = `usage: check-encounter-trace.mjs ${LAYER} [<inventory.md>] [--inventory <file>] [--spec <file>] [--manifest <file>]\n       check-encounter-trace.mjs ${LAYER} --write-manifest <inventory.md> [--manifest <file>]\n       check-encounter-trace.mjs ${LAYER} --write-manifest-from-spec <spec.md> [--manifest <file>]`
+  const USAGE = `usage: check-encounter-trace.mjs ${LAYER} [<inventory.md>] [--inventory <file>] [--spec <file>] [--manifest <file>]\n       check-encounter-trace.mjs ${LAYER} --write-manifest <inventory.md> [--manifest <file>]\n       check-encounter-trace.mjs ${LAYER} --write-manifest-from-spec <spec.md> [--manifest <file>]\n       check-encounter-trace.mjs --layer membership --coverage [--state-dependent <file>] [--spec <file>] [--manifest <file>]`
   const usage = (msg) => { console.error(`${msg}\n${USAGE}`); process.exit(2) }
-  const KNOWN = ['--layer', '--inventory', '--spec', '--manifest', '--write-manifest', '--write-manifest-from-spec']
+  const KNOWN = ['--layer', '--inventory', '--spec', '--manifest', '--write-manifest', '--write-manifest-from-spec', '--state-dependent']
+  const FLAGS = ['--coverage']
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
     if (!a.startsWith('--')) continue
+    if (FLAGS.includes(a)) continue
     if (!KNOWN.includes(a)) usage(`unknown option: ${a}`)
     const v = args[i + 1]
     if (v === undefined || v.startsWith('--')) usage(`option ${a} needs a value`)
@@ -226,6 +228,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const L = LAYERS[layer]
   if (!L) usage(`unknown layer: ${layer}`)
   const layerFlag = layer === 'encounter' ? '' : ` --layer ${layer}`
+  // --coverage (membership): manifest = vector-checked ∪ state-dependent, disjoint
+  // (RLTP-MT-10080, 10100). The state-dependent set is read from Section 10.3
+  // of the specification, or from --state-dependent / MEMBERSHIP_STATE_DEPENDENT.
+  if (args.includes('--coverage')) {
+    if (layer !== 'membership') usage('--coverage is defined for --layer membership only')
+    const { membershipCoverage } = await import('./membership-checks.mjs')
+    const r = membershipCoverage({ spec: opt('--spec') ?? L.spec, manifestPath: opt('--manifest') ?? L.manifest, stateFile: opt('--state-dependent') ?? process.env.MEMBERSHIP_STATE_DEPENDENT ?? null })
+    for (const c of r.checks) console.log(`  ${c.ok ? 'ok   ' : 'ERROR'} ${c.msg} [${c.rules.join(', ')}]`)
+    for (const e of r.errors) console.error(`  ERROR ${e}`)
+    console.log(`${r.counts.manifest} rules: ${r.counts.runner} proven by the conformance runner, ${r.counts.validate} by the validation script, ${r.counts.stateDependent} state-dependent (${r.stateSource})${r.errors.length ? `, ${r.errors.length} error(s).` : ' — coverage closed.'}`)
+    process.exit(r.errors.length ? 1 : 0)
+  }
   const write = (ids, source, how) => {
     if (!ids.length) { console.error(`${source} lists no rule identifiers`); process.exit(1) }
     const out = opt('--manifest') ?? L.manifest
