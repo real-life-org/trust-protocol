@@ -4734,10 +4734,14 @@ retries later. An invitee whose only candidate carried a fabricated
 admission identifier holds a genuine invite and accept but no
 identifier it could name; the admission reference lets it claim by
 what it does hold, and the receiver's resolution is the same
-canonicality check the identifier would have triggered. The accept
-digest is unforgeable by anyone but the subject and consumed by
-every canonical admission that encloses it (5.3), so the reference
-names the subject's own admissions and nothing else.
+canonicality check the identifier would have triggered. The digest
+itself proves nothing — anyone holding the accept can compute it —
+and the protection is the chain around it: the request is signed by
+the subject's anchor (RLTP-ACC-10080), the reference resolves only
+to canonical admissions of that same subject enclosing exactly that
+accept, and entitlement is judged at the helper's state
+(RLTP-ACC-5560, RLTP-ACC-5565), so a copied reference buys a stranger
+nothing.
 
 Material kinds have this defined effect: durable buffering; then
 unsealing, the binding check, and application as the recipient's
@@ -4857,8 +4861,11 @@ failure, and check the buffered candidate.
 **RLTP-ACC-10330** — When every held candidate has failed, or the
 window closes with no log arrival, the invitee MUST wipe everything
 provisional and request afresh by an authenticated key request,
-naming the admission its candidate named where it holds one and the
-admission reference of RLTP-ACC-10172 otherwise.
+naming in `op` an admission it holds as canonical from a
+materialized state, and the admission reference of RLTP-ACC-10172
+otherwise; an identifier learned only from a failed candidate is not
+held as canonical, and a request refused for an unresolvable `op`
+(RLTP-ACC-10170) MUST be repeated by admission reference.
 
 **Bootstrap of a bound device.** A device bound to a member (5.1)
 may hold no replica of the group yet: bound by `device.add` from a
@@ -4874,16 +4881,23 @@ in the recovery kind the adapter registers.
 
 **RLTP-ACC-10334** — Before provisionally adopting such material, the
 device MUST check that the seal opens under its own key-agreement
-key, that the payload's `group` and `genesisDigest` equal the group
-and the genesis digest from which its person's member anchor is
-derived (5.1, Identity §6), that `subject` is that anchor, and that
+key, that the payload's `group` and `genesisDigest` equal the pin
+the device held before any material arrived — for a person admitted
+under a `group/<digest>` anchor the digest that anchor is derived
+from (5.1, Identity §6), for the founder and for an anchor admitted
+under RLTP-ACC-5080 the genesis digest the binding device handed over
+at binding — that `subject` is its person's member anchor, and that
 the unsealed material is well-formed for the named adapter; it MUST
-NOT accept a seal to any other key, the accept's card included.
+NOT take the pin from the arriving material and MUST NOT accept a
+seal to any other key, the accept's card included.
 
 **RLTP-ACC-10336** — The lifecycle of RLTP-ACC-10210 to RLTP-ACC-10320
 MUST apply to a bound device's bootstrap with the device in place of
 the invitee and the device's binding reference (RLTP-ACC-5127 or the
-`device.add` identifier) in place of the accept.
+`device.add` identifier) in place of the accept, except that
+RLTP-ACC-10338 replaces RLTP-ACC-10290 as the gate at first
+materialization: person conditions are checked against `subject`,
+device conditions against the device.
 
 **RLTP-ACC-10338** — A bound device's bootstrap MUST succeed only if,
 at first materialization, `subject` is a member of that state, the
@@ -4917,8 +4931,8 @@ never a false membership, never an unbounded hold, never a partial
 teardown, never lost user data — and the sender of record is
 attributable through the delivery chain. A bound device without a
 replica is the same situation seen from a device: entitled by the
-log it cannot yet read, it adopts provisionally against the genesis
-digest its own anchor is derived from and verifies at the log, where the binding and
+log it cannot yet read, it adopts provisionally against the pin it
+already held and verifies at the log, where the binding and
 the revocation state decide; the accept's card is not its key, so the
 seal check names the device's own, and a seal to the accept's card
 would hand a second device the first device's identity.
@@ -5416,7 +5430,10 @@ awaits, so conformance claims no device-level derivation), RLTP
 Encounter 0.30 (`rltp-encounter@0.30`, wire 0.25, where cards are
 consumed), the Delivery Contract 0.79, and the Membership Tasks 0.17
 (`rltp-membership@0.17`), whose pins of this layer's wire forms
-RLTP-ACC-11100 states.
+RLTP-ACC-11100 states; the two documents move together, so the
+Membership Tasks text carried in the same publication names this
+version, and the removal notice travels as
+`rltp-access-removal-notice/0.25` with `issuer` in that combination.
 
 **RLTP-ACC-14030** — Conformance MUST be claimed per class:
 
@@ -5633,11 +5650,15 @@ in both directions.
   reached state, and a re-admission with fresh consent, succeed; N
   fabricated re-welcomes plus one honest one → delay bounded by one
   `provisional-window`, at most one alternate buffered, a displaced
-  candidate kept as digest and disposition only; the honest
+  candidate kept as a digest-only displacement record with no
+  completed-effect entry, its re-send evaluated afresh; the honest
   candidate displaced by ground digests → the invitee still
   bootstraps through the request path; window expiry without log
-  arrival → complete wipe and retry from invite and accept, by
-  admission reference where no admission identifier is held; user
+  arrival → complete wipe and retry by admission reference, an
+  identifier learned only from the failed candidate not being named
+  in `op`, and a request refused for an unresolvable `op` repeated
+  by reference; a bound device of the founder bootstraps against the
+  pin handed over at binding; user
   drafts in a provisional space survive every wipe; a bound device
   without a replica bootstraps from the answer to its own request,
   refuses a seal to the accept's card, and fails at first
