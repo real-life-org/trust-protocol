@@ -126,9 +126,8 @@ own.
    sealed to the invitee, digest-committed by the operation's
    signatures. History opens from the replica afterwards through the
    chain the group's key adapter records (1.3). Until the welcome
-   arrives, the invitee's state is honest and visible: *accepted,
-   waiting for a group member to come online and hand over the keys*
-   (Section 7).
+   arrives, the invitee's state is honest and visible: *consent
+   sent, admission not yet confirmed* (Section 7).
 
 The flow, as a picture (informative):
 
@@ -141,7 +140,7 @@ sequenceDiagram
     V->>I: membership-invite, carries no keys
     Note over I: human decision
     I->>V: membership-accept, signed consent, own live-keyed card
-    Note over I: accepted, waiting for a member to hand over the keys
+    Note over I: consent sent, admission not yet confirmed
     V-->>M: membership-evidence, the complete pair relayed
     M->>L: member.add, body encloses invite and accept
     M->>I: access-operation with welcome, sealed to the accept's card
@@ -562,11 +561,13 @@ privacy the protocol does not give.
 
 **RLTP-MT-3090** — The inviter MUST retain the key-agreement private
 key of `invite.credentialSubject.card` at least until
-`invite.validUntil` plus the longest adapter give-up horizon
-(Contract §5's retention rule, anchored to the invite).
+`invite.validUntil` plus `membership-skew` (RLTP-MT-5050) plus the
+longest adapter give-up horizon, and longer where Contract §5's
+retention rule ends later.
 
-*Rationale.* The accept is sealed to that key and may arrive at any
-time within the window, after any delivery delay the adapters allow.
+*Rationale.* The accept is sealed to that key. It may be issued as
+late as `validUntil` plus `membership-skew` and still arrive after
+any delivery delay the adapters allow.
 An inviter who discards the key earlier makes every late answer
 unreadable, and the invitee's consent is silently lost.
 
@@ -918,9 +919,10 @@ embedded welcome's trust sequence, provisional adoption followed by
 verification at the log, and MUST NOT claim a stronger pre-check it
 cannot perform.
 
-**RLTP-MT-3465** — Any failure of the checks a carrier permits MUST
-be disposed `failed(validation-failed)`, nothing adopted and no
-state written.
+**RLTP-MT-3465** — Any failure of the checks a carrier permits past
+the Contract's schema stage MUST be disposed
+`failed(validation-failed)` (a schema failure is `failed(malformed)`,
+RLTP-MT-3345), nothing adopted and no state written.
 
 *Rationale.* A bootstrapping invitee holds no group state, so the
 embedded set is complete: there is nothing further to check against.
@@ -1023,11 +1025,12 @@ pending entry here. The pending record holds the wire document; the
 provisional state holds the unsealed material; a wipe of one is not
 a wipe of the other.
 
-**RLTP-MT-3550** — Redelivery of a document whose effect has
-completed MUST be disposed `duplicate-known` with a byte-identical
-re-acknowledgement; redelivery of a document held pending
-(RLTP-MT-3530) MUST be evaluated afresh and MUST NOT create a
-completed-effect entry.
+**RLTP-MT-3550** — Redelivery of a document whose completed-effect
+entry the receiver still holds (Contract 4.2) MUST be disposed
+`duplicate-known` with the byte-identical acknowledgement that entry
+retains; redelivery after that entry's retention has ended, or of a
+document held pending (RLTP-MT-3530), MUST be evaluated afresh and
+MUST NOT by itself create a completed-effect entry.
 
 **RLTP-MT-3555** — A different document carrying the same operation
 MUST merge idempotently by operation id, effects keyed to new
@@ -1508,9 +1511,11 @@ This section is informative except for its rules RLTP-MT-7010 to
 RLTP-MT-7060, which are normative; the diagrams and prose after them
 depict Section 3.3 and Access 10.1.
 
-**RLTP-MT-7010** — An invitee's application MUST show the waiting
-state after an accept — accepted, waiting for a group member to
-come online and hand over the keys — to the user as such.
+**RLTP-MT-7010** — After an accept, an invitee's application MUST
+show the user the state it can attest — consent sent, admission not
+yet confirmed — and MUST NOT announce a key hand-over or a bootstrap
+before a signal for it has arrived (a welcome, or an acknowledged
+hand-over of the consent pair as evidence).
 
 **RLTP-MT-7020** — A decline, or an invite's expiry before any
 accept, MUST end the invitee's thread with local state only.
@@ -1533,7 +1538,11 @@ alone (RLTP-ACC-10410).
 
 *Rationale.* An invitee who sees nothing after accepting cannot tell
 a pending admission from a lost one, and will accept again or give
-up; the waiting state is the honest answer. A decline sends nothing,
+up; the waiting state is the honest answer. It says no more than the
+invitee can know: admission is a decision members have yet to make
+(RLTP-MT-3800), and a refusal is no event (RLTP-MT-3785), so a text
+promising that keys are on their way could stay wrong for ever. A
+decline sends nothing,
 because a declined invitation is the invitee's business and an
 announcement of it would tell the inviter more than the invitee
 chose to say. A bootstrap that could end in `member` on a weaker
@@ -1544,8 +1553,8 @@ invitee can reach directly. A notice is a claim anyone in the group
 could sign; hygiene keyed to it would let one member wipe another's
 replica by assertion.
 
-**Invitee.** `invited (human decision pending) → accepted, waiting
-for a group member to come online and hand over the keys → welcome
+**Invitee.** `invited (human decision pending) → accepted (consent
+sent, admission not yet confirmed) → welcome
 arrived → bootstrapping (provisional under Access 10.1: fetch the log
 scoped by the own pinned genesis digest, materialize, check the own
 admission against the materialized state) → member`. A single
@@ -1565,9 +1574,8 @@ stateDiagram-v2
     invited --> [*]: decline / validUntil expiry
     accepted --> welcomeArrived: member.add + welcome delivered
     note right of accepted
-        user-visible: waiting for a group
-        member to come online and
-        hand over the keys
+        user-visible: consent sent,
+        admission not yet confirmed
     end note
     welcomeArrived --> bootstrapping: every pre-check the carrier permits passes, incl. seal opens under own accept card and material well-formed for the adapter — adopted provisionally, one window per genesisDigest + invitee
     welcomeArrived --> [*]: a pre-check fails — nothing adopted, no state written
@@ -2628,7 +2636,7 @@ written.
   schema-rejected · a document `issuer` that is neither author nor
   signer → rejected · pre-buffer rejections touch no storage · a
   payload whose `op` ≠ `member.add`, or a `member.add` without a
-  welcome → schema-rejected and `failed(validation-failed)` · an
+  welcome → schema-rejected, `failed(malformed)` · an
   operation body with a `transition` (`member.remove`,
   `epoch.rotate`, `policy.change`, `visibility.change`,
   `document.detach`, `device.revoke`) → schema-rejected · a removal
@@ -2638,7 +2646,7 @@ written.
   2048 bytes JCS → non-conformant at the sender · an enclosed accept
   without its document proof, or an enclosed invite with one →
   schema-rejected · an `rltp-access/0.24` envelope as payload
-  operation → schema-rejected and `failed(validation-failed)` · an
+  operation → schema-rejected, `failed(malformed)` · an
   `rltp-access/0.25` `member.add` without `keyOpDigest` → valid.
 - *Welcome:* digest and binding-field vectors · a construction with a
   back-pointer to the operation id → schema-rejected · material
@@ -2701,7 +2709,7 @@ written.
 Every rule of this document is in exactly one of the
 state-dependent and interactive set and the vector-checked set; the
 vector-checked set splits into fully proved and partially proved
-rules. The counts are 94 fully proved, 15 partially proved and 83
+rules. The counts are 93 fully proved, 16 partially proved and 83
 state-dependent or interactive.
 
 **State-dependent and interactive set** (RLTP-MT-10080), by reason:
@@ -2728,7 +2736,7 @@ some of their duties; each is listed with the duty that no case or
 check proves yet, and none counts as covered until that duty is
 proved:
 
-- RLTP-MT-2110 — the Encounter 2.3 profile is checked through DI proofs, did:key decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them.
+- RLTP-MT-2110 — the Encounter 2.3 profile is checked through DI proofs, did:key and X25519 Multikey decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them.
 - RLTP-MT-2120 — duplicate-known only after a completed effect, and the stage order of Contract 6.2, need a receiver with state.
 - RLTP-MT-2180 — consumption and idempotency keyed by the credential digest are materialization and store behaviour.
 - RLTP-MT-2240 — no schema-valid linear/0.1 welcome reaches the bound, so the rejection of an oversized welcome is not vectored.
@@ -2743,6 +2751,7 @@ proved:
 - RLTP-MT-3245 — card ownership at materialization is not vectored here.
 - RLTP-MT-3355 — the cap of 2048 JCS bytes per credential and the ban on a merged proof are prose; no schema-valid vouch reaches the cap.
 - RLTP-MT-3815 — that a sender issues membership-evidence/0.2 is sender behaviour.
+- RLTP-MT-4100 — that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown.
 
 
 ## Appendix A (informative): changelog

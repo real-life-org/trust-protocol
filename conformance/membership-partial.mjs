@@ -5,7 +5,8 @@
 // checked in Section 10.3. Shared by scripts/gen-membership-tasks-vector.mjs
 // and conformance/runner.mjs so both split a rule list the same way.
 export const PARTIAL = {
-  'RLTP-MT-2110': 'the Encounter 2.3 profile is checked through DI proofs, did:key decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them',
+  'RLTP-MT-2110': 'the Encounter 2.3 profile is checked through DI proofs, did:key and X25519 Multikey decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them',
+  'RLTP-MT-4100': 'that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown',
   'RLTP-MT-2120': 'duplicate-known only after a completed effect, and the stage order of Contract 6.2, need a receiver with state',
   'RLTP-MT-2180': 'consumption and idempotency keyed by the credential digest are materialization and store behaviour',
   'RLTP-MT-2240': 'no schema-valid linear/0.1 welcome reaches the bound, so the rejection of an oversized welcome is not vectored',

@@ -1564,6 +1564,9 @@ section('membership-tasks.json — Membership Tasks 0.17: genesis → invite →
   const inst = (t) => (typeof t === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$/.test(t) ? Date.parse(t) : NaN)
   const SKEW_MS = MEMBERSHIP_SKEW * 1000
   const mh = (bytes) => 'u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(bytes)]).toString('base64url')
+  // a z6LS key-agreement Multikey decodes to x25519-pub + 32 bytes, canonically (RLTP-ENC-2040)
+  const x25519OK = (mk) => { const raw = typeof mk === 'string' ? xRawOfMk(mk) : null; return raw !== null && mkOfRaw(raw) === mk }
+  const mkOfRaw = (raw) => 'z' + b58(Buffer.concat([Buffer.from([0xec, 0x01]), raw]))
   const failing = (checks) => Object.entries(checks).filter(([, v]) => !v).map(([k]) => k)
   const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x))
   const MF = 'failed(malformed)'
@@ -1613,7 +1616,7 @@ section('membership-tasks.json — Membership Tasks 0.17: genesis → invite →
   const pairChecks = (ev) => {
     const iD = ev.evidence.invite, aD = ev.evidence.accept
     const i = iD?.payload?.invite, a = aD?.payload?.accept
-    const cardOK = (c, anchor) => !!c && diVerify(c, c.anchor).ok && c.anchor === anchor && !('sentTo' in c) && !('boundTo' in c) && !('deliveryHints' in c)
+    const cardOK = (c, anchor) => !!c && diVerify(c, c.anchor).ok && c.anchor === anchor && x25519OK(c.keyAgreement) && !('sentTo' in c) && !('boundTo' in c) && !('deliveryHints' in c)
     return {
       schema: valid(ev, 'payload-membership-evidence.schema.json') && valid(iD, 'rltp-delivery-document.schema.json') && valid(aD, 'rltp-delivery-document.schema.json'),
       inviteProof: diVerify(i, i.issuer).ok && i.proof['@context'] !== undefined && jcs(i.proof['@context']) === jcs(i['@context']),
@@ -1654,7 +1657,7 @@ section('membership-tasks.json — Membership Tasks 0.17: genesis → invite →
   const acceptReceipt = (aD) => {
     const a = aD.payload.accept
     const sent = SENT.find((d) => d.threadId === aD.threadId && sameDigest(a.ref, digestU(d.payload.invite)))
-    return { schema: valid(aD, 'rltp-delivery-document.schema.json') && valid(aD.payload, 'payload-membership-accept.schema.json'), proof: diVerify(aD, aD.issuer).ok && aD.issuer === a.subject, sentInvite: !!sent, subject: !!sent && a.subject === sent.payload.invite.credentialSubject.id, group: !!sent && a.group === sent.payload.invite.credentialSubject.group, card: diVerify(a.card, a.card.anchor).ok && a.card.anchor === a.subject, skew: !!sent && inst(aD.issuedAt) <= inst(sent.payload.invite.validUntil) + SKEW_MS && inst(aD.proof.created) <= inst(sent.payload.invite.validUntil) + SKEW_MS }
+    return { schema: valid(aD, 'rltp-delivery-document.schema.json') && valid(aD.payload, 'payload-membership-accept.schema.json'), proof: diVerify(aD, aD.issuer).ok && aD.issuer === a.subject, sentInvite: !!sent, subject: !!sent && a.subject === sent.payload.invite.credentialSubject.id, group: !!sent && a.group === sent.payload.invite.credentialSubject.group, card: diVerify(a.card, a.card.anchor).ok && a.card.anchor === a.subject && x25519OK(a.card.keyAgreement), skew: !!sent && inst(aD.issuedAt) <= inst(sent.payload.invite.validUntil) + SKEW_MS && inst(aD.proof.created) <= inst(sent.payload.invite.validUntil) + SKEW_MS }
   }
   checkR(['RLTP-MT-3270'], failing(acceptReceipt(accDoc)).length === 0, 'inviter receipt: the accept verifies under its subject, answers an invite sent on its thread, subject/group/card/skew hold')
   const RECEIPT = { 'accept-ref-is-document-digest': ['sentInvite', 'subject', 'group', 'skew'], 'accept-on-another-thread': ['sentInvite', 'subject', 'group', 'skew'], 'accept-tampered': ['proof'], 'accept-for-another-group': ['group'], 'accept-after-skew': ['skew'], 'accept-issued-999ms-past-skew': ['skew'], 'accept-proof-created-999ms-past-skew': ['skew'], 'accept-proof-under-another-key': ['proof'], 'accept-card-of-another-anchor': ['card'], 'accept-without-candidacy-signed': ['schema'], 'accept-at-skew-boundary': [], 'accept-at-skew-boundary-with-fraction': [], 'accept-ref-as-z': [] }
@@ -1748,6 +1751,46 @@ section('membership-tasks.json — Membership Tasks 0.17: genesis → invite →
   const ephSeed = hkdf(IKM, M.inputs.ephemeral)
   check(M.welcome.sealed.epk === pubRaw(privX(ephSeed)).toString('base64url') && M.welcome.sealed.nonce === hkdf(IKM, M.inputs.nonce).subarray(0, 12).toString('base64url'), 'ephemeral key and nonce recompute from the oracle')
   // the invitee's own state: its accept, its invite, its anchor, its card key
+  // ── the seal construction the welcome inherits from Contract §5 (RLTP-MT-4100) ──
+  // receiver: length before decryption, then shape, then an all-zero
+  // shared secret refused, then AES-256-GCM with empty AAD under rltp/v1/welcome
+  const x25519 = (seed, raw) => { try { const z = ecdhRaw(seed, raw); return z.every((b) => b === 0) ? null : z } catch { return null } }
+  const sealReceive = (sealed, xSeed) => {
+    const ct = Buffer.from(sealed.ciphertext, 'base64url')
+    if (ct.length > 65536 + 16) return 'oversize'
+    if (!valid(sealed, 'sealed-envelope.schema.json')) return 'malformed'
+    const shared = x25519(xSeed, Buffer.from(sealed.epk, 'base64url'))
+    if (!shared) return 'all-zero'
+    try {
+      const key = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from('rltp/v1/welcome', 'utf8'), 32))
+      const d = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(sealed.nonce, 'base64url'))
+      d.setAuthTag(ct.subarray(ct.length - 16))
+      Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()])
+      return 'opened'
+    } catch { return 'decryption-failed' }
+  }
+  for (const c of M.sealCases) {
+    const sealed = c.ciphertextBytes ? { ...c.sealed, ciphertext: Buffer.alloc(c.ciphertextBytes, 7).toString('base64url') } : c.sealed
+    const got = sealReceive(sealed, inviteeX)
+    const store = spyStore()
+    const d = receive(got === 'opened' ? [] : [got], store, 'welcome', 'material')
+    checkR(named(c), got === c.expect && (got === 'opened' ? store.writes.length === 1 : store.writes.length === 0 && !d.ack), `${c.name}: the receiver ${c.expect === 'opened' ? 'opens it' : 'rejects it: ' + c.expect}${got === c.expect ? '' : ' — got ' + got}`)
+  }
+  // sender: a key whose shared secret is all zero is never sealed to
+  const senderSeal = (rkid) => { const raw = x25519OK(rkid) ? xRawOfMk(rkid) : null; if (!raw) return 'undecodable'; return x25519(hkdf(IKM, 'rltp/vector/membership-sender-probe'), raw) ? 'sealable' : 'all-zero' }
+  for (const c of M.senderSealCases) checkR(named(c), senderSeal(c.rkid) === c.expect, `${c.name}: the sender ${c.expect === 'sealable' ? 'seals' : 'refuses: ' + c.expect}`)
+  // a fresh ephemeral key and nonce per envelope: every seal of the vector is distinct, two seals of one plaintext included
+  {
+    const seals = []
+    const walk = (n) => { if (Array.isArray(n)) n.forEach(walk); else if (n && typeof n === 'object') { if (typeof n.epk === 'string' && typeof n.rkid === 'string' && typeof n.ciphertext === 'string') seals.push(n); else Object.values(n).forEach(walk) } }
+    walk([M.payload, M.reWelcome, M.inviteeNegatives, M.inviteePositives])
+    // one envelope may travel in several cases (the same task with another operation field); distinct envelopes are compared
+    const fresh = [...new Map(seals.map((x) => [jcs(x), x])).values()]
+    const uniq = (k) => new Set(fresh.map((x) => x[k])).size === fresh.length
+    const sameText = openSeal(M.reWelcome.keyDelivery.sealed, inviteeX) === M.welcome.plaintextJcs && M.reWelcome.keyDelivery.sealed.epk !== M.payload.welcome.sealed.epk && M.reWelcome.keyDelivery.sealed.nonce !== M.payload.welcome.sealed.nonce
+    checkR(['RLTP-MT-4100'], fresh.length >= 10 && uniq('epk') && uniq('nonce') && sameText, `${fresh.length} distinct seals of the vector carry pairwise distinct ephemeral keys and nonces; the welcome and the re-welcome seal the same plaintext under different ones`)
+  }
+
   // the invitee's own state: its accept, its invite, its anchor, its card key, and every other key-agreement key it holds
   const otherX = hkdf(IKM, M.inputs.inviteeOtherX)
   const own = { accept: accDoc, invite: invDoc, anchor: didOf(inviteeSeed), xSeed: inviteeX, keys: [[inviteeX, acc.card.keyAgreement], [otherX, M.parties.inviteeOtherKeyAgreement]] }

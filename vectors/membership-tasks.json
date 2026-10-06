@@ -532,9 +532,9 @@
    "kind": "re-welcome",
    "sealed": {
     "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
-    "epk": "VqZMGGMGZPPGR9LH6sFNvucBSNBSPabFYQvTIRLerXc",
-    "nonce": "6gwXc4ts-dwa4PW6",
-    "ciphertext": "9ZNpSF2sDnlo_x57SXIyv34uPAioi4an8bftf-VHKcOcHI5QZAOYep-WFsfiUls4s1Luf-eHc9Af-hChA6QN8Ccu0QsgISDxgX2l_ugXufNDrw8DePIRfPjg9XXnt2zQRdS8ZjSslYK65hq6mouYp6tHWrSIrQ4uWx1AUI8usr017QpKmJWrm2Kl23nD8bDCLuL8igDU4ko8h5tU1S2wZuX64OyaAKMe7NH74jqHc5gV7gCXgfDWwnCTCZ5wOg3LNVkT_gEkIUiN2znPH-rXoqK6YQOetsOwr0myTaq8IGswkBfNsUKEvr6UW9dLXyXHk99i0tl8L5beRTP2VhwQuvx3qeK3CiaNdQUdK-sbKYONwPL8QKYLhbJ185fjhqUOd6xI5YJx3idQJDlB3O1ShlDfimuUFOJNmbjbxA6wC4Ej0hXEe78XHQDl4uvGQtVNEbbwnDZshuTlNamIAVwuDbZ-v70AvEmas0-drb_Ato9i9ZfVqAHlidZ10hMM1QhxYDeU8CLlr5OgD9YW367qaXzeL2f3VCMO-5SpTjxq9Vhqw23XdzOlglBuZaK920D-ZJDlkeeYVJMZcg"
+    "epk": "XBQzu4S9VANIz1wbuADP5NNXFZ9P0RMCKU0ygzB8amw",
+    "nonce": "wwUIMAQxkEGp_dkr",
+    "ciphertext": "jStcfcW1HuxL1sri_SicAODMtz_mRz_jTU_lAZuOb4YsuKjzNuReIFlrmmQ8hT7u4s2hsNcyBfBgYNYMGkyJre1xyRIKA3TxLUTetVQGDmIRQqtKn3GmuxVj5nQIuql534V8B4jve-2q0JecKJlZ5EezhFkco32hswE4I9lxi_a6JHXCuu7xoF1URXQNqkDeUiSYNm4ZmMfX4N__0F8-eJBvoOXiAhNXltJRxtbd-_H-r4eGYOKa38N3E-rwtV_hqKknoz1Ik0zVaI0XoH_O7k7Yf8OIGL0ScqT4kF6xS8RO5VDB-XNkZuiA1NKrkpQelc2XUr7OgEChbNcoZN8iNiKpfHSi_G8RYOSw13ve3o2PJNUVZaFQP9oWYz7em6tMsQooidVCOybIzzI0U3JWCibrC-HrdeenpDzahyUZNc9LD6nCjcZaS1ZSH7VRY5xuALzIzdyQ5Cd2sdKCgN3acgA0xPCSlr8tc1_tGydtdxVGWpPm5upMXfeUSCEqwdib_IpZEtiAjUS0QlN5IoXfsw_7IV2HbgcdVmDoWjmZRwBkn4yeBU74WokdeazCmX8hYOJ3bGcQKkrGXQ"
    }
   }
  },
@@ -3501,7 +3501,7 @@
    ],
    "expected": "failed(malformed)",
    "rulesPartial": {
-    "RLTP-MT-2110": "the Encounter 2.3 profile is checked through DI proofs, did:key decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them"
+    "RLTP-MT-2110": "the Encounter 2.3 profile is checked through DI proofs, did:key and X25519 Multikey decoding, canonical signatures and decoded-digest equality on the vector artifacts; its timestamp profile is not tested negatively on them"
    }
   },
   {
@@ -3838,6 +3838,231 @@
        "verificationMethod": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc#z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
        "proofPurpose": "assertionMethod",
        "proofValue": "z5dT6fRjKZSNFFhueXEbZfPKbrxTCVMNhzMGZLcFjdXU8AjzUpbB3HtHSZVTTMLTZohXTmVuAiSD5JK7xyiyW3kjH"
+      }
+     }
+    }
+   },
+   "fails": [
+    "cards"
+   ],
+   "expected": "failed(validation-failed)"
+  },
+  {
+   "name": "accept-card-key-not-x25519",
+   "rules": [
+    "RLTP-MT-2250",
+    "RLTP-MT-3235"
+   ],
+   "artifact": {
+    "evidence": {
+     "invite": {
+      "id": "7c2a4d3b-9e5f-4b8c-8d2e-3f4a5b6c7d8e",
+      "type": "https://real-life.org/trust-tasks/membership-invite/0.2",
+      "issuer": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+      "recipient": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+      "threadId": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
+      "issuedAt": "2026-09-01T10:00:00Z",
+      "payload": {
+       "invite": {
+        "@context": [
+         "https://www.w3.org/ns/credentials/v2",
+         "https://firstperson.network/credentials/dtg/v1",
+         "https://real-life.org/rltp/v1"
+        ],
+        "type": [
+         "VerifiableCredential",
+         "DTGCredential",
+         "InvitationCredential",
+         "MembershipInvite"
+        ],
+        "issuer": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+        "credentialSubject": {
+         "id": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+         "group": "did:key:z6Mkn5vPEGzsQ9wqgqyfLbSYwCzM6pjeQ65c57fLmL8cFnM8",
+         "genesisDigest": "uEiB2ZvWjaDZmB3wQ7Cw4XM0LMi52XmQN3BCr-IugvTX8nQ",
+         "card": {
+          "version": "rltp-card/0.25",
+          "anchor": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+          "keyAgreement": "z6LSqexAa8rYuRPpQA4JVUNSf466EwdhApAHeVpEmH3xSC5Y",
+          "proof": {
+           "type": "DataIntegrityProof",
+           "cryptosuite": "eddsa-jcs-2022",
+           "created": "2026-09-01T09:00:00Z",
+           "verificationMethod": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27#z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+           "proofPurpose": "assertionMethod",
+           "proofValue": "z3H8t88vfrmrL4iuutD4Ad8zhfJehoAYbENzugDVRmLwdqWMRaMq39o5UomhKeWTaYfPXYsGpyEZXY32sjQEKFmxv"
+          }
+         },
+         "name": "F.",
+         "note": "membership vector invite"
+        },
+        "validFrom": "2026-09-01T10:00:00Z",
+        "validUntil": "2026-11-30T10:00:00Z",
+        "taskContext": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
+        "proof": {
+         "type": "DataIntegrityProof",
+         "cryptosuite": "eddsa-jcs-2022",
+         "created": "2026-09-01T10:00:00Z",
+         "verificationMethod": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27#z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+         "proofPurpose": "assertionMethod",
+         "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://firstperson.network/credentials/dtg/v1",
+          "https://real-life.org/rltp/v1"
+         ],
+         "proofValue": "z5qFZCfSCBmt28YCeUFLbw385nYPQgfr7AePJ9d2qhoofSyD1be88PVsev4pe2CwZWQ5VfhEiC2WU4X9EyQKqbtaR"
+        }
+       }
+      }
+     },
+     "accept": {
+      "id": "8d3b5e4c-af60-4c9d-9e3f-4a5b6c7d8e9f",
+      "type": "https://real-life.org/trust-tasks/membership-accept/0.2",
+      "issuer": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+      "recipient": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+      "threadId": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
+      "issuedAt": "2026-09-01T10:06:00Z",
+      "payload": {
+       "accept": {
+        "group": "did:key:z6Mkn5vPEGzsQ9wqgqyfLbSYwCzM6pjeQ65c57fLmL8cFnM8",
+        "subject": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+        "ref": "uEiAfE7qyDKlb57t-j3hsS_-hsUSwggc1gZcUXGgemzH-LQ",
+        "card": {
+         "version": "rltp-card/0.25",
+         "anchor": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+         "keyAgreement": "z6LSzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+         "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-09-01T10:05:00Z",
+          "verificationMethod": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc#z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+          "proofPurpose": "assertionMethod",
+          "proofValue": "z3r5TQeEj6R2uKy5gH7ciAZnBF4TBxC7NM8TXuKzLPykpxKUSjhsiHsgjNpuy3SBa5WLGa5wMcZwSzitJmv7bfCLe"
+         }
+        },
+        "candidacy": true
+       }
+      },
+      "proof": {
+       "type": "DataIntegrityProof",
+       "cryptosuite": "eddsa-jcs-2022",
+       "created": "2026-09-01T10:06:00Z",
+       "verificationMethod": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc#z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+       "proofPurpose": "assertionMethod",
+       "proofValue": "z5pJF5a5spt5trApetZFRc2B12yKpFzMtP691WKFvxxLAgEH4auVEVhtnQf4ZvMZBMSGTzCE9SdqRxqvH89awP7hv"
+      }
+     }
+    }
+   },
+   "fails": [
+    "cards"
+   ],
+   "expected": "failed(validation-failed)",
+   "note": "z6LS plus 44 base58 characters, correctly signed: it does not decode to x25519-pub and 32 bytes (RLTP-ENC-2040)"
+  },
+  {
+   "name": "inviter-card-key-not-x25519",
+   "rules": [
+    "RLTP-MT-2250",
+    "RLTP-MT-3045"
+   ],
+   "artifact": {
+    "evidence": {
+     "invite": {
+      "id": "7c2a4d3b-9e5f-4b8c-8d2e-3f4a5b6c7d8e",
+      "type": "https://real-life.org/trust-tasks/membership-invite/0.2",
+      "issuer": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+      "recipient": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+      "threadId": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
+      "issuedAt": "2026-09-01T10:00:00Z",
+      "payload": {
+       "invite": {
+        "@context": [
+         "https://www.w3.org/ns/credentials/v2",
+         "https://firstperson.network/credentials/dtg/v1",
+         "https://real-life.org/rltp/v1"
+        ],
+        "type": [
+         "VerifiableCredential",
+         "DTGCredential",
+         "InvitationCredential",
+         "MembershipInvite"
+        ],
+        "issuer": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+        "credentialSubject": {
+         "id": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+         "group": "did:key:z6Mkn5vPEGzsQ9wqgqyfLbSYwCzM6pjeQ65c57fLmL8cFnM8",
+         "genesisDigest": "uEiB2ZvWjaDZmB3wQ7Cw4XM0LMi52XmQN3BCr-IugvTX8nQ",
+         "card": {
+          "version": "rltp-card/0.25",
+          "anchor": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+          "keyAgreement": "z6LSzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+          "proof": {
+           "type": "DataIntegrityProof",
+           "cryptosuite": "eddsa-jcs-2022",
+           "created": "2026-09-01T09:00:00Z",
+           "verificationMethod": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27#z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+           "proofPurpose": "assertionMethod",
+           "proofValue": "z3UvNJVHwudHooVBFVdLmw8EQYUcTvHS7EFgUVY4axZdeQCqqBM5bdXwKTAmfFReiGXe2wVN8dCpfJJ1qKYNyUCJ6"
+          }
+         },
+         "name": "F.",
+         "note": "membership vector invite"
+        },
+        "validFrom": "2026-09-01T10:00:00Z",
+        "validUntil": "2026-11-30T10:00:00Z",
+        "taskContext": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
+        "proof": {
+         "type": "DataIntegrityProof",
+         "cryptosuite": "eddsa-jcs-2022",
+         "created": "2026-09-01T10:00:00Z",
+         "verificationMethod": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27#z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+         "proofPurpose": "assertionMethod",
+         "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://firstperson.network/credentials/dtg/v1",
+          "https://real-life.org/rltp/v1"
+         ],
+         "proofValue": "z5uvcEr9pj8BLZck3zdRT9GCEe6MZi4zcncs1Zp2ycHdmzKKTumNuYDhkqKNHxDDVUZPqTLi79BYS3E2gdabFUFsk"
+        }
+       }
+      }
+     },
+     "accept": {
+      "id": "8d3b5e4c-af60-4c9d-9e3f-4a5b6c7d8e9f",
+      "type": "https://real-life.org/trust-tasks/membership-accept/0.2",
+      "issuer": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+      "recipient": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
+      "threadId": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
+      "issuedAt": "2026-09-01T10:06:00Z",
+      "payload": {
+       "accept": {
+        "group": "did:key:z6Mkn5vPEGzsQ9wqgqyfLbSYwCzM6pjeQ65c57fLmL8cFnM8",
+        "subject": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+        "ref": "uEiB-6AzVwTXH1q3lk03lL0sqXqA2A5DsyyAkf_ByQdgH1A",
+        "card": {
+         "version": "rltp-card/0.25",
+         "anchor": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+         "keyAgreement": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+         "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-09-01T10:05:00Z",
+          "verificationMethod": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc#z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+          "proofPurpose": "assertionMethod",
+          "proofValue": "z3LMYMamMqWD1ZR7f9x5SwX1hZYytJqwrFfpAqE7wCe15mdsnE1QXLteGAriXTxjg5D7vQxYbkZ3afFzM1HoGA5iG"
+         }
+        },
+        "candidacy": true
+       }
+      },
+      "proof": {
+       "type": "DataIntegrityProof",
+       "cryptosuite": "eddsa-jcs-2022",
+       "created": "2026-09-01T10:06:00Z",
+       "verificationMethod": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc#z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
+       "proofPurpose": "assertionMethod",
+       "proofValue": "z5APcbNJeLVX8tdPyTnxpa6uU6kpDwL6Lz7aRdCy4RbjM3fo1a83gwk3mVnQQqm6nS4iU86BP9hXdNLbyP8ntuZ2R"
       }
      }
     }
@@ -5953,6 +6178,120 @@
     "derivation"
    ],
    "note": "the invitee anchor of the real genesis, pinned to a different digest"
+  }
+ ],
+ "sealCases": [
+  {
+   "name": "welcome-seal",
+   "rules": [],
+   "sealed": {
+    "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+    "epk": "VqZMGGMGZPPGR9LH6sFNvucBSNBSPabFYQvTIRLerXc",
+    "nonce": "6gwXc4ts-dwa4PW6",
+    "ciphertext": "9ZNpSF2sDnlo_x57SXIyv34uPAioi4an8bftf-VHKcOcHI5QZAOYep-WFsfiUls4s1Luf-eHc9Af-hChA6QN8Ccu0QsgISDxgX2l_ugXufNDrw8DePIRfPjg9XXnt2zQRdS8ZjSslYK65hq6mouYp6tHWrSIrQ4uWx1AUI8usr017QpKmJWrm2Kl23nD8bDCLuL8igDU4ko8h5tU1S2wZuX64OyaAKMe7NH74jqHc5gV7gCXgfDWwnCTCZ5wOg3LNVkT_gEkIUiN2znPH-rXoqK6YQOetsOwr0myTaq8IGswkBfNsUKEvr6UW9dLXyXHk99i0tl8L5beRTP2VhwQuvx3qeK3CiaNdQUdK-sbKYONwPL8QKYLhbJ185fjhqUOd6xI5YJx3idQJDlB3O1ShlDfimuUFOJNmbjbxA6wC4Ej0hXEe78XHQDl4uvGQtVNEbbwnDZshuTlNamIAVwuDbZ-v70AvEmas0-drb_Ato9i9ZfVqAHlidZ10hMM1QhxYDeU8CLlr5OgD9YW367qaXzeL2f3VCMO-5SpTjxq9Vhqw23XdzOlglBuZaK920D-ZJDlkeeYVJMZcg"
+   },
+   "expect": "opened",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  },
+  {
+   "name": "welcome-seal-low-order-ephemeral",
+   "rules": [],
+   "sealed": {
+    "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+    "epk": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "nonce": "6gwXc4ts-dwa4PW6",
+    "ciphertext": "9ZNpSF2sDnlo_x57SXIyv34uPAioi4an8bftf-VHKcOcHI5QZAOYep-WFsfiUls4s1Luf-eHc9Af-hChA6QN8Ccu0QsgISDxgX2l_ugXufNDrw8DePIRfPjg9XXnt2zQRdS8ZjSslYK65hq6mouYp6tHWrSIrQ4uWx1AUI8usr017QpKmJWrm2Kl23nD8bDCLuL8igDU4ko8h5tU1S2wZuX64OyaAKMe7NH74jqHc5gV7gCXgfDWwnCTCZ5wOg3LNVkT_gEkIUiN2znPH-rXoqK6YQOetsOwr0myTaq8IGswkBfNsUKEvr6UW9dLXyXHk99i0tl8L5beRTP2VhwQuvx3qeK3CiaNdQUdK-sbKYONwPL8QKYLhbJ185fjhqUOd6xI5YJx3idQJDlB3O1ShlDfimuUFOJNmbjbxA6wC4Ej0hXEe78XHQDl4uvGQtVNEbbwnDZshuTlNamIAVwuDbZ-v70AvEmas0-drb_Ato9i9ZfVqAHlidZ10hMM1QhxYDeU8CLlr5OgD9YW367qaXzeL2f3VCMO-5SpTjxq9Vhqw23XdzOlglBuZaK920D-ZJDlkeeYVJMZcg"
+   },
+   "expect": "all-zero",
+   "note": "the all-zero X25519 point: the shared secret is all zero and the receiver rejects before decryption",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  },
+  {
+   "name": "welcome-seal-with-aad",
+   "rules": [],
+   "sealed": {
+    "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+    "epk": "QZtvfoubnGoxWZwotFuBvxtrU6UQU-cquCh_5C9Sx2g",
+    "nonce": "JqcofN3CRLx4I8hg",
+    "ciphertext": "t7WBUE0SqeFec0gGNBdFwfJpr-NkWxcX22NJi5jHe1uWyuIg64HBJBi_HYX-jhDfc_qtanCQ5ov3hjpg2ufLWzNzZzj6Q1C32m_MQyLo_nWdFJUZDYdNIzDGTiDbthvcHSp2nNPB6KMLQlECwZBDvV-EJ0M0UgOvSyvw-RKL29FY7l4_j-CEJABpw0G2DoHjkfsStaUAiMZDRZUmpk1vANHMdmg3MrOXIEDt0yCsDTjfk6bK3ZxYzBwlwmDaCb_VThn_uDmqszea_65Tv-uo_Tairr0wsHaiun-DrjQrqaleZIeGpn-izofXo75ocG3-BP0DrAungQhGule-KBX6WdwtIu51gFHeM7GS1SY0rAH7_7C1TMPb40mYhwm88NR0xiF6GXnzuMOaHPc5GinmJ63GSS_ehZHyM3pMcaOrGKY5F3ihg1yid0wu4EgFEdvoHwWSuXmdIrt5nDa9Bfz1iIqfeM6D06Y7EZ67iXU7akJdsj1x03lkacOvNa4ncLGMBVuE4fyPooeC3oeSjqanBtY13EogoMdlFc-Np90MQSisL5WTaoTNIut6R0QFDw3YnePCzKpjoVjLEg"
+   },
+   "expect": "decryption-failed",
+   "note": "AAD MUST be empty",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  },
+  {
+   "name": "welcome-seal-under-delivery-info",
+   "rules": [],
+   "sealed": {
+    "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+    "epk": "KsvULYFs-THa5g0cpl_UF1hCAEjFRK2NQ2SVMQvOgDs",
+    "nonce": "A7ZwAjrWpIOipnME",
+    "ciphertext": "5JBoaQwXvQ7uP3FIrY0_AsSAUl6WfK-bpaXlnDmFH3C7EU_l_FZ57RzUJE7Jz7qAyglaVoSQSuumCGcTynVYmjTL5FP_DOjpu14Qa7j3ZUt_Xt_pEobRPROiKPZE3fBRkU6Vkzfeb134GUugcu3YOJ22do5MzZgXpMWCInRGyU2WyFXmQnD3TWrYY44fHBdGVBXZyI7om_ajFcQEC6OBLlY0NPV9_Blsgs6Ruu7bXc4mzQtuxn7gfRjM-88NS7LQ5H7NbgQJT68h1gxVaTHdCfzL3HtsP8jiGfdiCK7gkLi9O7K2duEWKA_snvbUJsJ2AjX2keQ3elXDZSyF-A3htEfTAAg6EpZsaoaASSvwZKj9szUdWuxAByFAO-ROFJLhaiyJ9YltVpfcMcLXy3Abo7jnaRroIl2W6g-9GJZPO8UDPO0BrcpbtqNqrc76hfZ2PhSijoEtTBR2OrLM1BMV1dNEOM8Dv38ZzVHYxBrAw2f6iII2O2tmaTLi1UsqVvxTRB_7b7FVSX5Ks7dxZAamNNo1QaGqj0R7lhlDI6xZPrq32vtca_xgX5yGKf6YqNfkHI5n4kiqXT5O_Q"
+   },
+   "expect": "decryption-failed",
+   "note": "HKDF info rltp/v1/seal instead of rltp/v1/welcome",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  },
+  {
+   "name": "welcome-seal-oversize",
+   "rules": [],
+   "sealed": {
+    "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+    "epk": "VqZMGGMGZPPGR9LH6sFNvucBSNBSPabFYQvTIRLerXc",
+    "nonce": "6gwXc4ts-dwa4PW6",
+    "ciphertext": "9ZNpSF2sDnlo_x57SXIyv34uPAioi4an8bftf-VHKcOcHI5QZAOYep-WFsfiUls4s1Luf-eHc9Af-hChA6QN8Ccu0QsgISDxgX2l_ugXufNDrw8DePIRfPjg9XXnt2zQRdS8ZjSslYK65hq6mouYp6tHWrSIrQ4uWx1AUI8usr017QpKmJWrm2Kl23nD8bDCLuL8igDU4ko8h5tU1S2wZuX64OyaAKMe7NH74jqHc5gV7gCXgfDWwnCTCZ5wOg3LNVkT_gEkIUiN2znPH-rXoqK6YQOetsOwr0myTaq8IGswkBfNsUKEvr6UW9dLXyXHk99i0tl8L5beRTP2VhwQuvx3qeK3CiaNdQUdK-sbKYONwPL8QKYLhbJ185fjhqUOd6xI5YJx3idQJDlB3O1ShlDfimuUFOJNmbjbxA6wC4Ej0hXEe78XHQDl4uvGQtVNEbbwnDZshuTlNamIAVwuDbZ-v70AvEmas0-drb_Ato9i9ZfVqAHlidZ10hMM1QhxYDeU8CLlr5OgD9YW367qaXzeL2f3VCMO-5SpTjxq9Vhqw23XdzOlglBuZaK920D-ZJDlkeeYVJMZcg"
+   },
+   "ciphertextBytes": 65553,
+   "expect": "oversize",
+   "note": "the runner replaces the ciphertext by that many bytes: rejected on its length, never decrypted",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  },
+  {
+   "name": "welcome-seal-tag-only",
+   "rules": [],
+   "sealed": {
+    "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+    "epk": "VqZMGGMGZPPGR9LH6sFNvucBSNBSPabFYQvTIRLerXc",
+    "nonce": "6gwXc4ts-dwa4PW6",
+    "ciphertext": "9ZNpSF2sDnlo_x57SXIyv34uPAioi4an8bftf-VHKcOcHI5QZAOYep-WFsfiUls4s1Luf-eHc9Af-hChA6QN8Ccu0QsgISDxgX2l_ugXufNDrw8DePIRfPjg9XXnt2zQRdS8ZjSslYK65hq6mouYp6tHWrSIrQ4uWx1AUI8usr017QpKmJWrm2Kl23nD8bDCLuL8igDU4ko8h5tU1S2wZuX64OyaAKMe7NH74jqHc5gV7gCXgfDWwnCTCZ5wOg3LNVkT_gEkIUiN2znPH-rXoqK6YQOetsOwr0myTaq8IGswkBfNsUKEvr6UW9dLXyXHk99i0tl8L5beRTP2VhwQuvx3qeK3CiaNdQUdK-sbKYONwPL8QKYLhbJ185fjhqUOd6xI5YJx3idQJDlB3O1ShlDfimuUFOJNmbjbxA6wC4Ej0hXEe78XHQDl4uvGQtVNEbbwnDZshuTlNamIAVwuDbZ-v70AvEmas0-drb_Ato9i9ZfVqAHlidZ10hMM1QhxYDeU8CLlr5OgD9YW367qaXzeL2f3VCMO-5SpTjxq9Vhqw23XdzOlglBuZaK920D-ZJDlkeeYVJMZcg"
+   },
+   "ciphertextBytes": 16,
+   "expect": "malformed",
+   "note": "a zero-length plaintext: the tag alone is no ciphertext",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  }
+ ],
+ "senderSealCases": [
+  {
+   "name": "seal-to-the-accept-card",
+   "rules": [],
+   "rkid": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38",
+   "expect": "sealable",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
+  },
+  {
+   "name": "seal-to-a-low-order-key",
+   "rules": [],
+   "rkid": "z6LSbgBAXJos6Tik6PNmXeWxKbDUr9Y7hcB9syigVTeXiNmm",
+   "expect": "all-zero",
+   "note": "a z6LS key that decodes (x25519-pub, 32 zero bytes) but yields an all-zero shared secret: the sender refuses to seal",
+   "rulesPartial": {
+    "RLTP-MT-4100": "that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown"
+   }
   }
  ],
  "inviteeNegatives": [

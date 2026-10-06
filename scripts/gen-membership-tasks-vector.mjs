@@ -171,12 +171,13 @@ const welcome = {
   v: 'rltp-welcome/0.1', group: groupDid, subject: invitee, accept: digestU(accDoc),
   material: { v: 'rltp-access-material/0.25', adapter: 'linear/0.1', epoch: 0, keyState: genesis.id, keys: { contentKey: b64u(contentKeyRaw) } },
 }
-const seal = (plaintext, rkid, ephInfo, nonceInfo, hkdfInfo = 'rltp/v1/welcome') => {
+const seal = (plaintext, rkid, ephInfo, nonceInfo, hkdfInfo = 'rltp/v1/welcome', aad = null) => {
   const ephSeed = hkdf(IKM, ephInfo)
   const nonce = hkdf(IKM, nonceInfo).subarray(0, 12)
   const shared = crypto.diffieHellman({ privateKey: privX(ephSeed), publicKey: pubFromRaw(xRawOfMk(rkid), XS) })
   const key = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from(hkdfInfo, 'utf8'), 32))
   const c = crypto.createCipheriv('aes-256-gcm', key, nonce)
+  if (aad) c.setAAD(Buffer.from(aad, 'utf8'))
   const ct = Buffer.concat([c.update(Buffer.from(jcs(plaintext), 'utf8')), c.final(), c.getAuthTag()])
   return { rkid, epk: b64u(pubRaw(privX(ephSeed))), nonce: b64u(nonce), ciphertext: b64u(ct) }
 }
@@ -216,7 +217,8 @@ const makeAdmission = (o = {}) => {
 }
 
 // the self-contained bootstrap: key-delivery/0.1, kind re-welcome (Access 10.1)
-const reWelcome = { keyDelivery: { group: groupDid, genesisDigest, subject: invitee, epoch: 0, op: operation.id, kind: 're-welcome', sealed } }
+// a fresh seal of the same welcome: its own ephemeral key and nonce (Contract §5)
+const reWelcome = { keyDelivery: { group: groupDid, genesisDigest, subject: invitee, epoch: 0, op: operation.id, kind: 're-welcome', sealed: seal(welcome, accDoc.payload.accept.card.keyAgreement, INFO.ephemeral + '/re-welcome', INFO.nonce + '/re-welcome') } }
 
 // ── the evidence relay ───────────────────────────────────────────────────
 const evidence01 = { evidence: { invite: invDoc, accept: accDoc } }
@@ -306,6 +308,8 @@ const pairNegatives = [
   pairCase('inviter-card-of-another-anchor', R(3045, 3050, 2250), { founderCard: makeCard(thirdSeed, founderX, T.founderCard) }, ['cards']),
   pairCase('accept-card-of-another-anchor', R(3235, 3240, 3245, 2250), { inviteeCard: makeCard(founderSeed, inviteeX, T.inviteeCard) }, ['cards']),
   pairCase('accept-card-with-delivery-hints', R(2280), { inviteeCard: makeCard(inviteeSeed, inviteeX, T.inviteeCard, { deliveryHints: ['https://relay.example/inbox'] }) }, ['cards']),
+  pairCase('accept-card-key-not-x25519', R(2250, 3235), { inviteeCard: makeCard(inviteeSeed, inviteeX, T.inviteeCard, { keyAgreement: 'z6LS' + 'z'.repeat(44) }) }, ['cards'], { note: 'z6LS plus 44 base58 characters, correctly signed: it does not decode to x25519-pub and 32 bytes (RLTP-ENC-2040)' }),
+  pairCase('inviter-card-key-not-x25519', R(2250, 3045), { founderCard: makeCard(founderSeed, founderX, T.founderCard, { keyAgreement: 'z6LS' + 'z'.repeat(44) }) }, ['cards']),
   pairCase('accept-card-sent-form', R(2260), { inviteeCard: makeCard(inviteeSeed, inviteeX, T.inviteeCard, { sentTo: founder, boundTo: 'AAAAAAAAAAAAAAAAAAAAAA' }) }, ['cards']),
   { name: 'accept-tampered', rules: R(2130, 3260), artifact: pairOf(tamperedAccept), fails: ['acceptProof'], expected: VF },
   { name: 'invite-tampered', rules: R(2150, 3070), artifact: pairOf(tamperedInvite), fails: ['inviteProof', 'ref'], expected: VF, note: 'the accept still names the credential as signed' },
@@ -383,13 +387,29 @@ const inviteReceiptCases = [
   { name: 'invite-for-another-anchor', rules: R(3030, 8090, 3025), artifact: makePair({ subject: third, invDocRecipient: invitee }).invDoc, fails: ['derivation', 'subjectIsRecipient'], note: 'addressed to the invitee, naming an anchor its derivation does not produce' },
   { name: 'invite-under-another-genesis', rules: R(3030, 8090), artifact: makePair({ genesis: digestU(accDoc) }).invDoc, fails: ['derivation'], note: 'the invitee anchor of the real genesis, pinned to a different digest' },
 ]
+// the seal construction of Contract §5 as the welcome inherits it (RLTP-MT-4100):
+// receiver side — each declared outcome before or at decryption
+const ZERO_X = 'z' + b58(Buffer.concat([Buffer.from([0xec, 0x01]), Buffer.alloc(32)]))
+const sealCases = [
+  { name: 'welcome-seal', rules: R(4100), sealed, expect: 'opened' },
+  { name: 'welcome-seal-low-order-ephemeral', rules: R(4100), sealed: { ...sealed, epk: b64u(Buffer.alloc(32)) }, expect: 'all-zero', note: 'the all-zero X25519 point: the shared secret is all zero and the receiver rejects before decryption' },
+  { name: 'welcome-seal-with-aad', rules: R(4100), sealed: seal(welcome, accDoc.payload.accept.card.keyAgreement, INFO.ephemeral + '/aad', INFO.nonce + '/aad', 'rltp/v1/welcome', 'group'), expect: 'decryption-failed', note: 'AAD MUST be empty' },
+  { name: 'welcome-seal-under-delivery-info', rules: R(4100), sealed: seal(welcome, accDoc.payload.accept.card.keyAgreement, INFO.ephemeral + '/seal-info', INFO.nonce + '/seal-info', 'rltp/v1/seal'), expect: 'decryption-failed', note: 'HKDF info rltp/v1/seal instead of rltp/v1/welcome' },
+  { name: 'welcome-seal-oversize', rules: R(4100), sealed, ciphertextBytes: 65536 + 16 + 1, expect: 'oversize', note: 'the runner replaces the ciphertext by that many bytes: rejected on its length, never decrypted' },
+  { name: 'welcome-seal-tag-only', rules: R(4100), sealed, ciphertextBytes: 16, expect: 'malformed', note: 'a zero-length plaintext: the tag alone is no ciphertext' },
+]
+// sender side — a key-agreement key whose shared secret is all zero is never sealed to
+const senderSealCases = [
+  { name: 'seal-to-the-accept-card', rules: R(4100), rkid: accDoc.payload.accept.card.keyAgreement, expect: 'sealable' },
+  { name: 'seal-to-a-low-order-key', rules: R(4100), rkid: ZERO_X, expect: 'all-zero', note: 'a z6LS key that decodes (x25519-pub, 32 zero bytes) but yields an all-zero shared secret: the sender refuses to seal' },
+]
 const evidenceDocumentNegatives = [
   { name: 'evidence-on-another-thread', rules: R(3715), set: { '/threadId': UUID.other }, fails: ['thread'] },
   { name: 'evidence-with-document-proof', rules: R(3720), set: { '/proof': clone(accDoc.proof) }, fails: ['noProof'] },
 ]
 
 // rules a case checks only in part move to rulesPartial (conformance/membership-partial.mjs)
-for (const list of [negatives, pairNegatives, pairPositives, vouchNegatives, vouchPositives, inviteeNegatives, inviteePositives, documentNegatives, reWelcomeNegatives, evidenceDocumentNegatives, inviteReceiptCases]) {
+for (const list of [sealCases, senderSealCases, negatives, pairNegatives, pairPositives, vouchNegatives, vouchPositives, inviteeNegatives, inviteePositives, documentNegatives, reWelcomeNegatives, evidenceDocumentNegatives, inviteReceiptCases]) {
   for (const c of list) { const { rules, rulesPartial } = splitRules(c.rules); c.rules = rules; if (Object.keys(rulesPartial).length) c.rulesPartial = rulesPartial }
 }
 const vector = {
@@ -428,6 +448,8 @@ const vector = {
   vouchNegatives,
   vouchPositives,
   inviteReceiptCases,
+  sealCases,
+  senderSealCases,
   inviteeNegatives,
   inviteePositives,
   documentNegatives,
