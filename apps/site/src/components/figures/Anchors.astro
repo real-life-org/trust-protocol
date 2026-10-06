@@ -1,0 +1,71 @@
+---
+/**
+ * One seed, an anchor per context: Anna in the middle, and from her seed
+ * one did:key derived toward each relationship, each group and the public.
+ * Dashed is derivation, solid is the context the anchor faces. The anchors
+ * are illustration, not real keys. Styles: site.css, .tp-anchors.
+ */
+import { icons } from '../icons'
+
+const C = { x: 320, y: 220 }
+const ANNA = 'var(--sl-color-accent)'
+type Spoke = { deg: number; anchor: string; kind: 'person' | 'group' | 'public'; label: string; side: 'left' | 'right'; hue?: string; members?: string[] }
+const spokes: Spoke[] = [
+  { deg: 90, anchor: 'pair/7f3a…', kind: 'person', label: 'Peter', side: 'right', hue: '#f0708a' },
+  { deg: 30, anchor: 'group/c41e…', kind: 'group', label: 'Garden group', side: 'right', members: [ANNA, '#f0708a', '#3fb45c'] },
+  { deg: -30, anchor: 'pair/a90d…', kind: 'person', label: 'Frida', side: 'right', hue: '#e39a4a' },
+  { deg: -90, anchor: 'persona/…', kind: 'public', label: 'the public', side: 'right' },
+  { deg: -150, anchor: 'pair/2b6c…', kind: 'person', label: 'Sam', side: 'left', hue: '#3fb45c' },
+  { deg: 150, anchor: 'group/e83f…', kind: 'group', label: 'Choir group', side: 'left', members: [ANNA, '#e39a4a', '#3fb45c'] },
+]
+const at = (deg: number, r: number) => {
+  const a = (deg * Math.PI) / 180
+  return { x: Math.round(C.x + Math.cos(a) * r), y: Math.round(C.y - Math.sin(a) * r) }
+}
+const R_ANCHOR = 118
+const R_FAR = 196
+---
+<figure class="tp-anchors">
+  <svg viewBox="40 0 570 440" role="img" aria-labelledby="fig-anchors-title">
+    <title id="fig-anchors-title">Anna, one seed. From it one identifier toward each context: pair identifiers toward Peter, Frida and Sam, group identifiers toward the Choir group and the Garden group, a persona toward the public. None of them links to another.</title>
+
+    {spokes.map((s) => {
+      const a = at(s.deg, R_ANCHOR)
+      const f = at(s.deg, R_FAR)
+      return (
+        <g>
+          <line x1={C.x} y1={C.y} x2={a.x} y2={a.y} class="derive" />
+          <line x1={a.x} y1={a.y} x2={f.x} y2={f.y} class="faces" />
+        </g>
+      )
+    })}
+
+    {spokes.map((s) => {
+      const f = at(s.deg, R_FAR)
+      const tx = s.side === 'right' ? f.x + 26 : f.x - 26
+      const anchor = s.side === 'right' ? 'start' : 'end'
+      return (
+        <g class="far" style={s.hue ? `--c: ${s.hue}` : undefined}>
+          {s.kind === 'person' && <g><circle cx={f.x} cy={f.y} r="17" class="person" /><text x={f.x} y={f.y + 5} class="initial" text-anchor="middle">{s.label[0]}</text></g>}
+          {s.kind === 'group' && <g><circle cx={f.x} cy={f.y} r="19" class="group" /><circle cx={f.x - 6} cy={f.y - 4} r="3.5" class="member" style={`fill: ${s.members![0]}`} /><circle cx={f.x + 6} cy={f.y - 4} r="3.5" class="member" style={`fill: ${s.members![1]}`} /><circle cx={f.x} cy={f.y + 6} r="3.5" class="member" style={`fill: ${s.members![2]}`} /></g>}
+          {s.kind === 'public' && <g><circle cx={f.x} cy={f.y} r="17" class="public" /><g transform={`translate(${f.x - 9} ${f.y - 9}) scale(0.75)`} class="glyph" set:html={icons['globe']} /></g>}
+          <text x={tx} y={f.y + 5} class="label" text-anchor={anchor}>{s.label}</text>
+        </g>
+      )
+    })}
+
+    {spokes.map((s) => {
+      const a = at(s.deg, R_ANCHOR)
+      return (
+        <g>
+          <rect x={a.x - 50} y={a.y - 14} width="100" height="28" rx="14" class="chip" />
+          <text x={a.x} y={a.y + 4.5} class="mono" text-anchor="middle">{s.anchor}</text>
+        </g>
+      )
+    })}
+
+    <circle cx={C.x} cy={C.y} r="54" class="seed" />
+    <text x={C.x} y={C.y - 2} class="name" text-anchor="middle">Anna</text>
+    <text x={C.x} y={C.y + 16} class="sub" text-anchor="middle">one seed</text>
+  </svg>
+</figure>
