@@ -3826,8 +3826,8 @@ state; one operation MAY name a subset, and the span counts as
 exposed when the union of canonical `history.expose` operations
 names every key state in it (Section 9.2).
 
-**RLTP-ACC-8100** — One `history.expose` MUST cover at most 4096
-epochs.
+**RLTP-ACC-8100** — One `history.expose` MUST name at most 4096 key
+states; a longer history is exposed in several operations.
 
 **RLTP-ACC-8110** — On merging a `history.expose`, members MUST
 publish the disclosed keys through the open content channel of
@@ -5039,7 +5039,11 @@ version, unchanged. A `0.24` transition carries no `succeeds` and
 MUST be read as succeeding exactly the one maximal key state of its
 ancestry, whatever its lineage form; a `0.24` transition whose
 ancestry holds more than one maximal key state MUST be rejected as
-invalid. The welcome `material`
+invalid. A `0.24` transition carrying `historyNarrow` MUST be read
+as valid with a history gap over the key state it succeeds
+(RLTP-ACC-9780), and a `0.24` `history.expose` carrying `fromEpoch`
+MUST be read as exposing from the genesis, since its keys reach
+there. The welcome `material`
 Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
 under this profile; a receiver MUST accept `0.24` material without
 `keyState` only where the admission's ancestry holds exactly one
