@@ -1346,6 +1346,187 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
+   "@id": "rltp:Invite",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Einladung",
+     "@language": "de"
+    },
+    {
+     "@value": "Invite",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Signiertes Angebot eines Mitglieds an genau eine Person, der Gruppe beizutreten: ein DTG-Einladungs-Credential, das die Gruppe über ihren Genesis-Digest und die Person über den Mitgliedsanker nennt, den sie für diese Gruppe abgeleitet hat. Es trägt die Karte der einladenden Person, kein Schlüsselmaterial und keine Operation.",
+     "@language": "de"
+    },
+    {
+     "@value": "A member's signed offer of membership to exactly one person: a DTG invitation credential naming the group by its genesis digest and the person by the member anchor they derived for that group. It carries the inviter's card, no key material and no operation.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#31-membership-invite02"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Accept",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Annahme",
+     "@language": "de"
+    },
+    {
+     "@value": "Accept",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die signierte Zustimmung der eingeladenen Person zu genau einer Einladung, an sie gebunden über deren Credential-Digest. Sie trägt die eigene Karte der Person, an deren Schlüsselvereinbarungsschlüssel das Willkommen versiegelt wird, und sagt, ob die Person der Gruppe vor der Aufnahme als Kandidatur gezeigt werden darf.",
+     "@language": "de"
+    },
+    {
+     "@value": "The invitee's signed consent to exactly one invite, bound to it by the invite's credential digest. It carries the person's own card, to whose key-agreement key the welcome is sealed, and states whether the person may be shown to the group as a candidacy before admission.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#32-membership-accept02"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Welcome",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Willkommen",
+     "@language": "de"
+    },
+    {
+     "@value": "Welcome",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Das versiegelte Dokument rltp-welcome/0.1, das einer aufgenommenen Person das Schlüsselmaterial eines Schlüsselzustands bringt, gebunden an Gruppe, Person und die beantwortete Annahme. Die aufnehmende Operation verpflichtet sich über den Digest auf seinen Klartext; Geschichte trägt es nicht.",
+     "@language": "de"
+    },
+    {
+     "@value": "The sealed rltp-welcome/0.1 document that carries the key material of one key state to an admitted person, bound to the group, the person and the accept it answers. The admitting operation commits to its plaintext by digest; it carries no history.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#23-terms",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#4-the-welcome-seal"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:WelcomeSeal",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": { "@id": "rltp:Welcome" },
+   "skos:prefLabel": [
+    {
+     "@value": "Willkommenssiegel",
+     "@language": "de"
+    },
+    {
+     "@value": "Welcome seal",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Verschlüsselung, in der ein Willkommen reist: die Siegelkonstruktion des Delivery Contract unter eigener HKDF-Info rltp/v1/welcome, an den Schlüsselvereinbarungsschlüssel der Karte in der Annahme (die erste Gerätebindung der Person), nie ein Zustelldokument.",
+     "@language": "de"
+    },
+    {
+     "@value": "The encryption a welcome travels in: the Delivery Contract's seal construction under its own HKDF info rltp/v1/welcome, addressed to the key-agreement key of the accept's card (the person's first device binding), never a delivery document.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#4-the-welcome-seal"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Bootstrap",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": { "@id": "rltp:Welcome" },
+   "skos:prefLabel": [
+    {
+     "@value": "Bootstrap",
+     "@language": "de"
+    },
+    {
+     "@value": "Bootstrap",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Der erste Eintritt einer aufgenommenen Person in die Gruppe: das aufnehmende member.add, zugestellt an die eigene Person, mit dem Willkommen; vorläufig übernommen und erst bestätigt, wenn das materialisierte Log die Aufnahme enthält. Passt die Aufnahme nicht in ein Dokument, reist das Material allein in der Wiederherstellungsart des Adapters.",
+     "@language": "de"
+    },
+    {
+     "@value": "An admitted person's first entry into the group: the admitting member.add delivered to its own subject together with the welcome, adopted provisionally and confirmed only once the materialized log holds the admission. Where the admission does not fit one document, the material travels alone in the adapter's recovery kind.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#33-access-operation01"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:AdmissionEvidence",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:Invite" },
+    { "@id": "rltp:Accept" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Aufnahmeevidenz",
+     "@language": "de"
+    },
+    {
+     "@value": "Admission evidence",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Ein Einwilligungspaar, die vollständigen Dokumente von Einladung und Annahme, wahlweise mit Bürgschaften, weitergereicht an ein Mitglied, das aufnehmen darf, damit jedes solche Mitglied die Aufnahme vollziehen kann. Sie gewährt nichts und verbraucht nichts.",
+     "@language": "de"
+    },
+    {
+     "@value": "A consent pair, the complete invite and accept documents, optionally with vouches, relayed to a member authorized to admit, so that any such member can complete the admission. It grants nothing and consumes nothing.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
    "@id": "rltp:Attestation",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",

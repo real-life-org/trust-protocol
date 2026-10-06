@@ -180,18 +180,30 @@ for (const f of specFiles) {
   }
 }
 
-// ── 6. Rule traces (manifest ↔ numbered rules), Encounter and Access ──────
-// Always against the committed manifests conformance/encounter-rule-ids-0.30.txt
-// and conformance/access-rule-ids-0.54.txt. The private rule inventory of each
-// layer is checked additionally when present, and is REQUIRED when
-// ENCOUNTER_INVENTORY / ACCESS_INVENTORY names it.
+// ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership ──
+// Always against the committed manifests conformance/encounter-rule-ids-0.30.txt,
+// conformance/access-rule-ids-0.54.txt and conformance/membership-rule-ids-0.17.txt.
+// The private rule inventory of each layer is checked additionally when
+// present, and is REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
+// MEMBERSHIP_INVENTORY names it.
 {
   const { checkTrace, resolveInventory, LAYERS } = await import('./check-encounter-trace.mjs')
-  for (const layer of ['encounter', 'access']) {
+  for (const layer of ['encounter', 'access', 'membership']) {
     const { path: inventory } = resolveInventory(process.env[LAYERS[layer].env], layer)
     const r = checkTrace({ layer, inventory })
     for (const e of r.errors) err(`${layer} trace: ${e}`)
     if (!r.errors.length) ok(`${layer} trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
+    // Membership rule coverage (RLTP-MT-10080, 10100): every rule of the
+    // manifest is proven by a vector case or runner check, or by a check of
+    // this script, or listed in the state-dependent set of Section 10.3
+    // (MEMBERSHIP_STATE_DEPENDENT names a file in its place) — never both.
+    if (layer === 'membership') {
+      const { membershipCoverage } = await import('./membership-checks.mjs')
+      const c = membershipCoverage({ spec: LAYERS.membership.spec, manifestPath: LAYERS.membership.manifest, stateFile: process.env.MEMBERSHIP_STATE_DEPENDENT || null })
+      for (const k of c.checks) if (k.ok) ok(`membership: ${k.msg} [${k.rules.join(', ')}]`)
+      for (const e of c.errors) err(`membership coverage: ${e}`)
+      if (!c.errors.length) ok(`membership coverage: ${c.counts.manifest} rules = ${c.counts.full} checked completely (${c.counts.runner} runner, ${c.counts.validate} validate) ∪ ${c.counts.partial} in part ∪ ${c.counts.stateDependent} state-dependent (${c.stateSource}), disjoint [RLTP-MT-10080, RLTP-MT-10100]`)
+    }
   }
 }
 

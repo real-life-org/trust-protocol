@@ -265,11 +265,15 @@ export type MemberMapping = {
   }
 }
 
-/** schemas/payload-access-operation.schema.json — Payload: access-operation/0.1 (rltp-membership@0.16, target Trust Tasks framework 0.4) */
+/** schemas/payload-access-operation.schema.json — Payload: access-operation/0.1 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
 export type PayloadAccessOperation = ({
   operation: (AccessOperationEnvelope)
   welcome: {
     sealed: SealedEnvelope
+  }
+}) & ({
+  operation?: {
+    v: "rltp-access/0.25"
   }
 }) & ({
   operation?: {
@@ -325,7 +329,7 @@ export type PayloadKeyDelivery = {
   })
 }
 
-/** schemas/payload-membership-accept.schema.json — Payload: membership-accept/0.2 (rltp-membership@0.16, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-accept.schema.json — Payload: membership-accept/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
 export type PayloadMembershipAccept = {
   accept: {
     group: string
@@ -336,8 +340,8 @@ export type PayloadMembershipAccept = {
   }
 }
 
-/** schemas/payload-membership-evidence.schema.json — Payload: membership-evidence/0.1 (rltp-membership@0.16, target Trust Tasks framework 0.4) */
-export type PayloadMembershipEvidence = {
+/** schemas/payload-membership-evidence-0.1.schema.json — Payload: membership-evidence/0.1 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+export type PayloadMembershipEvidence01 = {
   evidence: {
     invite: (RltpDeliveryDocument) & ({
       type?: "https://real-life.org/trust-tasks/membership-invite/0.2"
@@ -351,7 +355,23 @@ export type PayloadMembershipEvidence = {
   }
 }
 
-/** schemas/payload-membership-invite.schema.json — Payload: membership-invite/0.2 (rltp-membership@0.16, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-evidence.schema.json — Payload: membership-evidence/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+export type PayloadMembershipEvidence = {
+  evidence: {
+    invite: (RltpDeliveryDocument) & ({
+      type?: "https://real-life.org/trust-tasks/membership-invite/0.2"
+      payload?: PayloadMembershipInvite
+      proof?: never
+    })
+    accept: (RltpDeliveryDocument) & ({
+      type?: "https://real-life.org/trust-tasks/membership-accept/0.2"
+      payload?: PayloadMembershipAccept
+    })
+    vouches?: AccessVouch[]
+  }
+}
+
+/** schemas/payload-membership-invite.schema.json — Payload: membership-invite/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
 export type PayloadMembershipInvite = {
   invite: {
     "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
@@ -615,13 +635,13 @@ export type VisibilityStar = {
   }
 }
 
-/** schemas/welcome.schema.json — RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.16) */
+/** schemas/welcome.schema.json — RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.17) */
 export type Welcome = {
   v: "rltp-welcome/0.1"
   group: string
   subject: string
   accept: string
   material: (AccessMaterial) & ({
-    v?: "rltp-access-material/0.25" | "rltp-access-material/0.24"
+    v?: "rltp-access-material/0.25"
   })
 }
