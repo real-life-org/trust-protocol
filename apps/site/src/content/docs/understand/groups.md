@@ -82,8 +82,7 @@ The person adds their own devices, up to eight.
 
 So a lost phone can be cut off without its owner leaving the group:
 the device goes, the person stays, and the next key no longer reaches
-the lost phone. A member whose devices are all gone is still a member
-and can come back with a new one.
+the lost phone. A member whose devices are all gone is still a member.
 
 Spec: [Access Layer §5.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity)
 
@@ -98,7 +97,7 @@ other. A dissolution made at the same time as a removal lapses and can
 be made again. Only one collision stops the group: a change of the
 rules made at the same time as a removal. The group then shows this
 openly and waits until a member writes a rule change that takes both
-sides into account. Until then, nothing new is decided.
+sides into account.
 
 Spec: [Access Layer §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)
 
