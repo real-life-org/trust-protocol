@@ -9,8 +9,8 @@ import { icons, type IconName } from '../icons'
 
 const log: { icon: IconName; op: string; by: string }[] = [
   { icon: 'fingerprint', op: 'genesis', by: 'by Anna' },
+  { icon: 'users', op: 'admit Peter, Frida, Sam', by: 'by Anna' },
   { icon: 'shield', op: 'rule: two admit', by: 'by Anna, Peter' },
-  { icon: 'users', op: 'admit Sam', by: 'by Anna, Peter' },
   { icon: 'lock', op: 'remove Frida', by: 'by Peter, Sam · new key epoch' },
 ]
 type Device = { x: number; y: number; name: string; state: string; out?: boolean }
@@ -30,23 +30,24 @@ const links = [
 ---
 <figure class="tp-group">
   <svg viewBox="40 40 560 372" role="img" aria-labelledby="fig-group-title">
-    <title id="fig-group-title">A group. Its authority log: Anna founds it, the rule becomes that two members admit, Anna and Peter admit Sam, Peter and Sam remove Frida, which starts a new key epoch. The same log is on the devices of Anna, Peter and Sam, who hold the key. Frida's device is outside now and holds ciphertext only.</title>
+    <title id="fig-group-title">A group. Its authority log: Anna founds it, Anna admits Peter, Frida and Sam, the rule becomes that two members admit, Peter and Sam remove Frida, which starts a new key epoch. The same log is on the devices of Anna, Peter and Sam, who hold the key. Frida's device is outside now and holds ciphertext only.</title>
 
     {links.map(([x1, y1, x2, y2]) => <line {x1} {y1} {x2} {y2} class="link" />)}
 
     {devices.map((d) => (
       <g class={d.out ? 'dev out' : 'dev'}>
         <rect x={d.x} y={d.y} width="60" height="96" rx="10" class="device" />
-        <rect x={d.x + 14} y={d.y + 32} width="30" height="5" rx="2.5" class="mini strong" />
-        <rect x={d.x + 14} y={d.y + 43} width="32" height="5" rx="2.5" class="mini" />
-        <rect x={d.x + 14} y={d.y + 54} width="22" height="5" rx="2.5" class="mini" />
+        <rect x={d.x + 14} y={d.y + 26} width="30" height="5" rx="2.5" class="mini strong" />
+        <rect x={d.x + 14} y={d.y + 38} width="34" height="5" rx="2.5" class="mini" />
+        <rect x={d.x + 14} y={d.y + 50} width="26" height="5" rx="2.5" class="mini" />
+        <rect x={d.x + 14} y={d.y + 62} width="30" height="5" rx="2.5" class="mini" />
         <text x={d.x + 30} y={d.y + 120} class="name" text-anchor="middle">{d.name}</text>
         <text x={d.x + 30} y={d.y + 137} class="state" text-anchor="middle">{d.state}</text>
       </g>
     ))}
 
     <circle cx="320" cy="220" r="160" class="place" />
-    <text x="320" y="112" class="kicker" text-anchor="middle">AUTHORITY LOG</text>
+    <text x="240" y="112" class="kicker">AUTHORITY LOG</text>
     <line x1="254" y1="154" x2="254" y2="176" class="spine" />
     <line x1="254" y1="204" x2="254" y2="226" class="spine" />
     <line x1="254" y1="254" x2="254" y2="276" class="spine" />
