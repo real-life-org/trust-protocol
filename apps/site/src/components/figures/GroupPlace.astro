@@ -11,7 +11,7 @@ const log: { icon: IconName; op: string; by: string }[] = [
   { icon: 'fingerprint', op: 'genesis', by: 'by Anna' },
   { icon: 'users', op: 'admit Peter, Frida, Sam', by: 'by Anna' },
   { icon: 'shield', op: 'rule: two admit', by: 'by Anna, Peter' },
-  { icon: 'lock', op: 'remove Frida', by: 'by Peter, Sam · new key epoch' },
+  { icon: 'lock', op: 'remove Frida', by: 'by Peter, Sam · new epoch' },
 ]
 type Device = { x: number; y: number; name: string; state: string; out?: boolean }
 const devices: Device[] = [
@@ -47,18 +47,19 @@ const links = [
     ))}
 
     <circle cx="320" cy="220" r="160" class="place" />
-    <text x="240" y="112" class="kicker">AUTHORITY LOG</text>
-    <line x1="254" y1="154" x2="254" y2="176" class="spine" />
-    <line x1="254" y1="204" x2="254" y2="226" class="spine" />
-    <line x1="254" y1="254" x2="254" y2="276" class="spine" />
+    <text x="320" y="92" class="kicker" text-anchor="middle">AUTHORITY</text>
+    <text x="320" y="108" class="kicker" text-anchor="middle">LOG</text>
+    <line x1="244" y1="162" x2="244" y2="184" class="spine" />
+    <line x1="244" y1="212" x2="244" y2="234" class="spine" />
+    <line x1="244" y1="262" x2="244" y2="284" class="spine" />
     {log.map((e, i) => {
-      const y = 126 + i * 50
+      const y = 134 + i * 50
       return (
         <g>
-          <rect x="240" y={y} width="28" height="28" rx="7" class="tile" />
-          <g transform={`translate(247 ${y + 7}) scale(0.58)`} class="glyph" set:html={icons[e.icon]} />
-          <text x="280" y={y + 13} class="op">{e.op}</text>
-          <text x="280" y={y + 28} class="by">{e.by}</text>
+          <rect x="230" y={y} width="28" height="28" rx="7" class="tile" />
+          <g transform={`translate(237 ${y + 7}) scale(0.58)`} class="glyph" set:html={icons[e.icon]} />
+          <text x="270" y={y + 13} class="op">{e.op}</text>
+          <text x="270" y={y + 28} class="by">{e.by}</text>
         </g>
       )
     })}
