@@ -15,8 +15,7 @@ it cares who may read and change it.
 The log is the group's memory of itself. Every entry is a signed act of
 one member: founding the group, admitting someone, removing someone,
 changing a rule. Each device reads the same log in the same way and
-arrives at the same answer to who belongs and what is allowed. No
-server keeps a list of members, and none is asked.
+arrives at the same answer to who belongs and what is allowed. No server decides who belongs.
 
 The group's identity is the digest of its founding entry, not a key
 anyone holds, so nobody owns the group or can take it over.
@@ -58,7 +57,7 @@ Spec: [Access Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/
 
 You can leave at any time. A member can be removed when the group's
 rule allows it. Either way, and when a device is lost, the group moves
-to a new key epoch at the same moment.
+to a new key epoch.
 
 What is written afterwards stays unreadable to whoever lost access.
 What they already read, they keep; no protocol can make someone forget.
