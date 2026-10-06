@@ -4,6 +4,9 @@ import GroupPlace from './figures/GroupPlace.astro'
 import SharedSpace from './figures/SharedSpace.astro'
 import Ports from './figures/Ports.astro'
 import Anchors from './figures/Anchors.astro'
+import Handshake from './figures/Handshake.astro'
+import Trust from './figures/Trust.astro'
+import Invitation from './figures/Invitation.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -19,11 +22,6 @@ const ways: { title: string; text: string; href: string; icon: IconName; cta: st
 ]
 
 type Card = [IconName, string, string, string]
-const encounter: Card[] = [
-  ['wot', 'The ceremony', 'Show, scan, confirm. Connected or fully offline, switching freely.', spec('encounter-layer.md')],
-  ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
-  ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
-]
 const space: [IconName, string, string][] = [
   ['lock', 'End-to-end encrypted', 'AES-256 · epoch keys only on member devices'],
   ['hard-drive', 'Complete on every device', 'full replica · offline first'],
@@ -75,16 +73,33 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
   <section class="tp-section flip band" id="encounter">
     <div>
       <div class="tp-badge">Encounter</div>
-      <h2>Credentials from recognition</h2>
-      <p>Two people scan each other, connected or fully offline, and each issues a verifiable credential to the other under a fresh identifier.</p>
-      <p>An encounter establishes key control, freshness and deliberate recognition, and nothing more. The specification says so.</p>
+      <h2>Two codes, one handshake</h2>
+      <p>Two people meet. One shows a code, the other scans it, and each confirms that they recognize the other. Each confirmation becomes a verifiable credential the other keeps, under an identifier made for this one meeting.</p>
+      <p>It works with or without a network.</p>
       <p><a class="tp-more" href="/understand/encounter/" aria-label="More on encounters, the Encounter primer">More →</a></p>
     </div>
-    <div class="tp-list">
-      {encounter.map(([icon, name, desc, href]) => (
-        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
-      ))}
+    <Handshake />
+  </section>
+
+  <section class="tp-section" id="trust">
+    <div>
+      <div class="tp-badge">Trust</div>
+      <h2>Trust is a deliberate act</h2>
+      <p>Meeting someone is not yet trusting them. Trust is a second step you take on purpose: you show your contact who you are beyond this meeting, by linking your identifiers for them alone, in a form only they can check.</p>
+      <p>From then on they can recognize you across contexts. Nobody else learns of it.</p>
+      <p><a class="tp-more" href="/understand/foundations/#how-we-use-credentials" aria-label="More on trust, in Foundations">More →</a></p>
     </div>
+    <Trust />
+  </section>
+
+  <section class="tp-section flip band" id="invitation">
+    <div>
+      <div class="tp-badge">Invitation</div>
+      <h2>From your graph into a group</h2>
+      <p>You invite people you know. The invitation is a credential they can accept or decline; nobody is added without consenting.</p>
+      <p>The group admits them by its own rule, and the welcome brings them the key.</p>
+    </div>
+    <Invitation />
   </section>
 
   <section class="tp-section" id="access">

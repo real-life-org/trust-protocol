@@ -1,0 +1,53 @@
+---
+/**
+ * Trust is a deliberate act: Ana links her identifiers for Ben alone, in a
+ * form only he can check. From then on he recognizes her across contexts;
+ * nobody else learns of it. Green appears here and nowhere else in the
+ * landing's pictures. Styles: site.css, .tp-fig and .tp-trust.
+ */
+import { icons } from '../icons'
+const anchors = [
+  { y: 96, label: 'this meeting', id: 'pair/7f3a…' },
+  { y: 160, label: 'Garden group', id: 'group/c41e…' },
+  { y: 224, label: 'the public', id: 'persona/…' },
+]
+---
+<figure class="tp-fig tp-trust">
+  <svg viewBox="0 0 560 330" role="img" aria-labelledby="fig-trust-title">
+    <title id="fig-trust-title">Ana has one identifier for this meeting, one toward the Garden group and one toward the public. She links them for Ben alone, in a form only he can check. Others see nothing of it.</title>
+
+    <!-- Ana and her identifiers -->
+    <circle cx="70" cy="160" r="30" class="seed" />
+    <text x="70" y="165" class="seedname" text-anchor="middle">Ana</text>
+    {anchors.map((a) => (
+      <g>
+        <line x1="100" y1="160" x2="168" y2={a.y} class="derive" />
+        <rect x="168" y={a.y - 15} width="128" height="30" rx="15" class="chip" />
+        <text x="232" y={a.y - 2} class="label" text-anchor="middle">{a.label}</text>
+        <text x="232" y={a.y + 10} class="mono" text-anchor="middle">{a.id}</text>
+      </g>
+    ))}
+
+    <!-- the deliberate link: a bracket joining the three, one line to Ben -->
+    <path d="M308 96 h14 v128 h-14" class="bracket" />
+    <line x1="322" y1="160" x2="410" y2="160" class="trustline" />
+    <path d="M410 155 l8 5 l-8 5 z" class="trusthead" />
+    <rect x="304" y="236" width="150" height="24" rx="12" class="trustchip" />
+    <g transform="translate(314 242) scale(0.5)" class="trustglyph" set:html={icons['lock']} />
+    <text x="386" y="252" class="trusttext" text-anchor="middle">shown to Ben only</text>
+
+    <!-- Ben -->
+    <circle cx="450" cy="160" r="26" class="person" />
+    <text x="450" y="165" class="initial" text-anchor="middle">B</text>
+    <text x="450" y="206" class="name" text-anchor="middle">Ben</text>
+    <text x="450" y="222" class="ok" text-anchor="middle">can check the link</text>
+
+    <!-- others -->
+    <circle cx="515" cy="70" r="16" class="other" />
+    <text x="515" y="74" class="otherinitial" text-anchor="middle">?</text>
+    <text x="515" y="104" class="note" text-anchor="middle">others</text>
+    <text x="515" y="118" class="note" text-anchor="middle">see nothing</text>
+
+    <text x="280" y="312" class="note" text-anchor="middle">meeting someone is not yet trusting them · trust is a second step, taken on purpose</text>
+  </svg>
+</figure>

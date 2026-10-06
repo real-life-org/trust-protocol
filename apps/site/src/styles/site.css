@@ -449,3 +449,53 @@ a.tp-ports-chip:hover, .tp-ports a.chip:hover { border-color: var(--sl-color-acc
 .tp-anchors .public { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; }
 .tp-anchors .glyph { fill: none; stroke: var(--sl-color-gray-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .tp-anchors .label { font-size: 15.5px; font-weight: 600; fill: var(--sl-color-white); }
+
+/* Encounter, in three pictures: the handshake, the deliberate trust, the invitation.
+   Shared pieces first; green appears in the trust picture only. */
+.tp-fig { margin: 0; }
+.tp-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tp-fig text { font-family: var(--font-sans); }
+.tp-fig .device { fill: var(--sl-color-black); stroke: var(--sl-color-gray-5); stroke-width: 1.5; }
+.tp-fig .name { font-size: 14px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-fig .label { font-size: 12.5px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-fig .note { font-size: 11.5px; fill: var(--sl-color-gray-3); }
+.tp-fig .muted { font-size: 11px; fill: var(--sl-color-gray-3); }
+.tp-fig .chip { fill: var(--sl-color-black); stroke: var(--sl-color-gray-5); stroke-width: 1; }
+.tp-fig .chiptext { font-size: 11.5px; fill: var(--sl-color-gray-1); }
+.tp-fig .mono { font-family: var(--font-mono); font-size: 11px; fill: var(--sl-color-gray-2); }
+.tp-fig .link { stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.tp-fig .flow, .tp-fig .edge { stroke: var(--sl-color-gray-4); stroke-width: 1.5; }
+.tp-fig .head { fill: var(--sl-color-gray-4); }
+.tp-fig .glyph { fill: none; stroke: var(--sl-color-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tp-fig .seed { fill: var(--sl-color-accent); }
+.tp-fig .seedname { font-size: 14px; font-weight: 700; fill: var(--tp-primary-fg); }
+.tp-fig .person { fill: color-mix(in oklab, var(--c, var(--sl-color-accent)) 22%, var(--sl-color-black)); stroke: var(--c, var(--sl-color-accent)); stroke-width: 1.5; }
+.tp-fig .initial { font-size: 12px; font-weight: 700; fill: var(--c, var(--sl-color-accent)); }
+.tp-fig .place { fill: color-mix(in oklab, var(--sl-color-accent) 8%, var(--sl-color-bg-sidebar)); stroke: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); stroke-width: 1.5; }
+.tp-fig .kicker { font-size: 10.5px; font-weight: 650; letter-spacing: .08em; fill: var(--sl-color-accent); }
+.tp-fig .member { fill: var(--sl-color-gray-3); }
+/* the handshake */
+.tp-handshake .code { fill: var(--sl-color-bg-sidebar); stroke: var(--sl-color-gray-5); }
+.tp-handshake .frame { fill: none; stroke: var(--sl-color-accent); stroke-width: 2; stroke-linecap: round; }
+.tp-handshake .step { fill: var(--sl-color-bg-sidebar); stroke: var(--sl-color-gray-5); stroke-width: 1; }
+.tp-handshake .steptext { font-size: 12px; font-weight: 600; fill: var(--sl-color-white); }
+.tp-handshake .cred-line { stroke: var(--sl-color-accent); stroke-width: 1.5; }
+.tp-handshake .head { fill: var(--sl-color-accent); }
+.tp-handshake .cred { fill: var(--tp-tint); stroke: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); stroke-width: 1; }
+.tp-handshake .credtext { font-size: 11.5px; font-weight: 600; fill: var(--sl-color-accent-high); }
+/* the deliberate trust: green, here only */
+.tp-trust .derive { stroke: var(--sl-color-accent); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.tp-trust .bracket { fill: none; stroke: var(--success); stroke-width: 2; }
+.tp-trust .trustline { stroke: var(--success); stroke-width: 2; }
+.tp-trust .trusthead { fill: var(--success); }
+.tp-trust .trustchip { fill: var(--tp-ok-bg); stroke: var(--tp-ok-border); stroke-width: 1; }
+.tp-trust .trustglyph { fill: none; stroke: var(--success); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tp-trust .trusttext { font-size: 11.5px; font-weight: 600; fill: var(--success); }
+.tp-trust .ok { font-size: 11.5px; fill: var(--success); }
+.tp-trust .other { fill: none; stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.tp-trust .otherinitial { font-size: 13px; font-weight: 700; fill: var(--sl-color-gray-3); }
+/* the invitation */
+.tp-invitation .choice { fill: var(--sl-color-bg-sidebar); stroke: var(--sl-color-gray-5); stroke-width: 1; }
+.tp-invitation .keychip { fill: var(--tp-tint); stroke: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); stroke-width: 1; }
+.tp-invitation .keyglyph { fill: none; stroke: var(--sl-color-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tp-invitation .keytext { font-size: 11.5px; font-weight: 600; fill: var(--sl-color-accent-high); }

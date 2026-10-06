@@ -1,0 +1,54 @@
+---
+/**
+ * From your graph into a group: Ana invites Ben, the invitation is a
+ * credential he accepts or declines, the group admits him by its own rule
+ * and the welcome brings him the key. The group has the shape of the
+ * Access figure. Styles: site.css, .tp-fig and .tp-invitation.
+ */
+import { icons } from '../icons'
+---
+<figure class="tp-fig tp-invitation">
+  <svg viewBox="0 0 560 330" role="img" aria-labelledby="fig-invitation-title">
+    <title id="fig-invitation-title">Ana knows Ben and Peter. She invites Ben: the invitation is a credential he can accept or decline. The Garden group admits him by its own rule, and the welcome brings him the key.</title>
+
+    <!-- Ana's graph -->
+    <line x1="70" y1="160" x2="70" y2="86" class="edge" />
+    <line x1="70" y1="160" x2="140" y2="160" class="edge" />
+    <circle cx="70" cy="160" r="26" class="seed" />
+    <text x="70" y="165" class="seedname" text-anchor="middle">Ana</text>
+    <circle cx="70" cy="70" r="16" class="person" style="--c: #f0708a" />
+    <text x="70" y="74" class="initial" text-anchor="middle">P</text>
+    <text x="96" y="74" class="name">Peter</text>
+    <circle cx="156" cy="160" r="16" class="person" />
+    <text x="156" y="164" class="initial" text-anchor="middle">B</text>
+    <text x="156" y="200" class="name" text-anchor="middle">Ben</text>
+    <text x="100" y="238" class="note" text-anchor="middle">people Ana knows</text>
+
+    <!-- invite, accept -->
+    <line x1="176" y1="160" x2="252" y2="160" class="flow" />
+    <rect x="186" y="118" width="80" height="24" rx="12" class="chip" />
+    <text x="226" y="134" class="chiptext" text-anchor="middle">invite</text>
+    <rect x="252" y="140" width="112" height="40" rx="10" class="choice" />
+    <g transform="translate(262 150) scale(0.6)" class="glyph" set:html={icons['shield-check']} />
+    <text x="312" y="156" class="label" text-anchor="middle">accept</text>
+    <text x="312" y="172" class="muted" text-anchor="middle">or decline</text>
+    <line x1="364" y1="160" x2="418" y2="160" class="flow" />
+    <path d="M418 155 l8 5 l-8 5 z" class="head" />
+
+    <!-- the group, in the Access figure's shape -->
+    <circle cx="486" cy="160" r="60" class="place" />
+    <text x="486" y="148" class="kicker" text-anchor="middle">GARDEN</text>
+    <text x="486" y="162" class="kicker" text-anchor="middle">GROUP</text>
+    <circle cx="470" cy="184" r="4" class="member" />
+    <circle cx="486" cy="184" r="4" class="member" />
+    <circle cx="502" cy="184" r="4" class="member" style="fill: var(--sl-color-accent)" />
+
+    <rect x="382" y="240" width="156" height="24" rx="12" class="chip" />
+    <text x="460" y="256" class="chiptext" text-anchor="middle">admitted by the group's rule</text>
+    <rect x="404" y="272" width="130" height="24" rx="12" class="keychip" />
+    <g transform="translate(414 278) scale(0.5)" class="keyglyph" set:html={icons['lock']} />
+    <text x="432" y="288" class="keytext">welcome · the key</text>
+
+    <text x="280" y="320" class="note" text-anchor="middle">nobody is added without consenting</text>
+  </svg>
+</figure>

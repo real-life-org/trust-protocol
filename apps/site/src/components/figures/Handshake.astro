@@ -1,0 +1,58 @@
+---
+/**
+ * Two codes, one handshake: Ana shows a code, Ben scans it, both confirm.
+ * Each confirmation becomes a credential the other keeps, under an
+ * identifier made for this meeting. No server anywhere in the picture.
+ * Styles: site.css, .tp-fig (shared) and .tp-handshake.
+ */
+import { icons } from '../icons'
+const phone = (x: number, y: number) => ({ x, y, w: 72, h: 124 })
+const ana = phone(40, 50)
+const ben = phone(448, 50)
+const steps = [
+  { x: 200, icon: 'qr-code', text: 'show' },
+  { x: 280, icon: 'scan-line', text: 'scan' },
+  { x: 360, icon: 'shield-check', text: 'confirm' },
+] as const
+---
+<figure class="tp-fig tp-handshake">
+  <svg viewBox="0 0 560 290" role="img" aria-labelledby="fig-handshake-title">
+    <title id="fig-handshake-title">Ana's phone shows a code, Ben's phone scans it, both confirm. Ana's confirmation becomes a credential Ben keeps, Ben's a credential Ana keeps, each under an identifier made for this meeting. No server takes part.</title>
+
+    <!-- the two phones -->
+    <rect x={ana.x} y={ana.y} width={ana.w} height={ana.h} rx="12" class="device" />
+    <rect x={ana.x + 16} y={ana.y + 34} width="40" height="40" rx="5" class="code" />
+    <rect x={ben.x} y={ben.y} width={ben.w} height={ben.h} rx="12" class="device" />
+    <path d={`M${ben.x + 16} ${ben.y + 46} v-12 h12 M${ben.x + 56} ${ben.y + 34} h-12 M${ben.x + 56} ${ben.y + 34} v12 M${ben.x + 16} ${ben.y + 62} v12 h12 M${ben.x + 56} ${ben.y + 74} h-12 v0 M${ben.x + 56} ${ben.y + 74} v-12`} class="frame" />
+    <text x={ana.x + ana.w / 2} y={ana.y + ana.h + 24} class="name" text-anchor="middle">Ana</text>
+    <text x={ben.x + ben.w / 2} y={ben.y + ben.h + 24} class="name" text-anchor="middle">Ben</text>
+    <rect x={ana.x - 10} y={ana.y + ana.h + 34} width="92" height="22" rx="11" class="chip" />
+    <text x={ana.x + ana.w / 2} y={ana.y + ana.h + 49} class="mono" text-anchor="middle">pair/7f3a…</text>
+    <rect x={ben.x - 10} y={ben.y + ben.h + 34} width="92" height="22" rx="11" class="chip" />
+    <text x={ben.x + ben.w / 2} y={ben.y + ben.h + 49} class="mono" text-anchor="middle">pair/2b6c…</text>
+    <text x="280" y={ana.y + ana.h + 78} class="note" text-anchor="middle">an identifier made for this one meeting, on each side</text>
+
+    <!-- the handshake: three steps on one line between the phones -->
+    <line x1={ana.x + ana.w} y1="112" x2={ben.x} y2="112" class="link" />
+    {steps.map((s) => (
+      <g>
+        <rect x={s.x - 38} y="98" width="76" height="28" rx="14" class="step" />
+        <g transform={`translate(${s.x - 30} 105) scale(0.58)`} class="glyph" set:html={icons[s.icon]} />
+        <text x={s.x - 12} y="117" class="steptext">{s.text}</text>
+      </g>
+    ))}
+
+    <!-- two credentials, one each way -->
+    <line x1={ana.x + ana.w + 8} y1="150" x2={ben.x - 14} y2="150" class="cred-line" />
+    <path d={`M${ben.x - 14} 145 l8 5 l-8 5 z`} class="head" />
+    <rect x="186" y="138" width="188" height="24" rx="12" class="cred" />
+    <text x="280" y="154" class="credtext" text-anchor="middle">credential for Ben · signed by Ana</text>
+
+    <line x1={ben.x - 8} y1="186" x2={ana.x + ana.w + 14} y2="186" class="cred-line" />
+    <path d={`M${ana.x + ana.w + 14} 181 l-8 5 l8 5 z`} class="head" />
+    <rect x="186" y="174" width="188" height="24" rx="12" class="cred" />
+    <text x="280" y="190" class="credtext" text-anchor="middle">credential for Ana · signed by Ben</text>
+
+    <text x="280" y="278" class="note" text-anchor="middle">with or without a network · no server in between</text>
+  </svg>
+</figure>
