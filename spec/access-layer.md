@@ -1042,8 +1042,9 @@ exit the next transition discharges. A member with the right to
 rotate can delay a dissolution by rotating beside it, never prevent
 it, because the dissolution is re-issuable over every new state and
 no fork arises; that delay is an insider residual, attributable and
-bounded by the members' own patience. Content keeps flowing in the forked state; only
-authorization answers fail closed. A malicious authorized member
+bounded by the members' own patience. In the forked state evidence
+and ciphertext keep travelling, while reads, writes and authority
+answers fail closed (RLTP-ACC-3640). A malicious authorized member
 can force this state; that is denial of service by an insider
 against their own group, fail-closed and attributable, never an
 authority gain.
@@ -1229,9 +1230,11 @@ change, membership change, epoch change and terminality.
 
 **RLTP-ACC-3605** — At production, the helper MUST verify that the
 recipient is a current member of the token's snapshot, that the
-admission entitling them is canonical, and that no
-membership-ending operation lies in that snapshot's ancestry for
-them, and MUST bind the material to exactly that snapshot's epoch.
+admission entitling them is canonical, and that no operation ending
+that admission's membership — a removal or discharged exit later
+than the admission and not followed by a further canonical
+admission — lies in that snapshot's ancestry, and MUST bind the
+material to exactly that snapshot's epoch.
 
 **RLTP-ACC-3610** — At the send handoff, the helper MUST re-read the
 token atomically with the handoff and, if it changed, discard the
@@ -1723,18 +1726,13 @@ group can never lock itself out of its own constitution.
 }
 ```
 
-A policy maps **rule keys** to rules. Most rule keys are operation
-types; one is an **aspect key**, `history.narrow`, evaluated in
-addition to the operation's own rule.
+A policy maps **rule keys** to rules; every rule key is an
+operation type.
 
 **RLTP-ACC-4010** — A group MUST have a policy from its genesis on.
 
 **RLTP-ACC-4020** — `policyVersion` MUST increase by exactly 1 with
 every effective `policy.change`.
-
-**RLTP-ACC-4030** — The rule key `history.narrow` MUST gate the
-narrowing act as the key adapter defines it (9.4.1, RLTP-ACC-9790),
-in addition to the operation's own rule.
 
 **RLTP-ACC-4040** — A rule key without an explicit rule in the
 group's policy MUST evaluate under its registered default from the
@@ -1748,7 +1746,6 @@ table below.
 | `policy.change` | `strongest` |
 | `visibility.change` | `strongest` |
 | `history.expose` | `strongest` |
-| `history.narrow` (aspect; `linear/0.1`, 9.4.1) | `strongest` |
 | `lineage.repair` (`linear/0.1`, 9.4.1) | `any-member` |
 | `dag.join` | `any-member` |
 | `document.attach` | `any-member` |
@@ -2598,8 +2595,9 @@ device's binding in force at the helper's state; a request under a
 member anchor alone, or with a card that matches no binding, MUST
 be refused.
 
-**RLTP-ACC-5570** — A request from an anchor whose membership has
-ended by a removal or a discharged exit MUST be refused.
+**RLTP-ACC-5570** — A request from an anchor whose current
+membership has ended by a removal or a discharged exit, with no
+later canonical admission, MUST be refused.
 
 **RLTP-ACC-5580** — An entitled request MUST be answered with fresh
 material produced by the key port at the helper's current position,
@@ -3010,7 +3008,7 @@ order, buffering on a gap and recovering material through the key
 port or a key request (5.3).
 
 **RLTP-ACC-7060** — A bootstrap across a key state the adapter's
-chain does not open MUST surface that key state as narrowed.
+chain does not open MUST surface that key state as a gap.
 
 **RLTP-ACC-7070** — An operation that removes or narrows standing
 authority in a continuing group without carrying an epoch
@@ -3807,27 +3805,26 @@ decision `history.expose` requires. Closing takes effect from
 `newEpoch`; what was world-readable remains so factually, and
 knowledge cannot be withdrawn.
 
-**RLTP-ACC-8070** — `history.expose { fromEpoch, toEpoch?, keys }`
-MUST be valid only where the materialized visibility at its
-declared position is `open`, with `fromEpoch` earlier than the
-opening epoch `E`, and MUST be the only way to expose content of
-epochs before `E`.
+**RLTP-ACC-8070** — `history.expose { toEpoch?, keys }` MUST be
+valid only where the materialized visibility at its declared
+position is `open`, and MUST be the only way to expose content of
+epochs before the opening epoch `E`.
 
-**RLTP-ACC-8080** — A present `toEpoch` MUST satisfy
-`fromEpoch < toEpoch ≤ E`; an absent `toEpoch` defaults to `E`.
+**RLTP-ACC-8080** — A present `toEpoch` MUST satisfy `0 < toEpoch ≤
+E`; an absent `toEpoch` defaults to `E`; exposure always begins at
+the genesis, because a key state's key opens every key state its
+lineage reaches, so no exposure can stop short of the beginning.
 
 **RLTP-ACC-8090** — `keys` MUST be an array of at most 4096 entries
 `{ "keyState": <identifier>, "key": … }`, each naming a key state
-whose exposure epoch lies in `[fromEpoch, toEpoch)` — the genesis
-key state has exposure epoch 0, a transition-created key state its
-`newEpoch`, a merged key state the maximum over the states it
-merges — in the form the group's adapter defines (for `linear/0.1`,
-9.4.1), each verified at materialization against the log's binding
-of its key state; one operation MAY name a subset of the span's key
-states, and the span counts as exposed when the union of canonical
-`history.expose` operations over it names every key state in it
-(Section
-9.2).
+whose exposure epoch lies in `[0, toEpoch)` — the genesis key state
+has exposure epoch 0, a transition-created key state its `newEpoch`,
+a merged key state the maximum over the states it merges — in the
+form the group's adapter defines (for `linear/0.1`, 9.4.1), each
+verified at materialization against the log's binding of its key
+state; one operation MAY name a subset, and the span counts as
+exposed when the union of canonical `history.expose` operations
+names every key state in it (Section 9.2).
 
 **RLTP-ACC-8100** — One `history.expose` MUST cover at most 4096
 epochs.
@@ -4176,7 +4173,8 @@ transition itself commits to MUST NOT carry `keyState`, its key
 state being the committing transition (RLTP-ACC-3005).
 
 **RLTP-ACC-9370** — Welcome material MUST be re-derivable at any
-later materialized position of the same epoch.
+later materialized position whose current key state is the one the
+material names (RLTP-ACC-9362), for a recipient entitled there.
 
 **RLTP-ACC-9380** — Welcome material MUST fit the welcome plaintext
 budget (Membership §4).
@@ -4270,10 +4268,9 @@ retrofit of an immutable distribution.
 **Healing: KV6 under `linear/0.1`.**
 
 **RLTP-ACC-9865** — Under `linear/0.1`, a healing need MUST exist
-whenever a member's materialization holds two or more canonical key
-states with no canonical key state that succeeds all of them
-through `succeeds` edges (RLTP-ACC-9872); the need ends exactly
-when such a successor is canonical.
+whenever the current key states of a member's position
+(RLTP-ACC-9873) number two or more, whichever transitions created
+them; the need ends exactly when they number one.
 
 **RLTP-ACC-9866** — While a healing need exists, writes MUST fail
 closed, and each member reads under the key states it holds.
@@ -4287,13 +4284,11 @@ rule key; any other key holder MAY.
 
 **RLTP-ACC-9871** — While a healing need exists, every enforcement
 operation a key holder issues MUST bridge, by lineage entries, every
-succeeded key state whose key the issuer holds, unless the operation
-carries an authorized `historyNarrow` (RLTP-ACC-9790) or the key
-state is narrowed (RLTP-ACC-9784); this is a duty of the issuer, and
-a receiver MUST judge the lineage only by the verifiability of the
-entries it carries, surfacing a succeeded key state without a
-verifying edge as a gap (RLTP-ACC-9780) — closed and narrowed edges
-excepted — without rejecting the operation.
+succeeded key state whose key the issuer holds; this is a duty of
+the issuer, and a receiver MUST judge the lineage only by the
+verifiability of the entries it carries, surfacing a succeeded key
+state without a verifying edge as a gap (RLTP-ACC-9780) without
+rejecting the operation.
 
 **RLTP-ACC-9872** — A transition's `succeeds` field MUST name exactly
 the current key states of the transition's position — all of them
@@ -4306,13 +4301,17 @@ under the recovery form (RLTP-ACC-9770) an earlier key state its
 author holds. `prev` orders operations and names no key states.
 
 **RLTP-ACC-9873** — The current key states of a position MUST be
-computed from the ancestor materialization alone: the genesis key
-state to begin with; every canonical or lapsed transition removes
-the key states its `succeeds` names and adds its own; and under an
-adapter that merges secrets (RLTP-ACC-9310), a set of more than one
-current transition-created key state counts as the single merged
-key state of RLTP-ACC-9264, which a later transition names in
-`succeeds`. Key possession plays no part in the computation.
+computed from the ancestor materialization alone, over the set of
+transition-created key states: the genesis key state to begin with;
+every canonical or lapsed transition, in 3.5's fold order, removes
+the transition-created key states its `succeeds` names — a merged
+identifier (RLTP-ACC-9264) named there expanding to the
+transition-created states it merges — and adds its own; and only
+for the finished set of a position, under an adapter that merges
+secrets (RLTP-ACC-9310), a set of more than one state is presented
+as the single merged key state of RLTP-ACC-9264, which the next
+transition names in `succeeds`. Key possession plays no part in the
+computation.
 
 **RLTP-ACC-9868** — Two concurrent healing rotations MUST be two
 key states under RLTP-ACC-9865, producing one further need.
@@ -4363,53 +4362,30 @@ serialization of `{ "genesis", "newEpoch": <this transition's
 newEpoch>, "opens": <the opened transition's id> }`.
 
 **RLTP-ACC-9762** — Under `linear/0.1`, a healing rotation MUST name
-in `succeeds` at least two open key states, up to the bound, and,
-unless it carries an authorized `historyNarrow`, MUST carry one
-lineage entry per succeeded key state its author holds; open key
+in `succeeds` at least two open key states, up to the bound, and
+MUST carry one lineage entry per succeeded key state its author
+holds; open key
 states it does not succeed remain a need under RLTP-ACC-9865, and
 succeeded ones it does not hold are history gaps under
 RLTP-ACC-9780, with the repair duty on whoever holds them.
 
 **RLTP-ACC-9770** — Under `linear/0.1`, a lineage entry opening a key
 state other than a direct predecessor is the recovery form and MUST
-be gated only by the operation's own rule, within RLTP-ACC-9784.
+be gated only by the operation's own rule.
 
 **RLTP-ACC-9780** — Under `linear/0.1`, a lineage edge that is
 missing or fails verification MUST be surfaced per edge as a gap in
 reachability from the member's current key state and, once a
 canonical repair opens it, as repaired.
 
-**RLTP-ACC-9782** — Under `linear/0.1`, every edge from a transition
-carrying an authorized `historyNarrow` (RLTP-ACC-9790) to the key
-states it succeeds MUST be a closed edge: not a gap and under no
-repair duty.
-
-**RLTP-ACC-9784** — A key state MUST count as narrowed at a position
-when a canonical transition with an authorized `historyNarrow` lies
-in that position's ancestry and the key state lies in that
-transition's ancestry, unless a canonical `history.expose`
-(Section 8) in the position's ancestry names the key state; at such
-a position no lineage entry, no `lineage.repair` and no historical
-material (RLTP-ACC-10112) MAY open a narrowed key state, and a
-transition or repair that does so MUST be rejected as invalid.
-
-**RLTP-ACC-9786** — A replica MUST NOT follow a lineage path into a
-key state that is narrowed at its current position, whichever
-branch the path was made on; a bridge made concurrently with the
-narrowing stays in the log and is the stated residual of a
-narrowing that merges late.
-
-**RLTP-ACC-9790** — Under `linear/0.1`, a transition without
-`lineage` is the narrowing act and its proof MUST satisfy
-`history.narrow` (4.1) in addition to its own rule.
-
 **RLTP-ACC-9800** — Under `linear/0.1`, `lineageVoid: true` MUST be
 valid only on a leave-discharging `epoch.rotate`, and the unbridged
 key states MUST be surfaced as damage.
 
-**RLTP-ACC-9810** — Under `linear/0.1`, a transition with none of
-`lineage`, an authorized `historyNarrow`, or (on a discharge only)
-`lineageVoid` MUST be rejected as invalid.
+**RLTP-ACC-9810** — Under `linear/0.1`, a transition with neither
+`lineage` nor (on a discharge only) `lineageVoid` MUST be rejected
+as invalid; history is never narrowed, a new member reads as far as
+the chain reaches.
 
 **RLTP-ACC-9820** — Under `linear/0.1`, members MUST verify a lineage
 entry on first decryption against the commitment of the key state
@@ -4418,13 +4394,9 @@ one `(transition, opens)` edge the first in 3.5's fold order
 (RLTP-ACC-3340) MUST count.
 
 **RLTP-ACC-9830** — Under `linear/0.1`, a member holding both keys of
-a skipped or failing lineage edge that is not closed (RLTP-ACC-9782)
-and whose opened state is not narrowed (RLTP-ACC-9784) MUST publish
-the `lineage.repair` entry, body `{ "transition": <id>, "opens":
-<id>, "ct": … }`, upon materializing the gap; a repair of a closed
-edge or into a narrowed key state MUST be rejected as invalid, and
-once a canonical `history.expose` names the key state, its edges
-cease to be closed and the repair duty applies again.
+a skipped or failing lineage edge MUST publish the `lineage.repair`
+entry, body `{ "transition": <id>, "opens": <id>, "ct": … }`, upon
+materializing the gap.
 
 *Rationale.* Reachable history across a lineage edge is exactly as
 durable as the set of members holding that edge's keys: an entry is
@@ -4674,9 +4646,8 @@ accepted for the sole purpose of opening history under that key
 state (RLTP-ACC-9280), if its `epoch` names that key state's
 exposure epoch, the material verifies against the log's binding of
 that key state, the helper's device is bound and unrevoked in the
-recipient's current materialization, and the named key state is not
-narrowed at the recipient's current position (RLTP-ACC-9784); it
-MUST NOT change the recipient's current key state,
+recipient's current materialization; it MUST NOT change the
+recipient's current key state,
 and RLTP-ACC-10110 and RLTP-ACC-10120 do not apply to it.
 
 **RLTP-ACC-10120** — A document violating RLTP-ACC-10100, or
@@ -5527,8 +5498,7 @@ in both directions.
   non-member, about another subject, on `member.remove`, by the
   subject itself, or an Encounter credential in the vouch slot →
   inadmissible; duplicate vouchers counted once.
-- *Policy* — rule keys including the `history.narrow` aspect under
-  `linear/0.1` (both rules on one proof); the product-space order to
+- *Policy* — rule keys as operation types; the product-space order to
   depth 4 with the two consequences of 4.4; subject binding;
   `strongest` resolution; satisfiability against the currency with
   pending exits excluded; aggregate cost: `all[actors(A1,64), …,
@@ -5563,9 +5533,8 @@ in both directions.
   duplicate → invalid); no plaintext secret; key-envelope associated
   data bound to genesis digest, new epoch, and recipient, with
   cross-transition replay inert; commitment equality across epochs →
-  invalid; `keys` closed (an extra property invalid); lineage in
-  exactly one of `lineage`, authorized `historyNarrow`, or
-  `lineageVoid` on a discharge only; the recovery form valid under
+  invalid; `keys` closed (an extra property invalid); `lineage`
+  present, or `lineageVoid` on a discharge only; the recovery form valid under
   the operation's own rule, `opens = 0` included; a false skip
   repaired by the repair duty, a span whose key holders are all gone
   dark under every form; the first canonical `lineage.repair`
@@ -5687,6 +5656,12 @@ in both directions.
     correlate groups through the device (Section 13). An identity
     per device and group would close that; it is not in this
     version.
+13. **OI-19 History narrowing.** Withdrawn from this version: every
+    transition carries lineage, a new member reads as far as the
+    chain reaches, and `history.expose` exposes from the genesis. The
+    use cases of this layer (shared maps, calendars, marketplaces)
+    need no narrowing; a module that does, such as a chat, would
+    need it designed over key states, as an adapter form.
 
 
 ## Appendix A (informative): implementation notes
