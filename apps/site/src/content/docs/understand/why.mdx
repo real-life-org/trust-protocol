@@ -75,6 +75,13 @@ own relationships needs neither. That is why the invitation works
 offline, on a festival field or in a village without a connection: no
 server and no authority stands in the path.
 
+Inside RLTP, a trust statement is for one person. Every encounter uses
+fresh identifiers, and when you trust someone, you link your
+identifiers for that one person, in a form only they can check. It
+tells your contact who you are. It gives them nothing they could
+present to anyone else, so your graph never turns into a list someone
+can collect.
+
 A credential freezes trust. A relationship keeps it alive. A frozen
 object can be checked by someone who knows nothing else about you; a
 living relationship needs people who know each other. So each figure
@@ -92,13 +99,15 @@ blocks: the identifier, the credential, the presentation, the status and
 the wallet. Each is a statement about someone, held by someone, shown to
 someone. A group is not among them. It is built on top: as an issuer of
 membership credentials, as a registry, or as an encrypted room on a
-server, run by an owner who decides who gets in.
+server. In such a room the server holds the data and an owner decides
+who gets in; to read or write, members need the server to be there.
 
 RLTP makes the group a building block of its own:
 [a place its members hold together](/understand/foundations/#groups).
 It is an encrypted document on every member's device, with a log of who
 joined, who left and which rules apply. No owner decides; the group's
-own rule does. Whoever is inside holds the key, and the key opens the
+own rule does. Members read and write without a server, and their
+copies merge when they meet again. Whoever is inside holds the key, and the key opens the
 shared data. Being a member means holding a place, not holding a claim.
 
 | Statement | Place |
@@ -126,6 +135,15 @@ The protocol keeps to that rule, from its carriers to its credentials;
 demands presenting, as with proof of age, we build windows, not master
 keys: a narrow proof answers exactly one question, and the graph itself
 is never shown.
+
+## Built on the DTG, for the side without servers
+
+RLTP uses the credentials, the Trust Tasks and the transport of the ToIP
+Decentralized Trust Graph work. OpenVTC builds on the same work for
+communities that meet online and can be joined from anywhere. RLTP
+builds for communities that meet in person and often have no server
+they can reach. [RLTP and OpenVTC](/understand/openvtc/) compares the
+two.
 
 One side optimizes showing. We optimize inviting. Same credential, two
 verbs.

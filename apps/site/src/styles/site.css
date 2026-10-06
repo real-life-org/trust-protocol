@@ -429,3 +429,21 @@ a.tp-ports-chip:hover, .tp-ports a.chip:hover { border-color: var(--sl-color-acc
   .tp-ports .subs { grid-column: 3; flex-direction: row; flex-wrap: wrap; margin-top: -.5rem; }
   .tp-ports .rail { grid-row: 1 / 5; }
 }
+
+/* RLTP and OpenVTC: the bridge between the credential world and shared places. */
+.sl-markdown-content .tp-bridge { margin: 1.5rem auto; max-width: 36rem; }
+.tp-bridge svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tp-bridge figcaption { margin-top: .6rem; font-size: .9rem; color: var(--sl-color-gray-3); text-align: center; }
+.tp-bridge text { font-family: var(--font-sans); fill: var(--sl-color-gray-2); }
+.tp-bridge .title { font-size: 16px; font-weight: 600; }
+.tp-bridge .title.cp { fill: var(--sl-color-gray-2); }
+.tp-bridge .title.inv { fill: var(--sl-color-accent); }
+.tp-bridge .item { font-size: 15px; fill: var(--sl-color-white); }
+.tp-bridge .note { font-size: 14px; fill: var(--sl-color-gray-3); }
+.tp-bridge .note.strong { fill: var(--sl-color-gray-2); font-weight: 600; }
+.tp-bridge .bank { fill: none; stroke-width: 1.2; }
+.tp-bridge .bank.cp { stroke: var(--sl-color-gray-4); }
+.tp-bridge .bank.inv { stroke: var(--sl-color-accent); }
+.tp-bridge .cross { stroke: var(--sl-color-accent); stroke-width: 1.4; }
+.tp-bridge .head { fill: var(--sl-color-accent); }
+.tp-bridge .rule { stroke: var(--sl-color-gray-5); stroke-width: 1; }
