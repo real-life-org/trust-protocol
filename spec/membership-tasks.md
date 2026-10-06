@@ -38,11 +38,9 @@ This is an Editor's Draft with no standing beyond its own argument.
 The reference library implements its payload schemas and the welcome
 seal; the bootstrap lifecycle it references is the Access layer's
 and is exercised there. The next expected changes are the carrier
-for a bootstrap under the experimental adapter `beekem/0.1` (MO-7),
-the request and the recovery bootstrap for a bound device that the
-Access layer still has to define (MO-8, MO-9), and the move to
-Trust Tasks framework 0.7.0 together with the Access layer and the
-Delivery Contract; each is a new version. Open
+for a bootstrap under the experimental adapter `beekem/0.1` (MO-7)
+and the move to Trust Tasks framework 0.7.0 together with the Access
+layer and the Delivery Contract; each is a new version. Open
 questions are listed in Section 9, and feedback is welcome via the
 issues of the publication repository
 (github.com/real-life-org/trust-protocol).
@@ -1048,10 +1046,10 @@ binding, which the Access layer derives from the accept's card
 
 **RLTP-MT-3565** — After every held candidate has failed or the
 window has closed, the invitee MUST request afresh by an
-authenticated key request (RLTP-ACC-10330), naming in `op` the
-admission its candidate named where it holds one; an invitee that
-holds no canonical admission identifier has no request form today
-(MO-8).
+authenticated key request as RLTP-ACC-10330 states: by admission
+reference (RLTP-ACC-10172) unless it holds an admission as canonical
+from a materialized state, an identifier learned only from a failed
+candidate never counting.
 
 **RLTP-MT-3570** — `access-operation/0.1` MUST travel through the
 Delivery port (RLTP-ACC-10010) and MUST NOT be stored or forwarded
@@ -1062,7 +1060,9 @@ apply to it.
 welcome can be sealed to; a second device cannot hold group keys
 before the person is a member, and afterwards the key service duty
 reaches it like any device. The fresh request is the invitee's own
-way back after a failed bootstrap and needs no new consent. Naming
+way back after a failed bootstrap and needs no new consent; it
+claims by what it holds, its own accept, so a fabricated identifier
+in a failed candidate cannot send it down a dead end. Naming
 the Delivery port closes the reading that a service of class `view`
 could gate the welcome of a person who is not yet in its view.
 
@@ -1654,7 +1654,8 @@ device under Access 5.3 — answered to a device bound to the member's
 anchor and not revoked at the helper's state, sealed to that
 device's key (RLTP-ACC-5560, RLTP-ACC-5565, RLTP-ACC-5580) — is not
 a bootstrap and is not restricted by this rule; a bound device
-holding no replica yet has no adoption path today (MO-9).
+holding no replica yet bootstraps from that material as Access 10.1
+states (RLTP-ACC-10332 to RLTP-ACC-10338), sealed to its own key.
 
 *Rationale.* A person who never accepts never holds group material,
 and a substituted card breaks a mandatory check at receipt, at
@@ -1798,19 +1799,6 @@ results.
    RLTP-ACC-10200 states for the re-welcome, is to be settled with
    the Access layer; until then a bootstrap under `beekem/0.1` is
    experimental.
-5. **MO-8 Request without a known admission identifier.** The key
-   request of Access 10.1 names the canonical admission it claims
-   under in `op`; an invitee whose candidates have all failed holds
-   its invite and accept, which carry no such identifier. The Access
-   layer needs a request that identifies the admission by genesis
-   digest, subject and accept digest.
-6. **MO-9 Recovery bootstrap for a bound device without a replica.**
-   Recovery material for a bound device that holds no replica yet is
-   disposed pending (RLTP-ACC-10190), and provisional adoption exists
-   only for the re-welcome sealed to the accept card (RLTP-ACC-10200).
-   The Access layer needs a recovery bootstrap: binding to the
-   device's own request, provisional limits, and verification of
-   admission, membership, device binding and revocation at the log.
 
 
 ## 10. Conformance
@@ -1867,14 +1855,9 @@ and a pin wider than the two forms this document carries would
 contradict the versions Access gives its other forms.
 
 *Editor's note.* The Delivery Contract 0.79 (4.4) still registers
-`membership-evidence/0.1`, and Access RLTP-ACC-14020 still names
-Membership Tasks 0.16; and Access RLTP-ACC-10240 keeps a displaced
-provisional candidate's disposition as `duplicate-known` on re-send
-without separating that displacement marker from the Delivery
-completed-effect entry. All three follow in their next versions.
-Until then the registration of this document's types is the one this
-document states, as their owner, and a displaced candidate's
-redelivery is read as RLTP-MT-3550 states.
+`membership-evidence/0.1`; it follows in its next version, and until
+then the registration of this document's types is the one this
+document states, as their owner.
 
 **RLTP-MT-10070** — The following schemas MUST be normative and MUST
 ship with offline closure: `schemas/payload-membership-invite.schema.json`

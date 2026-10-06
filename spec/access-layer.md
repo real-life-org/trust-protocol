@@ -4572,12 +4572,12 @@ The `payload` is a `keyDelivery` object with these fields:
 | `group` | the group DID |
 | `genesisDigest` | the group's identity (3.2) |
 | `epoch` | the epoch the material belongs to; for `request`, the requester's best knowledge, informative |
-| `op` | the `oid:` of the operation this document serves; for `request`, the operation the claim rests on, or absent where the requester holds no identifier of a canonical admission (RLTP-ACC-10172) |
+| `op` | the `oid:` of the operation this document serves; for `request`, the operation the claim rests on — a canonical admission of the requester, or the genesis for the founder — or absent where the requester holds no such identifier (RLTP-ACC-10172) |
 | `admission` | for `request` without `op`: `{ "subject": <member anchor>, "acceptDigest": <document digest of the accept> }`, the admission reference of RLTP-ACC-10172; absent otherwise |
 | `subject` | the entitled member anchor (RLTP-ACC-10105) |
 | `kind` | `request`, or a material kind the group's adapter registers |
 | `sealed` | for material kinds: the sealed material, shape per `sealed-envelope.schema.json` and per kind; absent for `request` |
-| `card` | for `request`: the requester's contact card in the displayed form; absent otherwise |
+| `card` | for `request`: the requesting device's card, or for a first device the contact card whose derived binding applies (RLTP-ACC-5565, RLTP-ACC-10065); absent otherwise |
 
 The material kinds are registered per adapter (Section 9.4).
 `linear/0.1` registers three:
@@ -4700,12 +4700,14 @@ operation, card, or epoch.
 its own state MUST be disposed `failed(validation-failed)`
 immediately, never pending.
 
-**RLTP-ACC-10172** — A `request` whose issuer holds no identifier of
-a canonical admission MUST carry, in place of `op`, the admission
-reference `admission { subject, acceptDigest }`: the claiming member
-anchor and the document digest of the accept the requester issued,
-with `subject` equal to the request's `issuer` and to
-`keyDelivery.subject`.
+**RLTP-ACC-10172** — A `request` MUST name in `op` a canonical
+admission of the requester held from a materialized state, or the
+genesis for the founder, whose identifier the founder holds as its
+pin (3.2); a requester that holds neither MUST carry, in place of
+`op`, the admission reference `admission { subject, acceptDigest }`:
+the claiming member anchor and the document digest of the accept the
+requester issued, with `subject` equal to the request's `issuer` and
+to `keyDelivery.subject`.
 
 **RLTP-ACC-10174** — A receiver MUST resolve an admission reference
 to the canonical admissions of `subject` in its own materialized
@@ -4897,7 +4899,11 @@ the invitee and the device's binding reference (RLTP-ACC-5127 or the
 `device.add` identifier) in place of the accept, except that
 RLTP-ACC-10338 replaces RLTP-ACC-10290 as the gate at first
 materialization: person conditions are checked against `subject`,
-device conditions against the device.
+device conditions against the device; and RLTP-ACC-10330 applies
+with the device as the requester, which keeps its request basis —
+its person's anchor, the pin, its device card, and the `op` or
+admission reference of RLTP-ACC-10172 — outside the provisional
+state, so that a wipe never removes what the next request needs.
 
 **RLTP-ACC-10338** — A bound device's bootstrap MUST succeed only if,
 at first materialization, `subject` is a member of that state, the
