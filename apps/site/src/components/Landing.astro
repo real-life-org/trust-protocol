@@ -3,6 +3,7 @@ import Icon from './Icon.astro'
 import GroupPlace from './figures/GroupPlace.astro'
 import SharedSpace from './figures/SharedSpace.astro'
 import Ports from './figures/Ports.astro'
+import Anchors from './figures/Anchors.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -18,11 +19,6 @@ const ways: { title: string; text: string; href: string; icon: IconName; cta: st
 ]
 
 type Card = [IconName, string, string, string]
-const identity: Card[] = [
-  ['fingerprint', 'One root seed', 'A BIP-39 mnemonic. Everything else is derived from it.', spec('identity-layer.md')],
-  ['waypoints', 'An anchor per context', 'A did:key for each relationship, each group, the public.', spec('identity-layer.md')],
-  ['hard-drive', 'Recovery', 'The mnemonic restores every key. Which contexts exist is data, kept in the person\'s encrypted state.', spec('identity-layer.md')],
-]
 const encounter: Card[] = [
   ['wot', 'The ceremony', 'Show, scan, confirm. Connected or fully offline, switching freely.', spec('encounter-layer.md')],
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
@@ -70,14 +66,10 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <div class="tp-badge">Identity</div>
       <h2>One seed, an anchor per context</h2>
       <p>A person is one mnemonic. Every identifier toward a relationship, a group or the public is derived from it as a <code>did:key</code>.</p>
-      <p>Contexts never link unless their holder decides to link them.</p>
+      <p>Contexts never link unless their holder decides to link them. The mnemonic restores every key.</p>
       <p><a class="tp-more" href="/understand/foundations/#identifiers" aria-label="More on identifiers, in Foundations">More →</a></p>
     </div>
-    <div class="tp-list">
-      {identity.map(([icon, name, desc, href]) => (
-        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
-      ))}
-    </div>
+    <Anchors />
   </section>
 
   <section class="tp-section flip band" id="encounter">
