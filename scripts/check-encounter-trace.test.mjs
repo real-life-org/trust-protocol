@@ -158,3 +158,47 @@ test('access CLI: --layer access checks, writes manifests; an unknown layer exit
   assert.equal(w2.status, 0, w2.stderr)
   assert.match(require('node:fs').readFileSync(out, 'utf8'), /^# Access Layer 0\.54/)
 })
+
+// ── Membership Tasks (`--layer membership`, prefix RLTP-MT) ──────────────
+// The membership inventory carries the target ID in its own column
+// (`Ziel-ID`), not in the first; `= RLTP-MT-…` references, `inf. (= …)`,
+// `Plan`, `Def.`, `Rat.` and `—` are no IDs of their own.
+const MGOOD = '**RLTP-MT-2010** — The Access layer MUST own authority.\n\n**RLTP-MT-10020** — This profile MUST pin the wire.'
+const MHEAD = '| # | 0.16 Stelle | 0.16 Text | Ziel-ID | Änderung | Notiz |\n|---|---|---|---|---|---|\n'
+const minventory = (cells) => file('## A. Zählung\n| x | RLTP-MT-9990 |\n## B. Rückverfolgung\n\n### §0\n\n' + MHEAD +
+  cells.map((c, i) => `| ${i + 1} | Kopf | „Text mit \`a\\|b\`“ | ${c} | = | |\n`).join('') + '\n## C. Abhängigkeiten\n\n' + MHEAD + '| 1 | x | y | RLTP-MT-9999 | A54 | |\n')
+const mrun = (s, m, cells) => checkTrace({ layer: 'membership', spec: spec(s), manifest: manifest(m), inventory: cells === undefined ? null : minventory(cells) })
+
+test('membership: complete trace passes; only own Ziel-IDs of part B count', () => {
+  assert.deepEqual(mrun(MGOOD, ['RLTP-MT-2010', 'RLTP-MT-10020']).errors, [])
+  assert.deepEqual(mrun(MGOOD, ['RLTP-MT-2010', 'RLTP-MT-10020'],
+    ['RLTP-MT-2010', '= RLTP-MT-2010', 'inf. (= RLTP-MT-10020)', '= RLTP-MT-10020, 3505', 'Plan', 'Def.', 'Rat.', 'inf.', '—', 'RLTP-MT-10020']).errors, [])
+  has(mrun(MGOOD, ['RLTP-MT-2010', 'RLTP-MT-10020'], ['RLTP-MT-2010', '= RLTP-MT-10020']), 'RLTP-MT-10020: a rule in the specification, not in the inventory')
+  has(mrun(MGOOD, ['RLTP-MT-2010', 'RLTP-MT-10020'], ['RLTP-MT-2010', 'RLTP-MT-10020', 'RLTP-MT-3005']), 'RLTP-MT-3005: in the inventory, not a rule')
+  has(mrun(MGOOD, ['RLTP-MT-2010', 'RLTP-MT-10020'], ['RLTP-MT-2010', 'RLTP-MT-10020', 'RLTP-MT-2010']), 'inventory lists RLTP-MT-2010 more than once')
+  has(mrun(MGOOD, ['RLTP-MT-2010']), 'RLTP-MT-10020: a rule in the specification, not in the manifest')
+  has(mrun(MGOOD + '\n\n**RLTP-ACC-3005** — Other layer.', ['RLTP-MT-2010', 'RLTP-MT-10020', 'RLTP-ACC-3005']), 'malformed identifier "RLTP-ACC-3005"')
+})
+
+test('membership: the Ziel-ID column is found by its header, escaped pipes do not shift it', () => {
+  const text = '## B. Rückverfolgung\n' + MHEAD + '| 1 | a \\| b | RLTP-MT-1111 | RLTP-MT-2010 | = | RLTP-MT-3333 |\n' +
+    '| # | Ziel-ID | Notiz |\n|---|---|---|\n| 2 | RLTP-MT-10020 | RLTP-MT-4444 |\n'
+  assert.deepEqual(inventoryIds(text, 'RLTP-MT', 'B', 'Ziel-ID'), ['RLTP-MT-2010', 'RLTP-MT-10020'])
+  assert.deepEqual(inventoryIds('## B. x\n| # | Notiz |\n|---|---|\n| 1 | RLTP-MT-2010 |\n', 'RLTP-MT', 'B', 'Ziel-ID'), [])
+})
+
+test('membership CLI: --layer membership checks and writes the manifest from the spec', () => {
+  const { spawnSync } = require('node:child_process')
+  const cli = (...a) => spawnSync(process.execPath, [new URL('./check-encounter-trace.mjs', import.meta.url).pathname, ...a], { encoding: 'utf8' })
+  const s = spec(MGOOD)
+  const out = join(dir, 'membership-written.txt')
+  const w = cli('--layer', 'membership', '--write-manifest-from-spec', s, '--manifest', out)
+  assert.equal(w.status, 0, w.stderr)
+  const text = require('node:fs').readFileSync(out, 'utf8')
+  assert.match(text, /^# Membership Tasks 0\.17/)
+  assert.match(text, /--layer membership --write-manifest-from-spec/)
+  assert.deepEqual(manifestIds(text), ['RLTP-MT-2010', 'RLTP-MT-10020'])
+  const ok = cli('--layer', 'membership', '--spec', s, '--manifest', out, '--inventory', minventory(['RLTP-MT-2010', 'RLTP-MT-10020']))
+  assert.equal(ok.status, 0, ok.stderr)
+  assert.equal(cli('--layer', 'membership', '--spec', s, '--manifest', out, '--inventory', minventory(['RLTP-MT-2010'])).status, 1)
+})

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://real-life.org/trust-tasks/membership-evidence/0.2",
-  "title": "Payload: membership-evidence/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4)",
-  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The evidence relay: the complete invite and accept documents travel enclosed (their signed recipients are facts of the pair, not the task's recipient), so any authorized member can verify the consent chain and complete the admission; optional vouches (vouch@2, at most 16, Access RLTP-ACC-5360, RLTP-ACC-5390) travel alongside. The task document carries no proof; the enclosed documents and vouches carry their own. Normative rules in Membership Tasks 3.4. membership-evidence/0.1 is this payload without vouches and remains accepted (RLTP-MT-3815).",
+  "$id": "https://real-life.org/trust-tasks/membership-evidence/0.1",
+  "title": "Payload: membership-evidence/0.1 (rltp-membership@0.17, target Trust Tasks framework 0.4)",
+  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). membership-evidence/0.1, accepted by every receiver (Membership Tasks RLTP-MT-3815): the payload of membership-evidence/0.2 without vouches. The complete invite and accept documents travel enclosed (their signed recipients are facts of the pair, not the task's recipient), so any authorized member can verify the consent chain and complete the admission. The task document carries no proof; the enclosed documents carry their own (one carrier). Normative rules in Membership Tasks 3.4.",
   "type": "object",
   "required": [
     "evidence"
@@ -54,15 +54,6 @@
               }
             }
           ]
-        },
-        "vouches": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "$ref": "https://real-life.org/rltp/v1/schemas/access-vouch.schema.json"
-          },
-          "description": "vouch@2 credentials supporting this candidacy: credentialSubject.id = accept.subject, endorsement.accept = document digest of the enclosed accept, endorsement.genesisDigest = the invite's genesisDigest (RLTP-MT-3810)"
         }
       }
     }

@@ -19,6 +19,7 @@ Normative JSON Schemas for every wire artifact. Each spec names the schema it bi
 - [`payload-encounter-credential-delivery.schema.json`](payload-encounter-credential-delivery.schema.json)
 - [`payload-key-delivery.schema.json`](payload-key-delivery.schema.json)
 - [`payload-membership-accept.schema.json`](payload-membership-accept.schema.json)
+- [`payload-membership-evidence-0.1.schema.json`](payload-membership-evidence-0.1.schema.json)
 - [`payload-membership-evidence.schema.json`](payload-membership-evidence.schema.json)
 - [`payload-membership-invite.schema.json`](payload-membership-invite.schema.json)
 - [`payload-registry-declaration.schema.json`](payload-registry-declaration.schema.json)

@@ -1513,6 +1513,111 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the cases review 3 added are all present')
 }
 
+// ── suite: membership-tasks.json — the admission carrier and the evidence relay ──
+section('membership-tasks.json — access-operation/0.1 with welcome, membership-evidence/0.1 and /0.2 (Membership 0.17)')
+{
+  const M = J('vectors/membership-tasks.json')
+  const D = J('vectors/dtg-credentials.json')
+  const md = D.memberAnchorDerivation
+  const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
+  const op = M.payload.operation
+  const adm = op.body.admission
+  const P = 'https://real-life.org/trust-tasks/'
+  const ptr = (p) => p.split('/').slice(1).map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'))
+  const mutate = (base, m) => {
+    const doc = JSON.parse(JSON.stringify(base))
+    const at = (p) => { const parts = ptr(p); let o = doc; for (const k of parts.slice(0, -1)) o = o[k]; return [o, parts.at(-1)] }
+    for (const [p, v] of Object.entries(m.set ?? {})) { const [o, k] = at(p); o[k] = JSON.parse(JSON.stringify(v)) }
+    for (const p of m.delete ?? []) { const [o, k] = at(p); if (Array.isArray(o)) o.splice(Number(k), 1); else delete o[k] }
+    for (const [p, n] of Object.entries(m.fill ?? {})) { const [o, k] = at(p); o[k] = Array.from({ length: n }, () => JSON.parse(JSON.stringify(o[k][0]))) }
+    return doc
+  }
+  const errsOf = (data, file) => { const s = SCHEMAS[file]; return s ? validate(data, s, s) : [`schema ${file} not shipped`] }
+
+  // (a) the valid admission carrier
+  check(M.payload.operation.v === 'rltp-access/0.25' && M.welcome.plaintext.material.v === 'rltp-access-material/0.25', 'carrier transports rltp-access/0.25 and welcome material rltp-access-material/0.25 (D-2)')
+  schemaOK(M.payload, 'payload-access-operation.schema.json', 'access-operation/0.1 payload (member.add, envelope 0.25)')
+  schemaOK(op, 'access-operation-envelope.schema.json', 'enclosed operation')
+  schemaOK(M.welcome.plaintext, 'welcome.schema.json', 'welcome plaintext (material 0.25 with keyState)')
+  schemaOK(M.welcome.plaintext.material, 'access-material.schema.json', 'welcome material')
+  schemaOK(adm.invite, 'rltp-delivery-document.schema.json', 'enclosed invite document')
+  schemaOK(adm.accept, 'rltp-delivery-document.schema.json', 'enclosed accept document')
+  check(jcs(adm.invite) === jcs(D.invite.document) && jcs(adm.accept) === jcs(D.accept.document), 'the enclosed consent pair is the dtg-credentials pair, unchanged')
+  check(M.welcome.sealed && schemaOK(M.payload.welcome.sealed, 'sealed-envelope.schema.json', 'welcome seal') && jcs(M.payload.welcome.sealed) === jcs(M.welcome.sealed), 'payload carries exactly the vector seal')
+  // the task document: issuer is the author, recipient the subject, no proof
+  schemaOK(M.document, 'rltp-delivery-document.schema.json', 'access-operation/0.1 task document')
+  check(M.document.type === P + 'access-operation/0.1' && SCHEMAS['payload-access-operation.schema.json'].$id === M.document.type, 'task document type = the payload schema $id (Trust Tasks 6.3), access-operation/0.1 (D-3)')
+  check(!('proof' in M.document) && M.document.issuer === op.author && M.document.recipient === op.body.subject && jcs(M.document.payload) === jcs(M.payload), 'task document: no proof, issuer = operation author, recipient = body.subject (Membership 3.3)')
+  // operation id and signature recompute (RLTP-ACC-3100, 3105)
+  const { proof: opProof, ...opNoProof } = op
+  const sigInput = Buffer.from(jcs({ ...opNoProof, id: '' }), 'utf8')
+  check(op.id === 'oid:' + sha(sigInput).toString('base64url'), 'operation id recomputes over JCS with id empty and proof omitted (RLTP-ACC-3100)')
+  const inviterSeed = hkdf(IKM2, md.edInfo)
+  check(didOf(inviterSeed) === op.author && op.author === D.parties.inviterVoucher.anchor, 'author = the inviter party; signing seed recomputes from the second-party IKM')
+  check(opProof.signatures.length === 1 && opProof.signatures[0].signer === op.author && verifyRaw(op.author, sigInput, opProof.signatures[0].sig), 'the author signature verifies over the id input (RLTP-ACC-3105)')
+  // material names its key state: under linear/0.1 the genesis stand-in this admission succeeds
+  check(M.inputs.genesisOid === 'oid:' + sha(Buffer.from(M.inputs.genesis, 'utf8')).toString('base64url') && op.prev[0] === M.inputs.genesisOid && M.welcome.plaintext.material.keyState === M.inputs.genesisOid, 'material keyState = the genesis stand-in the operation succeeds (RLTP-ACC-9362, 9262)')
+  check(M.welcome.plaintext.material.keys.contentKey === hkdf(IKM, M.inputs.contentKey).toString('base64url'), 'content key recomputes from the oracle')
+  // (i) open the seal under the invitee's accept-card key and bind it
+  const invXSeed = hkdf(IKM, md.xInfo)
+  const openWelcome = (sealed, xSeed) => {
+    try {
+      if (sealed.rkid !== mkOf(xSeed)) return null
+      const shared = ecdhRaw(xSeed, Buffer.from(sealed.epk, 'base64url'))
+      const key = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from('rltp/v1/welcome', 'utf8'), 32))
+      const ct = Buffer.from(sealed.ciphertext, 'base64url')
+      const d = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(sealed.nonce, 'base64url'))
+      d.setAuthTag(ct.subarray(ct.length - 16))
+      return Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]).toString('utf8')
+    } catch { return null }
+  }
+  // THE binding predicate (Membership 4): the digest the operation commits
+  // to is the digest of the opened plaintext, and its binding fields name
+  // this operation's group, subject and accept
+  const welcomeBindOK = (o, pt) => o.body.admission.welcome === digestU(pt) && pt.group === o.group && pt.subject === o.body.subject && pt.accept === digestU(o.body.admission.accept)
+  check(M.payload.welcome.sealed.rkid === adm.accept.payload.accept.card.keyAgreement && mkOf(invXSeed) === adm.accept.payload.accept.card.keyAgreement, 'seal recipient = the accept card keyAgreement, whose private key recomputes from the oracle (Membership 4)')
+  const opened = openWelcome(M.payload.welcome.sealed, invXSeed)
+  check(opened !== null && opened === M.welcome.plaintextJcs && opened === jcs(M.welcome.plaintext), 'welcome seal opens under the invitee key with HKDF info rltp/v1/welcome to exactly the plaintext JCS')
+  const ephSeed = hkdf(IKM, M.inputs.ephemeral)
+  check(M.welcome.sealed.epk === pubRaw(privX(ephSeed)).toString('base64url') && M.welcome.sealed.nonce === hkdf(IKM, M.inputs.nonce).subarray(0, 12).toString('base64url'), 'ephemeral key and nonce recompute from the oracle')
+  check((() => { const s = M.welcome.sealed; const shared = ecdhRaw(invXSeed, Buffer.from(s.epk, 'base64url')); const k = Buffer.from(crypto.hkdfSync('sha256', shared, Buffer.alloc(0), Buffer.from('rltp/v1/seal', 'utf8'), 32)); try { const ct = Buffer.from(s.ciphertext, 'base64url'); const d = crypto.createDecipheriv('aes-256-gcm', k, Buffer.from(s.nonce, 'base64url')); d.setAuthTag(ct.subarray(ct.length - 16)); d.update(ct.subarray(0, ct.length - 16)); d.final(); return false } catch { return true } })(), 'the welcome seal does NOT open under the delivery info rltp/v1/seal (domain separation, Membership 4)')
+  check(openWelcome(M.payload.welcome.sealed, hkdf(IKM2, md.xInfo)) === null, 'the welcome seal does not open under another party key')
+  check(M.welcome.digest === digestU(JSON.parse(opened)) && adm.welcome === M.welcome.digest, 'admission.welcome = multibase multihash over JCS of the opened plaintext (Membership 4)')
+  check(welcomeBindOK(op, JSON.parse(opened)), 'welcome binding: digest, group = operation.group, subject = body.subject, accept = digest of admission.accept (Membership 4)')
+  for (const b of M.bindingNegatives) {
+    let o = op, pt = JSON.parse(opened)
+    if (b.set) o = mutate(M.payload, { set: b.set }).operation
+    if (b.setPlaintext) { pt = mutate(pt, { set: b.setPlaintext }); o = mutate(M.payload, { set: { '/operation/body/admission/welcome': digestU(pt) } }).operation }
+    check(errsOf({ ...M.payload, operation: o }, 'payload-access-operation.schema.json').length === 0 && errsOf(pt, 'welcome.schema.json').length === 0 && !welcomeBindOK(o, pt), `${b.name}: schema-valid, and the welcome binding REJECTS it`)
+  }
+
+  // (b)–(h) declared negatives: fail AT the declared point; the unmutated artifact passes
+  const ART = { payload: M.payload, welcome: M.welcome.plaintext, evidence01: M.evidence01, evidence02: M.evidence02 }
+  for (const n of M.negatives) {
+    const base = ART[n.artifact]
+    if (!base) { err(`${n.name}: unknown artifact ${n.artifact}`); continue }
+    check(errsOf(base, n.schema).length === 0, `${n.name}: the unmutated ${n.artifact} passes ${n.schema}`)
+    const errs = errsOf(mutate(base, n), n.schema)
+    check(errs.some((e) => e.includes(n.at)), `${n.name}: rejected by ${n.schema} AT ${n.at} (${n.rule})${errs.length && !errs.some((e) => e.includes(n.at)) ? ' — got ' + errs[0] : ''}`)
+  }
+  // the Access-owned schemas keep their legacy forms (D-2): the pin sits in Membership's own schemas
+  check(errsOf(mutate(op, { set: { '/v': 'rltp-access/0.24' } }), 'access-operation-envelope.schema.json').length === 0, 'the Access-owned envelope schema still accepts rltp-access/0.24; the carrier pin rejects it (D-2)')
+  check(errsOf(mutate(M.welcome.plaintext.material, { set: { '/v': 'rltp-access-material/0.24' }, delete: ['/keyState'] }), 'access-material.schema.json').length === 0, 'the Access-owned material schema still accepts rltp-access-material/0.24; the welcome pin rejects it (D-2)')
+  const NEED = ['envelope-0.24', 'welcome-material-0.24', 'welcome-material-without-keyState', 'welcome-keydist-form', 'operation-with-transition', 'operation-not-member-add', 'evidence-0.2-17-vouches', 'evidence-0.1-with-vouches']
+  check(NEED.every((x) => M.negatives.some((n) => n.name === x)), 'every negative of the 0.17 vector plan is present')
+
+  // (h) evidence relay, both type versions (D-4)
+  check(SCHEMAS['payload-membership-evidence.schema.json']?.$id === P + 'membership-evidence/0.2' && SCHEMAS['payload-membership-evidence-0.1.schema.json']?.$id === P + 'membership-evidence/0.1', 'evidence schemas: $id = type URI, /0.2 current and /0.1 accepted (Trust Tasks 6.3)')
+  schemaOK(M.evidence01, 'payload-membership-evidence-0.1.schema.json', 'membership-evidence/0.1 payload without vouches')
+  schemaOK(M.evidence01, 'payload-membership-evidence.schema.json', 'a /0.1 payload is a /0.2 payload without vouches')
+  schemaOK(M.evidence02, 'payload-membership-evidence.schema.json', 'membership-evidence/0.2 payload with one vouch')
+  for (const v of M.validEvidence) schemaOK(mutate(M.evidence02, v), 'payload-membership-evidence.schema.json', v.name)
+  check(M.validEvidence.some((v) => v.delete?.includes('/evidence/vouches')) && M.validEvidence.some((v) => v.fill?.['/evidence/vouches'] === 16), 'evidence boundaries present: no vouches, 16 vouches (valid), 17 (negative)')
+  const ev = M.evidence02.evidence, vch = ev.vouches[0]
+  check(diVerify(vch, vch.issuer).ok && vch.credentialSubject.id === ev.accept.payload.accept.subject && vch.credentialSubject.endorsement.accept === digestU(ev.accept) && vch.credentialSubject.endorsement.genesisDigest === ev.invite.payload.invite.credentialSubject.genesisDigest,
+    'enclosed vouch: verifies under its issuer, subject = accept.subject, endorsement binds the enclosed accept and the genesis digest (Membership 3.4)')
+}
+
 // ── result ───────────────────────────────────────────────────────────────
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) { console.error('conformance: FAILED'); process.exit(1) }

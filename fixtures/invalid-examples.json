@@ -738,7 +738,7 @@
         }
       }
     },
-    "welcome-material-0.24": {
+    "welcome": {
       "schema": "https://real-life.org/rltp/v1/schemas/welcome.schema.json",
       "document": {
         "v": "rltp-welcome/0.1",
@@ -746,9 +746,10 @@
         "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
         "accept": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA",
         "material": {
-          "v": "rltp-access-material/0.24",
+          "v": "rltp-access-material/0.25",
           "adapter": "linear/0.1",
           "epoch": 7,
+          "keyState": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "keys": {
             "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
           }
@@ -1643,18 +1644,25 @@
       }
     },
     {
-      "name": "welcome: the welcome carries the material form, never the keydist form (RLTP-ACC-11100)",
-      "base": "welcome-material-0.24",
+      "name": "welcome: the welcome carries the material form, never the keydist form (Membership 4, RLTP-ACC-9362)",
+      "base": "welcome",
       "set": {
         "/material/v": "rltp-access-keydist/0.25"
-      }
+      },
+      "delete": "/material/keyState"
     },
     {
-      "name": "welcome: 0.25 material in the welcome names its key state (RLTP-ACC-9362, 11100)",
-      "base": "welcome-material-0.24",
+      "name": "welcome: legacy material rltp-access-material/0.24 is no longer accepted (Membership 0.17 D-2, RLTP-ACC-11100)",
+      "base": "welcome",
       "set": {
-        "/material/v": "rltp-access-material/0.25"
-      }
+        "/material/v": "rltp-access-material/0.24"
+      },
+      "delete": "/material/keyState"
+    },
+    {
+      "name": "welcome: the material names its key state (Membership 4, RLTP-ACC-9362)",
+      "base": "welcome",
+      "delete": "/material/keyState"
     }
   ]
 }

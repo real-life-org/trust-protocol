@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 // Traceability check for the numbered rules of a layer specification —
-// the Encounter Layer (`RLTP-ENC`, the default) and the Access Layer
-// (`RLTP-ACC`, `--layer access`).
+// the Encounter Layer (`RLTP-ENC`, the default), the Access Layer
+// (`RLTP-ACC`, `--layer access`) and Membership Tasks (`RLTP-MT`,
+// `--layer membership`).
 //
 // Two sources of truth for the rule set:
 //   · the public manifest (conformance/encounter-rule-ids-0.30.txt,
-//     conformance/access-rule-ids-0.54.txt), one identifier per line,
+//     conformance/access-rule-ids-0.54.txt,
+//     conformance/membership-rule-ids-0.17.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
 //     outside this repository) — checked additionally when present, and
-//     REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY names it.
+//     REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
+//     MEMBERSHIP_INVENTORY names it. The Encounter and Access inventories
+//     carry the ID in a row's first cell; the Membership inventory in its
+//     `Ziel-ID` column.
 //
 // A rule in the specification is a paragraph that starts, unindented and
 // outside any code fence, with `**<PREFIX>-nnnn** — <statement>`. The
@@ -19,8 +24,9 @@
 // is malformed (no separator, empty statement, ID not 4–5 digits); an
 // empty manifest or inventory.
 //
-//   usage: node scripts/check-encounter-trace.mjs [--layer encounter|access] [--inventory <file>] [--spec <file>] [--manifest <file>]
-//          node scripts/check-encounter-trace.mjs [--layer encounter|access] --write-manifest <inventory.md|spec.md>
+//   usage: node scripts/check-encounter-trace.mjs [--layer encounter|access|membership] [--inventory <file>] [--spec <file>] [--manifest <file>]
+//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership] --write-manifest <inventory.md>
+//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership] --write-manifest-from-spec <spec.md>
 //
 // Exit 1 on any violation, 2 on usage errors.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
@@ -48,6 +54,16 @@ export const LAYERS = {
     inventory: join(ROOT, '..', 'rltp', 'design', 'access-0.54-regelinventar.md'),
     env: 'ACCESS_INVENTORY',
     inventorySection: 'B'
+  },
+  membership: {
+    prefix: 'RLTP-MT',
+    title: 'Membership Tasks 0.17',
+    spec: join(ROOT, 'spec/membership-tasks.md'),
+    manifest: join(ROOT, 'conformance/membership-rule-ids-0.17.txt'),
+    inventory: join(ROOT, '..', 'rltp', 'design', 'membership-0.17-regelinventar.md'),
+    env: 'MEMBERSHIP_INVENTORY',
+    inventorySection: 'B',
+    inventoryColumn: 'Ziel-ID'
   }
 }
 export const DEFAULT_SPEC = LAYERS.encounter.spec
@@ -69,8 +85,26 @@ export const inventorySection = (text, section) => {
   const end = lines.findIndex((l, i) => i > start && /^## /.test(l))
   return lines.slice(start, end < 0 ? undefined : end).join('\n')
 }
-export const inventoryIds = (text, prefix = 'RLTP-ENC', section = null) =>
-  [...inventorySection(text, section).matchAll(new RegExp(`^\\|\\s*(${esc(prefix)}-\\d+)\\s*\\|`, 'gm'))].map((m) => m[1])
+// With a `column` name the ID is read from that column of each table,
+// found by its header row; a cell counts only when it is exactly one ID
+// (`= RLTP-MT-…`, `inf. (= …)`, `Plan`, `—` and the like are no IDs of
+// their own). Escaped pipes (`\|`) inside a cell do not split it.
+const cells = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim())
+export const inventoryIds = (text, prefix = 'RLTP-ENC', section = null, column = null) => {
+  const part = inventorySection(text, section)
+  if (!column) return [...part.matchAll(new RegExp(`^\\|\\s*(${esc(prefix)}-\\d+)\\s*\\|`, 'gm'))].map((m) => m[1])
+  const own = new RegExp(`^${esc(prefix)}-\\d+$`)
+  const ids = []
+  let col = -1
+  for (const line of part.split('\n')) {
+    if (!line.trim().startsWith('|')) { col = -1; continue }
+    const row = cells(line)
+    if (row.includes(column)) { col = row.indexOf(column); continue }
+    if (col < 0 || row.every((c) => /^:?-+:?$/.test(c))) continue
+    if (own.test(row[col] ?? '')) ids.push(row[col])
+  }
+  return ids
+}
 
 // Manifest: one ID per line; blank lines and `#` comments ignored.
 export const manifestIds = (text) =>
@@ -157,12 +191,13 @@ export function checkTrace ({ layer = 'encounter', spec, manifest, inventory = n
   let inventoryCount = null
   if (inventory) {
     if (!existsSync(inventory)) errors.push(`inventory not found: ${inventory}`)
-    else inventoryCount = compare('inventory', inventoryIds(readFileSync(inventory, 'utf8'), L.prefix, L.inventorySection))
+    else inventoryCount = compare('inventory', inventoryIds(readFileSync(inventory, 'utf8'), L.prefix, L.inventorySection, L.inventoryColumn))
   }
   return { rules: count.size, manifest: manifestCount, inventory: inventoryCount, errors }
 }
 
-// Which inventory to use: an explicit ENCOUNTER_INVENTORY / ACCESS_INVENTORY
+// Which inventory to use: an explicit ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
+// MEMBERSHIP_INVENTORY
 // (or --inventory) is mandatory; otherwise the sibling workshop checkout
 // when present.
 export const resolveInventory = (explicit, layer = 'encounter') => {
@@ -174,7 +209,8 @@ export const resolveInventory = (explicit, layer = 'encounter') => {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const args = process.argv.slice(2)
-  const USAGE = 'usage: check-encounter-trace.mjs [--layer encounter|access] [<inventory.md>] [--inventory <file>] [--spec <file>] [--manifest <file>]\n       check-encounter-trace.mjs [--layer encounter|access] --write-manifest <inventory.md> [--manifest <file>]\n       check-encounter-trace.mjs [--layer encounter|access] --write-manifest-from-spec <spec.md> [--manifest <file>]'
+  const LAYER = `[--layer ${Object.keys(LAYERS).join('|')}]`
+  const USAGE = `usage: check-encounter-trace.mjs ${LAYER} [<inventory.md>] [--inventory <file>] [--spec <file>] [--manifest <file>]\n       check-encounter-trace.mjs ${LAYER} --write-manifest <inventory.md> [--manifest <file>]\n       check-encounter-trace.mjs ${LAYER} --write-manifest-from-spec <spec.md> [--manifest <file>]`
   const usage = (msg) => { console.error(`${msg}\n${USAGE}`); process.exit(2) }
   const KNOWN = ['--layer', '--inventory', '--spec', '--manifest', '--write-manifest', '--write-manifest-from-spec']
   for (let i = 0; i < args.length; i++) {
@@ -198,7 +234,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exit(0)
   }
   if (args.includes('--write-manifest')) {
-    write(inventoryIds(readFileSync(opt('--write-manifest'), 'utf8'), L.prefix, L.inventorySection), 'rule inventory', '--write-manifest <inventory.md>')
+    write(inventoryIds(readFileSync(opt('--write-manifest'), 'utf8'), L.prefix, L.inventorySection, L.inventoryColumn), 'rule inventory', '--write-manifest <inventory.md>')
   }
   if (args.includes('--write-manifest-from-spec')) {
     const { rules, problems } = parseSpecRules(readFileSync(opt('--write-manifest-from-spec'), 'utf8'), L.prefix)
