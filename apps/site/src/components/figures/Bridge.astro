@@ -1,0 +1,35 @@
+---
+// Where the credential world and shared places meet: statements cross in
+// both directions, the grammar of checking stays on its bank.
+// Styles: site.css, .tp-bridge.
+---
+<figure class="tp-bridge">
+  <svg viewBox="0 20 640 234" role="img" aria-labelledby="fig-bridge-title">
+    <title id="fig-bridge-title">Two banks. On the left the credential world: wallet, verifier, hosted agent; registry, duty to present and the log of who was checked stay there. On the right shared places: your graph, groups, apps. A credential from the left becomes an edge in a graph on the right; an encounter credential from the right serves as evidence on the left.</title>
+    <defs>
+      <marker id="br-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head" /></marker>
+    </defs>
+
+    <rect x="10" y="30" width="200" height="214" rx="10" class="bank cp" />
+    <text x="110" y="58" class="title cp" text-anchor="middle">credential world</text>
+    <text x="110" y="94" class="item" text-anchor="middle">wallet</text>
+    <text x="110" y="120" class="item" text-anchor="middle">verifier</text>
+    <text x="110" y="146" class="item" text-anchor="middle">hosted agent</text>
+    <line x1="30" y1="166" x2="190" y2="166" class="rule" />
+    <text x="110" y="190" class="note strong" text-anchor="middle">stays on this bank</text>
+    <text x="110" y="210" class="note" text-anchor="middle">registry · duty to present</text>
+    <text x="110" y="228" class="note" text-anchor="middle">log of who was checked</text>
+
+    <rect x="430" y="30" width="200" height="214" rx="10" class="bank inv" />
+    <text x="530" y="58" class="title inv" text-anchor="middle">shared places</text>
+    <text x="530" y="94" class="item" text-anchor="middle">your graph</text>
+    <text x="530" y="120" class="item" text-anchor="middle">groups</text>
+    <text x="530" y="146" class="item" text-anchor="middle">apps</text>
+
+    <line x1="216" y1="98" x2="422" y2="98" class="cross" marker-end="url(#br-arrow)" />
+    <text x="320" y="86" class="note" text-anchor="middle">a credential becomes an edge</text>
+    <line x1="424" y1="146" x2="218" y2="146" class="cross" marker-end="url(#br-arrow)" />
+    <text x="320" y="134" class="note" text-anchor="middle">encounter credential as evidence</text>
+  </svg>
+  <figcaption>Statements cross in both directions. The grammar of checking does not.</figcaption>
+</figure>
