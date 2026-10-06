@@ -512,7 +512,7 @@
               "fromEpoch": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "legacy field of rltp-access/0.24 only (the 0.53 range start); absent under rltp-access/0.25, where exposure always begins at the genesis (RLTP-ACC-8080); a 0.24 receiver reads keys per RLTP-ACC-11100 regardless of it"
+                "description": "legacy field of rltp-access/0.24 only (the 0.53 range start); absent under rltp-access/0.25, where exposure always begins at the genesis (RLTP-ACC-8080); under rltp-access/0.24 keys[i] names the key state of epoch fromEpoch + i, the exposure reaches from the genesis, and key states before fromEpoch count as exposed only once a rltp-access/0.25 history.expose names them (RLTP-ACC-11100)"
               },
               "toEpoch": {
                 "type": "integer",
