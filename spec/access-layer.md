@@ -1767,9 +1767,9 @@ rejected as invalid.
 
 *Rationale.* Without a policy a group would have no decision rule,
 only whoever holds a key. `policyVersion` is half of the replay and
-race gate of 3.3. Omitting lineage closes history for every later
-member; that is a decision of its own, and a cheap rotation must
-not make it on the side. Every operation has a rule even where the
+race gate of 3.3. A transition without lineage is damage with a
+repair duty, never an authorized closing of history (9.4.1, OI-19),
+so no rule key exists for it. Every operation has a rule even where the
 group wrote none; an operation type without a registered default
 has nothing to fall back to. Rotation stays cheap because hygiene
 must; removing another member's device takes as much as removing a
@@ -3824,7 +3824,9 @@ form the group's adapter defines (for `linear/0.1`, 9.4.1), each
 verified at materialization against the log's binding of its key
 state; one operation MAY name a subset, and the span counts as
 exposed when the union of canonical `history.expose` operations
-names every key state in it (Section 9.2).
+names every genesis or transition-created key state in it, a merged
+key state (RLTP-ACC-9264) counting as exposed once the states it
+merges are (Section 9.2).
 
 **RLTP-ACC-8100** — One `history.expose` MUST name at most 4096 key
 states; a longer history is exposed in several operations.
@@ -3841,8 +3843,9 @@ body is the disclosure itself (default rule `strongest`, 4.1). The
 binding check makes a false or missing key in the publication a
 byte-level verdict rather than a matter of trust. 4096 is the
 schema's wire cap; a longer history is exposed by several
-operations with adjacent ranges, so a group past 4096 epochs can
-still construct the artifact its own rule demands. Within the
+operations naming partial key sets whose union is complete, so a
+group past 4096 key states can still construct the artifact its own
+rule demands. Within the
 replica, merging the operation is the disclosure; toward the world,
 it creates an immediate publication duty, and the log entry is the
 group's attributable record that it disclosed. Any other mechanism
@@ -4430,7 +4433,7 @@ removal of a member MUST remove every leaf of that member.
 **RLTP-ACC-9890** — Under `beekem/0.1`, `keys` MUST contain exactly
 `op`, the base64url encoding of the key operation addressed to the
 material's recipient, and a transition MUST carry no material
-binding beyond `keyOpDigest`; a `history.expose` entry (8.1)
+binding beyond `keyOpDigest`; a `history.expose` entry (Section 8)
 exposes a key state as its 32-byte application secret, base64url.
 
 ```json
@@ -5043,7 +5046,9 @@ invalid. A `0.24` transition carrying `historyNarrow` MUST be read
 as valid with a history gap over the key state it succeeds
 (RLTP-ACC-9780), and a `0.24` `history.expose` carrying `fromEpoch`
 MUST be read as exposing from the genesis, since its keys reach
-there. The welcome `material`
+there, while `keys[i]` keeps naming the key state of epoch
+`fromEpoch + i`; key states before `fromEpoch` count as exposed only
+once a `0.25` exposure names them. The welcome `material`
 Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
 under this profile; a receiver MUST accept `0.24` material without
 `keyState` only where the admission's ancestry holds exactly one
@@ -5599,8 +5604,9 @@ in both directions.
   a fabricated `op` surfaced and inert; no re-alert by `op` after the
   completed-effect retention.
 - *Visibility* — `E = newEpoch`; `history.expose` verified against
-  the epochs' binding, valid only in `open` mode, range checked,
-  adjacent ranges composing, a range over 4096 schema-invalid;
+  each key state's binding, valid only in `open` mode, `toEpoch`
+  checked, partial key sets composing to a complete union, more than
+  4096 entries schema-invalid;
   publication idempotent per artifact.
 - *`member-mapping@1` against real admissions* — both MACs against
   the cards named by `memberOp` and `toOp`, the founder side via the
