@@ -1214,6 +1214,8 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
   check(E.keydistAad.object.recipient === D.parties.inviteeCandidate.anchor && E.keydistAad.object.genesis === uz.genesisDigest.u && E.lineageAad.object.genesis === uz.genesisDigest.u, 'AAD objects are tied to the party and digest oracles')
   check(jcs({ ...E.keydistAad.object, genesis: toU(E.fromZ.carried) }) === E.keydistAad.jcs, 'keydist AAD from a z-carried digest is byte-identical after canonicalization')
   check(jcs({ ...E.lineageAad.object, genesis: toU(E.fromZ.carried) }) === E.lineageAad.jcs, 'lineage AAD from a z-carried digest is byte-identical after canonicalization')
+  check(/^oid:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(E.lineageAad.object.opens) && Number.isInteger(E.lineageAad.object.newEpoch) && Object.keys(E.lineageAad.object).sort().join() === 'genesis,newEpoch,opens',
+    'lineage AAD opens a key state by its transition id and carries newEpoch (RLTP-ACC-9760, 7042)')
 
   // negatives BOUND to their declared failure: (a) an error at the declared
   // path exists, (b) repairing exactly the declared defect yields ZERO
@@ -1360,6 +1362,155 @@ section('carrier-proof.json — the duration grammar maps to exact milliseconds'
     'duration grammar: every accepted value is an integer number of milliseconds — durations are compared, never rounded')
   check(/rejected, not rounded/.test(DG.rejectionRule),
     'duration grammar: an out-of-grammar lexeme is rejected, never rounded or truncated (round-32 B-2)')
+}
+
+// ── suite: access-conflicts.json — the conflict matrix of Access 0.54 §3.6 ──
+section('access-conflicts.json — authority DAGs materialize as declared (Access 3.5, 3.6)')
+{
+  const { opId, materialize, deliver, STATUSES, STATES } = await import('./access-conflicts.mjs')
+  const AC = J('vectors/access-conflicts.json')
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  for (const c of AC.cases) {
+    check(c.ops.every((o) => o.id === opId(o)), `${c.scenario}: every operation id recomputes`)
+    check(c.ops.every((o) => STATUSES.includes(c.expected.status[o.id])) && Object.keys(c.expected.status).length === c.ops.length,
+      `${c.scenario}: one declared status per operation`)
+    const r = materialize(c.ops)
+    check(STATES.includes(c.expected.state) && r.state === c.expected.state, `${c.scenario}: state ${c.expected.state}`)
+    check(r.policy === c.expected.policy, `${c.scenario}: policy in effect ${c.expected.policy ?? 'genesis'}`)
+    check(same(r.members, c.expected.members), `${c.scenario}: members ${JSON.stringify(Object.keys(c.expected.members))} — ${c.name}`)
+    check(r.epoch === c.expected.epoch, `${c.scenario}: merged epoch ${c.expected.epoch}`)
+    check(r.policyVersion === c.expected.policyVersion, `${c.scenario}: policy version ${c.expected.policyVersion}`)
+    check(same(r.retained, c.expected.retained), `${c.scenario}: retained set ${JSON.stringify(c.expected.retained)}`)
+    check(same(r.pendingExits, c.expected.pendingExits), `${c.scenario}: pending exits ${JSON.stringify(c.expected.pendingExits)}`)
+    check(same(r.transitions, c.expected.transitions), `${c.scenario}: newEpoch and retained set at its position of every transition (RLTP-ACC-7010, 7040)`)
+    check(same(r.status, c.expected.status), `${c.scenario}: status of every operation as declared`)
+    for (const [i, order] of (c.deliveryOrders ?? []).entries()) {
+      const d = deliver(c.ops, order)
+      check(same(d, r) && same({ state: d.state, members: d.members, pendingExits: d.pendingExits, retained: d.retained, epoch: d.epoch, policy: d.policy, policyVersion: d.policyVersion, transitions: d.transitions, status: d.status }, c.expected), `${c.scenario}: delivery order ${i + 1} yields the declared result`)
+    }
+  }
+  // the oracle can fail: the S4f DAG with the disposed admission declared canonical
+  {
+    const c = AC.cases.find((x) => x.scenario === 'S4f')
+    const forged = structuredClone(c.expected.status)
+    const disposedId = Object.keys(forged).find((id) => forged[id] === 'removed-disposed')
+    forged[disposedId] = 'canonical'
+    check(!same(materialize(c.ops).status, forged), 'access-conflicts: a disposed admission declared canonical is detected')
+  }
+  // … and a forked sibling declared canonical, or a fork declared ended without its closing policy.change
+  {
+    const c = AC.cases.find((x) => x.scenario === 'fork: policy ∥ removal')
+    const forged = structuredClone(c.expected.status)
+    forged[Object.keys(forged).find((id) => forged[id] === 'forked')] = 'canonical'
+    check(!same(materialize(c.ops).status, forged), 'access-conflicts: a forked sibling declared canonical is detected')
+    const ended = AC.cases.find((x) => x.scenario === 'fork ended: policy ∥ policy')
+    check(materialize(ended.ops.slice(0, -1)).state === 'forked',
+      'access-conflicts: without its closing policy.change the ended fork is forked')
+  }
+  // … a lapsed dissolution declared canonical, an issuer with a surviving admission declared orphaned
+  {
+    const c = AC.cases.find((x) => x.scenario === 'dissolve ∥ removal: lapses')
+    const forged = structuredClone(c.expected.status)
+    forged[Object.keys(forged).find((id) => forged[id] === 'lapsed')] = 'canonical'
+    check(!same(materialize(c.ops).status, forged) && materialize(c.ops).state !== 'terminal',
+      'access-conflicts: a lapsed dissolution declared canonical (terminal) is detected')
+    const anew = AC.cases.find((x) => x.scenario === 'dissolve ∥ removal: issued anew')
+    check(materialize(anew.ops.slice(0, -1)).state === 'group',
+      'access-conflicts: without the dissolution issued anew the lapsed one leaves a group')
+    const o = AC.cases.find((x) => x.scenario === 'admission-orphaned: one admission survives')
+    const yId = o.ops.find((op) => op.label === 'x-adds-y').id
+    check(materialize(o.ops).status[yId] === 'canonical' && 'x' in materialize(o.ops).members,
+      'access-conflicts: one surviving legitimizing admission keeps the issuer and what it issued (RLTP-ACC-3572)')
+    const lone = o.ops.filter((op) => op.label !== 'alice-adds-x').map((op) => op.label === 'x-adds-y' ? { ...op, preds: op.preds.filter((p) => o.ops.some((q) => q.id === p && q.label !== 'alice-adds-x')) } : op)
+    for (const op of lone) op.id = op.label === 'x-adds-y' ? opId(op) : op.id
+    check(Object.values(materialize(lone).status).filter((v) => v === 'removed-disposed').length === 2,
+      'access-conflicts: without the surviving admission the issuer is orphaned and its admission disposed')
+    const d = AC.cases.find((x) => x.scenario === 'epoch: unequal depth')
+    check(d.expected.epoch === 2, 'access-conflicts: transitions of unequal depth merge under the deeper epoch (RLTP-ACC-7040)')
+    const rt = AC.cases.find((x) => x.scenario === 'retained set: merged state')
+    check(same(rt.expected.retained, ['alice', 'carol', 'x']), 'access-conflicts: the merged retained set is the merged membership, not the intersection (RLTP-ACC-7015)')
+    const rtAt = Object.fromEntries(rt.ops.filter((op) => rt.expected.transitions[op.id]).map((op) => [op.label, rt.expected.transitions[op.id].retainedAtPosition]))
+    check(same(rtAt, { 'alice-removes-bob': ['alice', 'carol'], 'carol-rotates': ['alice', 'bob', 'carol', 'x'] }),
+      'access-conflicts: each transition reaches the retained set of its own position, neither the merged one (RLTP-ACC-7010, 9250)')
+  }
+  // after review 2: the resolver's author, lapsed transitions in the epoch, the leave that never lapses, emptiness
+  {
+    const rz = AC.cases.find((x) => x.scenario === 'fork: resolver removed on a sibling')
+    const res = rz.ops.at(-1)
+    check(rz.expected.state === 'forked' && rz.expected.status[res.id] === 'invalid',
+      'access-conflicts: a policy.change by the subject of a sibling removal does not resolve the fork and is invalid, not forked (RLTP-ACC-3565)')
+    const byBob = { ...res, author: 'bob' }; byBob.id = opId(byBob)
+    const rb = materialize([...rz.ops.slice(0, -1), byBob])
+    check(rb.state === 'group' && !('alice' in rb.members) && rb.status[byBob.id] === 'canonical',
+      'access-conflicts: the same resolution by a member no sibling removes ends the fork, and the removal takes effect')
+    const e = AC.cases.find((x) => x.scenario === 'fork ended: policy ∥ policy')
+    const eRes = e.ops.at(-1).id
+    check(e.expected.transitions[eRes].newEpoch === 3 && e.expected.epoch === 3,
+      'access-conflicts: the resolver\'s newEpoch counts every valid transition of its ancestry, lapsed siblings included (RLTP-ACC-3565, 3569, 7040)')
+    const lv = AC.cases.find((x) => x.scenario === 'leave ∥ rotation: never lapses')
+    const leaveId = lv.ops.find((op) => op.kind === 'leave').id
+    check(lv.expected.state === 'group' && lv.expected.status[leaveId] === 'canonical' && same(lv.expected.pendingExits, ['alice']),
+      'access-conflicts: a last-member leave beside a rotation stays a leave, its author a pending exit (RLTP-ACC-3462)')
+    check(materialize(lv.ops.filter((op) => op.kind !== 'rotate')).state === 'terminal',
+      'access-conflicts: without the concurrent rotation the last-member leave ends the group (RLTP-ACC-5860)')
+    const em = AC.cases.find((x) => x.scenario === 'removals empty the group: terminal')
+    check(em.expected.state === 'terminal' && materialize(em.ops.filter((op) => op.kind !== 'dissolve')).state === 'terminal',
+      'access-conflicts: empty membership is terminal with or without the lapsed dissolution (RLTP-ACC-5850 before 3460)')
+    check(materialize(em.ops.filter((op) => op.label !== 'bob-removes-alice')).state === 'group',
+      'access-conflicts: one removal fewer and the dissolution lapses into a group (RLTP-ACC-3460)')
+  }
+  // after review 3: the prefix free of every open pairing (3566), nesting and the resolver ∥ enforcement (3564), the resolver's retained set (3565, 7015, 7030)
+  {
+    const lab = (c, l) => c.ops.find((op) => op.label === l).id
+    const ind = AC.cases.find((x) => x.scenario === 'fork: independent admission in the prefix')
+    check(ind.expected.state === 'forked' && 'eve' in ind.expected.members && ind.expected.status[lab(ind, 'alice-adds-eve-beside-the-fork')] === 'canonical',
+      'access-conflicts: an admission beside the fork that touches no pairing belongs to the fork-free prefix (RLTP-ACC-3566)')
+    const ev = AC.cases.find((x) => x.scenario === 'fork ended: resolver admitted beside the fork')
+    const evRes = lab(ev, 'eve-decides-the-fork')
+    check(ev.expected.state === 'group' && ev.expected.status[evRes] === 'canonical' && same(ev.expected.transitions[evRes].retainedAtPosition, ['alice', 'bob', 'dave', 'eve']),
+      'access-conflicts: a member admitted beside the fork resolves it, standing from the prefix; its retained set is the reconciled one (RLTP-ACC-3565, 3566, 7015)')
+    const nn = AC.cases.find((x) => x.scenario === 'fork: nested pairing')
+    const inner = nn.expected.transitions[lab(nn, 'bob-decides-the-inner-fork')]
+    const outer = nn.expected.transitions[lab(nn, 'alice-decides-the-outer-fork')]
+    check(inner.newEpoch === 3 && outer.newEpoch === 4 && nn.expected.epoch === 4 && nn.expected.state === 'group',
+      'access-conflicts: a nested pairing is one more open pairing; the outer resolver is one above every valid transition of its ancestry (RLTP-ACC-3564, 3565)')
+    check(materialize(nn.ops.slice(0, -1)).state === 'forked' && materialize(nn.ops.slice(0, -1)).status[lab(nn, 'bob-decides-the-inner-fork')] === 'forked',
+      'access-conflicts: without the outer resolver the inner resolution is a sibling of the outer fork and forked (RLTP-ACC-3564)')
+    const pe = AC.cases.find((x) => x.scenario === 'fork: resolver ∥ enforcement')
+    const peRes = lab(pe, 'bob-would-decide-the-fork')
+    check(pe.expected.state === 'forked' && pe.expected.status[peRes] === 'forked',
+      'access-conflicts: a resolver concurrent with an enforcement operation forks again and ends nothing (RLTP-ACC-3564)')
+    const noRot = pe.ops.filter((op) => op.label !== 'alice-rotates-on-her-change')
+    check(materialize(noRot).state === 'group' && materialize(noRot).status[peRes] === 'canonical',
+      'access-conflicts: without the concurrent rotation the same resolver ends the fork')
+    const pd = AC.cases.find((x) => x.scenario === 'fork ended: resolver ∥ enforcement decided')
+    check(pd.expected.state === 'group' && pd.expected.transitions[lab(pd, 'alice-decides-both')].newEpoch === 3,
+      'access-conflicts: a policy.change over both pairings ends the renewed fork (RLTP-ACC-3565, 7040)')
+    const em = AC.cases.find((x) => x.scenario === 'fork: resolver with an empty retained set')
+    const emRes = em.ops.at(-1)
+    check(em.expected.state === 'forked' && !(emRes.id in em.expected.transitions) && em.expected.status[emRes.id] === 'invalid',
+      'access-conflicts: a resolver whose reconciled retained set is empty is invalid, not forked; the fork stays (RLTP-ACC-7030, 7015, 3565)')
+    // review 4 M6: invalidity is judged before the fork disposition — a
+    // checker that lets the forked status win over invalid is detected
+    const forgedEm = { ...em.expected.status, [emRes.id]: 'forked' }
+    check(!same(materialize(em.ops).status, forgedEm),
+      'access-conflicts: an invalid resolver declared forked is detected (RLTP-ACC-3565)')
+    const noLeave = em.ops.filter((op) => op.kind !== 'leave')
+    const res2 = { ...emRes, preds: [lab(em, 'alice-changes-policy'), lab(em, 'bob-removes-alice')] }; res2.id = opId(res2)
+    const r2 = materialize([...noLeave.slice(0, -1), res2])
+    check(r2.state === 'group' && r2.status[res2.id] === 'canonical' && same(r2.transitions[res2.id].retainedAtPosition, ['bob']),
+      'access-conflicts: without the leave the same resolver retains bob and ends the fork')
+  }
+  check(['S4b', 'S4c', 'S4d', 'S4f', 'review #11', 'removal chain', 'delivery order'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the scenarios RLTP-ACC-14050 names are all present')
+  check(['fork: policy ∥ policy', 'fork: policy ∥ removal', 'dissolve ∥ removal: lapses', 'fork ended: policy ∥ policy'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the fork cases of the Access 14 vector plan are all present (the dissolution case as it lapses, RLTP-ACC-3460)')
+  check(['dissolve ∥ removal: issued anew', 'fork ended: policy ∥ removal', 'admission-orphaned: one admission survives', 'epoch: unequal depth', 'retained set: merged state'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the cases review 1 added are all present')
+  check(['fork: resolver removed on a sibling', 'leave ∥ rotation: never lapses', 'removals empty the group: terminal'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the cases review 2 added are all present')
+  check(['fork: independent admission in the prefix', 'fork ended: resolver admitted beside the fork', 'fork: nested pairing', 'fork: resolver ∥ enforcement', 'fork ended: resolver ∥ enforcement decided', 'fork: resolver with an empty retained set'].every((s) => AC.cases.some((c) => c.scenario === s)),
+    'access-conflicts: the cases review 3 added are all present')
 }
 
 // ── result ───────────────────────────────────────────────────────────────

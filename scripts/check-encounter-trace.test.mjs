@@ -108,3 +108,53 @@ test('parsers: inventory rows and manifest lines', () => {
   assert.deepEqual(p.rules.map((r) => r.id), ['RLTP-ENC-2010', 'RLTP-ENC-2020'])
   assert.deepEqual(p.problems, [])
 })
+
+// ── Access layer (`--layer access`, prefix RLTP-ACC) ─────────────────────
+const AGOOD = '**RLTP-ACC-3005** — A group MUST have one log.\n\n**RLTP-ACC-14010** — A schema MUST validate.'
+const ainventory = (ids) => file('## B. Haupttabelle\n' + ids.map((i) => `| ${i} | § | MUST | x |\n`).join(''))
+const arun = (s, m, inv) => checkTrace({ layer: 'access', spec: spec(s), manifest: manifest(m), inventory: inv === undefined ? null : ainventory(inv) })
+
+test('access: complete trace passes; ENC markers are not access rules', () => {
+  assert.deepEqual(arun(AGOOD, ['RLTP-ACC-3005', 'RLTP-ACC-14010']).errors, [])
+  assert.deepEqual(arun(AGOOD + '\n\n**RLTP-ENC-2010** — Other layer.', ['RLTP-ACC-3005', 'RLTP-ACC-14010'], ['RLTP-ACC-3005', 'RLTP-ACC-14010']).errors, [])
+  has(arun(AGOOD, ['RLTP-ACC-3005', 'RLTP-ACC-14010', 'RLTP-ENC-2010']), 'malformed identifier "RLTP-ENC-2010"')
+})
+
+test('access: missing, unlisted, duplicate and malformed rules fail', () => {
+  has(arun(AGOOD, ['RLTP-ACC-3005']), 'RLTP-ACC-14010: a rule in the specification, not in the manifest')
+  has(arun(AGOOD, ['RLTP-ACC-3005', 'RLTP-ACC-14010', 'RLTP-ACC-5125']), 'RLTP-ACC-5125: in the manifest, not a rule')
+  has(arun(AGOOD + '\n\n**RLTP-ACC-3005** — Again.', ['RLTP-ACC-3005', 'RLTP-ACC-14010']), 'appears 2 times')
+  has(arun('**RLTP-ACC-30** — Short.', ['RLTP-ACC-3005']), 'malformed rule identifier')
+  has(arun(AGOOD, ['RLTP-ACC-3005', 'RLTP-ACC-14010'], ['RLTP-ACC-3005']), 'not in the inventory')
+  assert.equal(parseSpecRules(AGOOD).rules.length, 0, 'the default prefix stays RLTP-ENC')
+  assert.equal(parseSpecRules(AGOOD, 'RLTP-ACC').rules.length, 2)
+})
+
+test('access: only part B of the inventory counts', () => {
+  const text = '## A. Zweck\n| RLTP-ACC-9999 | x |\n## B. Haupttabelle\n| RLTP-ACC-3005 | a |\n| = RLTP-ACC-3005 | b |\n| RLTP-ACC-14010 | c |\n## C. Statistik\n| RLTP-ACC-3005 | again |\n'
+  assert.deepEqual(inventoryIds(text, 'RLTP-ACC', 'B'), ['RLTP-ACC-3005', 'RLTP-ACC-14010'])
+  assert.deepEqual(inventoryIds(text, 'RLTP-ACC'), ['RLTP-ACC-9999', 'RLTP-ACC-3005', 'RLTP-ACC-14010', 'RLTP-ACC-3005'])
+  const p = file(text)
+  assert.deepEqual(checkTrace({ layer: 'access', spec: spec(AGOOD), manifest: manifest(['RLTP-ACC-3005', 'RLTP-ACC-14010']), inventory: p }).errors, [])
+})
+
+test('access CLI: --layer access checks, writes manifests; an unknown layer exits 2', () => {
+  const { spawnSync } = require('node:child_process')
+  const cli = (...a) => spawnSync(process.execPath, [new URL('./check-encounter-trace.mjs', import.meta.url).pathname, ...a], { encoding: 'utf8' })
+  const s = spec(AGOOD)
+  const m = manifest(['RLTP-ACC-3005', 'RLTP-ACC-14010'])
+  // without a part B heading the access inventory lists nothing
+  const inv = inventory(['RLTP-ACC-3005', 'RLTP-ACC-14010'])
+  const invB = ainventory(['RLTP-ACC-3005', 'RLTP-ACC-14010'])
+  const ok = cli('--layer', 'access', '--spec', s, '--manifest', m, '--inventory', invB)
+  assert.equal(ok.status, 0, ok.stderr)
+  assert.equal(cli('--layer', 'access', '--spec', s, '--manifest', m, '--inventory', inv).status, 1)
+  assert.equal(cli('--layer', 'bogus', '--spec', s).status, 2)
+  const out = join(dir, 'written.txt')
+  const w = cli('--layer', 'access', '--write-manifest-from-spec', s, '--manifest', out)
+  assert.equal(w.status, 0, w.stderr)
+  assert.deepEqual(manifestIds(require('node:fs').readFileSync(out, 'utf8')), ['RLTP-ACC-3005', 'RLTP-ACC-14010'])
+  const w2 = cli('--layer', 'access', '--write-manifest', invB, '--manifest', out)
+  assert.equal(w2.status, 0, w2.stderr)
+  assert.match(require('node:fs').readFileSync(out, 'utf8'), /^# Access Layer 0\.54/)
+})

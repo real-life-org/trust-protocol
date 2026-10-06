@@ -364,9 +364,9 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-group .out .state { fill: var(--sl-color-gray-3); }
 /* The shared space: one stack per kind of item, each kind in its own hue (--c),
    a blind relay, and the devices holding the same collection. */
-.tp-space { margin: 0; display: flex; flex-direction: column; gap: 1.1rem; font-size: .8rem; }
+.tp-space { margin: 0; display: flex; flex-direction: column; gap: 2rem; font-size: .8rem; }
 .tp-space-board { border-radius: 1rem; border: 1px solid color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); background: color-mix(in oklab, var(--sl-color-accent) 8%, var(--sl-color-bg-sidebar)); padding: 1.25rem 1.1rem; }
-.tp-space-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem .4rem; justify-items: center; }
+.tp-space-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.1rem .4rem; justify-items: center; }
 .tp-space-grid li { display: flex; flex-direction: column; align-items: center; gap: .5rem; min-width: 0; }
 .tp-space-grid .tile { width: 2.75rem; height: 2.75rem; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: .7rem; background: color-mix(in oklab, var(--c) 22%, var(--sl-color-bg-sidebar)); border: 1px solid color-mix(in oklab, var(--c) 55%, var(--sl-color-bg-sidebar)); color: var(--c); }
 .tp-space-grid .tile svg { width: 1.25rem; height: 1.25rem; }
@@ -378,7 +378,7 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-space-relay span { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .8rem; border-radius: 999px; border: 1px dashed var(--sl-color-gray-4); font-size: .72rem; color: var(--sl-color-gray-3); white-space: nowrap; }
 .tp-space-relay svg { width: .75rem; height: .75rem; }
 .tp-space-devices { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-items: center; gap: .5rem; }
-.tp-space-devices li { display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; min-width: 0; }
+.tp-space-devices li { display: flex; flex-direction: column; align-items: center; gap: .5rem; text-align: center; min-width: 0; }
 .tp-space-devices b { width: 3.6rem; height: 5.75rem; box-sizing: border-box; border-radius: .6rem; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-black); display: grid; grid-template-columns: repeat(2, 1fr); gap: .3rem; padding: .8rem .65rem; align-content: start; }
 .tp-space-devices s { display: block; height: .8rem; border-radius: 2px; text-decoration: none; background: color-mix(in oklab, var(--c, var(--warning)) 30%, var(--sl-color-black)); border: 1px solid color-mix(in oklab, var(--c, var(--warning)) 70%, var(--sl-color-black)); }
 .tp-space-devices s.empty { background: transparent; border: 1px dashed var(--sl-color-gray-5); }
@@ -402,7 +402,8 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
 .tp-props .tp-item { padding: .55rem 0; gap: .8rem; align-items: center; }
 .tp-props .tp-icon.tile { width: 2rem; height: 2rem; border-radius: .5rem; }
 .tp-props .tp-icon svg { width: 1rem; height: 1rem; }
-.tp-props .tp-item strong { font-size: .95rem; margin: 0; }
+.tp-props .tp-item strong { font-size: .95rem; margin: 0 0 .15rem; }
+.tp-props .tp-item code { display: block; font-size: .72rem; color: var(--sl-color-gray-3); background: none; padding: 0; }
 
 /* Behind the ports: the architecture picture's rail, seen from the services' side. */
 .tp-ports { margin: 0; display: grid; grid-template-columns: 2rem 2.25rem minmax(0, 1fr) 2.25rem auto; grid-template-rows: auto auto; row-gap: 1.5rem; align-items: center; padding-top: 1.75rem; font-size: .8rem; }
@@ -430,4 +431,21 @@ a.tp-ports-chip:hover, .tp-ports a.chip:hover { border-color: var(--sl-color-acc
   .tp-ports .rail { grid-row: 1 / 5; }
 }
 
-
+/* Identity: one seed, an anchor per context. */
+.tp-anchors { margin: 0; }
+.tp-anchors svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tp-anchors text { font-family: var(--font-sans); }
+.tp-anchors .derive { stroke: var(--sl-color-accent); stroke-width: 1.75; stroke-dasharray: 5 5; }
+.tp-anchors .faces { stroke: var(--sl-color-gray-4); stroke-width: 1.75; }
+.tp-anchors .seed { fill: var(--sl-color-accent); }
+.tp-anchors .name { font-size: 19px; font-weight: 700; fill: var(--tp-primary-fg); }
+.tp-anchors .sub { font-size: 12.5px; fill: var(--tp-primary-fg); opacity: .85; }
+.tp-anchors .chip { fill: var(--sl-color-black); stroke: var(--sl-color-gray-5); stroke-width: 1; }
+.tp-anchors .mono { font-family: var(--font-mono); font-size: 13px; fill: var(--sl-color-gray-1); }
+.tp-anchors .person { fill: color-mix(in oklab, var(--c, var(--sl-color-accent)) 22%, var(--sl-color-black)); stroke: var(--c, var(--sl-color-accent)); stroke-width: 1.5; }
+.tp-anchors .initial { font-size: 14px; font-weight: 700; fill: var(--c, var(--sl-color-accent)); }
+.tp-anchors .group { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.tp-anchors .member { fill: var(--sl-color-accent); }
+.tp-anchors .public { fill: var(--sl-color-black); stroke: var(--sl-color-gray-4); stroke-width: 1.5; }
+.tp-anchors .glyph { fill: none; stroke: var(--sl-color-gray-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tp-anchors .label { font-size: 15.5px; font-weight: 600; fill: var(--sl-color-white); }

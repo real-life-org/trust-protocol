@@ -9,17 +9,18 @@
 // Validate against SCHEMAS before treating any value as a wire artifact.
 import type { Json } from './core.js'
 
-/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.24 sections 7.1 and 9.5) */
+/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2) */
 export type AccessMaterial = ({
-  v: "rltp-access-material/0.24" | "rltp-access-keydist/0.24"
-  adapter: string
+  v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25" | "rltp-access-material/0.24"
+  adapter: "linear/0.1" | "beekem/0.1"
   epoch: number
+  keyState?: string
   keys: { [k: string]: Json }
 })
 
-/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer draft 0.24 section 3.3) */
+/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelopes rltp-access/0.25 and rltp-access/0.24) */
 export type AccessOperationEnvelope = ({
-  v: "rltp-access/0.24"
+  v: "rltp-access/0.25" | "rltp-access/0.24"
   op: string
   group: string
   epoch: number
@@ -39,18 +40,23 @@ export type AccessOperationEnvelope = ({
   })
 })
 
-/** schemas/access-registration.schema.json — RLTP Service Registration (artifact 0.26, Access Layer section 7.3) */
+/** schemas/access-registration.schema.json — RLTP Service Registration (artifact 0.27, Access Layer section 7.3) */
 export type AccessRegistration = ({
-  v: "rltp-access-registration/0.26"
+  v: "rltp-access-registration/0.27"
   type: "service-registration"
   group: string
   genesisDigest: string
   identity: string
   service: string
   m: 1
+  class: "blind" | "view" | "log"
   stalenessBound: string
   terminalRetention: string
   divergenceQuota: number
+  intakeBudget?: {
+    operations: number
+    bytes: number
+  }
   sig: string
   attestationKey: string
   registrationGeneration: number
@@ -296,16 +302,26 @@ export type PayloadEncounterCredentialDelivery = {
   credential: EncounterCredential
 }
 
-/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.24, target Trust Tasks framework 0.4) */
+/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.54, target Trust Tasks framework 0.4) */
 export type PayloadKeyDelivery = {
   keyDelivery: ({
     group: string
     genesisDigest: string
+    subject: string
     epoch: number
     op: string
-    kind: "keydist" | "re-welcome" | "refresh" | "request"
+    kind: "keydist" | "re-welcome" | "refresh" | "material" | "request"
     sealed?: SealedEnvelope
-    card?: ContactCard
+    card?: ({
+      anchor: string
+      device: string
+      keyAgreement: string
+      serviceIdentity: string
+      proof: {
+        signer: string
+        sig: string
+      }
+    }) | (ContactCard)
   })
 }
 
@@ -373,7 +389,7 @@ export type PayloadRegistryDeclaration = {
   }
 }
 
-/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.24 section 10.2) */
+/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.54 section 10.2) */
 export type PayloadRemovalNotice = {
   v: "rltp-access-removal-notice/0.24"
   type: "removal-notice"
@@ -383,6 +399,7 @@ export type PayloadRemovalNotice = {
   subject: string
   epoch: number
   author: string
+  issuer: string
   sig: string
 }
 
@@ -605,6 +622,6 @@ export type Welcome = {
   subject: string
   accept: string
   material: (AccessMaterial) & ({
-    v?: "rltp-access-material/0.24"
+    v?: "rltp-access-material/0.25" | "rltp-access-material/0.24"
   })
 }
