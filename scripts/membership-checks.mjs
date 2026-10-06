@@ -25,6 +25,7 @@ export const ruleText = (spec, id) => {
   const end = rest.indexOf('\n\n')
   return flat(end < 0 ? rest : rest.slice(0, end)).trim()
 }
+/** The rule identifiers of a manifest file: one per line, blank lines and `#` comments skipped. */
 export const manifestIds = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
 
 // ── the coverage sets of Section 10.3 ────────────────────────────────────
@@ -34,6 +35,7 @@ export const manifestIds = (text) => text.split('\n').map((l) => l.trim()).filte
 // bold heading to the next one (or the next section heading); a rule in
 // parentheses right after a heading defines the set and is not a member.
 const SECTION = { state: '**State-dependent and interactive set**', vector: '**Vector-checked set**', partial: '**Partially proved' }
+/** Reads the three coverage sets of Section 10.3 from the specification text; returns `{ state, vector, partial }` as arrays of identifiers, or `{ error }`. */
 export function coverageSets ({ specText }) {
   const at = Object.fromEntries(Object.entries(SECTION).map(([k, h]) => [k, specText.indexOf(h)]))
   if (at.state < 0 || at.vector < 0) return { error: 'the specification names no state-dependent and vector-checked sets (Section 10.3)' }

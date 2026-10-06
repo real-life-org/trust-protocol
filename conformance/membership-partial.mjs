@@ -22,6 +22,7 @@ export const PARTIAL = {
   'RLTP-MT-3355': 'the cap of 2048 JCS bytes per credential and the ban on a merged proof are prose; no schema-valid vouch reaches the cap',
   'RLTP-MT-3815': 'that a sender issues membership-evidence/0.2 is sender behaviour',
 }
+/** Splits a case's rule identifiers into `rules` (proved completely) and `rulesPartial` (identifier → the duty that stays unproved). */
 export const splitRules = (ids) => {
   const rules = []; const rulesPartial = {}
   for (const id of ids) { if (PARTIAL[id]) rulesPartial[id] = PARTIAL[id]; else rules.push(id) }

@@ -90,6 +90,7 @@ export const inventorySection = (text, section) => {
 // (`= RLTP-MT-…`, `inf. (= …)`, `Plan`, `—` and the like are no IDs of
 // their own). Escaped pipes (`\|`) inside a cell do not split it.
 const cells = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim())
+/** The identifiers an inventory assigns, read from part B's `Ziel-ID` column (or from the first column where no column is named). */
 export const inventoryIds = (text, prefix = 'RLTP-ENC', section = null, column = null) => {
   const part = inventorySection(text, section)
   if (!column) return [...part.matchAll(new RegExp(`^\\|\\s*(${esc(prefix)}-\\d+)\\s*\\|`, 'gm'))].map((m) => m[1])
@@ -157,6 +158,7 @@ export function parseSpecRules (text, prefix = 'RLTP-ENC') {
   return { rules, problems }
 }
 
+/** Checks one layer's rule identifiers three ways: specification ↔ manifest ↔ inventory (where present); returns counts and errors. */
 export function checkTrace ({ layer = 'encounter', spec, manifest, inventory = null } = {}) {
   const L = LAYERS[layer]
   if (!L) throw new Error(`unknown layer: ${layer}`)

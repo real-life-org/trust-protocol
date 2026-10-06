@@ -1580,7 +1580,7 @@ section('membership-tasks.json — Membership Tasks 0.17: genesis → invite →
   const receive = (fails, store, key, value) => { const d = dispose(fails); if (d.disposition === 'accepted') store.put(key, value); return d }
 
   // every rule a vector case names is an identifier of this document (RLTP-MT-10090)
-  const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'vouchPositives', 'inviteeNegatives', 'inviteePositives', 'inviteReceiptCases', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives']
+  const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'vouchPositives', 'inviteeNegatives', 'inviteePositives', 'inviteReceiptCases', 'sealCases', 'senderSealCases', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives']
   const allCases = caseLists.flatMap((l) => M[l])
   const named = (c) => [...(c.rules ?? []), ...Object.keys(c.rulesPartial ?? {})]
   check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.17.txt`)
