@@ -8,14 +8,15 @@
 import { icons } from '../icons'
 
 const C = { x: 320, y: 220 }
-type Spoke = { deg: number; anchor: string; kind: 'person' | 'group' | 'public'; label: string; side: 'left' | 'right'; hue?: string }
+const ANNA = 'var(--sl-color-accent)'
+type Spoke = { deg: number; anchor: string; kind: 'person' | 'group' | 'public'; label: string; side: 'left' | 'right'; hue?: string; members?: string[] }
 const spokes: Spoke[] = [
   { deg: 90, anchor: 'pair/7f3a…', kind: 'person', label: 'Peter', side: 'right', hue: '#f0708a' },
-  { deg: 30, anchor: 'group/c41e…', kind: 'group', label: 'Garden group', side: 'right' },
+  { deg: 30, anchor: 'group/c41e…', kind: 'group', label: 'Garden group', side: 'right', members: [ANNA, '#f0708a', '#3fb45c'] },
   { deg: -30, anchor: 'pair/a90d…', kind: 'person', label: 'Frida', side: 'right', hue: '#e39a4a' },
   { deg: -90, anchor: 'persona/…', kind: 'public', label: 'the public', side: 'right' },
   { deg: -150, anchor: 'pair/2b6c…', kind: 'person', label: 'Sam', side: 'left', hue: '#3fb45c' },
-  { deg: 150, anchor: 'group/e83f…', kind: 'group', label: 'Choir group', side: 'left' },
+  { deg: 150, anchor: 'group/e83f…', kind: 'group', label: 'Choir group', side: 'left', members: [ANNA, '#e39a4a', '#3fb45c'] },
 ]
 const at = (deg: number, r: number) => {
   const a = (deg * Math.PI) / 180
@@ -46,7 +47,7 @@ const R_FAR = 196
       return (
         <g class="far" style={s.hue ? `--c: ${s.hue}` : undefined}>
           {s.kind === 'person' && <g><circle cx={f.x} cy={f.y} r="17" class="person" /><text x={f.x} y={f.y + 5} class="initial" text-anchor="middle">{s.label[0]}</text></g>}
-          {s.kind === 'group' && <g><circle cx={f.x} cy={f.y} r="19" class="group" /><circle cx={f.x - 6} cy={f.y - 4} r="3.5" class="member" /><circle cx={f.x + 6} cy={f.y - 4} r="3.5" class="member" /><circle cx={f.x} cy={f.y + 6} r="3.5" class="member" /></g>}
+          {s.kind === 'group' && <g><circle cx={f.x} cy={f.y} r="19" class="group" /><circle cx={f.x - 6} cy={f.y - 4} r="3.5" class="member" style={`fill: ${s.members![0]}`} /><circle cx={f.x + 6} cy={f.y - 4} r="3.5" class="member" style={`fill: ${s.members![1]}`} /><circle cx={f.x} cy={f.y + 6} r="3.5" class="member" style={`fill: ${s.members![2]}`} /></g>}
           {s.kind === 'public' && <g><circle cx={f.x} cy={f.y} r="17" class="public" /><g transform={`translate(${f.x - 9} ${f.y - 9}) scale(0.75)`} class="glyph" set:html={icons['globe']} /></g>}
           <text x={tx} y={f.y + 5} class="label" text-anchor={anchor}>{s.label}</text>
         </g>
