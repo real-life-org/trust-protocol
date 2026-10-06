@@ -4862,12 +4862,14 @@ failure, and check the buffered candidate.
 
 **RLTP-ACC-10330** — When every held candidate has failed, or the
 window closes with no log arrival, the invitee MUST wipe everything
-provisional and request afresh by an authenticated key request,
-naming in `op` an admission it holds as canonical from a
-materialized state, and the admission reference of RLTP-ACC-10172
-otherwise; an identifier learned only from a failed candidate is not
-held as canonical, and a request refused for an unresolvable `op`
-(RLTP-ACC-10170) MUST be repeated by admission reference.
+provisional and request afresh by an authenticated key request
+whose `op` or admission reference follows RLTP-ACC-10172: a
+canonical admission held from a materialized state, the genesis for
+the founder, the admission reference otherwise; an identifier learned
+only from a failed candidate is not held as canonical, and a request
+of an admitted person refused for an unresolvable `op`
+(RLTP-ACC-10170) MUST be repeated by admission reference, while the
+founder keeps its genesis pin.
 
 **Bootstrap of a bound device.** A device bound to a member (5.1)
 may hold no replica of the group yet: bound by `device.add` from a
@@ -5663,8 +5665,20 @@ in both directions.
   arrival → complete wipe and retry by admission reference, an
   identifier learned only from the failed candidate not being named
   in `op`, and a request refused for an unresolvable `op` repeated
-  by reference; a bound device of the founder bootstraps against the
-  pin handed over at binding; user
+  by reference, the founder's device retrying with the genesis as
+  `op`; a bound device of the founder bootstraps against the pin
+  handed over at binding; the device lifecycle observable as the
+  invitee's: a second candidate buffered and a third displaced by
+  digest order, one window per (genesis digest, device) that no
+  further candidate reopens, a failed candidate wiped while the
+  request basis (anchor, pin, device card, `op` or reference) and
+  unique data survive, no write, service identity, registration or
+  view participation before first materialization (RLTP-ACC-10260),
+  and the fresh request actually sent after wipe or window expiry;
+  first materialization with a missing or foreign binding, a revoked
+  device, a removed person or material bound to another key state →
+  wiped, with the binding device revoked after the binding → the
+  bound device still succeeds; user
   drafts in a provisional space survive every wipe; a bound device
   without a replica bootstraps from the answer to its own request,
   refuses a seal to the accept's card, and fails at first

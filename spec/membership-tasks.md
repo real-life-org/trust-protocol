@@ -801,7 +801,7 @@ proof (RLTP-ACC-5310, RLTP-ACC-5320).
 
 **RLTP-MT-3360** — Where the complete document cannot fit the
 Contract's plaintext limit under the sender's final serialized-size
-check (RLTP-MT-2220), the self-contained bootstrap of Access 10.1
+check (RLTP-MT-2220), the self-contained admission bootstrap of Access 10.1
 MUST travel instead as `key-delivery/0.1` kind `re-welcome` under
 `linear/0.1` (RLTP-ACC-5340), and the admission evidence reaches the
 subject through replication afterwards; under `linear/0.1` no
@@ -873,7 +873,7 @@ pre-adoption checks its carrier permits.
 MUST be checked against the complete set of RLTP-MT-3330 to
 RLTP-MT-3345 and RLTP-MT-3425 to RLTP-MT-3445.
 
-**RLTP-MT-3420** — The self-contained bootstrap of Access 10.1
+**RLTP-MT-3420** — The self-contained admission bootstrap of Access 10.1
 (`key-delivery/0.1` in the adapter's recovery kind), which carries
 the sealed material alone, MUST be checked against the
 carrier-independent subset RLTP-MT-3440 to RLTP-MT-3445 together
@@ -903,15 +903,15 @@ registration; a material carrying a field the adapter does not
 register MUST be rejected before adoption.
 
 **RLTP-MT-3450** — The carrier-independent subset MUST be exactly
-what Access 10.1 lists for its self-contained bootstrap
+what Access 10.1 lists for its self-contained admission bootstrap
 (RLTP-ACC-10200).
 
 **RLTP-MT-3455** — The operation-dependent checks MUST be deferred to
-first materialization for a self-contained bootstrap, where the
+first materialization for a self-contained admission bootstrap, where the
 Access layer binds canonicality and the material's key state against
 the log (RLTP-ACC-10290).
 
-**RLTP-MT-3460** — The self-contained bootstrap MUST inherit the
+**RLTP-MT-3460** — The self-contained admission bootstrap MUST inherit the
 embedded welcome's trust sequence, provisional adoption followed by
 verification at the log, and MUST NOT claim a stronger pre-check it
 cannot perform.
@@ -1653,9 +1653,10 @@ delivery layer resolved (RLTP-MT-3440); the recovery of a member's
 device under Access 5.3 — answered to a device bound to the member's
 anchor and not revoked at the helper's state, sealed to that
 device's key (RLTP-ACC-5560, RLTP-ACC-5565, RLTP-ACC-5580) — is not
-a bootstrap and is not restricted by this rule; a bound device
-holding no replica yet bootstraps from that material as Access 10.1
-states (RLTP-ACC-10332 to RLTP-ACC-10338), sealed to its own key.
+an admission bootstrap from the invitee's accept and is not
+restricted by this rule; a bound device holding no replica yet runs
+the device bootstrap of Access 10.1 (RLTP-ACC-10332 to
+RLTP-ACC-10338) from that material, sealed to its own key.
 
 *Rationale.* A person who never accepts never holds group material,
 and a substituted card breaks a mandatory check at receipt, at
