@@ -2042,7 +2042,7 @@ effect, and closed body profile that the following table states.
 | `epoch.rotate` | enforcement | **transition, atomic** | `transition` |
 | `policy.change` | enforcement | **transition, atomic** | `policy` (the complete new object, 4.1), `transition` |
 | `visibility.change` | enforcement | **transition, atomic** | `mode`, `transition` (Section 8) |
-| `history.expose` | additive | none | `fromEpoch`, `toEpoch` (optional), `keys` (Section 8) |
+| `history.expose` | additive | none | `toEpoch` (optional), `keys` (Section 8) |
 | `lineage.repair` | additive | none | `transition`, `opens` (operation ids), `ct`; valid only under `linear/0.1` (9.4.1) |
 | `document.attach` | additive | none | `document` (identifier), `dataPolicy` (Layer-4 disposition declaration) |
 | `document.detach` | enforcement | **transition, atomic** | `document`, `transition` |
