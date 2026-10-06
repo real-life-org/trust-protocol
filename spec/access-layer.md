@@ -878,8 +878,9 @@ conformance vectors).
 effect, with set-valued state merging by union.
 
 **RLTP-ACC-3430** — A scalar field contested by concurrent
-additive operations MUST take the value folded last under 3.5's
-order.
+operations that both take effect, additive or enforcement, MUST
+take the value folded last under 3.5's order; a publication already
+made under an earlier value (Section 8) is not retracted.
 
 **RLTP-ACC-3435** — An additive and a concurrent enforcement
 operation MUST both take effect, the enforcement side prevailing
@@ -3106,7 +3107,8 @@ identities of the members at its position, pending exits included
 until their discharging transition.
 
 **RLTP-ACC-7140** — A view's `identities` MUST list one identity per
-bound device of each member (5.1).
+device of each member that is bound and not revoked at the view's
+position (5.1).
 
 **RLTP-ACC-7150** — A service MUST authorize `read` and `write` only
 by proof of possession of a listed identity over a service-issued
