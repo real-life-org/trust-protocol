@@ -46,6 +46,7 @@ export default defineConfig({
         { label: 'Understand', items: [
           { label: 'Foundations', link: '/understand/foundations/' },
           { label: 'Encounter', link: '/understand/encounter/' },
+          { label: 'Groups', link: '/understand/groups/' },
         ] },
         { label: 'Reference', items: [
           { label: 'Specifications', link: '/reference/specifications/' },
