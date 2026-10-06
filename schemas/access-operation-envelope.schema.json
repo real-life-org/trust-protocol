@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
-  "title": "RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelopes rltp-access/0.25 and rltp-access/0.24)",
-  "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization. New in 0.25 (Access 9.2, 11): keyOpDigest — the digest of the adapter's key operation — in the genesis body and in every transition (RLTP-ACC-9270, 7045, 4440); the transition carries the adapter's material binding, which for linear/0.1 is contentKeyCommitment, keyDist and the lineage choice (9.4.1), and for an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2) nothing beyond newEpoch and keyOpDigest; device.add and device.revoke bind and revoke device cards (Access 5.1); dag.join (additive, empty body) joins DAG heads beyond the prev bound of 32 (RLTP-ACC-3170, 3172); history.expose names each exposed key's key state under 0.25 (RLTP-ACC-8090). Every 0.25 transition names the key states it succeeds in succeeds (RLTP-ACC-7045, 9872), from 1 to 64 genesis, transition or merge identifiers; the 0.24 form carries none. Both wire versions validate (RLTP-ACC-11100): the access-operation/0.1 task of the Membership Tasks is pinned to rltp-access/0.24, and a receiver accepts 0.24 and 0.25 until that pin advances; keyOpDigest is REQUIRED only under 0.25, and lineage takes the single-object form { opens: <epoch number>, ct } under 0.24 and the array of { opens: <operation id>, ct } under 0.25 (the conditional blocks at the end of allOf).",
+  "title": "RLTP Access Operation Envelope (transcription of Access Layer 0.55 section 3.3, envelope rltp-access/0.25)",
+  "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization. The wire version is rltp-access/0.25, the one form this profile produces and accepts (Access 11, RLTP-ACC-11100). keyOpDigest — the digest of the adapter's key operation — is REQUIRED in the genesis body and in every transition (RLTP-ACC-9270, 7045, 4440); the transition carries the adapter's material binding, which for linear/0.1 is contentKeyCommitment, keyDist and the lineage choice (9.4.1), and for an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2) nothing beyond newEpoch, keyOpDigest and succeeds; device.add and device.revoke bind and revoke device cards (Access 5.1); dag.join (additive, empty body) joins DAG heads beyond the prev bound of 32 (RLTP-ACC-3170, 3172); history.expose names each exposed key's key state (RLTP-ACC-8090). Every transition names the key states it succeeds in succeeds (RLTP-ACC-7045, 9872), from 1 to 64 genesis, transition or merge identifiers, and its linear/0.1 lineage is the array of { opens: <operation id>, ct } (RLTP-ACC-9760).",
   "type": "object",
   "required": [
     "v",
@@ -19,11 +19,8 @@
   "additionalProperties": true,
   "properties": {
     "v": {
-      "enum": [
-        "rltp-access/0.25",
-        "rltp-access/0.24"
-      ],
-      "description": "wire version: 0.25 is what Access 0.54 produces; 0.24 is accepted inside access-operation/0.1 until the companion's pin advances (RLTP-ACC-11100); keyOpDigest is required only under 0.25"
+      "const": "rltp-access/0.25",
+      "description": "wire version (Access 11, RLTP-ACC-11010, 11100): the one envelope form this profile produces and accepts"
     },
     "op": {
       "type": "string",
@@ -126,7 +123,7 @@
           "maxItems": 8192,
           "items": {
             "type": "object",
-            "description": "complete vouch@1 artifact per Access 5.3 (the wire member keeps its 0.24 name); validated against access-vouch.schema.json by the consumer"
+            "description": "complete vouch@2 artifact per Access 5.3; validated against access-vouch.schema.json by the consumer"
           }
         }
       },
@@ -200,7 +197,8 @@
               "policy",
               "visibility",
               "adapter",
-              "serviceIdentity"
+              "serviceIdentity",
+              "keyOpDigest"
             ],
             "additionalProperties": false,
             "properties": {
@@ -238,7 +236,7 @@
               },
               "keyOpDigest": {
                 "$ref": "#/$defs/digest",
-                "description": "digest of the adapter's epoch-0 key operation as the adapter defines it (Access 9.2, RLTP-ACC-3260, 9270); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100)"
+                "description": "digest of the adapter's epoch-0 key operation as the adapter defines it (Access 9.2, RLTP-ACC-3260, 9270); REQUIRED"
               },
               "serviceIdentity": {
                 "$ref": "#/$defs/didKey"
@@ -509,11 +507,6 @@
             ],
             "additionalProperties": false,
             "properties": {
-              "fromEpoch": {
-                "type": "integer",
-                "minimum": 0,
-                "description": "legacy field of rltp-access/0.24 only (the 0.53 range start); absent under rltp-access/0.25, where exposure always begins at the genesis (RLTP-ACC-8080); under rltp-access/0.24 keys[i] names the key state of epoch fromEpoch + i, the exposure reaches from the genesis, and key states before fromEpoch count as exposed only once a rltp-access/0.25 history.expose names them (RLTP-ACC-11100)"
-              },
               "toEpoch": {
                 "type": "integer",
                 "minimum": 1,
@@ -523,7 +516,26 @@
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 4096,
-                "description": "entries naming key states whose exposure epoch lies in [0, toEpoch) — the genesis key state 0, a transition-created key state its newEpoch, a merged key state the maximum over the states it merges — at most 4096 entries; one operation may name a subset, and the span counts as exposed when the union of canonical history.expose operations over it names every key state in it (RLTP-ACC-8090, 8100); the entry shape is per wire version (the conditional blocks at the end of allOf): under rltp-access/0.25 { keyState, key }, under rltp-access/0.24 the bare key string"
+                "description": "entries naming key states whose exposure epoch lies in [0, toEpoch) — the genesis key state 0, a transition-created key state its newEpoch, a merged key state the maximum over the states it merges — at most 4096 entries, each { keyState, key }; exposure begins at the genesis (RLTP-ACC-8070, 8080); one operation may name a subset, and the span counts as exposed when the union of canonical history.expose operations over it names every key state in it (RLTP-ACC-8090, 8100)",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "keyState",
+                    "key"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "keyState": {
+                      "$ref": "#/$defs/keyState"
+                    },
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]+$",
+                      "maxLength": 128,
+                      "description": "the key of that key state in the form the group's adapter defines (linear/0.1: the base64url content key, 9.4.1), verified at materialization against the log's binding of keyState (RLTP-ACC-8090)"
+                    }
+                  }
+                }
               }
             }
           }
@@ -674,228 +686,6 @@
         }
       },
       "description": "empty bodies (Access 4.5): member.leave (the subject is the author, 5.4), group.dissolve, dag.join (additive, no effect beyond its prev, RLTP-ACC-3172)"
-    },
-    {
-      "if": {
-        "required": [
-          "v",
-          "op"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.25"
-          },
-          "op": {
-            "const": "group.genesis"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "required": [
-              "keyOpDigest"
-            ]
-          }
-        }
-      },
-      "description": "rltp-access/0.25: the genesis body carries keyOpDigest (RLTP-ACC-9270, 11100)"
-    },
-    {
-      "if": {
-        "required": [
-          "v"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.25"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "properties": {
-              "transition": {
-                "required": [
-                  "keyOpDigest",
-                  "succeeds"
-                ],
-                "properties": {
-                  "historyNarrow": false
-                }
-              }
-            }
-          }
-        }
-      },
-      "description": "rltp-access/0.25: every transition carries keyOpDigest and succeeds (RLTP-ACC-7045, 9270, 9872, 11100) and never the withdrawn historyNarrow (RLTP-ACC-9810)"
-    },
-    {
-      "if": {
-        "required": [
-          "v"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.24"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "properties": {
-              "transition": {
-                "not": {
-                  "required": [
-                    "succeeds"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      "description": "rltp-access/0.24: the transition carries no succeeds — that wire version names no key states; a receiver reads its single lineage edge per RLTP-ACC-11100"
-    },
-    {
-      "if": {
-        "required": [
-          "v"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.25"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "properties": {
-              "transition": {
-                "properties": {
-                  "lineage": {
-                    "type": "array"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "description": "rltp-access/0.25: lineage takes the array form of RLTP-ACC-9760 with operation-id opens (RLTP-ACC-11100)"
-    },
-    {
-      "if": {
-        "required": [
-          "v"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.24"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "properties": {
-              "transition": {
-                "properties": {
-                  "lineage": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "description": "rltp-access/0.24: lineage takes the single-object form with an epoch-number opens (RLTP-ACC-11100)"
-    },
-    {
-      "if": {
-        "required": [
-          "v",
-          "op"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.25"
-          },
-          "op": {
-            "const": "history.expose"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "properties": {
-              "keys": {
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "keyState",
-                    "key"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "keyState": {
-                      "$ref": "#/$defs/keyState"
-                    },
-                    "key": {
-                      "type": "string",
-                      "pattern": "^[A-Za-z0-9_-]+$",
-                      "maxLength": 128,
-                      "description": "the key of that key state in the form the group's adapter defines (linear/0.1: the base64url content key, 9.4.1), verified at materialization against the log's binding of keyState (RLTP-ACC-8090)"
-                    }
-                  }
-                }
-              }
-            },
-            "not": {
-              "required": [
-                "fromEpoch"
-              ]
-            }
-          }
-        }
-      },
-      "description": "rltp-access/0.25: history.expose carries no fromEpoch — exposure begins at the genesis (RLTP-ACC-8070, 8080) — and names the key state of every exposed key (RLTP-ACC-8090)"
-    },
-    {
-      "if": {
-        "required": [
-          "v",
-          "op"
-        ],
-        "properties": {
-          "v": {
-            "const": "rltp-access/0.24"
-          },
-          "op": {
-            "const": "history.expose"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "body": {
-            "properties": {
-              "keys": {
-                "items": {
-                  "type": "string",
-                  "maxLength": 128
-                }
-              }
-            }
-          }
-        }
-      },
-      "description": "rltp-access/0.24: history.expose keys are bare key strings, the form of that wire version, and the legacy fromEpoch is tolerated (RLTP-ACC-11100)"
     }
   ],
   "$defs": {
@@ -918,7 +708,9 @@
     "transition": {
       "type": "object",
       "required": [
-        "newEpoch"
+        "newEpoch",
+        "keyOpDigest",
+        "succeeds"
       ],
       "additionalProperties": false,
       "properties": {
@@ -928,7 +720,7 @@
         },
         "keyOpDigest": {
           "$ref": "#/$defs/digest",
-          "description": "digest of the transition's key operation as its adapter defines it (Access 9.2, RLTP-ACC-7045, 9270); under linear/0.1 the multibase multihash over the JCS serialization of keyDist (9860); under beekem/0.1 over the key-operation bytes (9870); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100)"
+          "description": "digest of the transition's key operation as its adapter defines it (Access 9.2, RLTP-ACC-7045, 9270); under linear/0.1 the multibase multihash over the JCS serialization of keyDist (9860); under beekem/0.1 over the key-operation bytes (9870); REQUIRED"
         },
         "succeeds": {
           "type": "array",
@@ -938,7 +730,7 @@
           "items": {
             "$ref": "#/$defs/keyState"
           },
-          "description": "the identifiers of the key states this transition succeeds (Access 7.1, RLTP-ACC-7045, 9872): exactly the current key states of the transition's position — all of them where the bound allows, otherwise at least two of them — without duplicates and none already succeeded in that ancestry, at least one and at most 64; each the oid: of the genesis or of the creating transition (RLTP-ACC-9262) or an adapter merge identifier (RLTP-ACC-9264); a lineage entry may open any succeeded key state or, under the recovery form (RLTP-ACC-9770), an earlier key state its author holds; a succeeded key state without a verifying lineage edge is a history gap (9780), repaired by lineage.repair (9830); the healing need is computed over these edges (9865); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100). The schema rejects duplicates (uniqueItems); that the entries are exactly the position's current key states and none already succeeded is a materialization rule over the DAG alone, never over key possession, not a schema rule."
+          "description": "the identifiers of the key states this transition succeeds (Access 7.1, RLTP-ACC-7045, 9872): exactly the current key states of the transition's position — all of them where the bound allows, otherwise at least two of them — without duplicates and none already succeeded in that ancestry, at least one and at most 64; each the oid: of the genesis or of the creating transition (RLTP-ACC-9262) or an adapter merge identifier (RLTP-ACC-9264); a lineage entry may open any succeeded key state or, under the recovery form (RLTP-ACC-9770), an earlier key state its author holds; a succeeded key state without a verifying lineage edge is a history gap (9780), repaired by lineage.repair (9830); the healing need is computed over these edges (9865); REQUIRED. The schema rejects duplicates (uniqueItems); that the entries are exactly the position's current key states and none already succeeded is a materialization rule over the DAG alone, never over key possession, not a schema rule."
         },
         "contentKeyCommitment": {
           "$ref": "#/$defs/digest",
@@ -967,19 +759,8 @@
           "description": "one entry per retained DEVICE: exactly the bound, unrevoked devices of the computed retained set (Access 7.1; linear/0.1 only, RLTP-ACC-9700, 9730), recipient = the device's did:key (a person's first device is its member anchor key, 5125), envelope = digest of the key envelope sealed to that device's key-agreement key (9740, 9750); recipients MUST be pairwise distinct (schema uniqueItems is object-level; the per-recipient uniqueness rule is normative text + vector). The 8 devices per member bound (RLTP-ACC-5145) is a validity rule, not a schema constraint."
         },
         "lineage": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/lineage"
-            },
-            {
-              "$ref": "#/$defs/lineage024"
-            }
-          ],
-          "description": "linear/0.1 epoch-key lineage (RLTP-ACC-9760): the array form under rltp-access/0.25, the single-object form under rltp-access/0.24 (RLTP-ACC-11100); the version decides which (conditional blocks at the end of allOf)"
-        },
-        "historyNarrow": {
-          "const": true,
-          "description": "legacy field of the rltp-access/0.24 wire form only (the 0.53 narrowing act); history narrowing is withdrawn (Access OI-19, RLTP-ACC-9810), so it is rejected under rltp-access/0.25"
+          "$ref": "#/$defs/lineage",
+          "description": "linear/0.1 epoch-key lineage (RLTP-ACC-9760): one { opens, ct } edge per key state this transition succeeds"
         },
         "lineageVoid": {
           "const": true,
@@ -988,7 +769,7 @@
       },
       "oneOf": [
         {
-          "description": "linear/0.1 form (Access 9.4.1): contentKeyCommitment, keyDist, and exactly one of lineage or (on a discharge only) lineageVoid (RLTP-ACC-9810: history is never narrowed); the legacy historyNarrow of the rltp-access/0.24 wire form stands in place of lineage there and is rejected under rltp-access/0.25 (conditional block at the end of allOf)",
+          "description": "linear/0.1 form (Access 9.4.1): contentKeyCommitment, keyDist, and exactly one of lineage or (on a discharge only) lineageVoid (RLTP-ACC-9810: history is never narrowed)",
           "required": [
             "contentKeyCommitment",
             "keyDist"
@@ -998,69 +779,26 @@
               "required": [
                 "lineage"
               ],
-              "allOf": [
-                {
-                  "not": {
-                    "required": [
-                      "historyNarrow"
-                    ]
-                  }
-                },
-                {
-                  "not": {
-                    "required": [
-                      "lineageVoid"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "required": [
-                "historyNarrow"
-              ],
-              "allOf": [
-                {
-                  "not": {
-                    "required": [
-                      "lineage"
-                    ]
-                  }
-                },
-                {
-                  "not": {
-                    "required": [
-                      "lineageVoid"
-                    ]
-                  }
-                }
-              ]
+              "not": {
+                "required": [
+                  "lineageVoid"
+                ]
+              }
             },
             {
               "required": [
                 "lineageVoid"
               ],
-              "allOf": [
-                {
-                  "not": {
-                    "required": [
-                      "lineage"
-                    ]
-                  }
-                },
-                {
-                  "not": {
-                    "required": [
-                      "historyNarrow"
-                    ]
-                  }
-                }
-              ]
+              "not": {
+                "required": [
+                  "lineage"
+                ]
+              }
             }
           ]
         },
         {
-          "description": "form of an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2): newEpoch and keyOpDigest only",
+          "description": "form of an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2): newEpoch, keyOpDigest and succeeds only",
           "not": {
             "anyOf": [
               {
@@ -1076,11 +814,6 @@
               {
                 "required": [
                   "lineage"
-                ]
-              },
-              {
-                "required": [
-                  "historyNarrow"
                 ]
               },
               {
@@ -1178,27 +911,7 @@
           }
         }
       },
-      "description": "rltp-access/0.25 form: linear/0.1 epoch-key lineage (RLTP-ACC-9760): one entry per key state this transition succeeds; a healing rotation carries one entry per open key state its author holds and surfaces the others as missing bridges (9762, 9780). Pairwise distinct opens is a validity rule, not a schema constraint."
-    },
-    "lineage024": {
-      "type": "object",
-      "required": [
-        "opens",
-        "ct"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "opens": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "the epoch number of the previous epoch, whose transition this single edge opens (RLTP-ACC-11100)"
-        },
-        "ct": {
-          "$ref": "#/$defs/b64ct",
-          "description": "AEAD ciphertext of the previous epoch's content key under this transition's content key"
-        }
-      },
-      "description": "rltp-access/0.24 single-object lineage form: receivers MUST accept it as one edge opening the previous epoch's transition (RLTP-ACC-11100); valid only under v = rltp-access/0.24 (the conditional blocks at the end of allOf)"
+      "description": "linear/0.1 epoch-key lineage (RLTP-ACC-9760): one entry per key state this transition succeeds; a healing rotation carries one entry per open key state its author holds and surfaces the others as missing bridges (9762, 9780). Pairwise distinct opens is a validity rule, not a schema constraint."
     },
     "keyState": {
       "type": "string",

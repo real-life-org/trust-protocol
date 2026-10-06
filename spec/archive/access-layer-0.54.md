@@ -3,15 +3,15 @@
 **Real Life Trust Protocol — Layer 3: Access**
 
 - **Status:** Editor's Draft
-- **Version:** 0.55.0-draft
+- **Version:** 0.54.0-draft
 - **Editors:** Anton Tranelis
 - **Date:** 2026-10-06
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-access@0.55` (draft). Wire forms:
+- **Conformance profile:** `rltp-access@0.54` (draft). Wire forms:
   the operation envelope `rltp-access/0.25`, key material and key
-  distribution `/0.25`, the removal notice
-  `rltp-access-removal-notice/0.25`, the service registration
-  `/0.27`, the unchanged forms `rltp-access-view/0.24` and
+  distribution `/0.25`, the service registration `/0.27`, the
+  unchanged forms `rltp-access-view/0.24`,
+  `rltp-access-removal-notice/0.24`,
   `rltp-access-member-mapping/0.24`, the session-plane evidence
   forms `…/1` (3.6), the vouch (`vouch@2`, 5.3) as a W3C VC in
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
@@ -20,10 +20,10 @@
   RLTP Encounter 0.30; RLTP Delivery Contract 0.79 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
-  Membership Tasks 0.17 (the task types that transport this
+  Membership Tasks 0.16 (the task types that transport this
   layer's admission documents).
-- **Supersedes:** version 0.54 (archived as
-  `archive/access-layer-0.54.md`). Earlier versions: Appendix C.
+- **Supersedes:** version 0.53 (archived as
+  `archive/access-layer-0.53.md`). Earlier versions: Appendix C.
 
 ## Status of This Document
 
@@ -34,11 +34,11 @@ matrix of 3.6, the two ports of Section 9 and the service classes of
 9.3 are derived from experiments against three existing key-
 agreement systems and are implemented against the adapter
 `beekem/0.1` in an experimental harness, not yet in the library. The
-next expected changes are device bindings and policy under
-`beekem/0.1` and an active-attacker review of the service rules
-(OI-17); each is a new version. Open questions are listed in
-Section 15, and feedback is welcome via the issues of the
-publication repository (github.com/real-life-org/trust-protocol).
+next expected changes are signed device bindings and policy under
+`beekem/0.1`, and an active-attacker review of the service rules;
+each is a new version. Open questions are listed in Section 15, and
+feedback is welcome via the issues of the publication repository
+(github.com/real-life-org/trust-protocol).
 
 
 ## Abstract
@@ -2450,10 +2450,7 @@ the context, types, subject, and endorsement fields shown above.
 `provenance` as verified.
 
 **RLTP-ACC-5390** — The evidence relay of Membership §3.4 MAY carry
-at most 16 vouches alongside the consent pair, each checked at
-receipt as Membership §3.4 states (schema, signature, subject, accept
-digest, genesis digest) and judged against the rule only at
-materialization.
+vouches alongside the consent pair.
 
 *Rationale.* One closed form is DTG-conformant and leaves no room
 for a second reading. The accept binding, not a clock, ends a
@@ -2466,8 +2463,8 @@ are issued about the candidate's member anchor, a disclosure the
 candidate consents to in asking for them, so the log learns the
 member anchor and nothing else; enclosed vouches count against the
 transported variant proof's caps. The candidate never needs to
-know who is a member: a member holding the verified pair surfaces
-the candidacy into the group space as Layer-4 content, and members vouch over an existing
+know who is a member: the inviter surfaces the candidacy into the
+group space as Layer-4 content, and members vouch over an existing
 relationship, after meeting, or by introduction (Network
 Visibility §8). A group that wants a fallback without vouches
 writes `any[vouch(n), …]` into its policy.
@@ -2582,9 +2579,8 @@ of the epoch (Section 9.2).
 
 **RLTP-ACC-5530** — A key claim MUST travel as a `key-delivery`
 document of kind `request` (10.1), signed by the claiming anchor,
-naming the operation it claims under or, where it holds no
-identifier, the admission reference of RLTP-ACC-10172, and carrying
-a card whose proof verifies as RLTP-ACC-10065 states.
+naming the operation it claims under, and carrying a contact card
+in the displayed form whose proof verifies under that anchor.
 
 **RLTP-ACC-5540** — A requester MAY address any member whose card
 it holds.
@@ -2620,7 +2616,7 @@ sealed to the key-agreement key of the requesting device.
 *Rationale.* Without the duty, the author of an admission or a
 transition could hold the new member's or a retained member's keys
 hostage. The signature gate makes the duty non-triggerable by third
-parties; a seal needs a live key, not a fresh one (Membership §2.6),
+parties; a seal needs a live key, not a fresh one (Membership §2),
 so no freshness is claimed. The enclosed cards of the log's
 admissions are address material, so no single helper can withhold
 alone, and a member who discarded its card key could no longer
@@ -4518,7 +4514,7 @@ This layer requires, and does not define:
 - **Delivery port:** authenticated end-to-end-encrypted delivery to
   derived identities with durable buffering and explicit
   disposition — satisfied by the Delivery Contract (0.79), whose
-  task types for this layer are the Membership Tasks (0.17) plus the
+  task types for this layer are the Membership Tasks (0.16) plus the
   two types registered below.
 - **Replication port:** convergent replication of the encrypted
   authority log and documents; deterministic merge; offline
@@ -4572,8 +4568,7 @@ The `payload` is a `keyDelivery` object with these fields:
 | `group` | the group DID |
 | `genesisDigest` | the group's identity (3.2) |
 | `epoch` | the epoch the material belongs to; for `request`, the requester's best knowledge, informative |
-| `op` | the `oid:` of the operation this document serves; for `request`, the operation the claim rests on, or absent where the requester holds no identifier of a canonical admission (RLTP-ACC-10172) |
-| `admission` | for `request` without `op`: `{ "subject": <member anchor>, "acceptDigest": <document digest of the accept> }`, the admission reference of RLTP-ACC-10172; absent otherwise |
+| `op` | the `oid:` of the operation this document serves; for `request`, the operation the claim rests on |
 | `subject` | the entitled member anchor (RLTP-ACC-10105) |
 | `kind` | `request`, or a material kind the group's adapter registers |
 | `sealed` | for material kinds: the sealed material, shape per `sealed-envelope.schema.json` and per kind; absent for `request` |
@@ -4589,10 +4584,8 @@ The material kinds are registered per adapter (Section 9.4).
 | `refresh` | any canonical admission of the recipient, or the genesis for the founder | a seal per the `keydist` profile of 9.4.1 — same HKDF info, associated data with the requester as recipient and the sender's current epoch as `newEpoch` — whose plaintext is a fresh `material` object (9.4, with `keyState` = the sender's current key state) from the key port at the sender's current position, sealed to the requesting device's key-agreement key |
 
 **RLTP-ACC-10040** — A `keyDelivery` payload MUST carry `group`,
-`genesisDigest`, `epoch`, and `kind`, with `kind` being `request` or
-a material kind registered by the group's adapter, and `op` for
-every kind except a `request` that carries `admission` instead
-(RLTP-ACC-10172).
+`genesisDigest`, `epoch`, `op`, and `kind`, with `kind` being
+`request` or a material kind registered by the group's adapter.
 
 **RLTP-ACC-10050** — `sealed` MUST be present for every material
 kind and absent for `request`, in the shape the kind defines.
@@ -4700,24 +4693,6 @@ operation, card, or epoch.
 its own state MUST be disposed `failed(validation-failed)`
 immediately, never pending.
 
-**RLTP-ACC-10172** — A `request` whose issuer holds no identifier of
-a canonical admission MUST carry, in place of `op`, the admission
-reference `admission { subject, acceptDigest }`: the claiming member
-anchor and the document digest of the accept the requester issued,
-with `subject` equal to the request's `issuer` and to
-`keyDelivery.subject`.
-
-**RLTP-ACC-10174** — A receiver MUST resolve an admission reference
-to the canonical admissions of `subject` in its own materialized
-state whose enclosed accept has the document digest `acceptDigest`;
-any one of them serves as the named operation for RLTP-ACC-5560 and
-RLTP-ACC-10100, none being distinguished, and a reference that
-resolves to none is disposed as RLTP-ACC-10170 states.
-
-**RLTP-ACC-10176** — An answer to a request by admission reference
-MUST name in `op` the canonical admission the receiver resolved, so
-that the requester learns the identifier it lacked.
-
 *Rationale.* The response duty is the slot of 5.3, one per
 (`genesisDigest`, requester anchor), and the throttle is per genesis
 digest so that one group never starves another, sibling geneses
@@ -4730,14 +4705,7 @@ byte-identical re-send is `duplicate-known` at the Delivery
 Contract's stage 4, so a repeat always travels as a new document. A
 request is a demand on the receiver; letting it pend would turn
 requests into storage load the requester controls. The requester
-retries later. An invitee whose only candidate carried a fabricated
-admission identifier holds a genuine invite and accept but no
-identifier it could name; the admission reference lets it claim by
-what it does hold, and the receiver's resolution is the same
-canonicality check the identifier would have triggered. The accept
-digest is unforgeable by anyone but the subject and consumed by
-every canonical admission that encloses it (5.3), so the reference
-names the subject's own admissions and nothing else.
+retries later.
 
 Material kinds have this defined effect: durable buffering; then
 unsealing, the binding check, and application as the recipient's
@@ -4750,14 +4718,13 @@ applied at most once per successfully verified content.
 operation MUST dispose material `incomplete(missing: group-state)`
 under the pending mechanics of Membership §3.3 — keyed by document
 digest, retention `bootstrap-retention`, redelivery idempotent —
-except a re-welcome answering a bootstrap and material answering a
-bound device's own bootstrap request (RLTP-ACC-10332).
+except a re-welcome answering a bootstrap.
 
 *Rationale.* Pending mechanics exist for material a lagging
 recipient will grow into, never for demands on the receiver. The
 re-welcome answering a bootstrap is self-contained against the
 invitee's own accept, exactly like the welcome it replaces
-(Membership §3.3, RLTP-MT-3460).
+(Membership §3.3 case 1).
 
 **Bootstrap semantics of the re-welcome.** A bootstrapping invitee
 cannot check canonicality or the epoch binding before holding the
@@ -4786,10 +4753,8 @@ and only if its document digest is smaller in unsigned bytewise
 order.
 
 **RLTP-ACC-10240** — A displaced candidate's material MUST be
-discarded and only its document digest kept as a displacement
-record; that record is not a completed-effect entry of the Delivery
-Contract, and a re-sent displaced candidate MUST be evaluated afresh
-within the bounds of RLTP-ACC-10210 to RLTP-ACC-10230.
+discarded, and only its document digest and disposition (`unique`;
+on re-send `duplicate-known`) MUST be kept.
 
 **RLTP-ACC-10250** — When the active candidate fails, the buffered
 candidate MUST be checked immediately.
@@ -4801,13 +4766,8 @@ candidate would let an attacker multiply the delay by the number of
 fabricated candidates; per pair, any number of them costs one
 window. The buffer rule is deterministic and constant-space, and
 stating discard explicitly keeps retention identical across
-implementations. Displacement is not completion: the candidate was
-never checked against the log, so answering its re-send with the
-acknowledgement of a completed effect would tell the sender its
-admission arrived when it was merely out-buffered, and Membership
-§3.3 reserves `duplicate-known` for a held completed-effect entry.
-The buffer is an optimization, never the carrier of the liveness
-guarantee: any one-slot rule can be gamed into
+implementations. The buffer is an optimization, never the carrier
+of the liveness guarantee: any one-slot rule can be gamed into
 displacing the honest candidate, so the guarantee rests on the
 request path (RLTP-ACC-10330). A failure presupposes the log, so no
 window mechanics apply to the successor.
@@ -4856,41 +4816,8 @@ failure, and check the buffered candidate.
 
 **RLTP-ACC-10330** — When every held candidate has failed, or the
 window closes with no log arrival, the invitee MUST wipe everything
-provisional and request afresh by an authenticated key request,
-naming the admission its candidate named where it holds one and the
-admission reference of RLTP-ACC-10172 otherwise.
-
-**Bootstrap of a bound device.** A device bound to a member (5.1)
-may hold no replica of the group yet: bound by `device.add` from a
-sibling device that was lost before the new one replicated. Its
-material is recovery under 5.3 by entitlement and a bootstrap by
-situation.
-
-**RLTP-ACC-10332** — A device bound to a member anchor that holds no
-materialized state for the group MUST be able to bootstrap from the
-material answering its own authenticated request (RLTP-ACC-5560,
-RLTP-ACC-5580), sealed to the requesting device's key-agreement key,
-in the recovery kind the adapter registers.
-
-**RLTP-ACC-10334** — Before provisionally adopting such material, the
-device MUST check that the seal opens under its own key-agreement
-key, that the payload's `group` and `genesisDigest` equal the group
-and the genesis digest from which its person's member anchor is
-derived (5.1, Identity §6), that `subject` is that anchor, and that
-the unsealed material is well-formed for the named adapter; it MUST
-NOT accept a seal to any other key, the accept's card included.
-
-**RLTP-ACC-10336** — The lifecycle of RLTP-ACC-10210 to RLTP-ACC-10320
-MUST apply to a bound device's bootstrap with the device in place of
-the invitee and the device's binding reference (RLTP-ACC-5127 or the
-`device.add` identifier) in place of the accept.
-
-**RLTP-ACC-10338** — A bound device's bootstrap MUST succeed only if,
-at first materialization, `subject` is a member of that state, the
-device is bound to `subject` and not revoked at that position, and
-the unsealed material verifies against the log's binding of the key
-state it names (RLTP-ACC-9362); a device revoked there wipes as
-RLTP-ACC-10320 states.
+provisional and request afresh, from the still-held invite and
+accept, by an authenticated key request.
 
 *Rationale.* An admission is history and stays canonical after the
 removal that ended it, and material derived honestly at the current
@@ -4915,13 +4842,7 @@ is the residual here. What a malicious sender can cost before the
 log arrives is bounded delay and bounded storage inside one window —
 never a false membership, never an unbounded hold, never a partial
 teardown, never lost user data — and the sender of record is
-attributable through the delivery chain. A bound device without a
-replica is the same situation seen from a device: entitled by the
-log it cannot yet read, it adopts provisionally against the genesis
-digest its own anchor is derived from and verifies at the log, where the binding and
-the revocation state decide; the accept's card is not its key, so the
-seal check names the device's own, and a seal to the accept's card
-would hand a second device the first device's identity.
+attributable through the delivery chain.
 
 ### 10.2 `removal-notice/0.1`
 
@@ -4931,7 +4852,7 @@ the payload is the compact notice object, schema
 `schemas/payload-removal-notice.schema.json`:
 
 ```json
-{ "v": "rltp-access-removal-notice/0.25",
+{ "v": "rltp-access-removal-notice/0.24",
   "type": "removal-notice",
   "group": "did:key:z6Mk…group",
   "genesisDigest": "…the group's identity (3.2)…",
@@ -5030,16 +4951,16 @@ idempotence, not an authority question.
 
 ## 11. Evolvability
 
-Profile `rltp-access@0.55` produces and accepts these wire forms:
+Profile `rltp-access@0.54` produces and accepts these wire forms:
 
 | Artifact | Wire version |
 |---|---|
-| operation envelope (3.3), `keyOpDigest`, `lineage` as an array | `rltp-access/0.25` |
+| operation envelope (3.3), `keyOpDigest`, `lineage` as an array | `rltp-access/0.25`; `rltp-access/0.24` accepted in `access-operation/0.1` (RLTP-ACC-11100) |
 | authorization view (7.3) | `rltp-access-view/0.24` |
-| key material (9.4), with `keyState` | `rltp-access-material/0.25` |
+| key material (9.4), with `keyState` | `rltp-access-material/0.25`; `/0.24` accepted in the welcome (RLTP-ACC-11100) |
 | key distribution (9.4.1), per device, without `keyState` | `rltp-access-keydist/0.25` |
 | service registration (7.3), with `class` (9.3) and the optional `intakeBudget` block (RLTP-ACC-9535) | `rltp-access-registration/0.27` |
-| removal notice (10.2), with `issuer` | `rltp-access-removal-notice/0.25` |
+| removal notice (10.2) | `rltp-access-removal-notice/0.24` |
 | member mapping (5.5) | `rltp-access-member-mapping/0.24` |
 | evidence session (Section 3.6) | `rltp-access-evidence-claim/1`, `rltp-access-evidence-request/1`, `rltp-access-evidence-response/1`, `rltp-access-evidence-supplement/1`, `rltp-access-evidence-part/1` |
 | task types (Section 10) | `key-delivery/0.1`, `removal-notice/0.1` |
@@ -5116,16 +5037,44 @@ group that depends on a rule introduced by a later profile can
 refuse operations under an earlier one.
 
 **RLTP-ACC-11100** — The task type `access-operation/0.1` of the
-Membership Tasks (0.17) MUST transport envelopes of version
-`rltp-access/0.25`, and the welcome `material` that Membership §4
-carries MUST be `rltp-access-material/0.25`; a receiver MUST reject
-an envelope or a welcome material of any other version there.
+Membership Tasks (0.16, pinned to envelope `rltp-access/0.24`) MUST
+transport envelopes of version `rltp-access/0.25` under this
+profile; a receiver MUST accept both versions in that payload until
+the companion's pin advances, and `keyOpDigest` is required only
+under `0.25`, and a `0.24` envelope carries the single-object
+`lineage` form of its version, which receivers MUST accept as one
+edge opening the one transition of that epoch number in the
+operation's own ancestry, and MUST reject a `0.24` operation whose
+ancestry holds more than one transition of that epoch number, since
+its legacy forms cannot name a key state; a legacy `opens` of `0`
+opens the genesis key state; verified under the AAD of its own
+version, unchanged. A `0.24` transition carries no `succeeds` and
+MUST be read as succeeding exactly the one maximal key state of its
+ancestry, whatever its lineage form; a `0.24` transition whose
+ancestry holds more than one maximal key state MUST be rejected as
+invalid. A `0.24` transition carrying `historyNarrow` MUST be read
+as valid with a history gap over the key state it succeeds
+(RLTP-ACC-9780), and a `0.24` `history.expose` carrying `fromEpoch`
+MUST be read as exposing from the genesis, since its keys reach
+there, while `keys[i]` keeps naming the key state of epoch
+`fromEpoch + i`; key states before `fromEpoch` count as exposed only
+once a `0.25` exposure names them. The welcome `material`
+Membership 0.16 §4 carries MUST be `rltp-access-material/0.25`
+under this profile; a receiver MUST accept `0.24` material without
+`keyState` only where the admission's ancestry holds exactly one
+maximal key state — the most recent transition, or the genesis for
+an admission in epoch 0 — and MUST read it as naming that key
+state; where the ancestry holds several maximal key states, the
+receiver MUST refuse the legacy material and request `0.25`
+material instead, until the companion's pin advances. A
+`0.24` envelope's `history.expose` body carries `keys` as an array
+of keys in epoch order, which receivers MUST read as naming the one
+key state per epoch number in the operation's ancestry.
 
-*Rationale.* The companion carries this layer's forms and pins
-their versions on its side; naming the same versions here keeps two
-conformant implementations from reading one task differently, and
-accepting exactly the forms this profile produces leaves no second
-reading of an older shape.
+*Rationale.* A companion pin that lags one wire version is a
+compatibility statement, not a contradiction, as long as the
+statement is written down; without it two conformant
+implementations would read the same task differently.
 
 
 ## 12. Security Considerations
@@ -5409,14 +5358,14 @@ transition, the body profiles of 4.5 including `device.add` and
 Membership Tasks' document schemas, `sealed-envelope.schema.json`, and
 `contact-card.schema.json`.
 
-**RLTP-ACC-14020** — The profile `rltp-access@0.55` MUST produce and
+**RLTP-ACC-14020** — The profile `rltp-access@0.54` MUST produce and
 accept exactly the wire forms of Section 11 and MUST be read against
 the companions RLTP Identity 0.51 (whose per-device derivation 5.2
 awaits, so conformance claims no device-level derivation), RLTP
 Encounter 0.30 (`rltp-encounter@0.30`, wire 0.25, where cards are
-consumed), the Delivery Contract 0.79, and the Membership Tasks 0.17
-(`rltp-membership@0.17`), whose pins of this layer's wire forms
-RLTP-ACC-11100 states.
+consumed), the Delivery Contract 0.79, and the Membership Tasks 0.16
+under the compatibility statement RLTP-ACC-11100, whose profile
+strings are pinned on their side.
 
 **RLTP-ACC-14030** — Conformance MUST be claimed per class:
 
@@ -5454,14 +5403,13 @@ while B removes C.
 
 **RLTP-ACC-14060** — A vector and a conformance report MUST reference
 rules by their `RLTP-ACC` identifiers, against the identifier list
-`conformance/access-rule-ids-0.55.txt`.
+`conformance/access-rule-ids-0.54.txt`.
 
 **RLTP-ACC-14070** — Every normative statement of this document MUST
 be vector-testable or named in the state-dependent set: signal
 dispositions (3.5); remediation, healing, and key service duties,
-helper reachability included (5.3, 9.2); the provisional bootstrap
-of an invitee and of a bound device (10.1); the replay bound of the
-key port (RLTP-ACC-9330); KV5 and KV6, testable only by scenario;
+helper reachability included (5.3, 9.2); the replay bound of the key
+port (RLTP-ACC-9330); KV5 and KV6, testable only by scenario;
 teardown (Section 12); the service duties of 9.3; and the adapter
 confidentiality criteria of 9.4 — each exercised with controlled
 state and clock.
@@ -5528,8 +5476,7 @@ in both directions.
   deadlines, rate limits, and completed-effect records stay
   independent per digest (keying any of them by DID is the
   regression check).
-- *Envelope* — `v` `rltp-access/0.25`, any other version rejected
-  (RLTP-ACC-11100); `id` recomputation; replay across group, epoch, or
+- *Envelope* — `id` recomputation; replay across group, epoch, or
   position rejected; `crit` handling; unknown envelope fields pass
   the schema, unknown body fields fail the closed profile; unsorted
   signatures invalid; the group identity unchanged under any proof
@@ -5620,12 +5567,8 @@ in both directions.
   request naming unknown state fails at once and never pends;
   `keydist` digest and epoch matched against the named transition;
   `refresh` toward a retained member and toward the founder, adopted
-  only on a binding match; garbage material not adopted; a request by
-  admission reference resolved to a canonical admission of its
-  subject and answered naming it in `op`, a reference that resolves
-  to none `failed(validation-failed)`, a request carrying both `op`
-  and `admission` or neither schema-invalid.
-- *Bootstrap* — the pre-checks of RLTP-ACC-10200, provisional adoption, and the
+  only on a binding match; garbage material not adopted.
+- *Bootstrap* — case-1 pre-checks, provisional adoption, and the
   three conditions at first materialization; a subject admitted in
   epoch N and removed in N+1, handed an honestly derived re-welcome
   for the epoch after the removal → the bootstrap fails on current
@@ -5636,12 +5579,8 @@ in both directions.
   candidate kept as digest and disposition only; the honest
   candidate displaced by ground digests → the invitee still
   bootstraps through the request path; window expiry without log
-  arrival → complete wipe and retry from invite and accept, by
-  admission reference where no admission identifier is held; user
-  drafts in a provisional space survive every wipe; a bound device
-  without a replica bootstraps from the answer to its own request,
-  refuses a seal to the accept's card, and fails at first
-  materialization where it is revoked or not bound there.
+  arrival → complete wipe and retry from invite and accept; user
+  drafts in a provisional space survive every wipe.
 - *Leave and dissolve* — a pending exit excluded from the currency
   yet listed in views until discharge; discharge by any member of
   its position, a pending exit included, on a single signature
@@ -5667,9 +5606,7 @@ in both directions.
   `view` or `log` service refuses content from an unlisted device
   (S10a) visibly and retriably; a removed member receives the
   removal notice.
-- *Removal notice* — `$id` equal to the type URI; `v`
-  `rltp-access-removal-notice/0.25`, any other version
-  schema-invalid; document proof
+- *Removal notice* — `$id` equal to the type URI; document proof
   absent, `issuer` a member materializing the removal and `sig`
   under `issuer`; consistency failures
   `failed(validation-failed)`; `unique` on first surfacing and
@@ -5765,7 +5702,10 @@ is.
 The `/probe` entry point is not wire-normative: its transport shapes
 carry `@probe` and will change, while the checks it runs are those of
 5.3. The generated `wire` types and the `SCHEMAS` bundle track the
-schemas in the repository and change with them.
+schemas in the repository and change with them; the 0.54 forms of the
+envelope (`rltp-access/0.25`) and of the registration
+(`rltp-access-registration/0.27`) enter the library when the schemas
+are regenerated.
 
 Not in the library: the operation envelope with `oid`, `prev`, and
 epochs; materialization, the conflict matrix, and the outcome rules
@@ -5846,7 +5786,6 @@ One line per version; the archived text of 0.4 and later is under
 | 0.52 | 2026-08-26 | Acceptance-receipt and generation-statement forms removed. |
 | 0.53 | 2026-08-26 | Community anchor terminology; `member-mapping@1` unchanged. |
 | 0.54 | 2026-10-06 | Two ports: authority port and key port (KV1–KV6), adapters `linear/0.1` and `beekem/0.1`; conflict matrix without the enforcement-pair fork, concurrent removals with authority all take effect; persons in the log, devices in the key structure with device cards; service classes `blind`, `view`, `log` (`rltp-access-registration/0.27`); `keyOpDigest` (`rltp-access/0.25`); numbered rules with separate rationale; the sibling-epoch-merge open issue closed. |
-| 0.55 | 2026-10-06 | Key request by admission reference (`admission { subject, acceptDigest }`); bootstrap of a bound device without a replica; displacement record separate from the completed-effect entry; removal notice `rltp-access-removal-notice/0.25` with `issuer`; at most 16 vouches in the evidence relay, checked at receipt; only the 0.25 envelope and material accepted; Membership Tasks 0.17 pinned; schema corrections (vouch `$id`, `vouch@2` in the envelope's credentials). |
 
 
 ## References
@@ -5860,7 +5799,7 @@ registry §6, derived service identities §7, migration §10, device
 keys §15.1) · **RLTP Encounter Layer 0.30**, wire 0.25 (securing
 profile 2.3, contact card §6, pair anchors §4.4) · **RLTP Delivery
 Contract 0.79 (normative)** (document profile, sealed envelope §5,
-dispositions §6) · **RLTP Membership Tasks 0.17 (normative)**
+dispositions §6) · **RLTP Membership Tasks 0.16 (normative)**
 (document shapes §3, welcome seal §4, timing §5) · **RLTP Replication
 Contract** (replication port, service targets) · **RLTP Network
 Visibility 0.29** (§2.1 wire conventions, §3 audience classes, §6

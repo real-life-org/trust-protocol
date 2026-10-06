@@ -9,18 +9,18 @@
 // Validate against SCHEMAS before treating any value as a wire artifact.
 import type { Json } from './core.js'
 
-/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.54 sections 9.4, 9.4.1, 9.4.2) */
+/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.55 sections 9.4, 9.4.1, 9.4.2) */
 export type AccessMaterial = ({
-  v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25" | "rltp-access-material/0.24"
+  v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25"
   adapter: "linear/0.1" | "beekem/0.1"
   epoch: number
   keyState?: string
   keys: { [k: string]: Json }
 })
 
-/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.54 section 3.3, envelopes rltp-access/0.25 and rltp-access/0.24) */
+/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.55 section 3.3, envelope rltp-access/0.25) */
 export type AccessOperationEnvelope = ({
-  v: "rltp-access/0.25" | "rltp-access/0.24"
+  v: "rltp-access/0.25"
   op: string
   group: string
   epoch: number
@@ -306,14 +306,18 @@ export type PayloadEncounterCredentialDelivery = {
   credential: EncounterCredential
 }
 
-/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.54, target Trust Tasks framework 0.4) */
+/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.55, target Trust Tasks framework 0.4) */
 export type PayloadKeyDelivery = {
   keyDelivery: ({
     group: string
     genesisDigest: string
     subject: string
     epoch: number
-    op: string
+    op?: string
+    admission?: {
+      subject: string
+      acceptDigest: string
+    }
     kind: "keydist" | "re-welcome" | "refresh" | "material" | "request"
     sealed?: SealedEnvelope
     card?: ({
@@ -409,9 +413,9 @@ export type PayloadRegistryDeclaration = {
   }
 }
 
-/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.54 section 10.2) */
+/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.55 section 10.2) */
 export type PayloadRemovalNotice = {
-  v: "rltp-access-removal-notice/0.24"
+  v: "rltp-access-removal-notice/0.25"
   type: "removal-notice"
   group: string
   genesisDigest: string

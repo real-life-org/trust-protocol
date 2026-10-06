@@ -156,7 +156,7 @@ test('access CLI: --layer access checks, writes manifests; an unknown layer exit
   assert.deepEqual(manifestIds(require('node:fs').readFileSync(out, 'utf8')), ['RLTP-ACC-3005', 'RLTP-ACC-14010'])
   const w2 = cli('--layer', 'access', '--write-manifest', invB, '--manifest', out)
   assert.equal(w2.status, 0, w2.stderr)
-  assert.match(require('node:fs').readFileSync(out, 'utf8'), /^# Access Layer 0\.54/)
+  assert.match(require('node:fs').readFileSync(out, 'utf8'), /^# Access Layer 0\.55/)
 })
 
 // ── Membership Tasks (`--layer membership`, prefix RLTP-MT) ──────────────

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/removal-notice/0.1",
-  "title": "RLTP Removal Notice (Access Layer 0.54 section 10.2)",
+  "title": "RLTP Removal Notice (Access Layer 0.55 section 10.2)",
   "description": "Payload of the removal-notice/0.1 task registered by the Access layer (10.2) — the compact artifact by which a removed member is told, never the operation envelope itself, whose membership-scaled keyDist fits no carrier budget (Access 5.3 boundary rule). Signature input = JCS serialization with sig omitted. The notice's issuer is the member who produced it, not necessarily the removal's author (RLTP-ACC-10350): every member that materializes the removal can issue it; sig MUST verify under issuer, and issuer MUST be a member of the state that materializes the named removal as canonical (10360); author names the member.remove operation's author. The document carries no proof; its issuer addresses it to the service identity of every device bound to the removed anchor in the issuer's materialization, and a service delivers it to each addressed identity it served (10370). The recipient verifies against their own last-held state (10380): the payload is schema-valid, sig verifies, genesisDigest matches a group of that state, issuer was a member there, author authored the named operation where the recipient holds it, and subject is themselves. The membership and authorship checks are runtime checks against state, not schema-expressible. A verified notice is a SURFACED CLAIM WITH NO MANDATORY STATE EFFECT: it MUST be surfaced, SHOULD trigger a verification attempt, and MUST NOT by itself suspend writing or alter authorization state — the ONLY binding event for victim-side write hygiene is the recipient's own canonical application of the removal; a peer's refusal to serve is a signal prompting verification, never a binding event (Access 10.2; anything stronger would make every member signature a policy-free denial lever). Dispositions: unique on first surfacing, duplicate-known on redelivery (Delivery section 6's closed set). Supersedes the former Membership section 3.3 case 2 — retired as of Membership 0.9, whose access-operation carrier is admission-only.",
   "type": "object",
   "required": [
@@ -19,7 +19,7 @@
   "additionalProperties": false,
   "properties": {
     "v": {
-      "const": "rltp-access-removal-notice/0.24"
+      "const": "rltp-access-removal-notice/0.25"
     },
     "type": {
       "const": "removal-notice"
