@@ -709,7 +709,6 @@
           "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         ],
         "body": {
-          "fromEpoch": 2,
           "toEpoch": 4,
           "keys": [
             {
@@ -990,14 +989,31 @@
       ]
     },
     {
-      "name": "transition: lineage and historyNarrow are alternatives — declaring both hides which one governs",
+      "name": "transition: under rltp-access/0.25 historyNarrow is withdrawn — history is never narrowed (RLTP-ACC-9810, OI-19)",
+      "base": "access-remove",
+      "set": {
+        "/body/transition/historyNarrow": true
+      },
+      "delete": [
+        "/body/transition/lineage"
+      ]
+    },
+    {
+      "name": "transition: under rltp-access/0.24 lineage and the legacy historyNarrow are alternatives — declaring both hides which one governs",
+      "base": "access-remove-0.24",
+      "set": {
+        "/body/transition/historyNarrow": true
+      }
+    },
+    {
+      "name": "transition: under rltp-access/0.25 historyNarrow is rejected even beside a lineage (RLTP-ACC-9810)",
       "base": "access-remove",
       "set": {
         "/body/transition/historyNarrow": true
       }
     },
     {
-      "name": "transition: a linear/0.1 transition must state its history disposition — lineage, narrowing, or a declared void",
+      "name": "transition: a linear/0.1 transition must carry lineage or, on a discharge only, a declared void (RLTP-ACC-9810)",
       "base": "access-remove",
       "delete": [
         "/body/transition/lineage"
@@ -1398,7 +1414,7 @@
       }
     },
     {
-      "name": "transition: an empty lineage succeeds nothing — that is the narrowing act, not a lineage (RLTP-ACC-9760, 9790)",
+      "name": "transition: an empty lineage succeeds nothing — history is never narrowed (RLTP-ACC-9760, 9810)",
       "base": "access-remove",
       "set": {
         "/body/transition/lineage": []
@@ -1610,6 +1626,20 @@
       "base": "access-history-expose",
       "set": {
         "/body/keys/0/keyState": "7"
+      }
+    },
+    {
+      "name": "history.expose: under rltp-access/0.25 exposure begins at the genesis — there is no fromEpoch (RLTP-ACC-8070, 8080)",
+      "base": "access-history-expose",
+      "set": {
+        "/body/fromEpoch": 2
+      }
+    },
+    {
+      "name": "history.expose: toEpoch 0 exposes nothing — 0 < toEpoch (RLTP-ACC-8080)",
+      "base": "access-history-expose",
+      "set": {
+        "/body/toEpoch": 0
       }
     },
     {

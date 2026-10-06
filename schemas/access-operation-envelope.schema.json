@@ -505,25 +505,25 @@
           "body": {
             "type": "object",
             "required": [
-              "fromEpoch",
               "keys"
             ],
             "additionalProperties": false,
             "properties": {
               "fromEpoch": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "description": "legacy field of rltp-access/0.24 only (the 0.53 range start); absent under rltp-access/0.25, where exposure always begins at the genesis (RLTP-ACC-8080); a 0.24 receiver reads keys per RLTP-ACC-11100 regardless of it"
               },
               "toEpoch": {
                 "type": "integer",
                 "minimum": 1,
-                "description": "optional exclusive range end (default: the opening epoch E); fromEpoch < toEpoch <= E; keys covers exactly [fromEpoch, toEpoch), at most 4096 epochs per operation — longer histories compose from adjacent ranges (Access section 8)"
+                "description": "optional exclusive range end (default: the opening epoch E); 0 < toEpoch <= E; exposure always begins at the genesis, because a key state's key opens every key state its lineage reaches (RLTP-ACC-8080); at most 4096 epochs per operation (RLTP-ACC-8100)"
               },
               "keys": {
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 4096,
-                "description": "entries naming key states whose exposure epoch lies in [fromEpoch, toEpoch) — the genesis key state 0, a transition-created key state its newEpoch, a merged key state the maximum over the states it merges — at most 4096 entries; one operation may name a subset, and the span counts as exposed when the union of canonical history.expose operations over it names every key state in it (RLTP-ACC-8090, 8100); the entry shape is per wire version (the conditional blocks at the end of allOf): under rltp-access/0.25 { keyState, key }, under rltp-access/0.24 the bare key string"
+                "description": "entries naming key states whose exposure epoch lies in [0, toEpoch) — the genesis key state 0, a transition-created key state its newEpoch, a merged key state the maximum over the states it merges — at most 4096 entries; one operation may name a subset, and the span counts as exposed when the union of canonical history.expose operations over it names every key state in it (RLTP-ACC-8090, 8100); the entry shape is per wire version (the conditional blocks at the end of allOf): under rltp-access/0.25 { keyState, key }, under rltp-access/0.24 the bare key string"
               }
             }
           }
@@ -542,7 +542,7 @@
         "properties": {
           "body": {
             "type": "object",
-            "description": "re-publishes or bridges one lineage edge under linear/0.1 (RLTP-ACC-9830); a repair of a closed edge — an edge from a transition carrying an authorized historyNarrow to a key state it succeeds (RLTP-ACC-9782) — is invalid unless a canonical history.expose has since exposed the key state behind it; that is a materialization rule checked at runtime, not a schema rule",
+            "description": "re-publishes or bridges one lineage edge under linear/0.1 (RLTP-ACC-9830)",
             "required": [
               "transition",
               "opens",
@@ -720,13 +720,16 @@
                 "required": [
                   "keyOpDigest",
                   "succeeds"
-                ]
+                ],
+                "properties": {
+                  "historyNarrow": false
+                }
               }
             }
           }
         }
       },
-      "description": "rltp-access/0.25: every transition carries keyOpDigest and succeeds (RLTP-ACC-7045, 9270, 9872, 11100)"
+      "description": "rltp-access/0.25: every transition carries keyOpDigest and succeeds (RLTP-ACC-7045, 9270, 9872, 11100) and never the withdrawn historyNarrow (RLTP-ACC-9810)"
     },
     {
       "if": {
@@ -852,11 +855,16 @@
                   }
                 }
               }
+            },
+            "not": {
+              "required": [
+                "fromEpoch"
+              ]
             }
           }
         }
       },
-      "description": "rltp-access/0.25: history.expose names the key state of every exposed key (RLTP-ACC-8090)"
+      "description": "rltp-access/0.25: history.expose carries no fromEpoch — exposure begins at the genesis (RLTP-ACC-8070, 8080) — and names the key state of every exposed key (RLTP-ACC-8090)"
     },
     {
       "if": {
@@ -887,7 +895,7 @@
           }
         }
       },
-      "description": "rltp-access/0.24: history.expose keys are bare key strings, the form of that wire version (RLTP-ACC-11100)"
+      "description": "rltp-access/0.24: history.expose keys are bare key strings, the form of that wire version, and the legacy fromEpoch is tolerated (RLTP-ACC-11100)"
     }
   ],
   "$defs": {
@@ -930,7 +938,7 @@
           "items": {
             "$ref": "#/$defs/keyState"
           },
-          "description": "the identifiers of the key states this transition succeeds (Access 7.1, RLTP-ACC-7045, 9872): exactly the current key states of the transition's position — all of them where the bound allows, otherwise at least two of them — without duplicates and none already succeeded in that ancestry, at least one and at most 64; each the oid: of the genesis or of the creating transition (RLTP-ACC-9262) or an adapter merge identifier (RLTP-ACC-9264); a lineage entry may open any succeeded key state or, under the recovery form (RLTP-ACC-9770), an earlier key state its author holds; a succeeded key state without a verifying lineage edge is a history gap (9780) unless the edge is closed (9782); the healing need is computed over these edges (9865); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100). The schema rejects duplicates (uniqueItems); that the entries are exactly the position's current key states and none already succeeded is a materialization rule over the DAG alone, never over key possession, not a schema rule."
+          "description": "the identifiers of the key states this transition succeeds (Access 7.1, RLTP-ACC-7045, 9872): exactly the current key states of the transition's position — all of them where the bound allows, otherwise at least two of them — without duplicates and none already succeeded in that ancestry, at least one and at most 64; each the oid: of the genesis or of the creating transition (RLTP-ACC-9262) or an adapter merge identifier (RLTP-ACC-9264); a lineage entry may open any succeeded key state or, under the recovery form (RLTP-ACC-9770), an earlier key state its author holds; a succeeded key state without a verifying lineage edge is a history gap (9780), repaired by lineage.repair (9830); the healing need is computed over these edges (9865); REQUIRED under rltp-access/0.25, absent from the 0.24 form (RLTP-ACC-11100). The schema rejects duplicates (uniqueItems); that the entries are exactly the position's current key states and none already succeeded is a materialization rule over the DAG alone, never over key possession, not a schema rule."
         },
         "contentKeyCommitment": {
           "$ref": "#/$defs/digest",
@@ -971,16 +979,16 @@
         },
         "historyNarrow": {
           "const": true,
-          "description": "explicit narrowing act; requires the history.narrow aspect rule (default strongest) satisfied by this operation's proof in addition to the operation's own rule"
+          "description": "legacy field of the rltp-access/0.24 wire form only (the 0.53 narrowing act); history narrowing is withdrawn (Access OI-19, RLTP-ACC-9810), so it is rejected under rltp-access/0.25"
         },
         "lineageVoid": {
           "const": true,
-          "description": "declared unbridged state, valid ONLY on a leave-discharging epoch.rotate (Access 7.1/5.4): the discharger holds no prior epoch key; ungated, surfaced as damage, under the standing repair duty of key-holding members; the discharge-only restriction is a materialization rule, not a schema rule"
+          "description": "declared unbridged state, valid ONLY on a leave-discharging epoch.rotate (Access 7.1/5.4, RLTP-ACC-9800, 9810): the discharger holds no prior epoch key; ungated, surfaced as damage, under the standing repair duty of key-holding members; the discharge-only restriction is a materialization rule, not a schema rule"
         }
       },
       "oneOf": [
         {
-          "description": "linear/0.1 form (Access 9.4.1): contentKeyCommitment, keyDist, and exactly one of lineage, historyNarrow, lineageVoid (RLTP-ACC-9810)",
+          "description": "linear/0.1 form (Access 9.4.1): contentKeyCommitment, keyDist, and exactly one of lineage or (on a discharge only) lineageVoid (RLTP-ACC-9810: history is never narrowed); the legacy historyNarrow of the rltp-access/0.24 wire form stands in place of lineage there and is rejected under rltp-access/0.25 (conditional block at the end of allOf)",
           "required": [
             "contentKeyCommitment",
             "keyDist"
