@@ -191,20 +191,20 @@ these as data, and every member's device enforces them. There are no
 admins. A sole founder in charge is only the simplest rule, and it
 can be changed like any other.
 
-Membership is a fact in the group's state and a capability, holding
+Membership is a fact in the group's state, and a member's devices hold
 the current key. No membership certificate is needed; a credential
-for showing membership to outsiders is an open item. Being removed
-means a new key epoch: the group rotates its key atomically with the
-removal, so what is written afterwards stays unreadable to the person
-who left. What they already read, they keep.
+for showing membership to outsiders is an open item. Being removed,
+leaving, or losing a device starts a new key epoch, so what is written
+afterwards stays unreadable to whoever lost access. What they already read, they keep.
 
 Behind this stands the **authority log**: a causally linked graph of
 individually signed operations, starting from a founding operation
 whose digest is the group's identity. The group's state is a
-deterministic reading of that log. If two members change authority at
-the same time and the rules cannot order the two changes, the group
-fails closed and visibly until the fork is reconciled; how that
-reconciliation works is still open.
+deterministic reading of that log. Changes made at the same
+time are merged: two removals both take effect, even when two members
+remove each other. Only a change of the rules made at the same time as
+a removal stops the group, visibly, until a member writes a rule change
+that builds on both.
 
 Joining takes five steps. The invitee's app derives its anchor for
 the group and hands it to the inviter. The inviter sends an
