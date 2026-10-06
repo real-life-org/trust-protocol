@@ -431,23 +431,3 @@ a.tp-ports-chip:hover, .tp-ports a.chip:hover { border-color: var(--sl-color-acc
 }
 
 
-/* Landing, Why: the two small figures side by side. */
-.tp-why-figs { display: grid; gap: 1.5rem 3rem; grid-template-columns: 1fr; align-items: end; }
-@media (min-width: 50rem) { .tp-why-figs { grid-template-columns: 1fr 1fr; } }
-.tp-why-figs figure { margin: 0; }
-.tp-why-figs svg { display: block; width: 100%; height: auto; overflow: visible; }
-.tp-why-figs figcaption { margin-top: .5rem; text-align: center; font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--sl-color-gray-3); }
-.tp-why-figs svg text { font-family: var(--font-sans); fill: var(--sl-color-gray-2); }
-.tp-why-figs svg .label { font-size: 17px; font-weight: 600; fill: var(--sl-color-white); }
-.tp-why-figs svg .note, .tp-why-figs svg .tag { font-size: 14px; fill: var(--sl-color-gray-3); }
-.tp-why-figs svg .chain { font-size: 16px; font-weight: 500; }
-.tp-why-figs .box { fill: none; stroke: var(--sl-color-gray-4); stroke-width: 1.2; }
-.tp-why-figs .cp-box { fill: none; stroke: var(--sl-color-gray-3); }
-.tp-why-figs .cp-log { fill: var(--sl-color-bg); stroke: var(--sl-color-gray-4); stroke-width: 1; }
-.tp-why-figs .cp-line { stroke: var(--sl-color-gray-3); stroke-width: 1.3; }
-.tp-why-figs text.cp-fill, .tp-why-figs path.cp-fill { fill: var(--sl-color-gray-3); }
-.tp-why-figs .inv-box { fill: none; stroke: var(--sl-color-accent); }
-.tp-why-figs .inv-line { stroke: var(--sl-color-accent); stroke-width: 1.3; }
-.tp-why-figs .inv-fill, .tp-why-figs text.inv-fill { fill: var(--sl-color-accent); }
-.tp-why-figs .node { fill: var(--sl-color-bg); stroke: var(--sl-color-accent); stroke-width: 1.2; }
-.tp-why-figs .trust { stroke: var(--sl-color-gray-4); stroke-width: 1.1; }

@@ -3,8 +3,6 @@ import Icon from './Icon.astro'
 import GroupPlace from './figures/GroupPlace.astro'
 import SharedSpace from './figures/SharedSpace.astro'
 import Ports from './figures/Ports.astro'
-import CheckpointHalf from './figures/CheckpointHalf.astro'
-import InvitationHalf from './figures/InvitationHalf.astro'
 import type { IconName } from './icons'
 import { layerDiagramHtml } from '../lib/layers'
 import info from '../../public/build-info.json'
@@ -54,19 +52,6 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
         </a>
       ))}
     </div>
-  </section>
-
-  <section class="tp-section wide" id="why">
-    <div>
-      <div class="tp-badge">Why</div>
-      <h2>Invitation, not checkpoint</h2>
-      <p>Most digital trust works like a checkpoint: you show your papers, a stranger checks them. RLTP starts from your own graph: where do we know each other from, and whom do we invite in?</p>
-    </div>
-    <div class="tp-why-figs">
-      <figure><CheckpointHalf /><figcaption>Checkpoint</figcaption></figure>
-      <figure><InvitationHalf /><figcaption>Invitation</figcaption></figure>
-    </div>
-    <p><a class="tp-more" href="/understand/why/">Why invitations, not checkpoints →</a></p>
   </section>
 
   <section class="tp-section flip" id="layers">
@@ -207,6 +192,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
         <h2>Where it meets the DTG</h2>
         <p>RLTP builds on the work of the ToIP Decentralized Trust Graph Working Group: its credentials, its Trust Tasks, its transport.</p>
         <p>A shared language keeps trust built from person to person and the world of credentials from becoming two walled gardens.</p>
+        <p><a class="tp-more" href="/understand/why/">Why invitations, not checkpoints →</a></p>
       </div>
       <span class="tp-pill">Trust over IP · DTG WG</span>
     </div>
