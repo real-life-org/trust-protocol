@@ -1,5 +1,5 @@
 // Reference materialization of an abstract authority DAG under the
-// conflict matrix of Access 0.54 §3.5–3.6 — the oracle behind
+// conflict matrix of Access 0.55 §3.5–3.6 — the oracle behind
 // vectors/access-conflicts.json.
 //
 // The model abstracts from signatures and policies. An operation is

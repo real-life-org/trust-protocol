@@ -150,62 +150,6 @@
         }
       }
     },
-    "access-genesis-0.24": {
-      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
-      "document": {
-        "v": "rltp-access/0.24",
-        "op": "group.genesis",
-        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
-        "epoch": 0,
-        "policyVersion": 1,
-        "prev": [],
-        "body": {
-          "members": [
-            "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
-          ],
-          "card": {
-            "version": "rltp-card/0.25",
-            "anchor": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
-            "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr",
-            "challenge": {
-              "value": "u8BPX31WVpE-kX4f4iPv60oqn7IldHWsNT3vXXvHHLLI",
-              "issuedAt": "2026-08-23T11:58:00Z"
-            },
-            "proof": {
-              "type": "DataIntegrityProof",
-              "cryptosuite": "eddsa-jcs-2022",
-              "created": "2026-08-23T11:58:00Z",
-              "verificationMethod": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J#z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
-              "proofPurpose": "assertionMethod",
-              "proofValue": "z3XJfyxwBXu3C2GF6gckqGEs1EDpvK8DzKMWfvPEob4JpAnw5BmMnSrdy3fNZvVTUBZbqp31jjq6MEcGcrns7vqMV"
-            }
-          },
-          "policy": {
-            "policyVersion": 1,
-            "rules": {}
-          },
-          "visibility": "private",
-          "adapter": "linear/0.1",
-          "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-          "serviceIdentity": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss"
-        },
-        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-        "proof": {
-          "mechanism": "signature-set",
-          "signatures": [
-            {
-              "signer": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
-              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
-            },
-            {
-              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-              "sig": "z22222222222222222222222222222222222222222222222222222222222222222222222222222222"
-            }
-          ]
-        }
-      }
-    },
     "access-remove": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
       "document": {
@@ -238,47 +182,6 @@
                 "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
               }
             ]
-          }
-        },
-        "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "author": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-        "proof": {
-          "mechanism": "signature-set",
-          "signatures": [
-            {
-              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-              "sig": "z11111111111111111111111111111111111111111111111111111111111111111111111111111111"
-            }
-          ]
-        }
-      }
-    },
-    "access-remove-0.24": {
-      "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
-      "document": {
-        "v": "rltp-access/0.24",
-        "op": "member.remove",
-        "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
-        "epoch": 7,
-        "policyVersion": 3,
-        "prev": [
-          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        ],
-        "body": {
-          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-          "transition": {
-            "newEpoch": 8,
-            "contentKeyCommitment": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "keyDist": [
-              {
-                "recipient": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-                "envelope": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-              }
-            ],
-            "lineage": {
-              "opens": 7,
-              "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-            }
           }
         },
         "id": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -585,7 +488,7 @@
     "removal-notice": {
       "schema": "https://real-life.org/trust-tasks/removal-notice/0.1",
       "document": {
-        "v": "rltp-access-removal-notice/0.24",
+        "v": "rltp-access-removal-notice/0.25",
         "type": "removal-notice",
         "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
         "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -650,21 +553,36 @@
         }
       }
     },
+    "key-request-admission": {
+      "schema": "https://real-life.org/trust-tasks/key-delivery/0.1",
+      "document": {
+        "keyDelivery": {
+          "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+          "epoch": 7,
+          "admission": {
+            "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+            "acceptDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA"
+          },
+          "kind": "request",
+          "card": {
+            "anchor": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+            "device": "did:key:z6Mkdddddddddddddddddddddddddddddddddddddddddddd",
+            "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr",
+            "serviceIdentity": "did:key:z6Mkssssssssssssssssssssssssssssssssssssssssssss",
+            "proof": {
+              "signer": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              "sig": "z33333333333333333333333333333333333333333333333333333333333333333333333333333333"
+            }
+          }
+        }
+      }
+    },
     "access-keydist": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
       "document": {
         "v": "rltp-access-keydist/0.25",
-        "adapter": "linear/0.1",
-        "epoch": 7,
-        "keys": {
-          "contentKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        }
-      }
-    },
-    "access-material-0.24": {
-      "schema": "https://real-life.org/rltp/v1/schemas/access-material.schema.json",
-      "document": {
-        "v": "rltp-access-material/0.24",
         "adapter": "linear/0.1",
         "epoch": 7,
         "keys": {
@@ -1000,13 +918,6 @@
       ]
     },
     {
-      "name": "transition: under rltp-access/0.24 lineage and the legacy historyNarrow are alternatives — declaring both hides which one governs",
-      "base": "access-remove-0.24",
-      "set": {
-        "/body/transition/historyNarrow": true
-      }
-    },
-    {
       "name": "transition: under rltp-access/0.25 historyNarrow is rejected even beside a lineage (RLTP-ACC-9810)",
       "base": "access-remove",
       "set": {
@@ -1236,29 +1147,6 @@
       "delete": "/keyDelivery/sealed"
     },
     {
-      "name": "envelope: under rltp-access/0.25 the genesis binds its key operation — keyOpDigest is required only there (RLTP-ACC-11100)",
-      "base": "access-genesis-0.24",
-      "set": {
-        "/v": "rltp-access/0.25"
-      }
-    },
-    {
-      "name": "envelope: under rltp-access/0.25 a transition without keyOpDigest binds no key operation (RLTP-ACC-11100, 7045)",
-      "base": "access-remove-0.24",
-      "set": {
-        "/v": "rltp-access/0.25",
-        "/body/transition/lineage": [
-          {
-            "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-          }
-        ],
-        "/body/transition/succeeds": [
-          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        ]
-      }
-    },
-    {
       "name": "transition: under rltp-access/0.25 a transition names the key states it succeeds — without succeeds no healing need can end (RLTP-ACC-7045, 9872, 9865)",
       "base": "access-remove",
       "delete": "/body/transition/succeeds"
@@ -1363,19 +1251,24 @@
       }
     },
     {
-      "name": "transition: under rltp-access/0.24 the transition carries no succeeds — that wire version names no key states (RLTP-ACC-11100)",
-      "base": "access-remove-0.24",
-      "set": {
-        "/body/transition/succeeds": [
-          "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        ]
-      }
-    },
-    {
-      "name": "envelope: only the wire versions 0.24 and 0.25 are accepted (RLTP-ACC-11100)",
+      "name": "envelope: only the wire version rltp-access/0.25 is accepted (RLTP-ACC-11010, 11100)",
       "base": "access-remove",
       "set": {
         "/v": "rltp-access/0.23"
+      }
+    },
+    {
+      "name": "envelope: an rltp-access/0.24 transition is rejected — the profile accepts only the form it produces (RLTP-ACC-11100)",
+      "base": "access-remove",
+      "set": {
+        "/v": "rltp-access/0.24"
+      }
+    },
+    {
+      "name": "envelope: an rltp-access/0.24 genesis is rejected (RLTP-ACC-11100)",
+      "base": "access-genesis",
+      "set": {
+        "/v": "rltp-access/0.24"
       }
     },
     {
@@ -1386,25 +1279,6 @@
           "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         }
-      }
-    },
-    {
-      "name": "transition: under rltp-access/0.24 lineage is the single-object form, not the array of 0.25 (RLTP-ACC-11100)",
-      "base": "access-remove-0.24",
-      "set": {
-        "/body/transition/lineage": [
-          {
-            "opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "ct": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-          }
-        ]
-      }
-    },
-    {
-      "name": "transition: the 0.24 single-object lineage opens the previous epoch by its number, not by an operation id (RLTP-ACC-11100)",
-      "base": "access-remove-0.24",
-      "set": {
-        "/body/transition/lineage/opens": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
       }
     },
     {
@@ -1541,20 +1415,6 @@
       }
     },
     {
-      "name": "material: legacy 0.24 material carries no keyState — the receiver supplies the most recent transition of the admission's ancestry (RLTP-ACC-11100)",
-      "base": "access-material-0.24",
-      "set": {
-        "/keyState": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
-    },
-    {
-      "name": "material: only material/0.24 is accepted as legacy, not a keydist/0.24 (Access 11, RLTP-ACC-11100)",
-      "base": "access-material-0.24",
-      "set": {
-        "/v": "rltp-access-keydist/0.24"
-      }
-    },
-    {
       "name": "dag.join: additive with an empty body — no effect beyond its prev (RLTP-ACC-3172)",
       "base": "access-dag-join",
       "set": {
@@ -1644,6 +1504,21 @@
       }
     },
     {
+      "name": "material: rltp-access-material/0.24 without keyState is rejected (RLTP-ACC-11010, 11100)",
+      "base": "access-material",
+      "set": {
+        "/v": "rltp-access-material/0.24"
+      },
+      "delete": "/keyState"
+    },
+    {
+      "name": "material: there is no keydist/0.24 form (RLTP-ACC-11010)",
+      "base": "access-keydist",
+      "set": {
+        "/v": "rltp-access-keydist/0.24"
+      }
+    },
+    {
       "name": "welcome: the welcome carries the material form, never the keydist form (Membership 4, RLTP-ACC-9362)",
       "rules": ["RLTP-MT-4040", "RLTP-MT-3445"],
       "base": "welcome",
@@ -1666,6 +1541,57 @@
       "rules": ["RLTP-MT-4040", "RLTP-MT-3445"],
       "base": "welcome",
       "delete": "/material/keyState"
+    },
+    {
+      "name": "removal notice: the form with issuer is rltp-access-removal-notice/0.25 — the 0.24 version is rejected (RLTP-ACC-11010, 11020)",
+      "base": "removal-notice",
+      "set": {
+        "/v": "rltp-access-removal-notice/0.24"
+      }
+    },
+    {
+      "name": "key request: op and admission are alternatives — a request carrying both is rejected (RLTP-ACC-10040, 10172)",
+      "base": "key-request-admission",
+      "set": {
+        "/keyDelivery/op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "key request: a request names op or an admission reference — neither is rejected (RLTP-ACC-10040, 10172)",
+      "base": "key-request-admission",
+      "delete": "/keyDelivery/admission"
+    },
+    {
+      "name": "key request: the admission reference names the accept's document digest (RLTP-ACC-10172)",
+      "base": "key-request-admission",
+      "delete": "/keyDelivery/admission/acceptDigest"
+    },
+    {
+      "name": "key request: the admission reference names the claiming member anchor (RLTP-ACC-10172)",
+      "base": "key-request-admission",
+      "delete": "/keyDelivery/admission/subject"
+    },
+    {
+      "name": "key request: the admission reference is closed (RLTP-ACC-10172)",
+      "base": "key-request-admission",
+      "set": {
+        "/keyDelivery/admission/op": "oid:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "key-delivery: material names its operation in op — an admission reference is for a request only (RLTP-ACC-10040, 10176)",
+      "base": "key-delivery-material",
+      "set": {
+        "/keyDelivery/admission": {
+          "subject": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+          "acceptDigest": "uEiDwSC5ALfn9QhVIo3YoyD4eoVV4-nZZzmhlgJ1ZJxfhkA"
+        }
+      }
+    },
+    {
+      "name": "key-delivery: material without op names nothing it serves (RLTP-ACC-10040, 10176)",
+      "base": "key-delivery-material",
+      "delete": "/keyDelivery/op"
     }
   ]
 }

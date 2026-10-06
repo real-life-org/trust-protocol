@@ -6,7 +6,7 @@
 //
 // Two sources of truth for the rule set:
 //   · the public manifest (conformance/encounter-rule-ids-0.30.txt,
-//     conformance/access-rule-ids-0.54.txt,
+//     conformance/access-rule-ids-0.55.txt,
 //     conformance/membership-rule-ids-0.17.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
@@ -48,10 +48,10 @@ export const LAYERS = {
   },
   access: {
     prefix: 'RLTP-ACC',
-    title: 'Access Layer 0.54',
+    title: 'Access Layer 0.55',
     spec: join(ROOT, 'spec/access-layer.md'),
-    manifest: join(ROOT, 'conformance/access-rule-ids-0.54.txt'),
-    inventory: join(ROOT, '..', 'rltp', 'design', 'access-0.54-regelinventar.md'),
+    manifest: join(ROOT, 'conformance/access-rule-ids-0.55.txt'),
+    inventory: join(ROOT, '..', 'rltp', 'design', 'access-0.55-regelinventar.md'),
     env: 'ACCESS_INVENTORY',
     inventorySection: 'B'
   },

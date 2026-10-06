@@ -1386,7 +1386,7 @@ section('carrier-proof.json — the duration grammar maps to exact milliseconds'
     'duration grammar: an out-of-grammar lexeme is rejected, never rounded or truncated (round-32 B-2)')
 }
 
-// ── suite: access-conflicts.json — the conflict matrix of Access 0.54 §3.6 ──
+// ── suite: access-conflicts.json — the conflict matrix of Access 0.55 §3.6 ──
 section('access-conflicts.json — authority DAGs materialize as declared (Access 3.5, 3.6)')
 {
   const { opId, materialize, deliver, STATUSES, STATES } = await import('./access-conflicts.mjs')
@@ -1734,8 +1734,8 @@ section('membership-tasks.json — Membership Tasks 0.17: genesis → invite →
   checkR(['RLTP-MT-4020', 'RLTP-MT-4040', 'RLTP-MT-10020'], valid(W, 'welcome.schema.json') && W.material.v === 'rltp-access-material/0.25' && valid(W.material, 'access-material.schema.json'), 'welcome plaintext rltp-welcome/0.1 with material rltp-access-material/0.25 naming its keyState')
   checkR(['RLTP-MT-4040'], W.material.keyState === G.id && op.prev[0] === G.id && W.material.keys.contentKey === hkdf(IKM, M.inputs.contentKey).toString('base64url'), 'material keyState = the genesis id, the key state the genesis opened; the content key recomputes')
   checkR(['RLTP-MT-2240'], Buffer.byteLength(M.welcome.plaintextJcs, 'utf8') <= 16384, 'welcome plaintext within 16384 JCS bytes')
-  check(errsOf(mutate(op, { set: { '/v': 'rltp-access/0.24' } }), 'access-operation-envelope.schema.json').length === 0, 'the Access-owned envelope schema still accepts rltp-access/0.24; the carrier pin rejects it (Membership 10)')
-  check(errsOf(mutate(W.material, { set: { '/v': 'rltp-access-material/0.24' }, delete: ['/keyState'] }), 'access-material.schema.json').length === 0, 'the Access-owned material schema still accepts rltp-access-material/0.24; the welcome pin rejects it (Membership 10)')
+  check(errsOf(mutate(op, { set: { '/v': 'rltp-access/0.24' } }), 'access-operation-envelope.schema.json').length > 0, 'the Access-owned envelope schema rejects rltp-access/0.24, as the carrier pin does (Access RLTP-ACC-11100, Membership 10)')
+  check(errsOf(mutate(W.material, { set: { '/v': 'rltp-access-material/0.24' }, delete: ['/keyState'] }), 'access-material.schema.json').length > 0, 'the Access-owned material schema rejects rltp-access-material/0.24, as the welcome pin does (Access RLTP-ACC-11100, Membership 10)')
   const openSeal = (sealed, xSeed, info = 'rltp/v1/welcome') => {
     try {
       const shared = ecdhRaw(xSeed, Buffer.from(sealed.epk, 'base64url'))

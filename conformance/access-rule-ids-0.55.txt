@@ -1,4 +1,4 @@
-# Access Layer 0.54 — rule identifiers, one per line, generated from the specification.
+# Access Layer 0.55 — rule identifiers, one per line, generated from the specification.
 # Regenerate: node scripts/check-encounter-trace.mjs --layer access --write-manifest-from-spec <spec.md>
 RLTP-ACC-2010
 RLTP-ACC-2020
@@ -537,6 +537,9 @@ RLTP-ACC-10140
 RLTP-ACC-10150
 RLTP-ACC-10160
 RLTP-ACC-10170
+RLTP-ACC-10172
+RLTP-ACC-10174
+RLTP-ACC-10176
 RLTP-ACC-10180
 RLTP-ACC-10190
 RLTP-ACC-10200
@@ -553,6 +556,10 @@ RLTP-ACC-10300
 RLTP-ACC-10310
 RLTP-ACC-10320
 RLTP-ACC-10330
+RLTP-ACC-10332
+RLTP-ACC-10334
+RLTP-ACC-10336
+RLTP-ACC-10338
 RLTP-ACC-10340
 RLTP-ACC-10350
 RLTP-ACC-10360
