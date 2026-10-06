@@ -96,15 +96,17 @@ belong inside it.
 
 ## Membership isn't a proof, it's a key
 
-Decentralized identifiers and verifiable credentials have five building
+The usual architecture for decentralized identity has five building
 blocks: the identifier, the credential, the presentation, the status and
 the wallet. Each is a statement about someone, held by someone, shown to
-someone. A group is not among them. It is built on top: as an issuer of
-membership credentials, as a registry, or as an encrypted room on a
-server. In such a room the server holds the data and an owner decides
-who gets in; to read or write, members need the server to be there.
+someone. A group is not one of them. Systems built this way add it on
+top: as an issuer of membership credentials, as a registry, or as an
+encrypted room on a server. In such a room the server holds the data and
+an owner decides who gets in; to read or write, members need the server
+to be there.
 
-RLTP makes the group a building block of its own:
+RLTP uses the same identifiers and credentials, and adds the group as a
+building block of its own:
 [a place its members hold together](/understand/foundations/#groups).
 It is an encrypted document on every member's device, with a log of who
 joined, who left and which rules apply. No owner decides; the group's
