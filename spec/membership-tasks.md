@@ -1030,7 +1030,11 @@ entry the receiver still holds (Contract 4.2) MUST be disposed
 `duplicate-known` with the byte-identical acknowledgement that entry
 retains; redelivery after that entry's retention has ended, or of a
 document held pending (RLTP-MT-3530), MUST be evaluated afresh and
-MUST NOT by itself create a completed-effect entry.
+MUST NOT by itself create a completed-effect entry; the digest record
+the Access layer keeps for a displaced provisional candidate
+(RLTP-ACC-10240) is not a completed-effect entry under this document,
+and a redelivered displaced candidate is evaluated afresh within the
+candidate bounds of RLTP-MT-3495.
 
 **RLTP-MT-3555** — A different document carrying the same operation
 MUST merge idempotently by operation id, effects keyed to new
@@ -1512,10 +1516,12 @@ RLTP-MT-7060, which are normative; the diagrams and prose after them
 depict Section 3.3 and Access 10.1.
 
 **RLTP-MT-7010** — After an accept, an invitee's application MUST
-show the user the state it can attest — consent sent, admission not
-yet confirmed — and MUST NOT announce a key hand-over or a bootstrap
-before a signal for it has arrived (a welcome, or an acknowledged
-hand-over of the consent pair as evidence).
+show the user only the state its signals attest: "consent sent,
+admission not yet confirmed" until further signals arrive; an
+acknowledgement of the consent pair handed over as evidence attests
+only "consent pair reached a member" and MUST NOT be shown as a key
+hand-over or a bootstrap; only a welcome that passes the
+pre-adoption checks attests "bootstrap begun".
 
 **RLTP-MT-7020** — A decline, or an invite's expiry before any
 accept, MUST end the invitee's thread with local state only.
@@ -1541,7 +1547,9 @@ a pending admission from a lost one, and will accept again or give
 up; the waiting state is the honest answer. It says no more than the
 invitee can know: admission is a decision members have yet to make
 (RLTP-MT-3800), and a refusal is no event (RLTP-MT-3785), so a text
-promising that keys are on their way could stay wrong for ever. A
+promising that keys are on their way could stay wrong for ever. An
+acknowledgement means arrival only (RLTP-MT-6030): a member who holds
+the evidence may still never admit. A
 decline sends nothing,
 because a declined invitation is the invitee's business and an
 announcement of it would tell the inviter more than the invitee
@@ -1574,8 +1582,12 @@ stateDiagram-v2
     invited --> [*]: decline / validUntil expiry
     accepted --> welcomeArrived: member.add + welcome delivered
     note right of accepted
-        user-visible: consent sent,
-        admission not yet confirmed
+        user-visible: consent sent, admission
+        not yet confirmed; an evidence ack shows
+        only "consent pair reached a member"
+    end note
+    note right of bootstrapping
+        user-visible: bootstrap begun
     end note
     welcomeArrived --> bootstrapping: every pre-check the carrier permits passes, incl. seal opens under own accept card and material well-formed for the adapter — adopted provisionally, one window per genesisDigest + invitee
     welcomeArrived --> [*]: a pre-check fails — nothing adopted, no state written
@@ -1857,9 +1869,13 @@ contradict the versions Access gives its other forms.
 
 *Editor's note.* The Delivery Contract 0.79 (4.4) still registers
 `membership-evidence/0.1`, and Access RLTP-ACC-14020 still names
-Membership Tasks 0.16; both follow in their next versions. Until
-then the registration of this document's types is the one this
-document states, as their owner.
+Membership Tasks 0.16; and Access RLTP-ACC-10240 keeps a displaced
+provisional candidate's disposition as `duplicate-known` on re-send
+without separating that displacement marker from the Delivery
+completed-effect entry. All three follow in their next versions.
+Until then the registration of this document's types is the one this
+document states, as their owner, and a displaced candidate's
+redelivery is read as RLTP-MT-3550 states.
 
 **RLTP-MT-10070** — The following schemas MUST be normative and MUST
 ship with offline closure: `schemas/payload-membership-invite.schema.json`
@@ -2580,9 +2596,11 @@ its transcription is a defect of the release.
 
 ### 10.2 Vector plan (informative)
 
-The test goals of this document, by subject. Goals marked *shipped*
-are covered by `vectors/dtg-credentials.json`; the rest are to be
-written.
+The test goals of this document, by subject. The shipped vectors
+are `vectors/dtg-credentials.json` and `vectors/membership-tasks.json`;
+which rule is proved, partially proved, or left to state-dependent
+testing is stated by the partition of 10.3, which governs where this
+informative plan and it differ.
 
 - *Invite and accept binding:* invite proof, issuer and recipient
   binding · accept issuer, subject, `ref` and group binding · consent
@@ -2591,13 +2609,12 @@ written.
   an invite whose `credentialSubject.id` differs from the invitee's
   own derivation → `failed(validation-failed)`, never answered · a
   `z`-encoded `genesisDigest` derives the same member anchor as its
-  `u` rendering (*shipped*).
+  `u` rendering.
 - *Time and size:* an accept whose `issuedAt` or `proof.created` lies
   beyond `validUntil + membership-skew` → rejected; a backdated pair
   inside the window → accepted, documented as human-gated · an invite
   or accept over 16 384 bytes JCS → non-conformant at issuance,
-  `failed(validation-failed)` at receipt (*shipped* for the schema
-  side) · a schema-valid construction over the Contract's plaintext
+  `failed(validation-failed)` at receipt · a schema-valid construction over the Contract's plaintext
   limit → rejected at the sender and, if sent anyway, at Contract
   stage 1 · a welcome plaintext over 16 384 bytes JCS →
   non-conformant.
