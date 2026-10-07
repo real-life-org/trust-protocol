@@ -5,13 +5,17 @@ description: What turns encounters into a network. One relationship across many 
 
 ## Trust is a second step
 
-An encounter records that two people met and that each verified the
-other. Verification is not trust, and the protocol keeps it that way: no field on the credential, no score, no "I trust this
-person" that anyone could collect.
+Verifying someone means this: a real person stands here, and this
+key is theirs. That is all an encounter records, and it is why you
+can do it with anyone, without risk. Every encounter runs under a
+fresh pairwise anchor, so verifying a stranger gives them nothing of
+you beyond this one meeting.
 
-Trust is what one of them decides afterwards, toward the other. It is not a document you could show to a third party. It is
-you showing one contact something about yourself that nobody else
-gets to see. This page is about that act and what grows from it.
+Trust is a second, deliberate act. It follows only if you want it to,
+and only toward people you actually trust. It is not a document you
+could show to a third party; it is you showing one contact something
+about yourself that nobody else gets to see. This page is about that
+act and what grows from it.
 
 Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#3-what-an-encounter-establishes)
 
