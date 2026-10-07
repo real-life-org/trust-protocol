@@ -275,9 +275,6 @@ export function departMember(p, relId, when) {
         admitPending(p, a, when);
     }
 }
-// held = die verifizierte Ankermenge einer Abbildung in Kettenreihenfolge,
-// self zuletzt: ein Anker VOR dem letzten Element ist ein früherer
-const lineageHas = (held, anchor) => held.indexOf(anchor) >= 0 && held.indexOf(anchor) < held.length - 1;
 // die Glieder prev → next, die eine verifizierte Ankermenge in
 // Kettenreihenfolge trägt (leer, wenn sie nur self ist)
 const linksOfHeld = (held) => held.slice(1).map((n, i) => [held[i], n]);
@@ -291,29 +288,34 @@ const refreshAnchors = (x) => {
             out.add(a);
     x.anchors = out;
 };
-// eine eingehende Abbildung verschmilzt mit einer anderen Beziehung nur,
-// wenn sie deren gehaltenen KOPF erreicht (§6a.1 Nr. 2, Review 3 M2): ihr
-// self IST der Kopf, oder ihre Lineage setzt ihn fort (trägt ihn als prev).
-// Ein dort überholter Anker (ein prev der gehaltenen Lineage) führt nie
-// zusammen — sonst verschmölze ein kopierter alter Schlüssel mit leerer
-// Lineage auch nach der ehrlichen Rotation …
-const reachesHead = (x, self, links, own) => [...heldOf(x)].some(([rid, h]) => !own(rid) && (h.head === self || links.some(([prv]) => prv === h.head)));
-// … und ihre gehaltenen Glieder NICHT gabeln: hält der Empfänger für
-// dasselbe prev zwei verschiedene next, eins aus jeder Beziehung, findet
-// kein Merge statt (§6a.1, die Gabelregel)
-const forksWith = (x, links, own) => [...heldOf(x)].some(([rid, h]) => !own(rid) && links.some(([prv, nxt]) => h.links.has(prv) && h.links.get(prv) !== nxt));
-const mayMerge = (x, self, links, own) => reachesHead(x, self, links, own) && !forksWith(x, links, own);
+// das Lineage-Wissen eines Eintrags: die Glieder ALLER seiner Beziehungen
+// (ohne die Beziehungen, die `skip` als eigene ausweist)
+const linksOfEntry = (x, skip = () => false) => [...heldOf(x)].filter(([rid]) => !skip(rid)).flatMap(([, h]) => [...h.links]);
+// die Kopfregel (§6a.1 Nr. 2, Review 4 M1), eintragsweit: ein Kopf `head`
+// mit der getragenen Lineage `links` schließt an den Eintrag x an, wenn
+// (a) er x' aktueller Kopf ist oder die Lineage diesen fortsetzt (als prev
+// trägt) UND (b) x' Lineage-Wissen ihn nicht als überholt hält (er ist ein
+// prev irgendeines Glieds irgendeiner Beziehung von x)
+const joins = (head, links, x, skip) => {
+    const known = linksOfEntry(x, skip);
+    return (head === x.self || links.some(([prv]) => prv === x.self)) && !known.some(([prv]) => prv === head);
+};
+// die Gabelregel (§6a.1): zwei Gliedmengen, die für dasselbe prev
+// verschiedene next tragen, führen nie zusammen
+const forks = (l1, l2) => l1.some(([p1, n1]) => l2.some(([p2, n2]) => p1 === p2 && n1 !== n2));
 /**
  * Promotion-Commit (Sektion 2). `held` = alle Generationen, die die
  * verifizierte Abbildung trägt (self + Lineage, Kettenreihenfolge), `kind`
- * = die §6.3-Klassifikation eines GEÄNDERTEN self: 'rotation' rückt den
- * Anker vor und behält jeden Merge; 'new-community' ist eine Korrektur:
- * ist der Eintrag verschmolzen, verlässt diese Beziehung ihn atomar (der
- * Eintrag behält Position, Status und die übrigen Beziehungen) und tritt
- * per gewöhnlichem Promotion-Commit neu ein — die eine benannte Ausnahme
- * von „no re-promotion" (§6.3 Nr. 8, Sektion 2).
+ * = die §6.3-Klassifikation (Nr. 8) gegen den Kopf, den DIESE Beziehung
+ * hielt: 'same' und 'rotation' bleiben in place und behalten jeden Merge;
+ * 'new-community' ist eine Korrektur: ist der Eintrag verschmolzen,
+ * verlässt diese Beziehung ihn atomar (der Eintrag behält Position, Status
+ * und die übrigen Beziehungen) und tritt per gewöhnlichem Promotion-Commit
+ * neu ein — die eine benannte Ausnahme von „no re-promotion" (§6.3 Nr. 8,
+ * Sektion 2). 'first' (noch keine Abbildung auf dieser Beziehung): ein
+ * geänderter Kopf wirkt wie 'new-community'.
  */
-export function promotionCommit(p, relId, self, contactKey, when, held = [self], kind = 'new-community') {
+export function promotionCommit(p, relId, self, contactKey, when, held = [self], kind = 'first') {
     finite(when);
     const a = admission(p);
     const heldSet = new Set([self, ...held]);
@@ -321,10 +323,16 @@ export function promotionCommit(p, relId, self, contactKey, when, held = [self],
     // gehört ein Aliasschlüssel zu DIESER Beziehung (Ketten-Aliase, Review 35)?
     const own = (rid) => rid === relId || (p.contacts.get(rid)?.relId ?? rid) === relId;
     const ownRel = (ck) => ck === contactKey || (p.contacts.get(ck)?.relId ?? ck) === relId;
+    const foreign = (x) => [...x.relIds].some((rid) => !own(rid));
     if (!a.relOrder.has(relId))
         a.relOrder.set(relId, (a.relSeq += 1n));
     let e = a.byRel.get(relId);
-    if (e && e.self !== self && kind === 'new-community' && [...e.relIds].some((rid) => !own(rid))) {
+    // der Kopf, den DIESE Beziehung hielt — nicht das gemeinsame Eintragsfeld
+    // (Review 4, M2): auf einem verschmolzenen Eintrag können die Köpfe der
+    // Beziehungen auseinanderliegen
+    const relHead = e ? (heldOf(e).get(relId)?.head ?? e.self) : undefined;
+    const leaves = kind === 'new-community' || (kind === 'first' && relHead !== undefined && relHead !== self);
+    if (e && leaves && foreign(e)) {
         // der Split (§6.3 Nr. 8): nichts verbindet die beiden — die Beziehung
         // (samt Ketten-Aliasen, Herkunfts- und Kontinuitätsfakten) verlässt den
         // Eintrag, ohne dessen Slot, Position oder Status zu berühren
@@ -348,39 +356,49 @@ export function promotionCommit(p, relId, self, contactKey, when, held = [self],
     if (e) {
         // spätere Verifikation derselben Beziehung: in place — auch eine
         // self-KORREKTUR per höherer Revision ändert nur den Inhalt, nie
-        // Position oder Status (Sektion 2). Erreicht die Korrektur den gehaltenen
-        // Kopf einer ANDEREN Beziehung (self = Kopf, oder die Lineage setzt ihn
-        // fort), ist das der Weg-2-Merge
+        // Position oder Status (Sektion 2)
         const hm = heldOf(e);
         const mine = hm.get(relId);
-        if (e.self !== self && kind !== 'rotation')
+        if (leaves)
             hm.set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self });
         else
             hm.set(relId, { anchors: new Set([...(mine?.anchors ?? []), ...heldSet]), links: new Map([...(mine?.links ?? []), ...links]), head: self });
-        if (e.self !== self) {
+        // der aktuelle Kopf des Eintrags rückt nur vor, wenn diese Abbildung
+        // ihn fortsetzt; eine Korrektur der einzigen Beziehung ersetzt ihn
+        const before = e.self;
+        if (leaves || links.some(([prv]) => prv === e.self))
             e.self = self;
-            refreshAnchors(e);
-            const twin = [...a.byRel.values()].find((x) => x !== e && mayMerge(x, self, links, own));
-            if (twin)
+        refreshAnchors(e);
+        if (e.self !== before) {
+            // die andere Verarbeitungsrichtung (Review 4, M1): ein ANDERER
+            // Eintrag schließt sich nur an, wenn ER die Kopfregel gegen diesen
+            // Eintrag erfüllt — sein Kopf ist der aktuelle oder setzt ihn fort und
+            // ist hier nicht überholt. Ein unter überholtem Anker abgewiesener
+            // Eintrag kommt so nie über ein späteres ehrliches Update hinein
+            const self0 = e.self;
+            const twin = [...new Set(a.byRel.values())].find((x) => x !== e && joins(x.self, linksOfEntry(x), e) && !forks(linksOfEntry(x), linksOfEntry(e)));
+            if (twin) {
                 e = mergeEntries(p, a, e, twin, when);
+                // der Kopf des Anschließenden ist gleich oder neuer
+                e.self = twin.self === self0 || linksOfEntry(twin).some(([prv]) => prv === self0) ? twin.self : self0;
+                refreshAnchors(e);
+            }
         }
-        else
-            refreshAnchors(e);
         e.rels.add(contactKey);
     }
     else {
-        // erreicht self oder Lineage den gehaltenen Kopf einer ANDEREN
-        // Beziehung = der Weg-2-Merge, außer die gehaltenen Glieder gabeln
-        const twin = [...a.byRel.values()].find((x) => mayMerge(x, self, links, own));
+        // erreicht die eingehende Abbildung den aktuellen Kopf eines ANDEREN
+        // Eintrags, ohne dort überholt zu sein und ohne zu gabeln = der Weg-2-Merge
+        const twin = [...new Set(a.byRel.values())].find((x) => foreign(x) && joins(self, links, x, own) && !forks(links, linksOfEntry(x, own)));
         if (twin) {
             twin.relIds.add(relId);
             twin.rels.add(contactKey);
             a.byRel.set(relId, twin);
             e = twin;
             heldOf(twin).set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self });
-            // die Generation der neuesten Abbildung ist der aktuelle Anker
-            if (twin.self !== self && lineageHas(held, twin.self))
-                twin.self = self;
+            // die Generation der neuesten Abbildung ist der aktuelle Anker:
+            // die Kopfregel lässt nur den gleichen oder einen fortsetzenden Kopf zu
+            twin.self = self;
             refreshAnchors(twin);
         }
         else {
@@ -1102,7 +1120,7 @@ export async function receiveTrustDoc(p, env, when, ent = {}) {
                     from.selfAnchor = m.body.self;
                     from.mapping = m;
                     from.trustReceived = doc.issuedAt;
-                    const e = promotionCommit(p, relIdOf(p, fromKey), m.body.self, fromKey, when, held, classification === 'rotation' ? 'rotation' : 'new-community');
+                    const e = promotionCommit(p, relIdOf(p, fromKey), m.body.self, fromKey, when, held, classification);
                     e.admittedAt ??= when; // grade-wait ankert an der Admission (5.4)
                     // eine VOR dem Mapping verifizierte Declaration steht und wirkt
                     // bei der Admission sofort (Sektion 2 / 5.4)

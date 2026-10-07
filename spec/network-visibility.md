@@ -157,7 +157,7 @@ relationship are the rule working, not an exception to it.
   **chain-level sender state** (they attach to relationships, not
   tuples — like contact memory) and survive chaining. **Merge —
   one rule for every merge path of 6a.1** (chaining, a later
-  mapping that reaches the head another relationship holds, the
+  mapping that satisfies the head rule against another entry, the
   manual act): the merged relationships' entries become **one entry at
   the earliest position** among them, and the merged
   relationship's **identity is the surviving entry's** — the
@@ -933,7 +933,11 @@ property exists only as their sum:
 6. `k2` is derived from **`card.keyAgreement`** — the key the card
    binds, never a key claimed elsewhere;
 7. both ECDH outputs are non-zero; both MACs verify;
-8. `revision` per 6.4. Where a higher revision changes `self`
+8. `revision` per 6.4. A higher revision is compared with the
+   `self` this relationship holds — not with the head of the merged
+   entry it may belong to; where it leaves that `self` unchanged
+   and the carried segment does not fork, it updates in place
+   (Section 2). Where a higher revision changes `self`
    and the addressee holds a previous `self` for this scope, the
    mapping is a **rotation** if that previous `self` appears in the
    carried segment, as `prev` or `next` of some element of
@@ -942,7 +946,7 @@ property exists only as their sum:
    other than the held one; 6a.1) — the held anchor advances and
    becomes this relationship's head, every holder-local merge
    keyed by an earlier anchor persists, a new merge follows the
-   head rule of 6a.1, and star tests run against every anchor held
+   head rule of 6a.1 in both processing directions, and star tests run against every anchor held
    for this contact;
    otherwise it is a **new community** — accepted as a correction;
    where the relationship belongs to a merged entry, it leaves that
@@ -1091,14 +1095,27 @@ pre-selection.
    **contact entries** (the admission-layer merge of Section 2 —
    both relationships stay active; the chains themselves unify at
    the next chaining, 6a.4) — a holder-local act of the
-   addressee, no wire artifact. **The head rule:** the
-   intersection merges only where the incoming mapping — the one
-   whose verification is being committed — reaches the head the
-   other relationship holds, its current `self`: the incoming
-   `self` equals that head, or the incoming lineage extends it
-   (carries it as a `prev`). An anchor the other relationship
-   holds as superseded — a `prev` of its held lineage — MUST NOT
-   cause a merge. **The fork rule:** the merge MUST
+   addressee, no wire artifact. **The head rule** — one rule for
+   the whole entry, in both processing directions: a relationship
+   `r` merges with a contact entry `E` only where
+   (a) `r`'s head — its current `self` — equals `E`'s current head,
+   or the lineage `r` carries extends `E`'s current head (carries
+   it as a `prev`), **and**
+   (b) `E`'s lineage knowledge does not hold `r`'s head as
+   superseded — `r`'s head is no `prev` of any link held by `E`,
+   from any of its relationships.
+   `E`'s current head is the newest anchor `E` holds: an entry's
+   head advances only along a lineage that extends it. The rule
+   applies to the incoming relationship, whose verification is
+   being committed, against every other entry; and in the other
+   direction: where an update on a relationship of `E` — a
+   rotation, or a correction (6.3, condition 8) — changes `E`'s
+   current head, a relationship `r'` of another entry joins only if
+   `r'` itself satisfies (a) and (b) against `E` at that moment. A
+   relationship refused under a superseded anchor never joins
+   through a later update of another relationship, the honest one
+   included; it joins once it presents a current head itself.
+   **The fork rule:** the merge MUST
    NOT happen when the two relationships' held lineages fork — the
    addressee holds, for the same `prev`, two different `next`
    values across the two relationships, one from each. The links a
@@ -1109,13 +1126,31 @@ pre-selection.
    one key are a copied key, another seed, or an honest recovery
    from a stale counterpart (Identity §9.3), and a shared anchor
    stops being evidence of one person; in the honest case the
-   remaining path is the holder's manual re-trust — re-issuing the
-   mapping is what re-links (Identity §9.3). The two rules cover
-   what is held: once the addressee holds the honest rotation, a
-   copied superseded key merges neither with an empty lineage (the
-   head rule) nor through a successor of its own (the fork rule);
-   before that, a lineage presented through the copied key on a
-   relationship of its own merges (Section 11).
+   remaining path to one entry is the recipient's explicit local
+   merge (no. 3) — a re-issued mapping, at any revision, leaves
+   the fork in place, and re-trusting creates trust toward the new
+   entry without merging it with the old one (Identity §9.3). The
+   two rules cover what is held: once the addressee holds the
+   honest rotation, a copied superseded key merges neither with an
+   empty lineage (the head rule) nor through a successor of its
+   own (the fork rule), in whichever order the relationships are
+   updated afterwards; before that, a lineage presented through the
+   copied key on a relationship of its own merges (Section 11).
+
+   State cases (normative). Holder anchors `A → B → C`; the
+   contact's entries:
+
+   | Step | Arrives at the contact | Result |
+   |---|---|---|
+   | 1 | relationship `r1`: `self = B`, lineage `A → B` | entry `E1`, head `B`; `A` is superseded in `E1` |
+   | 2 | relationship `r2` (a copy of `A`): `self = A`, empty lineage | (a) fails (`A` ≠ `B`), (b) fails (`A` is a `prev` in `E1`): entry `E2` |
+   | 3 | on `r1`: `self = C`, lineage `A → B → C` | a rotation on `r1`; `E1`'s head becomes `C`. `r2` against `E1`: (a) fails (`A` ≠ `C`, `r2` carries nothing), (b) fails: no merge — two entries |
+
+   | State | Arrives | Result |
+   |---|---|---|
+   | `r1` and `r2` merged in `E`; `r2` received `A → B`; `r1` still holds `A` | relationship `r3`: `self = A`, empty lineage | `E`'s head is `B`, and `A` is a `prev` in `E` (held by `r2`): no merge, although `r1` holds `A` as its own head |
+   | the same | then on `r3`: `self = B`, lineage `A → B` | (a) and (b) hold: `r3` merges into `E` |
+
 3. **The manual fallback:** the human merges contact entries
    locally (the same admission-layer merge; the data-loss case —
    contact memory is local anyway).
@@ -1801,7 +1836,8 @@ deliberately left open rather than built badly.
   tuple (6.3), which the copy does not open; it can present the
   forged lineage, or the copied key alone, on a relationship of its
   own, where the head rule and the fork rule (6a.1) stop the merge
-  once the contact holds the honest rotation (6.5, Section 11,
+  once the contact holds the honest rotation, through any later
+  update of the honest relationship as well (6.5, Section 11,
   Identity §8.6).
 - **Probe abuse** — a stranger cannot test candidate anchors:
   entries are HMACs of the *sender's own* anchors under a key
@@ -1906,7 +1942,10 @@ deliberately left open rather than built badly.
   treat the copier as the holder. Once the contact holds `A → B`,
   `A` is superseded there: a mapping under `self = A` merges with
   nothing (the head rule of 6a.1), whatever lineage it carries or
-  omits, and `A → X` forks (the fork rule); neither undoes a merge
+  omits, and `A → X` forks (the fork rule); a relationship refused
+  there never joins later through further rotations of the honest
+  relationship, since the head rule binds the joining side in both
+  processing directions (6a.1); neither undoes a merge
   made before. The residue is the window between the copy and the
   honest rotation reaching each contact, and it ends there; it is a
   convergence residue, not a takeover of the holder's tuples; B2
