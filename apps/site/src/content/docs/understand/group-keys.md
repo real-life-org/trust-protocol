@@ -89,11 +89,11 @@ stated at registration in one of three classes:
 | Class | Knows | Can do |
 |---|---|---|
 | `blind` | ciphertext and addresses | store and hand on, nothing else |
-| `view` | also who the current devices are, from a view the members sign | refuse content from devices that are not members |
+| `view` | also which devices a signed view lists | refuse content from devices the view does not list |
 | `log` | also the authority log itself | check every entry on its own |
 
 Four rules hold for every class. A service never blocks an entry of
-the authority log, whoever wrote it. It drops nothing silently: a
+the authority log, whoever wrote it. It rejects nothing silently: a
 refusal is visible and the sender can try again. A member who was
 removed still receives the notice that says so. And a service declares
 how much it will take in, so nobody is surprised by a limit.
