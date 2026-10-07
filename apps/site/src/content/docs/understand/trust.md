@@ -1,6 +1,6 @@
 ---
 title: Trust
-description: What turns encounters into a network. One relationship across many meetings, what you reveal when you trust someone, the blinded star, being introduced, vouching inside a group, and what nobody else can read.
+description: What turns encounters into a network. What you reveal when you trust someone, the blinded star, being introduced, meeting again, vouching inside a group, and what nobody else can read.
 ---
 
 ## Trust is a second step
@@ -18,23 +18,6 @@ yourself explicitly with this one person. This page is about that act
 and what grows from it.
 
 Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#3-what-an-encounter-establishes)
-
-## One relationship, many meetings
-
-Every encounter runs under a fresh pair anchor, so on the wire a second
-meeting with the same person looks like a stranger. Right after the
-scan, before anything else, the two devices run a **continuity
-probe**: a short list of blinded values that only a counterpart
-holding the earlier relationship can match. A match links the new
-pair to the old one, and the app shows "re-verified" instead of a new
-contact. No match means a new contact, honestly.
-
-The chain of pairs is held by the two of them and visible to nobody
-else. A contact who lost their data cannot answer the probe and is,
-truthfully, a new relationship from then on.
-
-Spec: [Network Visibility §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a-continuity-normative--the-other-half-of-encounter-44) ·
-[Encounter Layer §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative)
 
 ## Trusting means showing who you are
 
@@ -115,6 +98,25 @@ That is why an introduced relationship is the weaker one until the two
 have met.
 
 Spec: [Network Visibility §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#8-the-introduction-act-normative)
+
+## Meeting again
+
+Most relationships are one scan: you meet, you verify each other, and
+from then on you are in each other's contacts. A second scan happens
+when two people forgot that they already are, or when two who were
+introduced meet in person for the first time.
+
+Either way the devices sort it out. Every encounter runs under a fresh
+pairwise anchor, so on the wire the second scan looks like a stranger;
+right after it, the two devices run a **continuity probe**, a short
+list of blinded values that only a counterpart holding the earlier
+relationship can match. A match links the new pair to the existing
+relationship and the app shows "re-verified"; an introduced
+relationship becomes a met one. No match means a new contact,
+honestly, which is also what a contact who lost their data becomes.
+
+Spec: [Network Visibility §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a-continuity-normative--the-other-half-of-encounter-44) ·
+[Encounter Layer §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative)
 
 ## Vouching inside a group
 
