@@ -21,7 +21,7 @@
 //
 // Die Zustandsmaschinen sind die konvergierten:
 //   · Admissionsschicht (Sektion 2): Promotion-Commit beim ERSTEN
-//     verifizierten anchor-mapping@2 einer BEZIEHUNG (relId = die
+//     verifizierten anchor-mapping@3 einer BEZIEHUNG (relId = die
 //     Kette, der Idempotenzschlüssel); genau ein Eintrag je Beziehung,
 //     self-Korrektur per höherer Revision in place; gleiche self auf
 //     zweiter Beziehung = Weg-2-Merge (früheste Position überlebt,
@@ -648,7 +648,7 @@ export const stampGradeOut = (p, contact, grade) => {
     contact.gradeOutOrder = (p.gradeIssueSeq = (p.gradeIssueSeq ?? 0n) + 1n);
 };
 // ── der Vertrauensakt (register no. 3: EIN menschlicher Akt) ────────────
-// setTrust stellt aus: anchor-mapping@2 (Offenlegung) + grade-
+// setTrust stellt aus: anchor-mapping@3 (Offenlegung) + grade-
 // declaration@1 'blinded' (die Wahl) — zwei registrierte Dokumente.
 // Der Stern folgt über reconcile (5.4: die Promotion der Gegenseite
 // erzeugt dort die Divergenz; hier entsteht nur die eigene Sicht).
@@ -692,7 +692,7 @@ export async function setTrust(p, counterpartAnchor, when, ent = {}) {
             contact.trustGiven = whenIso;
             stampGradeOut(p, contact, 'blinded'); // die zuletzt ausgestellte Entscheidung (für V2), mit Ordnungsstempel
             contact.sentMapping = mapping;
-            say(p, `Vertrauen geschenkt an ${contact.name}: Anker offengelegt (anchor-mapping@2) + Grade 'blinded' erklärt`);
+            say(p, `Vertrauen geschenkt an ${contact.name}: Anker offengelegt (anchor-mapping@3) + Grade 'blinded' erklärt`);
             return { to: contact, outbound, env: outbound[0].env };
         }
         finally {
