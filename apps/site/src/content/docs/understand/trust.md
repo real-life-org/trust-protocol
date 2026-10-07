@@ -14,7 +14,7 @@ you beyond this one meeting.
 Trust is a second, deliberate act. It follows only if you want it to,
 and only toward people you actually trust. It is not a document you
 could show to a third party; it is you showing one contact something
-about yourself that nobody else gets to see. This page is about that
+about yourself, in a form only they can check. This page is about that
 act and what grows from it.
 
 Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#3-what-an-encounter-establishes)
