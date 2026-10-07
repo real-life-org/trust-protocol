@@ -46,6 +46,7 @@ export default defineConfig({
         { label: 'Understand', items: [
           { label: 'Foundations', link: '/understand/foundations/' },
           { label: 'Encounter', link: '/understand/encounter/' },
+          { label: 'Trust', link: '/understand/trust/' },
           { label: 'Groups', link: '/understand/groups/' },
           { label: 'Group keys and replication', link: '/understand/group-keys/' },
         ] },

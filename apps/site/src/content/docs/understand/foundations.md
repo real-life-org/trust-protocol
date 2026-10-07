@@ -5,8 +5,8 @@ description: What a protocol developer needs to know before reading the RLTP spe
 
 ## What RLTP is
 
-RLTP records encounters: two people meet, each confirms that they
-recognize the other, and each confirmation becomes an immutable
+RLTP records encounters: two people meet, each verifies the other,
+and each verification becomes an immutable
 verifiable credential held by the person it is about. A group is a
 place rather than a certificate: an encrypted document replicated on
 every member's device, with its own log of who joined, who left and
@@ -72,7 +72,7 @@ processing.
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
-| Encounter credential | A person confirms recognition during an encounter; one per direction | Issuer's fresh pair anchor → counterpart's fresh pair anchor | `VerifiableCredential`, `DTGCredential`, `RelationshipCredential`, `EncounterCredential` | `DataIntegrityProof`, `eddsa-jcs-2022` | Never revoked, never expires: no `validUntil`, no `credentialStatus` | `encounter-credential-0.25` · `encounter-cards.json` |
+| Encounter credential | A person verifies the other during an encounter; one per direction | Issuer's fresh pair anchor → counterpart's fresh pair anchor | `VerifiableCredential`, `DTGCredential`, `RelationshipCredential`, `EncounterCredential` | `DataIntegrityProof`, `eddsa-jcs-2022` | Never revoked, never expires: no `validUntil`, no `credentialStatus` | `encounter-credential-0.25` · `encounter-cards.json` |
 | Membership invite (VIC) | A member invites someone into a group | Inviter's member anchor → invitee's member anchor | `VerifiableCredential`, `DTGCredential`, `InvitationCredential`, `MembershipInvite` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`; `validUntil`, default 90 days | `payload-membership-invite` · `dtg-credentials.json` |
 | Admission vouch (`vouch@2`) | A member vouches for a candidate's admission | Vouching member's anchor → candidate's member anchor | `VerifiableCredential`, `DTGCredential`, `EndorsementCredential`, `AdmissionVouch` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`, no `validUntil`; usable only for the one acceptance it is bound to | `access-vouch` · `dtg-credentials.json` |
 
@@ -81,10 +81,10 @@ self-description: anchor, key agreement key, and in an encounter a
 fresh challenge.
 
 An encounter establishes exactly four things: the issuer controlled
-their key, the exchange was fresh, a human deliberately confirmed
-recognition, and the fact survives as a record. It does not
+their key, the exchange was fresh, a human deliberately verified
+the other, and the fact survives as a record. It does not
 establish physical presence, personhood, that a name belongs to a
-legal person, or trust. Freshness and recognition are established
+legal person, or trust. Freshness and verification are established
 toward the two participants only.
 
 Status: the credentials follow DTG Credentials WD01. The move to the
@@ -101,16 +101,16 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 An edge between two anchors consists of the encounter credentials
 between them, and every view of it is local: outgoing, incoming or
 mutual. There is one edge per anchor pair, however many encounters.
-An encounter credential is one person's confirmation that they
-recognized the other; in a mutual encounter each holds the other's
-confirmation. On its own it proves only that two keys asserted an
+An encounter credential is one person's statement that they
+verified the other; in a mutual encounter each holds the other's
+statement. On its own it proves only that two keys asserted an
 encounter, and since anyone can create anchors at no cost, a count of
 such confirmations proves nothing by itself. Its meaning arises in
 context: for an evaluator who already knows one of the anchors, from
 its own encounters or its groups, the confirmation is evidence; for
 anyone else it is a claim.
 
-Recognition is not trust. Trusting a contact means showing them
+Verification is not trust. Trusting a contact means showing them
 context about yourself: an **anchor mapping** reveals, to this one
 contact only, that the relationship's pair anchor and your community
 anchor, the stable identifier of your personal community, belong to
@@ -122,7 +122,7 @@ share, so the contact can check it but could have forged it, and
 nobody else can.
 
 Meeting the same person again needs no disclosure: a continuity probe
-after the encounter recognizes the re-encounter from the shared
+after the encounter detects the re-encounter from the shared
 history and chains it to the existing relationship.
 
 Every artifact belongs to one audience class. Class P covers
@@ -166,7 +166,7 @@ is rejected, never silently ignored.
 | `group-star/0.1` | Visibility | your groups, blinded to every contact; your member anchor sealed to the ones you choose |
 | `grade-declaration/0.1` | Visibility | a contact's choice between count and blinded |
 | `anchor-mapping/0.2` | Visibility | links a pair anchor to the community anchor for one addressee |
-| `continuity-probe/0.1`, `continuity-mapping/0.1` | Visibility | recognize a re-encounter and chain it to the existing relationship |
+| `continuity-probe/0.1`, `continuity-mapping/0.1` | Visibility | detect a re-encounter and chain it to the existing relationship |
 | `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Visibility | the five steps of introducing two people through a mutual contact |
 
 The Delivery Contract and the Membership Tasks declare Trust Tasks

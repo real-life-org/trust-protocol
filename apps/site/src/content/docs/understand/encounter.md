@@ -6,7 +6,7 @@ description: How two people record that they met. The card, the challenge, the o
 ## What an encounter records
 
 Two people stand together. One shows a code, the other scans it,
-and each presses a button that says "I recognize this person". Each
+and each presses a button that says "I verify this person". Each
 press produces a credential that the other person keeps. That is an
 encounter in RLTP.
 
@@ -21,7 +21,7 @@ The credential proves four things and nothing more:
 
 It does not prove that the two were in the same room, that their
 names are real, or that either trusts the other. Trust is a separate
-act, described in [Foundations](/understand/foundations/).
+act, described on its own page: [Trust](/understand/trust/).
 
 Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#3-what-an-encounter-establishes)
 
@@ -31,7 +31,7 @@ What travels over the code is a **contact card**: the anchor the
 person uses for this encounter, an encryption key so that the other
 side can seal messages to them, a one-time challenge, and optionally
 a name and delivery hints. The card is signed with the anchor. It is a
-self-description, not a credential: it says how to recognize and reach
+self-description, not a credential: it says how to identify and reach
 someone, not that anyone vouches for them.
 
 The name on a card is self-declared. The receiver binds their own
@@ -92,10 +92,10 @@ Spec: [Encounter Layer §5](https://github.com/real-life-org/trust-protocol/blob
 
 The credentials of one encounter form an **edge** between the two
 anchors. If only A confirmed, the edge is one-sided: A says they
-recognized B, B has said nothing. That is a legitimate outcome, not a
+verified B, B has said nothing. That is a legitimate outcome, not a
 failure, and the app shows it as such. The edge becomes mutual when
 each side holds the other's credential. Mutuality is held, never
-inferred: a card addressed to you suggests recognition, only the
+inferred: a card addressed to you suggests verification, only the
 credential proves it.
 
 Spec: [Encounter Layer §4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#4-anchors-credentials-edges)

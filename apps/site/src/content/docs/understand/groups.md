@@ -46,7 +46,7 @@ log, with the invitation and your acceptance enclosed as proof. A
 welcome then brings you the current key. Older content becomes readable
 through the group's own copy, as far back as its keys reach.
 
-If the group asks for vouches, other members confirm your admission
+If the group asks for vouches ([Trust](/understand/trust/)), other members confirm your admission
 before it counts. A vouch is for this one admission and never stands
 for a later one.
 
