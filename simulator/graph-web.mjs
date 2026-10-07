@@ -20,8 +20,8 @@
 //
 // Review-1 invariants (design/graph-simulator-review1-2026-08.md):
 //   - deterministic replay: all encounter entropy is caller-suppliable
-//   - published documents are append-only (membership docs, tag artifacts,
-//     personas): turning something off stops future publication only —
+//   - published documents are append-only (membership docs, personas):
+//     turning something off stops future publication only —
 //     and a delivered self anchor is irreversible knowledge
 //   - viewers hold artifacts: names/colors are local contact memory taken
 //     at encounter time; shared stars exist only as DELIVERED snapshots
@@ -226,7 +226,7 @@ async function issueCred(p, subjectAnchor, subjectChallenge, bind, when) {
 
 // ── world ───────────────────────────────────────────────────────────────
 // the world holds PERSONS (each a bundle of held artifacts + local
-// state), published spaces (groups/personas/tags) and a sequence
+// state), published spaces (groups/personas) and a sequence
 // counter. There is NO separate encounter registry: the god view is the
 // SUPERPOSITION of the individual graphs (allEncounters).
 export function createWorld() {
@@ -249,8 +249,6 @@ export async function addPerson(world, name, color, seed) {
                               // PROMOTES this relationship (deferred disclosure)
     friends: new Set(),       // contact KEYS (pair anchors) I promoted — my one-sided acts
     memberships: new Map(), mode: 'encountered',
-    tags: new Set(),          // groupIds whose tag is CURRENTLY published (artifacts stay, F10)
-    publishedTags: new Map(), // groupId -> tag value (for the wallet)
     starsReceived: new Map(), // from-self-anchor -> { edges: [peer self anchors] } — DELIVERED (F2)
   }
   world.persons.set(name, person)
@@ -385,15 +383,18 @@ export async function encounter(world, A, B, when, ent) {
 
 export async function createGroup(world, id, label) {
   const genesisDigest = await digestMB(jcs({ type: 'rltp-sim/group-genesis@0', id, label }))
-  const g = { id, label, genesisDigest, roster: new Map(), tagArtifacts: [] } // group anchor -> { doc: latest, docs: [ALL issued — append-only] }
+  const g = { id, label, genesisDigest, roster: new Map() } // member anchor -> { doc: latest, docs: [ALL issued — append-only] }
   world.groups.set(id, g)
   return g
 }
-export async function join(world, person, group, when, displayName) {
+// membership is anonymous: the document carries the member anchor and
+// nothing that names a person. No mapping ever enters the group space
+// (Access 0.55 RLTP-ACC-5920); recognition travels per contact, as a
+// delivered context mapping (disclose / setTrust below).
+export async function join(world, person, group, when) {
   // group labels carry the genesis DIGEST, never the display id (Identity §6.1)
   const p = await persona(person, `group/${group.genesisDigest}`)
   const body = { type: 'rltp-sim/membership@0', group: group.id, member: p.anchor, issuedAt: iso(when) }
-  if (displayName) body.name = displayName
   const doc = await diSign(p, body, iso(when))
   logPacket(world, person.name, `group: ${group.label}`, 'membership@0 (publish)', doc)
   const entry = group.roster.get(p.anchor) ?? { docs: [] }
@@ -408,9 +409,6 @@ export async function join(world, person, group, when, displayName) {
   }
   return doc
 }
-// once published, a named doc names the anchor forever (F10)
-export const rosterName = (entry) => entry?.docs?.find((d) => d.name)?.name
-
 // context mappings (group anchors) are class-V linkages too (review-2
 // B2): each disclosed label→anchor travels as a DV artifact — a context
 // card (context Ed anchor ↔ context X key, signed under the context
@@ -473,31 +471,6 @@ async function autoDisclose(world, person, contact) {
   const allowed = person.mode === 'encountered' || person.friends.has(contactKey(person, contact.name))
   if (!allowed) return
   await disclose(world, person, contact, [...person.memberships.values()].map((m) => m.label))
-}
-
-// B' membership tags — EXECUTED (F11): tag = HMAC-SHA256(genesisDigest,
-// self-anchor). Only digest-knowers (co-members) can recompute and thus
-// recognize; the published artifact does not name the group. Artifacts are
-// append-only: off stops publication, published tags stay recognizable.
-// Under deferred disclosure a tag resolves ONLY against contacts who have
-// promoted you — without their self anchor there is nothing to recompute.
-// [probe boundary: membership behind a tag is not itself proven — a
-// digest-knower could publish a tag without being a member.]
-export async function setTag(world, person, groupId, on) {
-  if (!on) { person.tags.delete(groupId); return } // artifacts stay — publish is forever
-  const g = world.groups.get(groupId)
-  if (!g) return
-  person.tags.add(groupId)
-  const anchor = (await communityIdentity(person)).anchor
-  const tag = await hmac(g.genesisDigest, anchor)
-  person.publishedTags.set(groupId, tag)
-  // the tag lives in the GROUP's space, not the world (Anton's catch):
-  // its resolution audience is co-members anyway — publishing wider only
-  // leaked existence metadata to strangers
-  if (!g.tagArtifacts.some((t) => t.anchor === anchor && t.tag === tag)) {
-    logPacket(world, person.name, `group: ${g.label}`, 'membership-tag@0 (publish)', { anchor, tag })
-    g.tagArtifacts.push({ type: 'rltp-sim/membership-tag@0', anchor, tag })
-  }
 }
 
 // public persona (FPP: P-DID): a derived anchor whose audience is EVERYONE.
@@ -627,9 +600,9 @@ export function linkClusters(viewer) {
 export function knownGroups(viewer, world) {
   return [...world.groups.values()].filter((g) => viewer.memberships.has(g.id))
 }
-// shared groups via disclosed mapping OR via recomputed tag artifact (B').
-// `key` is a contact key (pair anchor); a self anchor is accepted as a
-// fallback lookup for promoted contacts.
+// shared groups via disclosed context mappings — the only recognition
+// path. `key` is a contact key (pair anchor); a self anchor is accepted
+// as a fallback lookup for promoted contacts.
 export async function sharedGroups(viewer, key, world) {
   const entry = viewer.contacts.get(key)
     ?? [...viewer.contacts.values()].find((e) => e.selfAnchor === key)
@@ -637,10 +610,7 @@ export async function sharedGroups(viewer, key, world) {
   const out = []
   for (const g of knownGroups(viewer, world)) {
     const a = entry.disclosed.get(`group/${g.genesisDigest}`)
-    if (a && g.roster.has(a)) { out.push(g.id); continue }
-    if (!entry.selfAnchor) continue // tag path needs the promoted self anchor
-    const expect = await hmac(g.genesisDigest, entry.selfAnchor)
-    if (g.tagArtifacts.some((t) => t.anchor === entry.selfAnchor && t.tag === expect)) out.push(g.id)
+    if (a && g.roster.has(a)) out.push(g.id)
   }
   return out
 }

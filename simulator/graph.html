@@ -309,12 +309,11 @@ async function apply(a) {
     // encounter entropy is stored INTO the action on first run, so replay
     // reproduces byte-identical documents (review F7)
     case 'enc': { now = Math.max(now, a.when); const e = await W.encounter(world, world.persons.get(a.a), world.persons.get(a.b), a.when, a.ent); if (e) a.ent = e.ent; break } // null = duplicate dropped
-    case 'join': now = Math.max(now, a.when); await W.join(world, world.persons.get(a.name), world.groups.get(a.gid), a.when, a.dn ?? undefined); break
+    case 'join': now = Math.max(now, a.when); await W.join(world, world.persons.get(a.name), world.groups.get(a.gid), a.when); break
     case 'disclose': await W.disclose(world, world.persons.get(a.from), world.persons.get(a.to), a.labels); break
     case 'trust': await W.setTrust(world, world.persons.get(a.a), world.persons.get(a.b), a.on, a.when); break // one-sided (review F9); delivers the pair→self mapping
     case 'trust2': { const A = world.persons.get(a.a), B = world.persons.get(a.b); await W.setTrust(world, A, B, a.on, a.when); await W.setTrust(world, B, A, a.on, a.when); break } // legacy logs
     case 'promote': await W.promote(world, world.persons.get(a.a), world.persons.get(a.b)); break
-    case 'recog': now = Math.max(now, a.when); await W.join(world, world.persons.get(a.name), world.groups.get(a.gid), a.when, a.on ? a.name : null); await W.setTag(world, world.persons.get(a.name), a.gid, a.tag); break
     case 'pub': now = Math.max(now, a.when ?? now); await W.setPublic(world, world.persons.get(a.name), a.pname, a.when ?? now, a.on); break
   }
 }
@@ -384,10 +383,9 @@ async function buildScene() {
       addHub(g)
       const anchors = [...g.roster.keys()]
       anchors.forEach((a, i) => {
-        // once published, a named doc names the anchor forever (F10)
-        const ctxName = W.rosterName(g.roster.get(a))
+        // the roster is anonymous: member anchors, never names
         const [x, y] = orbit(g.id, i, anchors.length)
-        nodes.push({ id: 'a:'+a, x, y, r: 6, color: null, sub: ctxName ?? '', ref: { kind: 'anchor', anchor: a, owner: null, ctxName } })
+        nodes.push({ id: 'a:'+a, x, y, r: 6, color: null, sub: '', ref: { kind: 'anchor', anchor: a, owner: null } })
         edges.push({ id: 'm:'+a, a: 'g:'+g.id, b: 'a:'+a, member: true, ref: { kind: 'anchor', anchor: a, owner: null } })
       })
     }
@@ -487,15 +485,13 @@ async function buildScene() {
       }
     }
     // groups I belong to: hubs + membership edges. Only DISCLOSED mappings
-    // merge roster anchors into contacts — a B' tag proves membership of the
-    // SELF anchor, it does not reveal which roster anchor is theirs.
+    // merge roster anchors into contacts; the roster itself names nobody.
     const linkedAnchors = new Map()
     for (const c of clusters) for (const [, a] of c.anchors) linkedAnchors.set(a, c.name)
     for (const g of W.knownGroups(viewer, world)) {
       addHub(g)
       const anchors = [...g.roster.keys()]
       anchors.forEach((a, i) => {
-        const ctxName = W.rosterName(g.roster.get(a))
         const mine = [...viewer.personas.values()].some((q) => q.anchor === a)
         const linkedTo = linkedAnchors.get(a)
         const merged = mine || (linkedTo && contactNames.includes(linkedTo))
@@ -503,8 +499,8 @@ async function buildScene() {
         nodes.push({ id: 'a:'+a, x: pos[0], y: pos[1], r: merged ? 0 : 6,
           pin: mine ? 'p:'+viewer.name : merged ? 'peer:'+linkedTo : null,
           color: mine ? viewer.color : linkedTo ? [...viewer.contacts.values()].find((c) => c.name === linkedTo)?.color : null,
-          sub: merged ? '' : ctxName ?? short(a),
-          ref: { kind: 'anchor', anchor: a, owner: mine ? viewer.name : linkedTo ?? null, ctxName } })
+          sub: merged ? '' : short(a),
+          ref: { kind: 'anchor', anchor: a, owner: mine ? viewer.name : linkedTo ?? null } })
         edges.push({ id: 'm:'+a, a: 'g:'+g.id, b: 'a:'+a, member: true, ref: { kind: 'anchor', anchor: a, owner: mine ? viewer.name : linkedTo ?? null } })
       })
     }
@@ -856,7 +852,7 @@ const chapters = [
       await run({ t: 'join', name: 'Sam', gid: 'chor', when: tick(1000) })
     },
     checks: () => [ { msg: 'membership docs signed under derived anchors', fn: async () => W.diVerify(P.Peter.memberships.get('chor').doc, (await W.persona(P.Peter, `group/${world.groups.get('chor').genesisDigest}`)).anchor) } ] },
-  { title: 'The Sam moment.', line: 'Camera: Sam. Sam shares the choir with Peter and SEES an anchor in the roster — gray, anonymous. Membership is anonymous by default: nothing connects it to any person, inside or outside. Recognition is a choice.',
+  { title: 'The Sam moment.', line: 'Camera: Sam. Sam shares the choir with Peter and SEES an anchor in the roster — gray, anonymous. Membership is anonymous: nothing in the group connects it to any person, inside or outside. Only the person can make it recognizable, by delivering a mapping to a contact.',
     camera: 'Sam', setup: async () => {},
     checks: () => [ { msg: 'Sam links no anchors beyond his own contacts', fn: async () => W.linkClusters(P.Sam).every((c) => [...c.anchors.keys()].every((l) => l === 'self' || l === 'pair' || [...world.groups.values()].some((g) => `group/${g.genesisDigest}` === l && world.persons.get(c.name)?.memberships.has(g.id)))) } ] },
   { title: 'The personal community.', line: 'Camera: Anna. Your roster of encounters is your personal community. Your stable ID was never part of any ceremony: it travels LATER, per contact, one-sidedly, via Trust. Verify on the dancefloor, decide at home.',
@@ -973,7 +969,6 @@ function buildFabMenu() {
 const overlay = $('overlay'), dlgBody = $('dlgBody')
 let dlgConfirm = null
 let pendingShare = null   // {a, b} — contact awaiting the share-ID confirm
-let pendingGroup = null   // {name, gid, label} — group awaiting the trust confirm
 function field(labelText, control) {
   const w = document.createElement('div')
   const l = document.createElement('label'); l.textContent = labelText; w.appendChild(l)
@@ -1047,20 +1042,10 @@ function openPhoneDialog(kind) {
     $('phdlgTitle').textContent = `Trust ${pendingShare.b}`
     $('phdlgOk').textContent = 'Trust'
     body.append(
-      P(`Trusting ${pendingShare.b} shares your stable ID with them: they can link your anchors, recognize your tags, and receive your mappings and star.`),
+      P(`Trusting ${pendingShare.b} shares your stable ID with them: they can link your anchors and receive your mappings and star.`),
       P(`This is a one-way door: ${pendingShare.b} keeps your stable ID forever. Only the ongoing updates can be paused later.`, true))
     phdlgConfirm = async () => {
       await run({ t: 'trust', a: pendingShare.a, b: pendingShare.b, on: true, when: tick(1000) })
-      return true
-    }
-  } else if (kind === 'trustgroup') {
-    $('phdlgTitle').textContent = 'Trust this group'
-    $('phdlgOk').textContent = 'Trust'
-    body.append(
-      P(`Trust “${pendingGroup.label}”? Your name goes into the group, and a recognition tag lets co-members who hold your stable ID recognize you.`),
-      P('This is a one-way door: the published name and tag stay readable forever. Only the ongoing publication can be paused later.', true))
-    phdlgConfirm = async () => {
-      await run({ t: 'recog', name: pendingGroup.name, gid: pendingGroup.gid, when: tick(1000), on: true, tag: true })
       return true
     }
   } else if (kind === 'publish') {
@@ -1280,8 +1265,6 @@ async function renderPhone() {
     if (!g || !m) { groupProfileOf = null } else {
       list.className = ''
       list.appendChild(mkBack('Groups', () => { groupProfileOf = null }))
-      const namedEver = !!m.docs?.some((d) => d.name)
-      const pubOn = A.tags.has(g.id)
       const ph = document.createElement('div'); ph.className = 'profhead'
       const bav = document.createElement('span'); bav.className = 'pavatar'; bav.style.background = 'oklch(70% 0.02 265)'; bav.textContent = g.label[0]
       const nm = document.createElement('span'); nm.className = 'pname'; nm.textContent = g.label
@@ -1289,21 +1272,9 @@ async function renderPhone() {
       sb.textContent = `${g.roster.size} member${g.roster.size === 1 ? '' : 's'} · genesis ${g.genesisDigest.slice(0, 12)}…`
       ph.append(bav, nm, sb)
       list.appendChild(ph)
-      const card = document.createElement('div'); card.className = 'plist'
-      const r = document.createElement('div'); r.className = 'prow'
-      const l = document.createElement('span'); l.className = 'plabel'
-      l.appendChild(mkName('Trust', namedEver ? [{ type: 'trustb', text: '→ named' }] : null,
-        namedEver ? 'your name stays readable for members forever' : 'anonymous membership'))
-      r.appendChild(l)
-      r.appendChild(!namedEver
-        ? mkShareBtn('Trust', () => { pendingGroup = { name: A.name, gid: g.id, label: g.label }; openPhoneDialog('trustgroup') })
-        : mkSubCtl(pubOn ? 'publication on' : 'publication paused', pubOn ? 'pause' : 'resume',
-          async () => { await run({ t: 'recog', name: A.name, gid: g.id, when: tick(1000), on: !pubOn, tag: !pubOn }) }))
-      card.appendChild(r)
-      list.appendChild(card)
       // members — strictly what THIS viewer can read: own anchor, contacts
-      // who disclosed their group mapping to me, names published into the
-      // roster (forever), and gray anonymous anchors for everyone else
+      // who disclosed their group mapping to me, and gray anonymous anchors
+      // for everyone else (the roster names nobody)
       const hm = document.createElement('div'); hm.className = 'pfoot'
       hm.textContent = 'Members'
       list.appendChild(hm)
@@ -1315,24 +1286,18 @@ async function renderPhone() {
         if (a) linked.set(a, c)
       }
       const myAnchor = [...A.personas.values()].find((p) => p.label === label)?.anchor
-      for (const [anchor, rentry] of g.roster) {
+      for (const anchor of g.roster.keys()) {
         const r2 = document.createElement('div'); r2.className = 'prow'
-        const ctxName = W.rosterName(rentry)
         if (anchor === myAnchor) {
           r2.appendChild(mkAvatar(A.color, A.name.slice(0, 2).toUpperCase()))
           const l2 = document.createElement('span'); l2.className = 'plabel'
-          l2.appendChild(mkName(`${A.name} (you)`, null, ctxName ? 'named in the group' : 'anonymous membership'))
+          l2.appendChild(mkName(`${A.name} (you)`, null, 'anonymous membership'))
           r2.appendChild(l2)
         } else if (linked.has(anchor)) {
           const c = linked.get(anchor)
           r2.appendChild(mkAvatar(c.color, c.name.slice(0, 2).toUpperCase()))
           const l2 = document.createElement('span'); l2.className = 'plabel'
           l2.appendChild(mkName(c.name, null, 'disclosed their membership to you'))
-          r2.appendChild(l2)
-        } else if (ctxName) {
-          r2.appendChild(mkAvatar(null, ctxName.slice(0, 2).toUpperCase()))
-          const l2 = document.createElement('span'); l2.className = 'plabel'
-          l2.appendChild(mkName(ctxName, null, 'named in the group — readable forever'))
           r2.appendChild(l2)
         } else {
           r2.appendChild(mkAvatar(null, '·'))
@@ -1387,26 +1352,12 @@ async function renderPhone() {
     if (!gs.length) { list.innerHTML = '<div class="pempty">no groups yet — join one</div>'; return }
     for (const gid of gs) {
       const g = world.groups.get(gid)
-      // trust toward a group = members may recognize me: name into the
-      // group + anchor linkage tag. The naming is irreversible (append-only
-      // roster); only the ONGOING publication pauses.
-      const namedEver = !!A.memberships.get(gid)?.docs?.some((d) => d.name)
-      const pubOn = A.tags.has(gid)
       const members = g ? g.roster.size : 0
       const r = row(mkAvatar(null, (g?.label ?? gid).slice(0, 2).toUpperCase()),
-        mkName(g?.label ?? gid, namedEver ? [{ type: 'trustb', text: '→ named' }] : null, `${members} member${members === 1 ? '' : 's'}`),
-        !namedEver
-          ? mkShareBtn('Trust', () => { pendingGroup = { name: A.name, gid, label: g?.label ?? gid }; openPhoneDialog('trustgroup') })
-          : mkSubCtl(pubOn ? 'publication on' : 'publication paused', pubOn ? 'pause' : 'resume',
-            async () => { await run({ t: 'recog', name: A.name, gid, when: tick(1000), on: !pubOn, tag: !pubOn }) }))
+        mkName(g?.label ?? gid, null, `${members} member${members === 1 ? '' : 's'}`))
       const lbl = r.querySelector('.plabel')
       lbl.style.cursor = 'pointer'
       lbl.onclick = () => { groupProfileOf = gid; renderPhone() }
-    }
-    {
-      const f = document.createElement('div'); f.className = 'pfoot'
-      f.textContent = 'Trusting a group is a one-way door: your name stays readable for members forever. What CAN be paused is the ongoing publication.'
-      list.appendChild(f)
     }
   }
 }
@@ -1475,7 +1426,7 @@ function renderWallet() {
       json: J(m.doc),
     })))
 
-  // 4 · disclosures & tags: mappings received, blinded stars, tags published
+  // 4 · disclosures: mappings received, blinded stars, what I delivered
   const dis = []
   for (const c of W.linkClusters(A)) {
     // the promotion artifact: the DV pair→self mapping I HOLD
@@ -1500,10 +1451,7 @@ function renderWallet() {
       sub: `stable ID (🔒 DV) + ${e2.sentCtx?.size ?? 0} mapping${(e2.sentCtx?.size ?? 0) === 1 ? '' : 's'} + star delivered · ${sub2 ? 'updates on' : 'updates paused'} · one-way`,
       json: J({ to: key2, mapping: e2.sentMapping?.body ?? null, contextLabels: [...(e2.sentCtx?.keys() ?? [])], lastStar: e2.sentStar ?? null }) })
   }
-  for (const [gid, tag] of A.publishedTags) dis.push({ dir: 'out', title: `published tag · ${world.groups.get(gid)?.label ?? gid}`,
-    sub: (A.tags.has(gid) ? 'published' : 'publication stopped — artifact stays') + ' · readable by digest-knowers only',
-    json: J({ mechanism: 'HMAC-SHA256(genesisDigest, self-anchor) — executed', tag, anchor: A.personas.get(W.communityLabel(A))?.anchor }) })
-  add('dis', 'Disclosures & tags', 'anchor mappings — what trust discloses', dis)
+  add('dis', 'Disclosures', 'anchor mappings — what trust discloses', dis)
 
   const box = document.getElementById('walletList'); box.innerHTML = ''
   for (const c of cats) {
