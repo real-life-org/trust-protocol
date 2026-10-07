@@ -25,7 +25,7 @@ context:
 | Context | Label | DTG scope |
 |---|---|---|
 | One relationship-creation act (encounter, introduction, founding a group) | `pair/<digest of a fresh 32-byte nonce>` | `pairwise` |
-| One group; for the personal community this is the **community anchor** | `group/<genesis digest>` | `directed` |
+| One group; the one of a person's own personal community is the anchor they share when they trust someone | `group/<genesis digest>` | `directed` |
 | One public persona | `persona/<name>` | `public` |
 
 The DTG scope is the correlation scope a holder declares for an
@@ -112,8 +112,8 @@ anyone else it is a claim.
 
 Verification is not trust. Trusting a contact means showing them
 context about yourself: an **anchor mapping** reveals, to this one
-contact only, that the relationship's pair anchor and your community
-anchor, the stable identifier of your personal community, belong to
+contact only, that the relationship's pair anchor and the anchor of
+your personal community, your one stable identifier, belong to
 the same person. Trusting also allows the contact to include you,
 blinded, in the **star** they send to their own contacts, a picture
 of their circle that only people who already know you can read you

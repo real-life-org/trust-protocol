@@ -22,13 +22,13 @@ Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob
 ## Trusting means showing who you are
 
 Besides the pair anchors of each relationship, every person has one
-anchor that is theirs across relationships: the **community anchor**,
-the member anchor of their own personal community. Nothing links it
-to any pair anchor, unless the holder says so.
+anchor that is theirs across relationships: **the member anchor of
+their own personal community**. Nothing links it to any pair anchor,
+unless the holder says so.
 
 Trusting a contact is saying so, to that one contact: an **anchor
 mapping** that states "the person you met under this pair anchor and
-the holder of this community anchor are the same". It is built so
+the holder of this personal community are the same". It is built so
 that only the addressee can check it; the proof is a shared secret
 between the two, not a signature. Whoever issues an anchor decides,
 per recipient, who gets to see it. Nobody may pass it on in your
@@ -39,30 +39,30 @@ Spec: [Network Visibility §6.1](https://github.com/real-life-org/trust-protocol
 
 ## What your contact can do with it
 
-Two things. They can recognize you: wherever your community anchor
-turns up for them again, in another relationship or in a group where
+Two things. They can recognize you: wherever the anchor of your
+personal community turns up for them again, in another relationship or in a group where
 you lifted the pseudonym for them, their app knows it is you, and two
 entries become one person on their device. And they can test: when
 someone else sends them a star, they can check whether you are in it.
 
 Two things they cannot do. They cannot prove the link to anyone else;
 the mapping verifies for them alone, and they could have forged it
-themselves. And they cannot take your community anchor into a group
-or a star as a plain value; it never appears in the open.
+themselves. And they cannot take that anchor into a group or a star
+as a plain value; it never appears in the open.
 
 What they do hold from then on is your anchor and how to reach you.
 Trust is revocable in distribution, not in possession: you can stop
 sending, you cannot make someone forget.
 
 Spec: [Network Visibility §6.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#63-verification--the-closed-condition-list) ·
-[Access Layer §5.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#55-member-mapping1--the-deliberate-crossing-of-the-group-boundary)
+[§5.2b](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#52b-group-star1--the-senders-groups-blinded-to-every-contact-sealed-to-the-chosen-ones)
 
 ## The blinded star
 
 A **star** is what one person sends to one contact to let them relate
 the two contact sets. It lists the people who trusted the sender,
-but not as anchors: each entry is the person's community anchor run
-through a keyed hash, with a key that holds for this sender, this
+but not as anchors: each entry is the anchor of the person's personal
+community run through a keyed hash, with a key that holds for this sender, this
 recipient and this delivery only.
 
 The recipient can do exactly one thing with it: test the anchors
@@ -76,6 +76,12 @@ That is also what it is for. When a verifier asks how many people
 stand behind someone, the useful answer is not "forty" but "forty,
 three of whom you know". The star is how the three are found without
 anyone handing over a list.
+
+The star has a sibling for groups. Each group you are in travels to
+every contact as a blinded value too, so a contact who is in the same
+group gets a hit: we know each other from somewhere. Who you are in
+that group stays sealed, and opens only for the contacts you trust,
+or for one you choose per group.
 
 Spec: [Network Visibility §5](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#5-the-star-normative) ·
 [§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#7-relational-counts-normative-principle-artifact-unwritten)
