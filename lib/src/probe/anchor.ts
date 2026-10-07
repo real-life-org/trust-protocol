@@ -1,0 +1,199 @@
+// anchor — the community anchor toward a contact (Network Visibility
+// 0.30 §6.1–§6.5, Identity 0.52 §5.4): self-card@1, anchor-rotation@1,
+// the lineage, anchor-mapping@3 and what a changed `self` means.
+//
+// Pure constructions over identity Contexts: no Person, no state, no
+// transport. The probe's trust act (trust.ts) builds and verifies its
+// mappings HERE, and scripts/gen-anchor-vectors.mjs generates the
+// shipped vectors from the same functions.
+//
+//   · anchor-rotation@1 — { body: { type, prev, next }, proof: {
+//     proofValue (raw Ed25519 under prev), successorProofValue (raw
+//     Ed25519 under next) } }, both over JCS(body). A key-chain link:
+//     the order is prev/next alone, no number. It proves that the two
+//     keys jointly authorized the link — never correct derivation,
+//     exclusive succession, or anything about the person (Identity
+//     §8.6). `next` is the next generation of the same digest or, after
+//     a lost register, generation 1 of a new personal community (§9.3).
+//   · lineage — at most the LINEAGE_MAX most recent links, in chain
+//     order, ending at self; empty = the sender presents no history.
+//   · anchor-mapping@3 — anchor-mapping@2 plus `lineage`; `self` is the
+//     current anchor, the card is under it, mac2 is under its X key.
+//   · classification (§6.3 condition 8) — a changed `self` is a
+//     ROTATION when the previously held `self` appears in the carried
+//     segment (as prev or next of an element) and the segment does not
+//     fork against the relationship's held links, otherwise a NEW
+//     COMMUNITY.
+//   · mappingAnchors — the verified anchor set of a mapping (self and
+//     every anchor of its carried lineage); the convergence net merges
+//     two relationships whose sets meet (§6a.1 no. 2) — unless their held
+//     links fork: the same prev with two different next, one from each
+//     relationship (lineageLinks, linksFork; the fork rule of §6a.1).
+import { jcs, makeValidator, calOK } from '../core.js'
+import { SCHEMAS } from '../schemas.js'
+import { base58, fromBase58, edRawOfAnchor, xRawOfMk, ecdh, hkdf, b64uOf } from '../crypto.js'
+import type { Context } from '../identity.js'
+
+const te = new TextEncoder()
+const S = globalThis.crypto.subtle
+const VAL = makeValidator(SCHEMAS)
+const schemaOk = (file: string, data: unknown): boolean => VAL.validate(data, SCHEMAS[file]!, SCHEMAS[file]!).length === 0
+
+/** HMAC-SHA-256 over the UTF-8 bytes of msg, in the mac encoding (`u` + base64url). */
+export async function macU (keyBytes: Uint8Array, msg: string): Promise<string> {
+  const k = await S.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return 'u' + b64uOf(new Uint8Array(await S.sign('HMAC', k, te.encode(msg))))
+}
+/** Raw Ed25519 over JCS(body), `z` + base58btc — the abbreviated proof form of Visibility §2.1 (no DI suite). */
+export async function signRaw (ctx: Pick<Context, 'ed'>, body: unknown): Promise<string> {
+  return 'z' + base58(new Uint8Array(await S.sign({ name: 'Ed25519' }, ctx.ed.priv, te.encode(jcs(body)))))
+}
+/** Verifies a raw Ed25519 proofValue over JCS(body) under a did:key anchor: exactly 64 bytes, canonical base58btc. */
+export async function verifyRaw (did: unknown, body: unknown, proofValue: unknown): Promise<boolean> {
+  try {
+    if (typeof proofValue !== 'string' || proofValue[0] !== 'z') return false
+    const raw = edRawOfAnchor(did)
+    const sig = fromBase58(proofValue.slice(1))
+    if (!raw || !sig || sig.length !== 64 || 'z' + base58(sig) !== proofValue) return false
+    const key = await S.importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
+    return await S.verify({ name: 'Ed25519' }, key, sig, te.encode(jcs(body)))
+  } catch { return false }
+}
+
+// ── self-card@1 (§6.2) ──────────────────────────────────────────────────
+/** self-card@1 of a community-anchor context: its anchor and key-agreement key, signed raw under the anchor. */
+export async function makeSelfCard (self: Context) {
+  const body = { type: 'self-card@1', anchor: self.anchor, keyAgreement: self.keyAgreement }
+  return { body, proof: { proofValue: await signRaw(self, body) } }
+}
+
+// ── anchor-rotation@1 (§6.5) ────────────────────────────────────────────
+/**
+ * The link from the current community anchor (prev) to the next one:
+ * both contexts sign the same canonical body. A rotation moves — next
+ * differs from prev.
+ */
+export async function makeAnchorRotation (prev: Context, next: Context) {
+  if (prev.anchor === next.anchor) throw new Error('anchor-rotation@1: next equals prev (Visibility §6.5)')
+  const body = { type: 'anchor-rotation@1', prev: prev.anchor, next: next.anchor }
+  return { body, proof: { proofValue: await signRaw(prev, body), successorProofValue: await signRaw(next, body) } }
+}
+/** Schema, next ≠ prev, and both signatures — prev's and next's — over the canonical body. */
+export async function verifyAnchorRotation (a: any): Promise<boolean> {
+  if (!schemaOk('visibility-anchor-rotation.schema.json', a)) return false
+  if (a.body.prev === a.body.next) return false
+  return (await verifyRaw(a.body.prev, a.body, a.proof.proofValue))
+    && (await verifyRaw(a.body.next, a.body, a.proof.successorProofValue))
+}
+
+// ── the lineage (§6.3 condition 4a) ─────────────────────────────────────
+/** A mapping carries at most this many of the most recent links (§6.1; schema maxItems). */
+export const LINEAGE_MAX = 64
+/**
+ * The chain as given: at most LINEAGE_MAX elements; every element
+ * verifies under both its signatures; each prev equals the preceding
+ * element's next; the last next equals self. An empty lineage passes:
+ * the sender presents no history.
+ */
+export async function verifyLineage (lineage: any[], self: string): Promise<{ ok: true } | { ok: false, reason: string }> {
+  if (!Array.isArray(lineage)) return { ok: false, reason: 'lineage is not an array' }
+  if (lineage.length > LINEAGE_MAX) return { ok: false, reason: `more than ${LINEAGE_MAX} elements` }
+  for (const [i, r] of lineage.entries()) {
+    if (!(await verifyAnchorRotation(r))) return { ok: false, reason: `element ${i}: anchor-rotation@1 does not verify under both signatures` }
+    if (i > 0 && r.body.prev !== lineage[i - 1].body.next) return { ok: false, reason: `element ${i}: prev is not the preceding next` }
+  }
+  if (lineage.length && lineage[lineage.length - 1].body.next !== self) return { ok: false, reason: 'the last next is not self' }
+  return { ok: true }
+}
+/** Every anchor a lineage names, in chain order: the first prev, then each next. */
+export const lineageAnchors = (lineage: any[]): string[] =>
+  lineage.length ? [lineage[0].body.prev, ...lineage.map((r: any) => r.body.next)] : []
+/**
+ * The verified anchor set of a mapping (§6a.1 no. 2): its self and every
+ * anchor of its carried lineage, in chain order, self last. Two
+ * relationships converge when these sets meet.
+ */
+export const mappingAnchors = (body: { self: string, lineage: any[] }): string[] =>
+  body.lineage.length ? lineageAnchors(body.lineage) : [body.self]
+
+/** The links prev → next a lineage carries, in chain order. */
+export const lineageLinks = (lineage: any[]): [string, string][] =>
+  lineage.map((r: any) => [r.body.prev, r.body.next])
+/**
+ * The fork rule (§6a.1): held links and carried links fork when, for the
+ * same prev, they name two different next.
+ */
+export const linksFork = (held: Map<string, string> | undefined, links: [string, string][]): boolean =>
+  !!held && links.some(([prev, next]) => held.has(prev) && held.get(prev) !== next)
+/**
+ * §6.3 condition 8 for a changed `self`: 'rotation' when the previously
+ * held self appears in the carried segment (as prev or next of some
+ * element) and the segment does not fork against the links the
+ * relationship holds (`heldLinks`) — the held anchor advances and merges
+ * keyed by earlier anchors persist; otherwise 'new-community' — accepted
+ * as a correction, the relationship leaves a merged entry, because
+ * nothing links the two (or two successors of one key compete).
+ */
+export function classifyMapping (heldSelf: string | undefined, body: { self: string, lineage: any[] }, heldLinks?: Map<string, string>): 'first' | 'same' | 'rotation' | 'new-community' {
+  if (heldSelf === undefined) return 'first'
+  if (linksFork(heldLinks, lineageLinks(body.lineage))) return 'new-community'
+  if (heldSelf === body.self) return 'same'
+  return body.lineage.some((r: any) => r.body.prev === heldSelf || r.body.next === heldSelf) ? 'rotation' : 'new-community'
+}
+
+// ── anchor-mapping@3 (§6.1) ─────────────────────────────────────────────
+export interface MappingInput {
+  /** the sender's own pair context of the relationship */
+  pair: Context
+  /** the addressee's pair anchor and key-agreement key in this relationship */
+  to: string
+  toKeyAgreement: string
+  /** the sender's CURRENT community anchor */
+  self: Context
+  /** at most LINEAGE_MAX anchor-rotation@1 artifacts, in chain order, ending at self (or empty) */
+  lineage: any[]
+  revision: string
+  issuedAt: string
+}
+/** anchor-mapping@3: body { type, pair, self, to, card, lineage, revision, issuedAt }; mac1 (relationship key, map1) and mac2 (selfX × pairX of the addressee, map2) over JCS(body). */
+export async function buildAnchorMapping (i: MappingInput) {
+  const card = await makeSelfCard(i.self)
+  const body = { type: 'anchor-mapping@3', pair: i.pair.anchor, self: i.self.anchor, to: i.to, card, lineage: i.lineage, revision: i.revision, issuedAt: i.issuedAt }
+  const msg = jcs(body)
+  const theirX = xRawOfMk(i.toKeyAgreement)
+  if (!theirX) throw new Error('addressee key agreement is not a multikey')
+  return { body, proof: {
+    mac1: await macU(await hkdf(await ecdh(i.pair.x.priv, theirX), 'rltp/visibility/mac/map1'), msg),
+    mac2: await macU(await hkdf(await ecdh(i.self.x.priv, theirX), 'rltp/visibility/mac/map2'), msg),
+  } }
+}
+/**
+ * §6.3, the closed list, evaluated in its order: 1 schema (anchor-mapping@1
+ * and @2 are not implemented and fail here) · 2 to = own pair anchor ·
+ * 3 pair = the arrival tuple's counterpart · 4 the card verifies under
+ * its own anchor · 4a the lineage · 5 card.anchor = self · 6 k2 from
+ * card.keyAgreement · 7 both MACs. Revision (8) is the holder's state.
+ */
+export async function verifyAnchorMapping (m: any, at: { own: Context, pair: string, pairKeyAgreement: string }): Promise<{ ok: true } | { ok: false, step: string }> {
+  try {
+    if (!schemaOk('visibility-anchor-mapping.schema.json', m)) return { ok: false, step: '1' }
+    const b = m.body
+    if (!calOK(b.issuedAt)) return { ok: false, step: '1' }   // calendar validity belongs to the parse level
+    if (b.to !== at.own.anchor) return { ok: false, step: '2' }
+    if (b.pair !== at.pair) return { ok: false, step: '3' }
+    if (!(await verifyRaw(b.card.body.anchor, b.card.body, b.card.proof.proofValue))) return { ok: false, step: '4' }
+    if (!(await verifyLineage(b.lineage, b.self)).ok) return { ok: false, step: '4a' }
+    if (b.card.body.anchor !== b.self) return { ok: false, step: '5' }
+    const cardX = xRawOfMk(b.card.body.keyAgreement)
+    const pairX = xRawOfMk(at.pairKeyAgreement)
+    if (!cardX || !pairX) return { ok: false, step: '6' }
+    const sh2 = await ecdh(at.own.x.priv, cardX)
+    const k2 = await hkdf(sh2, 'rltp/visibility/mac/map2')
+    const sh1 = await ecdh(at.own.x.priv, pairX)
+    if (sh1.every((x) => x === 0) || sh2.every((x) => x === 0)) return { ok: false, step: '7' }   // both ECDH outputs non-zero
+    const msg = jcs(b)
+    if ((await macU(await hkdf(sh1, 'rltp/visibility/mac/map1'), msg)) !== m.proof.mac1) return { ok: false, step: '7' }
+    if ((await macU(k2, msg)) !== m.proof.mac2) return { ok: false, step: '7' }
+    return { ok: true }
+  } catch { return { ok: false, step: '1' } }
+}

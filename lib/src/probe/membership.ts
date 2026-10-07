@@ -8,8 +8,10 @@
 //   founding      — the founder signs the genesis under a FOUNDING pair
 //                   context (Access 3.4.1: group/<digest> cannot exist
 //                   before the digest does); genesisDigest = multihash
-//                   over the proof-free genesis; the founder then derives
-//                   the member anchor group/<digest> and self-enrolls.
+//                   over the proof-free genesis. That fresh context IS
+//                   the founder's member anchor for the duration of its
+//                   membership (RLTP-ACC-3235, 3275, Identity 6.1): the
+//                   roster holds it, never a derived group/<digest>.
 //   prelude       — the inviter cannot derive the invitee's member anchor;
 //                   the invitee's app derives it from the genesisDigest
 //                   (canonical-u before the label, Access 5.1) and answers
@@ -61,7 +63,12 @@ export async function foundGroup (p: Person, label: string, when: number, ent: a
   const genesisBody = { type: 'group-genesis@probe', group: groupDid, label, founder: founding.anchor, issuedAt: iso }
   const genesis = await C.diSign(founding, genesisBody, iso)
   const genesisDigest = await C.digestDoc(genesisBody) // proof-free signature input (Access 3.2)
-  const my = await memberContext(p, genesisDigest)
+  // the founder's member anchor is the founding context itself (RLTP-ACC-
+  // 3235: members = exactly the founder's anchor; 3275: fresh, used in no
+  // other context) — held like every own context, so the group's traffic
+  // addressed to it opens
+  const my = founding
+  p.contexts.set(my.anchor, my); p.contexts.set(my.keyAgreement, my)
   const card = await memberCard(my, p.name, iso)
   const g: any = {
     label, groupDid, genesisDigest, genesis, myMemberCtx: my, role: 'founder',
@@ -72,7 +79,7 @@ export async function foundGroup (p: Person, label: string, when: number, ent: a
     threads: new Map(), // invitee member anchor -> { threadId, invite } (open invitations)
   }
   p.groups.set(genesisDigest, g)
-  say(p, `Gruppe „${label}" gegründet — Genesis unter Gründungs-pair-Anker, Member-Anker ${my.anchor.slice(0, 20)}… abgeleitet`)
+  say(p, `Gruppe „${label}" gegründet — Genesis und Roster unter dem Gründungs-pair-Anker ${my.anchor.slice(0, 20)}…`)
   return g
 }
 

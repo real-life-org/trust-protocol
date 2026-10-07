@@ -162,10 +162,10 @@ is rejected, never silently ignored.
 | `access-operation/0.1` | Membership | the admitting operation and welcome, sent to the new member |
 | `key-delivery/0.1` | Access | epoch keys, welcomes, key requests |
 | `removal-notice/0.1` | Access | tells a removed member |
-| `member-mapping/0.1` | Access | reveals one member's community anchor to one co-member |
 | `star/0.1` | Visibility | lets a contact relate your contacts to theirs, blinded or as a count |
+| `group-star/0.1` | Visibility | your groups, blinded to every contact; your member anchor sealed to the ones you choose |
 | `grade-declaration/0.1` | Visibility | a contact's choice between count and blinded |
-| `anchor-mapping/0.1` | Visibility | links a pair anchor to the community anchor for one addressee |
+| `anchor-mapping/0.2` | Visibility | links a pair anchor to the community anchor for one addressee |
 | `continuity-probe/0.1`, `continuity-mapping/0.1` | Visibility | recognize a re-encounter and chain it to the existing relationship |
 | `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Visibility | the five steps of introducing two people through a mutual contact |
 

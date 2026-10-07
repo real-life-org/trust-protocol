@@ -1,4 +1,4 @@
-// Rules of Membership Tasks 0.17 that the vectors check only in part: a
+// Rules of Membership Tasks 0.18 that the vectors check only in part: a
 // case or check names such a rule in `rulesPartial` with the obligation
 // that stays unchecked, never in `rules`. Only `rules` counts as coverage
 // (RLTP-MT-10080); the specification lists these rules as partially

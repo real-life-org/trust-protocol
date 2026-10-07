@@ -505,7 +505,7 @@ export async function setPublic(world, person, displayName, when, on) {
 // EITHER side could have computed — and cannot even check them without
 // the recipient's private keys. A leaked mapping proves nothing.
 async function mappingBody(pairAnchor, selfAnchor, toPairAnchor, when) {
-  return { type: 'rltp-sim/anchor-mapping@2', pair: pairAnchor, self: selfAnchor, to: toPairAnchor, issuedAt: iso(when) }
+  return { type: 'rltp-sim/anchor-mapping@3', pair: pairAnchor, self: selfAnchor, to: toPairAnchor, lineage: [], issuedAt: iso(when) }
 }
 export async function makeMapping(A, entry, toPairAnchor, when) {
   const pMine = await persona(A, `pair/${entry.bind}`)
@@ -521,7 +521,8 @@ export async function makeMapping(A, entry, toPairAnchor, when) {
 export async function verifyMapping(recipient, m) {
   try {
     const b = m?.body
-    if (!b || b.type !== 'rltp-sim/anchor-mapping@2') return false
+    if (!b || b.type !== 'rltp-sim/anchor-mapping@3') return false
+    if (!Array.isArray(b.lineage) || b.lineage.length !== 0) return false // no rotation modeled
     const entry = recipient.contacts.get(b.pair)
     if (!entry) return false
     if (b.to !== (await persona(recipient, `pair/${entry.bind}`)).anchor) return false
@@ -569,7 +570,7 @@ export async function setTrust(world, A, B, on, when) {
   const sMine = await communityIdentity(A)
   const mapping = await makeMapping(A, myEntry, key, t0)
   myEntry.sentMapping = mapping // sender-side journal: the one-way door I opened
-  logPacket(world, A.name, B.name, 'anchor-mapping@2 (DV)', mapping)
+  logPacket(world, A.name, B.name, 'anchor-mapping@3 (DV)', mapping)
   const entry = B.contacts.get(mapping.body.pair)
   if (entry && await verifyMapping(B, mapping)) {
     entry.selfAnchor = sMine.anchor

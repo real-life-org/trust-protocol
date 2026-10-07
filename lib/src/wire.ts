@@ -9,7 +9,7 @@
 // Validate against SCHEMAS before treating any value as a wire artifact.
 import type { Json } from './core.js'
 
-/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.55 sections 9.4, 9.4.1, 9.4.2) */
+/** schemas/access-material.schema.json — RLTP Access key material (Access Layer 0.56 sections 9.4, 9.4.1, 9.4.2) */
 export type AccessMaterial = ({
   v: "rltp-access-material/0.25" | "rltp-access-keydist/0.25"
   adapter: "linear/0.1" | "beekem/0.1"
@@ -18,7 +18,7 @@ export type AccessMaterial = ({
   keys: { [k: string]: Json }
 })
 
-/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.55 section 3.3, envelope rltp-access/0.25) */
+/** schemas/access-operation-envelope.schema.json — RLTP Access Operation Envelope (transcription of Access Layer 0.56 section 3.3, envelope rltp-access/0.25) */
 export type AccessOperationEnvelope = ({
   v: "rltp-access/0.25"
   op: string
@@ -72,7 +72,7 @@ export type AccessRegistration = ({
   authorizationRoot: (null) | (string)
 })
 
-/** schemas/access-vouch.schema.json — DTG AdmissionVouch (vouch@2, Access Layer 0.55 section 5.3) */
+/** schemas/access-vouch.schema.json — DTG AdmissionVouch (vouch@2, Access Layer 0.56 section 5.3) */
 export type AccessVouch = {
   "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
   type: (Json[])
@@ -119,7 +119,7 @@ export type AuthorizationView = ({
   }[]
 })
 
-/** schemas/carrier-proof.schema.json — RLTP Carrier Registration Proof (rltp-carrier-proof/0.3, rltp-delivery@0.79) */
+/** schemas/carrier-proof.schema.json — RLTP Carrier Registration Proof (rltp-carrier-proof/0.3, rltp-delivery@0.80) */
 export type CarrierProof = ({
   v: "rltp-carrier-proof/0.3"
   type: "carrier-registration-proof"
@@ -237,35 +237,7 @@ export type EncounterCredential = {
   }
 }
 
-/** schemas/member-mapping.schema.json — RLTP member-mapping@1 (rltp-access-member-mapping/0.24) */
-export type MemberMapping = {
-  body: {
-    type: "member-mapping@1"
-    member: string
-    memberOp: string
-    self: string
-    to: string
-    toOp: string
-    card: {
-      body: {
-        type: "self-card@1"
-        anchor: string
-        keyAgreement: string
-      }
-      proof: {
-        proofValue: string
-      }
-    }
-    revision: string
-    issuedAt: string
-  }
-  proof: {
-    mac1: string
-    mac2: string
-  }
-}
-
-/** schemas/payload-access-operation.schema.json — Payload: access-operation/0.1 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+/** schemas/payload-access-operation.schema.json — Payload: access-operation/0.1 (rltp-membership@0.18, target Trust Tasks framework 0.4) */
 export type PayloadAccessOperation = ({
   operation: (AccessOperationEnvelope)
   welcome: {
@@ -289,24 +261,24 @@ export type PayloadAccessOperation = ({
   }
 })
 
-/** schemas/payload-delivery-ack.schema.json — Payload: delivery-ack/0.1 (rltp-delivery@0.79, target Trust Tasks framework 0.4) */
+/** schemas/payload-delivery-ack.schema.json — Payload: delivery-ack/0.1 (rltp-delivery@0.80, target Trust Tasks framework 0.4) */
 export type PayloadDeliveryAck = {
   ref: string
   meaning: "received"
 }
 
-/** schemas/payload-encounter-bundle.schema.json — Payload: encounter-bundle/0.1 (rltp-delivery@0.79, target Trust Tasks framework 0.4) */
+/** schemas/payload-encounter-bundle.schema.json — Payload: encounter-bundle/0.1 (rltp-delivery@0.80, target Trust Tasks framework 0.4) */
 export type PayloadEncounterBundle = {
   card: ContactCard
   credential: EncounterCredential
 }
 
-/** schemas/payload-encounter-credential-delivery.schema.json — Payload: encounter-credential-delivery/0.1 (rltp-delivery@0.79, target Trust Tasks framework 0.4) */
+/** schemas/payload-encounter-credential-delivery.schema.json — Payload: encounter-credential-delivery/0.1 (rltp-delivery@0.80, target Trust Tasks framework 0.4) */
 export type PayloadEncounterCredentialDelivery = {
   credential: EncounterCredential
 }
 
-/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.55, target Trust Tasks framework 0.4) */
+/** schemas/payload-key-delivery.schema.json — Payload: key-delivery/0.1 (rltp-access@0.56, target Trust Tasks framework 0.4) */
 export type PayloadKeyDelivery = {
   keyDelivery: ({
     group: string
@@ -333,7 +305,7 @@ export type PayloadKeyDelivery = {
   })
 }
 
-/** schemas/payload-membership-accept.schema.json — Payload: membership-accept/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-accept.schema.json — Payload: membership-accept/0.2 (rltp-membership@0.18, target Trust Tasks framework 0.4) */
 export type PayloadMembershipAccept = {
   accept: {
     group: string
@@ -344,7 +316,7 @@ export type PayloadMembershipAccept = {
   }
 }
 
-/** schemas/payload-membership-evidence-0.1.schema.json — Payload: membership-evidence/0.1 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-evidence-0.1.schema.json — Payload: membership-evidence/0.1 (rltp-membership@0.18, target Trust Tasks framework 0.4) */
 export type PayloadMembershipEvidence01 = {
   evidence: {
     invite: (RltpDeliveryDocument) & ({
@@ -359,7 +331,7 @@ export type PayloadMembershipEvidence01 = {
   }
 }
 
-/** schemas/payload-membership-evidence.schema.json — Payload: membership-evidence/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-evidence.schema.json — Payload: membership-evidence/0.2 (rltp-membership@0.18, target Trust Tasks framework 0.4) */
 export type PayloadMembershipEvidence = {
   evidence: {
     invite: (RltpDeliveryDocument) & ({
@@ -375,7 +347,7 @@ export type PayloadMembershipEvidence = {
   }
 }
 
-/** schemas/payload-membership-invite.schema.json — Payload: membership-invite/0.2 (rltp-membership@0.17, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-invite.schema.json — Payload: membership-invite/0.2 (rltp-membership@0.18, target Trust Tasks framework 0.4) */
 export type PayloadMembershipInvite = {
   invite: {
     "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
@@ -404,7 +376,7 @@ export type PayloadMembershipInvite = {
   }
 }
 
-/** schemas/payload-registry-declaration.schema.json — RLTP payload registry-declaration (rltp-delivery@0.79) */
+/** schemas/payload-registry-declaration.schema.json — RLTP payload registry-declaration (rltp-delivery@0.80) */
 export type PayloadRegistryDeclaration = {
   declaration: {
     role: string
@@ -413,7 +385,7 @@ export type PayloadRegistryDeclaration = {
   }
 }
 
-/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.55 section 10.2) */
+/** schemas/payload-removal-notice.schema.json — RLTP Removal Notice (Access Layer 0.56 section 10.2) */
 export type PayloadRemovalNotice = {
   v: "rltp-access-removal-notice/0.25"
   type: "removal-notice"
@@ -427,7 +399,7 @@ export type PayloadRemovalNotice = {
   sig: string
 }
 
-/** schemas/rltp-delivery-document.schema.json — RLTP Delivery Document Profile (rltp-delivery@0.79) */
+/** schemas/rltp-delivery-document.schema.json — RLTP Delivery Document Profile (rltp-delivery@0.80) */
 export type RltpDeliveryDocument = ({
   id: string
   type: string
@@ -449,7 +421,7 @@ export type RltpDeliveryDocument = ({
   })
 })
 
-/** schemas/sealed-envelope.schema.json — RLTP Sealed Envelope (rltp-delivery@0.79) */
+/** schemas/sealed-envelope.schema.json — RLTP Sealed Envelope (rltp-delivery@0.80) */
 export type SealedEnvelope = {
   rkid: string
   epk: string
@@ -457,10 +429,10 @@ export type SealedEnvelope = {
   ciphertext: string
 }
 
-/** schemas/visibility-anchor-mapping.schema.json — RLTP anchor-mapping@2 (rltp-visibility@0.29) */
+/** schemas/visibility-anchor-mapping.schema.json — RLTP anchor-mapping@3 (rltp-visibility@0.30) */
 export type VisibilityAnchorMapping = {
   body: {
-    type: "anchor-mapping@2"
+    type: "anchor-mapping@3"
     pair: string
     self: string
     to: string
@@ -474,6 +446,17 @@ export type VisibilityAnchorMapping = {
         proofValue: string
       }
     }
+    lineage: {
+      body: {
+        type: "anchor-rotation@1"
+        prev: string
+        next: string
+      }
+      proof: {
+        proofValue: string
+        successorProofValue: string
+      }
+    }[]
     revision: string
     issuedAt: string
   }
@@ -483,7 +466,20 @@ export type VisibilityAnchorMapping = {
   }
 }
 
-/** schemas/visibility-continuity-mapping.schema.json — RLTP continuity-mapping@1 (rltp-visibility@0.29) */
+/** schemas/visibility-anchor-rotation.schema.json — RLTP anchor-rotation@1 (rltp-visibility@0.30) */
+export type VisibilityAnchorRotation = {
+  body: {
+    type: "anchor-rotation@1"
+    prev: string
+    next: string
+  }
+  proof: {
+    proofValue: string
+    successorProofValue: string
+  }
+}
+
+/** schemas/visibility-continuity-mapping.schema.json — RLTP continuity-mapping@1 (rltp-visibility@0.30) */
 export type VisibilityContinuityMapping = {
   body: {
     type: "continuity-mapping@1"
@@ -499,7 +495,7 @@ export type VisibilityContinuityMapping = {
   }
 }
 
-/** schemas/visibility-continuity-probe.schema.json — RLTP continuity-probe@1 (rltp-visibility@0.29) */
+/** schemas/visibility-continuity-probe.schema.json — RLTP continuity-probe@1 (rltp-visibility@0.30) */
 export type VisibilityContinuityProbe = {
   body: {
     type: "continuity-probe@1"
@@ -513,7 +509,7 @@ export type VisibilityContinuityProbe = {
   }
 }
 
-/** schemas/visibility-grade-declaration.schema.json — RLTP grade-declaration@1 (rltp-visibility@0.29) */
+/** schemas/visibility-grade-declaration.schema.json — RLTP grade-declaration@1 (rltp-visibility@0.30) */
 export type VisibilityGradeDeclaration = {
   body: {
     type: "grade-declaration@1"
@@ -528,7 +524,35 @@ export type VisibilityGradeDeclaration = {
   }
 }
 
-/** schemas/visibility-introduction-ack.schema.json — RLTP introduction-ack@1 (rltp-visibility@0.29) */
+/** schemas/visibility-group-pair.schema.json — RLTP group-pair@1 (rltp-visibility@0.30) */
+export type VisibilityGroupPair = {
+  type: "group-pair@1"
+  group: string
+  member: string
+  memberOp: string
+  to: string
+  salt: string
+  proof: string
+}
+
+/** schemas/visibility-group-star.schema.json — RLTP group-star@1 (rltp-visibility@0.30) */
+export type VisibilityGroupStar = {
+  body: {
+    type: "group-star@1"
+    salt: string
+    seq: string
+    last: boolean
+    groups: {
+      d: string
+      c: string
+    }[]
+  }
+  proof: {
+    mac: string
+  }
+}
+
+/** schemas/visibility-introduction-ack.schema.json — RLTP introduction-ack@1 (rltp-visibility@0.30) */
 export type VisibilityIntroductionAck = {
   body: {
     type: "introduction-ack@1"
@@ -539,7 +563,7 @@ export type VisibilityIntroductionAck = {
   }
 }
 
-/** schemas/visibility-introduction-reply.schema.json — RLTP introduction-reply@1 (rltp-visibility@0.29) */
+/** schemas/visibility-introduction-reply.schema.json — RLTP introduction-reply@1 (rltp-visibility@0.30) */
 export type VisibilityIntroductionReply = {
   body: {
     type: "introduction-reply@1"
@@ -553,7 +577,7 @@ export type VisibilityIntroductionReply = {
   }
 }
 
-/** schemas/visibility-introduction-request.schema.json — RLTP introduction-request@1 (rltp-visibility@0.29) */
+/** schemas/visibility-introduction-request.schema.json — RLTP introduction-request@1 (rltp-visibility@0.30) */
 export type VisibilityIntroductionRequest = {
   body: {
     type: "introduction-request@1"
@@ -571,7 +595,7 @@ export type VisibilityIntroductionRequest = {
   }
 }
 
-/** schemas/visibility-introduction-voucher.schema.json — RLTP introduction-voucher@1 (rltp-visibility@0.29) */
+/** schemas/visibility-introduction-voucher.schema.json — RLTP introduction-voucher@1 (rltp-visibility@0.30) */
 export type VisibilityIntroductionVoucher = {
   body: {
     type: "introduction-voucher@1"
@@ -584,35 +608,35 @@ export type VisibilityIntroductionVoucher = {
   }
 }
 
-/** schemas/visibility-payload-introduction-ack.schema.json — RLTP payload introduction-ack (rltp-visibility@0.29) */
+/** schemas/visibility-payload-introduction-ack.schema.json — RLTP payload introduction-ack (rltp-visibility@0.30) */
 export type VisibilityPayloadIntroductionAck = {
   introduction: VisibilityIntroductionAck
 }
 
-/** schemas/visibility-payload-introduction-forward.schema.json — RLTP payload introduction-forward (rltp-visibility@0.29) — byte-identical to the request payload */
+/** schemas/visibility-payload-introduction-forward.schema.json — RLTP payload introduction-forward (rltp-visibility@0.30) — byte-identical to the request payload */
 export type VisibilityPayloadIntroductionForward = {
   introduction: VisibilityIntroductionRequest
   card: ContactCard025
 }
 
-/** schemas/visibility-payload-introduction-reply.schema.json — RLTP payload introduction-reply (rltp-visibility@0.29) */
+/** schemas/visibility-payload-introduction-reply.schema.json — RLTP payload introduction-reply (rltp-visibility@0.30) */
 export type VisibilityPayloadIntroductionReply = {
   introduction: VisibilityIntroductionReply
   card: ContactCard025
 }
 
-/** schemas/visibility-payload-introduction-request.schema.json — RLTP payload introduction-request (rltp-visibility@0.29) */
+/** schemas/visibility-payload-introduction-request.schema.json — RLTP payload introduction-request (rltp-visibility@0.30) */
 export type VisibilityPayloadIntroductionRequest = {
   introduction: VisibilityIntroductionRequest
   card: ContactCard025
 }
 
-/** schemas/visibility-payload-introduction-voucher.schema.json — RLTP payload introduction-voucher (rltp-visibility@0.29) */
+/** schemas/visibility-payload-introduction-voucher.schema.json — RLTP payload introduction-voucher (rltp-visibility@0.30) */
 export type VisibilityPayloadIntroductionVoucher = {
   voucher: VisibilityIntroductionVoucher
 }
 
-/** schemas/visibility-self-card.schema.json — RLTP self-card@1 (rltp-visibility@0.29) */
+/** schemas/visibility-self-card.schema.json — RLTP self-card@1 (rltp-visibility@0.30) */
 export type VisibilitySelfCard = {
   body: {
     type: "self-card@1"
@@ -624,7 +648,7 @@ export type VisibilitySelfCard = {
   }
 }
 
-/** schemas/visibility-star.schema.json — RLTP star@1 (rltp-visibility@0.29) */
+/** schemas/visibility-star.schema.json — RLTP star@1 (rltp-visibility@0.30) */
 export type VisibilityStar = {
   body: {
     type: "star@1"
@@ -639,7 +663,7 @@ export type VisibilityStar = {
   }
 }
 
-/** schemas/welcome.schema.json — RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.17) */
+/** schemas/welcome.schema.json — RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.18) */
 export type Welcome = {
   v: "rltp-welcome/0.1"
   group: string

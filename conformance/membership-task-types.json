@@ -1,6 +1,6 @@
 {
- "$comment": "Registry entries of the task types Membership Tasks 0.17 registers (Delivery Contract 4.4 registers them where their semantics live): type URI, payload schema, and the Trust Tasks 7.3 declarations. scripts/validate.mjs checks every entry against its schema's $id and against the declaration rule of the specification (RLTP-MT-3085, RLTP-MT-3375, RLTP-MT-3760).",
- "profile": "rltp-membership@0.17",
+ "$comment": "Registry entries of the task types Membership Tasks 0.18 registers (Delivery Contract 4.4 registers them where their semantics live): type URI, payload schema, and the Trust Tasks 7.3 declarations. scripts/validate.mjs checks every entry against its schema's $id and against the declaration rule of the specification (RLTP-MT-3085, RLTP-MT-3375, RLTP-MT-3760).",
+ "profile": "rltp-membership@0.18",
  "types": [
   { "type": "https://real-life.org/trust-tasks/membership-invite/0.2", "schema": "payload-membership-invite.schema.json", "sideEffects": "durable buffering and surfacing to the human only", "exposure": "recipient-only while travelling", "rule": "RLTP-MT-3085" },
   { "type": "https://real-life.org/trust-tasks/membership-accept/0.2", "schema": "payload-membership-accept.schema.json" },

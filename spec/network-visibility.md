@@ -3,30 +3,29 @@
 **Real Life Trust Protocol — cross-cutting: Network Visibility**
 
 - **Status:** Editor's Draft
-- **Version:** 0.29.0-draft (twenty-ninth casting — answer to
-  review round 12, jointly with Delivery 0.79: chunk gaps buffer
-  and starve instead of rejecting (arrival order is truly
-  irrelevant), chunk-repeat identity is the document including
-  its thread, and the deniable acknowledgement now has its
-  executable vector, `vectors/delivery-ack.json`)
+- **Version:** 0.30.0-draft (thirtieth casting — the group star
+  and the community anchor's lineage)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-08-31
+- **Date:** 2026-10-07
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-visibility@0.29` (draft). Wire
-  artifacts: `star@1` · `grade-declaration@1` · `anchor-mapping@2` ·
-  `self-card@1` · `continuity-probe@1` · `continuity-mapping@1` ·
+- **Conformance profile:** `rltp-visibility@0.30` (draft). Wire
+  artifacts: `star@1` · `group-star@1` · `group-pair@1` (inside `c`
+  of a group star) · `grade-declaration@1` ·
+  `anchor-mapping@3` · `anchor-rotation@1` · `self-card@1` ·
+  `continuity-probe@1` · `continuity-mapping@1` ·
   `introduction-request@1` · `introduction-reply@1` ·
   `introduction-ack@1` · `introduction-voucher@1`.
-- **Companions (pinned):** **Identity 0.51** (`pair/` registry
-  §6.1 — REQUIRED; 0.13 is the S-DID cut, jointly cast with this
-  document) · **Encounter 0.29** (fresh-always
+- **Companions (pinned):** **Identity 0.52** (`pair/` registry
+  §6.1 — REQUIRED; the community anchor's generations, §5.4) ·
+  **Encounter 0.30** (fresh-always
   enactment, wire 0.25 — §6a here is the other half of its §4.4) ·
-  Access 0.53, Membership 0.16, Delivery 0.79 (the M-DID loop and
-  the later cuts have landed), and Delivery's §4.4
-  registry discharged the registration debt of 8.1, including the
-  `ack-delay` publication path (`registry-declaration/0.1`).
-- **Supersedes:** version 0.28 (archived as
-  `archive/network-visibility-0.28.md`) and castings 0.27–0.1,
+  **Access 0.56** (the roster a group pair points into, §5.5; the
+  `anchor.rotate` entry, §5.6), Membership 0.18, **Delivery 0.80**
+  (the §4.4 registry, including `group-star/0.1`,
+  `anchor-mapping/0.2`, and the `ack-delay` publication path
+  `registry-declaration/0.1`).
+- **Supersedes:** version 0.29 (archived as
+  `archive/network-visibility-0.29.md`) and castings 0.28–0.1,
   archived alongside it.
 - **Source material:**
   `design/ernte-visibility-aus-lib-reviews-2026-08.md` ·
@@ -34,8 +33,8 @@
   `design/visibility-publikumsprinzip-2026-08.md`
   · `design/mdid-bindung-2026-08.md` ·
   `design/visibility-review1/2-2026-08.md` ·
-  `design/joint-pair-seam-review1…12-2026-08.md` (the round-12
-  finding answered by this casting).
+  `design/joint-pair-seam-review1…12-2026-08.md` ·
+  `design/anker-guss-kern-2026-10.md`.
 
 ## Abstract
 
@@ -55,20 +54,9 @@ Everything else convinces exactly its addressee and no one further.
 ## Status of This Document
 
 This is an **Editor's Draft** with no standing, in an active
-convergence loop. The twenty-ninth casting answers review round 12,
-jointly with Delivery Contract 0.79; the acknowledgement class
-rule now carries an executable vector. The
-loop's arc since the library harvest of 0.17: castings 0.17–0.21
-answered rounds 1–4; after two consecutive blocker rises the author
-ordered the **reconciliation cut** (0.22 — the star subscription is
-one divergence rule, not an event list), and 0.23–0.29 have been
-completing that cut's definitions against rounds 6–12. Round-by-round
-findings and triages live in the design journal
-(`design/visibility*-review*-2026-08.md`); the convergence criterion
-is a review round with no blocker-level findings. Review happens
-against the converged companion documents. Feedback belongs in the
-design journal of the private workshop repository; the public mirror
-is [`real-life-org/trust-protocol`](https://github.com/real-life-org/trust-protocol).
+convergence loop; it will change with every review round. Feedback
+is welcome at
+[`real-life-org/trust-protocol`](https://github.com/real-life-org/trust-protocol).
 
 ## 1. Introduction (informative)
 
@@ -93,19 +81,33 @@ relationship are the rule working, not an exception to it.
 
 ## 2. Terminology
 
-- **Anchor** — a context identifier of an identity (Identity 0.51
+- **Anchor** — a context identifier of an identity (Identity 0.52
   §6): a `pair/…`, `group/…`, or `persona/…` context.
-- **Anchor classes (DTGWG-aligned naming):** **R-DID** =
-  pair-context anchor (pairwise, no correlation) · **P-DID** =
-  persona anchor (intentional correlation) · **M-DID** =
-  group-context anchor ("per-community member identifier") — the
-  DTGWG ladder, adopted without additions. The **community
-  anchor** is the M-DID of a person's personal community, serving
-  as their private cross-relationship coordinate, disclosed
-  selectively per recipient. (Castings up to 0.15 named a fourth
-  class, the "self anchor" S-DID; it is **withdrawn** — Identity
-  0.13, the S-DID cut — and the community anchor carries its
+- **Anchor classes (DTGWG-aligned naming):** **R-DID** = pair-context
+  anchor (pairwise, no correlation) · **P-DID** = persona anchor
+  (intentional correlation) · **M-DID** = group-context anchor
+  ("per-community member identifier") — the DTGWG ladder, adopted
+  without additions. The **community anchor** is the M-DID of a
+  person's personal community at its current generation (Identity
+  §5.4), serving as their private cross-relationship coordinate,
+  disclosed selectively per recipient. (Castings up to 0.15 named a
+  fourth class, the "self anchor" S-DID; it is **withdrawn** —
+  Identity 0.13, the S-DID cut — and the community anchor carries its
   disclosure role unchanged.)
+- **Generation**, **Lineage** — per Identity §5.4: the community
+  anchor's generation 1 is `group/<digest>`; the lineage is the
+  chain of `anchor-rotation@1` artifacts, each linking one community
+  anchor to the next by `prev` and `next` — a key chain, carrying no
+  numbers (6.5).
+- **Rotation** — the holder's move of its community anchor to a
+  next key: the next generation of the same digest, or, after a
+  lost register, generation 1 of a new personal community (Identity
+  §5.4, §9.3); here, what the anchor mapping carries and the
+  recipient follows (6.3, 6.5).
+- **Group pair** — one entry of a group star: a blinded genesis
+  digest and a sealed member anchor (5.2b).
+- **Trusted recipient** — a contact to whom the sender has issued
+  its current anchor mapping and not withdrawn it (6.5).
 - **Promotion** — the trust act of a holder toward one of their
   contacts; the UI surface of promotion and of community-anchor
   disclosure is the **Trust** act.
@@ -119,7 +121,7 @@ relationship are the rule working, not an exception to it.
   **promotion commit**, oldest first. The promotion commit is a
   defined event with an **idempotence key — the relationship**
   (the chain): **the first** successful 6.3 verification of the
-  contact's `anchor-mapping@2` on an active head of a
+  contact's `anchor-mapping@3` on an active head of a
   relationship commits, exactly one entry per relationship, ever
   — the enabling artifact, since without the disclosed anchor
   there is nothing to blind (5.1). Every later successful
@@ -127,7 +129,29 @@ relationship are the rule working, not an exception to it.
   revision, a `self` correction — updates the held mapping **in
   place**: position and admission status unchanged, no
   re-promotion (a changed `self` changes the blinded content and
-  reconciles as ordinary divergence, 5.4). One commit
+  reconciles as ordinary divergence, 5.4) — with exactly one named
+  exception, the **split** of 6.3 condition 8: where a higher
+  revision on one relationship of a merged entry makes its `self`
+  a new community, that relationship leaves the merged entry
+  atomically. The entry keeps its position, its admission status
+  and its remaining relationships with their aliases; no slot is
+  released; the head of the remaining entry is recomputed from what
+  its remaining relationships hold (likewise on a departure). The
+  leaving relationship takes its chain aliases, its per-tuple
+  grades, and its provenance and continuity facts (8.6, 6a) with
+  it and re-enters the deliverable set through an ordinary
+  promotion commit: its own entry at the next position in
+  promotion-commit order, admitted, or deliverable-pending if the
+  set is full — subject to 6a.1 like every promotion. The leaver
+  keeps its own relationship identity as the identity of its new
+  entry; where it was the identity of the merged entry, the
+  remaining entry takes the oldest remaining relationship in
+  promotion-commit order as its identity, and every holder-local
+  key that resolved through the old identity is rewritten to the
+  new one in the same atomic step — the same holds when that
+  relationship departs. A new
+  community on an entry that holds no other relationship is a
+  `self` correction in place. One commit
   writes the entry whole — relationship identity, order position,
   admitted/pending status — as one step (6.4's allocation
   atomicity in kind), and the sender's persistence totally orders
@@ -135,8 +159,8 @@ relationship are the rule working, not an exception to it.
   **chain-level sender state** (they attach to relationships, not
   tuples — like contact memory) and survive chaining. **Merge —
   one rule for every merge path of 6a.1** (chaining, a later
-  mapping whose `self` equals another relationship's, the manual
-  act): the merged relationships' entries become **one entry at
+  mapping that satisfies the head rule against another entry, the
+  manual act): the merged relationships' entries become **one entry at
   the earliest position** among them, and the merged
   relationship's **identity is the surviving entry's** — the
   other identities become aliases of it, so a recovered mapping
@@ -149,9 +173,10 @@ relationship are the rule working, not an exception to it.
   admitted entries into one frees `k−1` slots and admits the
   next `k−1` pending entries in promotion-commit order — one
   atomic merge evaluation, never pairwise, each admission a set
-  change (5.4). Pause is and stays **per relationship** — a merge
-  changes no pause anywhere ("admission-layer and nothing else"
-  includes this); surfacing to the user that a paused and an
+  change (5.4). A merged entry whose relationships hold
+  incomparable heads is head-conflicted (6a.1, no. 2). Pause is
+  and stays **per relationship** — a merge changes no pause
+  anywhere ("admission-layer and nothing else" includes this); surfacing to the user that a paused and an
   unpaused channel now belong to one person is a UI concern, and
   the deliberate local act of 5.4 remains the only transition. **A non-chaining merge
   (6a.1 paths 2 and 3) is an admission-layer event and nothing
@@ -249,7 +274,8 @@ Every artifact is a JSON document `{ "body": { … }, "proof":
   fields its schema closes. **Unknown members anywhere MUST be
   rejected** — every schema is closed.
 - **proof** carries exactly the members the type names: `mac`,
-  `mac1` + `mac2`, or `proofValue`.
+  `mac1` + `mac2`, `proofValue`, or `proofValue` +
+  `successorProofValue`.
 - **Canonical bytes** are `JCS(body)` (RFC 8785) — the body object
   only, never the envelope, never the proof.
 - **Signatures** (`proofValue`) are **raw Ed25519 over the
@@ -277,6 +303,10 @@ Every artifact is a JSON document `{ "body": { … }, "proof":
   exact-ASCII info strings.
 - **ECDH** is X25519 over Identity §5.2 key-agreement keys; an
   all-zero shared secret MUST be rejected before key derivation.
+- **AEAD** is AES-256-GCM: 128-bit tag, 96-bit nonce from a
+  cryptographically secure source per sealing, key 32 bytes from
+  the KDF above; encoded `u` + unpadded base64url of `nonce ||
+  ciphertext || tag`; the AAD is named per use.
 - **Anchor bytes** are the UTF-8 bytes of the anchor's `did:key`
   string.
 - **Timestamps** (`issuedAt`) are UTC RFC 3339 `Z` form, at most
@@ -296,9 +326,10 @@ Every artifact is a JSON document `{ "body": { … }, "proof":
   here because Encounter §2.3's comparison rule explicitly does
   not reach into companions' own windows.
 - **Integers on the wire** (`salt`, `seq`, `probe`, `revision`,
-  `count`) are JSON strings: base-10, no leading zeros, no sign,
-  no exponent, **at most 18 digits** (domain 0 … 10¹⁸−1; `salt`,
-  `seq`, `probe`, `revision` ≥ 1; `count` ≥ 0). The schema pattern
+  `count`) are JSON strings: base-10, no leading
+  zeros, no sign, no exponent, **at most 18 digits** (domain 0 …
+  10¹⁸−1; `salt`, `seq`, `probe`, `revision` ≥ 1; `count` ≥ 0).
+  The schema pattern
   enforces the full domain — schema and prose admit the same set.
   **Comparisons over these values** — the orderings of `salt`,
   `seq`, `probe`, and `revision`, and the `|union| ≤ count` rule —
@@ -336,8 +367,8 @@ Every artifact is a JSON document `{ "body": { … }, "proof":
   malformed. Equality of MACs, act ids, and digests is byte
   equality of canonical encodings.
 - A consumer MUST reject any `type` it does not implement —
-  explicitly including `anchor-mapping@1` and every unknown
-  version. There is no version negotiation.
+  explicitly including `anchor-mapping@1`, `anchor-mapping@2`, and
+  every unknown version. There is no version negotiation.
 
 ## 3. The audience principle (normative)
 
@@ -352,16 +383,24 @@ that carries the burden of justification.
   is showing: persona profile (audience: everyone), membership
   document (audience: roster readers), the self card and the
   contact card (audience: the parties I hand them to — addressing
-  material). Transferably signed. Only class-P artifacts are called
+  material), and the anchor rotation `anchor-rotation@1` (6.5;
+  audience: the contacts that follow the holder's community
+  anchor). Transferably signed. Only class-P artifacts are called
   **credentials** or cards.
 - **Class V (links).** Every statement that **connects two contexts
   of one person**: the anchor mapping, the continuity mapping,
-  group mappings, the introduction voucher. Always DV; a
+  the group pair (5.2b), the introduction voucher. Always DV; a
   cross-context link MUST NOT exist anywhere as a transferable
   proof. **Boundary, stated precisely:** a key binding *within* one
   context (the self card — Ed and X key of the same context) is not
   a link; it is class P with the possession residue Section 11
-  names.
+  names. Nor is the anchor rotation: the personal community's
+  context persists across the generations of its anchor,
+  independent of which personal group's log carries the entries —
+  including a rotation onto a new personal community (Identity §2,
+  "Context"; §5.4) — so `anchor-rotation@1` binds two generations
+  of one context and is not a cross-context link; its
+  transferability residue is in Section 11.
 - **Class D (statements about third parties).** Stars, continuity
   probes, and introduction requests. The proof axis is not enough,
   because the knowledge itself harms (the collector argument);
@@ -398,10 +437,10 @@ Principle (register no. 2), total and decidable:
 5. **Transport is not publication.** A delivered artifact is
    governed by its addressee binding, not by this rule.
 
-Applied: a group member's member-anchor tag is published into the
-group space — its resolver class (co-members holding that anchor)
-lies within the group at publication time. World publication of
-that tag is a violation.
+Applied: a group pair (5.2b) is resolvable by its one addressee
+alone; it travels on that relationship's pair channel, inside the
+group star, and never enters the group space. A group pair placed
+into the group space is a violation.
 
 ## 5. The star (normative)
 
@@ -426,6 +465,10 @@ production** — admitted, unmasked; the assembled union of
 `blinded[]` is the blinded-graded subset of the same projection, so
 `|union| ≤ count` is the consistency rule (5.2a). Duplicate entries MUST NOT be emitted; the union is
 globally sorted (5.2a).
+
+What the sender states about **its own** groups is a separate
+artifact of the same relationship channel, the group star (5.2b);
+the star itself carries nothing about groups.
 
 ### 5.2 star@1 — directional epochal blinding
 
@@ -526,6 +569,92 @@ One delivery MAY span several chunks under one `salt`: `seq` runs
   that delivery and occupies the single assembly slot until a
   newer salt arrives — nothing else.
 
+### 5.2b group-star@1 — the sender's groups, blinded to every contact, sealed to the chosen ones
+
+Body: `{ "type": "group-star@1", "salt": <int-string>, "seq":
+<int-string>, "last": <boolean>, "groups": [ { "d": <mac
+encoding>, "c": <aead encoding> } … ] }`. Proof: `mac` under
+`k_g`. Unsigned, by the rule of 5.3.
+
+- **Keys.** `k_g = HKDF(ikm = X25519(pairX_sender,
+  pairX_recipient), info = "rltp/visibility/blind/group-star/" ||
+  senderPairAnchor || "/" || recipientPairAnchor || "/" || salt)`,
+  anchors and `salt` as in 5.2. Per group `G` (its genesis digest
+  in canonical `u…` form, 47 characters, Identity §6.1): `k_e(G) =
+  HKDF(ikm = X25519(pairX_sender, pairX_recipient), info =
+  "rltp/visibility/seal/group-star/" || senderPairAnchor || "/" ||
+  recipientPairAnchor || "/" || salt || "/" || G)`.
+- **Entry.** `d = HMAC(k_g, UTF-8 bytes of G)`. `c` is the AEAD
+  (2.1) under `k_e(G)` with AAD `d` (its canonical encoding bytes)
+  of the canonical bytes of a **group-pair@1** body: `{ "type":
+  "group-pair@1", "group": G, "member": <the sender's member
+  anchor in G>, "memberOp": <oid: of the canonical admission of
+  `member`, or the genesis where the sender founded G>, "to":
+  <recipientPairAnchor>, "salt": <this salt>, "proof": <mac
+  encoding> }`, where `proof = HMAC(HKDF(ECDH(memberX_sender,
+  pairX_recipient), "rltp/visibility/mac/group-pair"), canonical
+  bytes of the body without proof)`. `memberX_sender` is the
+  key-agreement key of the card enclosed in the operation
+  `memberOp` names. The group pair never travels outside `c`,
+  which is why its proof sits inside the sealed body rather than
+  beside it (2.1).
+- **Modes per (group, recipient).** The sender includes every
+  group it is a current member of unless it has switched that
+  group off (local setting; default on, open groups included). `c`
+  carries a real group pair when the recipient is a trusted
+  recipient or the sender has switched this group on for this
+  contact; otherwise `c` is **filler**: random bytes of exactly the
+  length a real `c` would have for this entry. Nothing in the
+  artifact distinguishes a filler from a sealed pair except the
+  ability to open it. Withdrawal of trust toward a contact also
+  clears every per-group switch-on toward that contact: from then
+  on every `c` toward it is filler until the sender switches a
+  group on for it again. What the sender reconciles per recipient
+  is the entry's semantic content, never its bytes (5.4): the
+  group, its mode and, for a sealed entry, the `member` and
+  `memberOp` the pair names.
+- **Padding and order.** The sender pads the entry list with
+  filler entries (`d` random 32 bytes encoded like a MAC, `c`
+  filler) to the next positive multiple of 16, sorts by `d` once,
+  and slices into chunks of at most 64 entries under the rules of
+  5.2a that do not concern `count`, with the group star's own
+  `salt`, `seq`, `last`, and single open assembly per tuple. A
+  sender with no group to list MUST still send one all-filler group
+  star. Collisions of filler with any value are resampled.
+- **Reception.** A completed assembly MUST have a positive multiple
+  of 16 entries, and every `c` of one assembly MUST have the same
+  length; otherwise the delivery is rejected. For each group the
+  recipient is a **current
+  member** of, it computes `d` and tests the assembled union. On a
+  hit it derives `k_e(G)` and attempts to open `c`; a `c` that does
+  not open is a miss, not an error. An opened body is accepted only
+  if, in order: schema valid; `group == G`; `to` equals the
+  recipient's own active pair anchor of this tuple and `salt`
+  equals the assembly's; `memberOp` names a canonical admission of
+  `member` (or the genesis whose `body.members[0]` is `member`) in
+  the recipient's materialized state of `G`, and `member` is a
+  current member there; the MAC verifies under the key-agreement
+  key of that operation's card, with a non-zero ECDH. An accepted
+  pair merges `member` with the sender holder-locally (6a.1); it is
+  class V (Section 3): never republished, never carried into any
+  group space, never evidence toward a third party.
+- **What it buys and what it does not.** A digest hit tells the
+  recipient that the sender claims membership in a group the
+  recipient is in; the claim is as unverified as every star entry
+  (5.2, no veracity), and a forged hit requires holding `G`, which
+  is the capability the test presupposes. A sealed pair
+  additionally proves, to the recipient alone, control of
+  `member`'s key-agreement key. Residue: `k_e(G)` derives from the
+  relationship key and `G` alone, so whoever holds both — any
+  contact of the sender holding `G`: a current member, a former
+  member, anyone holding an open group's digest — tests the hit
+  **and opens a real sealed pair** for that group, learning the
+  sender's member pseudonym there; a digest obtained later opens
+  stored group stars the same way. The "current member" condition
+  above is the recipient's own acceptance rule, not a cryptographic
+  barrier. The sender's answers are the per-group switch and the
+  per-contact mode (filler or sealed).
+
 ### 5.3 The star MUST NOT be signed
 
 A transferable signature would make "these values are this
@@ -595,6 +724,35 @@ nonconformant; where nothing diverges, delivery is forbidden — a
 delivery event is itself metadata, and the subscription MUST NOT
 broadcast events that changed nothing.
 
+**The group star (5.2b)** is reconciled by the same rule toward
+the same recipient, over its own domain: the set of tuples
+*(group, mode, member, memberOp)* with mode ∈ {digest, sealed},
+`member` and `memberOp` present for sealed entries only — the
+groups the sender lists toward this recipient, per group whether
+`c` carries a sealed pair, and for a sealed pair the member anchor
+and the admission it names. Salt, nonce and ciphertext stay
+outside the domain. It travels as the registered task
+`group-star/0.1` (Delivery §4.4) under the star's completion and
+acknowledgement contract, with its own baseline and its own salt
+sequence. Its divergence arises from: the sender joining, leaving,
+or being removed from a group; a change of the sender's member
+anchor or of the admission `memberOp` names for a sealed entry;
+switching a group off or on; issuing or withdrawing trust toward
+this recipient (6.5); and switching a group on or off for this
+contact — each only where it alters the view toward this
+recipient. The pause of this
+section suppresses the group star exactly as it suppresses the star.
+**State case — the founder leaves and rejoins.** A sender that
+founded G lists it sealed toward a trusted recipient with `member`
+its founding pair anchor and `memberOp` the genesis. It leaves the
+continuing group and later rejoins it through an ordinary
+admission under `group/<G>` (Access §5.1), with no delivery contact
+toward this recipient in between, so the intermediate states
+collapse. Both views list G sealed, but `member` and `memberOp`
+differ: the view diverges, and the next delivery contact ships the
+new pair; the recipient's old pair, whose `member` is no longer
+current, is replaced.
+
 **Normative is convergence, not the path.** At **every**
 available delivery contact, the divergence standing at that
 moment is delivered — the non-normativity below never touches
@@ -613,6 +771,11 @@ complete stay consumed (5.2: strictly increasing, never dense).
 - A new encounter that changes the set of no recipient diverges
   nothing and MUST NOT trigger delivery — the event itself is
   metadata the subscription must not broadcast.
+- A change that alters the group star's view toward a contact
+  diverges it toward that contact — a change of a listed group
+  typically toward every contact at once, a trust change toward
+  one; a change to a switched-off group, or a trust change while
+  the sender lists no group, alters no view and diverges nothing.
 - A relationship's **new head** (chaining, 6a.4) typically has no
   completed delivery — its baseline is absent and it diverges by
   definition, and the resulting **initial star** is the
@@ -716,20 +879,24 @@ the default UX collapses it (register no. 3).
 
 ### 6.1 Purpose and construction
 
-`anchor-mapping@2` links a pair anchor to the community anchor of
+`anchor-mapping@3` links a pair anchor to the community anchor of
 the same person for exactly one addressee — a **double-DH MAC
 construction in the Signal pattern**, entirely in WebCrypto.
 
-Body: `{ "type": "anchor-mapping@2", "pair": <sender's pair anchor
-in this relationship>, "self": <sender's community anchor — the
-field name is a frozen wire spelling>, "to": <addressee's
-pair anchor in this relationship>, "card": <self-card@1 document,
-6.2>, "revision": <int-string>, "issuedAt": <timestamp> }`.
+Body: `{ "type": "anchor-mapping@3", "pair": <sender's pair anchor
+in this relationship>, "self": <sender's current community
+anchor — the field name is a frozen wire spelling>,
+"to": <addressee's pair anchor in this relationship>, "card":
+<self-card@1 document under `self`, 6.2>, "lineage": [
+<anchor-rotation@1> … ] (at most the **64 most recent** elements of
+the lineage, in chain order, ending at `self`; possibly empty;
+6.5), "revision": <int-string>, "issuedAt": <timestamp> }`.
 
 Proof: `mac1` under `k1 = HKDF(ECDH(pairX_sender, pairX_addressee),
 "rltp/visibility/mac/map1")` and `mac2` under `k2 =
 HKDF(ECDH(selfX_sender, pairX_addressee),
-"rltp/visibility/mac/map2")`, both over the canonical bytes.
+"rltp/visibility/mac/map2")`, both over the canonical bytes;
+`selfX` is the key-agreement key of the current community anchor.
 
 ### 6.2 self-card@1 — binding, not link; residue named
 
@@ -755,17 +922,50 @@ property exists only as their sum:
 3. `body.pair` equals the **counterpart's pair anchor** of that
    same tuple, as held from the ceremony or introduction;
 4. `card` verifies as `self-card@1` under **its own** `anchor`;
+
+   **4a.** `lineage` has at most 64 elements; every element
+   verifies as `anchor-rotation@1` under both its signatures
+   (6.5); the chain is verified as given — each `prev` equals the
+   preceding element's `next`, and the last element's `next`
+   equals `self` — or `lineage` is empty, which means only that
+   the sender presents no history (the chain carries no numbers;
+   the addressee cannot tell where in the lineage the carried
+   segment begins);
 5. `card.anchor == body.self` — the card is the claimed self, not
    merely *a* valid card;
 6. `k2` is derived from **`card.keyAgreement`** — the key the card
    binds, never a key claimed elsewhere;
 7. both ECDH outputs are non-zero; both MACs verify;
-8. `revision` per 6.4.
+8. `revision` per 6.4. A higher revision is compared with the
+   `self` this relationship holds — not with the head of the merged
+   entry it may belong to; where it leaves that `self` unchanged
+   and the carried segment does not fork, it updates in place
+   (Section 2). Where a higher revision changes `self`
+   and the addressee holds a previous `self` for this scope, the
+   mapping is a **rotation** if that previous `self` appears in the
+   carried segment, as `prev` or `next` of some element of
+   `lineage`, and the carried segment does not fork against the
+   links this relationship holds (for the same `prev`, a `next`
+   other than the held one; 6a.1) — the held anchor advances and
+   becomes this relationship's head, every holder-local merge
+   keyed by an earlier anchor persists, a new merge follows the
+   head rule of 6a.1 in both processing directions (a rotation that
+   leaves the entry holding incomparable heads marks it
+   head-conflicted, 6a.1), and star tests run against every anchor held
+   for this contact;
+   otherwise it is a **new community** — accepted as a correction;
+   where the relationship belongs to a merged entry, it leaves that
+   entry (the split, Section 2), because nothing links the two, or
+   two successors of one key compete.
 
 With 2–7 in place: foreign community anchors are unclaimable (the card
 is unsignable, `k2` uncomputable), the addressee can still forge
 the whole artifact (deniability preserved), and third parties can
-verify nothing.
+verify nothing of the envelope's relationship binding — `mac1` and
+`mac2`, which tie the mapping to this pair and this addressee. The
+class-P artifacts it embeds are not deniable: the self card and
+every element of `lineage` verify for anyone (6.2, 6.5, Section
+11).
 
 ## 6.4 Tuples, chains, revisions — the relationship lifecycle (normative)
 
@@ -809,7 +1009,8 @@ also what makes resends harmless); an equal revision with a
 different body is an **equivocation error** — reject and keep
 current state; a lower revision is rejected. Scopes: grade per
 (subject, holder) tuple · anchor mapping per (pair, to) — `self`
-is content, correctable by higher revision · continuity mapping
+is content, changed by higher revision as a rotation or a new
+community (6.3, condition 8) · continuity mapping
 per (next, to) per sender — `prior` is content, and **for the
 record side it is frozen**: a record-side mapping whose `prior`
 differs from that side's first verified mapping for the same
@@ -828,6 +1029,58 @@ dead-on-arrival lower revision unissuable. Send order needs no
 rule: the receiver is total under monotonicity — an overtaken
 older issuance is rejected, the newest state wins.
 
+## 6.5 anchor-rotation@1 and the rotation of the community anchor
+
+`{ "body": { "type": "anchor-rotation@1", "prev": <the current
+community anchor>, "next": <the next one> }, "proof": {
+"proofValue": <raw Ed25519 under prev>, "successorProofValue":
+<raw Ed25519 under next> } }`, both over the canonical bytes (2.1).
+`next` is the next generation of the same digest
+(`group/<D>/<g + 1>`), or, after a lost register, generation 1 of
+a new personal community (`group/<D'>`, Identity §9.3); it MUST
+differ from `prev`. The lineage is a key chain: its order is given
+by `prev` and `next` alone, and no element carries a number. The
+artifact proves that the two keys jointly authorized the link —
+not correct derivation, not exclusive succession (a holder of a
+copied current key can co-sign a link to a key of its own;
+Identity §5.4), not the same person, the same seed, or any
+relationship. It binds two successive anchors of the holder's
+community context — one context across its lineage, whether `next`
+is the next generation of the same digest or generation 1 of a new
+personal community, independent of which personal group's log
+carries the entries (Identity §2, "Context") — and links no two
+contexts: class P (Section 3), carried only inside the anchor
+mapping (6.1) and the holder's own log (Access §5.6), with the
+transferability residue Section 11 names. What a copied key can
+and cannot do toward a contact: a mapping is accepted only on the
+holder's own relationship tuple under its pair key (6.3), so the
+copy cannot replace what that tuple holds; the holder's own
+rotation moves its existing tuples past the copied key, and once a
+contact holds that rotation, the copied key is superseded there:
+the head rule of 6a.1 refuses a merge on it and the fork rule a
+merge via a different successor of it. It does not stop a holder
+of the copied key from presenting a lineage through it on a
+relationship of its own before the honest rotation reaches that
+contact — the convergence net then merges (Section 11).
+
+Sender duties after a rotation: persist the label first (Identity
+§5.4); write the `anchor.rotate` (Access §5.6); re-issue
+`anchor-mapping@3` with a higher revision to every trusted
+recipient, carrying the 64 most recent elements of the lineage;
+re-issue the self-card under the new anchor wherever it is
+carried. A contact whose held anchor the carried lineage reaches
+follows when the new mapping arrives; until then it holds the old
+anchor and tests stars against it. A contact that missed more than
+64 rotations no longer finds its held anchor in the carried segment
+and learns the holder as a new community (6.3, condition 8). Withdrawal of trust is
+forward-only: stop re-issuing, send filler instead of sealed pairs
+— every per-group switch-on toward that contact is cleared with it
+(5.2b); what a contact holds, it keeps (Section 11). The holder
+issues the lineage only per recipient, never publicly; that is its
+issuance discipline, not a technical non-transferability — the
+embedded artifacts are signatures a recipient can extract and any
+third party can verify (Section 11).
+
 ## 6a. Continuity (normative — the other half of Encounter §4.4)
 
 Fresh-always enactment means every ceremony creates a fresh tuple.
@@ -841,15 +1094,87 @@ pre-selection.
    path, run on every enactment. It recognizes via shared pair
    history, before and independent of any disclosure decision.
 2. **The community-anchor convergence net:** where continuity did not
-   complete, a later verified `anchor-mapping@2` whose `self`
-   equals the `self` held on another relationship merges the two
+   complete, two relationships whose verified anchor sets intersect
+   — each set the relationship's `self` and every anchor of the
+   lineage its `anchor-mapping@3` carried — merge the two
    **contact entries** (the admission-layer merge of Section 2 —
    both relationships stay active; the chains themselves unify at
    the next chaining, 6a.4) — a holder-local act of the
-   addressee, no wire artifact.
+   addressee, no wire artifact. **The head rule** — one rule for
+   the whole entry, in both processing directions: a relationship
+   `r` merges with a contact entry `E` only where
+   (a) `r`'s head — its current `self` — equals `E`'s current head,
+   or the lineage `r` carries extends `E`'s current head (carries
+   it as a `prev`), **and**
+   (b) neither side holds the other's head as superseded — `r`'s
+   head is no `prev` of any link held by `E`, from any of its
+   relationships, and no successor a resolution (no. 3)
+   superseded; and `E`'s head is no `prev` of any link `r`'s own
+   entry holds. Only knowledge the committed mapping newly carries
+   connects: a relationship whose own entry already held an
+   anchor as superseded does not pull in an entry under that
+   anchor, and a relationship lagging behind its own entry's head
+   is no evidence toward another entry.
+   `E`'s current head is the newest anchor `E` holds: an entry's
+   head advances only along a lineage that extends it. Where the
+   heads `E`'s relationships hold are incomparable — two successors
+   of one anchor within one entry, or a manual merge (no. 3) of a
+   recovery fork — the existing merges persist and `E` is
+   **head-conflicted**: its head is undefined for the head rule, and
+   it takes part in no merge of this net in either direction,
+   neither joining another entry nor admitting a relationship, until
+   the explicit local resolution of no. 3. The rule
+   applies to the incoming relationship, whose verification is
+   being committed, against every other entry; and in the other
+   direction: where an update on a relationship of `E` — a
+   rotation, or a correction (6.3, condition 8) — changes `E`'s
+   current head, a relationship `r'` of another entry joins only if
+   `r'` itself satisfies (a) and (b) against `E` at that moment. A
+   relationship refused under a superseded anchor never joins
+   through a later update of another relationship, the honest one
+   included; it joins once it presents a current head itself.
+   **The fork rule:** the merge MUST
+   NOT happen when the two relationships' held lineages fork — the
+   addressee holds, for the same `prev`, two different `next`
+   values across the two relationships, one from each. The links a
+   relationship holds are those of the lineages verified on it,
+   accumulated across rotations and replaced at a new community
+   (6.3, condition 8); where such a fork arises on one
+   relationship, it is a new community there. Two successors of
+   one key are a copied key, another seed, or an honest recovery
+   from a stale counterpart (Identity §9.3), and a shared anchor
+   stops being evidence of one person; in the honest case the
+   remaining path to one entry is the recipient's explicit local
+   merge (no. 3) — a re-issued mapping, at any revision, leaves
+   the fork in place, and re-trusting creates trust toward the new
+   entry without merging it with the old one (Identity §9.3). The
+   two rules cover what is held: once the addressee holds the
+   honest rotation, a copied superseded key merges neither with an
+   empty lineage (the head rule) nor through a successor of its
+   own (the fork rule), in whichever order the relationships are
+   updated afterwards; before that, a lineage presented through the
+   copied key on a relationship of its own merges (Section 11).
+
+   State cases (normative). Holder anchors `A → B → C`; the
+   contact's entries:
+
+   | Step | Arrives at the contact | Result |
+   |---|---|---|
+   | 1 | relationship `r1`: `self = B`, lineage `A → B` | entry `E1`, head `B`; `A` is superseded in `E1` |
+   | 2 | relationship `r2` (a copy of `A`): `self = A`, empty lineage | (a) fails (`A` ≠ `B`), (b) fails (`A` is a `prev` in `E1`): entry `E2` |
+   | 3 | on `r1`: `self = C`, lineage `A → B → C` | a rotation on `r1`; `E1`'s head becomes `C`. `r2` against `E1`: (a) fails (`A` ≠ `C`, `r2` carries nothing), (b) fails: no merge — two entries |
+
+   | State | Arrives | Result |
+   |---|---|---|
+   | `r1` and `r2` merged in `E`; `r2` received `A → B`; `r1` still holds `A` | relationship `r3`: `self = A`, empty lineage | `E`'s head is `B`, and `A` is a `prev` in `E` (held by `r2`): no merge, although `r1` holds `A` as its own head |
+   | the same | then on `r3`: `self = B`, lineage `A → B` | (a) and (b) hold: `r3` merges into `E` |
+
 3. **The manual fallback:** the human merges contact entries
    locally (the same admission-layer merge; the data-loss case —
-   contact memory is local anyway).
+   contact memory is local anyway). The same local act resolves a
+   head conflict (no. 2): the holder chooses which successor is
+   current, which clears the mark and governs as the entry's head;
+   the others become superseded knowledge of the entry.
 
 An implementation MUST support 1 and 2; 3 is a UI concern, named
 for honesty.
@@ -906,7 +1231,7 @@ entries ] }`; proof: `mac` under `k_p`.
 
 Probe and mapping travel as sealed deliveries **on the same
 channel as the enactment bundle**; both types are registered in
-the Delivery Contract's task registry (Delivery 0.79 §4.4:
+the Delivery Contract's task registry (Delivery 0.80 §4.4:
 `continuity-probe/0.1` · `continuity-mapping/0.1`). On the
 **optical** enactment path (no delivery service), the probe is
 **pending**: until it runs, the tuple is honestly an unchained
@@ -1003,7 +1328,7 @@ mapping, chain per 6.4; the alignment duty arises at that moment
 and is discharged by the completed delivery of the aligned
 mapping (6a.3) — verification creates the duty, delivery ends it. After a
 verified match, a party MAY re-send its existing
-`anchor-mapping@2` (self disclosure) on the new tuple without a
+`anchor-mapping@3` (self disclosure) on the new tuple without a
 fresh user decision: the addressee already holds the community anchor —
 re-delivery to the same holder, register no. 5. The grade
 declaration is not optional on this trigger: 5.5's re-issue duty
@@ -1071,7 +1396,7 @@ the mediator's and the requester's acceptance lists are 8.2) ·
 side's voucher of 8.5, sent before the mediator enters
 `completed`). **Registration, discharged:** all five task
 names — and the continuity tasks of 6a.3 — are registered in the
-Delivery Contract's task registry (Delivery 0.79 §4.4), with
+Delivery Contract's task registry (Delivery 0.80 §4.4), with
 their payload schemas and the one-carrier proof rule stated
 there; the debt this paragraph once named is paid.
 
@@ -1433,21 +1758,14 @@ only if predicates outgrow counting and subsets.
 
 Decision (23.08., `design/mdid-bindung-2026-08.md`): membership
 binds to the group-context anchor (a true M-DID), with the
-community anchor (since the S-DID cut an ordinary M-DID of the
-personal community) as the private cross-relationship coordinate
-disclosed per co-member via the Section 6 pattern
-(group→community); the UI surface of that disclosure is the
-**Trust** act.
+community anchor (the M-DID of the personal community) as the
+private cross-relationship coordinate disclosed per contact
+(Section 6); the UI surface of that disclosure is the **Trust**
+act.
 
-**The direction is no longer prospective.** The loop it named has
-converged and its castings are committed: Access 0.53 carries the
-member-anchor scoping property (its §5.1) and
-`member-mapping@1`, the group→community disclosure built on this
-document's §6 pattern with the anchor classes swapped (its §5.5);
-Membership 0.16 is cast against it. What that recast was — a
-**membership proof-model** change, not a pin rename (joint
-finding S-B2) — is settled fact, not a plan. This section's own
-consumer role is unchanged by it.
+Access carries the member-anchor scoping property (its §5.1); the
+one crossing from a member anchor to a contact is the group pair
+of 5.2b, to which Access §5.5 points.
 
 Historic reality of the one-anchor era (review finding M5) stands
 as recorded: roster *readers* and colluding insiders of different
@@ -1456,8 +1774,8 @@ anchor across groups, and admission artifacts replicate the
 anchors of their era into group logs permanently. The residue is
 now named where it lives — a pre-0.13 legacy anchor stays in the
 rosters that admitted it and keeps acting there (Identity §10,
-Access §5.1), so for those groups the pseudonymity
-`member-mapping@1` lifts deliberately was never established.
+Access §5.1), so for those groups the pseudonymity a group pair
+lifts deliberately (5.2b) was never established.
 Technically the star is anchor-agnostic (finding M6).
 
 **Still open, and deliberately so — these are semantic, not
@@ -1511,6 +1829,37 @@ deliberately left open rather than built badly.
 - **Mapping downgrade / replay / reset** — version exact-match
   (2.1), tuple-scoped state, generic revision rule with the
   record-freeze (6.4).
+- **Group-star dictionary test and opening** — any contact of the
+  sender holding a group's digest — a co-member, a former member,
+  anyone holding an open group's digest — can test a group star it
+  receives for that group and, where `c` is a real sealed pair,
+  open it and learn the sender's member pseudonym there, because
+  `k_e(G)` needs only the relationship key and `G` (5.2b); the
+  "current member" condition is an acceptance rule, not a barrier.
+  The sender's answers are the per-group switch and the per-contact
+  mode.
+- **Assembly shape** — a completed group-star assembly of no
+  positive multiple of 16 entries, or with `c` of differing length,
+  is rejected (5.2b), so no assembly carries an entry singled out
+  by size.
+- **Filler indistinguishability** — a filler `c` has exactly the
+  length of a real one and a filler `d` the form of a MAC, so
+  without `k_e(G)` a sealed pair and a filler are indistinguishable
+  and the padded entry count reveals only its multiple of 16
+  (5.2b).
+- **Rotation proves joint authorization, not succession** — an
+  `anchor-rotation@1` shows that its two keys jointly authorized
+  the link at rotation time; it carries no evidence of correct
+  derivation, of exclusive succession, or about who holds the keys.
+  Whoever copied the current community-anchor key can co-sign a
+  rotation onto a key of its own (Identity §5.4, §13). It cannot
+  replace what a contact holds on the holder's own relationship
+  tuple (6.3), which the copy does not open; it can present the
+  forged lineage, or the copied key alone, on a relationship of its
+  own, where the head rule and the fork rule (6a.1) stop the merge
+  once the contact holds the honest rotation, through any later
+  update of the honest relationship as well (6.5, Section 11,
+  Identity §8.6).
 - **Probe abuse** — a stranger cannot test candidate anchors:
   entries are HMACs of the *sender's own* anchors under a key
   bound to this fresh tuple; replay into another tuple fails
@@ -1582,6 +1931,46 @@ deliberately left open rather than built badly.
   acknowledgements on several channels of one person — exactly
   the pairing surface Delivery §10 names for a carrier holding
   both directions. The remedy is the per-strand pause.
+- **The group star reveals shared groups to every contact by
+  default** (5.2b) — that is its stated purpose, and a change of a
+  listed group is one delivery toward every contact whose view it
+  alters, typically all at once (5.4); a switched-off group's
+  changes reach nobody. The per-group
+  switch is the answer. Sealed pairs reveal the member pseudonym to
+  the chosen contacts — and to every other contact of the sender
+  that holds the group's digest, for the stars it receives, since
+  the digest and the relationship key open them (5.2b, Section 10);
+  only filler toward such a contact withholds it.
+- **The lineage is a transferable linkage proof** (6.5). Every
+  element of a carried lineage is signed by both keys it joins; a
+  recipient can extract the elements and show them to anyone, who
+  can verify that the two community anchors were jointly
+  authorized as a link. This is a lasting correlation residue
+  beyond the deniable mapping that carries it, accepted because a
+  contact must be able to check the rotation it follows: it
+  proves the joint authorization of the link, not the same person,
+  the same seed, or any relationship with the recipient who
+  discloses it. "Per recipient, never publicly" is the holder's
+  issuance discipline, not a technical non-transferability.
+- **A copied old community key reaches the convergence net** (6.5,
+  6a.1). Whoever holds a copy of a community-anchor key `A` — no
+  seed, no pair key of the holder — can sign `A → X` onto an anchor
+  of its own and present it in a mapping on a relationship of its
+  own with a contact of the holder. Every check of 6.3 passes, and
+  where that contact holds `A` for the holder and not yet the
+  holder's honest rotation `A → B`, the verified anchor sets meet
+  and the two entries merge: the contact's star tests and admission
+  treat the copier as the holder. Once the contact holds `A → B`,
+  `A` is superseded there: a mapping under `self = A` merges with
+  nothing (the head rule of 6a.1), whatever lineage it carries or
+  omits, and `A → X` forks (the fork rule); a relationship refused
+  there never joins later through further rotations of the honest
+  relationship, since the head rule binds the joining side in both
+  processing directions (6a.1); neither undoes a merge
+  made before. The residue is the window between the copy and the
+  honest rotation reaching each contact, and it ends there; it is a
+  convergence residue, not a takeover of the holder's tuples; B2
+  for the community anchor stays none (Identity §11, §13).
 - **Possession residue of the self card** (6.2): after disclosure,
   the card is transferable addressing material; §1 is issuance
   control, not recall.
@@ -1622,8 +2011,11 @@ A conformant implementation:
    re-issues its most recently issued grade on chaining without a
    fresh user decision (5.5) — vector-testable (rule),
    state-dependent (allocation, re-issue);
-5. verifies `anchor-mapping@2` by the complete 6.3 list —
-   vector-testable including the mis-binding negative;
+5. verifies `anchor-mapping@3` by the complete 6.3 list, the
+   lineage condition 4a (at most 64 elements, the chain as given)
+   and the rotation-or-new-community rule of condition 8 over the
+   carried segment included — vector-testable including the
+   mis-binding negative, a rotation, and the 64/65 bound;
 6. emits sequenced, globally-sorted, padded probes drawn from the
    snapshotted prior-candidate set (never the fresh tuple) and
    runs the 6a.4 machine (one chooser, frozen choice, the single
@@ -1657,16 +2049,31 @@ A conformant implementation:
     (exhaustion);
 12. admits deliverable-set members per Section 2's total
     admission rule — the promotion commit (a verified
-    `anchor-mapping@2`, written whole) as chain-level state with
+    `anchor-mapping@3`, written whole) as chain-level state with
     its merge and state-loss rules, overflow deliverable-pending
     with its stated lifecycle, grade-wait anchored at admission
-    (Section 2, 5.4) — state-dependent.
+    (Section 2, 5.4), the split of 6.3 condition 8 with the
+    identity of the remaining entry — and merges per 6a.1 under the
+    head rule and the fork rule — state-dependent;
+13. produces and receives `group-star@1` per 5.2b — keys, entry
+    construction, modes (withdrawal of trust clearing the per-group
+    switches toward that contact), padding to a multiple of 16, the
+    assembly rule (a positive multiple of 16 entries, one `c`
+    length), the ordered reception checks — and reconciles it per
+    5.4 over the tuples *(group, mode, member, memberOp)* —
+    vector-testable (`vectors/group-star.json`, including the
+    rejected assemblies and a pair whose `memberOp` is an ordinary
+    admission), state-dependent (modes, triggers, the view);
+14. produces and verifies `anchor-rotation@1` per 6.5 (`next`
+    differing from `prev`, no number in the body) and carries out
+    the sender duties after a rotation — vector-testable
+    (`vectors/anchor-rotation.json`), state-dependent (duties).
 
 ## References
 
-- Identity Layer 0.51 — `spec/identity-layer.md` (§5.2, §6.1,
-  §9.3, §11).
-- Encounter Layer 0.29 (wire 0.25) — `spec/encounter-layer.md`
+- Identity Layer 0.52 — `spec/identity-layer.md` (§5.2, §5.4,
+  §6.1, §9.3, §11).
+- Encounter Layer 0.30 (wire 0.25) — `spec/encounter-layer.md`
   (fresh-always §4.4, commitment §7.2, versioned schemas).
 - **Vector debt discharged:** `vectors/visibility.json` now ships
   **payload-level positive vectors** with real Encounter contact
@@ -1680,9 +2087,12 @@ A conformant implementation:
   (X25519) · RFC 8032 (Ed25519) · BCP 14.
 - Schemas (normative, one file per artifact):
   `schemas/visibility-star.schema.json` ·
+  `schemas/visibility-group-star.schema.json` ·
+  `schemas/visibility-group-pair.schema.json` ·
   `schemas/visibility-grade-declaration.schema.json` ·
   `schemas/visibility-self-card.schema.json` ·
   `schemas/visibility-anchor-mapping.schema.json` ·
+  `schemas/visibility-anchor-rotation.schema.json` ·
   `schemas/visibility-continuity-probe.schema.json` ·
   `schemas/visibility-continuity-mapping.schema.json` ·
   `schemas/visibility-introduction-request.schema.json` ·
@@ -1695,5 +2105,6 @@ A conformant implementation:
   `schemas/visibility-payload-introduction-reply.schema.json` ·
   `schemas/visibility-payload-introduction-ack.schema.json` ·
   `schemas/visibility-payload-introduction-voucher.schema.json`.
-  Vectors: `vectors/visibility.json`.
+  Vectors: `vectors/visibility.json` · `vectors/group-star.json` ·
+  `vectors/anchor-rotation.json`.
 - Design sources and triages as listed in the header.

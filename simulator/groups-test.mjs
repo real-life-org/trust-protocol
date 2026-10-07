@@ -29,7 +29,7 @@ check(jEmil?.[1].state === '⇄', 'Vorgeschichte: Jonathan ⇄ Emil (vorgestellt
 // ── Gründung ────────────────────────────────────────────────────────────
 const g = await G.foundGroup(jonathan, 'Orga-Untergruppe', T0 + 200_000)
 check(g.genesisDigest.startsWith('u') && toU(g.genesisDigest) === g.genesisDigest, 'Genesis-Digest: kanonisches u-Multihash')
-check(g.myMemberCtx.label === 'group/' + g.genesisDigest, 'Founder-Member-Anker unter group/<digest> (nach der Gründungs-pair-Signatur)')
+check(g.myMemberCtx.label.startsWith('pair/') && g.myMemberCtx.anchor === g.genesis.founder, 'Founder-Member-Anker = der frische Gründungs-pair-Anker, nie group/<digest> (RLTP-ACC-3235, 3275)')
 check(g.roster.size === 1 && g.roster.get(g.myMemberCtx.anchor)?.founder === true, 'Roster: der Gründer, als Founder markiert')
 check(await C.diVerify(g.genesis, g.genesis.founder), 'Genesis verifiziert unter dem Gründungs-pair-Anker')
 

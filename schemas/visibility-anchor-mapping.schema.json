@@ -16,12 +16,13 @@
         "self",
         "to",
         "card",
+        "lineage",
         "revision",
         "issuedAt"
       ],
       "properties": {
         "type": {
-          "const": "anchor-mapping@2"
+          "const": "anchor-mapping@3"
         },
         "pair": {
           "type": "string",
@@ -81,6 +82,66 @@
             }
           }
         },
+        "lineage": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "body",
+              "proof"
+            ],
+            "properties": {
+              "body": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "prev",
+                  "next"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "anchor-rotation@1"
+                  },
+                  "prev": {
+                    "type": "string",
+                    "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+                    "description": "the community anchor the rotation leaves (Identity 5.4)"
+                  },
+                  "next": {
+                    "type": "string",
+                    "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+                    "description": "the community anchor the rotation moves to: the next generation of the same digest, or generation 1 of a new personal community (Identity 5.4, 9.3); it differs from prev"
+                  }
+                }
+              },
+              "proof": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "proofValue",
+                  "successorProofValue"
+                ],
+                "properties": {
+                  "proofValue": {
+                    "type": "string",
+                    "pattern": "^z[1-9A-HJ-NP-Za-km-z]{64,88}$",
+                    "description": "raw Ed25519 under prev over the canonical (JCS) bytes of body, z-base58btc"
+                  },
+                  "successorProofValue": {
+                    "type": "string",
+                    "pattern": "^z[1-9A-HJ-NP-Za-km-z]{64,88}$",
+                    "description": "raw Ed25519 under next over the same bytes"
+                  }
+                }
+              }
+            }
+          },
+          "description": "at most the 64 most recent anchor-rotation@1 artifacts of the lineage, in chain order: each prev equals the preceding next, the last next equals self (Network Visibility 6.1, 6.3, 6.5); empty where the sender presents no history",
+          "maxItems": 64
+        },
         "revision": {
           "type": "string",
           "pattern": "^[1-9][0-9]{0,17}$"
@@ -110,5 +171,5 @@
       }
     }
   },
-  "title": "RLTP anchor-mapping@2 (rltp-visibility@0.29)"
+  "title": "RLTP anchor-mapping@3 (rltp-visibility@0.30)"
 }

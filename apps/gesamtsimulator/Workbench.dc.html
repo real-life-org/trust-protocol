@@ -296,7 +296,7 @@ const GROUPS0 = [
   { id: 'rat', label: 'Council', members: ['Anna', 'Peter'] },
   { id: 'schach', label: 'Chess', members: ['Peter'] },
 ];
-// encounters: real ceremonies; trust: the real trust act (anchor-mapping@2)
+// encounters: real ceremonies; trust: the real trust act (anchor-mapping@3)
 // `dir` names who disclosed one-sidedly
 const EDGES0 = [
   { a: 'Anna', b: 'Peter', trust: 2 },
@@ -1779,7 +1779,7 @@ class Component extends DCLogic {
     return true;
   }
 
-  // the trust act: anchor-mapping@2 (designated verifier) + grade, then the
+  // the trust act: anchor-mapping@3 (designated verifier) + grade, then the
   // blinded star follows through the 5.4 reconciliation
   async giveTrust(from, to, o = {}) {
     const P = this.person(from);
@@ -1791,7 +1791,7 @@ class Component extends DCLogic {
     const T = this.lib.T;
     const pkt = await T.setTrust(P, anchor, this.now(from));
     if (pkt && pkt.error) { this.log(from, 'trust act refused: ' + pkt.error); if (!o.silent) this.bump(); return false; }
-    for (const out of (pkt && pkt.outbound) || []) await this.deliver(from, to, out.kind || 'anchor-mapping@2', out.env, o);
+    for (const out of (pkt && pkt.outbound) || []) await this.deliver(from, to, out.kind || 'anchor-mapping@3', out.env, o);
     for (const out of await T.starRefreshAll(P, this.now(from))) {
       const toId = this.ownerOf(out.to && out.to.card && out.to.card.anchor);
       if (toId) await this.deliver(from, toId, out.kind || 'star@1', out.env, o);
@@ -2006,7 +2006,7 @@ class Component extends DCLogic {
     if (issued.length) cats.push(['encounter-credential/0.25 · issued', 'your step credentials, one per enactment', issued]);
     if (received.length) cats.push(['encounter-credential/0.25 · received', 'their step credentials, accepted under 5.6', received]);
     if (cards.length) cats.push(['contact-card/0.25', 'their cards as received, bound to the record', cards]);
-    if (disclosed.length) cats.push(['anchor-mapping@2 · received', 'stable identities disclosed to you (designated verifier)', disclosed]);
+    if (disclosed.length) cats.push(['anchor-mapping@3 · received', 'stable identities disclosed to you (designated verifier)', disclosed]);
     if (groups.length) cats.push(['membership', 'genesis + roster · member anchors, never names on the wire', groups.map((g) => ({ label: g.label, genesisDigest: g.genesisDigest, role: g.role, myMemberAnchor: g.myMemberCtx && g.myMemberCtx.anchor, roster: [...g.roster.entries()].map(([anchor, m]) => ({ anchor, name: m.name, addedAt: m.addedAt, founder: !!m.founder })) }))]);
     return cats;
   }

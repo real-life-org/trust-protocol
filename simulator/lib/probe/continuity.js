@@ -194,6 +194,7 @@ function chainTuple(p, newKey, oldKey, when) {
     head.since = [old.since, head.since].filter(Boolean).sort()[0];
     head.name = old.name; // lokales Kontakt-Gedächtnis
     head.selfAnchor ??= old.selfAnchor; // Ketten-WISSEN: wer das ist (das Mapping selbst stirbt mit dem Tupel, §6.4)
+    head.selfAnchors ??= old.selfAnchors; // …samt jeder gehaltenen Generation (Visibility §6.3 Nr. 8)
     const oldRel = old.relId ?? oldKey;
     // Admission (B-4): der neue Kopf löst über die überlebende Beziehung
     // auf; ein schon existierender Eintrag der frischen Beziehung

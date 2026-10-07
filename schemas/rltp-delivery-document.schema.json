@@ -1,7 +1,7 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://real-life.org/rltp/v1/schemas/rltp-delivery-document.schema.json",
- "title": "RLTP Delivery Document Profile (rltp-delivery@0.79)",
+ "title": "RLTP Delivery Document Profile (rltp-delivery@0.80)",
  "description": "RLTP document profile (Delivery 3): proof REQUIRED on delivery-ack and registry-declaration (their authenticity has no other carrier; a delivery-ack carries the DataIntegrityProof form for signature-class payloads and the deniable {mac} form (HMAC over JCS of the document without proof, under the channel ack key) for designated-verifier payloads per the 4.2/4.4 acknowledgement class rule; the schema conditions proof presence by type — which of the two ack proof forms applies is class state the receiver checks at validation (stage 8), not schema-expressible), MUST be absent on the other own types; own types' payload schemas carry \\$id = Type URI, companion-registered types dispatch through the 4.4 registry entry.",
  "type": "object",
  "required": [

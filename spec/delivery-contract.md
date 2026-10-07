@@ -3,22 +3,16 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.79.0-draft (seventy-ninth casting — the
-  post-convergence sweep after rounds 16 and 17 ran blocker-free
-  in sequence (the loop's convergence criterion): both proof
-  branches of the document schema are closed
-  (additionalProperties false), so a hybrid proof carrying a
-  signature AND a mac — transferable and deniable at once — is
-  schema-invalid, with its executable negative in
-  `vectors/delivery-ack.json`. Nothing else changes.)
+- **Version:** 0.80.0-draft (eightieth casting — the trust-act
+  registry follows Network Visibility 0.30)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-08-31
+- **Date:** 2026-10-07
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/`
 - **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-delivery@0.79` (draft)
-- **Supersedes:** version 0.78 (archived as
-  `archive/delivery-contract-0.78.md`) and versions 0.77–0.1,
+- **Conformance profile:** `rltp-delivery@0.80` (draft)
+- **Supersedes:** version 0.79 (archived as
+  `archive/delivery-contract-0.79.md`) and versions 0.78–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
   (wot-spec v0.1, German) in its delivery aspects.
@@ -40,9 +34,9 @@ of its own — `encounter-bundle`, `delivery-ack`,
 document profile all types
 share, the sealed envelope they travel in, and the **task registry**
 (4.4) through which companion layers register theirs: the membership
-and access types (registered in their own documents), the
-introduction and continuity types of the network-visibility layer,
-and the member-mapping disclosure of the access layer.
+and access types (registered in their own documents) and the
+introduction, continuity, and trust-act types of the
+network-visibility layer.
 
 Addressing is a **triple**, never an account (Section 5a): the
 `rkid` a sender seals to, one per relationship; a queue locator
@@ -57,14 +51,9 @@ converge into a person at whoever carries them.
 
 ## Status of This Document
 
-This is an **Editor's Draft** with no standing. It is the
-seventy-ninth casting of the Delivery Contract — the
-post-convergence sweep after the loop's criterion was met,
-finishing the registration addendum to the converged sixty-ninth: the trust-act task
-types of Network Visibility join the §4.4 registry, and nothing
-else changes. The document remains as the scope re-cast of
-2026-08-27 shaped it: **the promise is protocol; the mechanism
-is carrier policy.** What a counterpart can observe at the port
+This is an **Editor's Draft** with no standing. The document
+remains as the scope re-cast of 2026-08-27 shaped it: **the
+promise is protocol; the mechanism is carrier policy.** What a counterpart can observe at the port
 line is specified and vector-tested; how a carrier meets it
 internally is its own affair. The carrier sections (4.4's role,
 5a) are the youngest part of the document and the most likely to
@@ -380,7 +369,7 @@ The arrival acknowledgement (DO-1).
     before derivation (as in Section 5) — **one regime for every
     DV-type ack**, keyed by the channel, never by the payload's
     internal MAC structure (a multi-MAC payload like
-    `anchor-mapping@2` changes nothing here). A wrong proof form for the payload's class is
+    `anchor-mapping@3` changes nothing here). A wrong proof form for the payload's class is
     invalid. The MAC form is receiver-forgeable by construction —
     that is its purpose (deniability): for DV payloads the ack is
     **evidence to the sender alone**, not an attestation.
@@ -492,21 +481,19 @@ schema, proof declaration, and consistency rules:
   (`schemas/visibility-continuity-probe.schema.json`,
   `schemas/visibility-continuity-mapping.schema.json`), travelling
   on the enactment tuple's own channel (its §6a.3);
-- `member-mapping/0.1` — Access §5.5; payload
-  `schemas/member-mapping.schema.json`, travelling on the existing
-  relationship channel between discloser and addressee, never a
-  group space;
-- `star/0.1` · `grade-declaration/0.1` · `anchor-mapping/0.1` —
-  the trust-act family, Network Visibility §5.2/§5.5/§6.1; the
-  payload is the artifact itself
+- `star/0.1` · `group-star/0.1` · `grade-declaration/0.1` ·
+  `anchor-mapping/0.2` — the trust-act family, Network Visibility
+  §5.2/§5.2b/§5.5/§6.1; the payload is the artifact itself
   (`schemas/visibility-star.schema.json`,
+  `schemas/visibility-group-star.schema.json`,
   `schemas/visibility-grade-declaration.schema.json`,
   `schemas/visibility-anchor-mapping.schema.json`), travelling on
   the relationship channel of its tuple; the artifacts carry
   their own MACs, the documents carry none — one carrier.
   **Defined effect, per document:** durable buffering toward the
-  recipient's receive chain — for a star chunk, into the single
-  open assembly of Visibility §5.2a; the acknowledgement fires at
+  recipient's receive chain — for a star or group-star chunk,
+  into the single open assembly of its artifact (Visibility §5.2a,
+  §5.2b); the acknowledgement fires at
   that effect like every type's (4.2), under the class rule
   below — **with one sharpening for the completing chunk**: the
   chunk that closes an assembly has as its defined effect the
@@ -514,9 +501,9 @@ schema, proof declaration, and consistency rules:
   (Visibility §5.2a), the accepted snapshot, and the receiver's
   completed-salt advance commit in the same transaction as the
   effect cache entry and the acknowledgement (6.2) — and for star
-  chunks the stage-9 lock set extends by the **assembly key
-  (tuple, salt)**, so concurrent chunks of one assembly
-  serialize and the completing commit sees them all. A crash
+  and group-star chunks the stage-9 lock set extends by the
+  **assembly key (tuple, type, salt)**, so concurrent chunks of
+  one assembly serialize and the completing commit sees them all. A crash
   before that commit leaves the completing chunk unacknowledged,
   so a sender's completion (Visibility §5.4) always attests the
   receiver's committed state, never a buffered fragment. **Closed acceptance bindings:** the outer document's
@@ -524,8 +511,8 @@ schema, proof declaration, and consistency rules:
   its `recipient` the addressee's; the tuple is selected by the
   arrival channel's `rkid`, and the artifact's MAC MUST verify
   under exactly that tuple's relationship key — an outer/inner
-  mismatch rejects. For the star, **one `salt` is one thread**: the
-  sender mints one fresh `threadId` per delivery and stamps it on
+  mismatch rejects. For the star and the group star, **one
+  `salt` is one thread**: the sender mints one fresh `threadId` per delivery and stamps it on
   **every** chunk of that salt — arrival order is irrelevant, and
   the receiver rejects a delivery whose chunks disagree on
   `threadId` (Visibility §5.2a); each chunk is its own **document** under
@@ -2647,11 +2634,11 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 
 ## 11. Conformance
 
-- **Profile** `rltp-delivery@0.79`; the Identity pin is
-  **Identity 0.51** (§7a, the control principal); the Encounter
+- **Profile** `rltp-delivery@0.80`; the Identity pin is
+  **Identity 0.52** (§7a, the control principal); the Encounter
   pin is `rltp-encounter@0.29` (wire 0.25); companion
-  registrations per 4.4 (Network Visibility 0.29, Access 0.53,
-  Membership Tasks 0.16, Replication 0.26).
+  registrations per 4.4 (Network Visibility 0.30, Access 0.56,
+  Membership Tasks 0.18, Replication 0.26).
 - **Classes:** *sender* (sealing, status trias, ack-wait switch
   trigger; principal-free submission, 5a.4) · *receiver*
   (unsealing, staged dispositions, ack generation; the addressing
@@ -2779,9 +2766,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   prospective-only · introduction-ack timing computed from the
   declared `ack-delay` (Visibility §8.4); an introduction-request
   sent without holding the mediator's declaration →
-  nonconformant at the sender · a `member-mapping/0.1` document
-  from a party the receiver holds no relationship with → rejected
-  by the receiver's own acceptance list (Access §5.5 step 2) ·
+  nonconformant at the sender ·
   the derivation seam itself is executable in
   `vectors/identity-derivation.json` (`carrierRelationship`) and
   MUST be reproduced by any implementation claiming this profile:
@@ -3057,16 +3042,16 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 ## References
 
 [RFC2119] · [RFC8174] BCP 14 · [RFC3339] · [RFC8785] JCS · [RFC5869]
-HKDF · **RLTP Identity Layer 0.51** (normative; §5.2 the `rkid`'s
+HKDF · **RLTP Identity Layer 0.52** (normative; §5.2 the `rkid`'s
 key material, §5.3 the recovery context, §7 service identities,
 **§7a the carrier-relationship identity**, §9.3 recovery) ·
 [TT] ToIP DTGWG Trust Tasks framework specification 0.4
 (§4.8.2, §4.11.1, §6.1, §6.3, §6.5, §7.2–7.3) · RLTP Encounter Layer
 0.29, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Network
-Visibility 0.29 (§2.1, §6a, §8) · RLTP Access Layer 0.53, wire
-0.24 · RLTP Replication Contract 0.26 (§7/I14, the
-direct-effect seam of 4.4) · RLTP Membership Tasks 0.16 (§3) · Sync
+Visibility 0.30 (§2.1, §5.2b, §6a, §8) · RLTP Access Layer 0.56,
+wire 0.25 · RLTP Replication Contract 0.26 (§7/I14, the
+direct-effect seam of 4.4) · RLTP Membership Tasks 0.18 (§3) · Sync
 001/003 (superseded transport specs, Appendix A).
 
 **External references of the adapter obligations (5a.10).** These
