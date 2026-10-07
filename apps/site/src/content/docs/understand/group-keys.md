@@ -38,9 +38,10 @@ graph that grows with the log.
 
 Where two states meet, the adapter brings them together into one,
 either by merging their secrets or by a fresh rotation that heals the
-split. Nobody has to notice; the next entry anyone writes carries the
-repair. The epoch number still exists, but only as a counter for
-views and ordering.
+split. Until it has, members keep reading and writing waits; one
+member is designated to issue the rotation, so the wait is short. The
+epoch number still exists, but only as a counter for views and
+ordering.
 
 Spec: [Access Layer §7.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#71-transitions-and-the-retained-set) ·
 [§9.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#92-the-key-port)
