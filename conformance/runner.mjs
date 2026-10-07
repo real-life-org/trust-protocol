@@ -1166,7 +1166,25 @@ section('group-star.json — k_g, k_e(G), blinded digests, sealed group pairs, f
   const sg2 = { x: hkdf(IKM, 'rltp/anchor/x/' + sg2Label), did: didOf(hkdf(IKM, 'rltp/anchor/ed/' + sg2Label)) }
   check(sg2.did === GS.groups.G2.member.anchor && GS.groups.G2.member.label === sg2Label, 'G2: the sender joined — its member anchor is group/<G2> (Access 5.1)')
   check('oid:' + sha(Buffer.from(GS.groups.G2.memberOpPreimage, 'utf8')).toString('base64url') === GS.groups.G2.memberOp, 'G2: placeholder admission oid reproduces from its preimage')
-  const Gd = { G1: GS.groups.G1.genesisDigest, G2: GS.groups.G2.genesisDigest, G3: GS.groups.G3.genesisDigest }
+  // G4: joined through an ORDINARY canonical admission — the real member.add
+  // of membership-tasks.json; its id, signature, group and genesis digest
+  // recompute here, its subject is the sender's group/<G4>, its accept card
+  // carries the key the pair proof is checked under
+  const MT = J('vectors/membership-tasks.json')
+  const adm = GS.groups.G4.admission
+  const admIn = opInput(adm)
+  check(jcs(adm) === jcs(MT.payload.operation), 'G4: the admission is the member.add of membership-tasks.json, byte for byte')
+  check(adm.op === 'member.add' && 'oid:' + sha(admIn).toString('base64url') === adm.id && adm.id === GS.groups.G4.memberOp && adm.proof.signatures.every((s) => verifyRaw(s.signer, admIn, s.sig)), 'G4: memberOp is the id of a real member.add — id and signature recompute')
+  check(mhU(opInput(MT.genesis)) === GS.groups.G4.genesisDigest && adm.group === MT.genesis.group && adm.prev.includes(MT.genesis.id), 'G4: genesis digest over the genesis signature input; the admission belongs to that group')
+  const sg4Label = 'group/' + GS.groups.G4.genesisDigest
+  const sg4 = { x: hkdf(IKM, 'rltp/anchor/x/' + sg4Label), did: didOf(hkdf(IKM, 'rltp/anchor/ed/' + sg4Label)) }
+  const admCard = adm.body.admission.accept.payload.accept.card
+  check(sg4.did === adm.body.subject && sg4.did === GS.groups.G4.member.anchor && admCard.anchor === sg4.did && admCard.keyAgreement === mkOf(sg4.x) && diVerify(admCard, sg4.did).ok, 'G4: the admitted subject is the sender\'s group/<G4> (Access 5.1), its accept card verifies and carries its key-agreement key')
+  const Gd = { G1: GS.groups.G1.genesisDigest, G2: GS.groups.G2.genesisDigest, G3: GS.groups.G3.genesisDigest, G4: GS.groups.G4.genesisDigest }
+  // the operation memberOp names, resolved in the recipient's state of G: the
+  // genesis (card: its body.card) or an ordinary admission (card: the accept card)
+  const resolveOp = (g, oid) => g === 'G1' && oid === gen.id ? { subject: gen.body.members[0], keyAgreement: gen.body.card.keyAgreement }
+    : g === 'G4' && oid === adm.id ? { subject: adm.body.subject, keyAgreement: admCard.keyAgreement } : null
 
   const open = (key, aad, c) => {
     try {
@@ -1177,7 +1195,7 @@ section('group-star.json — k_g, k_e(G), blinded digests, sealed group pairs, f
       return Buffer.concat([d.update(raw.subarray(12, raw.length - 16)), d.final()]).toString('utf8')
     } catch { return null }
   }
-  const tuple = { trusted: ['S_T', 'T_S'], untrusted: ['S_U', 'U_S'], allFiller: ['S_T', 'T_S'] }
+  const tuple = { trusted: ['S_T', 'T_S'], untrusted: ['S_U', 'U_S'], allFiller: ['S_T', 'T_S'], admission: ['S_T', 'T_S'] }
   const keys = (S, R, salt, G) => ({
     kg: hkdf(ecdh(S.x, R.mk), `rltp/visibility/blind/group-star/${S.did}/${R.did}/${salt}`),
     ke: G && hkdf(ecdh(S.x, R.mk), `rltp/visibility/seal/group-star/${S.did}/${R.did}/${salt}/${G}`),
@@ -1260,7 +1278,7 @@ section('group-star.json — k_g, k_e(G), blinded digests, sealed group pairs, f
       if (pair.group !== Gd[g]) return rej('group')
       if (pair.to !== R.did || pair.salt !== salt) return rej('to')
       const st = states[c.state]
-      const op = g === 'G1' && pair.memberOp === gen.id ? { subject: gen.body.members[0], keyAgreement: gen.body.card.keyAgreement } : null
+      const op = resolveOp(g, pair.memberOp)
       if (!op || op.subject !== pair.member || !st?.members.includes(pair.member)) return rej('member')
       const sh = ecdh(R.x, op.keyAgreement)
       const { proof, ...unproved } = pair

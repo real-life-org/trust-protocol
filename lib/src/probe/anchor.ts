@@ -21,10 +21,14 @@
 //     current anchor, the card is under it, mac2 is under its X key.
 //   · classification (§6.3 condition 8) — a changed `self` is a
 //     ROTATION when the previously held `self` appears in the carried
-//     segment (as prev or next of an element), otherwise a NEW COMMUNITY.
+//     segment (as prev or next of an element) and the segment does not
+//     fork against the relationship's held links, otherwise a NEW
+//     COMMUNITY.
 //   · mappingAnchors — the verified anchor set of a mapping (self and
 //     every anchor of its carried lineage); the convergence net merges
-//     two relationships whose sets meet (§6a.1 no. 2).
+//     two relationships whose sets meet (§6a.1 no. 2) — unless their held
+//     links fork: the same prev with two different next, one from each
+//     relationship (lineageLinks, linksFork; the fork rule of §6a.1).
 import { jcs, makeValidator, calOK } from '../core.js'
 import { SCHEMAS } from '../schemas.js'
 import { base58, fromBase58, edRawOfAnchor, xRawOfMk, ecdh, hkdf, b64uOf } from '../crypto.js'
@@ -112,16 +116,27 @@ export const lineageAnchors = (lineage: any[]): string[] =>
 export const mappingAnchors = (body: { self: string, lineage: any[] }): string[] =>
   body.lineage.length ? lineageAnchors(body.lineage) : [body.self]
 
+/** The links prev → next a lineage carries, in chain order. */
+export const lineageLinks = (lineage: any[]): [string, string][] =>
+  lineage.map((r: any) => [r.body.prev, r.body.next])
+/**
+ * The fork rule (§6a.1): held links and carried links fork when, for the
+ * same prev, they name two different next.
+ */
+export const linksFork = (held: Map<string, string> | undefined, links: [string, string][]): boolean =>
+  !!held && links.some(([prev, next]) => held.has(prev) && held.get(prev) !== next)
 /**
  * §6.3 condition 8 for a changed `self`: 'rotation' when the previously
  * held self appears in the carried segment (as prev or next of some
- * element) — the held anchor advances and merges keyed by earlier
- * anchors persist;
- * otherwise 'new-community' — accepted as a correction, merges keyed by
- * the earlier anchor dissolve, because nothing links the two.
+ * element) and the segment does not fork against the links the
+ * relationship holds (`heldLinks`) — the held anchor advances and merges
+ * keyed by earlier anchors persist; otherwise 'new-community' — accepted
+ * as a correction, the relationship leaves a merged entry, because
+ * nothing links the two (or two successors of one key compete).
  */
-export function classifyMapping (heldSelf: string | undefined, body: { self: string, lineage: any[] }): 'first' | 'same' | 'rotation' | 'new-community' {
+export function classifyMapping (heldSelf: string | undefined, body: { self: string, lineage: any[] }, heldLinks?: Map<string, string>): 'first' | 'same' | 'rotation' | 'new-community' {
   if (heldSelf === undefined) return 'first'
+  if (linksFork(heldLinks, lineageLinks(body.lineage))) return 'new-community'
   if (heldSelf === body.self) return 'same'
   return body.lineage.some((r: any) => r.body.prev === heldSelf || r.body.next === heldSelf) ? 'rotation' : 'new-community'
 }

@@ -18,24 +18,23 @@
 //      5960 — its rotation.body.prev equals the next of the lineage head
 //             of its ancestor closure, or is unconstrained where that
 //             closure holds no canonical anchor.rotate;
-//   2. canonicity — 5965, over the log at hand: the lineage is walked
-//      from its first canonical entry. An ENTRY is a rotation body; the
-//      valid operations carrying JCS-identical bodies are one entry
-//      (idempotent, 3475): the smallest id among them is its
-//      representative, the others are repeats. An entry's PARENT is the
-//      lineage head of its operations' ancestor closures (none for a
-//      first entry). The walk starts among the entries without a parent
-//      and continues among the children of the current head; where
-//      several compete — the same prev, or both first entries — the one
-//      whose representative has the smaller id in unsigned bytewise
-//      order is canonical, and every entry reachable from it; the others,
-//      and every entry reachable only from them, stay VALID but are not
-//      canonical (the 5240 pattern);
+//   2. canonicity — 5965, over the log at hand. An ENTRY is a rotation
+//      body; the valid operations carrying JCS-identical bodies are one
+//      entry (idempotent, 3475), its id the smallest id among them (the
+//      representative), the others repeats. The walk starts at a virtual
+//      root, where the candidates are the FIRST entries (carried by a
+//      valid operation whose ancestor closure holds no canonical
+//      anchor.rotate); at a chosen head the candidates are the entries
+//      not yet visited whose prev equals the head's next; of the
+//      candidates the one with the smaller id in unsigned bytewise order
+//      becomes the new head; repeat until no candidate. Exactly the
+//      visited entries (and their repeats) are canonical; every other
+//      valid operation stays VALID but not canonical (the 5240 pattern);
 //   3. 5970 — no anchor.rotate changes the roster, the epoch or the
 //      policy version: the state is that of the other operations.
 //
 // The head of an ancestor closure is the same walk over that closure;
-// it is memoized per operation.
+// it is memoized per operation. Nothing else enters the walk.
 //
 // Returns { status: { label → canonical | valid | invalid }, repeat:
 // [label], chain: [label], head: { anchor } | null, state: { members,
@@ -77,38 +76,39 @@ export async function materializeRotations (ops, verifyRotation) {
     let ok = shapeOK.get(o.id)
     if (ok) { const m = membersAt(o.id); ok = m.size === 1 && m.has(o.author) }
     if (ok) {
-      const head = walk(ancestors(o.id)).head
+      const head = closureHead(o)
       ok = !head || o.body.rotation.body.prev === head.next
     }
     validMemo.set(o.id, ok)
     return ok
   }
-  // the parent entry of an operation: the head of its ancestor closure (memoized)
-  const parentMemo = new Map()
-  const parentOf = (o) => {
-    if (!parentMemo.has(o.id)) parentMemo.set(o.id, walk(ancestors(o.id)).head?.key ?? null)
-    return parentMemo.get(o.id)
+  // the head of an operation's ancestor closure (memoized): 5960 and "first"
+  const headMemo = new Map()
+  const closureHead = (o) => {
+    if (!headMemo.has(o.id)) headMemo.set(o.id, walk(ancestors(o.id)).head)
+    return headMemo.get(o.id)
   }
   // the canonical walk over a set of operation ids (an ancestor-closed set)
   function walk (ids) {
-    const inSet = rotates.filter((o) => ids.has(o.id) && valid(o))
-    const entries = new Map()   // body key → { key, next, ops: [...] }
-    for (const o of inSet) {
+    const entries = new Map()   // body key → { key, prev, next, first, ops: [...] }
+    for (const o of rotates) {
+      if (!ids.has(o.id) || !valid(o)) continue
       const k = bodyKey(o)
-      if (!entries.has(k)) entries.set(k, { key: k, next: o.body.rotation.body.next, ops: [] })
-      entries.get(k).ops.push(o)
+      if (!entries.has(k)) entries.set(k, { key: k, prev: o.body.rotation.body.prev, next: o.body.rotation.body.next, first: false, ops: [] })
+      const e = entries.get(k)
+      e.ops.push(o)
+      if (!closureHead(o)) e.first = true
     }
     for (const e of entries.values()) e.ops.sort((a, b) => cmpBytes(a.id, b.id))
-    const children = (parentKey) => [...entries.values()].filter((e) => e.ops.some((o) => parentOf(o) === parentKey))
     const chain = []
-    const seen = new Set()
+    const visited = new Set()
     let at = null
     for (;;) {
-      const cands = children(at).filter((e) => !seen.has(e.key))
+      const cands = [...entries.values()].filter((e) => !visited.has(e.key) && (at === null ? e.first : e.prev === at.next))
       if (!cands.length) break
       cands.sort((a, b) => cmpBytes(a.ops[0].id, b.ops[0].id))
-      const win = cands[0]
-      chain.push(win); seen.add(win.key); at = win.key
+      at = cands[0]
+      chain.push(at); visited.add(at.key)
     }
     return { chain, head: chain.at(-1) ?? null }
   }

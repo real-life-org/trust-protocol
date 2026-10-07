@@ -804,9 +804,10 @@ What a later branch can change is closed and listed in Section 3.6
 — the remaining fork pairing, a dissolution lapsing beside an
 enforcement or prevailing over additive operations, the removal
 disposition, a removal with authority taking effect, the
-canonical walk of the `anchor.rotate` entries, where a differing
-entry with the same `prev` stays valid but not canonical
-(RLTP-ACC-5965),
+canonical walk of the `anchor.rotate` entries, where an entry the
+walk does not visit — the loser among candidates with the same
+`prev` or among first entries, and everything only beyond it —
+stays valid but not canonical (RLTP-ACC-5965),
 and the revision of a terminality-by-emptiness verdict (5.4) —
 and nothing else; an open list would let a merge revoke an
 admission whose welcome was already delivered. Same-subject
@@ -1114,7 +1115,8 @@ the value folded last and first-bound-wins across anchors per 5.2.
 | `member.leave` ∥ `member.remove`, same subject | gone either way; the removal's transition governs (RLTP-ACC-3505) |
 | `member.leave` ∥ `member.leave` | both merge (RLTP-ACC-3510) |
 | `service-identity.announce` ∥ additive | union; folded-last per anchor (RLTP-ACC-3515) |
-| `anchor.rotate` ∥ `anchor.rotate`, same `rotation.body.prev` | JCS-identical `rotation.body`: one entry, idempotent; differing bodies: the smaller `id` canonical with every entry reachable from it, the other and every entry reachable only from it valid but not canonical (RLTP-ACC-5965) |
+| `anchor.rotate` ∥ `anchor.rotate`, same `rotation.body.prev` | JCS-identical `rotation.body`: one entry, idempotent; differing bodies: where the walk reaches them as candidates at one step (the root or a head), the smaller entry `id` is visited and canonical, the other valid but not canonical; each later choice is made at the head the walk then stands on (RLTP-ACC-5965) |
+| `anchor.rotate` ∥ `anchor.rotate`, both first entries (no canonical `anchor.rotate` in either ancestor closure), differing `rotation.body.prev` | candidates at the root: the smaller entry `id` is visited and canonical; the other is valid and canonical only if the walk later reaches it as a candidate (its `prev` equals the `next` of a visited head), otherwise valid but not canonical (RLTP-ACC-5965) |
 | `anchor.rotate` ∥ any other non-terminal operation | both take effect; a removal of its author disposes it like every additive (RLTP-ACC-3425, 3435, 3400) |
 | `anchor.rotate` ∥ terminal operation | as every additive: the terminal operation prevails — a canonical `group.dissolve` and a last-member `member.leave` displace it (RLTP-ACC-3465, 3470) |
 
@@ -2880,24 +2882,31 @@ of this section is evaluated.
 `rotation.body.next` of the lineage head in the operation's
 ancestor closure, or be unconstrained where that closure holds no
 canonical `anchor.rotate`. The lineage head of a set of operations
-is the last canonical entry of the walk of RLTP-ACC-5965 over that
-set.
+is the last entry the walk of RLTP-ACC-5965 visits over that set.
 
 **RLTP-ACC-5965** — The validity of an `anchor.rotate` MUST be
 judged per RLTP-ACC-3325 against its own ancestor closure
-(RLTP-ACC-5950, 5955, 5960). At materialization the lineage MUST be
-walked from its first canonical entry: valid operations with
-JCS-identical `rotation.body` and the same `prev` are one entry
-(idempotent, RLTP-ACC-3475), each canonical, a repeat with no
-further effect; where two candidate entries share the same `prev`,
-or are both first entries (their ancestor closures hold no
-canonical `anchor.rotate`), the entry holding the smaller operation
-`id` in unsigned bytewise order, and every entry reachable from it,
-MUST be canonical, while the other and every entry reachable only
-from it MUST remain valid but MUST NOT be canonical (RLTP-ACC-3345;
-the pattern of RLTP-ACC-5240). An entry is reachable from the
-entry that is the lineage head of its operations' ancestor
-closure, and transitively from that one's.
+(RLTP-ACC-5950, 5955, 5960). An *entry* is a `rotation.body`: the
+valid operations carrying JCS-identical `rotation.body` are one entry
+(idempotent, RLTP-ACC-3475), and the entry's `id` is the smallest
+`id` among them. At materialization the lineage MUST be walked over
+the operations at hand, and in no other way:
+
+1. The walk starts at a virtual root. At the root the candidates are
+   the *first entries*: the entries carried by a valid
+   `anchor.rotate` whose ancestor closure holds no canonical
+   `anchor.rotate`.
+2. At a chosen head the candidates are the entries, not yet visited,
+   whose `prev` equals the head's `next`.
+3. Of the distinct candidates, the one with the smaller `id` in
+   unsigned bytewise order is chosen and becomes the new head.
+4. Steps 2 and 3 repeat until no candidate remains.
+
+Exactly the visited entries MUST be canonical: every operation
+carrying one, the one with the entry's `id` its representative and
+the others repeats with no further effect. Every other valid
+`anchor.rotate` MUST remain valid and MUST NOT be canonical
+(RLTP-ACC-3345; the pattern of RLTP-ACC-5240).
 
 **RLTP-ACC-5970** — An `anchor.rotate` MUST NOT change the roster,
 the epoch, any binding of 5.1 or 5.2, any policy, or any
@@ -2922,7 +2931,10 @@ stays a function of the ancestor closure, as everywhere in this
 layer; only canonicity is decided over the merged log, so a
 successor written on a branch that later loses keeps its validity
 and loses only its effect — the lineage head, which is what
-RLTP-ACC-5960 and the holder's mapping read. The log stays
+RLTP-ACC-5960 and the holder's mapping read. The walk decides one
+head at a time: an entry beneath a head that won its own choice can
+still lose the next one, so canonicity is "visited", never
+"reachable from a winner". The log stays
 unreadable to non-members; the contact-facing proof is the same
 artifact, re-signed by nobody, carried by the mapping.
 
@@ -5512,7 +5524,10 @@ in both directions.
   bodies with the same `prev`, the smaller `id` canonical and the
   other valid but not canonical; a delayed merge with a successor on
   the losing branch (valid, not canonical); successors on both
-  branches; a successor written after the merge.
+  branches; a successor written after the merge; a nested fork (a
+  second choice under the head that won the first); two first
+  entries with different `prev`, one the walk never reaches and one
+  it reaches as the winner's successor.
 - `vectors/dtg-credentials.json` — `vouch@2` and invite forms,
   digests, member-anchor derivations, and `u`/`z` equivalence: the
   `linear/0.1` epoch-secret derivation and both associated-data

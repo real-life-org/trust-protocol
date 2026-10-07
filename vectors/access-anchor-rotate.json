@@ -3,7 +3,7 @@
  "format": {
   "operations": "real rltp-access/0.25 envelopes by label (id = oid: + base64url SHA-256 of JCS with id empty and proof omitted; signatures over the same bytes); `add` is a STATE FIXTURE (see its note)",
   "cases": "per case the operations of the log (`ops`, labels) and the expected materialization: status per anchor.rotate (canonical | valid — valid but not canonical, 3345 | invalid), the repeats (JCS-identical bodies: one entry, its smallest id the representative, the others canonical with no further effect), the canonical chain (the representatives in walk order), the head (the next anchor of the last canonical entry, null if none), and the state, which no anchor.rotate changes (5970)",
-  "order": "validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Canonicity over the log at hand (5965): walked from the first canonical entry; among competing entries (same prev, or both first entries) the one with the smaller representative id is canonical with every entry reachable from it, the others and every entry reachable only from them stay valid but not canonical"
+  "order": "validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Canonicity over the log at hand (5965): from a virtual root, whose candidates are the first entries (carried by a valid operation whose ancestor closure holds no canonical anchor.rotate), and then at each chosen head, whose candidates are the entries not yet visited with prev = the head's next, the candidate with the smaller representative id is visited and becomes the head, until no candidate remains; exactly the visited entries (with their repeats) are canonical, every other valid anchor.rotate stays valid but not canonical"
  },
  "personalCommunity": {
   "genesisDigest": "uEiCa0niNiKcNUW_IQ-T4kc4CwrEVTGDGJxnoMAKEGRftfw",
@@ -312,6 +312,40 @@
      {
       "signer": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
       "sig": "z38GY194kFk8NhBcEdFY639qMZb9opTiKNANC7BCXJAS8cE5zpUaSb9PuxcpJmfyyE65pog1QJvNTSiw2m7iTN2So"
+     }
+    ]
+   }
+  },
+  "rot4first": {
+   "v": "rltp-access/0.25",
+   "group": "did:key:z6MkovASjhDKiewadZrw9cvrTexjPzUygL2huVTyz94JUQj6",
+   "epoch": 0,
+   "policyVersion": 1,
+   "id": "oid:gjz7EI0-2g-MN6mv1l0zC67ABjTd8gd-oHmjMQzIALY",
+   "author": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+   "op": "anchor.rotate",
+   "prev": [
+    "oid:mtJ4jYinDVFvyEPk-JHOAsKxFUxgxicZ6DAChBkX7X8"
+   ],
+   "body": {
+    "rotation": {
+     "body": {
+      "type": "anchor-rotation@1",
+      "prev": "did:key:z6MkoQiyTBAQE7m7tUu8WynzUGLzvmLbL2RATHj9PuWrFtGr",
+      "next": "did:key:z6MksUkydbKG6wySeMYY8LLod7QN9E5WrcXHgRoN8s1GVMdS"
+     },
+     "proof": {
+      "proofValue": "zCMcV3fQQd4cjLN2zf3FxmWv6jZs1supoTCtMhCeKAJehtwWEs1gRCmND1ENK7gqU5jBs3HgGNKXJtTwDLuCe5Wm",
+      "successorProofValue": "zkLzCDLuZo7REGK2LKBGzkn7ToBAhY2QwcAF78NnXT9eXG1Zp9LddNTVhBPcBbSoh4876u3BTt2spW2bva1HHSnH"
+     }
+    }
+   },
+   "proof": {
+    "mechanism": "signature-set",
+    "signatures": [
+     {
+      "signer": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+      "sig": "z622wTmZpgNiyMb4fUCH7j8GYYbEjDC48NGneySEXR4Lnx2MzuHvd2wk4gnfo5qFEfdeThdzbfjhWxYsZgRpjmmLo"
      }
     ]
    }
@@ -896,6 +930,106 @@
     "chain": [
      "rot2",
      "rot3"
+    ],
+    "head": {
+     "anchor": "did:key:z6MkoQiyTBAQE7m7tUu8WynzUGLzvmLbL2RATHj9PuWrFtGr"
+    },
+    "state": {
+     "members": [
+      "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ"
+     ],
+     "epoch": 0,
+     "policyVersion": 1
+    }
+   }
+  },
+  {
+   "name": "nested-fork",
+   "rules": [
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "join",
+    "rot2",
+    "rot2foreignAfterJoin",
+    "rot3",
+    "rot4skip"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "canonical",
+     "rot2foreignAfterJoin": "valid",
+     "rot4skip": "canonical",
+     "rot3": "valid"
+    },
+    "repeat": [],
+    "chain": [
+     "rot2",
+     "rot4skip"
+    ],
+    "head": {
+     "anchor": "did:key:z6MksUkydbKG6wySeMYY8LLod7QN9E5WrcXHgRoN8s1GVMdS"
+    },
+    "state": {
+     "members": [
+      "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ"
+     ],
+     "epoch": 0,
+     "policyVersion": 1
+    }
+   }
+  },
+  {
+   "name": "first-entries-differing-prev",
+   "rules": [
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "rot2",
+    "rot4first"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "canonical",
+     "rot4first": "valid"
+    },
+    "repeat": [],
+    "chain": [
+     "rot2"
+    ],
+    "head": {
+     "anchor": "did:key:z6MkoA21eCA3mqn9NhzDoyxSCupk2Q9cqfVizw3ntMnNSypM"
+    },
+    "state": {
+     "members": [
+      "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ"
+     ],
+     "epoch": 0,
+     "policyVersion": 1
+    }
+   }
+  },
+  {
+   "name": "first-entries-the-walk-reaches-later",
+   "rules": [
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "rot2",
+    "rot3first"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "canonical",
+     "rot3first": "canonical"
+    },
+    "repeat": [],
+    "chain": [
+     "rot2",
+     "rot3first"
     ],
     "head": {
      "anchor": "did:key:z6MkoQiyTBAQE7m7tUu8WynzUGLzvmLbL2RATHj9PuWrFtGr"

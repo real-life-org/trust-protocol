@@ -18,7 +18,10 @@
 //   vectors/group-star.json           a sender in two groups, recipients
 //                                     current members of one: hit + open
 //                                     (trusted), hit with filler
-//                                     (untrusted), miss, all-filler star
+//                                     (untrusted), miss, all-filler star;
+//                                     a group joined through an ordinary
+//                                     admission (the member.add of
+//                                     membership-tasks.json)
 //   vectors/access-anchor-rotate.json real envelopes of a personal
 //                                     community's log: a chain, a first
 //                                     entry with any prev, a derivation
@@ -28,7 +31,8 @@
 //                                     delayed merge with a successor on
 //                                     the losing branch, a successor after
 //                                     the merge, a rotation that does not
-//                                     verify
+//                                     verify, a nested fork, two first
+//                                     entries with different prev
 //
 // Deterministic: keys derive from the oracle IKM of
 // vectors/identity-derivation.json (and its second-party IKM, as in
@@ -247,10 +251,22 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     { group: G1, sealed, member: P.SG1, memberOp: genesis.id },
     { group: G2, sealed, member: SG2, memberOp: opG2 },
   ]
+  // G4: a group the sender JOINED through an ordinary canonical admission —
+  // the real member.add of vectors/membership-tasks.json, whose subject is
+  // the oracle IKM under group/<G4> (Access 5.1) and whose accept card
+  // carries the key-agreement key the pair proof is checked under
+  const MT = J('vectors/membership-tasks.json')
+  const G4 = MT.genesisDigest
+  const admissionG4 = MT.payload.operation
+  const SG4 = await L.labeledContext(IKM, 'group/' + G4)
+  const acceptCardG4 = admissionG4.body.admission.accept.payload.accept.card
+  assert(admissionG4.op === 'member.add' && SG4.anchor === admissionG4.body.subject && acceptCardG4.anchor === SG4.anchor && acceptCardG4.keyAgreement === SG4.keyAgreement, 'G4: the admission admits the sender\'s member anchor under its accept card')
+  const TG4 = await L.labeledContext(IKM2, 'group/' + G4)          // the recipient's member anchor in G4 (fixture)
   const trusted = await V.buildGroupStar({ own: P.S_T, to: P.T_S.anchor, toKeyAgreement: P.T_S.keyAgreement, salt: '1', groups: listed(true), rand: entropy('trusted') })
+  const admitted = await V.buildGroupStar({ own: P.S_T, to: P.T_S.anchor, toKeyAgreement: P.T_S.keyAgreement, salt: '4', groups: [{ group: G4, sealed: true, member: SG4, memberOp: admissionG4.id }], rand: entropy('admission') })
   const untrusted = await V.buildGroupStar({ own: P.S_U, to: P.U_S.anchor, toKeyAgreement: P.U_S.keyAgreement, salt: '1', groups: listed(false), rand: entropy('untrusted') })
   const allFiller = await V.buildGroupStar({ own: P.S_T, to: P.T_S.anchor, toKeyAgreement: P.T_S.keyAgreement, salt: '2', groups: [], rand: entropy('all-filler') })
-  for (const s of [trusted, untrusted, allFiller]) for (const c of s.chunks) mustValidate(c, 'visibility-group-star.schema.json', 'group star')
+  for (const s of [trusted, untrusted, allFiller, admitted]) for (const c of s.chunks) mustValidate(c, 'visibility-group-star.schema.json', 'group star')
   const member = (members) => ({ group: G1, isMember: (a) => members.includes(a), resolve: (oid) => oid === genesis.id ? { subject: genesis.body.members[0], keyAgreement: genesis.body.card.keyAgreement } : null })
   const stateG1 = { members: [P.SG1.anchor, TG1.anchor, UG1.anchor] }
   const run = async (star, own, from, memberships) => {
@@ -259,17 +275,23 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     return V.openGroupStar({ own, from: from.anchor, fromKeyAgreement: from.keyAgreement, salt: asm.salt, entries: asm.entries, memberships })
   }
   const missG3 = { group: G3, isMember: () => true, resolve: () => null }
+  const memberG4 = (members) => ({ group: G4, isMember: (a) => members.includes(a), resolve: (oid) => oid === admissionG4.id ? { subject: admissionG4.body.subject, keyAgreement: acceptCardG4.keyAgreement } : null })
+  const stateG4 = { members: [MT.genesis.body.members[0], SG4.anchor, TG4.anchor].sort() }
   const cases = [
     { name: 'hit-open-trusted', star: 'trusted', recipient: 'T_S', from: 'S_T', memberships: ['G1'], state: 'stateG1', result: await run(trusted, P.T_S, P.S_T, [member(stateG1.members)]) },
     { name: 'hit-filler-untrusted', star: 'untrusted', recipient: 'U_S', from: 'S_U', memberships: ['G1'], state: 'stateG1', result: await run(untrusted, P.U_S, P.S_U, [member(stateG1.members)]) },
     { name: 'miss', star: 'trusted', recipient: 'T_S', from: 'S_T', memberships: ['G3'], state: null, result: await run(trusted, P.T_S, P.S_T, [missG3]) },
     { name: 'all-filler', star: 'allFiller', recipient: 'T_S', from: 'S_T', memberships: ['G1'], state: 'stateG1', result: await run(allFiller, P.T_S, P.S_T, [member(stateG1.members)]) },
     { name: 'pair-member-not-current', star: 'trusted', recipient: 'T_S', from: 'S_T', memberships: ['G1'], state: 'stateG1WithoutSender', result: await run(trusted, P.T_S, P.S_T, [member([TG1.anchor, UG1.anchor])]) },
+    { name: 'hit-open-ordinary-admission', star: 'admission', recipient: 'T_S', from: 'S_T', memberships: ['G4'], state: 'stateG4', result: await run(admitted, P.T_S, P.S_T, [memberG4(stateG4.members)]) },
+    { name: 'ordinary-admission-member-not-current', star: 'admission', recipient: 'T_S', from: 'S_T', memberships: ['G4'], state: 'stateG4WithoutSender', result: await run(admitted, P.T_S, P.S_T, [memberG4(stateG4.members.filter((m) => m !== SG4.anchor))]) },
   ]
   assert(cases[0].result[0].accepted && cases[0].result[0].member === P.SG1.anchor, 'trusted: accepted')
   assert(cases[1].result[0].hit && !cases[1].result[0].opened, 'untrusted: hit, filler')
   assert(!cases[2].result[0].hit && !cases[3].result[0].hit, 'miss, all-filler')
   assert(cases[4].result[0].opened && !cases[4].result[0].accepted && cases[4].result[0].reason === 'member', 'not current: rejected at the member check')
+  assert(cases[5].result[0].accepted && cases[5].result[0].member === SG4.anchor, 'ordinary admission: accepted under the accept card')
+  assert(cases[6].result[0].opened && !cases[6].result[0].accepted && cases[6].result[0].reason === 'member', 'ordinary admission, sender removed: rejected at the member check')
   // reception negatives (5.2b): a completed assembly of no positive multiple
   // of 16 entries, or with c of differing length — each a single chunk with a
   // genuine MAC under k_g of salt 3; the entries are those of a genuine star
@@ -296,13 +318,13 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
   }
   assert((await V.assembleGroupStar({ own: P.T_S, from: P.S_T.anchor, fromKeyAgreement: P.S_T.keyAgreement, chunks: base.chunks })).ok, 'the base star assembles')
   W('vectors/group-star.json', {
-    source: 'group-star@1 per Network Visibility 0.30 §5.2b, carried by the task group-star/0.1 (Delivery 0.80): a sender S in two groups (G1, which S founded under its founding pair context SG1 — memberOp is the genesis; G2, which S joined — its member anchor is group/<G2>, memberOp a placeholder admission oid) toward a trusted recipient T and an untrusted recipient U, both current members of G1 only. Keys derive from the oracle IKM of vectors/identity-derivation.json (pair contexts from the listed relationship nonces), T’s member anchor and the G1 group DID from its second-party IKM, U’s member anchor from a third-party IKM (HKDF(oracle IKM, \"rltp/vector/third-party-root-ikm\"), 64 bytes). Generated by scripts/gen-anchor-vectors.mjs from the library; re-derived by conformance/runner.mjs.',
+    source: 'group-star@1 per Network Visibility 0.30 §5.2b, carried by the task group-star/0.1 (Delivery 0.80): a sender S in two groups (G1, which S founded under its founding pair context SG1 — memberOp is the genesis; G2, which S joined — its member anchor is group/<G2>, memberOp a placeholder admission oid) toward a trusted recipient T and an untrusted recipient U, both current members of G1 only; and, toward T under salt 4, G4, which S joined through an ordinary canonical admission — the real member.add of vectors/membership-tasks.json — and T is a member of. Keys derive from the oracle IKM of vectors/identity-derivation.json (pair contexts from the listed relationship nonces), T’s member anchor and the G1 group DID from its second-party IKM, U’s member anchor from a third-party IKM (HKDF(oracle IKM, \"rltp/vector/third-party-root-ikm\"), 64 bytes). Generated by scripts/gen-anchor-vectors.mjs from the library; re-derived by conformance/runner.mjs.',
     format: {
       keys: 'k_g = HKDF(X25519(pairX_sender, pairX_recipient), "rltp/visibility/blind/group-star/" || senderPair || "/" || recipientPair || "/" || salt); k_e(G) = HKDF(same ikm, "rltp/visibility/seal/group-star/" || senderPair || "/" || recipientPair || "/" || salt || "/" || G); salt in its wire string form, G the 47-character u form of the genesis digest',
       entry: 'd = HMAC(k_g, UTF-8 of G) in the mac encoding; c = u + base64url(nonce(12) || AES-256-GCM ciphertext || tag(16)) under k_e(G), AAD = the bytes of the d string, plaintext the JCS bytes of a group-pair@1 — or filler: random bytes of exactly the length of a real c of this star (every field of a group pair but salt has a fixed length); padding entries carry a random 32-byte d',
       pair: 'group-pair@1 = { type, group, member, memberOp, to, salt, proof }, proof = HMAC(HKDF(ECDH(memberX_sender, pairX_recipient), "rltp/visibility/mac/group-pair"), JCS(pair without proof)); memberX_sender is the key-agreement key of the card in the operation memberOp names (here the genesis card)',
       star: 'entries padded to the next positive multiple of 16 (none listed: 16 filler), sorted by d once, sliced into chunks of at most 64; proof.mac = HMAC(k_g, JCS(body))',
-      cases: 'the recipient assembles the star of `star` from `from`, tests each group of `memberships` (groups it is a current member of, with the materialized state `state`) and expects `result` per group: hit (d in the union), opened (c opens under k_e(G)), accepted (the reception checks of 5.2b in order: schema, group, to/salt, memberOp names the genesis whose members[0] is member and member is current, MAC), reason (the failing check)',
+      cases: 'the recipient assembles the star of `star` from `from`, tests each group of `memberships` (groups it is a current member of, with the materialized state `state`) and expects `result` per group: hit (d in the union), opened (c opens under k_e(G)), accepted (the reception checks of 5.2b in order: schema, group, to/salt, memberOp names a canonical admission of member — the genesis whose members[0] is member (G1), or an ordinary member.add whose subject is member, under its accept card (G4) — and member is current, MAC), reason (the failing check)',
       entropy: `AEAD nonces and filler bytes: HKDF-SHA-256(oracle IKM, salt empty, info "${ENTROPY}/<star>/<counter>"), in draw order — a stand-in for the CSPRNG; any entropy reproduces every check except the byte identity of the filler`,
     },
     parties: Object.fromEntries(Object.entries(parties).map(([k, b]) => [k, { relationshipNonce: hexOf(nonce(b)), ...pub(P[k]) }])),
@@ -315,12 +337,15 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
       G1: { genesisDigest: G1, genesis, note: 'a real group.genesis founded by SG1; genesisDigest = multihash over its signature input (RLTP-ACC-3030); serviceIdentity, keyOpDigest and contentKeyCommitment are stand-ins' },
       G2: { genesisDigest: G2, preimage: 'rltp/vectors/group-star/genesis/G2', member: pub(SG2), memberOp: opG2, memberOpPreimage: 'rltp/vectors/group-star/admission/G2', note: 'documented samples: neither recipient is a member of G2, nobody resolves its admission' },
       G3: { genesisDigest: G3, preimage: 'rltp/vectors/group-star/genesis/G3', note: 'a group the recipient is in and the sender is not' },
+      G4: { genesisDigest: G4, member: pub(SG4), memberOp: admissionG4.id, admission: admissionG4, note: 'the group of vectors/membership-tasks.json, which the sender JOINED: memberOp names its ordinary canonical admission (the real member.add of that vector, copied here; its genesis digest and id recompute from that vector), whose subject is the sender\'s member anchor group/<G4> under the oracle IKM and whose accept card carries the key-agreement key the pair proof is checked under' },
     },
     states: {
       stateG1: { group: 'G1', members: stateG1.members, note: 'the recipients’ materialized membership of G1 (fixture: the recipients’ admissions lie outside this vector); the genesis resolves memberOp' },
       stateG1WithoutSender: { group: 'G1', members: [TG1.anchor, UG1.anchor], note: 'the same state after a removal of SG1: member is no current member' },
+      stateG4: { group: 'G4', members: stateG4.members, note: 'the recipient\'s materialized membership of G4: the founder, the sender admitted by the member.add memberOp names (canonical, per vectors/membership-tasks.json) and the recipient (fixture: its admission lies outside this vector, its member anchor derives under the second-party IKM)' },
+      stateG4WithoutSender: { group: 'G4', members: stateG4.members.filter((m) => m !== SG4.anchor), note: 'the same state after a removal of the sender' },
     },
-    stars: { trusted: trusted.chunks, untrusted: untrusted.chunks, allFiller: allFiller.chunks },
+    stars: { trusted: trusted.chunks, untrusted: untrusted.chunks, allFiller: allFiller.chunks, admission: admitted.chunks },
     cases,
     assemblyNegatives: { note: 'reception (5.2b): a completed assembly MUST have a positive multiple of 16 entries and every c of one assembly the same length, else the delivery is rejected. Each negative is one chunk from S_T to T_S under salt 3 with a genuine MAC under k_g; its entries are those of a genuine 16-entry star (base) — cut to 1 or 15, extended by one entry of the common c length to 17, or with one c three bytes longer', base: base.chunks, cases: assemblyNegatives },
   })
@@ -341,6 +366,7 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     r23: await V.makeAnchorRotation(cg[1], cg[2]),
     r24: await V.makeAnchorRotation(cg[1], cg[3]),
     r13: await V.makeAnchorRotation(cg[0], cg[2]),
+    r34: await V.makeAnchorRotation(cg[2], cg[3]),
     r12x: await V.makeAnchorRotation(cg[0], foreign2),
     r2x3x: await V.makeAnchorRotation(foreign2, foreign3),
     r2n: await V.makeAnchorRotation(cg[1], n1),
@@ -359,6 +385,7 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
   await rotate('rot4skip', r.r24, ['rot2'])
   await rotate('rotNewCommunity', r.r2n, ['rot2'])
   await rotate('rot3first', r.r23, ['genesis'])
+  await rotate('rot4first', r.r34, ['genesis'])
   await rotate('rot3prevBreak', r.r13, ['rot2'])
   await rotate('rot2afterAdd', r.r12, ['add'])
   await rotate('rot2afterJoin', r.r12, ['join'])
@@ -372,6 +399,10 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
   const fLose = fWin === 'rot2' ? 'rot2foreignAfterJoin' : 'rot2'
   const succOf = { rot2: 'rot3', rot2foreignAfterJoin: 'rot3onForeign' }
   await rotate('rot3afterMerge', fWin === 'rot2' ? r.r23 : r.r2x3x, ['rot2', 'rot2foreignAfterJoin'])
+  // the nested fork: a second choice under the head that won the first
+  // (the two children of the winner, same prev, differing bodies)
+  if (fWin !== 'rot2') await rotate('rot4skipOnForeign', await V.makeAnchorRotation(foreign2, await L.communityContext(IKM2, Dpc, 4)), ['rot2foreignAfterJoin'])
+  const nestedKids = fWin === 'rot2' ? ['rot3', 'rot4skip'] : ['rot3onForeign', 'rot4skipOnForeign']
   mustFail({ ...ops.rot2, body: { lineage: r.r12 } }, 'access-operation-envelope.schema.json', 'body field lineage')
   ops.rot2bad = (await envelope({ ...base, op: 'anchor.rotate', prev: [genesis.id], body: { rotation: r.r12bad } }, [founder])).op
   mustValidate(ops.rot2bad, 'access-operation-envelope.schema.json', 'rot2bad (shape)')
@@ -391,6 +422,9 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     { name: 'same-prev-differing', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid' }, repeat: [], chain: [fWin], head: head(fWin), state } },
     { name: 'delayed-merge-successor-on-losing-branch', rules: ['RLTP-ACC-3325', 'RLTP-ACC-5960', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', succOf[fLose]], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', [succOf[fLose]]: 'valid' }, repeat: [], chain: [fWin], head: head(fWin), state } },
     { name: 'successors-on-both-branches', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', 'rot3', 'rot3onForeign'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', [succOf[fWin]]: 'canonical', [succOf[fLose]]: 'valid' }, repeat: [], chain: [fWin, succOf[fWin]], head: head(succOf[fWin]), state } },
+    { name: 'nested-fork', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', ...nestedKids], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', [lower(...nestedKids)]: 'canonical', [higher(...nestedKids)]: 'valid' }, repeat: [], chain: [fWin, lower(...nestedKids)], head: head(lower(...nestedKids)), state } },
+    { name: 'first-entries-differing-prev', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'rot2', 'rot4first'], expect: { status: { [lower('rot2', 'rot4first')]: 'canonical', [higher('rot2', 'rot4first')]: 'valid' }, repeat: [], chain: [lower('rot2', 'rot4first')], head: head(lower('rot2', 'rot4first')), state } },
+    { name: 'first-entries-the-walk-reaches-later', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'rot2', 'rot3first'], expect: lower('rot2', 'rot3first') === 'rot2' ? { status: { rot2: 'canonical', rot3first: 'canonical' }, repeat: [], chain: ['rot2', 'rot3first'], head: head('rot3first'), state } : { status: { rot2: 'valid', rot3first: 'canonical' }, repeat: [], chain: ['rot3first'], head: head('rot3first'), state } },
     { name: 'successor-after-the-merge', rules: ['RLTP-ACC-3325', 'RLTP-ACC-5960', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', 'rot3afterMerge'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', rot3afterMerge: 'canonical' }, repeat: [], chain: [fWin, 'rot3afterMerge'], head: head('rot3afterMerge'), state } },
   ]
   // self-check against the oracle the runner uses
@@ -404,7 +438,7 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     format: {
       operations: 'real rltp-access/0.25 envelopes by label (id = oid: + base64url SHA-256 of JCS with id empty and proof omitted; signatures over the same bytes); `add` is a STATE FIXTURE (see its note)',
       cases: 'per case the operations of the log (`ops`, labels) and the expected materialization: status per anchor.rotate (canonical | valid — valid but not canonical, 3345 | invalid), the repeats (JCS-identical bodies: one entry, its smallest id the representative, the others canonical with no further effect), the canonical chain (the representatives in walk order), the head (the next anchor of the last canonical entry, null if none), and the state, which no anchor.rotate changes (5970)',
-      order: 'validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Canonicity over the log at hand (5965): walked from the first canonical entry; among competing entries (same prev, or both first entries) the one with the smaller representative id is canonical with every entry reachable from it, the others and every entry reachable only from them stay valid but not canonical',
+      order: 'validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Canonicity over the log at hand (5965): from a virtual root, whose candidates are the first entries (carried by a valid operation whose ancestor closure holds no canonical anchor.rotate), and then at each chosen head, whose candidates are the entries not yet visited with prev = the head\'s next, the candidate with the smaller representative id is visited and becomes the head, until no candidate remains; exactly the visited entries (with their repeats) are canonical, every other valid anchor.rotate stays valid but not canonical',
     },
     personalCommunity: { genesisDigest: Dpc, founder: pub(founder), founderRelationshipNonce: hexOf(nonce(0x5c)), generations: Object.fromEntries(cg.map((c, i) => [i + 1, pub(c)])), foreignGenerations: { 2: { ...pub(foreign2), note: 'group/<genesisDigest>/2 under the second-party IKM: a different seed' }, 3: { ...pub(foreign3), note: 'group/<genesisDigest>/3 under the second-party IKM' } }, newCommunity: { genesisDigest: Dnew, preimage: 'rltp/vectors/access-anchor-rotate/new-personal-community', generation1: pub(n1), note: 'generation 1 of a new personal community of the same holder: after a lost register the holder rotates onto it (Identity 9.3)' }, secondMember: second },
     operations: ops,
