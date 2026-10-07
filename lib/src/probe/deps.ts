@@ -78,6 +78,10 @@ export interface Person {
   queue: any[]
   log: string[]
   communityGenesis: string
+  /** the head of the community anchor's generations in the label register (Identity §5.4); absent = 1 */
+  communityGeneration?: number
+  /** the anchor-rotation@1 artifacts from generation 2 to the current one (Visibility §6.5) */
+  lineage?: any[]
   selfCtx?: Context
   starInfo?: any
   /** digests of COMPLETED effects (Delivery §4 stage 4) — rejections are never cached */

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "body",
+    "proof"
+  ],
+  "properties": {
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "prev",
+        "next",
+        "generation"
+      ],
+      "properties": {
+        "type": {
+          "const": "anchor-rotation@1"
+        },
+        "prev": {
+          "type": "string",
+          "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+          "description": "the community anchor at generation g (Identity 5.4)"
+        },
+        "next": {
+          "type": "string",
+          "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+          "description": "the community anchor at generation g + 1"
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^([2-9]|[1-9][0-9]{1,17})$",
+          "description": "int-string: the generation of next, at least 2 (generation 1 is group/<digest>); the domain ends at 2^53 - 1 (Identity 5.4), checked by the verifier"
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proofValue",
+        "successorProofValue"
+      ],
+      "properties": {
+        "proofValue": {
+          "type": "string",
+          "pattern": "^z[1-9A-HJ-NP-Za-km-z]{64,88}$",
+          "description": "raw Ed25519 under prev over the canonical (JCS) bytes of body, z-base58btc"
+        },
+        "successorProofValue": {
+          "type": "string",
+          "pattern": "^z[1-9A-HJ-NP-Za-km-z]{64,88}$",
+          "description": "raw Ed25519 under next over the same bytes"
+        }
+      }
+    }
+  },
+  "title": "RLTP anchor-rotation@1 (rltp-visibility@0.30)",
+  "description": "The holder's statement that its community anchor moved from one generation to the next (Network Visibility 6.5, Identity 5.4): signed by both generations. It travels inside anchor-mapping@3 (lineage) and inside the anchor.rotate operation of the personal community's log (Access 5.6); it is never exported beyond those two (RLTP-ACC-5975)."
+}

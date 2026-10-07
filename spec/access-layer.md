@@ -3,27 +3,28 @@
 **Real Life Trust Protocol — Layer 3: Access**
 
 - **Status:** Editor's Draft
-- **Version:** 0.55.0-draft
+- **Version:** 0.56.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-06
+- **Date:** 2026-10-07
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-access@0.55` (draft). Wire forms:
+- **Conformance profile:** `rltp-access@0.56` (draft). Wire forms:
   the operation envelope `rltp-access/0.25`, key material and key
   distribution `/0.25`, the removal notice
   `rltp-access-removal-notice/0.25`, the service registration
-  `/0.27`, the unchanged forms `rltp-access-view/0.24` and
-  `rltp-access-member-mapping/0.24`, the session-plane evidence
+  `/0.27`, the unchanged form `rltp-access-view/0.24`, the
+  session-plane evidence
   forms `…/1` (3.6), the vouch (`vouch@2`, 5.3) as a W3C VC in
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
-- **Companions:** RLTP Identity 0.51 (securing profile, 2.3);
-  RLTP Encounter 0.30; RLTP Delivery Contract 0.79 (normative
+- **Companions:** RLTP Identity 0.52 (securing profile, 2.3);
+  RLTP Encounter 0.30; RLTP Delivery Contract 0.80 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
-  Membership Tasks 0.17 (the task types that transport this
-  layer's admission documents).
-- **Supersedes:** version 0.54 (archived as
-  `archive/access-layer-0.54.md`). Earlier versions: Appendix C.
+  Membership Tasks 0.18 (the task types that transport this
+  layer's admission documents); RLTP Network Visibility 0.30 (the
+  group pair, §5.2b, and the `anchor-rotation@1` artifact, §6.5).
+- **Supersedes:** version 0.55 (archived as
+  `archive/access-layer-0.55.md`). Earlier versions: Appendix C.
 
 ## Status of This Document
 
@@ -206,9 +207,10 @@ The names are those of the RLTP term register (`terms/rltp.skos.jsonld`).
 - **Member anchor** — the per-group context anchor under which one
   member acts in one group (5.1; DTG scope `directed`).
 - **Community anchor** — the anchor of a person's personal
-  community, an ordinary member anchor of Identity §6, serving as
-  the person's chosen cross-relationship coordinate; it appears in
-  no artifact of this layer except inside `member-mapping@1` (5.5).
+  community at its current generation (Identity §5.4), serving as
+  the person's chosen cross-relationship coordinate; it is a member
+  of no group, and it appears in no artifact of this layer except
+  inside the `rotation` of an `anchor.rotate` (5.6).
 - **Device card** — the signed binding of one device's key
   material to the member anchor of the person it belongs to (5.1).
 - **Authority log** — the append-only operation DAG rooted in the
@@ -705,8 +707,9 @@ pending exits (5.4) — except as RLTP-ACC-3300 to RLTP-ACC-3310
 state.
 
 **RLTP-ACC-3300** — `member.leave`, `service-identity.announce`,
-`device.add`, and a `device.revoke` whose subject is the author
-MUST be valid with the author's own signature alone.
+`device.add`, `anchor.rotate` (whose author is the sole member,
+5.6), and a `device.revoke` whose subject is the author MUST be
+valid with the author's own signature alone.
 
 **RLTP-ACC-3305** — A leave-discharging `epoch.rotate` and the
 last-member and drained `group.dissolve` MUST be valid with any
@@ -800,7 +803,9 @@ operation confers in the merged state. Same data, same verdict.
 What a later branch can change is closed and listed in Section 3.6
 — the remaining fork pairing, a dissolution lapsing beside an
 enforcement or prevailing over additive operations, the removal
-disposition, a removal with authority taking effect,
+disposition, a removal with authority taking effect, the
+smaller-id rule between differing concurrent `anchor.rotate`
+operations (RLTP-ACC-5965),
 and the revision of a terminality-by-emptiness verdict (5.4) —
 and nothing else; an open list would let a merge revoke an
 admission whose welcome was already delivered. Same-subject
@@ -1108,6 +1113,8 @@ the value folded last and first-bound-wins across anchors per 5.2.
 | `member.leave` ∥ `member.remove`, same subject | gone either way; the removal's transition governs (RLTP-ACC-3505) |
 | `member.leave` ∥ `member.leave` | both merge (RLTP-ACC-3510) |
 | `service-identity.announce` ∥ additive | union; folded-last per anchor (RLTP-ACC-3515) |
+| `anchor.rotate` ∥ `anchor.rotate`, equal `generation` | JCS-identical `rotation.body`: idempotent; differing bodies: the smaller `id` canonical, the other not (RLTP-ACC-5965) |
+| `anchor.rotate` ∥ any other operation | both take effect; a removal of its author disposes it like every additive (RLTP-ACC-3425, 3435, 3400) |
 
 *Rationale.* Every pairing in the table is decided by the
 authority verdict of its two sides and by nothing else: additive
@@ -1754,11 +1761,11 @@ table below.
 | `device.revoke` (a device of another member) | `strongest` |
 | `group.dissolve` (collective path) | `strongest` |
 
-`member.leave`, `service-identity.announce`, `device.add`, and the
-revocation of one's own device are self-authorized and have no rule
-key (RLTP-ACC-3300); the leave-discharging rotation and the
-last-member and drained dissolve are single-signature paths no
-policy overrides (RLTP-ACC-3305, 5.4).
+`member.leave`, `service-identity.announce`, `device.add`,
+`anchor.rotate`, and the revocation of one's own device are
+self-authorized and have no rule key (RLTP-ACC-3300); the
+leave-discharging rotation and the last-member and drained dissolve
+are single-signature paths no policy overrides (RLTP-ACC-3305, 5.4).
 
 **RLTP-ACC-4050** — A newly registered rule key MUST register its
 default rule with its definition (Section 11).
@@ -2052,6 +2059,7 @@ effect, and closed body profile that the following table states.
 | `device.revoke` | enforcement | **transition, atomic** | `subject` (the device's person), `device` (the digest of the revoked device card), `transition` |
 | `group.dissolve` | terminal | terminal | empty (three paths, 5.4) |
 | `service-identity.announce` | additive | none | `serviceIdentity` (5.2) |
+| `anchor.rotate` | additive | none | `rotation` (one `anchor-rotation@1` artifact, Network Visibility §6.5); valid only at a position of sole membership (5.6) |
 
 ¹ `member.leave` cannot carry a transition; it obligates one (5.4).
 ² a leave at a position of sole membership is the last-member
@@ -2136,7 +2144,8 @@ validated genesis digest MUST be re-encoded to its canonical `u`
 form, for the derivation only.
 
 **RLTP-ACC-5070** — A member's community anchor MUST NOT appear in
-any artifact of this layer other than `member-mapping@1` (5.5).
+any artifact of this layer other than the `rotation` of an
+`anchor.rotate` (5.6).
 
 *Rationale.* An anchor shared across groups would let anyone
 holding two rosters join a person across them. The conflict matrix
@@ -2148,7 +2157,7 @@ accepted encoding (Encounter 2.3); Identity §6 accepts exactly the
 whichever rendering carried it, and the signed artifact is never
 rewritten (RLTP-ACC-3050). Joining discloses a group-scoped
 identifier to the roster, never the coordinate that links a person
-across groups; crossing that boundary is the deliberate act of 5.5.
+across groups; crossing that boundary happens elsewhere (5.5).
 
 **RLTP-ACC-5080** — An anchor that a group's materialized
 membership already carries MUST remain a valid member anchor of
@@ -2166,8 +2175,8 @@ membership event ends the membership, and migrating the entry onto
 a `group/<genesis digest>` anchor is that group's own ordinary
 membership event. What the scoping property forbids is new use:
 such an anchor is visible across groups by construction, so for
-the groups that already carry it the pseudonymity of 5.5 was never
-established, and no further group may acquire it.
+the groups that already carry it the pseudonymity of membership
+was never established, and no further group may acquire it.
 
 **Devices.** A person acts from one or more devices. The authority
 port knows only the person; the key port holds key material per
@@ -2340,7 +2349,7 @@ the view identity set a single point of change per transition
 identity rotation after a key compromise ride the `epoch.rotate`
 that the compromise warrants anyway.
 
-*Editor's note (device × group).* Identity 0.51 derives the service
+*Editor's note (device × group).* Identity 0.52 derives the service
 identity per person and group (Identity §7, the information string
 `rltp/v1/service-identity/` followed by the canonical genesis
 digest) and reserves the `device/` prefix for a device-level
@@ -2833,94 +2842,69 @@ world, former members keep the last one as knowledge, services
 treat a terminal view per 7.3, and documents follow the Layer-4
 `dataPolicy` declared at attach time.
 
-### 5.5 `member-mapping@1` — the deliberate crossing of the group boundary
+### 5.5 The group boundary is crossed elsewhere
 
-Joining under a member anchor makes co-membership pseudonymous;
-this artifact is the one way the pseudonym is lifted — per
-co-member, deniably. It follows the class-V discipline of Network
-Visibility §3 (a link between two contexts of one person is
-designated-verifier, never transferable) and its §6 construction,
-with the anchor classes swapped.
+**RLTP-ACC-5880** — An artifact of this layer MUST NOT link a member
+anchor to any other context of its holder, the `anchor.rotate` of
+5.6 excepted. The one deliberate crossing of the group boundary is
+the group pair of Network Visibility §5.2b, which travels on the
+relationship channel of its addressee and never through a group
+space.
 
-Body: `{ "type": "member-mapping@1", "member": <the sender's own
-member anchor in this group>, "memberOp": <oid: of a canonical
-admission of `member` — or the genesis, where `member` is the
-founder>, "self": <the sender's community anchor — the field name
-is a frozen wire spelling>, "to": <the addressee's member anchor in
-the same group>, "toOp": <oid: of a canonical admission of `to` —
-or the genesis>, "card": <a self-card@1 per Network Visibility
-§6.2>, "revision": <int-string>, "issuedAt": <timestamp> }`, wire
-conventions per Network Visibility §2.1. Proof: `mac1` under
-`HKDF(ECDH(memberX_sender, memberX_addressee),
-"rltp/access/mac/member-map1")` and `mac2` under
-`HKDF(ECDH(selfX_sender, memberX_addressee),
-"rltp/access/mac/member-map2")`, both over the canonical body
-bytes. Schema: `schemas/member-mapping.schema.json`
-(`rltp-access-member-mapping/0.24`).
+*Rationale.* Pseudonymity of membership holds only if the crossing
+is one artifact, addressed to one person, deniable, and outside the
+group. The visibility layer owns that artifact; this layer owns the
+roster the artifact points into.
 
-**RLTP-ACC-5880** — `member-mapping@1` MUST be the only artifact of
-this layer that links a member anchor to a community anchor.
+### 5.6 `anchor.rotate` — the lineage entry
 
-**RLTP-ACC-5890** — A `member-mapping@1` body MUST carry exactly the
-fields listed above, naming by `memberOp` and `toOp` the admissions,
-or the genesis, whose enclosed cards supply the key-agreement keys.
+Body: `{ "rotation": <anchor-rotation@1 artifact> }`. The artifact is
+the holder's own statement that its community anchor moved from one
+generation to the next (Identity §5.4); the log of the holder's
+personal community carries it so that the holder's own replicas,
+and later readers of that space, hold the lineage where the
+holder's state lives. It is a record, not an authority change.
 
-**RLTP-ACC-5900** — A `member-mapping@1` proof MUST be the `mac1` and
-`mac2` pair as defined above, computed with exactly the
-key-agreement keys of the cards enclosed in the operations
-`memberOp` and `toOp` name (the genesis card for a founder side).
+**RLTP-ACC-5950** — An `anchor.rotate` MUST be valid only at a
+position where its author is the sole member.
 
-**RLTP-ACC-5910** — The addressee MUST accept a `member-mapping@1`
-only if the following checks pass, in order:
+**RLTP-ACC-5955** — The body of an `anchor.rotate` MUST be exactly
+`rotation`, and `rotation` MUST verify as an `anchor-rotation@1` under
+both of its own signatures (Network Visibility §6.5) before any rule
+of this section is evaluated.
 
-1. envelope and schema valid, `type` implemented;
-2. `to` equals the addressee's own member anchor of this group, and
-   `toOp` names a canonical admission whose subject is `to` — or
-   the genesis whose `body.members[0]` is `to` — and whose enclosed
-   card is the addressee's own;
-3. `memberOp` names a canonical admission whose subject is `member`
-   — or the genesis, whose `body.members[0]` is `member` — in this
-   group's log, and `member` is a current member of the
-   addressee's materialized state;
-4. the card verifies as `self-card@1` under its own anchor and
-   `card.anchor == self`;
-5. `mac1`'s keys are the key-agreement keys of the cards named by
-   `memberOp` and `toOp`, and `mac2`'s addressee-side key is the
-   `toOp` card's;
-6. both ECDH outputs are non-zero and both MACs verify;
-7. `revision` per the generic revision rule of Network Visibility
-   §6.4, scoped per (`member`, `to`): higher wins; equal and
-   JCS-identical is idempotent; equal and different is an
-   equivocation error; lower is rejected.
+**RLTP-ACC-5960** — `rotation.body.generation` MUST be `2` for the
+first canonical `anchor.rotate` of a log and exactly one greater
+than that of the previous canonical `anchor.rotate` otherwise, and
+`rotation.body.prev` MUST equal the previous canonical entry's
+`rotation.body.next`; the first entry's `prev` is unconstrained.
 
-**RLTP-ACC-5920** — A `member-mapping@1` MUST NOT be published into
-the group space.
+**RLTP-ACC-5965** — Concurrent `anchor.rotate` operations with equal
+`generation` and JCS-identical `rotation.body` MUST be idempotent:
+each is canonical, and a repeat has no further effect. Where the
+bodies differ, the operation with the smaller `id` in unsigned
+bytewise order MUST be canonical, and the other MUST NOT be
+canonical.
 
-**RLTP-ACC-5930** — A verified mapping MUST be merged
-holder-locally only, per Network Visibility §6a.1.
+**RLTP-ACC-5970** — An `anchor.rotate` MUST NOT change the roster,
+the epoch, any binding of 5.1 or 5.2, any policy, or any
+authorization view (7.3).
 
-**RLTP-ACC-5940** — A new linkage mechanism MUST enter as a new
-registration under a new version of this type, under the same
-acceptance contract.
+**RLTP-ACC-5975** — A replica MUST NOT export an `anchor.rotate` or
+its `rotation` beyond the log (RLTP-ACC-3020); the rotation reaches
+contacts only as an element of the `lineage` of an
+`anchor-mapping@3` (Network Visibility §6.5).
 
-*Rationale.* Pseudonymity of membership holds only if exactly one,
-deliberate artifact crosses it. Several canonical admissions of one
-anchor may enclose different cards (5.3 distinguishes none), so the
-mapping names the admission whose card supplies each side's key and
-the key choice is deterministic. With the checks in place, foreign
-community anchors are unclaimable and a former member's mapping
-offer is refused, exactly as their key requests are (5.3); the
-addressee could forge the whole artifact, so it stays deniable, and
-third parties — co-members included — can verify nothing. The
-mapping travels on the existing relationship channel between
-discloser and addressee, registered as a Delivery task (Delivery
-§4); a group-space carrier would leak the disclosure edge itself as
-group-visible metadata. The user-facing act is the Trust act; on
-verification, roster entry and contact become one person locally,
-and nothing changes on any wire. The proof above is the
-`dv-double-dh` mechanism, the first registered for this artifact
-class; a zero-knowledge linkage proof enters as a registration,
-never as a change to its consumers.
+*Rationale.* The community anchor is not a member of any group
+(Identity §2), so its rotation touches no card, no service
+identity, and no key; the entry needs an author with standing in
+the log, and at sole membership that is the founder's pair anchor.
+Two devices rotating apart derive the same generation to the same
+key (Identity §5.4), which is why a repeat is the ordinary
+concurrent case and a differing body is evidence of a different
+seed, settled by the smallest id. The log stays unreadable to
+non-members; the contact-facing proof is the same artifact,
+re-signed by nobody, carried by the mapping.
 
 
 ## 6. Actions and the Implicit Capability
@@ -4517,8 +4501,8 @@ This layer requires, and does not define:
 
 - **Delivery port:** authenticated end-to-end-encrypted delivery to
   derived identities with durable buffering and explicit
-  disposition — satisfied by the Delivery Contract (0.79), whose
-  task types for this layer are the Membership Tasks (0.17) plus the
+  disposition — satisfied by the Delivery Contract (0.80), whose
+  task types for this layer are the Membership Tasks (0.18) plus the
   two types registered below.
 - **Replication port:** convergent replication of the encrypted
   authority log and documents; deterministic merge; offline
@@ -5052,17 +5036,16 @@ idempotence, not an authority question.
 
 ## 11. Evolvability
 
-Profile `rltp-access@0.55` produces and accepts these wire forms:
+Profile `rltp-access@0.56` produces and accepts these wire forms:
 
 | Artifact | Wire version |
 |---|---|
-| operation envelope (3.3), `keyOpDigest`, `lineage` as an array | `rltp-access/0.25` |
+| operation envelope (3.3), `keyOpDigest`, `lineage` as an array, the operation `anchor.rotate` (5.6) | `rltp-access/0.25` |
 | authorization view (7.3) | `rltp-access-view/0.24` |
 | key material (9.4), with `keyState` | `rltp-access-material/0.25` |
 | key distribution (9.4.1), per device, without `keyState` | `rltp-access-keydist/0.25` |
 | service registration (7.3), with `class` (9.3) and the optional `intakeBudget` block (RLTP-ACC-9535) | `rltp-access-registration/0.27` |
 | removal notice (10.2), with `issuer` | `rltp-access-removal-notice/0.25` |
-| member mapping (5.5) | `rltp-access-member-mapping/0.24` |
 | evidence session (Section 3.6) | `rltp-access-evidence-claim/1`, `rltp-access-evidence-request/1`, `rltp-access-evidence-response/1`, `rltp-access-evidence-supplement/1`, `rltp-access-evidence-part/1` |
 | task types (Section 10) | `key-delivery/0.1`, `removal-notice/0.1` |
 
@@ -5138,7 +5121,7 @@ group that depends on a rule introduced by a later profile can
 refuse operations under an earlier one.
 
 **RLTP-ACC-11100** — The task type `access-operation/0.1` of the
-Membership Tasks (0.17) MUST transport envelopes of version
+Membership Tasks (0.18) MUST transport envelopes of version
 `rltp-access/0.25`, and the welcome `material` that Membership §4
 carries MUST be `rltp-access-material/0.25`; a receiver MUST reject
 an envelope or a welcome material of any other version there.
@@ -5309,7 +5292,7 @@ deterministic merge; any other path to authority bypasses both.
   its person leaving (5.1), and a device card needs the signature of
   an existing device of the same person, so a stranger cannot bind a
   device to someone else's name. Under the shared-seed device model
-  of Identity 0.51 (Identity 3.2), every acting device holds its
+  of Identity 0.52 (Identity 3.2), every acting device holds its
   person's root IKM; a captured device whose seed is extracted
   yields the member anchor itself, and revoking the device does not
   revoke the seed. Recovery from a seed compromise is the Identity
@@ -5347,12 +5330,12 @@ only an explicit boundary makes it checkable.
   never consults a clock (RLTP-ACC-3180).
 - **Member-anchor scoping and the mapping's deniability.** A member
   anchor reused across groups voids its own pseudonymity, so 5.1's
-  scoping rule is normative, not advice. A leaked `member-mapping@1`
-  proves nothing to third parties — the addressee could have forged
-  it — so a cross-group link exists as knowledge, never as
-  transferable evidence; and the vouch's subject is the member
-  anchor, so the log never carries the coordinate that would join a
-  person across groups.
+  scoping rule is normative, not advice. A leaked group pair (Network
+  Visibility §5.2b) proves nothing to third parties — the addressee
+  could have forged it — so a cross-group link exists as knowledge,
+  never as transferable evidence; and the vouch's subject is the
+  member anchor, so the log never carries the coordinate that would
+  join a person across groups.
 
 ## 13. Privacy Considerations
 
@@ -5363,7 +5346,7 @@ registered for it (Section 9.3):
 |---|---|---|
 | `blind` | ciphertext and operations as opaque items, their sizes and timing, the device addresses it delivers to, the genesis digest | authorization views, membership, policy, admission evidence, the invitation graph, any plaintext or key |
 | `view` | additionally the authorization views: the derived service identities of the members' devices, epoch numbers, view sequence numbers | anchors, the mapping between identities and anchors, policy, admission evidence, the invitation graph, any plaintext or key |
-| `log` | additionally the authority log: members under their member anchors, policy and roles, admission evidence, the invitation graph, every operation, the mapping between identities and anchors | community anchors, content plaintext, any key |
+| `log` | additionally the authority log: members under their member anchors, policy and roles, admission evidence, the invitation graph, every operation, the mapping between identities and anchors | community anchors (except a personal community's own `anchor.rotate` entries, 5.6), content plaintext, any key |
 
 **RLTP-ACC-12100** — An adapter MUST NOT expose membership, policy,
 or the invitation graph in plaintext to non-members or
@@ -5391,18 +5374,17 @@ what its service may know; nothing beyond it reaches the service
   has yet to define (5.2); a service that serves several groups
   could otherwise link them through a device.
 - **Inside the group.** Admissions are individually attributable to
-  members and encrypted against everyone else. The permanence cost
-  of admission enclosure — both cards, both proofs, forever in the
-  log — is stated in Membership §8 and capped by its size budget,
-  and it prices in group-scoped identifiers, never cross-group
-  coordinates: without a person's own `member-mapping@1`
-  disclosures, no cryptographic join key exists. After voluntary
-  disclosures toward members of several groups, those members can
-  join the person as knowledge, never as transferable proof; the
-  disclosure stays a per-recipient decision of the person. Display
-  profiles, behavior, and timing can still identify a person
-  socially; this layer removes the cryptographic join key, not human
-  recognizability.
+  members and encrypted against everyone else. The permanence cost of
+  admission enclosure — both cards, both proofs, forever in the log —
+  is stated in Membership §8 and capped by its size budget, and it
+  prices in group-scoped identifiers, never cross-group coordinates:
+  without a person's own group pairs (Network Visibility §5.2b), no
+  cryptographic join key exists. After voluntary disclosures toward
+  members of several groups, those members can join the person as
+  knowledge, never as transferable proof; the disclosure stays a
+  per-recipient decision of the person. Display profiles, behavior,
+  and timing can still identify a person socially; this layer removes
+  the cryptographic join key, not human recognizability.
 - **Vouch presentations** disclose to the group that specific
   members vouch for the subject — bounded, deliberate,
   group-directed disclosure by each voucher; the subject's wider
@@ -5418,26 +5400,28 @@ what its service may know; nothing beyond it reaches the service
 **RLTP-ACC-14010** — The following schemas MUST be normative and MUST
 ship with offline closure: `schemas/access-operation-envelope.schema.json`
 (envelope `rltp-access/0.25`, `keyOpDigest` in the genesis and in every
-transition, the body profiles of 4.5 including `device.add` and
-`device.revoke`) · `schemas/payload-access-operation.schema.json` ·
+transition, the body profiles of 4.5 including `device.add`,
+`device.revoke`, and `anchor.rotate`) ·
+`schemas/payload-access-operation.schema.json` ·
 `schemas/payload-key-delivery.schema.json` ·
 `schemas/access-material.schema.json` (the `keys` schemas of
 `linear/0.1` and `beekem/0.1`) · `schemas/authorization-view.schema.json`
 · `schemas/access-registration.schema.json`
 (`rltp-access-registration/0.27`, field `class`) ·
 `schemas/payload-removal-notice.schema.json` ·
-`schemas/member-mapping.schema.json` ·
 `schemas/access-vouch.schema.json` — plus, by reference, the
-Membership Tasks' document schemas, `sealed-envelope.schema.json`, and
-`contact-card.schema.json`.
+Membership Tasks' document schemas, `sealed-envelope.schema.json`,
+`contact-card.schema.json`, and
+`visibility-anchor-rotation.schema.json`.
 
-**RLTP-ACC-14020** — The profile `rltp-access@0.55` MUST produce and
+**RLTP-ACC-14020** — The profile `rltp-access@0.56` MUST produce and
 accept exactly the wire forms of Section 11 and MUST be read against
-the companions RLTP Identity 0.51 (whose per-device derivation 5.2
+the companions RLTP Identity 0.52 (whose per-device derivation 5.2
 awaits, so conformance claims no device-level derivation), RLTP
 Encounter 0.30 (`rltp-encounter@0.30`, wire 0.25, where cards are
-consumed), the Delivery Contract 0.79, and the Membership Tasks 0.17
-(`rltp-membership@0.17`), whose pins of this layer's wire forms
+consumed), RLTP Network Visibility 0.30 (`rltp-visibility@0.30`,
+the `anchor-rotation@1` of 5.6), the Delivery Contract 0.80, and the
+Membership Tasks 0.18 (`rltp-membership@0.18`), whose pins of this layer's wire forms
 RLTP-ACC-11100 states; the two documents move together, so the
 Membership Tasks text carried in the same publication names this
 version, and the removal notice travels as
@@ -5479,7 +5463,7 @@ while B removes C.
 
 **RLTP-ACC-14060** — A vector and a conformance report MUST reference
 rules by their `RLTP-ACC` identifiers, against the identifier list
-`conformance/access-rule-ids-0.55.txt`.
+`conformance/access-rule-ids-0.56.txt`.
 
 **RLTP-ACC-14070** — Every normative statement of this document MUST
 be vector-testable or named in the state-dependent set: signal
@@ -5501,16 +5485,11 @@ in both directions.
 
 **Shipped vectors.**
 
-- `vectors/member-mapping.json` — a complete positive
-  `member-mapping@1` with `mac1` recomputed under
-  HKDF(ECDH(memberX_sender, memberX_addressee)) and `mac2` under
-  HKDF(ECDH(communityX_sender, memberX_addressee)) over the canonical
-  body bytes, the enclosed `self-card@1` verified under its own
-  anchor, and step 4 (`card.anchor == self`); the foreign-self
-  negative recomputes both MACs over the mutated body so that step 4
-  is the sole failing check. `memberOp` and `toOp` are placeholder
-  digests, not ids of real admission envelopes, so acceptance steps
-  2 and 3 are not exercised by this file.
+- `vectors/access-anchor-rotate.json` — `anchor.rotate` (5.6): a
+  valid chain from generation 2 to 3; a generation skip; a broken
+  `prev`; an author who is not the sole member; a repeat (idempotent);
+  two differing bodies at one generation, the smaller `id`
+  canonical.
 - `vectors/dtg-credentials.json` — `vouch@2` and invite forms,
   digests, member-anchor derivations, and `u`/`z` equivalence: the
   `linear/0.1` epoch-secret derivation and both associated-data
@@ -5722,14 +5701,6 @@ in both directions.
   checked, partial key sets composing to a complete union, more than
   4096 entries schema-invalid;
   publication idempotent per artifact.
-- *`member-mapping@1` against real admissions* — both MACs against
-  the cards named by `memberOp` and `toOp`, the founder side via the
-  genesis; `to` not the addressee's member anchor → step 2; `memberOp`
-  naming a non-admission, a foreign admission, or a former member →
-  step 3; two admissions with different cards, the mapping verifying
-  only under the named one; revision equivocation per (`member`,
-  `to`) → step 7; a member anchor appearing in a second group's log
-  → non-conformant at issuance.
 - *Candidacy carrier* — a `member.add` that cites only Layer-4
   candidacy content fails materialization.
 
@@ -5799,8 +5770,8 @@ is.
 |---|---|---|
 | Canonical form, digest equality over decoded bytes, canonical `u` rendering (2.3, 3.2) | `core` | `jcs`, `toU`, `sameDigest` |
 | Digests, `eddsa-jcs-2022` proofs for the vouch and the cards (2.3, 5.3), HKDF and ECDH primitives | `crypto` | `digestDoc`, `diSign`, `diVerify`, `hkdf`, `ecdh`, `anchorOfEd`, `mkOfX` |
-| Member anchor from `group/<genesis digest>` and the founder's pair context (5.1, 3.4.1); community anchor (5.5) | `identity` | `labeledContext`, `pairContext`, `communityContext` |
-| Wire shapes of this layer — envelope, material, view, registration, key delivery, removal notice, member mapping, vouch (Sections 3, 7, 9, 10; 5.3, 5.5) | `schemas`, `wire` | `SCHEMAS`, the generated types `AccessOperationEnvelope`, `AccessMaterial`, `AuthorizationView`, `AccessRegistration`, `PayloadKeyDelivery`, `PayloadRemovalNotice`, `MemberMapping`, `AccessVouch`, `PayloadAccessOperation` |
+| Member anchor from `group/<genesis digest>` and the founder's pair context (5.1, 3.4.1); community anchor (Identity §5.4) | `identity` | `labeledContext`, `pairContext`, `communityContext` |
+| Wire shapes of this layer — envelope, material, view, registration, key delivery, removal notice, vouch (Sections 3, 7, 9, 10; 5.3) | `schemas`, `wire` | `SCHEMAS`, the generated types `AccessOperationEnvelope`, `AccessMaterial`, `AuthorizationView`, `AccessRegistration`, `PayloadKeyDelivery`, `PayloadRemovalNotice`, `AccessVouch`, `PayloadAccessOperation` |
 | Founding, the invitation prelude, invite, accept, the pair-internal admission checks of 5.3 (path convention, time window, size budget, card enclosure), `vouch@2` issuance | `/probe` `membership` | `foundGroup`, `memberContext`, `preludeRequest`, `buildInvite`, `acceptInvite`, `receiveDoc`, `vouchFor` |
 
 The `/probe` entry point is not wire-normative: its transport shapes
@@ -5821,7 +5792,7 @@ evidence for this document, not a reference implementation of it.
 
 The conformance runner (`conformance/runner.mjs`) recomputes the
 shipped vectors of Section 14 against the library, including the
-`member-mapping@1` MACs, the `vouch@2` forms and digests, the
+`anchor.rotate` entries, the `vouch@2` forms and digests, the
 `u`/`z` equivalence of 3.2, and the registration artifacts of 7.3.
 
 
@@ -5888,6 +5859,7 @@ One line per version; the archived text of 0.4 and later is under
 | 0.53 | 2026-08-26 | Community anchor terminology; `member-mapping@1` unchanged. |
 | 0.54 | 2026-10-06 | Two ports: authority port and key port (KV1–KV6), adapters `linear/0.1` and `beekem/0.1`; conflict matrix without the enforcement-pair fork, concurrent removals with authority all take effect; persons in the log, devices in the key structure with device cards; service classes `blind`, `view`, `log` (`rltp-access-registration/0.27`); `keyOpDigest` (`rltp-access/0.25`); numbered rules with separate rationale; the sibling-epoch-merge open issue closed. |
 | 0.55 | 2026-10-06 | Key request by admission reference (`admission { subject, acceptDigest }`); bootstrap of a bound device without a replica; displacement record separate from the completed-effect entry; removal notice `rltp-access-removal-notice/0.25` with `issuer`; at most 16 vouches in the evidence relay, checked at receipt; only the 0.25 envelope and material accepted; Membership Tasks 0.17 pinned; schema corrections (vouch `$id`, `vouch@2` in the envelope's credentials). |
+| 0.56 | 2026-10-07 | `anchor.rotate` (5.6); `member-mapping@1` and `rltp-access-member-mapping/0.24` removed, the crossing is Network Visibility §5.2b (RLTP-ACC-5880; 5890–5940 retired); Identity 0.52, Visibility 0.30, Delivery 0.80, Membership Tasks 0.18 pinned. |
 
 
 ## References
@@ -5896,15 +5868,16 @@ One line per version; the archived text of 0.4 and later is under
 (epoch terminology) · W3C Data Integrity EdDSA Cryptosuites v1.0
 (`eddsa-jcs-2022`) · W3C Verifiable Credentials Data Model 2.0 · DTG
 Credential Specification (ToIP DTGWG, draft; EndorsementCredential)
-· **RLTP Identity 0.51** (root IKM §4, contexts and the label
-registry §6, derived service identities §7, migration §10, device
-keys §15.1) · **RLTP Encounter Layer 0.30**, wire 0.25 (securing
+· **RLTP Identity 0.52** (root IKM §4, contexts and the label
+registry §6, the community anchor's generations §5.4, derived
+service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.30**, wire 0.25 (securing
 profile 2.3, contact card §6, pair anchors §4.4) · **RLTP Delivery
-Contract 0.79 (normative)** (document profile, sealed envelope §5,
-dispositions §6) · **RLTP Membership Tasks 0.17 (normative)**
+Contract 0.80 (normative)** (document profile, sealed envelope §5,
+dispositions §6) · **RLTP Membership Tasks 0.18 (normative)**
 (document shapes §3, welcome seal §4, timing §5) · **RLTP Replication
 Contract** (replication port, service targets) · **RLTP Network
-Visibility 0.29** (§2.1 wire conventions, §3 audience classes, §6
-mapping construction, §6a convergence net, §8 introduction act) ·
+Visibility 0.30** (§2.1 wire conventions, §3 audience classes,
+§5.2b group pair, §6 mapping construction and §6.5 anchor rotation,
+§6a convergence net, §8 introduction act) ·
 Keyhive / BeeKEM design documents (causal encryption; ePrint
 2026/1434) · p2panda-auth documentation (resolver model).

@@ -1,4 +1,4 @@
-# Membership Tasks 0.17 — rule identifiers, one per line, generated from the specification.
+# Membership Tasks 0.18 — rule identifiers, one per line, generated from the specification.
 # Regenerate: node scripts/check-encounter-trace.mjs --layer membership --write-manifest-from-spec <spec.md>
 RLTP-MT-2010
 RLTP-MT-2020

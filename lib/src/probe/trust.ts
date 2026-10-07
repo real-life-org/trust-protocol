@@ -1,12 +1,21 @@
 // trust — der GRADUIERTE Vertrauensakt: seit dem Nachzug auf Visibility
-// 0.29 + Delivery 0.79 baut dieses Modul die ECHTEN Wire-Artefakte
-// (anchor-mapping@2 · grade-declaration@1 · star@1 mit 5.2a-Chunks),
+// 0.30 + Delivery 0.80 baut dieses Modul die ECHTEN Wire-Artefakte
+// (anchor-mapping@3 · grade-declaration@1 · star@1 mit 5.2a-Chunks),
 // getragen von den registrierten Task-Dokumenten (Delivery §4.4:
-// anchor-mapping/0.1 · grade-declaration/0.1 · star/0.1 — Payload = das
+// anchor-mapping/0.2 · grade-declaration/0.1 · star/0.1 — Payload = das
 // Artefakt, Dokument proof-frei, ein Träger), quittiert mit dem
 // deniablen delivery-ack (4.2-Klassenregel). Formen und Schlüssel sind
 // byte-kompatibel zu vectors/visibility.json (vectors3.test.mjs rechnet
 // sie unabhängig nach).
+//
+// Die Rotation des Gemeinschaftsankers (Identity 0.52 §5.4, Visibility
+// 0.30 §6.5): rotateCommunityAnchor leitet die nächste Generation ab,
+// hält die Lineage und stellt jedem vertrauten Kontakt ein
+// anchor-mapping@3 mit höherer Revision neu aus; der Empfänger
+// klassifiziert einen geänderten self als Rotation (die Lineage trägt
+// den gehaltenen self — der Anker rückt vor, Merges bleiben, Sterntests
+// laufen gegen jede gehaltene Generation) oder als neue Community
+// (Korrektur; Merges über den früheren Anker lösen sich auf).
 //
 // Die Zustandsmaschinen sind die konvergierten:
 //   · Admissionsschicht (Sektion 2): Promotion-Commit beim ERSTEN
@@ -28,6 +37,7 @@ import { SCHEMAS } from '../schemas.js'
 import * as C from './deps.js'
 import type { Person } from './deps.js'
 import { buildAck, verifyAck, ACK_TYPE } from './acks.js'
+import { makeSelfCard, makeAnchorRotation, buildAnchorMapping, verifyAnchorMapping, classifyMapping, lineageAnchors } from './anchor.js'
 
 const te = new TextEncoder()
 const S = globalThis.crypto.subtle
@@ -39,6 +49,10 @@ const schemaOk = (file: string, data: any) => V.validate(data, SCHEMAS[file], SC
 export const GRADE_WAIT = 86_400_000  // 5.4: PT24H, in when-Millisekunden
 export const ADMISSION_BOUND = 10n ** 18n - 1n  // Sektion 2 — unerreichbar, geführt für die Totalität
 const CHUNK_MAX = 1024                // 5.2a: blinded[] je Chunk
+// registrierte Task-Versionen (Delivery 0.80 §4.4): anchor-mapping/0.2
+// trägt anchor-mapping@3; alle übrigen Visibility-Tasks bleiben 0.1
+const TASK_VERSION: Record<string, string> = { 'anchor-mapping': '0.2' }
+const taskOf = (slug: string) => slug + '/' + (TASK_VERSION[slug] ?? '0.1')
 
 // ── Primitiven ──────────────────────────────────────────────────────────
 export async function hmac (keyBytes: Uint8Array, msg: string) {
@@ -46,8 +60,9 @@ export async function hmac (keyBytes: Uint8Array, msg: string) {
   return C.b64uOf(new Uint8Array(await S.sign('HMAC', k, te.encode(msg))))
 }
 export const hmacU = async (keyBytes: Uint8Array, msg: string) => 'u' + await hmac(keyBytes, msg)
+/** Der Gemeinschaftsanker in seiner AKTUELLEN Generation (Identity §5.4). */
 export async function communityContext (p: Person) {
-  if (!p.selfCtx) p.selfCtx = await C.communityContext(p.rootIkm, p.communityGenesis)
+  if (!p.selfCtx) p.selfCtx = await C.communityContext(p.rootIkm, p.communityGenesis, p.communityGeneration ?? 1)
   return p.selfCtx
 }
 export const selfCard = async (p: Person, whenIso: string) => {
@@ -58,43 +73,26 @@ export const selfCard = async (p: Person, whenIso: string) => {
 // {proofValue} } — ROHE Ed25519-Signatur über JCS(body), 'z'+base58
 // (§2.1: bewusst KEINE DI-Suite; zwei Artefakt-Familien)
 export async function selfCard1 (p: Person) {
-  const s = await communityContext(p)
-  const body = { type: 'self-card@1', anchor: s.anchor, keyAgreement: s.keyAgreement }
-  const sig = new Uint8Array(await S.sign({ name: 'Ed25519' }, s.ed.priv, te.encode(jcs(body))))
-  return { body, proof: { proofValue: 'z' + C.base58(sig) } }
-}
-const verifyRawSig = async (did: string, body: any, proofValue: any) => {
-  try {
-    if (typeof proofValue !== 'string' || proofValue[0] !== 'z') return false
-    const raw = C.edRawOfAnchor(did)
-    const sig = C.fromBase58(proofValue.slice(1))
-    if (!raw || !sig || sig.length !== 64) return false
-    const key = await S.importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
-    return await S.verify({ name: 'Ed25519' }, key, sig, te.encode(jcs(body)))
-  } catch { return false }
+  return makeSelfCard(await communityContext(p))
 }
 const chShared = (contact: any) => C.ecdh(contact.channel.own.x.priv, C.xRawOfMk(contact.channel.counterpartKa)!)
 const relKey = async (contact: any, info: string) => C.hkdf(await chShared(contact), info)
 
-// ── anchor-mapping@2 — die normative Wire-Form (§6.1–6.3) ──────────────
-// body = { type, pair, self, to, card, revision, issuedAt } ·
-// proof = { mac1 (Kanal-DH, info map1) · mac2 (selfX × pairX-Adressat,
-// info map2) }, beide 'u'-MACs über JCS(body). Die Card reist IM Body.
+// ── anchor-mapping@3 — die normative Wire-Form (§6.1–6.3) ──────────────
+// body = { type, pair, self, to, card, lineage, revision, issuedAt } ·
+// proof = { mac1 (Kanal-DH, info map1) · mac2 (selfX der AKTUELLEN
+// Generation × pairX-Adressat, info map2) }, beide 'u'-MACs über
+// JCS(body). Card und Lineage reisen IM Body (anchor.ts baut und prüft).
 // der reine BAU (fehlbar, mutiert nichts) — modul-lokal: nur Aufrufer,
 // die den Issue-Lock halten und selbst committen (setTrust/
 // reissueTrust), erreichen ihn mit vorreservierter Revision. Der
 // explizite Revisionspfad ist NICHT mehr exportiert (Review 9, B-2:
 // er umging Lock, Deaktivierungs-Check und Persistenz).
 async function buildMappingArtifact (p: Person, contact: any, counterpartAnchor: string, when: number, revision: string) {
-  const s = await communityContext(p)
-  const whenIso = C.iso(when)
-  const card = await selfCard1(p)
-  const body = { type: 'anchor-mapping@2', pair: contact.channel.own.anchor, self: s.anchor, to: counterpartAnchor, card, revision, issuedAt: whenIso }
-  const msg = jcs(body)
-  const theirKa = C.xRawOfMk(contact.channel.counterpartKa)!
-  return { body, proof: {
-    mac1: await hmacU(await relKey(contact, 'rltp/visibility/mac/map1'), msg),
-    mac2: await hmacU(await C.hkdf(await C.ecdh(s.x.priv, theirKa), 'rltp/visibility/mac/map2'), msg) } }
+  return buildAnchorMapping({
+    pair: contact.channel.own, to: counterpartAnchor, toKeyAgreement: contact.channel.counterpartKa,
+    self: await communityContext(p), lineage: p.lineage ?? [], revision, issuedAt: C.iso(when),
+  })
 }
 export async function makeMapping (p: Person, counterpartAnchor: string, when: number) {
   const contact = p.contacts.get(counterpartAnchor)
@@ -114,36 +112,24 @@ export async function makeMapping (p: Person, counterpartAnchor: string, when: n
 }
 // Verifikation ist EMPFÄNGER-PRIVAT (§6.3, geschlossene Liste) — und
 // die Liste wird IN IHRER REIHENFOLGE ausgewertet (Review 19, B-1:
-// „all of the following hold, evaluated in this order"): 1 Schema ·
-// 2 to · 3 pair · 4 Card verifiziert unter IHREM Anker · 5
-// card.anchor == self · 6 k2 aus card.keyAgreement · 7 MACs.
+// „all of the following hold, evaluated in this order"): 1 Schema
+// (anchor-mapping@1 und @2 sind nicht implementiert) · 2 to · 3 pair ·
+// 4 Card verifiziert unter IHREM Anker · 4a Lineage · 5 card.anchor ==
+// self · 6 k2 aus card.keyAgreement · 7 MACs (anchor.ts).
 // arrivalKey = das Ankunftstupel (Empfangspfad); standalone wählt
 // body.pair (Schritt 3 dann trivial).
 export async function verifyMapping (p: Person, m: any, arrivalKey?: string) {
-  try {
-    if (!schemaOk('visibility-anchor-mapping.schema.json', m)) return false   // 1
-    const b = m.body
-    if (!C.calOK(b.issuedAt)) return false   // Kalender-Validität gehört zur Parse-Ebene (Review 12, B-3)
-    const key = arrivalKey ?? b.pair
-    const entry = p.contacts.get(key)
-    if (!entry?.channel?.own || entry.deactivated) return false
-    if (b.to !== entry.channel.own.anchor) return false                       // 2
-    if (b.pair !== key) return false                                          // 3 (Cross-Tupel-Bindung, Review 9)
-    if (!(await verifyRawSig(b.card?.body?.anchor, b.card?.body, b.card?.proof?.proofValue))) return false  // 4: unter IHREM Anker
-    if (b.card.body.anchor !== b.self) return false                           // 5
-    const msg = jcs(b)
-    const k2 = await C.hkdf(await C.ecdh(entry.channel.own.x.priv, C.xRawOfMk(b.card.body.keyAgreement)!), 'rltp/visibility/mac/map2')  // 6: k2 aus card.keyAgreement — VOR den MACs (Review 20, B-1)
-    if ((await hmacU(await relKey(entry, 'rltp/visibility/mac/map1'), msg)) !== m.proof.mac1) return false  // 7 (mac1)
-    if ((await hmacU(k2, msg)) !== m.proof.mac2) return false                 // 7 (mac2)
-    return true
-  } catch { return false }
+  const key = arrivalKey ?? m?.body?.pair
+  const entry = p.contacts.get(key)
+  if (!entry?.channel?.own || entry.deactivated) return false
+  return (await verifyAnchorMapping(m, { own: entry.channel.own, pair: key, pairKeyAgreement: entry.channel.counterpartKa })).ok
 }
 // Abstreitbarkeits-Demo: der Empfänger fabriziert ein identisch
 // verifizierendes Mapping — ein Leak beweist Dritten nichts (Klasse V)
 export async function forgeMapping (forger: Person, victimCard: any, pairAnchor: string, when: number) {
   const entry = forger.contacts.get(pairAnchor)
   const whenIso = C.iso(when)
-  const body = { type: 'anchor-mapping@2', pair: pairAnchor, self: victimCard.body.anchor, to: entry.channel.own.anchor, card: victimCard, revision: '1', issuedAt: whenIso }
+  const body = { type: 'anchor-mapping@3', pair: pairAnchor, self: victimCard.body.anchor, to: entry.channel.own.anchor, card: victimCard, lineage: [], revision: '1', issuedAt: whenIso }
   const msg = jcs(body)
   const k2 = await C.hkdf(await C.ecdh(entry.channel.own.x.priv, C.xRawOfMk(victimCard.body.keyAgreement)!), 'rltp/visibility/mac/map2')
   return { body, proof: {
@@ -179,6 +165,7 @@ function mergeEntries (p: Person, a: any, survivorIn: any, goneIn: any, when: nu
   const gone = survivor === goneIn ? survivorIn : goneIn
   for (const rid of gone.relIds) { survivor.relIds.add(rid); a.byRel.set(rid, survivor) }
   for (const ck of gone.rels) survivor.rels.add(ck)
+  for (const x of gone.anchors ?? [gone.self]) (survivor.anchors ??= new Set([survivor.self])).add(x)   // jede gehaltene Generation bleibt (§6a.1)
   // Declarations bleiben je Herkunftstupel (B-2): höchste order je Tupel
   for (const [ck, g] of gone.grades ?? []) {
     const cur = survivor.grades?.get(ck)
@@ -234,32 +221,64 @@ export function departMember (p: Person, relId: string, when: number) {
   if (e.relIds.size > 0) return   // Aliase bleiben, der Member bleibt admittiert
   if (e.status === 'admitted') { a.admitted -= 1n; admitPending(p, a, when) }
 }
-export function promotionCommit (p: Person, relId: string, self: string, contactKey: string, when: number) {
+// held = [Generation 1, …, aktuelle]: ein Anker, der VOR dem letzten
+// Element steht, ist eine frühere Generation
+const lineageHas = (held: string[], anchor: string) => held.indexOf(anchor) >= 0 && held.indexOf(anchor) < held.length - 1
+// die Generationen, die ein Eintrag hält (Identity §5.4): der Merge-
+// Schlüssel ist „gleich ODER in der Lineage gehalten" (§6a.1 Nr. 2)
+const anchorsOf = (x: any): Set<string> => (x.anchors ??= new Set([x.self]))
+const shares = (x: any, set: Set<string>) => [...anchorsOf(x)].some((y) => set.has(y))
+/**
+ * Promotion-Commit (Sektion 2). `held` = alle Generationen, die die
+ * verifizierte Abbildung trägt (self + Lineage), `kind` = die §6.3-
+ * Klassifikation eines GEÄNDERTEN self: 'rotation' rückt den Anker vor
+ * und behält jeden Merge; 'new-community' ist eine Korrektur, und Merges
+ * über den früheren Anker lösen sich auf — diese Beziehung verlässt
+ * einen verschmolzenen Eintrag und wird als eigener Eintrag committet.
+ */
+export function promotionCommit (p: Person, relId: string, self: string, contactKey: string, when: number, held: string[] = [self], kind: 'rotation' | 'new-community' = 'new-community') {
   finite(when)
   const a = admission(p)
+  const heldSet = new Set([self, ...held])
   let e = a.byRel.get(relId)
+  if (e && e.self !== self && kind === 'new-community' && e.relIds.size > 1) {
+    // nichts verbindet die beiden: die Beziehung (samt ihren Ketten-
+    // Aliasen) verlässt den Eintrag, ohne den Slot zu räumen — sie ist
+    // eine neue Person für diesen Empfänger
+    for (const rid of [...e.relIds]) if (rid === relId || (p.contacts.get(rid)?.relId ?? rid) === relId) { e.relIds.delete(rid); a.byRel.delete(rid) }
+    for (const ck of [...e.rels]) if ((p.contacts.get(ck)?.relId ?? ck) === relId) { e.rels.delete(ck); e.grades?.delete(ck) }
+    e = undefined
+  }
   if (e) {
     // spätere Verifikation derselben Beziehung: in place — auch eine
     // self-KORREKTUR per höherer Revision ändert nur den Inhalt, nie
     // Position oder Status (Sektion 2). Trifft die Korrektur die self
-    // einer ANDEREN Beziehung, ist das der Weg-2-Merge
+    // (oder eine gehaltene Generation) einer ANDEREN Beziehung, ist das
+    // der Weg-2-Merge
     if (e.self !== self) {
-      const twin = [...a.byRel.values()].find((x) => x !== e && x.self === self)
-      if (twin) { e.self = self; e = mergeEntries(p, a, e, twin, when) }
-      else e.self = self
-    }
+      e.anchors = kind === 'rotation' ? new Set([...anchorsOf(e), ...heldSet]) : new Set(heldSet)
+      e.self = self
+      const twin = [...a.byRel.values()].find((x) => x !== e && shares(x, heldSet))
+      if (twin) e = mergeEntries(p, a, e, twin, when)
+    } else for (const x of heldSet) anchorsOf(e).add(x)
     e.rels.add(contactKey)
   } else {
-    // gleiche self auf einer ANDEREN Beziehung = der Weg-2-Merge
-    const twin = [...a.byRel.values()].find((x) => x.self === self)
-    if (twin) { twin.relIds.add(relId); twin.rels.add(contactKey); a.byRel.set(relId, twin); e = twin }
+    // gleiche self (oder eine gehaltene Generation) auf einer ANDEREN
+    // Beziehung = der Weg-2-Merge
+    const twin = [...a.byRel.values()].find((x) => shares(x, heldSet))
+    if (twin) {
+      twin.relIds.add(relId); twin.rels.add(contactKey); a.byRel.set(relId, twin); e = twin
+      for (const x of heldSet) anchorsOf(twin).add(x)
+      // die Generation der neuesten Abbildung ist der aktuelle Anker
+      if (twin.self !== self && lineageHas(held, twin.self)) twin.self = self
+    }
     else {
       // Admission ist TOTAL: unter dem Bound admitted (der Normalfall —
       // die Promotion selbst ist die Admission), am Bound
       // deliverable-pending (triggert nichts, rückt bei Abgang nach)
       const status = a.admitted < boundOf(p) ? 'admitted' : 'pending'
       if (status === 'admitted') a.admitted += 1n
-      e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }  // id = kanonische Identität (Review 36)
+      e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, anchors: heldSet, rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }  // id = kanonische Identität (Review 36)
       a.byRel.set(relId, e)
     }
   }
@@ -380,7 +399,11 @@ export async function refreshStarInfo (p: Person) {
     for (const [k2, e] of p.contacts) {
       if (k2 === key || !e.selfAnchor || seen.has(e.selfAnchor)) continue
       seen.add(e.selfAnchor)
-      if (await starMatch(p, entry, entry.starReceived, e.selfAnchor)) known.push(e.name)
+      // gegen JEDE gehaltene Generation dieses Kontakts (§6.3 Nr. 8): ein
+      // Sender, der die Rotation noch nicht kennt, blindet die ältere
+      let hit = false
+      for (const anchor of e.selfAnchors ?? [e.selfAnchor]) if (!hit && await starMatch(p, entry, entry.starReceived, anchor)) hit = true
+      if (hit) known.push(e.name)
     }
     entry.starInfo = { count: entry.starReceived.count, knownNames: known.sort() }  // count bleibt String — 18 Stellen exakt
   }
@@ -408,14 +431,14 @@ const outboxOf = (contact: any) => (contact.outbox ??= new Map<string, any>())
 async function sendDoc (p: Person, counterpartAnchor: string, slug: string, payload: any, when: number, threadId: string, meta: any = {}, ent: any = {}) {
   const contact = p.contacts.get(counterpartAnchor)
   const doc = {
-    id: uuid(ent.id), type: TT + slug + '/0.1',
+    id: uuid(ent.id), type: TT + taskOf(slug),
     issuer: contact.channel.own.anchor, recipient: counterpartAnchor,
     threadId, issuedAt: C.iso(when), payload,
   }
   const env = await C.seal(doc, contact.channel.counterpartKa, ent)
   const digest = await C.digestDoc(doc)
   outboxOf(contact).set(digest, { env, threadId, kind: slug, ...meta })
-  return { to: contact, kind: slug + '/0.1', env }
+  return { to: contact, kind: taskOf(slug), env }
 }
 // ── die Ausstellungs-Disziplin (Review 7, B-1/B-2) ─────────────────────
 // „Assigning a revision and persisting the issued body are one step per
@@ -438,13 +461,13 @@ export const peekRev = (contact: any, field: string): string => {
 async function prepareDoc (p: Person, counterpartAnchor: string, slug: string, payload: any, when: number, threadId: string, meta: any = {}, ent: any = {}) {
   const contact = p.contacts.get(counterpartAnchor)
   const doc = {
-    id: uuid(ent.id), type: TT + slug + '/0.1',
+    id: uuid(ent.id), type: TT + taskOf(slug),
     issuer: contact.channel.own.anchor, recipient: counterpartAnchor,
     threadId, issuedAt: C.iso(when), payload,
   }
   const env = await C.seal(doc, contact.channel.counterpartKa, ent)
   const digest = await C.digestDoc(doc)
-  return { contact, digest, entry: { env, threadId, kind: slug, ...meta }, out: { to: contact, kind: slug + '/0.1', env } }
+  return { contact, digest, entry: { env, threadId, kind: slug, ...meta }, out: { to: contact, kind: taskOf(slug), env } }
 }
 const commitDoc = (prep: any) => { outboxOf(prep.contact).set(prep.digest, prep.entry); return prep.out }
 // Salt nur GEPEEKT (Review 25): strikt monoton, nie dicht (5.2) —
@@ -674,6 +697,52 @@ export async function reissueTrust (p: Person, counterpartAnchor: string, when: 
   } finally { contact.reissuePending = false }
 }
 /**
+ * Die Rotation des Gemeinschaftsankers (Identity §5.4, Visibility §6.5):
+ * Generation g → g + 1. Reihenfolge der Senderpflichten: erst das Label
+ * persistieren (hier: der Registerkopf `communityGeneration`), dann die
+ * Lineage halten, dann jedem VERTRAUTEN Kontakt ein anchor-mapping@3 mit
+ * höherer Revision neu ausstellen (die Self-Card reist darin, unter dem
+ * neuen Anker). Alles Fehlbare (Ableitung, beide Signaturen) läuft vor
+ * der ersten Mutation. Der Log-Eintrag `anchor.rotate` (Access §5.6)
+ * gehört ins Log der persönlichen Community unter dem Gründer-Paar-
+ * Anker — die Probe-Welt führt dieses Log nicht (COMMUNITY_GENESIS ist
+ * eine Fixture), der Eintrag entsteht hier nicht.
+ * Rotation ist Schlüsselhygiene, kein Kompromittierungsweg: sie
+ * braucht den Schlüssel der aktuellen Generation (Identity §8.6).
+ */
+export async function rotateCommunityAnchor (p: Person, when: number, ent: any = {}) {
+  finite(when)
+  const g = p.communityGeneration ?? 1
+  if (g >= Number.MAX_SAFE_INTEGER) throw new Error('rotation ends at 2^53 − 1 (Identity §5.4)')
+  const prev = await communityContext(p)
+  const next = await C.communityContext(p.rootIkm, p.communityGenesis, g + 1)
+  const rotation = await makeAnchorRotation(prev, next, g + 1)
+  // COMMIT — ein synchroner Zug: Label, Lineage, aktueller Kontext
+  p.communityGeneration = g + 1
+  p.lineage = [...(p.lineage ?? []), rotation]
+  p.selfCtx = next
+  say(p, `Gemeinschaftsanker erneuert: Generation ${g + 1}`)
+  const outbound: any[] = []
+  const failures: { to: string, error: string }[] = []
+  for (const [anchor, contact] of p.contacts) {
+    if (!contact.trustGiven || contact.deactivated || !contact.channel?.own) continue
+    try {
+      const out = await withIssueLock(contact, async () => {
+        if (contact.deactivated) return null
+        const mapRev = peekRev(contact, 'mapRevOut')
+        const mapping = await buildMappingArtifact(p, contact, anchor, when, mapRev)
+        const prep = await prepareDoc(p, anchor, 'anchor-mapping', mapping, when, uuid(), {}, ent)
+        if (contact.deactivated) return null   // Re-Check, danach kein await
+        contact.mapRevOut = mapRev
+        contact.sentMapping = mapping
+        return commitDoc(prep)
+      })
+      if (out) outbound.push(out)
+    } catch (e: any) { failures.push({ to: contact.name ?? anchor, error: String(e?.message ?? e) }) }
+  }
+  return { rotation, outbound, failures }
+}
+/**
  * Der Producer-Sweep (Host-Vertrag): erst die V2-Pflichten, dann die
  * 5.4-Rekonziliation je Empfänger. Idempotent, per-recipient resilient,
  * Retries byte-identisch.
@@ -741,7 +810,7 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
   }
   if (typeof doc?.type !== 'string' || !doc.type.startsWith(TT)) return { handled: false, doc }
   const slug = doc.type.slice(TT.length)
-  if (!['anchor-mapping/0.1', 'grade-declaration/0.1', 'star/0.1'].includes(slug)) return { handled: false, doc }
+  if (!['anchor-mapping/0.2', 'grade-declaration/0.1', 'star/0.1'].includes(slug)) return { handled: false, doc }
   // Dokumentprofil (Delivery §3): Schema-validiert, proof-frei, Bindungen
   if (!schemaOk('rltp-delivery-document.schema.json', doc)) return { handled: true, error: 'malformed document' }
   if (doc.proof !== undefined) return { handled: true, error: 'document proof forbidden (one carrier)' }
@@ -765,7 +834,7 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
     return { ...result, ack: { to: from, kind: 'delivery-ack/0.1', env: ackEnv } }
   }
   const r0: any = await (async () => { switch (slug) {
-    case 'anchor-mapping/0.1': {
+    case 'anchor-mapping/0.2': {
       return withContactLock(from, async () => {
       // Reentry (B-1/B-2): Kopf noch aktiv? Duplikat inzwischen? Revision noch frisch?
       if (from.deactivated) return { handled: true, error: 'tuple deactivated' }
@@ -802,18 +871,27 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
       // während verify/mkAck deaktiviert haben — danach kein await mehr
       if (from.deactivated) return { handled: true, error: 'tuple deactivated' }
       if (BigInt(m.body.revision) <= BigInt(from.mapRevIn ?? '0')) return { handled: true, error: 'mapping revision (nicht strikt größer)' }
+      // §6.3 Nr. 8: ein GEÄNDERTER self ist Rotation (die Lineage trägt
+      // den gehaltenen self) oder neue Community (nichts verbindet beide)
+      const classification = classifyMapping(from.selfAnchor, m.body)
+      const held = m.body.lineage.length ? lineageAnchors(m.body.lineage) : [m.body.self]
       from.mapRevIn = m.body.revision
+      from.selfAnchors = classification === 'rotation' || classification === 'same'
+        ? [...new Set([...(from.selfAnchors ?? [from.selfAnchor]), ...held])]
+        : held
       from.selfAnchor = m.body.self
       from.mapping = m
       from.trustReceived = doc.issuedAt
-      const e = promotionCommit(p, relIdOf(p, fromKey), m.body.self, fromKey, when)
+      const e = promotionCommit(p, relIdOf(p, fromKey), m.body.self, fromKey, when, held, classification === 'rotation' ? 'rotation' : 'new-community')
       e.admittedAt ??= when                    // grade-wait ankert an der Admission (5.4)
       // eine VOR dem Mapping verifizierte Declaration steht und wirkt
       // bei der Admission sofort (Sektion 2 / 5.4)
       if (from.gradeIn && !e.grades?.has(fromKey)) declCommit(p, relIdOf(p, fromKey), from.gradeIn, fromKey, from.gradeInOrder)
-      say(p, `${from.name} vertraut dir: stabiler Anker geprüft übernommen (nur für dich beweisend)`)
+      say(p, classification === 'rotation' ? `${from.name} hat den Anker erneuert: neue Generation geprüft übernommen, die Kette bleibt gehalten`
+        : classification === 'new-community' ? `${from.name} legt einen anderen Anker offen: neue Community (nichts verbindet beide)`
+        : `${from.name} vertraut dir: stabiler Anker geprüft übernommen (nur für dich beweisend)`)
       // der Producer-Sweep läuft NACH der Lock-Sektion (Reentranz!)
-      return commit({ handled: true, disclosed: m.body.self, fromName: from.name, __sweep: true }, ackEnv)
+      return commit({ handled: true, disclosed: m.body.self, classification, fromName: from.name, __sweep: true }, ackEnv)
       })
     }
     case 'grade-declaration/0.1': {

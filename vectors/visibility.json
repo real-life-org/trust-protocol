@@ -77,7 +77,7 @@
   "label": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA",
   "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
   "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6",
-  "note": "the community anchor: an ORDINARY group-context derivation over the personal community’s genesis digest (Identity 0.13, the S-DID cut); the vector key name „self“ mirrors the frozen wire field spelling"
+  "note": "the community anchor at generation 1: the group-context derivation over the personal community’s genesis digest (Identity 0.52 §2, §5.4; the S-DID cut of 0.13); the vector key name „self“ mirrors the frozen wire field spelling"
  },
  "artifacts": {
   "star": {
@@ -120,7 +120,7 @@
   },
   "anchorMapping": {
    "body": {
-    "type": "anchor-mapping@2",
+    "type": "anchor-mapping@3",
     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
     "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
@@ -134,12 +134,13 @@
       "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
      }
     },
+    "lineage": [],
     "revision": "1",
     "issuedAt": "2026-08-23T12:00:00Z"
    },
    "proof": {
-    "mac1": "u4WqFkWyO0WLrSgpxj07hassiTH8D60dFePntciFlO28",
-    "mac2": "ulZNGf44DaFnckIY3zSq2SQxDo3HW8xo8uuoL-o64_uQ"
+    "mac1": "ul1j6zs6kJ6EyxwXzvRDivMjSi7a9VhuBEV-iSbHO00M",
+    "mac2": "uaI81RMtPVXQUGSQIwS9zXePo0ac3xDDWCDuPfaccGOI"
    }
   },
   "continuityProbe": {
@@ -496,6 +497,56 @@
    "proof": {
     "mac": "uUJZEJtMbE5TZh4J-uDdK8rc3TTnJdBPWOQm4t4ZmkfM"
    }
+  },
+  "anchorRotation": {
+   "body": {
+    "type": "anchor-rotation@1",
+    "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+    "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+    "generation": "2"
+   },
+   "proof": {
+    "proofValue": "z44E7RcWaiFRc6ot9SY4ZV2u4s5mQsptYpjLTs6UGfwKVWygCYZ3tSMRutSmSojjo7ZM3tAa4UMbzqJiz1EWWe9kq",
+    "successorProofValue": "z4hDPP3PzaWKAmFBURufL1skHLgpn38bp3iLRqJbGVfzfu5G4SWrwVmH5hx6vJU9Qa8GfKf2qzaxKf63ZN1UhXuhY"
+   }
+  },
+  "anchorMappingRotated": {
+   "body": {
+    "type": "anchor-mapping@3",
+    "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+    "self": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+    "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+    "card": {
+     "body": {
+      "type": "self-card@1",
+      "anchor": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+      "keyAgreement": "z6LSp6eTGCjVEfG9xBRdi1fEXv7JeiSnbMe1thgMgqoswerD"
+     },
+     "proof": {
+      "proofValue": "z52U5HXmcKLPExMe3e9E4cdciZzTG1ccNnQG19N1rf42v4f6jjUNSeBn4SjpQ2DXrs2y6PWoPPkojbBCAteNeFa9y"
+     }
+    },
+    "lineage": [
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+       "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+       "generation": "2"
+      },
+      "proof": {
+       "proofValue": "z44E7RcWaiFRc6ot9SY4ZV2u4s5mQsptYpjLTs6UGfwKVWygCYZ3tSMRutSmSojjo7ZM3tAa4UMbzqJiz1EWWe9kq",
+       "successorProofValue": "z4hDPP3PzaWKAmFBURufL1skHLgpn38bp3iLRqJbGVfzfu5G4SWrwVmH5hx6vJU9Qa8GfKf2qzaxKf63ZN1UhXuhY"
+      }
+     }
+    ],
+    "revision": "2",
+    "issuedAt": "2026-10-07T12:00:00Z"
+   },
+   "proof": {
+    "mac1": "uzf5BnJPmZjQHD6gbuKPWdQVjauHsR9fDAKbQSQXW9k8",
+    "mac2": "uSpgIs_u0OLe3dyCqqW7evDJqnPL2SBYw_F1HC79_id0"
+   }
   }
  },
  "responderOfRecord": "B2 (lexicographically smaller new anchor)",
@@ -621,11 +672,11 @@
   {
    "name": "mapping-foreign-self",
    "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
-   "checkOrder": "6.3 steps 1-8 in order; steps 1-4 PASS (MACs are over the mutated body), step 5 FAILS",
+   "checkOrder": "6.3 steps 1-8 in order; steps 1-4a PASS (MACs are over the mutated body), step 5 FAILS",
    "expect": "reject: card.anchor != body.self",
    "artifact": {
     "body": {
-     "type": "anchor-mapping@2",
+     "type": "anchor-mapping@3",
      "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
      "self": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
      "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
@@ -639,12 +690,57 @@
        "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
       }
      },
+     "lineage": [],
      "revision": "1",
      "issuedAt": "2026-08-23T12:00:00Z"
     },
     "proof": {
-     "mac1": "uQR6Yd0j5uk8jrbH6DTWo4hKVN657dFCxz-T6pdPNiJU",
-     "mac2": "uEAoP95UxW4esAAvemtzzMAFlsT3mDNhJ0w3VqJCbDOk"
+     "mac1": "uyVb2OrRho4yOSt2fhUp6sNUqG3MIhEWsfpWYxBAP9Yo",
+     "mac2": "unBefti9qlK-jo0dFIhPTqad7xSPuRV1hVjz0zKhZJcI"
+    }
+   }
+  },
+  {
+   "name": "mapping-lineage-not-ending-at-self",
+   "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
+   "checkOrder": "6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures and starts at generation 2, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)",
+   "expect": "reject: the last next of lineage != self",
+   "artifact": {
+    "body": {
+     "type": "anchor-mapping@3",
+     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+     "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "card": {
+      "body": {
+       "type": "self-card@1",
+       "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+       "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6"
+      },
+      "proof": {
+       "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
+      }
+     },
+     "lineage": [
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+        "generation": "2"
+       },
+       "proof": {
+        "proofValue": "z44E7RcWaiFRc6ot9SY4ZV2u4s5mQsptYpjLTs6UGfwKVWygCYZ3tSMRutSmSojjo7ZM3tAa4UMbzqJiz1EWWe9kq",
+        "successorProofValue": "z4hDPP3PzaWKAmFBURufL1skHLgpn38bp3iLRqJbGVfzfu5G4SWrwVmH5hx6vJU9Qa8GfKf2qzaxKf63ZN1UhXuhY"
+       }
+      }
+     ],
+     "revision": "1",
+     "issuedAt": "2026-08-23T12:00:00Z"
+    },
+    "proof": {
+     "mac1": "uijB_UrRbF9WMtVAm_aTL9tDgobgvKZwTCkiDjfUoSDE",
+     "mac2": "ukavd2bBnN9Z9XMQ9WsQAWn0aRjb_lUZjUFeyiVxkNhI"
     }
    }
   },
@@ -959,6 +1055,36 @@
    }
   },
   {
+   "name": "legacy-version-2",
+   "fixture": "none needed",
+   "checkOrder": "2.1 type check, before any crypto",
+   "expect": "reject: anchor-mapping@2 not implemented (Visibility 0.30 2.1)",
+   "artifact": {
+    "body": {
+     "type": "anchor-mapping@2",
+     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+     "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "card": {
+      "body": {
+       "type": "self-card@1",
+       "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+       "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6"
+      },
+      "proof": {
+       "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
+      }
+     },
+     "revision": "1",
+     "issuedAt": "2026-08-23T12:00:00Z"
+    },
+    "proof": {
+     "mac1": "u4WqFkWyO0WLrSgpxj07hassiTH8D60dFePntciFlO28",
+     "mac2": "ulZNGf44DaFnckIY3zSq2SQxDo3HW8xo8uuoL-o64_uQ"
+    }
+   }
+  },
+  {
    "name": "star-salt-replay",
    "fixture": "recipient state: highest completed salt for tuple (A,B) = 1 (after accepting this file's star)",
    "checkOrder": "salt comparison before assembly",
@@ -979,5 +1105,18 @@
     }
    }
   }
- ]
+ ],
+ "selfGenerations": {
+  "2": {
+   "label": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA/2",
+   "anchor": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+   "keyAgreement": "z6LSp6eTGCjVEfG9xBRdi1fEXv7JeiSnbMe1thgMgqoswerD",
+   "note": "generation 2 of the same community anchor: group/<digest>/2 (Identity 0.52 §5.4)"
+  }
+ },
+ "rotation": {
+  "note": "anchorMappingRotated: the sender A rotated its community anchor from generation 1 to 2 (anchorRotation) and re-issued the mapping on tuple (A,B) under a higher revision with lineage [anchorRotation]; B, holding anchorMapping (self = generation 1), classifies it as a ROTATION (6.3 condition 8): the previously held self is the prev of a lineage element",
+  "heldSelf": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+  "classification": "rotation"
+ }
 }

@@ -87,7 +87,7 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
   const profile = (specText.match(/\*\*Conformance profile:\*\* `(rltp-membership@[0-9.]+)`/) ?? [])[1]
   const t10010 = ruleText(specText, 'RLTP-MT-10010') ?? ''
   const titles = OWN.filter((f) => !S[f] || !S[f].title.includes(profile ?? '\u0000'))
-  add(['RLTP-MT-10010'], profile === 'rltp-membership@0.17' && t10010.includes(profile) && titles.length === 0,
+  add(['RLTP-MT-10010'], profile === 'rltp-membership@0.18' && t10010.includes(profile) && titles.length === 0,
     `profile ${profile}: header, RLTP-MT-10010 and the titles of ${OWN.length} Membership schemas agree${titles.length ? ' — differs: ' + titles.join(', ') : ''}`)
 
   // RLTP-MT-10030: Access transcriptions keep unversioned $ids; Membership schemas $ref them by those

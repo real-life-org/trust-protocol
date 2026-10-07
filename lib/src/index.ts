@@ -22,9 +22,10 @@
 //   carrier-identity  the carrier-relationship principal (Identity §7a)
 //   carrier           the carrier side of the port (Delivery §4.4 + §5a)
 //   holder            the holder side: proofs, verdicts, recovery (§5a, §9.3)
-//   visibility        Network Visibility 0.29 on Delivery 0.79 — the trust
-//                     act, the blinded star, §6a continuity, the deniable
-//                     ack (namespaced: `visibility.trust`, `.continuity`,
+//   visibility        Network Visibility 0.30 on Delivery 0.80 — the trust
+//                     act, the blinded star, the group star, the community
+//                     anchor's rotation, §6a continuity, the deniable ack
+//                     (namespaced: `visibility.trust`, `.continuity`,
 //                     `.acks`; graduated from /probe on 04.09.2026)
 //   ceremony          Encounter 0.30's registered ceremony on Delivery
 //                     0.79 — encounter-bundle, encounter-credential-

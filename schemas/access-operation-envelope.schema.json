@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
-  "title": "RLTP Access Operation Envelope (transcription of Access Layer 0.55 section 3.3, envelope rltp-access/0.25)",
+  "title": "RLTP Access Operation Envelope (transcription of Access Layer 0.56 section 3.3, envelope rltp-access/0.25)",
   "description": "TRANSCRIPTION, not the definition: the Access layer owns this shape; this schema exists so Membership Tasks and key-delivery validate payloads offline (Delivery Contract offline schema rule). Self-addressing id (oid: + base64url SHA-256 over the JCS serialization with id empty and proof omitted); every signature covers exactly that serialization. Root is OPEN (additionalProperties: true): per Access 3.3 unknown fields not named in crit MUST be IGNORED, so the schema passes them through — rejection of unknown restrictive extensions is the crit mechanism's job at the Access layer, never the schema's. Three proof mechanisms per Access 4.3. Body profiles per operation are transcribed in the if/then blocks (Access 4.5); bodies of unlisted registered operations validate as objects and are judged by materialization. The wire version is rltp-access/0.25, the one form this profile produces and accepts (Access 11, RLTP-ACC-11100). keyOpDigest — the digest of the adapter's key operation — is REQUIRED in the genesis body and in every transition (RLTP-ACC-9270, 7045, 4440); the transition carries the adapter's material binding, which for linear/0.1 is contentKeyCommitment, keyDist and the lineage choice (9.4.1), and for an adapter whose key operation travels beside the operation (beekem/0.1, 9.4.2) nothing beyond newEpoch, keyOpDigest and succeeds; device.add and device.revoke bind and revoke device cards (Access 5.1); dag.join (additive, empty body) joins DAG heads beyond the prev bound of 32 (RLTP-ACC-3170, 3172); history.expose names each exposed key's key state (RLTP-ACC-8090). Every transition names the key states it succeeds in succeeds (RLTP-ACC-7045, 9872), from 1 to 64 genesis, transition or merge identifiers, and its linear/0.1 lineage is the array of { opens: <operation id>, ct } (RLTP-ACC-9760).",
   "type": "object",
   "required": [
@@ -41,7 +41,8 @@
         "dag.join",
         "device.revoke",
         "group.dissolve",
-        "service-identity.announce"
+        "service-identity.announce",
+        "anchor.rotate"
       ]
     },
     "group": {
@@ -669,6 +670,33 @@
       "if": {
         "properties": {
           "op": {
+            "const": "anchor.rotate"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "required": [
+              "rotation"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "rotation": {
+                "$ref": "#/$defs/anchorRotation",
+                "description": "exactly one anchor-rotation@1 (Access 5.6, RLTP-ACC-5955); valid only at a position of sole membership (RLTP-ACC-5950)"
+              }
+            }
+          }
+        }
+      },
+      "description": "anchor.rotate (Access 4.5, 5.6): additive, no epoch effect, closed body { rotation } — the lineage entry of the holder's personal community"
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
             "enum": [
               "member.leave",
               "group.dissolve",
@@ -917,6 +945,67 @@
       "type": "string",
       "pattern": "^(oid:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]|u[A-Za-z0-9_-]{45}[AQgw]|z[1-9A-HJ-NP-Za-km-z]{44,48})$",
       "description": "a key state's identifier: the oid: of the genesis operation or of the transition that created it (RLTP-ACC-9262), or an adapter merge identifier, the multibase multihash of RLTP-ACC-9264; never an epoch number (7042)"
+    },
+    "anchorRotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "body",
+        "proof"
+      ],
+      "properties": {
+        "body": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "prev",
+            "next",
+            "generation"
+          ],
+          "properties": {
+            "type": {
+              "const": "anchor-rotation@1"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+              "description": "the community anchor at generation g (Identity 5.4)"
+            },
+            "next": {
+              "type": "string",
+              "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
+              "description": "the community anchor at generation g + 1"
+            },
+            "generation": {
+              "type": "string",
+              "pattern": "^([2-9]|[1-9][0-9]{1,17})$",
+              "description": "int-string: the generation of next, at least 2 (generation 1 is group/<digest>); the domain ends at 2^53 - 1 (Identity 5.4), checked by the verifier"
+            }
+          }
+        },
+        "proof": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "proofValue",
+            "successorProofValue"
+          ],
+          "properties": {
+            "proofValue": {
+              "type": "string",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]{64,88}$",
+              "description": "raw Ed25519 under prev over the canonical (JCS) bytes of body, z-base58btc"
+            },
+            "successorProofValue": {
+              "type": "string",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]{64,88}$",
+              "description": "raw Ed25519 under next over the same bytes"
+            }
+          }
+        }
+      },
+      "description": "anchor-rotation@1, transcribed from Network Visibility 6.5 (schemas/visibility-anchor-rotation.schema.json): the holder's community anchor moving from generation g to g + 1, signed by both generations"
     }
   }
 }

@@ -6,8 +6,10 @@
 // anchor per group, public personas. No two contexts link to each other
 // unless their holder deliberately discloses the link.
 //
-// The label registry is CLOSED (Identity §6.1, unchanged since 0.13):
-// exactly three label forms derive, and this API rejects every other
+// The label registry is CLOSED (Identity §6.1): exactly four label forms
+// derive — group/<digest>, group/<digest>/<generation> (the community
+// anchor's later generations, §5.4, the one row added since 0.13),
+// pair/<digest>, persona/<name> — and this API rejects every other
 // string before any key derivation — fail closed, no repair. `self`,
 // `recovery`, `carrier` and `device/…` are not labels; recovery and the
 // carrier-relationship identity have their own fixed derivations outside
@@ -39,6 +41,15 @@ export interface Context {
 // multihash: 47 characters, no padding, no non-zero trailing bits, no z.
 const digestComponent = (d: string): boolean => d.length === 47 && d[0] === 'u' && toU(d) === d
 
+// the generation domain of the community anchor (Identity §5.4): [2,
+// 2^53 − 1] — the 7a.3 domain (holder.ts GENERATION_MAX); generation 1
+// is the plain group/<digest>
+const GENERATION_MAX = Number.MAX_SAFE_INTEGER
+// §6.1: a decimal integer in [2, 2^53 − 1], no sign, no leading zero —
+// '1', '0', '01' and anything above the domain are no label
+const generationComponent = (g: string): boolean =>
+  /^[1-9][0-9]{0,15}$/.test(g) && BigInt(g) >= 2n && BigInt(g) <= BigInt(GENERATION_MAX)
+
 // §6.2 — the ordered persona-name pipeline. NFC is the one permitted
 // normalization (applied, not rejected); every later check runs on the
 // NFC result — and every Unicode property is evaluated against the
@@ -65,7 +76,12 @@ const personaName = (raw: string): string | null => {
  */
 export function canonicalLabel (label: string): string | null {
   if (typeof label !== 'string') return null
-  if (label.startsWith('group/')) return digestComponent(label.slice(6)) ? label : null
+  if (label.startsWith('group/')) {
+    const rest = label.slice(6)
+    const cut = rest.indexOf('/')
+    if (cut < 0) return digestComponent(rest) ? label : null
+    return digestComponent(rest.slice(0, cut)) && generationComponent(rest.slice(cut + 1)) ? label : null
+  }
   if (label.startsWith('pair/')) return digestComponent(label.slice(5)) ? label : null
   if (label.startsWith('persona/')) {
     const name = personaName(label.slice(8))
@@ -90,6 +106,22 @@ export async function pairContext (rootIkm: Uint8Array, nonce: Uint8Array): Prom
   return labeledContext(rootIkm, 'pair/' + await digestBytes(nonce))
 }
 
-/** The community anchor: an ordinary group context over the community's genesis digest. */
-export const communityContext = (rootIkm: Uint8Array, genesisDigest: string): Promise<Context> =>
-  labeledContext(rootIkm, 'group/' + genesisDigest)
+/**
+ * The label of the community anchor at a generation (Identity §5.4,
+ * §6.1): generation 1 is the ordinary group/<digest> context, a later
+ * one group/<digest>/<generation>. The label string is the whole
+ * derivation context — the generation enters nowhere else.
+ */
+export function communityLabel (genesisDigest: string, generation: number = 1): string {
+  if (!Number.isSafeInteger(generation) || generation < 1) throw new Error(`generation outside [1, 2^53 − 1] (Identity §5.4): ${generation}`)
+  return generation === 1 ? 'group/' + genesisDigest : `group/${genesisDigest}/${generation}`
+}
+
+/**
+ * The community anchor: the group context over the personal community's
+ * genesis digest at the holder's current generation (Identity §2, §5.4).
+ * It is not a member of the personal community — that group is founded,
+ * like every group, under a fresh pair anchor (Access §3.4.1).
+ */
+export const communityContext = (rootIkm: Uint8Array, genesisDigest: string, generation: number = 1): Promise<Context> =>
+  labeledContext(rootIkm, communityLabel(genesisDigest, generation))
