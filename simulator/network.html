@@ -312,7 +312,7 @@ function walletCats (p) {
   cats.push({ key: 'intro', title: 'Introductions', fpp: 'offers, released cards, act-bound vouchers', items: intro })
   const tr = []
   for (const c of p.contacts.values()) {
-    if (c.sentMapping) tr.push({ dir: 'out', title: `anchor-mapping · to ${c.name}`, sub: `anchor-mapping@2 (DV, double MAC) · one-way door ${c.trustPaused ? '· updates paused' : ''}`, json: J(c.sentMapping) })
+    if (c.sentMapping) tr.push({ dir: 'out', title: `anchor-mapping · to ${c.name}`, sub: `anchor-mapping@3 (DV, double MAC) · one-way door ${c.trustPaused ? '· updates paused' : ''}`, json: J(c.sentMapping) })
     if (c.mapping) tr.push({ dir: 'in', title: `anchor-mapping · from ${c.name}`, sub: 'verified with own secrets — worthless to third parties (deniable)', json: J(c.mapping) })
     if (c.sentStar) tr.push({ dir: 'out', title: `contact update · to ${c.name}`, sub: `blinded snapshot · ${c.sentStar.count} anchors as HMACs, salt ${c.sentStar.salt}`, json: J(c.sentStar) })
     if (c.starReceived) tr.push({ dir: 'in', title: `contact update · from ${c.name}`, sub: `${c.starReceived.count} contacts (blinded) · you know ${c.starInfo?.knownNames?.length ?? 0}`, json: J(c.starReceived) })

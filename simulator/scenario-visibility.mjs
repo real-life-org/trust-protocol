@@ -5,6 +5,8 @@
 // star carries exactly the granted recognitions. Run against visibility.mjs.
 import { createPerson, displayCard, sentCard } from './engine.mjs'
 import * as V from './visibility.mjs'
+import { makeValidator } from './rltp-core.mjs'
+import { SCHEMAS } from './rltp-schemas.mjs'
 
 const assert = (c, m) => { if (!c) { console.error(`✗ ASSERT: ${m}`); process.exit(1) } console.log(`✓ ${m}`) }
 const t = (l) => console.log(`\n─── ${l} ───`)
@@ -60,8 +62,10 @@ const freshRel = alice.relationships[0]
 const probe3 = V.buildProbe(alice, freshRel)
 assert(probe3.body.blinded.length === 256, 'Probe weiterhin formtreu')
 
-t('B4: Trust-Akt — anchor-mapping@2 + Schritt-5-Negativ')
+t('B4: Trust-Akt — anchor-mapping@3 + Schritt-5-Negativ')
 const am = V.issueAnchorMapping(bob, bob.relationships[0])
+const amSch = SCHEMAS['visibility-anchor-mapping.schema.json']
+assert(makeValidator(SCHEMAS).validate(am, amSch, amSch).length === 0 && am.body.lineage.length === 0, 'anchor-mapping@3 mit leerer lineage ist schema-valide (visibility-anchor-mapping.schema.json)')
 const ram = V.receiveAnchorMapping(alice, alice.relationships[0], am)
 assert(ram.self && alice.relationships[0].counterpartSelf === ram.self, 'Alice hält Bobs offengelegten Community-Anker (6.3-Liste komplett)')
 const bad = JSON.parse(JSON.stringify(am)); bad.body.self = V.communityIdentity(carol).anchor

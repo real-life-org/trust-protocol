@@ -15,7 +15,7 @@ the devices hold — nothing is invented.
 |---|---|---|
 | QR ceremony (show · scan · confirm · counter) | `ceremony` (Encounter 0.30 on Delivery 0.79) | `encounter-bundle/0.1`, `encounter-credential-delivery/0.1`, signed `delivery-ack/0.1` |
 | optical fallback (held ack) | `ceremony.captureSentCard` | the sent card as a code — same enactment, other carrier |
-| trust act (device button · ★ Trust) | `visibility.trust.setTrust` + `starRefreshAll` | `anchor-mapping/0.1`, `grade-declaration/0.1`, `star/0.1`, MAC acks |
+| trust act (device button · ★ Trust) | `visibility.trust.setTrust` + `starRefreshAll` | `anchor-mapping/0.2` (carrying `anchor-mapping@3`), `grade-declaration/0.1`, `star/0.1`, MAC acks |
 | re-encounter → one relationship | `visibility.continuity` (probe/mapping sweep) | `continuity-probe/0.1`, `continuity-mapping/0.1` |
 | groups (found · join by drag or ＋ Membership) | `/probe` `membership` | prelude → invite → `membership-accept/0.2` → welcome |
 | god-mode verify (drag · ＋ Verification) | the same ceremony, run programmatically | same documents |

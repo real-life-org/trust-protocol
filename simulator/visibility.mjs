@@ -7,7 +7,8 @@
 //        prior-candidate set (self-match excluded by construction), the
 //        one-chooser machine (record side = lexicographically smaller new
 //        pair anchor, choice frozen), alignment duty
-//   6    anchor-mapping@2 (the Trust act: pair→self, double-DH MAC) and
+//   6    anchor-mapping@3 (the Trust act: pair→self, double-DH MAC; the
+//        simulator models no rotation, so `lineage` is always empty) and
 //        self-card@1
 //   5    the star (directional epochal blinding, count/blinded grades) and
 //        grade-declaration@1
@@ -165,7 +166,7 @@ export function receiveContinuityMapping (p, rel, mapping) {
   return { matchReport: true } // a mapping FROM the non-record side never chains (6a.4)
 }
 
-// ── 6 anchor-mapping@2 — the Trust act (pair→self, double-DH, DV) ────────
+// ── 6 anchor-mapping@3 — the Trust act (pair→self, double-DH, DV) ────────
 export function selfCard (p) {
   const self = communityIdentity(p)
   const body = { type: 'self-card@1', anchor: self.anchor, keyAgreement: self.keyAgreement }
@@ -176,8 +177,8 @@ export function issueAnchorMapping (p, rel) {
   const self = communityIdentity(p)
   const t = rel.head
   const body = {
-    type: 'anchor-mapping@2', pair: t.ownCtx.anchor, self: self.anchor, to: t.counterpartAnchor,
-    card: selfCard(p), revision: '1', issuedAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    type: 'anchor-mapping@3', pair: t.ownCtx.anchor, self: self.anchor, to: t.counterpartAnchor,
+    card: selfCard(p), lineage: [], revision: '1', issuedAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
   }
   const mac1 = hmacU(relKey(t.ownCtx, t.counterpartMk, 'rltp/visibility/mac/map1'), jcs(body))
   const mac2 = hmacU(hkdf(ecdh(self.keys.x, t.counterpartMk), 'rltp/visibility/mac/map2'), jcs(body))
@@ -188,7 +189,9 @@ export function issueAnchorMapping (p, rel) {
 export function receiveAnchorMapping (p, rel, m) {
   const t = rel.head
   const b = m.body
-  if (b.type !== 'anchor-mapping@2') return { error: 'type' }                                       // 1
+  if (b.type !== 'anchor-mapping@3') return { error: 'type' }                                       // 1
+  // 4a — no rotation is modeled here: only an empty lineage is accepted (fail-closed)
+  if (!Array.isArray(b.lineage) || b.lineage.length !== 0) return { error: 'lineage' }
   if (b.to !== t.ownCtx.anchor) return { error: 'to != own active pair anchor' }                    // 2
   if (b.pair !== t.counterpartAnchor) return { error: 'pair != counterpart anchor' }                // 3
   const cb = b.card.body

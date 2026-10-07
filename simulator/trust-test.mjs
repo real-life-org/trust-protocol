@@ -39,7 +39,7 @@ const keyOf = (p, name) => [...p.contacts.entries()].find(([, c]) => c.name === 
 // ── 1. der Vertrauensakt: einseitig, verifiziert, Einweg-Tür ────────────
 {
   const pkt = await T.setTrust(anton, keyOf(anton, 'Berta'), T0 + 10_000)
-  check(!pkt.error && pkt.outbound?.length === 2, 'Vertrauensakt Anton→Berta: anchor-mapping/0.1 + grade-declaration/0.1 versiegelt auf dem Kanal')
+  check(!pkt.error && pkt.outbound?.length === 2, 'Vertrauensakt Anton→Berta: anchor-mapping/0.2 + grade-declaration/0.1 versiegelt auf dem Kanal')
   const r = await deliverAct(world, berta, pkt, T0 + 11_000)
   const bA = berta.contacts.get(keyOf(berta, 'Anton'))
   check(r.disclosed && bA.selfAnchor === (await T.communityContext(anton)).anchor, 'Berta hält Antons stabilen Anker — Mapping VERIFIZIERT übernommen')
