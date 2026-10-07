@@ -187,7 +187,7 @@ function mergeEntries (p: Person, a: any, survivorIn: any, goneIn: any, when: nu
   for (const ck of gone.rels) survivor.rels.add(ck)
   // jede gehaltene Generation und jedes gehaltene Glied bleibt bei SEINER Beziehung (§6a.1)
   for (const [rid, h] of heldOf(gone)) heldOf(survivor).set(rid, h)
-  refreshAnchors(survivor)
+  settle(a, survivor)
   // Declarations bleiben je Herkunftstupel (B-2): höchste order je Tupel
   for (const [ck, g] of gone.grades ?? []) {
     const cur = survivor.grades?.get(ck)
@@ -242,7 +242,7 @@ export function departMember (p: Person, relId: string, when: number) {
   }
   // was die gegangene Beziehung hielt, geht mit ihr (§6a.1)
   for (const rid of [...heldOf(e).keys()]) if (rid === relId || (p.contacts.get(rid)?.relId ?? rid) === relId) heldOf(e).delete(rid)
-  refreshAnchors(e)
+  settle(a, e)   // der Kopf des Rests aus dem, was seine Beziehungen halten (§2)
   if (e.relIds.size > 0) { reidentify(p, a, e); return }   // Aliase bleiben, der Member bleibt admittiert
   if (e.status === 'admitted') { a.admitted -= 1n; admitPending(p, a, when) }
 }
@@ -254,29 +254,105 @@ const linksOfHeld = (held: string[]): [string, string][] => held.slice(1).map((n
 // bleibt bei der Beziehung — ein Split nimmt sie mit
 type Held = { anchors: Set<string>, links: Map<string, string>, head: string }
 const heldOf = (x: any): Map<string, Held> => (x.held ??= new Map([[x.id, { anchors: new Set([x.self]), links: new Map(), head: x.self }]]))
-// die Anker, die ein Eintrag hält (Identity §5.4): die Vereinigung über
-// seine Beziehungen und sein aktueller self
-const refreshAnchors = (x: any) => {
-  const out = new Set<string>([x.self])
-  for (const h of heldOf(x).values()) for (const a of h.anchors) out.add(a)
-  x.anchors = out
-}
+// was ein Eintrag als überholt hält (§6a.1 Nr. 2 (b)): jedes prev eines
+// Glieds irgendeiner seiner Beziehungen, dazu die Nachfolger, die eine
+// lokale Auflösung (Nr. 3) überholt hat
+const supersededIn = (x: any, skip: (rid: string) => boolean = () => false): Set<string> =>
+  new Set([...linksOfEntry(x, skip).map(([prv]) => prv), ...(x.resolution?.superseded ?? [])])
 // das Lineage-Wissen eines Eintrags: die Glieder ALLER seiner Beziehungen
 // (ohne die Beziehungen, die `skip` als eigene ausweist)
 const linksOfEntry = (x: any, skip: (rid: string) => boolean = () => false): [string, string][] =>
   [...heldOf(x)].filter(([rid]) => !skip(rid)).flatMap(([, h]) => [...h.links])
-// die Kopfregel (§6a.1 Nr. 2, Review 4 M1), eintragsweit: ein Kopf `head`
-// mit der getragenen Lineage `links` schließt an den Eintrag x an, wenn
-// (a) er x' aktueller Kopf ist oder die Lineage diesen fortsetzt (als prev
-// trägt) UND (b) x' Lineage-Wissen ihn nicht als überholt hält (er ist ein
-// prev irgendeines Glieds irgendeiner Beziehung von x)
-const joins = (head: string, links: [string, string][], x: any, skip?: (rid: string) => boolean) => {
-  const known = linksOfEntry(x, skip)
-  return (head === x.self || links.some(([prv]) => prv === x.self)) && !known.some(([prv]) => prv === head)
+// Kopf und Anker eines Eintrags, IMMER aus dem bestimmt, was seine
+// Beziehungen halten (§6a.1 Nr. 2, §2): die Anker = die Vereinigung ihrer
+// gehaltenen Anker (was keine Beziehung mehr hält, fällt heraus); der Kopf =
+// der neueste ihrer Köpfe entlang der gehaltenen Glieder. Haben sie
+// unvergleichbare neueste Köpfe (zwei Nachfolger eines Ankers in einem
+// Eintrag, ein manueller Merge einer Recovery-Gabel), ist der Eintrag
+// KOPFKONFLIKTIERT: die Merges bleiben, sein Kopf ist für die Kopfregel
+// undefiniert, bis die lokale Auflösung (Nr. 3, resolveHead) einen nennt.
+// Eine Auflösung, deren Kopf keine Beziehung mehr hält, erlischt.
+const settle = (a: any, x: any) => {
+  const held = [...heldOf(x)]
+  if (held.length === 0) { x.anchors = new Set([x.self]); return }
+  x.anchors = new Set(held.flatMap(([, h]) => [...h.anchors]))
+  if (x.resolution && !x.anchors.has(x.resolution.head)) delete x.resolution
+  const next = new Map<string, string[]>()
+  for (const [prv, nxt] of linksOfEntry(x)) next.set(prv, [...(next.get(prv) ?? []), nxt])
+  const reaches = (from: string, to: string) => {
+    const seen = new Set<string>(); const todo = [...(next.get(from) ?? [])]
+    while (todo.length) { const n = todo.pop()!; if (n === to) return true; if (!seen.has(n)) { seen.add(n); todo.push(...(next.get(n) ?? [])) } }
+    return false
+  }
+  const heads = [...new Set(held.map(([, h]) => h.head))].filter((h) => !x.resolution?.superseded.has(h))
+  const newest = heads.filter((h) => !heads.some((o) => o !== h && reaches(h, o)))
+  const tips = newest.length > 0 ? newest : heads
+  x.headConflict = tips.length !== 1
+  x.tips = tips
+  // im Konflikt trägt die Sicht den Kopf der ältesten Beziehung (Promotion-
+  // Reihenfolge), die einen der konkurrierenden Köpfe hält — unabhängig von
+  // der Ankunftsreihenfolge; ein Kopf für die Kopfregel ist das nicht
+  const order = (rid: string) => a.relOrder.get(rid) ?? BigInt(Number.MAX_SAFE_INTEGER)
+  x.self = tips.length === 1 ? tips[0] : held.filter(([, h]) => tips.includes(h.head)).sort(([r1], [r2]) => (order(r1) < order(r2) ? -1 : order(r1) > order(r2) ? 1 : 0))[0]![1].head
 }
+// die Kopfregel (§6a.1 Nr. 2), eintragsweit: ein Kopf `head` mit der
+// getragenen Lineage `links` schließt an den Eintrag x an, wenn (a) er x'
+// aktueller Kopf ist oder die Lineage diesen fortsetzt (als prev trägt) UND
+// (b) x ihn nicht als überholt hält. Ein kopfkonfliktierter Eintrag hat
+// keinen Kopf: er nimmt an keinem automatischen Merge teil
+const joins = (head: string, links: [string, string][], x: any, skip?: (rid: string) => boolean) =>
+  !x.headConflict && (head === x.self || links.some(([prv]) => prv === x.self)) && !supersededIn(x, skip).has(head)
 // die Gabelregel (§6a.1): zwei Gliedmengen, die für dasselbe prev
 // verschiedene next tragen, führen nie zusammen
 const forks = (l1: [string, string][], l2: [string, string][]) => l1.some(([p1, n1]) => l2.some(([p2, n2]) => p1 === p2 && n1 !== n2))
+// die übrigen Einträge in Positionsreihenfolge (die früheste zuerst)
+const entriesByPos = (a: any): any[] => [...new Set<any>(a.byRel.values())].sort((x, y) => (x.pos < y.pos ? -1 : x.pos > y.pos ? 1 : 0))
+// die Kopfregel nach einem akzeptierten Update des Eintrags e (§6a.1 Nr. 2),
+// in beiden Verarbeitungsrichtungen:
+//   · die EINGEHENDE Beziehung `relId` gegen jeden anderen Eintrag — bei
+//     JEDEM akzeptierten Mapping, nicht nur bei einer Kopfänderung (auch
+//     neu getragene verbindende Lineage zählt). Beweiskraft hat sie nur,
+//     wenn ihr Kopf der Kopf ihres Eintrags ist: der Kopf einer
+//     nachhinkenden Beziehung ist in ihrem eigenen Eintrag überholt. Und
+//     sie zieht keinen Eintrag herein, dessen Kopf ihr Eintrag SCHON VOR
+//     diesem Mapping als überholt hielt — der wurde unter einem überholten
+//     Anker abgewiesen und tritt erst bei, wenn er selbst einen aktuellen
+//     Kopf vorlegt; nur neu getragenes verbindendes Wissen verbindet
+//   · die Gegenrichtung, wenn sich e's Kopf geändert hat (`before`): ein
+//     anderer Eintrag schließt sich nur an, wenn ER die Kopfregel gegen e
+//     erfüllt. Ein unter überholtem Anker abgewiesener Eintrag kommt so nie
+//     über ein späteres ehrliches Update hinein
+// beide mit der eintragsweiten Gabelprüfung; ein kopfkonfliktierter
+// Eintrag nimmt an keinem automatischen Merge teil
+const converge = (p: Person, a: any, e: any, before: string | undefined, when: number, incoming?: { relId: string, supersededBefore: Set<string> }) => {
+  if (e.headConflict) return e
+  const mine = incoming && heldOf(e).get(incoming.relId)
+  if (incoming && mine && mine.head === e.self) {
+    const twin = entriesByPos(a).find((x) => x !== e && !incoming.supersededBefore.has(x.self) && joins(mine.head, [...mine.links], x) && !forks(linksOfEntry(e), linksOfEntry(x)))
+    if (twin) e = mergeEntries(p, a, e, twin, when)
+  }
+  if (e.headConflict || e.self === before) return e
+  const twin = entriesByPos(a).find((x) => x !== e && !x.headConflict && joins(x.self, linksOfEntry(x), e) && !forks(linksOfEntry(x), linksOfEntry(e)))
+  return twin ? mergeEntries(p, a, e, twin, when) : e
+}
+/**
+ * Die lokale Auflösung eines Kopfkonflikts (§6a.1 Nr. 3): der Halter wählt,
+ * welcher der konkurrierenden Nachfolger maßgeblich ist; die anderen werden
+ * überholtes Wissen des Eintrags. Die Markierung fällt, die automatischen
+ * Merges laufen wieder — der Kopf ist neu bestimmt, also gilt die
+ * Gegenrichtung der Kopfregel sofort.
+ */
+export function resolveHead (p: Person, entryId: string, head: string, when: number) {
+  finite(when)
+  const a = admission(p)
+  const e = a.byRel.get(entryId)
+  if (!e) throw new Error('no such entry')
+  if (!e.headConflict) throw new Error('the entry holds no head conflict')
+  if (!e.tips.includes(head)) throw new Error('the named head is none of the competing heads')
+  e.resolution = { head, superseded: new Set(e.tips.filter((t: string) => t !== head)) }
+  settle(a, e)
+  return converge(p, a, e, undefined, when)
+}
 /**
  * Promotion-Commit (Sektion 2). `held` = alle Generationen, die die
  * verifizierte Abbildung trägt (self + Lineage, Kettenreihenfolge), `kind`
@@ -312,7 +388,7 @@ export function promotionCommit (p: Person, relId: string, self: string, contact
     for (const rid of [...e.relIds]) if (own(rid)) { e.relIds.delete(rid); a.byRel.delete(rid) }
     for (const ck of [...e.rels]) if (ownRel(ck)) { e.rels.delete(ck); e.grades?.delete(ck) }
     for (const rid of [...heldOf(e).keys()]) if (own(rid)) heldOf(e).delete(rid)
-    refreshAnchors(e)
+    settle(a, e)   // der Kopf des Rests aus dem, was seine Beziehungen halten (§2)
     reidentify(p, a, e)
     e = undefined
   }
@@ -322,52 +398,32 @@ export function promotionCommit (p: Person, relId: string, self: string, contact
     // Position oder Status (Sektion 2)
     const hm = heldOf(e)
     const mine = hm.get(relId)
+    const supersededBefore = supersededIn(e)
     if (leaves) hm.set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self })
     else hm.set(relId, { anchors: new Set([...(mine?.anchors ?? []), ...heldSet]), links: new Map([...(mine?.links ?? []), ...links]), head: self })
-    // der aktuelle Kopf des Eintrags rückt nur vor, wenn diese Abbildung
-    // ihn fortsetzt; eine Korrektur der einzigen Beziehung ersetzt ihn
-    const before = e.self
-    if (leaves || links.some(([prv]) => prv === e.self)) e.self = self
-    refreshAnchors(e)
-    if (e.self !== before) {
-      // die andere Verarbeitungsrichtung (Review 4, M1): ein ANDERER
-      // Eintrag schließt sich nur an, wenn ER die Kopfregel gegen diesen
-      // Eintrag erfüllt — sein Kopf ist der aktuelle oder setzt ihn fort und
-      // ist hier nicht überholt. Ein unter überholtem Anker abgewiesener
-      // Eintrag kommt so nie über ein späteres ehrliches Update hinein
-      const self0 = e.self
-      const twin = [...new Set(a.byRel.values())].find((x) => x !== e && joins(x.self, linksOfEntry(x), e) && !forks(linksOfEntry(x), linksOfEntry(e)))
-      if (twin) {
-        e = mergeEntries(p, a, e, twin, when)
-        // der Kopf des Anschließenden ist gleich oder neuer
-        e.self = twin.self === self0 || linksOfEntry(twin).some(([prv]) => prv === self0) ? twin.self : self0
-        refreshAnchors(e)
-      }
-    }
+    const before = e.headConflict ? undefined : e.self
+    settle(a, e)
     e.rels.add(contactKey)
-  } else {
-    // erreicht die eingehende Abbildung den aktuellen Kopf eines ANDEREN
-    // Eintrags, ohne dort überholt zu sein und ohne zu gabeln = der Weg-2-Merge
-    const twin = [...new Set(a.byRel.values())].find((x) => foreign(x) && joins(self, links, x, own) && !forks(links, linksOfEntry(x, own)))
-    if (twin) {
-      twin.relIds.add(relId); twin.rels.add(contactKey); a.byRel.set(relId, twin); e = twin
-      heldOf(twin).set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self })
-      // die Generation der neuesten Abbildung ist der aktuelle Anker:
-      // die Kopfregel lässt nur den gleichen oder einen fortsetzenden Kopf zu
-      twin.self = self
-      refreshAnchors(twin)
-    }
-    else {
-      // Admission ist TOTAL: unter dem Bound admitted (der Normalfall —
-      // die Promotion selbst ist die Admission), am Bound
-      // deliverable-pending (triggert nichts, rückt bei Abgang nach)
-      const status = a.admitted < boundOf(p) ? 'admitted' : 'pending'
-      if (status === 'admitted') a.admitted += 1n
-      e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, held: new Map([[relId, { anchors: new Set(heldSet), links: new Map(links), head: self }]]), rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }  // id = kanonische Identität (Review 36)
-      refreshAnchors(e)
-      a.byRel.set(relId, e)
-    }
+    return converge(p, a, e, before, when, { relId, supersededBefore })
   }
+  // erreicht die eingehende Abbildung den aktuellen Kopf eines ANDEREN
+  // Eintrags, ohne dort überholt zu sein und ohne zu gabeln = der Weg-2-Merge
+  const twin = entriesByPos(a).find((x) => foreign(x) && joins(self, links, x, own) && !forks(links, linksOfEntry(x, own)))
+  if (twin) {
+    const before = twin.self
+    twin.relIds.add(relId); twin.rels.add(contactKey); a.byRel.set(relId, twin)
+    heldOf(twin).set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self })
+    settle(a, twin)
+    return converge(p, a, twin, before, when)
+  }
+  // Admission ist TOTAL: unter dem Bound admitted (der Normalfall —
+  // die Promotion selbst ist die Admission), am Bound
+  // deliverable-pending (triggert nichts, rückt bei Abgang nach)
+  const status = a.admitted < boundOf(p) ? 'admitted' : 'pending'
+  if (status === 'admitted') a.admitted += 1n
+  e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, held: new Map([[relId, { anchors: new Set(heldSet), links: new Map(links), head: self }]]), rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }  // id = kanonische Identität (Review 36)
+  settle(a, e)
+  a.byRel.set(relId, e)
   return e
 }
 /** Kettung (B-4): der neue Kopf löst über die überlebende Beziehung auf;

@@ -135,10 +135,12 @@ relationship are the rule working, not an exception to it.
   a new community, that relationship leaves the merged entry
   atomically. The entry keeps its position, its admission status
   and its remaining relationships with their aliases; no slot is
-  released. The leaving relationship takes its chain aliases, its
-  per-tuple grades, and its provenance and continuity facts (8.6,
-  6a) with it and re-enters the deliverable set through an
-  ordinary promotion commit: its own entry at the next position in
+  released; the head of the remaining entry is recomputed from what
+  its remaining relationships hold (likewise on a departure). The
+  leaving relationship takes its chain aliases, its per-tuple
+  grades, and its provenance and continuity facts (8.6, 6a) with
+  it and re-enters the deliverable set through an ordinary
+  promotion commit: its own entry at the next position in
   promotion-commit order, admitted, or deliverable-pending if the
   set is full — subject to 6a.1 like every promotion. The leaver
   keeps its own relationship identity as the identity of its new
@@ -171,9 +173,10 @@ relationship are the rule working, not an exception to it.
   admitted entries into one frees `k−1` slots and admits the
   next `k−1` pending entries in promotion-commit order — one
   atomic merge evaluation, never pairwise, each admission a set
-  change (5.4). Pause is and stays **per relationship** — a merge
-  changes no pause anywhere ("admission-layer and nothing else"
-  includes this); surfacing to the user that a paused and an
+  change (5.4). A merged entry whose relationships hold
+  incomparable heads is head-conflicted (6a.1, no. 2). Pause is
+  and stays **per relationship** — a merge changes no pause
+  anywhere ("admission-layer and nothing else" includes this); surfacing to the user that a paused and an
   unpaused channel now belong to one person is a UI concern, and
   the deliberate local act of 5.4 remains the only transition. **A non-chaining merge
   (6a.1 paths 2 and 3) is an admission-layer event and nothing
@@ -946,7 +949,9 @@ property exists only as their sum:
    other than the held one; 6a.1) — the held anchor advances and
    becomes this relationship's head, every holder-local merge
    keyed by an earlier anchor persists, a new merge follows the
-   head rule of 6a.1 in both processing directions, and star tests run against every anchor held
+   head rule of 6a.1 in both processing directions (a rotation that
+   leaves the entry holding incomparable heads marks it
+   head-conflicted, 6a.1), and star tests run against every anchor held
    for this contact;
    otherwise it is a **new community** — accepted as a correction;
    where the relationship belongs to a merged entry, it leaves that
@@ -1101,11 +1106,24 @@ pre-selection.
    (a) `r`'s head — its current `self` — equals `E`'s current head,
    or the lineage `r` carries extends `E`'s current head (carries
    it as a `prev`), **and**
-   (b) `E`'s lineage knowledge does not hold `r`'s head as
-   superseded — `r`'s head is no `prev` of any link held by `E`,
-   from any of its relationships.
+   (b) neither side holds the other's head as superseded — `r`'s
+   head is no `prev` of any link held by `E`, from any of its
+   relationships, and no successor a resolution (no. 3)
+   superseded; and `E`'s head is no `prev` of any link `r`'s own
+   entry holds. Only knowledge the committed mapping newly carries
+   connects: a relationship whose own entry already held an
+   anchor as superseded does not pull in an entry under that
+   anchor, and a relationship lagging behind its own entry's head
+   is no evidence toward another entry.
    `E`'s current head is the newest anchor `E` holds: an entry's
-   head advances only along a lineage that extends it. The rule
+   head advances only along a lineage that extends it. Where the
+   heads `E`'s relationships hold are incomparable — two successors
+   of one anchor within one entry, or a manual merge (no. 3) of a
+   recovery fork — the existing merges persist and `E` is
+   **head-conflicted**: its head is undefined for the head rule, and
+   it takes part in no merge of this net in either direction,
+   neither joining another entry nor admitting a relationship, until
+   the explicit local resolution of no. 3. The rule
    applies to the incoming relationship, whose verification is
    being committed, against every other entry; and in the other
    direction: where an update on a relationship of `E` — a
@@ -1153,7 +1171,10 @@ pre-selection.
 
 3. **The manual fallback:** the human merges contact entries
    locally (the same admission-layer merge; the data-loss case —
-   contact memory is local anyway).
+   contact memory is local anyway). The same local act resolves a
+   head conflict (no. 2): the holder chooses which successor is
+   current, which clears the mark and governs as the entry's head;
+   the others become superseded knowledge of the entry.
 
 An implementation MUST support 1 and 2; 3 is a UI concern, named
 for honesty.
