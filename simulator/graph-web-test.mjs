@@ -2,13 +2,14 @@
 // Assertions for the browser core (runs in node 20+ via globalThis.crypto).
 // Covers the review-1 invariants (strict verification, deterministic
 // replay, append-only publication, one-sided trust, delivered stars,
-// executed tag crypto) and the DEFERRED ANCHOR DISCLOSURE probe after
+// anonymous rosters) and the DEFERRED ANCHOR DISCLOSURE probe after
 // review 2: pairwise-only ceremony (no self artifact), pair cards,
 // DV mappings (3DH-MAC) for self AND context linkages, blinded stars
 // with purpose-separated keys.
+import * as W from './graph-web.mjs'
 import {
   createWorld, addPerson, encounter, createGroup, join, promote, setTrust,
-  setTag, linkClusters, sharedGroups, rosterNames, rosterName,
+  linkClusters, sharedGroups, rosterNames,
   verifyEncounter, verifyMapping, forgeMapping, starMatch, starKey,
   verifyPairCard, verifyCtxMapping, makeCtxMapping,
   contactKey, contactEntry, communityIdentity, communityLabel, persona, diVerify, jcs, xSharedHex,
@@ -121,7 +122,7 @@ assert((await encounter(w, me, peter, now + 999)) === null && [...me.contacts.va
     'Replay: auch die DV-Zuordnung ist bytegleich reproduzierbar (deterministische Nonces)')
 }
 
-// ── groups, append-only membership (F10), executed tags (F11) ───────────
+// ── groups, append-only anonymous membership (F10) ──────────────────────
 const chor = await createGroup(w, 'chor', 'Choir')
 const rat = await createGroup(w, 'rat', 'Council')
 await join(w, me, chor, now); await join(w, peter, chor, now)
@@ -144,32 +145,36 @@ assert((await sharedGroups(me, contactKey(me, 'Peter'), w)).length === 2,
 
 {
   const pAnchor = (await persona(peter, `group/${chor.genesisDigest}`)).anchor
-  await join(w, peter, chor, now += 1000, 'Peter')   // named
-  await join(w, peter, chor, now += 1000)            // anonymous again
+  await join(w, peter, chor, now += 1000)
+  await join(w, peter, chor, now += 1000)
   const entry = chor.roster.get(pAnchor)
   assert(entry.docs.length === 3, 'Membership append-only: alle ausgestellten Dokumente bleiben')
-  assert(rosterName(entry) === 'Peter', 'einmal benannt = fuer Digest-Halter benannt (publish is forever)')
+  // RLTP-ACC-5920: no mapping ever enters the group space — the roster
+  // carries the member anchor and nothing that names a person
+  assert(entry.docs.every((d) => Object.keys(d).sort().join() === 'group,issuedAt,member,proof,type'),
+    'Roster anonym: Mitgliedsdokument traegt nur Gruppe, Mitgliedsanker, Zeit (kein Name, ACC-5920)')
+  assert(!('setTag' in W) && !('rosterName' in W) && !('tagArtifacts' in chor) && !('tags' in peter),
+    'kein Benennen in den Roster: weder Name noch Erkennungs-Tag im Gruppenraum (Designnotiz §3 verworfen)')
 }
 
 {
-  // tags: executed HMAC — under deferred disclosure a tag resolves ONLY
-  // against contacts who PROMOTED you (their self anchor is the HMAC input)
+  // recognition in a group comes only from the person: a mapping
+  // delivered to a contact over the relationship channel — never an
+  // entry in the group space
   const lena = await addPerson(w, 'Lena', '#ec4899'); lena.mode = 'friends'
   await encounter(w, me, lena, now += 60_000)
   await join(w, lena, chor, now)
-  assert((await sharedGroups(me, contactKey(me, 'Lena'), w)).length === 0, 'friends-Modus: nichts verbunden vor Tag/Befoerderung')
-  await setTag(w, lena, 'chor', true)
-  assert((await sharedGroups(me, contactKey(me, 'Lena'), w)).length === 0,
-    'DEFERRED: Tag unaufloesbar ohne Lenas self-Anker — die Zeremonie hat ihn nicht geliefert')
+  assert((await sharedGroups(me, contactKey(me, 'Lena'), w)).length === 0, 'friends-Modus: nichts verbunden vor dem Vertrauen')
   await setTrust(w, lena, me, true, now + 1000)
-  // isolate the TAG path: strip the group mappings the friends-mode
-  // promotion auto-disclosed, so only the HMAC recomputation can match
-  for (const [l] of [...contactEntry(me, 'Lena').disclosed]) if (l.startsWith('group/')) contactEntry(me, 'Lena').disclosed.delete(l)
   assert((await sharedGroups(me, contactKey(me, 'Lena'), w)).join() === 'chor',
-    'Tag (echtes HMAC): nach Befoerderung erkennt der Co-Mitglied-Kontakt die Mitgliedschaft')
-  assert((await sharedGroups(sam, (await communityIdentity(lena)).anchor, w)).length === 0, 'Nicht-Kontakt erkennt nichts (kein self-Anker zugestellt)')
-  await setTag(w, lena, 'chor', false)
-  assert((await sharedGroups(me, contactKey(me, 'Lena'), w)).join() === 'chor', 'Tag aus: Artefakt bleibt erkennbar (publish is forever)')
+    'Wiedererkennen: nach Lenas Vertrauen erkennt der Co-Mitglied-Kontakt sie per zugestelltem Mapping')
+  // without a delivered mapping there is nothing to recognize by
+  for (const [l] of [...contactEntry(me, 'Lena').disclosed]) if (l.startsWith('group/')) contactEntry(me, 'Lena').disclosed.delete(l)
+  assert((await sharedGroups(me, contactKey(me, 'Lena'), w)).length === 0,
+    'kein Seitenweg ueber den Gruppenraum: ohne Mapping erkennt auch der Vertraute nichts')
+  assert((await sharedGroups(sam, (await communityIdentity(lena)).anchor, w)).length === 0, 'Nicht-Kontakt erkennt nichts (kein Mapping zugestellt)')
+  assert(w.transport.filter((p) => p.to.startsWith('group: ')).every((p) => p.kind === 'membership@0 (publish)'),
+    'Gruppenraum: einzige Publikation ist das anonyme Mitgliedsdokument')
 }
 
 // ── one-sided trust + BLINDED stars (F2/F9 + audience class D) ──────────

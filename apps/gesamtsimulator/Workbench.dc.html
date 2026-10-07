@@ -2155,7 +2155,6 @@ class Component extends DCLogic {
         groups: gs.map((g) => ({
           id: g.id, label: g.label, initials: initials(g.label),
           meta: g.roster.length + (g.roster.length === 1 ? ' member' : ' members') + (g.founder === id ? ' · you founded it' : ' · anonymous roster'),
-          onTrust: () => {},
         })),
         noGroups: gs.length === 0,
         tabs: ['Contacts', 'Groups', 'Profile'].map((l) => ({
