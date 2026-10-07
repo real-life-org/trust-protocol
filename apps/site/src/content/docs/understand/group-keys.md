@@ -1,9 +1,15 @@
 ---
-title: Keys and replication
-description: What holds a group's secrets and who carries them. Two ports, key states instead of epoch numbers, the adapters that produce keys, what the replication service may know, and how a person gets back in after losing a phone.
+title: Group keys and replication
+description: The keys a group encrypts its content with, and who carries them. Two ports, key states instead of epoch numbers, the adapters that produce keys, what the replication service may know, and how a device gets back in.
 ---
 
 ## Two ports
+
+This page is about one kind of key: the **content key** a group
+encrypts its shared space with, held by every member's device and
+replaced whenever the membership changes. A person's own keys, the
+seed, the anchors per context and the device keys, are the Identity
+layer's and are explained in [Foundations](/understand/foundations/).
 
 A group has two kinds of truth. Who belongs and what is allowed is
 decided by the **authority log**: every device replays the same

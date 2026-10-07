@@ -77,7 +77,7 @@ The person adds their own devices, up to eight.
 
 So a lost phone can be cut off without its owner leaving the group. A member whose devices are all gone is still a member.
 How the keys follow such changes, and how a device gets back in, is
-on [Keys and replication](/understand/keys-and-replication/).
+on [Group keys and replication](/understand/group-keys/).
 
 Spec: [Access Layer §5.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity)
 
