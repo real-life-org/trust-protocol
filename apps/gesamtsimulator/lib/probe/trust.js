@@ -152,7 +152,24 @@ const relIdOf = (p, contactKey) => {
 // Bound testbar: p.admissionBound (BigInt) überschreibt den
 // unerreichbaren Spec-Bound — die MECHANIK (pending, k−1, Departure)
 // ist dieselbe (Sektion 2, „the rule exists for totality")
-const admission = (p) => (p.admission ??= { seq: 0n, byRel: new Map(), admitted: 0n });
+// relOrder: die Promotion-Reihenfolge der BEZIEHUNGEN (ihr erster
+// Promotion-Commit) — sie bestimmt die Identität eines Eintrags, dessen
+// namensgebende Beziehung geht (Sektion 2, Review 3 M3)
+const admission = (p) => (p.admission ??= { seq: 0n, byRel: new Map(), admitted: 0n, relSeq: 0n, relOrder: new Map() });
+// geht die namensgebende Beziehung eines verschmolzenen Eintrags (Split
+// oder Departure), wird die älteste VERBLEIBENDE Beziehung in
+// Promotion-Reihenfolge seine Identität; jeder holder-lokale Schlüssel
+// des Eintrags löst über byRel auf, die alte Identität gehört danach dem
+// Austreter (Sektion 2). Ketten-Aliase sind keine Beziehungen
+const reidentify = (p, a, e) => {
+    if (e.relIds.has(e.id))
+        return;
+    const rels = [...e.relIds].filter((rid) => (p.contacts.get(rid)?.relId ?? rid) === rid);
+    const order = (rid) => a.relOrder.get(rid) ?? BigInt(Number.MAX_SAFE_INTEGER);
+    const next = rels.sort((x, y) => (order(x) < order(y) ? -1 : order(x) > order(y) ? 1 : 0))[0];
+    if (next !== undefined)
+        e.id = next;
+};
 const boundOf = (p) => p.admissionBound ?? ADMISSION_BOUND;
 // grade-wait läuft nur ab, wenn ein Admissionszeitpunkt EXISTIERT
 // (Review 5, MAJOR): jede Zustandsoperation verlangt eine endliche Uhr
@@ -249,8 +266,10 @@ export function departMember(p, relId, when) {
         if (rid === relId || (p.contacts.get(rid)?.relId ?? rid) === relId)
             heldOf(e).delete(rid);
     refreshAnchors(e);
-    if (e.relIds.size > 0)
-        return; // Aliase bleiben, der Member bleibt admittiert
+    if (e.relIds.size > 0) {
+        reidentify(p, a, e);
+        return;
+    } // Aliase bleiben, der Member bleibt admittiert
     if (e.status === 'admitted') {
         a.admitted -= 1n;
         admitPending(p, a, when);
@@ -262,7 +281,7 @@ const lineageHas = (held, anchor) => held.indexOf(anchor) >= 0 && held.indexOf(a
 // die Glieder prev → next, die eine verifizierte Ankermenge in
 // Kettenreihenfolge trägt (leer, wenn sie nur self ist)
 const linksOfHeld = (held) => held.slice(1).map((n, i) => [held[i], n]);
-const heldOf = (x) => (x.held ??= new Map([[x.id, { anchors: new Set([x.self]), links: new Map() }]]));
+const heldOf = (x) => (x.held ??= new Map([[x.id, { anchors: new Set([x.self]), links: new Map(), head: x.self }]]));
 // die Anker, die ein Eintrag hält (Identity §5.4): die Vereinigung über
 // seine Beziehungen und sein aktueller self
 const refreshAnchors = (x) => {
@@ -272,16 +291,18 @@ const refreshAnchors = (x) => {
             out.add(a);
     x.anchors = out;
 };
-const anchorsOf = (x) => { if (!x.anchors)
-    refreshAnchors(x); return x.anchors; };
-// zwei Beziehungen verschmelzen, wenn sich ihre verifizierten Ankermengen —
-// je self samt getragener Lineage — schneiden (§6a.1 Nr. 2, symmetrisch) …
-const shares = (x, set) => [...anchorsOf(x)].some((y) => set.has(y));
+// eine eingehende Abbildung verschmilzt mit einer anderen Beziehung nur,
+// wenn sie deren gehaltenen KOPF erreicht (§6a.1 Nr. 2, Review 3 M2): ihr
+// self IST der Kopf, oder ihre Lineage setzt ihn fort (trägt ihn als prev).
+// Ein dort überholter Anker (ein prev der gehaltenen Lineage) führt nie
+// zusammen — sonst verschmölze ein kopierter alter Schlüssel mit leerer
+// Lineage auch nach der ehrlichen Rotation …
+const reachesHead = (x, self, links, own) => [...heldOf(x)].some(([rid, h]) => !own(rid) && (h.head === self || links.some(([prv]) => prv === h.head)));
 // … und ihre gehaltenen Glieder NICHT gabeln: hält der Empfänger für
 // dasselbe prev zwei verschiedene next, eins aus jeder Beziehung, findet
 // kein Merge statt (§6a.1, die Gabelregel)
 const forksWith = (x, links, own) => [...heldOf(x)].some(([rid, h]) => !own(rid) && links.some(([prv, nxt]) => h.links.has(prv) && h.links.get(prv) !== nxt));
-const mayMerge = (x, set, links, own) => shares(x, set) && !forksWith(x, links, own);
+const mayMerge = (x, self, links, own) => reachesHead(x, self, links, own) && !forksWith(x, links, own);
 /**
  * Promotion-Commit (Sektion 2). `held` = alle Generationen, die die
  * verifizierte Abbildung trägt (self + Lineage, Kettenreihenfolge), `kind`
@@ -300,6 +321,8 @@ export function promotionCommit(p, relId, self, contactKey, when, held = [self],
     // gehört ein Aliasschlüssel zu DIESER Beziehung (Ketten-Aliase, Review 35)?
     const own = (rid) => rid === relId || (p.contacts.get(rid)?.relId ?? rid) === relId;
     const ownRel = (ck) => ck === contactKey || (p.contacts.get(ck)?.relId ?? ck) === relId;
+    if (!a.relOrder.has(relId))
+        a.relOrder.set(relId, (a.relSeq += 1n));
     let e = a.byRel.get(relId);
     if (e && e.self !== self && kind === 'new-community' && [...e.relIds].some((rid) => !own(rid))) {
         // der Split (§6.3 Nr. 8): nichts verbindet die beiden — die Beziehung
@@ -319,24 +342,25 @@ export function promotionCommit(p, relId, self, contactKey, when, held = [self],
             if (own(rid))
                 heldOf(e).delete(rid);
         refreshAnchors(e);
+        reidentify(p, a, e);
         e = undefined;
     }
     if (e) {
         // spätere Verifikation derselben Beziehung: in place — auch eine
         // self-KORREKTUR per höherer Revision ändert nur den Inhalt, nie
-        // Position oder Status (Sektion 2). Trifft die Korrektur die self
-        // (oder eine gehaltene Generation) einer ANDEREN Beziehung, ist das
-        // der Weg-2-Merge
+        // Position oder Status (Sektion 2). Erreicht die Korrektur den gehaltenen
+        // Kopf einer ANDEREN Beziehung (self = Kopf, oder die Lineage setzt ihn
+        // fort), ist das der Weg-2-Merge
         const hm = heldOf(e);
         const mine = hm.get(relId);
         if (e.self !== self && kind !== 'rotation')
-            hm.set(relId, { anchors: new Set(heldSet), links: new Map(links) });
+            hm.set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self });
         else
-            hm.set(relId, { anchors: new Set([...(mine?.anchors ?? []), ...heldSet]), links: new Map([...(mine?.links ?? []), ...links]) });
+            hm.set(relId, { anchors: new Set([...(mine?.anchors ?? []), ...heldSet]), links: new Map([...(mine?.links ?? []), ...links]), head: self });
         if (e.self !== self) {
             e.self = self;
             refreshAnchors(e);
-            const twin = [...a.byRel.values()].find((x) => x !== e && mayMerge(x, heldSet, links, own));
+            const twin = [...a.byRel.values()].find((x) => x !== e && mayMerge(x, self, links, own));
             if (twin)
                 e = mergeEntries(p, a, e, twin, when);
         }
@@ -345,15 +369,15 @@ export function promotionCommit(p, relId, self, contactKey, when, held = [self],
         e.rels.add(contactKey);
     }
     else {
-        // gleiche self (oder eine gehaltene Generation) auf einer ANDEREN
+        // erreicht self oder Lineage den gehaltenen Kopf einer ANDEREN
         // Beziehung = der Weg-2-Merge, außer die gehaltenen Glieder gabeln
-        const twin = [...a.byRel.values()].find((x) => mayMerge(x, heldSet, links, own));
+        const twin = [...a.byRel.values()].find((x) => mayMerge(x, self, links, own));
         if (twin) {
             twin.relIds.add(relId);
             twin.rels.add(contactKey);
             a.byRel.set(relId, twin);
             e = twin;
-            heldOf(twin).set(relId, { anchors: new Set(heldSet), links: new Map(links) });
+            heldOf(twin).set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self });
             // die Generation der neuesten Abbildung ist der aktuelle Anker
             if (twin.self !== self && lineageHas(held, twin.self))
                 twin.self = self;
@@ -366,7 +390,7 @@ export function promotionCommit(p, relId, self, contactKey, when, held = [self],
             const status = a.admitted < boundOf(p) ? 'admitted' : 'pending';
             if (status === 'admitted')
                 a.admitted += 1n;
-            e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, held: new Map([[relId, { anchors: new Set(heldSet), links: new Map(links) }]]), rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }; // id = kanonische Identität (Review 36)
+            e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, held: new Map([[relId, { anchors: new Set(heldSet), links: new Map(links), head: self }]]), rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }; // id = kanonische Identität (Review 36)
             refreshAnchors(e);
             a.byRel.set(relId, e);
         }

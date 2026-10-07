@@ -140,7 +140,14 @@ relationship are the rule working, not an exception to it.
   6a) with it and re-enters the deliverable set through an
   ordinary promotion commit: its own entry at the next position in
   promotion-commit order, admitted, or deliverable-pending if the
-  set is full — subject to 6a.1 like every promotion. A new
+  set is full — subject to 6a.1 like every promotion. The leaver
+  keeps its own relationship identity as the identity of its new
+  entry; where it was the identity of the merged entry, the
+  remaining entry takes the oldest remaining relationship in
+  promotion-commit order as its identity, and every holder-local
+  key that resolved through the old identity is rewritten to the
+  new one in the same atomic step — the same holds when that
+  relationship departs. A new
   community on an entry that holds no other relationship is a
   `self` correction in place. One commit
   writes the entry whole — relationship identity, order position,
@@ -150,8 +157,8 @@ relationship are the rule working, not an exception to it.
   **chain-level sender state** (they attach to relationships, not
   tuples — like contact memory) and survive chaining. **Merge —
   one rule for every merge path of 6a.1** (chaining, a later
-  mapping whose `self` equals another relationship's, the manual
-  act): the merged relationships' entries become **one entry at
+  mapping that reaches the head another relationship holds, the
+  manual act): the merged relationships' entries become **one entry at
   the earliest position** among them, and the merged
   relationship's **identity is the surviving entry's** — the
   other identities become aliases of it, so a recovered mapping
@@ -932,9 +939,11 @@ property exists only as their sum:
    carried segment, as `prev` or `next` of some element of
    `lineage`, and the carried segment does not fork against the
    links this relationship holds (for the same `prev`, a `next`
-   other than the held one; 6a.1) — the held anchor advances,
-   every holder-local merge keyed by an earlier anchor persists,
-   and star tests run against every anchor held for this contact;
+   other than the held one; 6a.1) — the held anchor advances and
+   becomes this relationship's head, every holder-local merge
+   keyed by an earlier anchor persists, a new merge follows the
+   head rule of 6a.1, and star tests run against every anchor held
+   for this contact;
    otherwise it is a **new community** — accepted as a correction;
    where the relationship belongs to a merged entry, it leaves that
    entry (the split, Section 2), because nothing links the two, or
@@ -1038,9 +1047,10 @@ and cannot do toward a contact: a mapping is accepted only on the
 holder's own relationship tuple under its pair key (6.3), so the
 copy cannot replace what that tuple holds; the holder's own
 rotation moves its existing tuples past the copied key, and once a
-contact holds that rotation, the fork rule (6a.1) blocks a merge
-via a different successor of the same key. It does not stop a
-holder of the copied key from presenting a lineage through it on a
+contact holds that rotation, the copied key is superseded there:
+the head rule of 6a.1 refuses a merge on it and the fork rule a
+merge via a different successor of it. It does not stop a holder
+of the copied key from presenting a lineage through it on a
 relationship of its own before the honest rotation reaches that
 contact — the convergence net then merges (Section 11).
 
@@ -1081,7 +1091,14 @@ pre-selection.
    **contact entries** (the admission-layer merge of Section 2 —
    both relationships stay active; the chains themselves unify at
    the next chaining, 6a.4) — a holder-local act of the
-   addressee, no wire artifact. **The fork rule:** the merge MUST
+   addressee, no wire artifact. **The head rule:** the
+   intersection merges only where the incoming mapping — the one
+   whose verification is being committed — reaches the head the
+   other relationship holds, its current `self`: the incoming
+   `self` equals that head, or the incoming lineage extends it
+   (carries it as a `prev`). An anchor the other relationship
+   holds as superseded — a `prev` of its held lineage — MUST NOT
+   cause a merge. **The fork rule:** the merge MUST
    NOT happen when the two relationships' held lineages fork — the
    addressee holds, for the same `prev`, two different `next`
    values across the two relationships, one from each. The links a
@@ -1089,11 +1106,16 @@ pre-selection.
    accumulated across rotations and replaced at a new community
    (6.3, condition 8); where such a fork arises on one
    relationship, it is a new community there. Two successors of
-   one key are evidence of a copied key or another seed, and a
-   shared anchor stops being evidence of one person. The rule
-   covers what is held: before the honest rotation reaches the
-   addressee nothing forks, and a lineage presented through a
-   copied key on a relationship of its own merges (Section 11).
+   one key are a copied key, another seed, or an honest recovery
+   from a stale counterpart (Identity §9.3), and a shared anchor
+   stops being evidence of one person; in the honest case the
+   remaining path is the holder's manual re-trust — re-issuing the
+   mapping is what re-links (Identity §9.3). The two rules cover
+   what is held: once the addressee holds the honest rotation, a
+   copied superseded key merges neither with an empty lineage (the
+   head rule) nor through a successor of its own (the fork rule);
+   before that, a lineage presented through the copied key on a
+   relationship of its own merges (Section 11).
 3. **The manual fallback:** the human merges contact entries
    locally (the same admission-layer merge; the data-loss case —
    contact memory is local anyway).
@@ -1777,9 +1799,10 @@ deliberately left open rather than built badly.
   rotation onto a key of its own (Identity §5.4, §13). It cannot
   replace what a contact holds on the holder's own relationship
   tuple (6.3), which the copy does not open; it can present the
-  forged lineage on a relationship of its own, where the fork rule
-  (6a.1) stops the merge only once the contact holds the honest
-  rotation (6.5, Section 11, Identity §8.6).
+  forged lineage, or the copied key alone, on a relationship of its
+  own, where the head rule and the fork rule (6a.1) stop the merge
+  once the contact holds the honest rotation (6.5, Section 11,
+  Identity §8.6).
 - **Probe abuse** — a stranger cannot test candidate anchors:
   entries are HMACs of the *sender's own* anchors under a key
   bound to this fresh tuple; replay into another tuple fails
@@ -1881,11 +1904,13 @@ deliberately left open rather than built badly.
   holder's honest rotation `A → B`, the verified anchor sets meet
   and the two entries merge: the contact's star tests and admission
   treat the copier as the holder. Once the contact holds `A → B`,
-  the fork rule blocks that merge; it does not undo one made
-  before. The residue is the window between the copy and the
-  honest rotation reaching each contact; it is a convergence
-  residue, not a takeover of the holder's tuples; B2 for the
-  community anchor stays none (Identity §11, §13).
+  `A` is superseded there: a mapping under `self = A` merges with
+  nothing (the head rule of 6a.1), whatever lineage it carries or
+  omits, and `A → X` forks (the fork rule); neither undoes a merge
+  made before. The residue is the window between the copy and the
+  honest rotation reaching each contact, and it ends there; it is a
+  convergence residue, not a takeover of the holder's tuples; B2
+  for the community anchor stays none (Identity §11, §13).
 - **Possession residue of the self card** (6.2): after disclosure,
   the card is transferable addressing material; §1 is issuance
   control, not recall.
@@ -1967,8 +1992,9 @@ A conformant implementation:
     `anchor-mapping@3`, written whole) as chain-level state with
     its merge and state-loss rules, overflow deliverable-pending
     with its stated lifecycle, grade-wait anchored at admission
-    (Section 2, 5.4), the split of 6.3 condition 8 — and merges
-    per 6a.1 under the fork rule — state-dependent;
+    (Section 2, 5.4), the split of 6.3 condition 8 with the
+    identity of the remaining entry — and merges per 6a.1 under the
+    head rule and the fork rule — state-dependent;
 13. produces and receives `group-star@1` per 5.2b — keys, entry
     construction, modes (withdrawal of trust clearing the per-group
     switches toward that contact), padding to a multiple of 16, the

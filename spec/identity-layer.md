@@ -440,7 +440,7 @@ profile is defined.
 |---|---|---|---|
 | Create identity (3.1, 4) | "Write down your recovery words" (12 or 24 generated; all valid BIP-39 lengths import) | the person exists; contacts can be made | the words are the only secret; losing them is final (9.2) |
 | Full recovery (9.3) | "Enter your words on the new device" — synced state reachable | the recovery context locates and unlocks the state; every context — the personal community included — returns as the register loads | none |
-| Partial recovery (9.3) | "Enter your words" — synced state gone | the recovery context reaches only storage, and no social anchor returns by itself; group and persona contexts return as counterparts re-supply their digests; the community anchor returns the same way, its current generation found by deriving upward until the anchor the counterparts hold appears, while the personal community's log does not — rotating again means founding a new personal community and rotating onto its anchor (9.3); **pair contexts do not return at all** | MUST say: without your synced data, nothing returns by itself; your people can re-supply your groups — your personal community included — and personas re-derive from their names; **relationship (pair) contexts cannot be re-supplied — those relationships are re-created, not recovered** (9.3), and their carrier registrations are made afresh under new principals (7a.3) |
+| Partial recovery (9.3) | "Enter your words" — synced state gone | the recovery context reaches only storage, and no social anchor returns by itself; group and persona contexts return as counterparts re-supply their digests; the community anchor returns the same way, the generation a counterpart holds — possibly behind the latest — found by deriving upward until that anchor appears, while the personal community's log does not — rotating again means founding a new personal community and rotating onto its anchor, and contacts holding a later generation then see a new community (9.3); **pair contexts do not return at all** | MUST say: without your synced data, nothing returns by itself; your people can re-supply your groups — your personal community included — and personas re-derive from their names; **relationship (pair) contexts cannot be re-supplied — those relationships are re-created, not recovered** (9.3), and their carrier registrations are made afresh under new principals (7a.3) |
 | Join a group (6.1) | joining itself — no key step | the group appears | none (label handling is automatic) |
 | Create a public persona (6.1) | "Create public profile" | publicly findable under the chosen name | publishing is forever — stopping does not unpublish (visibility layer) |
 | Rotate the community anchor (5.4) | "Renew your anchor" | contacts whose held anchor the carried lineage reaches follow automatically; a contact that missed more than 64 rotations learns the holder as a new community | MUST say: this renews the key your contacts know you by; it does not help if your recovery words were copied |
@@ -1598,11 +1598,12 @@ relationship. A contact whose held anchor is not in the segment it
 receives cannot connect the new anchor to it and re-learns the
 holder as a new community (`rltp-visibility` §6.5). Toward a copied
 key, a rotation moves the holder's existing tuples past it and,
-once a contact holds that rotation, blocks a merge via a different
-successor of the same key (`rltp-visibility` §6a.1, the fork rule);
-it does not stop a holder of the copied key from presenting a
-lineage on a relationship of its own before the honest rotation
-reaches that contact (Section 13). Rotation is
+once a contact holds that rotation, supersedes the copied key
+there: the contact merges nothing on it, neither under it as
+`self` (the head rule) nor via a different successor of it (the
+fork rule; `rltp-visibility` §6a.1); it does not stop a holder of
+the copied key from presenting a lineage on a relationship of its
+own before the honest rotation reaches that contact (Section 13). Rotation is
 neither recovery nor succession; loss and compromise of the
 mnemonic stay with *RLTP Succession* (8.2, 9.2). The holder issues
 the lineage only per recipient inside the anchor mapping, never
@@ -1668,13 +1669,20 @@ synchronized by the layers above:
   The **generation** of the community anchor (5.4) is a label like
   any other and returns with the register; without it, the holder
   re-learns the personal community's digest like any group's and
-  finds the current generation by deriving `group/<D>`,
-  `group/<D>/2`, … upward until the anchor the counterparts hold
-  appears. The anchor returns this way; the personal community's
-  log does not, because its founder context is a pair context
-  (6.1). Rotating again therefore means founding a new personal
-  community and rotating onto its generation-1 anchor with a proof
-  signed by the recovered generation (5.4).
+  finds the generation a counterpart holds — which may be behind
+  the holder's latest — by deriving `group/<D>`, `group/<D>/2`, …
+  upward until that anchor appears. The anchor returns this way;
+  the personal community's log does not, because its founder
+  context is a pair context (6.1). Rotating again therefore means
+  founding a new personal community and rotating onto its
+  generation-1 anchor with a proof signed by the recovered
+  generation (5.4). Where that counterpart held only an earlier
+  generation, this rotation and the holder's earlier honest
+  rotation are two successors of one key: contacts that hold the
+  later rotation see a fork and treat the new anchor as a new
+  community (`rltp-visibility` §6.3 condition 8, §6a.1). The
+  remaining path is the holder's manual re-trust: re-issuing the
+  anchor mapping is what re-links.
   Partial recovery is deterministic: the recovery-context
   candidates are the two fixed rule sets of 5.3, never a holder's
   choice. **Pair labels are the honest limit of
@@ -1985,12 +1993,15 @@ that:
   accepted there only under the holder's pair key
   (`rltp-visibility` §6.3); the holder's own rotation moves its
   existing tuples past the copied key, and once a contact holds
-  that rotation, the fork rule blocks a merge via a different
-  successor of the same key (`rltp-visibility` §6a.1). **Residue:**
-  before the honest rotation reaches a contact, a holder of the
-  copied key can present a lineage through it on a relationship of
-  its own, and the convergence net merges it with the holder's
-  entry at that contact (`rltp-visibility` §11). B2 stays none
+  that rotation, the copied key is superseded there: the head rule
+  refuses a merge under it and the fork rule a merge via a
+  different successor of it (`rltp-visibility` §6a.1).
+  **Residue:** the window between the copy and the honest rotation
+  reaching each contact — within it, a holder of the copied key can
+  present a lineage through it on a relationship of its own, and
+  the convergence net merges it with the holder's entry at that
+  contact (`rltp-visibility` §11); the window ends at each contact
+  when the rotation arrives there. B2 stays none
   (Section 11). Whoever holds the seed holds every generation, past
   and future.
 - **Domain separation.** The derivation families in force are:

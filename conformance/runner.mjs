@@ -1334,7 +1334,7 @@ section('access-anchor-rotate.json — the lineage entry of the personal communi
   schemaFails({ ...AR.operations.rot2, body: { rotation: AR.operations.rot2.body.rotation, note: 'x' } }, 'access-operation-envelope.schema.json', 'anchor.rotate with an extra body field')
   for (const c of AR.cases) {
     const got = await materializeRotations(c.ops.map((l) => ({ label: l, ...AR.operations[l] })), rotationOK)
-    check(jcs(got) === jcs(c.expect), `case ${c.name}: ${Object.entries(c.expect.status).map(([l, s]) => `${l} ${s}`).join(', ')}${c.expect.repeat.length ? `; repeat ${c.expect.repeat.join(', ')}` : ''}; chain [${c.expect.chain.join(' → ')}]; state unchanged [${c.rules.join(', ')}]`)
+    check(jcs(got) === jcs(c.expect), `case ${c.name}: ${Object.entries(c.expect.status).map(([l, s]) => `${l} ${s}`).join(', ')}${c.expect.repeat.length ? `; repeat ${c.expect.repeat.join(', ')}` : ''}; chain [${c.expect.chain.join(' → ')}]; ${c.expect.state.terminal ? 'terminal' : 'state unchanged'} [${c.rules.join(', ')}]`)
   }
 }
 

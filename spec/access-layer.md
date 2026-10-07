@@ -804,8 +804,8 @@ What a later branch can change is closed and listed in Section 3.6
 — the remaining fork pairing, a dissolution lapsing beside an
 enforcement or prevailing over additive operations, the removal
 disposition, a removal with authority taking effect, the
-canonical walk of the `anchor.rotate` entries, where an entry the
-walk does not visit — the loser among candidates with the same
+canonical walk of the `anchor.rotate` entries over the operations
+no other disposition displaces, where an entry the walk does not visit — the loser among candidates with the same
 `prev` or among first entries, and everything only beyond it —
 stays valid but not canonical (RLTP-ACC-5965),
 and the revision of a terminality-by-emptiness verdict (5.4) —
@@ -1119,6 +1119,12 @@ the value folded last and first-bound-wins across anchors per 5.2.
 | `anchor.rotate` ∥ `anchor.rotate`, both first entries (no canonical `anchor.rotate` in either ancestor closure), differing `rotation.body.prev` | candidates at the root: the smaller entry `id` is visited and canonical; the other is valid and canonical only if the walk later reaches it as a candidate (its `prev` equals the `next` of a visited head), otherwise valid but not canonical (RLTP-ACC-5965) |
 | `anchor.rotate` ∥ any other non-terminal operation | both take effect; a removal of its author disposes it like every additive (RLTP-ACC-3425, 3435, 3400) |
 | `anchor.rotate` ∥ terminal operation | as every additive: the terminal operation prevails — a canonical `group.dissolve` and a last-member `member.leave` displace it (RLTP-ACC-3465, 3470) |
+
+The dispositions of this section apply before the canonical walk of
+the `anchor.rotate` entries: an `anchor.rotate` that a terminal
+outcome, the removal disposition or the forked state displaces is no
+candidate of the walk, and the walk chooses among the operations they
+leave in place (RLTP-ACC-5965).
 
 *Rationale.* Every pairing in the table is decided by the
 authority verdict of its two sides and by nothing else: additive
@@ -2886,27 +2892,32 @@ is the last entry the walk of RLTP-ACC-5965 visits over that set.
 
 **RLTP-ACC-5965** — The validity of an `anchor.rotate` MUST be
 judged per RLTP-ACC-3325 against its own ancestor closure
-(RLTP-ACC-5950, 5955, 5960). An *entry* is a `rotation.body`: the
-valid operations carrying JCS-identical `rotation.body` are one entry
-(idempotent, RLTP-ACC-3475), and the entry's `id` is the smallest
-`id` among them. At materialization the lineage MUST be walked over
-the operations at hand, and in no other way:
+(RLTP-ACC-5950, 5955, 5960). The candidates of the walk are the valid
+`anchor.rotate` operations that no disposition of 3.6 displaces — at
+sole membership exactly these can: a concurrent canonical
+`group.dissolve` or last-member `member.leave` (RLTP-ACC-3465, 3470),
+the removal disposition of a concurrent removal of the author
+(RLTP-ACC-3400, 3525), and the forked state (RLTP-ACC-3440, 3568). An
+*entry* is a `rotation.body`: the candidates carrying JCS-identical
+`rotation.body` are one entry (idempotent, RLTP-ACC-3475), and the
+entry's `id` is the smallest `id` among them. At materialization the
+lineage MUST be walked over the operations at hand, and in no other
+way:
 
 1. The walk starts at a virtual root. At the root the candidates are
-   the *first entries*: the entries carried by a valid
-   `anchor.rotate` whose ancestor closure holds no canonical
-   `anchor.rotate`.
+   the *first entries*: the entries carried by a candidate whose
+   ancestor closure holds no canonical `anchor.rotate`.
 2. At a chosen head the candidates are the entries, not yet visited,
    whose `prev` equals the head's `next`.
 3. Of the distinct candidates, the one with the smaller `id` in
    unsigned bytewise order is chosen and becomes the new head.
 4. Steps 2 and 3 repeat until no candidate remains.
 
-Exactly the visited entries MUST be canonical: every operation
+Exactly the visited entries MUST be canonical: every candidate
 carrying one, the one with the entry's `id` its representative and
 the others repeats with no further effect. Every other valid
-`anchor.rotate` MUST remain valid and MUST NOT be canonical
-(RLTP-ACC-3345; the pattern of RLTP-ACC-5240).
+`anchor.rotate`, a displaced one included, MUST remain valid and MUST
+NOT be canonical (RLTP-ACC-3345; the pattern of RLTP-ACC-5240).
 
 **RLTP-ACC-5970** — An `anchor.rotate` MUST NOT change the roster,
 the epoch, any binding of 5.1 or 5.2, any policy, or any

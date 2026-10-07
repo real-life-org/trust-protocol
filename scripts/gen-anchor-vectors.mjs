@@ -32,7 +32,13 @@
 //                                     the losing branch, a successor after
 //                                     the merge, a rotation that does not
 //                                     verify, a nested fork, two first
-//                                     entries with different prev
+//                                     entries with different prev; a
+//                                     rotation beside a dissolve and
+//                                     beside a last-member leave (both
+//                                     displace it before the walk), that
+//                                     leave reverted by a concurrent
+//                                     admission, a repeat beside a
+//                                     dissolve
 //
 // Deterministic: keys derive from the oracle IKM of
 // vectors/identity-derivation.json (and its second-party IKM, as in
@@ -403,6 +409,15 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
   // (the two children of the winner, same prev, differing bodies)
   if (fWin !== 'rot2') await rotate('rot4skipOnForeign', await V.makeAnchorRotation(foreign2, await L.communityContext(IKM2, Dpc, 4)), ['rot2foreignAfterJoin'])
   const nestedKids = fWin === 'rot2' ? ['rot3', 'rot4skip'] : ['rot3onForeign', 'rot4skipOnForeign']
+  // terminal operations of the sole member (Access 5.4, the last-member
+  // path) beside a rotation: the dispositions of 3.6 run before the walk
+  // (RLTP-ACC-5965) — a canonical group.dissolve and a last-member leave
+  // displace a concurrent rotation (3465, 3470); a concurrent canonical
+  // admission reverts the leave to an ordinary one (5840)
+  const terminal = async (label, op, prev) => { ops[label] = (await envelope({ ...base, op, prev: sortIds(prev.map((l) => ops[l].id)), body: {} }, [founder])).op; mustValidate(ops[label], 'access-operation-envelope.schema.json', label) }
+  await terminal('dissolve', 'group.dissolve', ['join'])
+  await terminal('leaveLast', 'member.leave', ['join'])
+  await terminal('dissolveAfterRot2', 'group.dissolve', ['rot2'])
   mustFail({ ...ops.rot2, body: { lineage: r.r12 } }, 'access-operation-envelope.schema.json', 'body field lineage')
   ops.rot2bad = (await envelope({ ...base, op: 'anchor.rotate', prev: [genesis.id], body: { rotation: r.r12bad } }, [founder])).op
   mustValidate(ops.rot2bad, 'access-operation-envelope.schema.json', 'rot2bad (shape)')
@@ -425,6 +440,10 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     { name: 'nested-fork', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', ...nestedKids], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', [lower(...nestedKids)]: 'canonical', [higher(...nestedKids)]: 'valid' }, repeat: [], chain: [fWin, lower(...nestedKids)], head: head(lower(...nestedKids)), state } },
     { name: 'first-entries-differing-prev', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'rot2', 'rot4first'], expect: { status: { [lower('rot2', 'rot4first')]: 'canonical', [higher('rot2', 'rot4first')]: 'valid' }, repeat: [], chain: [lower('rot2', 'rot4first')], head: head(lower('rot2', 'rot4first')), state } },
     { name: 'first-entries-the-walk-reaches-later', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'rot2', 'rot3first'], expect: lower('rot2', 'rot3first') === 'rot2' ? { status: { rot2: 'canonical', rot3first: 'canonical' }, repeat: [], chain: ['rot2', 'rot3first'], head: head('rot3first'), state } : { status: { rot2: 'valid', rot3first: 'canonical' }, repeat: [], chain: ['rot3first'], head: head('rot3first'), state } },
+    { name: 'rotation-beside-dissolve', rules: ['RLTP-ACC-3325', 'RLTP-ACC-3470', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'dissolve'], expect: { status: { rot2: 'valid' }, repeat: [], chain: [], head: null, state: { terminal: true } } },
+    { name: 'rotation-beside-last-member-leave', rules: ['RLTP-ACC-3325', 'RLTP-ACC-3465', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'leaveLast'], expect: { status: { rot2: 'valid' }, repeat: [], chain: [], head: null, state: { terminal: true } } },
+    { name: 'last-member-leave-reverted-by-admission', rules: ['RLTP-ACC-3465', 'RLTP-ACC-5840', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'add', 'rot2', 'leaveLast'], expect: { status: { rot2: 'canonical' }, repeat: [], chain: ['rot2'], head: head('rot2'), state: { ...state, members: [founder.anchor, second].sort() } } },
+    { name: 'repeat-beside-dissolve', rules: ['RLTP-ACC-3470', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2afterJoin', 'dissolveAfterRot2'], expect: { status: { rot2: 'canonical', rot2afterJoin: 'valid' }, repeat: [], chain: ['rot2'], head: head('rot2'), state: { terminal: true } } },
     { name: 'successor-after-the-merge', rules: ['RLTP-ACC-3325', 'RLTP-ACC-5960', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', 'rot3afterMerge'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', rot3afterMerge: 'canonical' }, repeat: [], chain: [fWin, 'rot3afterMerge'], head: head('rot3afterMerge'), state } },
   ]
   // self-check against the oracle the runner uses
@@ -436,9 +455,9 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
   W('vectors/access-anchor-rotate.json', {
     source: 'anchor.rotate per RLTP Access Layer 0.56 §5.6 (RLTP-ACC-5950 … 5970): the log of a personal community founded under a fresh pair anchor (Access 3.4.1, RLTP-ACC-3235, 3275), whose sole member writes the community anchor’s rotations; the anchors are group/<genesisDigest>[/g] of the oracle IKM of vectors/identity-derivation.json (Identity 0.52 §5.4), the differing ones derive under its second-party IKM, and the new personal community is group/<D\'> of the oracle IKM. Generated by scripts/gen-anchor-vectors.mjs from the library; the oracle is conformance/access-anchor-rotate.mjs, the runner re-derives ids, signatures and rotations with node:crypto. RLTP-ACC-5975 (no export beyond the log) is state-dependent and has no vector.',
     format: {
-      operations: 'real rltp-access/0.25 envelopes by label (id = oid: + base64url SHA-256 of JCS with id empty and proof omitted; signatures over the same bytes); `add` is a STATE FIXTURE (see its note)',
-      cases: 'per case the operations of the log (`ops`, labels) and the expected materialization: status per anchor.rotate (canonical | valid — valid but not canonical, 3345 | invalid), the repeats (JCS-identical bodies: one entry, its smallest id the representative, the others canonical with no further effect), the canonical chain (the representatives in walk order), the head (the next anchor of the last canonical entry, null if none), and the state, which no anchor.rotate changes (5970)',
-      order: 'validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Canonicity over the log at hand (5965): from a virtual root, whose candidates are the first entries (carried by a valid operation whose ancestor closure holds no canonical anchor.rotate), and then at each chosen head, whose candidates are the entries not yet visited with prev = the head\'s next, the candidate with the smaller representative id is visited and becomes the head, until no candidate remains; exactly the visited entries (with their repeats) are canonical, every other valid anchor.rotate stays valid but not canonical',
+      operations: 'real rltp-access/0.25 envelopes by label (id = oid: + base64url SHA-256 of JCS with id empty and proof omitted; signatures over the same bytes); `add` is a STATE FIXTURE (see its note); `dissolve`, `leaveLast` and `dissolveAfterRot2` are the founder\'s terminal operations on the last-member path (5.4, 5860)',
+      cases: 'per case the operations of the log (`ops`, labels) and the expected materialization: status per anchor.rotate (canonical | valid — valid but not canonical, 3345 | invalid), the repeats (JCS-identical bodies of candidates: one entry, its smallest id the representative, the others canonical with no further effect), the canonical chain (the representatives in walk order), the head (the next anchor of the last canonical entry, null if none), and the state, which no anchor.rotate changes (5970) — { terminal: true } where a terminal operation is canonical',
+      order: 'validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Then the dispositions of 3.6, before the walk: a canonical group.dissolve and a last-member member.leave displace every concurrent anchor.rotate (3465, 3470), the leave reverting to an ordinary one when a concurrent canonical admission merges (5840); a displaced operation stays valid. Canonicity over the candidates — the valid operations no disposition displaces (5965): from a virtual root, whose candidates are the first entries (carried by a candidate operation whose ancestor closure holds no canonical anchor.rotate), and then at each chosen head, whose candidates are the entries not yet visited with prev = the head\'s next, the candidate with the smaller representative id is visited and becomes the head, until no candidate remains; exactly the visited entries (with their repeats) are canonical, every other valid anchor.rotate stays valid but not canonical',
     },
     personalCommunity: { genesisDigest: Dpc, founder: pub(founder), founderRelationshipNonce: hexOf(nonce(0x5c)), generations: Object.fromEntries(cg.map((c, i) => [i + 1, pub(c)])), foreignGenerations: { 2: { ...pub(foreign2), note: 'group/<genesisDigest>/2 under the second-party IKM: a different seed' }, 3: { ...pub(foreign3), note: 'group/<genesisDigest>/3 under the second-party IKM' } }, newCommunity: { genesisDigest: Dnew, preimage: 'rltp/vectors/access-anchor-rotate/new-personal-community', generation1: pub(n1), note: 'generation 1 of a new personal community of the same holder: after a lost register the holder rotates onto it (Identity 9.3)' }, secondMember: second },
     operations: ops,

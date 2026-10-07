@@ -555,6 +555,72 @@
     ]
    }
   },
+  "dissolve": {
+   "v": "rltp-access/0.25",
+   "group": "did:key:z6MkovASjhDKiewadZrw9cvrTexjPzUygL2huVTyz94JUQj6",
+   "epoch": 0,
+   "policyVersion": 1,
+   "id": "oid:XdrOIiiYUZrbPJDVjl7jNly9G7TVFNBGv90xAWmwFOQ",
+   "author": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+   "op": "group.dissolve",
+   "prev": [
+    "oid:yGfR6OHIHGWlTWGVDi90FNhRKyZjoQ6cWHdSFDf0BQ8"
+   ],
+   "body": {},
+   "proof": {
+    "mechanism": "signature-set",
+    "signatures": [
+     {
+      "signer": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+      "sig": "z5gVbDgCYxmFM5eupdTBEy3wwy1uovtb5k1QSoZcrqPSRoReRoY17kpYFSxsQGtPnojCWav2dhHyw9x3ktm7qhGLT"
+     }
+    ]
+   }
+  },
+  "leaveLast": {
+   "v": "rltp-access/0.25",
+   "group": "did:key:z6MkovASjhDKiewadZrw9cvrTexjPzUygL2huVTyz94JUQj6",
+   "epoch": 0,
+   "policyVersion": 1,
+   "id": "oid:ksBRm0qMT6D7bRpdi9_fODlfn_yu2fpSwor1RAWNBLs",
+   "author": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+   "op": "member.leave",
+   "prev": [
+    "oid:yGfR6OHIHGWlTWGVDi90FNhRKyZjoQ6cWHdSFDf0BQ8"
+   ],
+   "body": {},
+   "proof": {
+    "mechanism": "signature-set",
+    "signatures": [
+     {
+      "signer": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+      "sig": "z5a5XxLJ4E8iTCH7vmS6rBZkEf5SW8B8TqQMCLPurpPuzahooZTSPcQU7fQ3iSrbD1ajRPkoe5WM6nftEGbhqWtBB"
+     }
+    ]
+   }
+  },
+  "dissolveAfterRot2": {
+   "v": "rltp-access/0.25",
+   "group": "did:key:z6MkovASjhDKiewadZrw9cvrTexjPzUygL2huVTyz94JUQj6",
+   "epoch": 0,
+   "policyVersion": 1,
+   "id": "oid:26wfF1r4Y1goh1jBXquMRZ57Y8SgkQrcfTixss9pfXg",
+   "author": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+   "op": "group.dissolve",
+   "prev": [
+    "oid:3vQsY28Llbe-qm2EHYW5Q7ICito-FXGlUqylisSFGng"
+   ],
+   "body": {},
+   "proof": {
+    "mechanism": "signature-set",
+    "signatures": [
+     {
+      "signer": "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ",
+      "sig": "zuFZLLjdS8qBrsxHjQ2HidM5NzwPZiHWvB5d7oTT8fzvnYFskec3736Zc34wXzBAXywkSEkuLc9qdCh1Qb3K95uC"
+     }
+    ]
+   }
+  },
   "rot2bad": {
    "v": "rltp-access/0.25",
    "group": "did:key:z6MkovASjhDKiewadZrw9cvrTexjPzUygL2huVTyz94JUQj6",
@@ -1040,6 +1106,121 @@
      ],
      "epoch": 0,
      "policyVersion": 1
+    }
+   }
+  },
+  {
+   "name": "rotation-beside-dissolve",
+   "rules": [
+    "RLTP-ACC-3325",
+    "RLTP-ACC-3470",
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "join",
+    "rot2",
+    "dissolve"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "valid"
+    },
+    "repeat": [],
+    "chain": [],
+    "head": null,
+    "state": {
+     "terminal": true
+    }
+   }
+  },
+  {
+   "name": "rotation-beside-last-member-leave",
+   "rules": [
+    "RLTP-ACC-3325",
+    "RLTP-ACC-3465",
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "join",
+    "rot2",
+    "leaveLast"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "valid"
+    },
+    "repeat": [],
+    "chain": [],
+    "head": null,
+    "state": {
+     "terminal": true
+    }
+   }
+  },
+  {
+   "name": "last-member-leave-reverted-by-admission",
+   "rules": [
+    "RLTP-ACC-3465",
+    "RLTP-ACC-5840",
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "join",
+    "add",
+    "rot2",
+    "leaveLast"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "canonical"
+    },
+    "repeat": [],
+    "chain": [
+     "rot2"
+    ],
+    "head": {
+     "anchor": "did:key:z6MkoA21eCA3mqn9NhzDoyxSCupk2Q9cqfVizw3ntMnNSypM"
+    },
+    "state": {
+     "members": [
+      "did:key:z6MkqHVGvhwAbyV2xpypeZ6DZLzUx7FF2HHgsF2BLQxwAYY4",
+      "did:key:z6MktbcHE6aDizbhAPixpYANtBp8Y8qr2vQ2JeGUfp2xmykZ"
+     ],
+     "epoch": 0,
+     "policyVersion": 1
+    }
+   }
+  },
+  {
+   "name": "repeat-beside-dissolve",
+   "rules": [
+    "RLTP-ACC-3470",
+    "RLTP-ACC-5965"
+   ],
+   "ops": [
+    "genesis",
+    "join",
+    "rot2",
+    "rot2afterJoin",
+    "dissolveAfterRot2"
+   ],
+   "expect": {
+    "status": {
+     "rot2": "canonical",
+     "rot2afterJoin": "valid"
+    },
+    "repeat": [],
+    "chain": [
+     "rot2"
+    ],
+    "head": {
+     "anchor": "did:key:z6MkoA21eCA3mqn9NhzDoyxSCupk2Q9cqfVizw3ntMnNSypM"
+    },
+    "state": {
+     "terminal": true
     }
    }
   },
