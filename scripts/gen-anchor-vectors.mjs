@@ -8,19 +8,26 @@
 //   vectors/visibility.json           anchor-mapping@3 (empty lineage),
 //                                     the rotation case (one lineage
 //                                     element, mapping under generation 2),
-//                                     negatives @2-legacy, foreign self,
-//                                     lineage not ending at self
-//   vectors/anchor-rotation.json      valid; wrong successor signature;
-//                                     generation 1; above the domain
+//                                     a lineage of 64 elements; negatives
+//                                     @2-legacy, foreign self, lineage not
+//                                     ending at self, 65 elements
+//   vectors/anchor-rotation.json      valid (1→2, 2→3, 2→ a new personal
+//                                     community); wrong successor
+//                                     signature; a generation field;
+//                                     prev = next
 //   vectors/group-star.json           a sender in two groups, recipients
 //                                     current members of one: hit + open
 //                                     (trusted), hit with filler
 //                                     (untrusted), miss, all-filler star
 //   vectors/access-anchor-rotate.json real envelopes of a personal
-//                                     community's log: chain 2→3, skip,
+//                                     community's log: a chain, a first
+//                                     entry with any prev, a derivation
+//                                     skip, a new personal community,
 //                                     prev break, not sole member, repeat,
-//                                     equal generation with differing
-//                                     bodies, a rotation that does not
+//                                     same prev with differing bodies, a
+//                                     delayed merge with a successor on
+//                                     the losing branch, a successor after
+//                                     the merge, a rotation that does not
 //                                     verify
 //
 // Deterministic: keys derive from the oracle IKM of
@@ -123,35 +130,42 @@ const genesisOf = async (tag, founder, created) => {
 const gens = []
 for (const g of [1, 2, 3]) gens.push(await L.communityContext(IKM, D, g))
 const [g1, g2, g3] = gens
-const rot12 = await V.makeAnchorRotation(g1, g2, 2)
-const rot23 = await V.makeAnchorRotation(g2, g3, 3)
+const rot12 = await V.makeAnchorRotation(g1, g2)
+const rot23 = await V.makeAnchorRotation(g2, g3)
 {
-  assert(await V.verifyAnchorRotation(rot12) && await V.verifyAnchorRotation(rot23), 'valid rotations verify')
+  // after a lost register: generation 1 of a NEW personal community (Identity 9.3)
+  const Dnew = await digestOfAscii('rltp/vectors/anchor-rotation/new-personal-community')
+  const n1 = await L.communityContext(IKM, Dnew, 1)
+  const rot2n = await V.makeAnchorRotation(g2, n1)
+  assert(await V.verifyAnchorRotation(rot12) && await V.verifyAnchorRotation(rot23) && await V.verifyAnchorRotation(rot2n), 'valid rotations verify')
   const wrongSucc = { body: rot12.body, proof: { proofValue: rot12.proof.proofValue, successorProofValue: await V.signRaw(g3, rot12.body) } }
   assert(!(await V.verifyAnchorRotation(wrongSucc)), 'wrong successor signature fails')
-  const b1 = { type: 'anchor-rotation@1', prev: g1.anchor, next: g2.anchor, generation: '1' }
-  const gen1 = { body: b1, proof: { proofValue: await V.signRaw(g1, b1), successorProofValue: await V.signRaw(g2, b1) } }
-  mustFail(gen1, 'visibility-anchor-rotation.schema.json', 'generation 1')
-  assert(!(await V.verifyAnchorRotation(gen1)), 'generation 1 fails')
-  const bBig = { type: 'anchor-rotation@1', prev: g1.anchor, next: g2.anchor, generation: '9007199254740992' }
-  const big = { body: bBig, proof: { proofValue: await V.signRaw(g1, bBig), successorProofValue: await V.signRaw(g2, bBig) } }
-  mustValidate(big, 'visibility-anchor-rotation.schema.json', 'above the domain (schema shape)')
-  assert(!(await V.verifyAnchorRotation(big)), 'above the domain fails')
+  const bG = { ...rot12.body, generation: '2' }
+  const withGen = { body: bG, proof: { proofValue: await V.signRaw(g1, bG), successorProofValue: await V.signRaw(g2, bG) } }
+  mustFail(withGen, 'visibility-anchor-rotation.schema.json', 'a generation field')
+  assert(!(await V.verifyAnchorRotation(withGen)), 'a generation field fails')
+  const bS = { type: 'anchor-rotation@1', prev: g1.anchor, next: g1.anchor }
+  const still = { body: bS, proof: { proofValue: await V.signRaw(g1, bS), successorProofValue: await V.signRaw(g1, bS) } }
+  mustValidate(still, 'visibility-anchor-rotation.schema.json', 'prev = next (schema shape)')
+  assert(!(await V.verifyAnchorRotation(still)), 'prev = next fails')
   W('vectors/anchor-rotation.json', {
-    source: 'anchor-rotation@1 per Network Visibility 0.30 §6.5 over the community anchor of Identity 0.52 §5.4: the generations are group/<D>, group/<D>/2, group/<D>/3 under the oracle IKM of vectors/identity-derivation.json, <D> its genesisDigestSample — the community of vectors/visibility.json. Generated by scripts/gen-anchor-vectors.mjs from the library; re-derived by conformance/runner.mjs.',
+    source: 'anchor-rotation@1 per Network Visibility 0.30 §6.5 over the community anchor of Identity 0.52 §5.4: the generations are group/<D>, group/<D>/2, group/<D>/3 under the oracle IKM of vectors/identity-derivation.json, <D> its genesisDigestSample — the community of vectors/visibility.json; the new personal community is group/<D\'> of the same IKM, <D\'> the multihash of the ASCII preimage named in newCommunity. Generated by scripts/gen-anchor-vectors.mjs from the library; re-derived by conformance/runner.mjs.',
     format: {
-      artifact: '{ body: { type, prev, next, generation }, proof: { proofValue, successorProofValue } }: proofValue is raw Ed25519 under prev, successorProofValue raw Ed25519 under next, both over the JCS bytes of body, z-base58btc (Visibility 2.1)',
+      artifact: '{ body: { type, prev, next }, proof: { proofValue, successorProofValue } }: proofValue is raw Ed25519 under prev, successorProofValue raw Ed25519 under next, both over the JCS bytes of body, z-base58btc (Visibility 2.1); next differs from prev; no generation number — the chain order is prev/next alone',
+      valid: 'prevLabel and nextLabel name the two contexts (Identity 6.1) whose anchors the artifact links',
       negatives: 'each MUST be rejected at the named check (expect); the schema check comes first',
     },
     community: { genesisDigest: D, generations: { 1: pub(g1), 2: pub(g2), 3: pub(g3) } },
+    newCommunity: { genesisDigest: Dnew, preimage: 'rltp/vectors/anchor-rotation/new-personal-community', generation1: pub(n1), note: 'the holder lost its register, re-derived generation 2 of <D> from the digest its contacts re-supplied, founded a new personal community, and rotates onto its anchor with a proof signed by the old generation (Identity 9.3)' },
     valid: [
-      { name: 'generation-1-to-2', artifact: rot12 },
-      { name: 'generation-2-to-3', artifact: rot23 },
+      { name: 'generation-1-to-2', prevLabel: g1.label, nextLabel: g2.label, artifact: rot12 },
+      { name: 'generation-2-to-3', prevLabel: g2.label, nextLabel: g3.label, artifact: rot23 },
+      { name: 'onto-a-new-personal-community', prevLabel: g2.label, nextLabel: n1.label, artifact: rot2n },
     ],
     negative: [
       { name: 'successor-signature-wrong', checkOrder: 'schema PASS, proofValue under prev PASS, successorProofValue under next FAILS (it is a signature under generation 3)', expect: 'reject: successorProofValue does not verify under next', artifact: wrongSucc },
-      { name: 'generation-1', checkOrder: 'schema FAILS (generation is at least 2); both signatures are genuine', expect: 'reject: generation 1 is group/<digest> itself and never rotated to', artifact: gen1 },
-      { name: 'generation-above-domain', checkOrder: 'schema PASS (an int-string of at most 18 digits), the generation domain [2, 2^53 − 1] FAILS; both signatures are genuine', expect: 'reject: generation outside the domain', artifact: big },
+      { name: 'generation-field', checkOrder: 'schema FAILS (the body is closed: type, prev, next); both signatures are genuine', expect: 'reject: a generation field is not part of anchor-rotation@1', artifact: withGen },
+      { name: 'prev-equals-next', checkOrder: 'schema PASS, next ≠ prev FAILS; both signatures are genuine', expect: 'reject: a rotation moves to a different key', artifact: still },
     ],
   })
 }
@@ -186,10 +200,22 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
   const lBody = { ...mapping.body, lineage: [rot12] }
   const lineageEnd = { body: lBody, proof: { mac1: await V.macU(k1, L.jcs(lBody)), mac2: await V.macU(k2, L.jcs(lBody)) } }
   assert((await V.verifyAnchorMapping(lineageEnd, at)).step === '4a', 'lineage not ending at self fails at 4a')
-  const negative = VIS.negative.filter((n) => !['mapping-foreign-self', 'legacy-version-2', 'mapping-lineage-not-ending-at-self'].includes(n.name))
+  // the bound (6.1): 64 elements are accepted, 65 fail the schema
+  const long = []
+  for (let g = 1; g <= 66; g++) long.push(await L.communityContext(IKM, D, g))
+  const chain = []
+  for (let i = 0; i < 65; i++) chain.push(await V.makeAnchorRotation(long[i], long[i + 1]))
+  const m64 = await V.buildAnchorMapping({ pair: P.A, to: P.B.anchor, toKeyAgreement: P.B.keyAgreement, self: long[65], lineage: chain.slice(1), revision: '3', issuedAt: '2026-10-07T12:00:00Z' })
+  assert((await V.verifyAnchorMapping(m64, at)).ok, 'a 64-element lineage verifies')
+  const m65 = await V.buildAnchorMapping({ pair: P.A, to: P.B.anchor, toKeyAgreement: P.B.keyAgreement, self: long[65], lineage: chain, revision: '3', issuedAt: '2026-10-07T12:00:00Z' })
+  mustFail(m65, 'visibility-anchor-mapping.schema.json', 'a 65-element lineage')
+  assert((await V.verifyAnchorMapping(m65, at)).step === '1', 'a 65-element lineage fails at step 1')
+  assert(V.classifyMapping(g2.anchor, m64.body) === 'rotation' && V.classifyMapping(g1.anchor, m64.body) === 'new-community', 'condition 8 over the carried segment')
+  const negative = VIS.negative.filter((n) => !['mapping-foreign-self', 'legacy-version-2', 'mapping-lineage-not-ending-at-self', 'mapping-lineage-65'].includes(n.name))
   negative.unshift(
     { name: 'mapping-foreign-self', fixture: 'addressee B holds tuple (A,B) active; arrival on that tuple', checkOrder: '6.3 steps 1-8 in order; steps 1-4a PASS (MACs are over the mutated body), step 5 FAILS', expect: 'reject: card.anchor != body.self', artifact: foreign },
-    { name: 'mapping-lineage-not-ending-at-self', fixture: 'addressee B holds tuple (A,B) active; arrival on that tuple', checkOrder: '6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures and starts at generation 2, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)', expect: 'reject: the last next of lineage != self', artifact: lineageEnd },
+    { name: 'mapping-lineage-not-ending-at-self', fixture: 'addressee B holds tuple (A,B) active; arrival on that tuple', checkOrder: '6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)', expect: 'reject: the last next of lineage != self', artifact: lineageEnd },
+    { name: 'mapping-lineage-65', fixture: 'addressee B holds tuple (A,B) active; arrival on that tuple', checkOrder: '6.3 step 1 FAILS: the lineage carries 65 elements, the schema admits at most 64; every element verifies and the chain ends at self (generation 66)', expect: 'reject: more than 64 lineage elements', artifact: m65 },
   )
   const li = negative.findIndex((n) => n.name === 'legacy-version')
   negative.splice(li + 1, 0, { name: 'legacy-version-2', fixture: 'none needed', checkOrder: '2.1 type check, before any crypto', expect: 'reject: anchor-mapping@2 not implemented (Visibility 0.30 2.1)', artifact: legacy2 })
@@ -197,8 +223,9 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
     ...VIS,
     self: { label: g1.label, anchor: g1.anchor, keyAgreement: g1.keyAgreement, note: 'the community anchor at generation 1: the group-context derivation over the personal community’s genesis digest (Identity 0.52 §2, §5.4; the S-DID cut of 0.13); the vector key name „self“ mirrors the frozen wire field spelling' },
     selfGenerations: { 2: { ...pub(g2), note: 'generation 2 of the same community anchor: group/<digest>/2 (Identity 0.52 §5.4)' } },
-    artifacts: { ...VIS.artifacts, anchorMapping: mapping, anchorRotation: rot12, anchorMappingRotated: rotated },
+    artifacts: { ...VIS.artifacts, anchorMapping: mapping, anchorRotation: rot12, anchorMappingRotated: rotated, anchorMappingLineage64: m64 },
     rotation: { note: 'anchorMappingRotated: the sender A rotated its community anchor from generation 1 to 2 (anchorRotation) and re-issued the mapping on tuple (A,B) under a higher revision with lineage [anchorRotation]; B, holding anchorMapping (self = generation 1), classifies it as a ROTATION (6.3 condition 8): the previously held self is the prev of a lineage element', heldSelf: g1.anchor, classification: 'rotation' },
+    lineageBound: { note: 'anchorMappingLineage64: A at generation 66 of <D> (group/<D>/66) carries the 64 most recent rotations, 2→3 … 65→66, in chain order (6.1, 6.3 condition 4a); it verifies. A contact holding generation 2 finds it in the carried segment — a ROTATION; one holding generation 1 missed more than 64 rotations — a NEW COMMUNITY (6.3 condition 8, 6.5). The 65-element mapping is the negative mapping-lineage-65', self: long[65].label, classifications: { [g2.anchor]: 'rotation', [g1.anchor]: 'new-community' } },
     negative,
   })
 }
@@ -243,6 +270,31 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
   assert(cases[1].result[0].hit && !cases[1].result[0].opened, 'untrusted: hit, filler')
   assert(!cases[2].result[0].hit && !cases[3].result[0].hit, 'miss, all-filler')
   assert(cases[4].result[0].opened && !cases[4].result[0].accepted && cases[4].result[0].reason === 'member', 'not current: rejected at the member check')
+  // reception negatives (5.2b): a completed assembly of no positive multiple
+  // of 16 entries, or with c of differing length — each a single chunk with a
+  // genuine MAC under k_g of salt 3; the entries are those of a genuine star
+  const base = await V.buildGroupStar({ own: P.S_T, to: P.T_S.anchor, toKeyAgreement: P.T_S.keyAgreement, salt: '3', groups: listed(true), rand: entropy('assembly-base') })
+  const kg3 = await V.groupStarKey(P.S_T, P.T_S.keyAgreement, P.S_T.anchor, P.T_S.anchor, '3')
+  const extra = entropy('assembly-negatives')
+  const one = async (groups) => { const body = { type: 'group-star@1', salt: '3', seq: '1', last: true, groups }; return [{ body, proof: { mac: await V.macU(kg3, L.jcs(body)) } }] }
+  const baseEntries = base.chunks[0].body.groups
+  const cLen = baseEntries[0].c.length
+  const cBytes = Buffer.from(baseEntries[0].c.slice(1), 'base64url').length
+  const plus = [...baseEntries, { d: 'u' + b64u(extra(32)), c: 'u' + b64u(extra(cBytes)) }].sort((x, y) => (x.d < y.d ? -1 : 1))
+  assert(plus[0].c.length === cLen && plus.every((e) => e.c.length === cLen), 'the 17th entry has the common c length')
+  const mixed = baseEntries.map((e, k) => (k === 3 ? { d: e.d, c: 'u' + b64u(extra(cBytes + 3)) } : e))
+  const assemblyNegatives = [
+    { name: 'one-entry', entries: 1, expect: 'reject: the assembly is no positive multiple of 16', chunks: await one(baseEntries.slice(0, 1)) },
+    { name: 'fifteen-entries', entries: 15, expect: 'reject: the assembly is no positive multiple of 16', chunks: await one(baseEntries.slice(0, 15)) },
+    { name: 'seventeen-entries', entries: 17, expect: 'reject: the assembly is no positive multiple of 16', chunks: await one(plus) },
+    { name: 'c-length-differs', entries: 16, expect: 'reject: every c of one assembly has the same length', chunks: await one(mixed) },
+  ]
+  for (const n of assemblyNegatives) {
+    for (const c of n.chunks) mustValidate(c, 'visibility-group-star.schema.json', n.name)
+    const got = await V.assembleGroupStar({ own: P.T_S, from: P.S_T.anchor, fromKeyAgreement: P.S_T.keyAgreement, chunks: n.chunks })
+    assert(!got.ok && got.reason === (n.name === 'c-length-differs' ? 'c length' : 'size'), `${n.name}: rejected`)
+  }
+  assert((await V.assembleGroupStar({ own: P.T_S, from: P.S_T.anchor, fromKeyAgreement: P.S_T.keyAgreement, chunks: base.chunks })).ok, 'the base star assembles')
   W('vectors/group-star.json', {
     source: 'group-star@1 per Network Visibility 0.30 §5.2b, carried by the task group-star/0.1 (Delivery 0.80): a sender S in two groups (G1, which S founded under its founding pair context SG1 — memberOp is the genesis; G2, which S joined — its member anchor is group/<G2>, memberOp a placeholder admission oid) toward a trusted recipient T and an untrusted recipient U, both current members of G1 only. Keys derive from the oracle IKM of vectors/identity-derivation.json (pair contexts from the listed relationship nonces), T’s member anchor and the G1 group DID from its second-party IKM, U’s member anchor from a third-party IKM (HKDF(oracle IKM, \"rltp/vector/third-party-root-ikm\"), 64 bytes). Generated by scripts/gen-anchor-vectors.mjs from the library; re-derived by conformance/runner.mjs.',
     format: {
@@ -270,6 +322,7 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
     },
     stars: { trusted: trusted.chunks, untrusted: untrusted.chunks, allFiller: allFiller.chunks },
     cases,
+    assemblyNegatives: { note: 'reception (5.2b): a completed assembly MUST have a positive multiple of 16 entries and every c of one assembly the same length, else the delivery is rejected. Each negative is one chunk from S_T to T_S under salt 3 with a genuine MAC under k_g; its entries are those of a genuine 16-entry star (base) — cut to 1 or 15, extended by one entry of the common c length to 17, or with one c three bytes longer', base: base.chunks, cases: assemblyNegatives },
   })
 }
 
@@ -280,12 +333,17 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
   const cg = []
   for (const g of [1, 2, 3, 4]) cg.push(await L.communityContext(IKM, Dpc, g))
   const foreign2 = await L.communityContext(IKM2, Dpc, 2)         // generation 2 under ANOTHER seed
+  const foreign3 = await L.communityContext(IKM2, Dpc, 3)
+  const Dnew = await digestOfAscii('rltp/vectors/access-anchor-rotate/new-personal-community')
+  const n1 = await L.communityContext(IKM, Dnew, 1)               // generation 1 of a new personal community (Identity 9.3)
   const r = {
-    r12: await V.makeAnchorRotation(cg[0], cg[1], 2),
-    r23: await V.makeAnchorRotation(cg[1], cg[2], 3),
-    r24: await V.makeAnchorRotation(cg[1], cg[3], 4),
-    r13: await V.makeAnchorRotation(cg[0], cg[2], 3),
-    r12x: await V.makeAnchorRotation(cg[0], foreign2, 2),
+    r12: await V.makeAnchorRotation(cg[0], cg[1]),
+    r23: await V.makeAnchorRotation(cg[1], cg[2]),
+    r24: await V.makeAnchorRotation(cg[1], cg[3]),
+    r13: await V.makeAnchorRotation(cg[0], cg[2]),
+    r12x: await V.makeAnchorRotation(cg[0], foreign2),
+    r2x3x: await V.makeAnchorRotation(foreign2, foreign3),
+    r2n: await V.makeAnchorRotation(cg[1], n1),
   }
   const badBody = r.r12.body
   r.r12bad = { body: badBody, proof: { proofValue: r.r12.proof.proofValue, successorProofValue: await V.signRaw(cg[2], badBody) } }
@@ -299,27 +357,41 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
   await rotate('rot2', r.r12, ['genesis'])
   await rotate('rot3', r.r23, ['rot2'])
   await rotate('rot4skip', r.r24, ['rot2'])
+  await rotate('rotNewCommunity', r.r2n, ['rot2'])
   await rotate('rot3first', r.r23, ['genesis'])
   await rotate('rot3prevBreak', r.r13, ['rot2'])
   await rotate('rot2afterAdd', r.r12, ['add'])
   await rotate('rot2afterJoin', r.r12, ['join'])
   await rotate('rot2foreignAfterJoin', r.r12x, ['join'])
+  // the fork rot2 ∥ rot2foreignAfterJoin (same prev, differing bodies):
+  // a successor written on each branch before the merge (rot3 on rot2,
+  // rot3onForeign on the other), and one written after the merge (its
+  // ancestor closure holds both)
+  await rotate('rot3onForeign', r.r2x3x, ['rot2foreignAfterJoin'])
+  const fWin = ops.rot2.id < ops.rot2foreignAfterJoin.id ? 'rot2' : 'rot2foreignAfterJoin'
+  const fLose = fWin === 'rot2' ? 'rot2foreignAfterJoin' : 'rot2'
+  const succOf = { rot2: 'rot3', rot2foreignAfterJoin: 'rot3onForeign' }
+  await rotate('rot3afterMerge', fWin === 'rot2' ? r.r23 : r.r2x3x, ['rot2', 'rot2foreignAfterJoin'])
   mustFail({ ...ops.rot2, body: { lineage: r.r12 } }, 'access-operation-envelope.schema.json', 'body field lineage')
   ops.rot2bad = (await envelope({ ...base, op: 'anchor.rotate', prev: [genesis.id], body: { rotation: r.r12bad } }, [founder])).op
   mustValidate(ops.rot2bad, 'access-operation-envelope.schema.json', 'rot2bad (shape)')
   const lower = (a, b) => (ops[a].id < ops[b].id ? a : b)
   const higher = (a, b) => (ops[a].id < ops[b].id ? b : a)
   const state = { members: [founder.anchor], epoch: 0, policyVersion: 1 }
-  const head = (g) => ({ generation: String(g), anchor: cg[g - 1].anchor })
+  const head = (label) => ({ anchor: ops[label].body.rotation.body.next })
   const cases = [
-    { name: 'chain-2-3', rules: ['RLTP-ACC-5950', 'RLTP-ACC-5955', 'RLTP-ACC-5960', 'RLTP-ACC-5970'], ops: ['genesis', 'rot2', 'rot3'], expect: { status: { rot2: 'canonical', rot3: 'canonical' }, repeat: [], head: head(3), state } },
-    { name: 'first-entry-not-generation-2', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot3first'], expect: { status: { rot3first: 'invalid' }, repeat: [], head: null, state } },
-    { name: 'generation-skip', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot2', 'rot4skip'], expect: { status: { rot2: 'canonical', rot4skip: 'invalid' }, repeat: [], head: head(2), state } },
-    { name: 'prev-break', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot2', 'rot3prevBreak'], expect: { status: { rot2: 'canonical', rot3prevBreak: 'invalid' }, repeat: [], head: head(2), state } },
-    { name: 'author-not-sole-member', rules: ['RLTP-ACC-5950'], ops: ['genesis', 'add', 'rot2afterAdd'], expect: { status: { rot2afterAdd: 'invalid' }, repeat: [], head: null, state: { ...state, members: [founder.anchor, second].sort() } } },
-    { name: 'rotation-does-not-verify', rules: ['RLTP-ACC-5955'], ops: ['genesis', 'rot2bad'], expect: { status: { rot2bad: 'invalid' }, repeat: [], head: null, state } },
-    { name: 'repeat', rules: ['RLTP-ACC-5965', 'RLTP-ACC-5970'], ops: ['genesis', 'join', 'rot2', 'rot2afterJoin'], expect: { status: { rot2: 'canonical', rot2afterJoin: 'canonical' }, repeat: [higher('rot2', 'rot2afterJoin')], head: head(2), state } },
-    { name: 'equal-generation-differing', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin'], expect: { status: { [lower('rot2', 'rot2foreignAfterJoin')]: 'canonical', [higher('rot2', 'rot2foreignAfterJoin')]: 'invalid' }, repeat: [], head: { generation: '2', anchor: ops[lower('rot2', 'rot2foreignAfterJoin')].body.rotation.body.next }, state } },
+    { name: 'chain', rules: ['RLTP-ACC-5950', 'RLTP-ACC-5955', 'RLTP-ACC-5960', 'RLTP-ACC-5965', 'RLTP-ACC-5970'], ops: ['genesis', 'rot2', 'rot3'], expect: { status: { rot2: 'canonical', rot3: 'canonical' }, repeat: [], chain: ['rot2', 'rot3'], head: head('rot3'), state } },
+    { name: 'first-entry-any-prev', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot3first'], expect: { status: { rot3first: 'canonical' }, repeat: [], chain: ['rot3first'], head: head('rot3first'), state } },
+    { name: 'derivation-skip', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot2', 'rot4skip'], expect: { status: { rot2: 'canonical', rot4skip: 'canonical' }, repeat: [], chain: ['rot2', 'rot4skip'], head: head('rot4skip'), state } },
+    { name: 'onto-a-new-personal-community', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot2', 'rotNewCommunity'], expect: { status: { rot2: 'canonical', rotNewCommunity: 'canonical' }, repeat: [], chain: ['rot2', 'rotNewCommunity'], head: head('rotNewCommunity'), state } },
+    { name: 'prev-break', rules: ['RLTP-ACC-5960'], ops: ['genesis', 'rot2', 'rot3prevBreak'], expect: { status: { rot2: 'canonical', rot3prevBreak: 'invalid' }, repeat: [], chain: ['rot2'], head: head('rot2'), state } },
+    { name: 'author-not-sole-member', rules: ['RLTP-ACC-5950'], ops: ['genesis', 'add', 'rot2afterAdd'], expect: { status: { rot2afterAdd: 'invalid' }, repeat: [], chain: [], head: null, state: { ...state, members: [founder.anchor, second].sort() } } },
+    { name: 'rotation-does-not-verify', rules: ['RLTP-ACC-5955'], ops: ['genesis', 'rot2bad'], expect: { status: { rot2bad: 'invalid' }, repeat: [], chain: [], head: null, state } },
+    { name: 'repeat', rules: ['RLTP-ACC-5965', 'RLTP-ACC-5970'], ops: ['genesis', 'join', 'rot2', 'rot2afterJoin'], expect: { status: { rot2: 'canonical', rot2afterJoin: 'canonical' }, repeat: [higher('rot2', 'rot2afterJoin')], chain: [lower('rot2', 'rot2afterJoin')], head: head('rot2'), state } },
+    { name: 'same-prev-differing', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid' }, repeat: [], chain: [fWin], head: head(fWin), state } },
+    { name: 'delayed-merge-successor-on-losing-branch', rules: ['RLTP-ACC-3325', 'RLTP-ACC-5960', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', succOf[fLose]], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', [succOf[fLose]]: 'valid' }, repeat: [], chain: [fWin], head: head(fWin), state } },
+    { name: 'successors-on-both-branches', rules: ['RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', 'rot3', 'rot3onForeign'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', [succOf[fWin]]: 'canonical', [succOf[fLose]]: 'valid' }, repeat: [], chain: [fWin, succOf[fWin]], head: head(succOf[fWin]), state } },
+    { name: 'successor-after-the-merge', rules: ['RLTP-ACC-3325', 'RLTP-ACC-5960', 'RLTP-ACC-5965'], ops: ['genesis', 'join', 'rot2', 'rot2foreignAfterJoin', 'rot3afterMerge'], expect: { status: { [fWin]: 'canonical', [fLose]: 'valid', rot3afterMerge: 'canonical' }, repeat: [], chain: [fWin, 'rot3afterMerge'], head: head('rot3afterMerge'), state } },
   ]
   // self-check against the oracle the runner uses
   const { materializeRotations } = await import('../conformance/access-anchor-rotate.mjs')
@@ -328,13 +400,13 @@ const rot23 = await V.makeAnchorRotation(g2, g3, 3)
     assert(L.jcs(got) === L.jcs(c.expect), `${c.name}: oracle ${L.jcs(got)} ≠ expected ${L.jcs(c.expect)}`)
   }
   W('vectors/access-anchor-rotate.json', {
-    source: 'anchor.rotate per RLTP Access Layer 0.56 §5.6 (RLTP-ACC-5950 … 5970): the log of a personal community founded under a fresh pair anchor (Access 3.4.1, RLTP-ACC-3235, 3275), whose sole member writes the community anchor’s rotations; the generations are group/<genesisDigest>[/g] of the oracle IKM of vectors/identity-derivation.json (Identity 0.52 §5.4), the differing generation 2 derives under its second-party IKM. Generated by scripts/gen-anchor-vectors.mjs from the library; the oracle is conformance/access-anchor-rotate.mjs, the runner re-derives ids, signatures and rotations with node:crypto. RLTP-ACC-5975 (no export beyond the log) is state-dependent and has no vector.',
+    source: 'anchor.rotate per RLTP Access Layer 0.56 §5.6 (RLTP-ACC-5950 … 5970): the log of a personal community founded under a fresh pair anchor (Access 3.4.1, RLTP-ACC-3235, 3275), whose sole member writes the community anchor’s rotations; the anchors are group/<genesisDigest>[/g] of the oracle IKM of vectors/identity-derivation.json (Identity 0.52 §5.4), the differing ones derive under its second-party IKM, and the new personal community is group/<D\'> of the oracle IKM. Generated by scripts/gen-anchor-vectors.mjs from the library; the oracle is conformance/access-anchor-rotate.mjs, the runner re-derives ids, signatures and rotations with node:crypto. RLTP-ACC-5975 (no export beyond the log) is state-dependent and has no vector.',
     format: {
       operations: 'real rltp-access/0.25 envelopes by label (id = oid: + base64url SHA-256 of JCS with id empty and proof omitted; signatures over the same bytes); `add` is a STATE FIXTURE (see its note)',
-      cases: 'per case the operations of the log (`ops`, labels) and the expected materialization: status per anchor.rotate (canonical | invalid), the canonical repeats (5965: canonical, no further effect), the head of the lineage (the highest canonical generation and its next anchor, null if none), and the state, which no anchor.rotate changes (5970)',
-      order: 'judged in causal order, each anchor.rotate against its own ancestry: 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (generation 2 first, else the previous canonical one + 1; prev = the previous canonical next); then 5965 between concurrent canonical ones of equal generation, to a fixpoint',
+      cases: 'per case the operations of the log (`ops`, labels) and the expected materialization: status per anchor.rotate (canonical | valid — valid but not canonical, 3345 | invalid), the repeats (JCS-identical bodies: one entry, its smallest id the representative, the others canonical with no further effect), the canonical chain (the representatives in walk order), the head (the next anchor of the last canonical entry, null if none), and the state, which no anchor.rotate changes (5970)',
+      order: 'validity per operation against its own ancestor closure (3325): 5950 (author = the sole member), 5955 (body exactly rotation; it verifies under both signatures), 5960 (prev = the next of the lineage head of that closure, unconstrained where the closure holds no canonical anchor.rotate). Canonicity over the log at hand (5965): walked from the first canonical entry; among competing entries (same prev, or both first entries) the one with the smaller representative id is canonical with every entry reachable from it, the others and every entry reachable only from them stay valid but not canonical',
     },
-    personalCommunity: { genesisDigest: Dpc, founder: pub(founder), founderRelationshipNonce: hexOf(nonce(0x5c)), generations: Object.fromEntries(cg.map((c, i) => [i + 1, pub(c)])), foreignGeneration2: { ...pub(foreign2), note: 'group/<genesisDigest>/2 under the second-party IKM: a different seed' }, secondMember: second },
+    personalCommunity: { genesisDigest: Dpc, founder: pub(founder), founderRelationshipNonce: hexOf(nonce(0x5c)), generations: Object.fromEntries(cg.map((c, i) => [i + 1, pub(c)])), foreignGenerations: { 2: { ...pub(foreign2), note: 'group/<genesisDigest>/2 under the second-party IKM: a different seed' }, 3: { ...pub(foreign3), note: 'group/<genesisDigest>/3 under the second-party IKM' } }, newCommunity: { genesisDigest: Dnew, preimage: 'rltp/vectors/access-anchor-rotate/new-personal-community', generation1: pub(n1), note: 'generation 1 of a new personal community of the same holder: after a lost register the holder rotates onto it (Identity 9.3)' }, secondMember: second },
     operations: ops,
     cases,
   })

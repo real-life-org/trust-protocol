@@ -3050,7 +3050,7 @@ key material, §5.3 the recovery context, §7 service identities,
 0.29, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Network
 Visibility 0.30 (§2.1, §5.2b, §6a, §8) · RLTP Access Layer 0.56,
-wire 0.24 · RLTP Replication Contract 0.26 (§7/I14, the
+wire 0.25 · RLTP Replication Contract 0.26 (§7/I14, the
 direct-effect seam of 4.4) · RLTP Membership Tasks 0.18 (§3) · Sync
 001/003 (superseded transport specs, Appendix A).
 

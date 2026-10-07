@@ -313,7 +313,8 @@ when, they appear in all capitals.
 - **Context**: a social surface toward which a person acts under one
   identity: one group (their personal community among them), one
   relationship, one public persona.
-- **Label**: the canonical string naming a context in the derivation
+- **Label**: the canonical string naming a context, or one
+  generation of the community context (5.4), in the derivation
   (Section 6).
 - **Label register**: the holder's list of used labels — data
   required for recovery, held inside the synchronized encrypted
@@ -355,10 +356,14 @@ when, they appear in all capitals.
 - **Generation**: the position of one community-anchor key in its
   lineage — generation 1 is `group/<digest>`, generation *g* ≥ 2 is
   `group/<digest>/<g>` (6.1, 5.4).
-- **Anchor rotation**: the holder's move from generation *g* to
-  *g* + 1 (5.4; Access `anchor.rotate`).
-- **Lineage**: the ordered `anchor-rotation@1` artifacts from
-  generation 1 to the current one (`rltp-visibility` §6.5).
+- **Anchor rotation**: the holder's move of its community anchor to
+  a next key — the next generation of the same digest, or, after a
+  loss, generation 1 of a new personal community (5.4, 9.3; Access
+  `anchor.rotate`).
+- **Lineage**: the chain of `anchor-rotation@1` artifacts, each
+  linking one community anchor to the next by its `prev` and `next`
+  (`rltp-visibility` §6.5). The chain carries no numbers; its order
+  is the keys'.
 - **Anchor classes, DTGWG-aligned naming** (informative): in prose
   this family calls pair-context anchors **R-DIDs**, group-context
   anchors **M-DIDs**, and persona anchors **P-DIDs** — the DTGWG
@@ -433,7 +438,7 @@ profile is defined.
 |---|---|---|---|
 | Create identity (3.1, 4) | "Write down your recovery words" (12 or 24 generated; all valid BIP-39 lengths import) | the person exists; contacts can be made | the words are the only secret; losing them is final (9.2) |
 | Full recovery (9.3) | "Enter your words on the new device" — synced state reachable | the recovery context locates and unlocks the state; every context — the personal community included — returns as the register loads | none |
-| Partial recovery (9.3) | "Enter your words" — synced state gone | the recovery context reaches only storage, and no social anchor returns by itself; group and persona contexts return as counterparts re-supply their digests — the personal community among them, its current generation found by deriving upward until the anchor the counterparts hold appears (9.3); **pair contexts do not return at all** | MUST say: without your synced data, nothing returns by itself; your people can re-supply your groups — your personal community included — and personas re-derive from their names; **relationship (pair) contexts cannot be re-supplied — those relationships are re-created, not recovered** (9.3), and their carrier registrations are made afresh under new principals (7a.3) |
+| Partial recovery (9.3) | "Enter your words" — synced state gone | the recovery context reaches only storage, and no social anchor returns by itself; group and persona contexts return as counterparts re-supply their digests; the community anchor returns the same way, its current generation found by deriving upward until the anchor the counterparts hold appears, while the personal community's log does not — rotating again means founding a new personal community and rotating onto its anchor (9.3); **pair contexts do not return at all** | MUST say: without your synced data, nothing returns by itself; your people can re-supply your groups — your personal community included — and personas re-derive from their names; **relationship (pair) contexts cannot be re-supplied — those relationships are re-created, not recovered** (9.3), and their carrier registrations are made afresh under new principals (7a.3) |
 | Join a group (6.1) | joining itself — no key step | the group appears | none (label handling is automatic) |
 | Create a public persona (6.1) | "Create public profile" | publicly findable under the chosen name | publishing is forever — stopping does not unpublish (visibility layer) |
 | Rotate the community anchor (5.4) | "Renew your anchor" | contacts who trust the holder follow automatically; the group list of the star re-forms | MUST say: this renews the key your contacts know you by; it does not help if your recovery words were copied |
@@ -656,12 +661,14 @@ is what prohibition 2 forbids (Section 10).
 
 - The community anchor of a holder is the anchor of label
   `group/<D>` or `group/<D>/<g>` with the **highest generation** the
-  holder's register carries for the personal community's digest `D`;
-  generation 1 is `group/<D>`.
-- **Rotation** derives generation `g + 1`, where `g` is the highest
-  generation held, and records it as a label; it then produces the
-  `anchor-rotation@1` artifact of `rltp-visibility` §6.5 (signed by
-  both generations), writes it into the personal community's log as
+  holder's register carries for the digest `D` of its current
+  personal community; generation 1 is `group/<D>`.
+- **Rotation** derives the next generation of the same digest —
+  `g + 1`, where `g` is the highest generation held — or, after a
+  loss, generation 1 of a new personal community (9.3), and records
+  it as a label; it then produces the `anchor-rotation@1` artifact of
+  `rltp-visibility` §6.5 (signed by the current anchor and the next
+  one), writes it into the personal community's log as
   `anchor.rotate` (Access §5.6) under the founder's pair anchor, and
   re-issues the anchor mapping to every trusted contact
   (`rltp-visibility` §6.5). A rotation MUST NOT be presented to a
@@ -673,9 +680,16 @@ is what prohibition 2 forbids (Section 10).
   (Access RLTP-ACC-5965).
 - At `2^53 − 1` rotation ends; nothing else does (the 7a.3 rule).
 - Rotation is **key hygiene, not compromise handling**: it requires
-  the current generation's key and it protects against a copied
-  derived key, never against a copied mnemonic (8.6). Loss or theft
-  of the mnemonic is Section 9 and *RLTP Succession*.
+  the current anchor's key. Derivation isolates the generations — a
+  copied derived key does not reveal the honestly derived successor
+  — but whoever holds a copy of the current key can co-sign a
+  rotation onto a key of their own choosing; the rotation proves
+  joint authorization by its two keys, never correct derivation or
+  exclusive succession (8.6). What protects the contacts is that a
+  mapping reaches them only on the holder's own relationship tuples
+  under their pair keys (`rltp-visibility` §6.3). A copied mnemonic
+  is beyond it altogether: loss or theft of the mnemonic is Section
+  9 and *RLTP Succession*.
 
 ## 6. Context labels (normative)
 
@@ -1549,7 +1563,7 @@ surface becomes one place.
 
 Anchors are stable **per person per context** — the community
 anchor's generations (5.4) excepted, each rotation being the
-holder's own act, proven under both generations; a pair context's
+holder's own act, proven under both keys it links; a pair context's
 "context" is one relationship-creation act — the relationship is
 the holder-local chain over them. The decomposition's original
 exclusion — pairwise anchors as evidence carriers make asserters
@@ -1569,18 +1583,24 @@ the visibility layer.
 
 ### 8.6 Rotation of the community anchor
 
-A rotation (5.4) moves the community anchor from one generation to
-the next and leaves one `anchor-rotation@1` artifact signed under
-both (`rltp-visibility` §6.5). It proves control of both
-generations' keys at the time of rotation, and nothing about the
-person: a contact who no longer holds an earlier generation cannot
-connect the new one to it and re-learns the holder as a new
-community (`rltp-visibility` §6.5). Rotation is neither recovery
-nor succession; loss and compromise of the mnemonic stay with
-*RLTP Succession* (8.2, 9.2). The lineage is published by the
-holder alone, per recipient inside the anchor mapping, and never
-publicly; the personal community's log carries it for the holder's
-own replicas (Access §5.6).
+A rotation (5.4) moves the community anchor from one key to the
+next and leaves one `anchor-rotation@1` artifact signed under both
+(`rltp-visibility` §6.5). It proves that the two keys jointly
+authorized the link at the time of rotation — not correct
+derivation, not exclusive succession (a holder of a copied current
+key can co-sign a link to a key of its own, 5.4), and nothing about
+the person: not the same person, not the same seed, not any
+relationship. A contact whose held anchor is not in the segment it
+receives cannot connect the new anchor to it and re-learns the
+holder as a new community (`rltp-visibility` §6.5). Rotation is
+neither recovery nor succession; loss and compromise of the
+mnemonic stay with *RLTP Succession* (8.2, 9.2). The holder issues
+the lineage only per recipient inside the anchor mapping, never
+publicly — a discipline of issuance, not a technical
+non-transferability: the embedded artifacts are signatures, and a
+recipient can extract them and show them to anyone, who can verify
+both (`rltp-visibility` §11). The personal community's log carries the
+lineage for the holder's own replicas (Access §5.6).
 
 ## 9. Recovery (normative)
 
@@ -1640,7 +1660,11 @@ synchronized by the layers above:
   re-learns the personal community's digest like any group's and
   finds the current generation by deriving `group/<D>`,
   `group/<D>/2`, … upward until the anchor the counterparts hold
-  appears.
+  appears. The anchor returns this way; the personal community's
+  log does not, because its founder context is a pair context
+  (6.1). Rotating again therefore means founding a new personal
+  community and rotating onto its generation-1 anchor with a proof
+  signed by the recovered generation (5.4).
   Partial recovery is deterministic: the recovery-context
   candidates are the two fixed rule sets of 5.3, never a holder's
   choice. **Pair labels are the honest limit of
@@ -1858,7 +1882,7 @@ policy, not this protocol's. The native profile of this casting
 | **B1** Edge survival across key change | native (identifier stable across key events) · compensated (edge succession, C1) · re-encounter | **re-encounter.** C1 (*RLTP Succession*) is parked; until its re-cast, edges survive an anchor change only by being witnessed anew |
 | **B2** Takeover resistance under operational key possession | pre-separated successor anchor · witnessed succession quorum (C1) · none | **none.** Operational possession of an anchor key is control of the anchor. A first-mover race would also grade as *none*; this profile does not pretend otherwise |
 | **B3** Time-fixed authorization checkability | trivial (one key, never changed) · history travels along · per-signature delegation proof (C2) | **trivial — and strong.** Precisely because `did:key` never rotates, "was this key authorized then" has an unconditional answer |
-| **B1–B3 for the community anchor** (5.4, 8.6) | as above | **B1: rotation, key control only** — contacts holding the lineage follow the anchor across generations (`rltp-visibility` §6.5); a rotation proves control of derived key material, never of the mnemonic. **B2: none** — whoever holds the seed holds every generation. **B3: history travels along** — the lineage, each link signed by both generations it joins |
+| **B1–B3 for the community anchor** (5.4, 8.6) | as above | **B1: rotation, key control only** — contacts holding an anchor of the carried lineage follow it to the next key (`rltp-visibility` §6.5); a rotation proves joint authorization by two keys, never control of the mnemonic, correct derivation, or exclusive succession. **B2: none** — whoever holds the seed holds every generation, and whoever holds a copy of the current derived key can co-sign a rotation onto a key of its own. **B3: history travels along** — the lineage, each link signed by both keys it joins |
 | **B4a** Devices sign independently without the root | delegation proofs (C2) · shared seed | **shared seed** |
 | **B4b** Device revocation is cryptographically effective | effective (requires a mutable locus: log, card update, or group substrate) · cosmetic | **cosmetic.** Whoever extracts the root IKM can act as any device; removal is bookkeeping, not cryptography |
 
@@ -1939,12 +1963,18 @@ that:
   bring (including the anchor fan-out a root compromise requires).
   Implementations SHOULD make anchor compromise a first-class user
   flow, not an error state.
-- **Rotation contains a copied derived key, not a copied seed
-  (5.4, 8.6).** A rotation needs a signature under the next
-  generation, which only the seed yields; whoever holds a copied
-  community-anchor key alone cannot rotate, and the holder's
-  rotation leaves that key behind. Whoever holds the seed holds
-  every generation, past and future.
+- **Rotation isolates derivation; it does not contain a copied key
+  (5.4, 8.6).** A copied community-anchor key does not reveal the
+  honestly derived next generation — only the seed yields it. But
+  its holder can co-sign a rotation from that key onto a key of its
+  own choosing, and the artifact verifies: a rotation proves joint
+  authorization by its two keys, not correct derivation and not
+  exclusive succession. Such a rotation reaches a contact only
+  inside an anchor mapping, and a mapping is accepted only on the
+  holder's own relationship tuple under its pair key
+  (`rltp-visibility` §6.3); the holder's own rotation moves its
+  contacts past the copied key. Whoever holds the seed holds every
+  generation, past and future.
 - **Domain separation.** The derivation families in force are:
   `rltp/anchor/ed/` and `rltp/anchor/x/` (labeled contexts, 5.1),
   the fixed recovery strings (both generations, 5.3) such as `wot/identity/ed25519/v1` and

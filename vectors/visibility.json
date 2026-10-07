@@ -502,12 +502,11 @@
    "body": {
     "type": "anchor-rotation@1",
     "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-    "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
-    "generation": "2"
+    "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
    },
    "proof": {
-    "proofValue": "z44E7RcWaiFRc6ot9SY4ZV2u4s5mQsptYpjLTs6UGfwKVWygCYZ3tSMRutSmSojjo7ZM3tAa4UMbzqJiz1EWWe9kq",
-    "successorProofValue": "z4hDPP3PzaWKAmFBURufL1skHLgpn38bp3iLRqJbGVfzfu5G4SWrwVmH5hx6vJU9Qa8GfKf2qzaxKf63ZN1UhXuhY"
+    "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
+    "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
    }
   },
   "anchorMappingRotated": {
@@ -531,12 +530,11 @@
       "body": {
        "type": "anchor-rotation@1",
        "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-       "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
-       "generation": "2"
+       "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
       },
       "proof": {
-       "proofValue": "z44E7RcWaiFRc6ot9SY4ZV2u4s5mQsptYpjLTs6UGfwKVWygCYZ3tSMRutSmSojjo7ZM3tAa4UMbzqJiz1EWWe9kq",
-       "successorProofValue": "z4hDPP3PzaWKAmFBURufL1skHLgpn38bp3iLRqJbGVfzfu5G4SWrwVmH5hx6vJU9Qa8GfKf2qzaxKf63ZN1UhXuhY"
+       "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
+       "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
       }
      }
     ],
@@ -544,8 +542,738 @@
     "issuedAt": "2026-10-07T12:00:00Z"
    },
    "proof": {
-    "mac1": "uzf5BnJPmZjQHD6gbuKPWdQVjauHsR9fDAKbQSQXW9k8",
-    "mac2": "uSpgIs_u0OLe3dyCqqW7evDJqnPL2SBYw_F1HC79_id0"
+    "mac1": "uAB87U-BIN7WyY-jOUPjmuyqZRBKC1vPku2Zvbfqn6Rg",
+    "mac2": "uqMMypYvpQ0nVL1Jc2H27mIOGWCimTyDcv91T42HRK6c"
+   }
+  },
+  "anchorMappingLineage64": {
+   "body": {
+    "type": "anchor-mapping@3",
+    "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+    "self": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
+    "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+    "card": {
+     "body": {
+      "type": "self-card@1",
+      "anchor": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
+      "keyAgreement": "z6LScDGGMDYreACeLFvCiewjcvF5Y8WoSQXi9M9fUfszA4wv"
+     },
+     "proof": {
+      "proofValue": "z4J7FPzUeev3eXdB7QorbdPFyDTBdUK2PLj7RqBkhDuuoe8oP8w2GVkKMQDnTtojP23PW9dVU9z9AVF1RHc64RVwC"
+     }
+    },
+    "lineage": [
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+       "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN"
+      },
+      "proof": {
+       "proofValue": "z5riHWZW4w4CWevdAoU3jSqfkrdtCoc2CMGEssxj25mzPjF1k7jSFu591ukwKJhNs8ojjVkmyUiEQPZQVgozzCD2p",
+       "successorProofValue": "z2hoV8ZSS5dQSSMQ9jgvuTMXiDqJGeDd5j88yKzdeKsJicJrZBKvE6D28M5NtfAJ4GmP9f7jMiJ7Wn2SoExvucy1C"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+       "next": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7"
+      },
+      "proof": {
+       "proofValue": "z4gFzWLJzYsKDP6zXoot7nP5Mx974hrcVWBH831Nt3YCR66frZq78Qd6uyNWNLjMiJqEp2i6UhHuFXwz1i5fmJuqt",
+       "successorProofValue": "z2owJUtiiyiCkgF7utKRUgjAaQMRrvMWtu3agEohLtNyuPcfsMMF4uqhAYJ6as3446XRBf5n6DdkeuaDE6xYyvewu"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
+       "next": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1"
+      },
+      "proof": {
+       "proofValue": "z2GUWiRZXpG7ApyWQaW6xszmZ2zEHpwiK8xUyM5fJLdZHDmnnGXyRQnt85afmv6SxaXxEWPKKE4o6EXLg5ERnGmBm",
+       "successorProofValue": "z2bBGzUdCPXs2zKzaWYM5ECtuU1jssy8yX5ZFMFAvw1AXE52RhHnsuvPQPXedrTBYnXUWd1bfVFSg4QEbvFKxYc3R"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1",
+       "next": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ"
+      },
+      "proof": {
+       "proofValue": "z2R9j6eHfd6tG6VpYHbo1WwB93d1JT4t5kEggGNHWuDaQCd9KAXAReFUstabJi9tArAXWzi7RPHtH3RqbiuKHmdnk",
+       "successorProofValue": "zeNZitkuXVnMQeD42VaWXte9viyEckjweygTjJacda4zLHFRffJxMWA2BtWH9CFJFnkCFRookVgdJwtAtomDVHKU"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ",
+       "next": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ"
+      },
+      "proof": {
+       "proofValue": "z49cyRBURuF28F8pefmCP7ad6Lyiv38tMYkaRrTdzkwyXBTbwinoynWLAA3xsPzb3hyC7TRqE8VbLWV9D8TpBx3KN",
+       "successorProofValue": "z5z6vNZcSSJJXhg3LhBbcP6Gb2K3kmgZPhWPQRC5NULcjUxANa3rJAEEhPVJRQufqVAWw9NW1AnakkYo1yZMw7SHQ"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ",
+       "next": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz"
+      },
+      "proof": {
+       "proofValue": "z4Fb5trfVy7TscZZ2suvpKtJG2toQivo9xEmwHdycW1pit2RFaHFXirYGDXBAgRpsiVLhxAMKzDMr2K5xcs83mFfP",
+       "successorProofValue": "z4Sifm74sp22bqKURxtM3qVz9U8qZXf3Wi4b3Nxos9GnhbJBddtt4tU7QbWEJnxiL1z4o91XJnsfkonR8BE4GQXPo"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz",
+       "next": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE"
+      },
+      "proof": {
+       "proofValue": "z5GvXUaAp5LDc9eLi2AZLKNfQbW7BPiXJgeHd12wukAkZnKQvWABFNZ5Y5QB6n3PNYsPQG62CFxJf2fx1nznXeEfC",
+       "successorProofValue": "zDHaDeyvRDkPspocNbEbyXLbdE6YqimHe3tAUQ7C87tYbMfVAwgT8emr9RXNYeHyoqBvRS5bfgsQSR8ZNZp1FK7K"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE",
+       "next": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr"
+      },
+      "proof": {
+       "proofValue": "z2WPZ9Visq4u6HPFVgjXwXgkgvyT6EmmMuQh5g1UkmwzvNJ1V6JzKby4D3MxSHF3oGuoNzZrBcgJzq9rZE8ikHVA1",
+       "successorProofValue": "z5VQ8CJMMiNWE1FjDqSg68Uchp1WFCQzzjAypVRbKsuwMJ559GGv5smwS43mk59rKn52Grt1hVQt9iEVLNHWHehmG"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr",
+       "next": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4"
+      },
+      "proof": {
+       "proofValue": "z65FqvAsh4SChSNvc4qZxUPoP8VPNWwiVWMTHwRpzJPHGpgmgEeNWZk6Eoo2BSakV35eZhWUXeKnZcN8cfRPwYFPT",
+       "successorProofValue": "z5x1ctoDH3a2xR3xEKPikKtbsgM4tVtHwJ2rtCxGZtMxrA9MuJHHSinS9NrMYb4jsN1cfX5EWPPWyeHMJKJ6CJptc"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4",
+       "next": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M"
+      },
+      "proof": {
+       "proofValue": "z5aox1Z6v1UXgnW2Q33br7PXMT3iTWU2uRrByuPWoU2UHNegWDQ3Xr4sm8obq9pxvygVe5BysbYYA1fzFdY6Lsob4",
+       "successorProofValue": "z3rWfdszdcN6ud5emV4mr2LbfrY4HwGjKtTfD4PhqjotAG8v3J8gw6WwEARY5ADJqe6j4nrc9XBGuxXf9n7GgXEtb"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M",
+       "next": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5"
+      },
+      "proof": {
+       "proofValue": "z4wmeozpA7RE6WmfHBPNp8CHDX28fSwsaCpjXTDkLDypzfVa2HCuipqEE4FeBiHvb5hy1QBj1KsJ2znES5aAFxnZM",
+       "successorProofValue": "z3kpdSWpXKEv566e1QChobH2UcmSFZZNsyzZuZodogSoeyfAPvXXHVj7MmhCHk6Bv2PBUNTLuq8jqP2Q6FTSd6bAK"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5",
+       "next": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4"
+      },
+      "proof": {
+       "proofValue": "zbhBNsE8485nDge4qvexUK6QXA6o3TUgBSUrkEqJMWbEsBCJYCrxgCY8HoJtuFsx4GzDXPXqnHtUoEotVDF3t6im",
+       "successorProofValue": "z5qbPjHgnym1KN6mMPiF91ZTGH7QkDsxKyUepgHYdqNjPJJxSoiPPNBcs2yYeCXXLSFZ1LbmfbfJhcT8ab7JywufA"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4",
+       "next": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm"
+      },
+      "proof": {
+       "proofValue": "z3HspUm6Yw4v6czbZQqLDyZmSkhNQREBcspsRkJFD7u7hWyAZ4s6c9BUjpJHDCWtAwk7j5vvhXeMbQd1MQjjBKnuy",
+       "successorProofValue": "z4q7XPdqVae19SnWcxXAJhga49WGFL6jBHvCkd46WJ29FX4G8PQuRZ1rutAD7dGuRr8fe2hCURryTNbCL6oajBa7r"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm",
+       "next": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6"
+      },
+      "proof": {
+       "proofValue": "z3ZnKJ3tdGqsR5kgUBaj5PME6kren2jfatKbQgw9ZHY3wzgJyQPTzTKZBTs8bzcQxvEhWaZM9ezrGV5RMvtLXHB5q",
+       "successorProofValue": "z2kWme8hUcFfW8vYvPWhPSCqrXSQ3n5rU2XTFKeEzodP5AJDFMUevVPRFLdhLpENcapUrgf7JRJBiocvJWAvQ5F1a"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6",
+       "next": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R"
+      },
+      "proof": {
+       "proofValue": "z4T2HyHkoJ4YMVdrnJkpDT2wSQqrGDaug93B389QSZVPn71Sp9DAk1DzqmhvLFsu9u2G9Ui8XJVWxz6wvfxWoTXJX",
+       "successorProofValue": "z5SQD9QnphqvGegAjkYvaGtTQ7QZjCHE2KnRWmjwW8rf94rGuS79CEXTrqbKt89CSnzjf6GgEzVWQvYFT3GpTufSm"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R",
+       "next": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN"
+      },
+      "proof": {
+       "proofValue": "z4ZP7obAUCRv8HCZhC3EeG581V11UB44xGv4ytQnsTQ2pR4cSXkAUvAEMph1d7VDHtyesytviHYB2jWTtBiv8EEZT",
+       "successorProofValue": "z27tBb8sZLUYpPPJL6gY2fcsm6MEbawCDG89Mz3gMamhqjbtv7Ra1QDeqN2VbhBZqwckEn1QVjHjZFbtDCospWYuj"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN",
+       "next": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP"
+      },
+      "proof": {
+       "proofValue": "z4SDrULHKo98o5ggEGYoWJux6YwAHyf19NNGvNBtu1ewPiTNJtGUzfmq1XMEQWePuh1UoxxTnyKJ1pE9fANCoa7ej",
+       "successorProofValue": "z26sbqCigCS2snJBvexo7Y8SmqreA7b1mTFGiRWABko2gFCqqYeBmPcUBhpFXED7FAFAwjzBPKJmAcVTxWSTrGE4S"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP",
+       "next": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt"
+      },
+      "proof": {
+       "proofValue": "z4CkNsu3UMEE3bJHst37eximdkPG3qKdGdbHzUcisuTQPX18PK528cPzUSQCiZ2hECNMRsK7bMcQsUH9ghbSyb4Mk",
+       "successorProofValue": "z5aw1hHp51uGqkKiJphTKN93yUgcLm46dcwdwgixMpjyRFVURP3YPZbnQnkttcxbk1UjUEAa1M1swTZAKwHAWdc1H"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt",
+       "next": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3"
+      },
+      "proof": {
+       "proofValue": "z3eZUAm6y62tqfepSzPou5DSJL2qqp5MdHryHWBwYyPPqFz3xCGALDn6yWAAb3m2RxdBoaY5rWKiuuJN8FtUhbe2p",
+       "successorProofValue": "zRxwCrFRhXr9kyez7VoWFYwkXtrBA7zFsUr1RGFabXdk7F9LmP4RDkDzhDHtKQnu6pdRaN22cAwMY1NHKuS5HEph"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3",
+       "next": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta"
+      },
+      "proof": {
+       "proofValue": "zCGj122vZKDujrcGkDpikAQhf41bayq9S6M8XKzMNZbEsX7EKttjQCX8pobxxm49UEGj4WRu5U8eRKgsWFgoZyJE",
+       "successorProofValue": "z2zdvUfdxbTu8NFGS4vgYLFYem2FADXj35XxbagR523YUCTSvEgFR18TdFkjGmaBLJFztspEfpSrXqpjGUdvtmtd5"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta",
+       "next": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm"
+      },
+      "proof": {
+       "proofValue": "z3A5KoToSBbYJim4btE6BX5aW1qvTDP5YHHjet9rBea6jJsjQG3czH1mXhtjAuLxqefTkjNLiVGr8Jd5tSfQDFcSZ",
+       "successorProofValue": "z64JvgRocc6f18C36Uh9chBmNds2wUKGWGiSJCc214WozwsBS2TvhYdPGWnPVKzSuwkJVaJb9D8z9mNP52Mdu6Fqp"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm",
+       "next": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA"
+      },
+      "proof": {
+       "proofValue": "z5PCi2QpyvzpuwpUYeLnduYEbNhkcT1K3dWhozudKBg4juapAyUx88xN354RTHwQh4p92gmrBU82kHH2ANUaJ9iEZ",
+       "successorProofValue": "z28jpLjLnq3HGC6g7gpaRDSXURALktxiMmzi1tmajoopYio2Wyta8Kwg7GjZWU8awBR2smjPcHJp3QnPifVsoEqPi"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA",
+       "next": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd"
+      },
+      "proof": {
+       "proofValue": "z5Fw3VEYpK3EZEN67wsThjqvRrL9vnNj6ggGzLQoY2eEc8fSBwdotz26k2Yf2J1FjddN4hxeYpFyysqM5UfK21hcp",
+       "successorProofValue": "z5YdDXgtbUHVCGJ8H8Kq2neibPE1wzgjUwdSt1i6DUsXVTnVkAKUaXwah6gBq4aPKxTb6KCteAD2kqyYRFWTm7kkG"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd",
+       "next": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9"
+      },
+      "proof": {
+       "proofValue": "z3ZH94kykQ1oCKYHatD9KeLjPY9RDFvb7hxeYJzQ2dNtsE3aEx5dNCmGtMkqfFtSzCoTeZyTgH5EkoeyYxwTrS2xv",
+       "successorProofValue": "z4U2wtLBdu5MLqMUEPf13Yr2xTJo4zoz4BYQm5s7TWwB7nArGshKo9aKDyR1QddmE4X1Vu8rQHvwQnL5gBsr6sXRR"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9",
+       "next": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U"
+      },
+      "proof": {
+       "proofValue": "z2oLUKrxp99ST5n8TdpyJ361M3MJ9N5pxfh4aLyxdAX1G4cudHCgv6y1Wrpv4a3W3P7rsjELhjME9c73Ahj1XCPX9",
+       "successorProofValue": "z35pqj9WzzruxjFmdyT9SkrRsKx9zwA4bH1Sg1hpqSUr9PWHAjHf1oALzfSDnHksPquXgvpSdndVqZkQEqdtSE7pJ"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U",
+       "next": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve"
+      },
+      "proof": {
+       "proofValue": "z4j59k2cMRpZdqPGBLN6XZ2nsEYj324GJBALVp6p8JkGuLCsbSYgSLtDAFMsJYMvxvmLrENgwhXMj8Jg4NfXEGgMS",
+       "successorProofValue": "z3a1G7HkHaBXDWkfQUm1F1AKUxuDkedSPpjLiqHjPLsT64FnZc84KgeFDuTTcGso8pPqP2fS1BGPTPAfZw8CCkAbG"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve",
+       "next": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i"
+      },
+      "proof": {
+       "proofValue": "ze7PHSjNx3FdRrvdryaJhCA3fcxmrpr2d9LkaU97ewzfzBKj6RubB7axTmxWeBdKZbAgANeEttAfBSAmZkJ1KgBH",
+       "successorProofValue": "z4dPAXiCpmkhgA5LjyGUNE2LNDxsDv8dxUQvQMsvi7iCQ3dL4BNNi3ghMUaNjytSPyYnW1VT1MTdd3392UtpGRuG5"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i",
+       "next": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX"
+      },
+      "proof": {
+       "proofValue": "z4VFFuWaTvkVGmcJHA1ufHy6MCH9VDG9FF7wTq9wt456R4b1S5PTjSaFTjDjUxxpnPkYm1XEgpwvsmkp799sbzF8j",
+       "successorProofValue": "zc6jjatSvJMW9yCe2R76BrA9QJPCSwRkMiize8M7HXgXjgQFLHbVq8u2yWFdkSiqGLv8YFS6TdBYLAWTzZHRiiyh"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX",
+       "next": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu"
+      },
+      "proof": {
+       "proofValue": "z1Uv1JjsEVrBMhwCxuy1wrqrDMw5og3yevduEtRWo31LzUapaCHy7QCA1rcLpcBb7hWNDQXwTZixyuZE5A1g2NdJ",
+       "successorProofValue": "zkbPMWVWNgjvCMnXgEEFrAMLMcbWtRJJTKhBavZMV45EornkVJbRhQYxMXCvMt9sXGn4WjzJNUrxdUfhHTScmp26"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu",
+       "next": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN"
+      },
+      "proof": {
+       "proofValue": "z5oRwzoYqjPtGCAhQnHSTpPMjR9NXuYNbqpRxXSXn9ZmocaTgHNXWFqiDsfN6nGLz8DL5YdM9dubM1uW5Ygp75a4S",
+       "successorProofValue": "z5c1SCZ2kUozTWiTGEEvY825hWPC7NADC6RBBRq2KsdGxZfaDz3rX9sfTZtVcWiWxPfVxAZReSfEH9K33akD1JTEA"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN",
+       "next": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT"
+      },
+      "proof": {
+       "proofValue": "z3oHzo61zyep9qJppv5f5Am8XbTM8HuRas7jdgzRsXU6zLFHebFAH4MqCkDnUPyHRrBTg9yqT8WGdttPrmyKkwR6g",
+       "successorProofValue": "z2wqviaSubXkUesWPbvGcTtYGY2sy11X6SqbTFk3uXNBBsvzswLBaGGfBY3TkaFc6mwxW9nLT8pZMA1tKzWSxTPzh"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT",
+       "next": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8"
+      },
+      "proof": {
+       "proofValue": "zhGS6T57WkoyNerncQ7TdpECif6RNX3hE3Qxkqziwx7i6TuuV4Wfh7URr38ha24YSYrjKtAgPptiay3XET6ttYwe",
+       "successorProofValue": "z2SEfYMvduoL9FUKUnpFVhGriBMxMugS9dh3ACb9WJ3eDgbPTDnK4kH8Rq3q9x9aHVAzYpidzCErcZVZBQTsSt4Sq"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8",
+       "next": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX"
+      },
+      "proof": {
+       "proofValue": "z34hM3ncLSVLLtWo1uiHx6svi4qHrp5H3cx3Vik861HANo7LWrqakQdoc4mFYAuPMPpW1vXfd2NX5pDZpvnZo1tUY",
+       "successorProofValue": "z2WPeUWsVT3SBWpNoAaYmbrU2JEVqrQUups3Nzhp7vzhozAb2qcyyTam63DzfNRaRQHCiABNMucaYEzU8DhGYzNuU"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX",
+       "next": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48"
+      },
+      "proof": {
+       "proofValue": "zK5uHGbGFNX1qDsKiXN6m2Qh7p5VMub6Tk8dGEHsVUgrbmnvFZ2qXYCW4EuBQZEGLjwuAthYEsczagpGnDpefNc8",
+       "successorProofValue": "z5RjEj3ov2oavgVZWprLoHrcLzzELgUaPTMSSEz8fLoip5JWiZ9QacER3YDJmpMjB2CVVs5LhAGgGzgdbK3ix4ZVd"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48",
+       "next": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM"
+      },
+      "proof": {
+       "proofValue": "z5W9WYL1jTFNegDf3LmuxJJbVDnoWF1Feoq2eUNSTMR893afi5ZzLRVj5umdbhFPMpW3jz5ecdTkoPBx3R5ptbHbn",
+       "successorProofValue": "z3cBoQ9LXp6Cup9ktQfSJcXxx6QHRJZdm5gZnWSkjkbSgFhfRtLSJPTt2viNRXmsGuzUnGgLJLSomRFQjnasDX8ab"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM",
+       "next": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB"
+      },
+      "proof": {
+       "proofValue": "z42dYWgm862JcP6b4gnLTMEwLazaZqpVti1859PjT4ZuejgJhsjk1TxuMkCaHc4BkkGJuaHy7hvgtmu8B6e9NTzgD",
+       "successorProofValue": "zUtKtrWVAkpSKCr5pkzbTXoegvMDTgwPSc4v6Eth8AKuSqF3JAQuVB5trjLAn1HkVahWzCN2dCDJBisnBK4gdZAH"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB",
+       "next": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e"
+      },
+      "proof": {
+       "proofValue": "zNcGMeKjLjSGiFyZoK7wWgwDN1AD64PSobByFtq6fH58KCBANZEJAAPHXYAxd39LDdp5SSsioovzjaRXtnU4BTXy",
+       "successorProofValue": "zQ46xViH1Yhz1q1VyNouvw1jVCus23JBkCwLySr5NHLZBtQJK7vq61P6CkP2NVxZg3kVxedXTA6h1PfU9WxqYKv2"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e",
+       "next": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR"
+      },
+      "proof": {
+       "proofValue": "z3SDAi5tXD2KeGWJfsLcviSXpM34beRi2qfSzS9xLKKmAuafm5fYtRTC638737veP4nJaTetghccBoTryQrkVjBav",
+       "successorProofValue": "z4MkQEm86j1HkzvEKmKWwxUNn87ZxQqUYget6f6zWsTNpdKjL2mbsqhyoWriJ1C5GJJmk5ABtPbnysQRybHjuzFCi"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR",
+       "next": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG"
+      },
+      "proof": {
+       "proofValue": "z22d8MTJQfuL4wRBTwPiiGCHcbCSj2rWWivxTDPBehrZ5JVv6kPG6XEzUKcGE97MW6xrKF88mNavvsu51atqfJW3s",
+       "successorProofValue": "z2UrohFLZHXXyCJDH6uafkbcRAg2bjqiKgi534Sw7KctAQEZ7js5ca2SXUpq2dkuBGt88GCtXsuYV85Tkw7dgyGHQ"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG",
+       "next": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT"
+      },
+      "proof": {
+       "proofValue": "z2wAnz33CTangg3cBZEFbNw9QWcLYfJ7DnLqJovhNcQRPMfNjpCLY4oXydFfkPkjWRoUVYF2bAER2a62XwCBHeDt3",
+       "successorProofValue": "z2deiKEa8STjQERMrvLbBQ8kDA9u9kVfH2aCXVtWDnKVFosmZEh6NpXvSS1jHp4538kyZSUANEz9Lb3Ba6n6YVhnB"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT",
+       "next": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2"
+      },
+      "proof": {
+       "proofValue": "z4THiEfRFVht2sjGAMh32deivGazMoaxjmksAaAKBNto4zD2sS9gBm3ZWFqb9Bs3zatPL4w1Xs2Ef4j68b5UCe2GZ",
+       "successorProofValue": "z5msdftFE1KaYPHZq7gqDEZ4v6c4ovtdocRj81PKc3WoSua7eRyvbeqs5b2NYF4u3CzV8uuqYHPxEs3MHvSB3YEKa"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2",
+       "next": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc"
+      },
+      "proof": {
+       "proofValue": "z4BfG5Nw6xaZarHgnqrETo1k9te9S9ns5wq6P6ByVUZqS7cmM8HCPnssS8q6WPn5YnJAQgMdrrEw9tAzKdwLMQD1b",
+       "successorProofValue": "z5YFHaCuisTZdhvsXrJhKBxkZSiJTABP2HevhFt9V7RNME5m7jY3T42ickUC5mStxWuAj8CE4WEWrBSZm2hzAYxpe"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc",
+       "next": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs"
+      },
+      "proof": {
+       "proofValue": "z2LK2KUC9is2Tigy5ZR1ERePfUTddUggfV6mxwhGdXpML1adjx1R2WTvjjXgArMV9TQD647mpwzx5b9N1aVdJNsWQ",
+       "successorProofValue": "z2XsKS64CFxWnhRPEN7z1YNuHcpjx6N1ytCSsfNTKCjvjGJQ2WJLB2dr4MctRV2DUZUPDqbYrNLF6ySS14DQG3fxK"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs",
+       "next": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL"
+      },
+      "proof": {
+       "proofValue": "z5qBdY7ERF4pw6S8sEYgnuYtoTkfWkmmGWYCjzAiKKsauDtNhphA7KBG4VFFLTth4kyhoyMPawFHPgRGraWatTE3c",
+       "successorProofValue": "z9QB2Rs1Q3dwXKkLCAkUJk14Sa2nyuCmtNKKVuhrQeixYcEixbwRbx2E1gT1XxJuNhuPpmucSCQFvhzpmLSY4F6m"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL",
+       "next": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR"
+      },
+      "proof": {
+       "proofValue": "z4xNy3617CH7mscqcAi6TpWgemJUuETEYGJZbhrjkxpzyDV2z1S1ya9PCGH1tZXpYgAUFxdN8BbgfTBXThrGLMQNQ",
+       "successorProofValue": "z2epMCGufhnqWeRX3jTLemZvrJkhZPvU3MnUothMaa4Dd4Uw5DUt73VZt4Z2GvjaoP8A91ZDgbeWqvWcfXrDvNNjq"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR",
+       "next": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi"
+      },
+      "proof": {
+       "proofValue": "zcaxy2bifRez1zEY9N7Smm4QU3iqCUym5PRo1PW3RkgvEm2Y5LoYBehvrgT6QAJBwumLF6ZBD8SWbPivi6pVQnUd",
+       "successorProofValue": "z4rmFpA9AD6Khnh9Nu7nEBf2LPAkNyhVMopaPqQMX4eDoEn1oZKPLQ8PvEjHW2hvh9CagM66ypmxvyD5PuzYudDHu"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi",
+       "next": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2"
+      },
+      "proof": {
+       "proofValue": "zLdRg94h532eVmnxPYcuNM5Mw2RxMXrHkb5MW53QvYbmVDF8NSGAGrDe2aa8iL14m7FL34x7YtDGgAzJV6MFTMGT",
+       "successorProofValue": "z59rN7yTcCNnfF68bZDa5KvyoTopfRVybbQsh7NEQqzf9KdhQRWbYtHuxfYNzZsv45w8Ct6tBvhFwhgAtr7wr9Wyr"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2",
+       "next": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q"
+      },
+      "proof": {
+       "proofValue": "z3vQzhUDPUDsAnzcNEEfFXru5TtpgUKkXKGivHWYUQLPpwToYyjdfGzp46mtTb5RH2DiVDMKYk15M6gEjBy8dvPgz",
+       "successorProofValue": "z4tRkWifuF8Rf9CwWD7cTtV6EpZPgoSgxXLrpZNXgFFwVa9yHUw3ekBBxQ2XRmQe2XKajxpayoyPXAmGSNXLe6m4y"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q",
+       "next": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo"
+      },
+      "proof": {
+       "proofValue": "z28UMEXiEzNCDgeMw4KJ7JezrPYkgeJeLeHJaLk5Rd3sbu17xKWSGRZ75BMdWiCJm7iubg73VsQNrEWb3dQsK6NhY",
+       "successorProofValue": "z4xLYwP7FB1ZMCEngvMw2GzzFrXpe5y1gNTMqMdEniUDhm848YWuXtNzMYVXr19w3MU8c7XZfXc3XJdYbusjJe6b5"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo",
+       "next": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ"
+      },
+      "proof": {
+       "proofValue": "z3dyeAYWNeHj2ttXiW5ispqSj1M7YukFWN1WwCypqhNJdmcs83iF87GuvE3ArfRHixqzFLSpZM424AzD9TEjenrUp",
+       "successorProofValue": "z5R9veuKyB9scvS7iTfkpnGjCjhGXhrB7XzFdkiiy6KLKbV1VMaDGZXy4o4gFtEJ3ea5RHn9ifPeLhJSoCoLE9SVx"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ",
+       "next": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9"
+      },
+      "proof": {
+       "proofValue": "z3iJCdgcXaUY6VNixUw3SkK69NBG3dUTH7PA6oBhi5Xa28r3ZkZoTnqq9fn6iKSG81ZB9zdSfJD3NWGSbq87DcGhW",
+       "successorProofValue": "z4gPyD4wATW49C84SMeyCpfHgKgrRoiKHXNshApwCe4qFbpUEYX8wo7oHxrvEtTn7rFmftgV1U9X4ZBbS8A3Jgejj"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9",
+       "next": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh"
+      },
+      "proof": {
+       "proofValue": "zwvttEDbMvdAtWX5hf9bReTAEsdXTcv7KhxcFUYySyZdg29rUs81n6UuwewNLNCXagsmneskdaqXoyQA5f5cwya8",
+       "successorProofValue": "z3Zr6aVM5ueJjf3Mitm48R6KRoVjhRhxoKd5zdrg4kHmvzYizEFr98PTV2dF1sdVnttodmuV3zh7hQzrnnKaDdyAb"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh",
+       "next": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4"
+      },
+      "proof": {
+       "proofValue": "z39q14L3UrJhhwgbUvdJS9xYjWRuGaYR6jyWiXzqvxabDPxuSvoUUvDzURZcAj2wqGLgrt8WtC7Q9YV7joCYN4qQq",
+       "successorProofValue": "z5ftQrVFC5MHcmFqv4Fg5q9qTfJGogZ5S5ZaVPjqncdpShxbZ2DuusaHoQKLtdqUrezLpRAgNmPGurMR6wZGymcwT"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4",
+       "next": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA"
+      },
+      "proof": {
+       "proofValue": "z48wBrqvCsw8cD1ZLbNSztiVW8twLBVR1uynTo1tQvn4SJS65AZr9VFQK9YAqzhphwb1KZ33B8nMmWW6YdaxZixdb",
+       "successorProofValue": "z63jhRGqbZSNiuKYttuavn3pdkkzAKzK848dDfFtnCCYeHwBCiMZY1tTrjFjBkgkCqBZagsp7zv1NFkKM7Sqc9Ve3"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA",
+       "next": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ"
+      },
+      "proof": {
+       "proofValue": "z5SWyCrKYniJNN5UCn1gtQT2CHbgS7cYTtey6J288pDdzAzcUPUveBrt1v3QSc4DWRiph6ceHh4iqRQhzvCVmGb75",
+       "successorProofValue": "z4Kg3kjET6E4rz16bSKqj6fThAJF6t6oxD4SgED3jVvCRMQAEAppAt9ZG2bmoFJfSXG5j8gmsF8P8FCzNZkw4MK3y"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ",
+       "next": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh"
+      },
+      "proof": {
+       "proofValue": "zLShYv1FuNSbQuGC6E449msDhsBkRmNYaeRbYmbPYJKZAjDjNYTmPvWFnTJcxMW7NrWyT5jxMT1vBABjzVMTWFgS",
+       "successorProofValue": "z4ksM3Tf2u8FF6pJHaqxHUEswLmX1e1ZTsfzcf7TL3BZtTPYxpnwQpf3BqA31oa2mPZDfFxBxCMZpQjHeFZZyDND4"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh",
+       "next": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty"
+      },
+      "proof": {
+       "proofValue": "z5nz8kWz2LuBrh4uSt8UdtaRxEWC9XrYwzTPxpGVzjQ7VMTWmtd1znXskLka47Zk68Jc8kCcF5d5u6Xc9Gv1tpejA",
+       "successorProofValue": "z2gnJVYRz1p1QUuCDhB29mpXGdpRw7cQVik8YshVJvwFmZwmbtTBghQpCSY5DLQXqrT71ELD5fkAnnLPpENmTa5Zx"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty",
+       "next": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC"
+      },
+      "proof": {
+       "proofValue": "z5gk4gW3Ef6cyVpWBag7Q26h73V2XzuHT7vHhTk5o5kif5ESBjNxn522WWG65x2KcbcxVYa2nigiZ194Dnep4qGzw",
+       "successorProofValue": "zQapxwVn4cxKsQvWvWxH4ewGdtSbRiJ87KjaxvzQMJA1WzHRGGay8Ed5VuWUM875VUkqQdZ8Q24BU4wnPZEcwWUG"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC",
+       "next": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C"
+      },
+      "proof": {
+       "proofValue": "z4aHteFkkhz6YQwY6jN3YXnSgijoeMy6Fyikt4smEHagvaJhUYXf1fU97m1S2otL2jtnQZajZ9mdrbF3HHHWMenoT",
+       "successorProofValue": "z3PsBTMYTJ1vF38dJPHK6B9R8SJFMFe2az7UfKS3Ct9xUQPe2A9KqzbPFgyzUokA1sNGftLAxpsJPocDcs1T9UweH"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C",
+       "next": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K"
+      },
+      "proof": {
+       "proofValue": "z2gmHd51KKjriU7RZ6k5SdPEXzqtAeVJNr6WoqjHjLf7SAnfJJhYes1fPtf9TJQJJBY8EtwK7deoJVi5dKd5RAFtK",
+       "successorProofValue": "z2cGTTfit3xnyW6wyycEeoF6HvtK6rgWxMfk2n3EridVSn1wyMqEwZ7fhsdcwSv5yLEigDf9hPdMyms2QmoR3o3Dy"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K",
+       "next": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT"
+      },
+      "proof": {
+       "proofValue": "z5yiMnDbC7wis7EuKc1YoZKxZPa5tdwnXXYxidfTQjxcowSFX5JM6xC12RNDiewKqFyE5mga1b6RbDVvxHyWtvLyR",
+       "successorProofValue": "z496X4UPhtQTg4aN6jSJuqyKaAWbX4NtaSnAMPkJNjHDNrq5TvvSBShNw2MmU3NjUAERjgWLFYyxYcf3JhEJqVyuV"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT",
+       "next": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6"
+      },
+      "proof": {
+       "proofValue": "z325tmAPKSAQJiXRRpDpAtGs9LM5GZ9r9o3Cy594en1npFqux4S81CcJNKCyKxV6pqHxxRsCH1xagssqSr7psD9Vu",
+       "successorProofValue": "zQv29F2UwecUryCpMriGcKXZ2zKcdCMGiSXmo5oqcD2Dz1BPfW7gCh1uD5ENYmM6G6525vepoPBZb7rozejfK79t"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6",
+       "next": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq"
+      },
+      "proof": {
+       "proofValue": "z5mFpNtUpmbktW4k1XXJX3ACxmqDLjbXgySAfDg75hZzDj8ahdD7n1XJAQSSsH2MoqzA8s9yVoMXEAktAjnMmjAS9",
+       "successorProofValue": "z5W8fKTkyA6bv61bbffkT4NQmGTK2oStoN94vpNrwDp8oz91bs3VS24vDR1uNeW5jEw14FP3NKHfLJoSrcA8VBMpT"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@1",
+       "prev": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq",
+       "next": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz"
+      },
+      "proof": {
+       "proofValue": "z3XxgsfenecS9hYyMzRDQkLoWt993wzWzDd3a9L44a34tHMRFfBe7jv6QwrNJDy9nheAgidV8EMQcF19z3Ystu7ka",
+       "successorProofValue": "z2dBmpq1FMYwdrtujKgXNuRC9y9Auptq9ye3S8G9RUCq7XJkbRs7LPf3TZZCojj3zwEqwAQ4QNVKoAYk3pYque287"
+      }
+     }
+    ],
+    "revision": "3",
+    "issuedAt": "2026-10-07T12:00:00Z"
+   },
+   "proof": {
+    "mac1": "u-D0EAUYzXPbaqpI8DBg7pKvZVbbhh_WRrn7MnmJGF6U",
+    "mac2": "uc42Q1i4iGR4A4MunqCIoiF7bYwlCUXmeHVURi15FFvY"
    }
   }
  },
@@ -703,7 +1431,7 @@
   {
    "name": "mapping-lineage-not-ending-at-self",
    "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
-   "checkOrder": "6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures and starts at generation 2, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)",
+   "checkOrder": "6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)",
    "expect": "reject: the last next of lineage != self",
    "artifact": {
     "body": {
@@ -726,12 +1454,11 @@
        "body": {
         "type": "anchor-rotation@1",
         "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
-        "generation": "2"
+        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
        },
        "proof": {
-        "proofValue": "z44E7RcWaiFRc6ot9SY4ZV2u4s5mQsptYpjLTs6UGfwKVWygCYZ3tSMRutSmSojjo7ZM3tAa4UMbzqJiz1EWWe9kq",
-        "successorProofValue": "z4hDPP3PzaWKAmFBURufL1skHLgpn38bp3iLRqJbGVfzfu5G4SWrwVmH5hx6vJU9Qa8GfKf2qzaxKf63ZN1UhXuhY"
+        "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
+        "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
        }
       }
      ],
@@ -739,8 +1466,755 @@
      "issuedAt": "2026-08-23T12:00:00Z"
     },
     "proof": {
-     "mac1": "uijB_UrRbF9WMtVAm_aTL9tDgobgvKZwTCkiDjfUoSDE",
-     "mac2": "ukavd2bBnN9Z9XMQ9WsQAWn0aRjb_lUZjUFeyiVxkNhI"
+     "mac1": "uBkK60khfrza24IirIJ4q4SCV4PZkd-YRtEARcgqRDgw",
+     "mac2": "u8ViXqyzusUdecHFvSvkE9ipLpy5-Bcpv4JZO5LCQoDY"
+    }
+   }
+  },
+  {
+   "name": "mapping-lineage-65",
+   "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
+   "checkOrder": "6.3 step 1 FAILS: the lineage carries 65 elements, the schema admits at most 64; every element verifies and the chain ends at self (generation 66)",
+   "expect": "reject: more than 64 lineage elements",
+   "artifact": {
+    "body": {
+     "type": "anchor-mapping@3",
+     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+     "self": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
+     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "card": {
+      "body": {
+       "type": "self-card@1",
+       "anchor": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
+       "keyAgreement": "z6LScDGGMDYreACeLFvCiewjcvF5Y8WoSQXi9M9fUfszA4wv"
+      },
+      "proof": {
+       "proofValue": "z4J7FPzUeev3eXdB7QorbdPFyDTBdUK2PLj7RqBkhDuuoe8oP8w2GVkKMQDnTtojP23PW9dVU9z9AVF1RHc64RVwC"
+      }
+     },
+     "lineage": [
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
+       },
+       "proof": {
+        "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
+        "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+        "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN"
+       },
+       "proof": {
+        "proofValue": "z5riHWZW4w4CWevdAoU3jSqfkrdtCoc2CMGEssxj25mzPjF1k7jSFu591ukwKJhNs8ojjVkmyUiEQPZQVgozzCD2p",
+        "successorProofValue": "z2hoV8ZSS5dQSSMQ9jgvuTMXiDqJGeDd5j88yKzdeKsJicJrZBKvE6D28M5NtfAJ4GmP9f7jMiJ7Wn2SoExvucy1C"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+        "next": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7"
+       },
+       "proof": {
+        "proofValue": "z4gFzWLJzYsKDP6zXoot7nP5Mx974hrcVWBH831Nt3YCR66frZq78Qd6uyNWNLjMiJqEp2i6UhHuFXwz1i5fmJuqt",
+        "successorProofValue": "z2owJUtiiyiCkgF7utKRUgjAaQMRrvMWtu3agEohLtNyuPcfsMMF4uqhAYJ6as3446XRBf5n6DdkeuaDE6xYyvewu"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
+        "next": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1"
+       },
+       "proof": {
+        "proofValue": "z2GUWiRZXpG7ApyWQaW6xszmZ2zEHpwiK8xUyM5fJLdZHDmnnGXyRQnt85afmv6SxaXxEWPKKE4o6EXLg5ERnGmBm",
+        "successorProofValue": "z2bBGzUdCPXs2zKzaWYM5ECtuU1jssy8yX5ZFMFAvw1AXE52RhHnsuvPQPXedrTBYnXUWd1bfVFSg4QEbvFKxYc3R"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1",
+        "next": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ"
+       },
+       "proof": {
+        "proofValue": "z2R9j6eHfd6tG6VpYHbo1WwB93d1JT4t5kEggGNHWuDaQCd9KAXAReFUstabJi9tArAXWzi7RPHtH3RqbiuKHmdnk",
+        "successorProofValue": "zeNZitkuXVnMQeD42VaWXte9viyEckjweygTjJacda4zLHFRffJxMWA2BtWH9CFJFnkCFRookVgdJwtAtomDVHKU"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ",
+        "next": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ"
+       },
+       "proof": {
+        "proofValue": "z49cyRBURuF28F8pefmCP7ad6Lyiv38tMYkaRrTdzkwyXBTbwinoynWLAA3xsPzb3hyC7TRqE8VbLWV9D8TpBx3KN",
+        "successorProofValue": "z5z6vNZcSSJJXhg3LhBbcP6Gb2K3kmgZPhWPQRC5NULcjUxANa3rJAEEhPVJRQufqVAWw9NW1AnakkYo1yZMw7SHQ"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ",
+        "next": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz"
+       },
+       "proof": {
+        "proofValue": "z4Fb5trfVy7TscZZ2suvpKtJG2toQivo9xEmwHdycW1pit2RFaHFXirYGDXBAgRpsiVLhxAMKzDMr2K5xcs83mFfP",
+        "successorProofValue": "z4Sifm74sp22bqKURxtM3qVz9U8qZXf3Wi4b3Nxos9GnhbJBddtt4tU7QbWEJnxiL1z4o91XJnsfkonR8BE4GQXPo"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz",
+        "next": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE"
+       },
+       "proof": {
+        "proofValue": "z5GvXUaAp5LDc9eLi2AZLKNfQbW7BPiXJgeHd12wukAkZnKQvWABFNZ5Y5QB6n3PNYsPQG62CFxJf2fx1nznXeEfC",
+        "successorProofValue": "zDHaDeyvRDkPspocNbEbyXLbdE6YqimHe3tAUQ7C87tYbMfVAwgT8emr9RXNYeHyoqBvRS5bfgsQSR8ZNZp1FK7K"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE",
+        "next": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr"
+       },
+       "proof": {
+        "proofValue": "z2WPZ9Visq4u6HPFVgjXwXgkgvyT6EmmMuQh5g1UkmwzvNJ1V6JzKby4D3MxSHF3oGuoNzZrBcgJzq9rZE8ikHVA1",
+        "successorProofValue": "z5VQ8CJMMiNWE1FjDqSg68Uchp1WFCQzzjAypVRbKsuwMJ559GGv5smwS43mk59rKn52Grt1hVQt9iEVLNHWHehmG"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr",
+        "next": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4"
+       },
+       "proof": {
+        "proofValue": "z65FqvAsh4SChSNvc4qZxUPoP8VPNWwiVWMTHwRpzJPHGpgmgEeNWZk6Eoo2BSakV35eZhWUXeKnZcN8cfRPwYFPT",
+        "successorProofValue": "z5x1ctoDH3a2xR3xEKPikKtbsgM4tVtHwJ2rtCxGZtMxrA9MuJHHSinS9NrMYb4jsN1cfX5EWPPWyeHMJKJ6CJptc"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4",
+        "next": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M"
+       },
+       "proof": {
+        "proofValue": "z5aox1Z6v1UXgnW2Q33br7PXMT3iTWU2uRrByuPWoU2UHNegWDQ3Xr4sm8obq9pxvygVe5BysbYYA1fzFdY6Lsob4",
+        "successorProofValue": "z3rWfdszdcN6ud5emV4mr2LbfrY4HwGjKtTfD4PhqjotAG8v3J8gw6WwEARY5ADJqe6j4nrc9XBGuxXf9n7GgXEtb"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M",
+        "next": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5"
+       },
+       "proof": {
+        "proofValue": "z4wmeozpA7RE6WmfHBPNp8CHDX28fSwsaCpjXTDkLDypzfVa2HCuipqEE4FeBiHvb5hy1QBj1KsJ2znES5aAFxnZM",
+        "successorProofValue": "z3kpdSWpXKEv566e1QChobH2UcmSFZZNsyzZuZodogSoeyfAPvXXHVj7MmhCHk6Bv2PBUNTLuq8jqP2Q6FTSd6bAK"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5",
+        "next": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4"
+       },
+       "proof": {
+        "proofValue": "zbhBNsE8485nDge4qvexUK6QXA6o3TUgBSUrkEqJMWbEsBCJYCrxgCY8HoJtuFsx4GzDXPXqnHtUoEotVDF3t6im",
+        "successorProofValue": "z5qbPjHgnym1KN6mMPiF91ZTGH7QkDsxKyUepgHYdqNjPJJxSoiPPNBcs2yYeCXXLSFZ1LbmfbfJhcT8ab7JywufA"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4",
+        "next": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm"
+       },
+       "proof": {
+        "proofValue": "z3HspUm6Yw4v6czbZQqLDyZmSkhNQREBcspsRkJFD7u7hWyAZ4s6c9BUjpJHDCWtAwk7j5vvhXeMbQd1MQjjBKnuy",
+        "successorProofValue": "z4q7XPdqVae19SnWcxXAJhga49WGFL6jBHvCkd46WJ29FX4G8PQuRZ1rutAD7dGuRr8fe2hCURryTNbCL6oajBa7r"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm",
+        "next": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6"
+       },
+       "proof": {
+        "proofValue": "z3ZnKJ3tdGqsR5kgUBaj5PME6kren2jfatKbQgw9ZHY3wzgJyQPTzTKZBTs8bzcQxvEhWaZM9ezrGV5RMvtLXHB5q",
+        "successorProofValue": "z2kWme8hUcFfW8vYvPWhPSCqrXSQ3n5rU2XTFKeEzodP5AJDFMUevVPRFLdhLpENcapUrgf7JRJBiocvJWAvQ5F1a"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6",
+        "next": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R"
+       },
+       "proof": {
+        "proofValue": "z4T2HyHkoJ4YMVdrnJkpDT2wSQqrGDaug93B389QSZVPn71Sp9DAk1DzqmhvLFsu9u2G9Ui8XJVWxz6wvfxWoTXJX",
+        "successorProofValue": "z5SQD9QnphqvGegAjkYvaGtTQ7QZjCHE2KnRWmjwW8rf94rGuS79CEXTrqbKt89CSnzjf6GgEzVWQvYFT3GpTufSm"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R",
+        "next": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN"
+       },
+       "proof": {
+        "proofValue": "z4ZP7obAUCRv8HCZhC3EeG581V11UB44xGv4ytQnsTQ2pR4cSXkAUvAEMph1d7VDHtyesytviHYB2jWTtBiv8EEZT",
+        "successorProofValue": "z27tBb8sZLUYpPPJL6gY2fcsm6MEbawCDG89Mz3gMamhqjbtv7Ra1QDeqN2VbhBZqwckEn1QVjHjZFbtDCospWYuj"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN",
+        "next": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP"
+       },
+       "proof": {
+        "proofValue": "z4SDrULHKo98o5ggEGYoWJux6YwAHyf19NNGvNBtu1ewPiTNJtGUzfmq1XMEQWePuh1UoxxTnyKJ1pE9fANCoa7ej",
+        "successorProofValue": "z26sbqCigCS2snJBvexo7Y8SmqreA7b1mTFGiRWABko2gFCqqYeBmPcUBhpFXED7FAFAwjzBPKJmAcVTxWSTrGE4S"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP",
+        "next": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt"
+       },
+       "proof": {
+        "proofValue": "z4CkNsu3UMEE3bJHst37eximdkPG3qKdGdbHzUcisuTQPX18PK528cPzUSQCiZ2hECNMRsK7bMcQsUH9ghbSyb4Mk",
+        "successorProofValue": "z5aw1hHp51uGqkKiJphTKN93yUgcLm46dcwdwgixMpjyRFVURP3YPZbnQnkttcxbk1UjUEAa1M1swTZAKwHAWdc1H"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt",
+        "next": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3"
+       },
+       "proof": {
+        "proofValue": "z3eZUAm6y62tqfepSzPou5DSJL2qqp5MdHryHWBwYyPPqFz3xCGALDn6yWAAb3m2RxdBoaY5rWKiuuJN8FtUhbe2p",
+        "successorProofValue": "zRxwCrFRhXr9kyez7VoWFYwkXtrBA7zFsUr1RGFabXdk7F9LmP4RDkDzhDHtKQnu6pdRaN22cAwMY1NHKuS5HEph"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3",
+        "next": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta"
+       },
+       "proof": {
+        "proofValue": "zCGj122vZKDujrcGkDpikAQhf41bayq9S6M8XKzMNZbEsX7EKttjQCX8pobxxm49UEGj4WRu5U8eRKgsWFgoZyJE",
+        "successorProofValue": "z2zdvUfdxbTu8NFGS4vgYLFYem2FADXj35XxbagR523YUCTSvEgFR18TdFkjGmaBLJFztspEfpSrXqpjGUdvtmtd5"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta",
+        "next": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm"
+       },
+       "proof": {
+        "proofValue": "z3A5KoToSBbYJim4btE6BX5aW1qvTDP5YHHjet9rBea6jJsjQG3czH1mXhtjAuLxqefTkjNLiVGr8Jd5tSfQDFcSZ",
+        "successorProofValue": "z64JvgRocc6f18C36Uh9chBmNds2wUKGWGiSJCc214WozwsBS2TvhYdPGWnPVKzSuwkJVaJb9D8z9mNP52Mdu6Fqp"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm",
+        "next": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA"
+       },
+       "proof": {
+        "proofValue": "z5PCi2QpyvzpuwpUYeLnduYEbNhkcT1K3dWhozudKBg4juapAyUx88xN354RTHwQh4p92gmrBU82kHH2ANUaJ9iEZ",
+        "successorProofValue": "z28jpLjLnq3HGC6g7gpaRDSXURALktxiMmzi1tmajoopYio2Wyta8Kwg7GjZWU8awBR2smjPcHJp3QnPifVsoEqPi"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA",
+        "next": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd"
+       },
+       "proof": {
+        "proofValue": "z5Fw3VEYpK3EZEN67wsThjqvRrL9vnNj6ggGzLQoY2eEc8fSBwdotz26k2Yf2J1FjddN4hxeYpFyysqM5UfK21hcp",
+        "successorProofValue": "z5YdDXgtbUHVCGJ8H8Kq2neibPE1wzgjUwdSt1i6DUsXVTnVkAKUaXwah6gBq4aPKxTb6KCteAD2kqyYRFWTm7kkG"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd",
+        "next": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9"
+       },
+       "proof": {
+        "proofValue": "z3ZH94kykQ1oCKYHatD9KeLjPY9RDFvb7hxeYJzQ2dNtsE3aEx5dNCmGtMkqfFtSzCoTeZyTgH5EkoeyYxwTrS2xv",
+        "successorProofValue": "z4U2wtLBdu5MLqMUEPf13Yr2xTJo4zoz4BYQm5s7TWwB7nArGshKo9aKDyR1QddmE4X1Vu8rQHvwQnL5gBsr6sXRR"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9",
+        "next": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U"
+       },
+       "proof": {
+        "proofValue": "z2oLUKrxp99ST5n8TdpyJ361M3MJ9N5pxfh4aLyxdAX1G4cudHCgv6y1Wrpv4a3W3P7rsjELhjME9c73Ahj1XCPX9",
+        "successorProofValue": "z35pqj9WzzruxjFmdyT9SkrRsKx9zwA4bH1Sg1hpqSUr9PWHAjHf1oALzfSDnHksPquXgvpSdndVqZkQEqdtSE7pJ"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U",
+        "next": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve"
+       },
+       "proof": {
+        "proofValue": "z4j59k2cMRpZdqPGBLN6XZ2nsEYj324GJBALVp6p8JkGuLCsbSYgSLtDAFMsJYMvxvmLrENgwhXMj8Jg4NfXEGgMS",
+        "successorProofValue": "z3a1G7HkHaBXDWkfQUm1F1AKUxuDkedSPpjLiqHjPLsT64FnZc84KgeFDuTTcGso8pPqP2fS1BGPTPAfZw8CCkAbG"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve",
+        "next": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i"
+       },
+       "proof": {
+        "proofValue": "ze7PHSjNx3FdRrvdryaJhCA3fcxmrpr2d9LkaU97ewzfzBKj6RubB7axTmxWeBdKZbAgANeEttAfBSAmZkJ1KgBH",
+        "successorProofValue": "z4dPAXiCpmkhgA5LjyGUNE2LNDxsDv8dxUQvQMsvi7iCQ3dL4BNNi3ghMUaNjytSPyYnW1VT1MTdd3392UtpGRuG5"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i",
+        "next": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX"
+       },
+       "proof": {
+        "proofValue": "z4VFFuWaTvkVGmcJHA1ufHy6MCH9VDG9FF7wTq9wt456R4b1S5PTjSaFTjDjUxxpnPkYm1XEgpwvsmkp799sbzF8j",
+        "successorProofValue": "zc6jjatSvJMW9yCe2R76BrA9QJPCSwRkMiize8M7HXgXjgQFLHbVq8u2yWFdkSiqGLv8YFS6TdBYLAWTzZHRiiyh"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX",
+        "next": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu"
+       },
+       "proof": {
+        "proofValue": "z1Uv1JjsEVrBMhwCxuy1wrqrDMw5og3yevduEtRWo31LzUapaCHy7QCA1rcLpcBb7hWNDQXwTZixyuZE5A1g2NdJ",
+        "successorProofValue": "zkbPMWVWNgjvCMnXgEEFrAMLMcbWtRJJTKhBavZMV45EornkVJbRhQYxMXCvMt9sXGn4WjzJNUrxdUfhHTScmp26"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu",
+        "next": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN"
+       },
+       "proof": {
+        "proofValue": "z5oRwzoYqjPtGCAhQnHSTpPMjR9NXuYNbqpRxXSXn9ZmocaTgHNXWFqiDsfN6nGLz8DL5YdM9dubM1uW5Ygp75a4S",
+        "successorProofValue": "z5c1SCZ2kUozTWiTGEEvY825hWPC7NADC6RBBRq2KsdGxZfaDz3rX9sfTZtVcWiWxPfVxAZReSfEH9K33akD1JTEA"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN",
+        "next": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT"
+       },
+       "proof": {
+        "proofValue": "z3oHzo61zyep9qJppv5f5Am8XbTM8HuRas7jdgzRsXU6zLFHebFAH4MqCkDnUPyHRrBTg9yqT8WGdttPrmyKkwR6g",
+        "successorProofValue": "z2wqviaSubXkUesWPbvGcTtYGY2sy11X6SqbTFk3uXNBBsvzswLBaGGfBY3TkaFc6mwxW9nLT8pZMA1tKzWSxTPzh"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT",
+        "next": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8"
+       },
+       "proof": {
+        "proofValue": "zhGS6T57WkoyNerncQ7TdpECif6RNX3hE3Qxkqziwx7i6TuuV4Wfh7URr38ha24YSYrjKtAgPptiay3XET6ttYwe",
+        "successorProofValue": "z2SEfYMvduoL9FUKUnpFVhGriBMxMugS9dh3ACb9WJ3eDgbPTDnK4kH8Rq3q9x9aHVAzYpidzCErcZVZBQTsSt4Sq"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8",
+        "next": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX"
+       },
+       "proof": {
+        "proofValue": "z34hM3ncLSVLLtWo1uiHx6svi4qHrp5H3cx3Vik861HANo7LWrqakQdoc4mFYAuPMPpW1vXfd2NX5pDZpvnZo1tUY",
+        "successorProofValue": "z2WPeUWsVT3SBWpNoAaYmbrU2JEVqrQUups3Nzhp7vzhozAb2qcyyTam63DzfNRaRQHCiABNMucaYEzU8DhGYzNuU"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX",
+        "next": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48"
+       },
+       "proof": {
+        "proofValue": "zK5uHGbGFNX1qDsKiXN6m2Qh7p5VMub6Tk8dGEHsVUgrbmnvFZ2qXYCW4EuBQZEGLjwuAthYEsczagpGnDpefNc8",
+        "successorProofValue": "z5RjEj3ov2oavgVZWprLoHrcLzzELgUaPTMSSEz8fLoip5JWiZ9QacER3YDJmpMjB2CVVs5LhAGgGzgdbK3ix4ZVd"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48",
+        "next": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM"
+       },
+       "proof": {
+        "proofValue": "z5W9WYL1jTFNegDf3LmuxJJbVDnoWF1Feoq2eUNSTMR893afi5ZzLRVj5umdbhFPMpW3jz5ecdTkoPBx3R5ptbHbn",
+        "successorProofValue": "z3cBoQ9LXp6Cup9ktQfSJcXxx6QHRJZdm5gZnWSkjkbSgFhfRtLSJPTt2viNRXmsGuzUnGgLJLSomRFQjnasDX8ab"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM",
+        "next": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB"
+       },
+       "proof": {
+        "proofValue": "z42dYWgm862JcP6b4gnLTMEwLazaZqpVti1859PjT4ZuejgJhsjk1TxuMkCaHc4BkkGJuaHy7hvgtmu8B6e9NTzgD",
+        "successorProofValue": "zUtKtrWVAkpSKCr5pkzbTXoegvMDTgwPSc4v6Eth8AKuSqF3JAQuVB5trjLAn1HkVahWzCN2dCDJBisnBK4gdZAH"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB",
+        "next": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e"
+       },
+       "proof": {
+        "proofValue": "zNcGMeKjLjSGiFyZoK7wWgwDN1AD64PSobByFtq6fH58KCBANZEJAAPHXYAxd39LDdp5SSsioovzjaRXtnU4BTXy",
+        "successorProofValue": "zQ46xViH1Yhz1q1VyNouvw1jVCus23JBkCwLySr5NHLZBtQJK7vq61P6CkP2NVxZg3kVxedXTA6h1PfU9WxqYKv2"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e",
+        "next": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR"
+       },
+       "proof": {
+        "proofValue": "z3SDAi5tXD2KeGWJfsLcviSXpM34beRi2qfSzS9xLKKmAuafm5fYtRTC638737veP4nJaTetghccBoTryQrkVjBav",
+        "successorProofValue": "z4MkQEm86j1HkzvEKmKWwxUNn87ZxQqUYget6f6zWsTNpdKjL2mbsqhyoWriJ1C5GJJmk5ABtPbnysQRybHjuzFCi"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR",
+        "next": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG"
+       },
+       "proof": {
+        "proofValue": "z22d8MTJQfuL4wRBTwPiiGCHcbCSj2rWWivxTDPBehrZ5JVv6kPG6XEzUKcGE97MW6xrKF88mNavvsu51atqfJW3s",
+        "successorProofValue": "z2UrohFLZHXXyCJDH6uafkbcRAg2bjqiKgi534Sw7KctAQEZ7js5ca2SXUpq2dkuBGt88GCtXsuYV85Tkw7dgyGHQ"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG",
+        "next": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT"
+       },
+       "proof": {
+        "proofValue": "z2wAnz33CTangg3cBZEFbNw9QWcLYfJ7DnLqJovhNcQRPMfNjpCLY4oXydFfkPkjWRoUVYF2bAER2a62XwCBHeDt3",
+        "successorProofValue": "z2deiKEa8STjQERMrvLbBQ8kDA9u9kVfH2aCXVtWDnKVFosmZEh6NpXvSS1jHp4538kyZSUANEz9Lb3Ba6n6YVhnB"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT",
+        "next": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2"
+       },
+       "proof": {
+        "proofValue": "z4THiEfRFVht2sjGAMh32deivGazMoaxjmksAaAKBNto4zD2sS9gBm3ZWFqb9Bs3zatPL4w1Xs2Ef4j68b5UCe2GZ",
+        "successorProofValue": "z5msdftFE1KaYPHZq7gqDEZ4v6c4ovtdocRj81PKc3WoSua7eRyvbeqs5b2NYF4u3CzV8uuqYHPxEs3MHvSB3YEKa"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2",
+        "next": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc"
+       },
+       "proof": {
+        "proofValue": "z4BfG5Nw6xaZarHgnqrETo1k9te9S9ns5wq6P6ByVUZqS7cmM8HCPnssS8q6WPn5YnJAQgMdrrEw9tAzKdwLMQD1b",
+        "successorProofValue": "z5YFHaCuisTZdhvsXrJhKBxkZSiJTABP2HevhFt9V7RNME5m7jY3T42ickUC5mStxWuAj8CE4WEWrBSZm2hzAYxpe"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc",
+        "next": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs"
+       },
+       "proof": {
+        "proofValue": "z2LK2KUC9is2Tigy5ZR1ERePfUTddUggfV6mxwhGdXpML1adjx1R2WTvjjXgArMV9TQD647mpwzx5b9N1aVdJNsWQ",
+        "successorProofValue": "z2XsKS64CFxWnhRPEN7z1YNuHcpjx6N1ytCSsfNTKCjvjGJQ2WJLB2dr4MctRV2DUZUPDqbYrNLF6ySS14DQG3fxK"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs",
+        "next": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL"
+       },
+       "proof": {
+        "proofValue": "z5qBdY7ERF4pw6S8sEYgnuYtoTkfWkmmGWYCjzAiKKsauDtNhphA7KBG4VFFLTth4kyhoyMPawFHPgRGraWatTE3c",
+        "successorProofValue": "z9QB2Rs1Q3dwXKkLCAkUJk14Sa2nyuCmtNKKVuhrQeixYcEixbwRbx2E1gT1XxJuNhuPpmucSCQFvhzpmLSY4F6m"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL",
+        "next": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR"
+       },
+       "proof": {
+        "proofValue": "z4xNy3617CH7mscqcAi6TpWgemJUuETEYGJZbhrjkxpzyDV2z1S1ya9PCGH1tZXpYgAUFxdN8BbgfTBXThrGLMQNQ",
+        "successorProofValue": "z2epMCGufhnqWeRX3jTLemZvrJkhZPvU3MnUothMaa4Dd4Uw5DUt73VZt4Z2GvjaoP8A91ZDgbeWqvWcfXrDvNNjq"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR",
+        "next": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi"
+       },
+       "proof": {
+        "proofValue": "zcaxy2bifRez1zEY9N7Smm4QU3iqCUym5PRo1PW3RkgvEm2Y5LoYBehvrgT6QAJBwumLF6ZBD8SWbPivi6pVQnUd",
+        "successorProofValue": "z4rmFpA9AD6Khnh9Nu7nEBf2LPAkNyhVMopaPqQMX4eDoEn1oZKPLQ8PvEjHW2hvh9CagM66ypmxvyD5PuzYudDHu"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi",
+        "next": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2"
+       },
+       "proof": {
+        "proofValue": "zLdRg94h532eVmnxPYcuNM5Mw2RxMXrHkb5MW53QvYbmVDF8NSGAGrDe2aa8iL14m7FL34x7YtDGgAzJV6MFTMGT",
+        "successorProofValue": "z59rN7yTcCNnfF68bZDa5KvyoTopfRVybbQsh7NEQqzf9KdhQRWbYtHuxfYNzZsv45w8Ct6tBvhFwhgAtr7wr9Wyr"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2",
+        "next": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q"
+       },
+       "proof": {
+        "proofValue": "z3vQzhUDPUDsAnzcNEEfFXru5TtpgUKkXKGivHWYUQLPpwToYyjdfGzp46mtTb5RH2DiVDMKYk15M6gEjBy8dvPgz",
+        "successorProofValue": "z4tRkWifuF8Rf9CwWD7cTtV6EpZPgoSgxXLrpZNXgFFwVa9yHUw3ekBBxQ2XRmQe2XKajxpayoyPXAmGSNXLe6m4y"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q",
+        "next": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo"
+       },
+       "proof": {
+        "proofValue": "z28UMEXiEzNCDgeMw4KJ7JezrPYkgeJeLeHJaLk5Rd3sbu17xKWSGRZ75BMdWiCJm7iubg73VsQNrEWb3dQsK6NhY",
+        "successorProofValue": "z4xLYwP7FB1ZMCEngvMw2GzzFrXpe5y1gNTMqMdEniUDhm848YWuXtNzMYVXr19w3MU8c7XZfXc3XJdYbusjJe6b5"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo",
+        "next": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ"
+       },
+       "proof": {
+        "proofValue": "z3dyeAYWNeHj2ttXiW5ispqSj1M7YukFWN1WwCypqhNJdmcs83iF87GuvE3ArfRHixqzFLSpZM424AzD9TEjenrUp",
+        "successorProofValue": "z5R9veuKyB9scvS7iTfkpnGjCjhGXhrB7XzFdkiiy6KLKbV1VMaDGZXy4o4gFtEJ3ea5RHn9ifPeLhJSoCoLE9SVx"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ",
+        "next": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9"
+       },
+       "proof": {
+        "proofValue": "z3iJCdgcXaUY6VNixUw3SkK69NBG3dUTH7PA6oBhi5Xa28r3ZkZoTnqq9fn6iKSG81ZB9zdSfJD3NWGSbq87DcGhW",
+        "successorProofValue": "z4gPyD4wATW49C84SMeyCpfHgKgrRoiKHXNshApwCe4qFbpUEYX8wo7oHxrvEtTn7rFmftgV1U9X4ZBbS8A3Jgejj"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9",
+        "next": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh"
+       },
+       "proof": {
+        "proofValue": "zwvttEDbMvdAtWX5hf9bReTAEsdXTcv7KhxcFUYySyZdg29rUs81n6UuwewNLNCXagsmneskdaqXoyQA5f5cwya8",
+        "successorProofValue": "z3Zr6aVM5ueJjf3Mitm48R6KRoVjhRhxoKd5zdrg4kHmvzYizEFr98PTV2dF1sdVnttodmuV3zh7hQzrnnKaDdyAb"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh",
+        "next": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4"
+       },
+       "proof": {
+        "proofValue": "z39q14L3UrJhhwgbUvdJS9xYjWRuGaYR6jyWiXzqvxabDPxuSvoUUvDzURZcAj2wqGLgrt8WtC7Q9YV7joCYN4qQq",
+        "successorProofValue": "z5ftQrVFC5MHcmFqv4Fg5q9qTfJGogZ5S5ZaVPjqncdpShxbZ2DuusaHoQKLtdqUrezLpRAgNmPGurMR6wZGymcwT"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4",
+        "next": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA"
+       },
+       "proof": {
+        "proofValue": "z48wBrqvCsw8cD1ZLbNSztiVW8twLBVR1uynTo1tQvn4SJS65AZr9VFQK9YAqzhphwb1KZ33B8nMmWW6YdaxZixdb",
+        "successorProofValue": "z63jhRGqbZSNiuKYttuavn3pdkkzAKzK848dDfFtnCCYeHwBCiMZY1tTrjFjBkgkCqBZagsp7zv1NFkKM7Sqc9Ve3"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA",
+        "next": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ"
+       },
+       "proof": {
+        "proofValue": "z5SWyCrKYniJNN5UCn1gtQT2CHbgS7cYTtey6J288pDdzAzcUPUveBrt1v3QSc4DWRiph6ceHh4iqRQhzvCVmGb75",
+        "successorProofValue": "z4Kg3kjET6E4rz16bSKqj6fThAJF6t6oxD4SgED3jVvCRMQAEAppAt9ZG2bmoFJfSXG5j8gmsF8P8FCzNZkw4MK3y"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ",
+        "next": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh"
+       },
+       "proof": {
+        "proofValue": "zLShYv1FuNSbQuGC6E449msDhsBkRmNYaeRbYmbPYJKZAjDjNYTmPvWFnTJcxMW7NrWyT5jxMT1vBABjzVMTWFgS",
+        "successorProofValue": "z4ksM3Tf2u8FF6pJHaqxHUEswLmX1e1ZTsfzcf7TL3BZtTPYxpnwQpf3BqA31oa2mPZDfFxBxCMZpQjHeFZZyDND4"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh",
+        "next": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty"
+       },
+       "proof": {
+        "proofValue": "z5nz8kWz2LuBrh4uSt8UdtaRxEWC9XrYwzTPxpGVzjQ7VMTWmtd1znXskLka47Zk68Jc8kCcF5d5u6Xc9Gv1tpejA",
+        "successorProofValue": "z2gnJVYRz1p1QUuCDhB29mpXGdpRw7cQVik8YshVJvwFmZwmbtTBghQpCSY5DLQXqrT71ELD5fkAnnLPpENmTa5Zx"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty",
+        "next": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC"
+       },
+       "proof": {
+        "proofValue": "z5gk4gW3Ef6cyVpWBag7Q26h73V2XzuHT7vHhTk5o5kif5ESBjNxn522WWG65x2KcbcxVYa2nigiZ194Dnep4qGzw",
+        "successorProofValue": "zQapxwVn4cxKsQvWvWxH4ewGdtSbRiJ87KjaxvzQMJA1WzHRGGay8Ed5VuWUM875VUkqQdZ8Q24BU4wnPZEcwWUG"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC",
+        "next": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C"
+       },
+       "proof": {
+        "proofValue": "z4aHteFkkhz6YQwY6jN3YXnSgijoeMy6Fyikt4smEHagvaJhUYXf1fU97m1S2otL2jtnQZajZ9mdrbF3HHHWMenoT",
+        "successorProofValue": "z3PsBTMYTJ1vF38dJPHK6B9R8SJFMFe2az7UfKS3Ct9xUQPe2A9KqzbPFgyzUokA1sNGftLAxpsJPocDcs1T9UweH"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C",
+        "next": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K"
+       },
+       "proof": {
+        "proofValue": "z2gmHd51KKjriU7RZ6k5SdPEXzqtAeVJNr6WoqjHjLf7SAnfJJhYes1fPtf9TJQJJBY8EtwK7deoJVi5dKd5RAFtK",
+        "successorProofValue": "z2cGTTfit3xnyW6wyycEeoF6HvtK6rgWxMfk2n3EridVSn1wyMqEwZ7fhsdcwSv5yLEigDf9hPdMyms2QmoR3o3Dy"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K",
+        "next": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT"
+       },
+       "proof": {
+        "proofValue": "z5yiMnDbC7wis7EuKc1YoZKxZPa5tdwnXXYxidfTQjxcowSFX5JM6xC12RNDiewKqFyE5mga1b6RbDVvxHyWtvLyR",
+        "successorProofValue": "z496X4UPhtQTg4aN6jSJuqyKaAWbX4NtaSnAMPkJNjHDNrq5TvvSBShNw2MmU3NjUAERjgWLFYyxYcf3JhEJqVyuV"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT",
+        "next": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6"
+       },
+       "proof": {
+        "proofValue": "z325tmAPKSAQJiXRRpDpAtGs9LM5GZ9r9o3Cy594en1npFqux4S81CcJNKCyKxV6pqHxxRsCH1xagssqSr7psD9Vu",
+        "successorProofValue": "zQv29F2UwecUryCpMriGcKXZ2zKcdCMGiSXmo5oqcD2Dz1BPfW7gCh1uD5ENYmM6G6525vepoPBZb7rozejfK79t"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6",
+        "next": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq"
+       },
+       "proof": {
+        "proofValue": "z5mFpNtUpmbktW4k1XXJX3ACxmqDLjbXgySAfDg75hZzDj8ahdD7n1XJAQSSsH2MoqzA8s9yVoMXEAktAjnMmjAS9",
+        "successorProofValue": "z5W8fKTkyA6bv61bbffkT4NQmGTK2oStoN94vpNrwDp8oz91bs3VS24vDR1uNeW5jEw14FP3NKHfLJoSrcA8VBMpT"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@1",
+        "prev": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq",
+        "next": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz"
+       },
+       "proof": {
+        "proofValue": "z3XxgsfenecS9hYyMzRDQkLoWt993wzWzDd3a9L44a34tHMRFfBe7jv6QwrNJDy9nheAgidV8EMQcF19z3Ystu7ka",
+        "successorProofValue": "z2dBmpq1FMYwdrtujKgXNuRC9y9Auptq9ye3S8G9RUCq7XJkbRs7LPf3TZZCojj3zwEqwAQ4QNVKoAYk3pYque287"
+       }
+      }
+     ],
+     "revision": "3",
+     "issuedAt": "2026-10-07T12:00:00Z"
+    },
+    "proof": {
+     "mac1": "u4TE5hcQqjWxkV9xF_0XxwrgYwg0EbNCOwGWrvm5KH5U",
+     "mac2": "uFNlPZjDssUYMaTg_edKQNXbCDoVGsMmpsis-lyHyeSM"
     }
    }
   },
@@ -1118,5 +2592,13 @@
   "note": "anchorMappingRotated: the sender A rotated its community anchor from generation 1 to 2 (anchorRotation) and re-issued the mapping on tuple (A,B) under a higher revision with lineage [anchorRotation]; B, holding anchorMapping (self = generation 1), classifies it as a ROTATION (6.3 condition 8): the previously held self is the prev of a lineage element",
   "heldSelf": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
   "classification": "rotation"
+ },
+ "lineageBound": {
+  "note": "anchorMappingLineage64: A at generation 66 of <D> (group/<D>/66) carries the 64 most recent rotations, 2→3 … 65→66, in chain order (6.1, 6.3 condition 4a); it verifies. A contact holding generation 2 finds it in the carried segment — a ROTATION; one holding generation 1 missed more than 64 rotations — a NEW COMMUNITY (6.3 condition 8, 6.5). The 65-element mapping is the negative mapping-lineage-65",
+  "self": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA/66",
+  "classifications": {
+   "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV": "rotation",
+   "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t": "new-community"
+  }
  }
 }

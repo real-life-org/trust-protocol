@@ -13,8 +13,7 @@
       "required": [
         "type",
         "prev",
-        "next",
-        "generation"
+        "next"
       ],
       "properties": {
         "type": {
@@ -23,17 +22,12 @@
         "prev": {
           "type": "string",
           "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
-          "description": "the community anchor at generation g (Identity 5.4)"
+          "description": "the community anchor the rotation leaves (Identity 5.4)"
         },
         "next": {
           "type": "string",
           "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
-          "description": "the community anchor at generation g + 1"
-        },
-        "generation": {
-          "type": "string",
-          "pattern": "^([2-9]|[1-9][0-9]{1,17})$",
-          "description": "int-string: the generation of next, at least 2 (generation 1 is group/<digest>); the domain ends at 2^53 - 1 (Identity 5.4), checked by the verifier"
+          "description": "the community anchor the rotation moves to: the next generation of the same digest, or generation 1 of a new personal community (Identity 5.4, 9.3); it differs from prev"
         }
       }
     },
@@ -59,5 +53,5 @@
     }
   },
   "title": "RLTP anchor-rotation@1 (rltp-visibility@0.30)",
-  "description": "The holder's statement that its community anchor moved from one generation to the next (Network Visibility 6.5, Identity 5.4): signed by both generations. It travels inside anchor-mapping@3 (lineage) and inside the anchor.rotate operation of the personal community's log (Access 5.6); it is never exported beyond those two (RLTP-ACC-5975)."
+  "description": "The holder's statement that its community anchor moved from one key to the next (Network Visibility 6.5, Identity 5.4): signed by both keys. The chain order is given by prev and next alone. It travels inside anchor-mapping@3 (lineage) and inside the anchor.rotate operation of the personal community's log (Access 5.6); it is never exported beyond those two (RLTP-ACC-5975)."
 }

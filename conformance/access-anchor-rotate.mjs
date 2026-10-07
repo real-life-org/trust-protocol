@@ -6,27 +6,41 @@
 // dag.join, anchor.rotate) or a STATE FIXTURE `{ fixture: true, op:
 // 'member.add', id, subject, prev }` standing for a canonical admission
 // whose body lies outside the vector. Ids, signatures and schemas are
-// the runner's business; this module decides only what §5.6 decides:
+// the runner's business; this module decides only what §5.6 decides,
+// keeping VALIDITY and CANONICITY apart (3325, 3330, 3345):
 //
-//   1. each anchor.rotate is judged against its own ancestry (3325):
+//   1. validity — each anchor.rotate is judged against its own ancestor
+//      closure and nothing else (3325):
 //      5950 — its author is the sole member at its position;
 //      5955 — its body is exactly { rotation } and the rotation verifies
 //             as anchor-rotation@1 under both its signatures (the caller
 //             supplies that predicate);
-//      5960 — its generation is 2 where no canonical anchor.rotate is in
-//             its ancestry, else the previous canonical one's + 1, and
-//             its prev is that one's next;
-//   2. 5965 between two CONCURRENT canonical anchor.rotate of equal
-//      generation: a JCS-identical rotation.body is a repeat (canonical,
-//      no further effect); differing bodies: the smaller id in unsigned
-//      bytewise order is canonical, the other invalid — and what was
-//      judged against it is judged again, to a fixpoint;
+//      5960 — its rotation.body.prev equals the next of the lineage head
+//             of its ancestor closure, or is unconstrained where that
+//             closure holds no canonical anchor.rotate;
+//   2. canonicity — 5965, over the log at hand: the lineage is walked
+//      from its first canonical entry. An ENTRY is a rotation body; the
+//      valid operations carrying JCS-identical bodies are one entry
+//      (idempotent, 3475): the smallest id among them is its
+//      representative, the others are repeats. An entry's PARENT is the
+//      lineage head of its operations' ancestor closures (none for a
+//      first entry). The walk starts among the entries without a parent
+//      and continues among the children of the current head; where
+//      several compete — the same prev, or both first entries — the one
+//      whose representative has the smaller id in unsigned bytewise
+//      order is canonical, and every entry reachable from it; the others,
+//      and every entry reachable only from them, stay VALID but are not
+//      canonical (the 5240 pattern);
 //   3. 5970 — no anchor.rotate changes the roster, the epoch or the
 //      policy version: the state is that of the other operations.
 //
-// Returns { status: { label → canonical | invalid }, repeat: [label],
-// head: { generation, anchor } | null, state: { members, epoch,
-// policyVersion } } — the `expect` shape of the vector.
+// The head of an ancestor closure is the same walk over that closure;
+// it is memoized per operation.
+//
+// Returns { status: { label → canonical | valid | invalid }, repeat:
+// [label], chain: [label], head: { anchor } | null, state: { members,
+// epoch, policyVersion } } — the `expect` shape of the vector. `chain`
+// lists the representatives of the canonical entries in walk order.
 import { jcs } from './lib.mjs'
 
 const cmpBytes = (a, b) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
@@ -48,47 +62,75 @@ export async function materializeRotations (ops, verifyRotation) {
     for (const a of ancestors(id)) { const o = byId.get(a); if (o?.op === 'member.add') m.add(o.subject) }
     return m
   }
-  // causal order: ancestry size, then id bytewise — a linear extension
   const rotates = ops.filter((o) => o.op === 'anchor.rotate')
-    .sort((a, b) => ancestors(a.id).size - ancestors(b.id).size || cmpBytes(a.id, b.id))
-  const verified = new Map()
+  const shapeOK = new Map()
   for (const o of rotates) {
     const keys = Object.keys(o.body ?? {})
-    verified.set(o.id, keys.length === 1 && keys[0] === 'rotation' && await verifyRotation(o.body.rotation))
+    shapeOK.set(o.id, keys.length === 1 && keys[0] === 'rotation' && await verifyRotation(o.body.rotation))
   }
-  const gen = (o) => BigInt(o.body.rotation.body.generation)
-  const concurrent = (a, b) => a.id !== b.id && !ancestors(a.id).has(b.id) && !ancestors(b.id).has(a.id)
+  const bodyKey = (o) => jcs(o.body.rotation.body)
 
-  const lost = new Set()   // invalid by 5965
-  let status, repeat
-  for (;;) {
-    status = new Map(); repeat = new Set()
-    for (const o of rotates) {
-      const m = membersAt(o.id)
-      if (lost.has(o.id) || !(m.size === 1 && m.has(o.author)) || !verified.get(o.id)) { status.set(o.id, 'invalid'); continue }
-      const prior = rotates.filter((x) => ancestors(o.id).has(x.id) && status.get(x.id) === 'canonical')
-      const prev = prior.sort((a, b) => (gen(b) > gen(a) ? 1 : gen(b) < gen(a) ? -1 : 0))[0]
-      const ok = prev ? gen(o) === gen(prev) + 1n && o.body.rotation.body.prev === prev.body.rotation.body.next : gen(o) === 2n
-      status.set(o.id, ok ? 'canonical' : 'invalid')
+  // validity (memoized; depends on the ancestor closure only)
+  const validMemo = new Map()
+  const valid = (o) => {
+    if (validMemo.has(o.id)) return validMemo.get(o.id)
+    let ok = shapeOK.get(o.id)
+    if (ok) { const m = membersAt(o.id); ok = m.size === 1 && m.has(o.author) }
+    if (ok) {
+      const head = walk(ancestors(o.id)).head
+      ok = !head || o.body.rotation.body.prev === head.next
     }
-    let changed = false
-    for (const a of rotates) for (const b of rotates) {
-      if (cmpBytes(a.id, b.id) >= 0 || status.get(a.id) !== 'canonical' || status.get(b.id) !== 'canonical') continue
-      if (!concurrent(a, b) || gen(a) !== gen(b)) continue
-      if (jcs(a.body.rotation.body) === jcs(b.body.rotation.body)) repeat.add(b.id)   // b: the larger id
-      else if (!lost.has(b.id)) { lost.add(b.id); changed = true }
-    }
-    if (!changed) break
+    validMemo.set(o.id, ok)
+    return ok
   }
-  const canon = rotates.filter((o) => status.get(o.id) === 'canonical')
-  const top = canon.sort((a, b) => (gen(b) > gen(a) ? 1 : gen(b) < gen(a) ? -1 : 0))[0]
+  // the parent entry of an operation: the head of its ancestor closure (memoized)
+  const parentMemo = new Map()
+  const parentOf = (o) => {
+    if (!parentMemo.has(o.id)) parentMemo.set(o.id, walk(ancestors(o.id)).head?.key ?? null)
+    return parentMemo.get(o.id)
+  }
+  // the canonical walk over a set of operation ids (an ancestor-closed set)
+  function walk (ids) {
+    const inSet = rotates.filter((o) => ids.has(o.id) && valid(o))
+    const entries = new Map()   // body key → { key, next, ops: [...] }
+    for (const o of inSet) {
+      const k = bodyKey(o)
+      if (!entries.has(k)) entries.set(k, { key: k, next: o.body.rotation.body.next, ops: [] })
+      entries.get(k).ops.push(o)
+    }
+    for (const e of entries.values()) e.ops.sort((a, b) => cmpBytes(a.id, b.id))
+    const children = (parentKey) => [...entries.values()].filter((e) => e.ops.some((o) => parentOf(o) === parentKey))
+    const chain = []
+    const seen = new Set()
+    let at = null
+    for (;;) {
+      const cands = children(at).filter((e) => !seen.has(e.key))
+      if (!cands.length) break
+      cands.sort((a, b) => cmpBytes(a.ops[0].id, b.ops[0].id))
+      const win = cands[0]
+      chain.push(win); seen.add(win.key); at = win.key
+    }
+    return { chain, head: chain.at(-1) ?? null }
+  }
+
+  const all = new Set(ops.map((o) => o.id))
+  const { chain, head } = walk(all)
+  const canonicalKeys = new Set(chain.map((e) => e.key))
+  const label = (id) => byId.get(id).label ?? id
+  const status = new Map()
+  const repeat = []
+  for (const o of rotates) {
+    if (!valid(o)) { status.set(o.id, 'invalid'); continue }
+    status.set(o.id, canonicalKeys.has(bodyKey(o)) ? 'canonical' : 'valid')
+  }
+  for (const e of chain) for (const o of e.ops.slice(1)) repeat.push(label(o.id))
   const members = new Set(genesis.body.members)
   for (const o of ops) if (o.op === 'member.add') members.add(o.subject)
-  const label = (id) => byId.get(id).label ?? id
   return {
     status: Object.fromEntries(rotates.map((o) => [label(o.id), status.get(o.id)]).sort((a, b) => (a[0] < b[0] ? -1 : 1))),
-    repeat: [...repeat].map(label).sort(),
-    head: top ? { generation: top.body.rotation.body.generation, anchor: top.body.rotation.body.next } : null,
+    repeat: repeat.sort(),
+    chain: chain.map((e) => label(e.ops[0].id)),
+    head: head ? { anchor: head.next } : null,
     state: { members: [...members].sort(), epoch: genesis.epoch, policyVersion: genesis.policyVersion },
   }
 }

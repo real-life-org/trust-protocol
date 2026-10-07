@@ -99,8 +99,7 @@
                 "required": [
                   "type",
                   "prev",
-                  "next",
-                  "generation"
+                  "next"
                 ],
                 "properties": {
                   "type": {
@@ -109,17 +108,12 @@
                   "prev": {
                     "type": "string",
                     "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
-                    "description": "the community anchor at generation g (Identity 5.4)"
+                    "description": "the community anchor the rotation leaves (Identity 5.4)"
                   },
                   "next": {
                     "type": "string",
                     "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
-                    "description": "the community anchor at generation g + 1"
-                  },
-                  "generation": {
-                    "type": "string",
-                    "pattern": "^([2-9]|[1-9][0-9]{1,17})$",
-                    "description": "int-string: the generation of next, at least 2 (generation 1 is group/<digest>); the domain ends at 2^53 - 1 (Identity 5.4), checked by the verifier"
+                    "description": "the community anchor the rotation moves to: the next generation of the same digest, or generation 1 of a new personal community (Identity 5.4, 9.3); it differs from prev"
                   }
                 }
               },
@@ -145,7 +139,8 @@
               }
             }
           },
-          "description": "the anchor-rotation@1 artifacts from generation 2 to the current one, generation ascending (Network Visibility 6.1, 6.5); empty where the sender presents no history"
+          "description": "at most the 64 most recent anchor-rotation@1 artifacts of the lineage, in chain order: each prev equals the preceding next, the last next equals self (Network Visibility 6.1, 6.3, 6.5); empty where the sender presents no history",
+          "maxItems": 64
         },
         "revision": {
           "type": "string",

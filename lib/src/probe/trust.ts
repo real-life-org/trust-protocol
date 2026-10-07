@@ -37,7 +37,7 @@ import { SCHEMAS } from '../schemas.js'
 import * as C from './deps.js'
 import type { Person } from './deps.js'
 import { buildAck, verifyAck, ACK_TYPE } from './acks.js'
-import { makeSelfCard, makeAnchorRotation, buildAnchorMapping, verifyAnchorMapping, classifyMapping, lineageAnchors } from './anchor.js'
+import { makeSelfCard, makeAnchorRotation, buildAnchorMapping, verifyAnchorMapping, classifyMapping, mappingAnchors, LINEAGE_MAX } from './anchor.js'
 
 const te = new TextEncoder()
 const S = globalThis.crypto.subtle
@@ -91,7 +91,8 @@ const relKey = async (contact: any, info: string) => C.hkdf(await chShared(conta
 async function buildMappingArtifact (p: Person, contact: any, counterpartAnchor: string, when: number, revision: string) {
   return buildAnchorMapping({
     pair: contact.channel.own, to: counterpartAnchor, toKeyAgreement: contact.channel.counterpartKa,
-    self: await communityContext(p), lineage: p.lineage ?? [], revision, issuedAt: C.iso(when),
+    // die Abbildung trägt höchstens die LINEAGE_MAX jüngsten Glieder (§6.1)
+    self: await communityContext(p), lineage: (p.lineage ?? []).slice(-LINEAGE_MAX), revision, issuedAt: C.iso(when),
   })
 }
 export async function makeMapping (p: Person, counterpartAnchor: string, when: number) {
@@ -221,11 +222,12 @@ export function departMember (p: Person, relId: string, when: number) {
   if (e.relIds.size > 0) return   // Aliase bleiben, der Member bleibt admittiert
   if (e.status === 'admitted') { a.admitted -= 1n; admitPending(p, a, when) }
 }
-// held = [Generation 1, …, aktuelle]: ein Anker, der VOR dem letzten
-// Element steht, ist eine frühere Generation
+// held = die verifizierte Ankermenge einer Abbildung in Kettenreihenfolge,
+// self zuletzt: ein Anker VOR dem letzten Element ist ein früherer
 const lineageHas = (held: string[], anchor: string) => held.indexOf(anchor) >= 0 && held.indexOf(anchor) < held.length - 1
-// die Generationen, die ein Eintrag hält (Identity §5.4): der Merge-
-// Schlüssel ist „gleich ODER in der Lineage gehalten" (§6a.1 Nr. 2)
+// die Anker, die ein Eintrag hält (Identity §5.4): zwei Beziehungen
+// verschmelzen, wenn sich ihre verifizierten Ankermengen — je self samt
+// getragener Lineage — schneiden (§6a.1 Nr. 2, symmetrisch)
 const anchorsOf = (x: any): Set<string> => (x.anchors ??= new Set([x.self]))
 const shares = (x: any, set: Set<string>) => [...anchorsOf(x)].some((y) => set.has(y))
 /**
@@ -716,7 +718,7 @@ export async function rotateCommunityAnchor (p: Person, when: number, ent: any =
   if (g >= Number.MAX_SAFE_INTEGER) throw new Error('rotation ends at 2^53 − 1 (Identity §5.4)')
   const prev = await communityContext(p)
   const next = await C.communityContext(p.rootIkm, p.communityGenesis, g + 1)
-  const rotation = await makeAnchorRotation(prev, next, g + 1)
+  const rotation = await makeAnchorRotation(prev, next)
   // COMMIT — ein synchroner Zug: Label, Lineage, aktueller Kontext
   p.communityGeneration = g + 1
   p.lineage = [...(p.lineage ?? []), rotation]
@@ -874,7 +876,7 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
       // §6.3 Nr. 8: ein GEÄNDERTER self ist Rotation (die Lineage trägt
       // den gehaltenen self) oder neue Community (nichts verbindet beide)
       const classification = classifyMapping(from.selfAnchor, m.body)
-      const held = m.body.lineage.length ? lineageAnchors(m.body.lineage) : [m.body.self]
+      const held = mappingAnchors(m.body)   // die verifizierte Ankermenge (§6a.1 Nr. 2)
       from.mapRevIn = m.body.revision
       from.selfAnchors = classification === 'rotation' || classification === 'same'
         ? [...new Set([...(from.selfAnchors ?? [from.selfAnchor]), ...held])]

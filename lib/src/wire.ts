@@ -451,7 +451,6 @@ export type VisibilityAnchorMapping = {
         type: "anchor-rotation@1"
         prev: string
         next: string
-        generation: string
       }
       proof: {
         proofValue: string
@@ -473,7 +472,6 @@ export type VisibilityAnchorRotation = {
     type: "anchor-rotation@1"
     prev: string
     next: string
-    generation: string
   }
   proof: {
     proofValue: string

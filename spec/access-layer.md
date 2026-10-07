@@ -206,7 +206,7 @@ The names are those of the RLTP term register (`terms/rltp.skos.jsonld`).
   genesis operation, its address its group DID (3.2).
 - **Member anchor** — the per-group context anchor under which one
   member acts in one group (5.1; DTG scope `directed`).
-- **Community anchor** — the anchor of a person's personal
+- **Community anchor** — the anchor of a person's current personal
   community at its current generation (Identity §5.4), serving as
   the person's chosen cross-relationship coordinate; it is a member
   of no group, and it appears in no artifact of this layer except
@@ -804,8 +804,9 @@ What a later branch can change is closed and listed in Section 3.6
 — the remaining fork pairing, a dissolution lapsing beside an
 enforcement or prevailing over additive operations, the removal
 disposition, a removal with authority taking effect, the
-smaller-id rule between differing concurrent `anchor.rotate`
-operations (RLTP-ACC-5965),
+canonical walk of the `anchor.rotate` entries, where a differing
+entry with the same `prev` stays valid but not canonical
+(RLTP-ACC-5965),
 and the revision of a terminality-by-emptiness verdict (5.4) —
 and nothing else; an open list would let a merge revoke an
 admission whose welcome was already delivered. Same-subject
@@ -1113,8 +1114,9 @@ the value folded last and first-bound-wins across anchors per 5.2.
 | `member.leave` ∥ `member.remove`, same subject | gone either way; the removal's transition governs (RLTP-ACC-3505) |
 | `member.leave` ∥ `member.leave` | both merge (RLTP-ACC-3510) |
 | `service-identity.announce` ∥ additive | union; folded-last per anchor (RLTP-ACC-3515) |
-| `anchor.rotate` ∥ `anchor.rotate`, equal `generation` | JCS-identical `rotation.body`: idempotent; differing bodies: the smaller `id` canonical, the other not (RLTP-ACC-5965) |
-| `anchor.rotate` ∥ any other operation | both take effect; a removal of its author disposes it like every additive (RLTP-ACC-3425, 3435, 3400) |
+| `anchor.rotate` ∥ `anchor.rotate`, same `rotation.body.prev` | JCS-identical `rotation.body`: one entry, idempotent; differing bodies: the smaller `id` canonical with every entry reachable from it, the other and every entry reachable only from it valid but not canonical (RLTP-ACC-5965) |
+| `anchor.rotate` ∥ any other non-terminal operation | both take effect; a removal of its author disposes it like every additive (RLTP-ACC-3425, 3435, 3400) |
+| `anchor.rotate` ∥ terminal operation | as every additive: the terminal operation prevails — a canonical `group.dissolve` and a last-member `member.leave` displace it (RLTP-ACC-3465, 3470) |
 
 *Rationale.* Every pairing in the table is decided by the
 authority verdict of its two sides and by nothing else: additive
@@ -1653,7 +1655,8 @@ fork pairing (RLTP-ACC-3495), the lapsing dissolution
 enforcement-prevails pairings
 (RLTP-ACC-3485, RLTP-ACC-3505), the removal disposition applied
 only by removals with authority (RLTP-ACC-3385, RLTP-ACC-3390,
-RLTP-ACC-3520), and the terminality-by-emptiness verdict of 5.4.
+RLTP-ACC-3520), the canonical walk of `anchor.rotate` entries
+(RLTP-ACC-5965), and the terminality-by-emptiness verdict of 5.4.
 
 **RLTP-ACC-3825** — A `policy.change` that a concurrent
 `member.leave` renders unsatisfiable MUST NOT be reversed
@@ -2873,18 +2876,28 @@ position where its author is the sole member.
 both of its own signatures (Network Visibility §6.5) before any rule
 of this section is evaluated.
 
-**RLTP-ACC-5960** — `rotation.body.generation` MUST be `2` for the
-first canonical `anchor.rotate` of a log and exactly one greater
-than that of the previous canonical `anchor.rotate` otherwise, and
-`rotation.body.prev` MUST equal the previous canonical entry's
-`rotation.body.next`; the first entry's `prev` is unconstrained.
+**RLTP-ACC-5960** — `rotation.body.prev` MUST equal the
+`rotation.body.next` of the lineage head in the operation's
+ancestor closure, or be unconstrained where that closure holds no
+canonical `anchor.rotate`. The lineage head of a set of operations
+is the last canonical entry of the walk of RLTP-ACC-5965 over that
+set.
 
-**RLTP-ACC-5965** — Concurrent `anchor.rotate` operations with equal
-`generation` and JCS-identical `rotation.body` MUST be idempotent:
-each is canonical, and a repeat has no further effect. Where the
-bodies differ, the operation with the smaller `id` in unsigned
-bytewise order MUST be canonical, and the other MUST NOT be
-canonical.
+**RLTP-ACC-5965** — The validity of an `anchor.rotate` MUST be
+judged per RLTP-ACC-3325 against its own ancestor closure
+(RLTP-ACC-5950, 5955, 5960). At materialization the lineage MUST be
+walked from its first canonical entry: valid operations with
+JCS-identical `rotation.body` and the same `prev` are one entry
+(idempotent, RLTP-ACC-3475), each canonical, a repeat with no
+further effect; where two candidate entries share the same `prev`,
+or are both first entries (their ancestor closures hold no
+canonical `anchor.rotate`), the entry holding the smaller operation
+`id` in unsigned bytewise order, and every entry reachable from it,
+MUST be canonical, while the other and every entry reachable only
+from it MUST remain valid but MUST NOT be canonical (RLTP-ACC-3345;
+the pattern of RLTP-ACC-5240). An entry is reachable from the
+entry that is the lineage head of its operations' ancestor
+closure, and transitively from that one's.
 
 **RLTP-ACC-5970** — An `anchor.rotate` MUST NOT change the roster,
 the epoch, any binding of 5.1 or 5.2, any policy, or any
@@ -2902,9 +2915,16 @@ the log, and at sole membership that is the founder's pair anchor.
 Two devices rotating apart derive the same generation to the same
 key (Identity §5.4), which is why a repeat is the ordinary
 concurrent case and a differing body is evidence of a different
-seed, settled by the smallest id. The log stays unreadable to
-non-members; the contact-facing proof is the same artifact,
-re-signed by nobody, carried by the mapping.
+seed or a copied key. The chain carries no numbers: the order is
+`prev` to `next`, so a rotation onto a new personal community after
+a loss (Identity §9.3) is the same entry as any other. Validity
+stays a function of the ancestor closure, as everywhere in this
+layer; only canonicity is decided over the merged log, so a
+successor written on a branch that later loses keeps its validity
+and loses only its effect — the lineage head, which is what
+RLTP-ACC-5960 and the holder's mapping read. The log stays
+unreadable to non-members; the contact-facing proof is the same
+artifact, re-signed by nobody, carried by the mapping.
 
 
 ## 6. Actions and the Implicit Capability
@@ -5486,10 +5506,13 @@ in both directions.
 **Shipped vectors.**
 
 - `vectors/access-anchor-rotate.json` — `anchor.rotate` (5.6): a
-  valid chain from generation 2 to 3; a generation skip; a broken
-  `prev`; an author who is not the sole member; a repeat (idempotent);
-  two differing bodies at one generation, the smaller `id`
-  canonical.
+  chain; a first entry with any `prev`; a derivation skip; a
+  rotation onto a new personal community; a broken `prev`; an author
+  who is not the sole member; a repeat (idempotent); two differing
+  bodies with the same `prev`, the smaller `id` canonical and the
+  other valid but not canonical; a delayed merge with a successor on
+  the losing branch (valid, not canonical); successors on both
+  branches; a successor written after the merge.
 - `vectors/dtg-credentials.json` — `vouch@2` and invite forms,
   digests, member-anchor derivations, and `u`/`z` equivalence: the
   `linear/0.1` epoch-secret derivation and both associated-data

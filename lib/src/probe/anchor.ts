@@ -7,18 +7,24 @@
 // mappings HERE, and scripts/gen-anchor-vectors.mjs generates the
 // shipped vectors from the same functions.
 //
-//   · anchor-rotation@1 — { body: { type, prev, next, generation },
-//     proof: { proofValue (raw Ed25519 under prev), successorProofValue
-//     (raw Ed25519 under next) } }, both over JCS(body). It proves
-//     control of both generations' keys at the time of rotation —
-//     nothing about the person (Identity §8.6).
-//   · lineage — the ordered rotations from generation 2 to the current
-//     one; an empty lineage means the sender presents no history.
+//   · anchor-rotation@1 — { body: { type, prev, next }, proof: {
+//     proofValue (raw Ed25519 under prev), successorProofValue (raw
+//     Ed25519 under next) } }, both over JCS(body). A key-chain link:
+//     the order is prev/next alone, no number. It proves that the two
+//     keys jointly authorized the link — never correct derivation,
+//     exclusive succession, or anything about the person (Identity
+//     §8.6). `next` is the next generation of the same digest or, after
+//     a lost register, generation 1 of a new personal community (§9.3).
+//   · lineage — at most the LINEAGE_MAX most recent links, in chain
+//     order, ending at self; empty = the sender presents no history.
 //   · anchor-mapping@3 — anchor-mapping@2 plus `lineage`; `self` is the
-//     current generation, the card is under it, mac2 is under its X key.
+//     current anchor, the card is under it, mac2 is under its X key.
 //   · classification (§6.3 condition 8) — a changed `self` is a
-//     ROTATION when the previously held `self` appears as prev or next
-//     of a lineage element, otherwise a NEW COMMUNITY.
+//     ROTATION when the previously held `self` appears in the carried
+//     segment (as prev or next of an element), otherwise a NEW COMMUNITY.
+//   · mappingAnchors — the verified anchor set of a mapping (self and
+//     every anchor of its carried lineage); the convergence net merges
+//     two relationships whose sets meet (§6a.1 no. 2).
 import { jcs, makeValidator, calOK } from '../core.js'
 import { SCHEMAS } from '../schemas.js'
 import { base58, fromBase58, edRawOfAnchor, xRawOfMk, ecdh, hkdf, b64uOf } from '../crypto.js'
@@ -58,51 +64,59 @@ export async function makeSelfCard (self: Context) {
 }
 
 // ── anchor-rotation@1 (§6.5) ────────────────────────────────────────────
-const inDomain = (g: string): boolean => /^[1-9][0-9]{0,17}$/.test(g) && BigInt(g) >= 2n && BigInt(g) <= BigInt(Number.MAX_SAFE_INTEGER)   // Identity §5.4: [2, 2^53 − 1]
-
 /**
- * The rotation from generation g (prev) to g + 1 (next): both contexts
- * sign the same canonical body. `generation` is that of next, ≥ 2.
+ * The link from the current community anchor (prev) to the next one:
+ * both contexts sign the same canonical body. A rotation moves — next
+ * differs from prev.
  */
-export async function makeAnchorRotation (prev: Context, next: Context, generation: number | string) {
-  const g = String(generation)
-  if (!inDomain(g)) throw new Error(`anchor-rotation@1: generation outside [2, 2^53 − 1] (Identity §5.4): ${g}`)
-  const body = { type: 'anchor-rotation@1', prev: prev.anchor, next: next.anchor, generation: g }
+export async function makeAnchorRotation (prev: Context, next: Context) {
+  if (prev.anchor === next.anchor) throw new Error('anchor-rotation@1: next equals prev (Visibility §6.5)')
+  const body = { type: 'anchor-rotation@1', prev: prev.anchor, next: next.anchor }
   return { body, proof: { proofValue: await signRaw(prev, body), successorProofValue: await signRaw(next, body) } }
 }
-/** Schema, generation domain, and both signatures — prev's and next's — over the canonical body. */
+/** Schema, next ≠ prev, and both signatures — prev's and next's — over the canonical body. */
 export async function verifyAnchorRotation (a: any): Promise<boolean> {
   if (!schemaOk('visibility-anchor-rotation.schema.json', a)) return false
-  if (!inDomain(a.body.generation)) return false
+  if (a.body.prev === a.body.next) return false
   return (await verifyRaw(a.body.prev, a.body, a.proof.proofValue))
     && (await verifyRaw(a.body.next, a.body, a.proof.successorProofValue))
 }
 
 // ── the lineage (§6.3 condition 4a) ─────────────────────────────────────
+/** A mapping carries at most this many of the most recent links (§6.1; schema maxItems). */
+export const LINEAGE_MAX = 64
 /**
- * Every element verifies under both its signatures; generations run
- * consecutively from 2; each prev equals the preceding element's next;
- * the last next equals self. An empty lineage passes: the sender
- * presents no history (the recipient holds no generation numbers).
+ * The chain as given: at most LINEAGE_MAX elements; every element
+ * verifies under both its signatures; each prev equals the preceding
+ * element's next; the last next equals self. An empty lineage passes:
+ * the sender presents no history.
  */
 export async function verifyLineage (lineage: any[], self: string): Promise<{ ok: true } | { ok: false, reason: string }> {
   if (!Array.isArray(lineage)) return { ok: false, reason: 'lineage is not an array' }
+  if (lineage.length > LINEAGE_MAX) return { ok: false, reason: `more than ${LINEAGE_MAX} elements` }
   for (const [i, r] of lineage.entries()) {
     if (!(await verifyAnchorRotation(r))) return { ok: false, reason: `element ${i}: anchor-rotation@1 does not verify under both signatures` }
-    if (r.body.generation !== String(i + 2)) return { ok: false, reason: `element ${i}: generation ${r.body.generation}, expected ${i + 2}` }
     if (i > 0 && r.body.prev !== lineage[i - 1].body.next) return { ok: false, reason: `element ${i}: prev is not the preceding next` }
   }
   if (lineage.length && lineage[lineage.length - 1].body.next !== self) return { ok: false, reason: 'the last next is not self' }
   return { ok: true }
 }
-/** Every anchor a lineage names, generation ascending: generation 1 (the first prev), then each next. */
+/** Every anchor a lineage names, in chain order: the first prev, then each next. */
 export const lineageAnchors = (lineage: any[]): string[] =>
   lineage.length ? [lineage[0].body.prev, ...lineage.map((r: any) => r.body.next)] : []
+/**
+ * The verified anchor set of a mapping (§6a.1 no. 2): its self and every
+ * anchor of its carried lineage, in chain order, self last. Two
+ * relationships converge when these sets meet.
+ */
+export const mappingAnchors = (body: { self: string, lineage: any[] }): string[] =>
+  body.lineage.length ? lineageAnchors(body.lineage) : [body.self]
 
 /**
  * §6.3 condition 8 for a changed `self`: 'rotation' when the previously
- * held self appears as prev or next of some lineage element — the held
- * anchor advances and merges keyed by earlier generations persist;
+ * held self appears in the carried segment (as prev or next of some
+ * element) — the held anchor advances and merges keyed by earlier
+ * anchors persist;
  * otherwise 'new-community' — accepted as a correction, merges keyed by
  * the earlier anchor dissolve, because nothing links the two.
  */
@@ -119,9 +133,9 @@ export interface MappingInput {
   /** the addressee's pair anchor and key-agreement key in this relationship */
   to: string
   toKeyAgreement: string
-  /** the sender's community anchor at its CURRENT generation */
+  /** the sender's CURRENT community anchor */
   self: Context
-  /** anchor-rotation@1 artifacts, generation ascending, ending at self (or empty) */
+  /** at most LINEAGE_MAX anchor-rotation@1 artifacts, in chain order, ending at self (or empty) */
   lineage: any[]
   revision: string
   issuedAt: string

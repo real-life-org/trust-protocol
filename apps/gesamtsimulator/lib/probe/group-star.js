@@ -146,7 +146,9 @@ export async function buildGroupStar(i) {
  * One delivery's chunks → its entry union (5.2a under the group star's
  * own salt): every chunk schema-valid and MAC-valid under k_g of the
  * arrival tuple, one salt, seq 1..n each once, exactly the n-th last,
- * the union strictly ascending by d.
+ * the union strictly ascending by d — and the §5.2b reception rules on
+ * the completed assembly: a positive multiple of 16 entries, every c of
+ * the same length. A failing assembly rejects the delivery.
  */
 export async function assembleGroupStar(i) {
     if (!Array.isArray(i.chunks) || !i.chunks.length)
@@ -188,6 +190,10 @@ export async function assembleGroupStar(i) {
     }
     if (!entries.every((e, k) => k === 0 || entries[k - 1].d < e.d))
         return { ok: false, reason: 'order' };
+    if (entries.length % GROUP_STAR_PAD !== 0)
+        return { ok: false, reason: 'size' }; // positive: n ≥ 1 chunk of ≥ 1 entry
+    if (entries.some((e) => e.c.length !== entries[0].c.length))
+        return { ok: false, reason: 'c length' };
     return { ok: true, salt, entries };
 }
 /**
