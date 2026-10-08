@@ -14,7 +14,7 @@ The same app on three devices side by side. Verify someone by QR code, with
 the automatic offline fallback when the network is gone. Introduce two
 contacts through a third person, who is not needed again afterwards. Give
 trust as a separate, deliberate act. Found groups and join them with
-candidacy and vouching.
+candidacy and [vouching](term:Vouch).
 
 The wire panel shows every sealed envelope and the stage at which it was
 accepted, and lets you hold, duplicate, corrupt or drop it.

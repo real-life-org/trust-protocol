@@ -7,10 +7,10 @@ description: What a protocol developer needs to know before reading the RLTP spe
 
 RLTP records encounters: two people meet, each verifies the other,
 and each verification becomes an immutable
-verifiable credential held by the person it is about. A group is a
+verifiable credential held by the person it is about. A [group](term:Group) is a
 place rather than a certificate: an encrypted document replicated on
-every member's device, with its own log of who joined, who left and
-which rules apply. Delivery and replication are services behind
+every member's device, with its own [log](term:AuthorityLog) of who joined, who left and
+which [rules](term:Policy) apply. Delivery and replication are services behind
 ports, so the specification names no transport and no CRDT.
 
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
@@ -19,7 +19,7 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 ## Identifiers
 
 A person keeps one secret, a BIP-39 mnemonic with the English
-wordlist. Every identity is derived from its seed, one **anchor** per
+wordlist. Every identity is derived from its seed, one **[anchor](term:Anchor)** per
 context:
 
 | Context | Label | DTG scope |
@@ -30,8 +30,8 @@ context:
 
 The DTG scope is the correlation scope a holder declares for an
 identifier: `pairwise` is known to one counterpart, `directed` to a
-set the holder chooses, `public` to anyone. A pair anchor is
-`pairwise`; a member anchor is `directed`, because every member of
+set the holder chooses, `public` to anyone. A [pair anchor](term:PairAnchor) is
+`pairwise`; a [member anchor](term:MemberAnchor) is `directed`, because every member of
 the group can correlate it; a persona is `public`, because its
 profile is meant for everyone. Personas are specified but not yet
 built, and whether RLTP also needs personas toward a chosen set is an
@@ -44,7 +44,7 @@ seed, two anchors of one person cannot be linked.
 
 Each context has an Ed25519 key pair, whose public key is the anchor
 as a `did:key`, and an X25519 key for key agreement, carried in the
-contact card. Verification needs no network.
+[contact card](term:ContactCard). Verification needs no network.
 
 `did:key` over Ed25519 is the only DID method specified today.
 Consumers treat an anchor as an opaque DID, but the schemas pin the
@@ -68,20 +68,20 @@ Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/mai
 RLTP issues three credentials, all W3C Verifiable Credentials 2.0
 with closed schemas and three contexts pinned by value (W3C
 credentials v2, a DTG context, RLTP v1), verified without JSON-LD
-processing. The encounter credential is a DTG Relationship
+processing. The [encounter credential](term:EncounterCredential) is a DTG Relationship
 Credential under DTG Credentials WD 0.6.0: it lists the DTG registry
-context v1 and declares `issuerScope: "pairwise"`. The invite and
-the vouch list the DTG context of Working Draft 01.
+context v1 and declares `issuerScope: "pairwise"`. The [invite](term:Invite) and
+the [vouch](term:Vouch) list the DTG context of Working Draft 01.
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
 | Encounter credential | A person verifies the other during an encounter; one per direction | Issuer's fresh pair anchor → counterpart's fresh pair anchor | `VerifiableCredential`, `DTGCredential`, `RelationshipCredential`, `EncounterCredential` | `DataIntegrityProof`, `eddsa-jcs-2022` | Never revoked, never expires: no `validUntil`, no `credentialStatus` | `encounter-credential-0.26` · `encounter-cards.json` |
 | Membership invite (VIC) | A member invites someone into a group | Inviter's member anchor → invitee's member anchor | `VerifiableCredential`, `DTGCredential`, `InvitationCredential`, `MembershipInvite` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`; `validUntil`, default 90 days | `payload-membership-invite` · `dtg-credentials.json` |
-| Admission vouch (`vouch@2`) | A member vouches for a candidate's admission | Vouching member's anchor → candidate's member anchor | `VerifiableCredential`, `DTGCredential`, `EndorsementCredential`, `AdmissionVouch` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`, no `validUntil`; usable only for the one acceptance it is bound to | `access-vouch` · `dtg-credentials.json` |
+| Admission vouch (`vouch@2`) | A member vouches for a candidate's admission | Vouching member's anchor → candidate's member anchor | `VerifiableCredential`, `DTGCredential`, `EndorsementCredential`, `AdmissionVouch` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`, no `validUntil`; usable only for the one [acceptance](term:Accept) it is bound to | `access-vouch` · `dtg-credentials.json` |
 
 The **contact card** is not a credential. It is a signed
 self-description: anchor, key agreement key, and in an encounter a
-fresh challenge.
+fresh [challenge](term:Challenge).
 
 An encounter establishes exactly four things: the issuer controlled
 their key, the exchange was fresh, a human deliberately verified
@@ -101,7 +101,7 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## How we use credentials
 
-An edge between two anchors consists of the encounter credentials
+An [edge](term:Edge) between two anchors consists of the encounter credentials
 between them, and every view of it is local: outgoing, incoming or
 mutual. There is one edge per anchor pair, however many encounters.
 An encounter credential is one person's statement that they
@@ -114,17 +114,17 @@ its own encounters or its groups, the confirmation is evidence; for
 anyone else it is a claim.
 
 Verification is not trust. Trusting a contact means showing them
-context about yourself: an **anchor mapping** reveals, to this one
-contact only, that the relationship's pair anchor and the anchor of
-your personal community, your one stable identifier, belong to
+context about yourself: an **[anchor mapping](term:AnchorMapping)** reveals, to this one
+contact only, that the relationship's pair anchor and the [anchor of
+your personal community](term:CommunityAnchor), your one stable identifier, belong to
 the same person. Trusting also allows the contact to include you,
-blinded, in the **star** they send to their own contacts, a picture
+blinded, in the **[star](term:Star)** they send to their own contacts, a picture
 of their circle that only people who already know you can read you
 out of. The mapping is designated-verifier: a MAC under a key the two
 share, so the contact can check it but could have forged it, and
 nobody else can.
 
-Meeting the same person again needs no disclosure: a continuity probe
+Meeting the same person again needs no disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
 history and chains it to the existing relationship.
 
@@ -136,7 +136,7 @@ covers statements about third parties, both designated-verifier, with
 class D additionally blinded.
 
 A third party holding both credentials of one encounter can verify
-both proofs and the shared enactment binding, and learns exactly
+both proofs and the shared [enactment binding](term:EnactmentBinding), and learns exactly
 this: two anchors consistently assert an encounter. Whether two
 people met, and who they are, stays with those who know the anchors.
 Personhood predicates therefore measure confirmations relative to
@@ -162,7 +162,7 @@ is rejected, never silently ignored.
 | `membership-invite/0.2` | Membership | the invitation, carrying the VIC |
 | `membership-accept/0.2` | Membership | the invitee's signed consent |
 | `membership-evidence/0.1` | Membership | relays invite and accept to any member who can admit |
-| `access-operation/0.1` | Membership | the admitting operation and welcome, sent to the new member |
+| `access-operation/0.1` | Membership | the admitting operation and [welcome](term:Welcome), sent to the new member |
 | `key-delivery/0.1` | Access | epoch keys, welcomes, key requests |
 | `removal-notice/0.1` | Access | tells a removed member |
 | `star/0.1` | Visibility | lets a contact relate your contacts to theirs, blinded or as a count |
@@ -197,11 +197,11 @@ can be changed like any other.
 Membership is a fact in the group's state, and a member's devices hold
 the current key. No membership certificate is needed; a credential
 for showing membership to outsiders is an open item. Being removed,
-leaving, or losing a device starts a new key epoch, so what is written
+leaving, or losing a device starts a new [key epoch](term:Epoch), so what is written
 afterwards stays unreadable to whoever lost access. What they already read, they keep.
 
 Behind this stands the **authority log**: a causally linked graph of
-individually signed operations, starting from a founding operation
+individually signed [operations](term:Operation), starting from a founding operation
 whose digest is the group's identity. The group's state is a
 deterministic reading of that log. Changes made at the same
 time are merged: two removals both take effect, even when two members
@@ -271,7 +271,7 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
   group state and the holding of a key, not a certificate in a wallet.
 - **Rooms and invitations, not checkpoints.** The host consults their
   own graph and invites; nobody presents a credential at a door.
-- **There are no admins.** Privileged operations are gated by a rule
+- **There are no admins.** [Privileged operations](term:PrivilegedOperation) are gated by a rule
   the group states as data.
 - **Revocation is an epoch.** A removal carries its key transition
   atomically; nothing waits for an expiry date.

@@ -13,12 +13,12 @@ Considerations. They are dense. This order keeps the dependencies in view.
 
 | # | Document | What it settles |
 |---|---|---|
-| 1 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | How two people verify each other and keep the record of it: the ceremony, contact cards, challenges, encounter credentials, edges. |
-| 2 | [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) | One root seed, every identity derived: per-relationship pair anchors, per-group member anchors, service identities. |
+| 1 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | How two people verify each other and keep the record of it: the [ceremony](term:Ceremony), [contact cards](term:ContactCard), [challenges](term:Challenge), [encounter credentials](term:EncounterCredential), [edges](term:Edge). |
+| 2 | [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) | One root seed, every identity derived: per-relationship [pair anchors](term:PairAnchor), per-group [member anchors](term:MemberAnchor), service identities. |
 | 3 | [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) | How documents travel: private Trust Task types, the sealed envelope, staged dispositions, delivery promises. |
-| 4 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | How a group holds shared authority: the authority log, policies as decision rules, epochs that make revocation real. |
-| 5 | [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | How membership changes travel: invitation, explicit consent, the admitting operation and its welcome. |
-| 6 | [Network Visibility](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md) | Who may learn that an edge exists: the trust act, visibility grades, stars, anchor mappings, introductions. |
+| 4 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | How a group holds shared authority: the [authority log](term:AuthorityLog), [policies](term:Policy) as decision rules, [epochs](term:Epoch) that make revocation real. |
+| 5 | [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | How membership changes travel: [invitation](term:Invite), explicit consent, the admitting operation and its [welcome](term:Welcome). |
+| 6 | [Network Visibility](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md) | Who may learn that an edge exists: the trust act, visibility grades, [stars](term:Star), [anchor mappings](term:AnchorMapping), [introductions](term:Introduction). |
 | 7 | [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md) | What "a human vouched for a human" can and cannot prove, relative to a verifier. |
 | 8 | [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) | The service contract behind the Access Layer's replication port. |
 

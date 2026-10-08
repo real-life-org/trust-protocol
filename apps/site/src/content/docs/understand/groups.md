@@ -5,9 +5,9 @@ description: How a group holds itself together. A place on its members' devices,
 
 ## What a group is
 
-A group is a place its members hold together: an encrypted document on
-each member's device, with a log of who joined, who left and which
-rules apply. Inside it is the group's shared space:
+A [group](term:Group) is a place its [members](term:Member) hold together: an encrypted document on
+each member's device, with a [log](term:AuthorityLog) of who joined, who left and which
+[rules](term:Policy) apply. Inside it is the group's shared space:
 replicated state that holds the app's data: events, places, tasks,
 messages. The protocol does not care what the data is;
 it cares who may read and change it.
@@ -25,7 +25,7 @@ Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/ma
 ## Rules, not admins
 
 The group states its own rules as data: who may invite, who may admit,
-who may remove, whether a newcomer needs vouches, and who may change
+who may remove, whether a newcomer needs [vouches](term:Vouch), and who may change
 the rules. Every device checks them before it accepts a change.
 
 A founder in charge is only the simplest rule,
@@ -38,12 +38,12 @@ Spec: [Access Layer §4](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Joining
 
-Someone who knows you invites you. The invitation carries no keys; it
+Someone who knows you invites you. The [invitation](term:Invite) carries no keys; it
 names you and the group, and it expires. Nobody joins without accepting.
 
 When you accept, a member who may admit writes your admission into the
-log, with the invitation and your acceptance enclosed as proof. A
-welcome then brings you the current key. Older content becomes readable
+log, with the invitation and your [acceptance](term:Accept) enclosed as proof. A
+[welcome](term:Welcome) then brings you the current key. Older content becomes readable
 through the group's own copy, as far back as its keys reach.
 
 If the group asks for vouches ([Trust](/understand/trust/)), other members confirm your admission
@@ -57,7 +57,7 @@ Spec: [Access Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/
 
 You can leave at any time. A member can be removed when the group's
 rule allows it. Either way, and when a device is lost, the group moves
-to a new key epoch.
+to a new [key epoch](term:Epoch).
 
 What is written afterwards stays unreadable to whoever lost access.
 What they already read, they keep; no protocol can make someone forget.
@@ -72,7 +72,7 @@ Spec: [Access Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/
 ## People and devices
 
 Members are people, not devices. Each of a member's devices holds its
-own key and is tied to the person by a signed device card in the log.
+own key and is tied to the person by a signed [device card](term:DeviceCard) in the log.
 The person adds their own devices, up to eight.
 
 So a lost phone can be cut off without its owner leaving the group. A member whose devices are all gone is still a member.

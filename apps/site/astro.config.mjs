@@ -1,6 +1,8 @@
 import { readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import docsKit from '@real-life/docs-kit'
 
 /**
  * trust-protocol.real-life.org: landing and docs in one site, built like
@@ -26,6 +28,11 @@ export default defineConfig({
   redirects: legacyRedirects(),
   integrations: [
     starlight({
+      plugins: [docsKit({
+        world: 'rltp',
+        scheme: fileURLToPath(new URL('../../terms/rltp.skos.jsonld', import.meta.url)),
+        glossary: { en: '/reference/glossary/' },
+      })],
       title: 'Real Life Trust Protocol',
       description: 'A trust protocol rooted in encounters between people: specifications, library, simulators.',
       customCss: ['./src/styles/tokens.css', './src/styles/site.css'],
@@ -52,6 +59,7 @@ export default defineConfig({
         ] },
         { label: 'Reference', items: [
           { label: 'Specifications', link: '/reference/specifications/' },
+          { label: 'Glossary', link: '/reference/glossary/' },
           { label: 'Schemas', link: `${REPO}/tree/main/schemas` },
           { label: 'Test vectors', link: `${REPO}/tree/main/vectors` },
           { label: 'Term register', link: '/terms/rltp.skos.jsonld' },

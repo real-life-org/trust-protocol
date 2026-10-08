@@ -8,7 +8,7 @@ description: What turns encounters into a network. What you reveal when you trus
 Verifying someone means this: you met them, and this key is
 theirs. That is all an encounter records, and it is why you
 can do it with anyone, without risk. Every encounter runs under a
-fresh pairwise anchor, so verifying a stranger gives them nothing of
+fresh [pairwise anchor](term:PairAnchor), so verifying a stranger gives them nothing of
 you beyond this one meeting.
 
 Trust is a second, deliberate act. It follows only if you want it to,
@@ -22,12 +22,12 @@ Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob
 ## Trusting means showing who you are
 
 Besides the pair anchors of each relationship, every person has one
-anchor that is theirs across relationships: **the anchor of their own
+anchor that is theirs across relationships: **the [anchor](term:CommunityAnchor) of their own
 personal community**. Nothing links it to any pair anchor, unless the
 holder says so.
 
-Trusting a contact is saying so, to that one contact: an **anchor
-mapping** that states "the person you met under this pair anchor and
+Trusting a contact is saying so, to that one contact: an **[anchor
+mapping](term:AnchorMapping)** that states "the person you met under this pair anchor and
 the holder of this personal community are the same". It is built so
 that only the addressee can check it; the proof is a shared secret
 between the two, not a signature. Whoever issues an anchor decides,
@@ -41,7 +41,7 @@ knows it is you, and two entries become one person on their device.
 
 Two things they cannot do. They cannot prove the link to anyone else;
 the mapping verifies for them alone, and they could have forged it
-themselves. And they cannot take that anchor into a group or a star
+themselves. And they cannot take that anchor into a group or a [star](term:Star)
 as a plain value; it never appears in the open.
 
 Withdrawing trust works forward. You stop sending, and when you renew
@@ -85,8 +85,8 @@ Spec: [Network Visibility §5](https://github.com/real-life-org/trust-protocol/b
 ## Meeting through someone you both know
 
 There are two ways to gain a contact: meet them, or be introduced by
-someone who knows you both. An **introduction** is five messages
-through the mediator: the request with a fresh card, the forward, the
+someone who knows you both. An **[introduction](term:Introduction)** is five messages
+through the mediator: the request with a fresh [card](term:ContactCard), the forward, the
 reply with the target's fresh card, the acknowledgement, and a voucher
 to each side. The mediator passes on fresh cards, never the anchors
 of an existing relationship; the two new pair anchors are issued by
@@ -110,7 +110,7 @@ introduced meet in person for the first time.
 
 Either way the devices sort it out. Every encounter runs under a fresh
 pairwise anchor, so on the wire the second scan looks like a stranger;
-right after it, the two devices run a **continuity probe**, a short
+right after it, the two devices run a **[continuity probe](term:ContinuityProbe)**, a short
 list of blinded values that only a counterpart holding the earlier
 relationship can match. A match links the new pair to the existing
 relationship and the app shows "re-verified"; an introduced
@@ -122,12 +122,12 @@ Spec: [Network Visibility §6a](https://github.com/real-life-org/trust-protocol/
 
 ## Vouching inside a group
 
-A group can require that a newcomer is vouched for. A **vouch** is a
+A group can require that a newcomer is vouched for. A **[vouch](term:Vouch)** is a
 member's signed statement for exactly one admission of exactly one
 person, made inside the group where other members can check it. It
 names how the voucher knows the person, met or introduced, as their
 own word, not as a verified fact. A vouch never stands for a later
-admission, and an encounter credential is not a vouch: its anchors are
+admission, and an [encounter credential](term:EncounterCredential) is not a vouch: its anchors are
 fresh pair anchors that no group rule can name.
 
 Spec: [Access Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#53-admission-and-removal)
