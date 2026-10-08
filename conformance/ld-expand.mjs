@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// OPTIONAL deep check: JSON-LD 1.1 expansion of the three RLTP credential
-// forms under [W3C VC v2, DTG v1 (local WD01 term stub — the published URL
-// 404s, a recorded upstream nit), pinned RLTP context]. Guards the
+// OPTIONAL deep check: JSON-LD 1.1 expansion of the RLTP credential forms
+// under [W3C VC v2, DTG context, pinned RLTP context]. The encounter
+// credential (0.26) lists the DTG registry context v1, loaded from the
+// shipped byte-exact copy contexts/dtg-v1.jsonld; the invite, the vouch and
+// the held 0.25 encounter form still list the WD01 IRI, whose published URL
+// 404s, so a local WD01 term stub stands in for it. Guards the
 // @propagate/protected-term repairs of the DTG conversion (rounds 3/6):
 // every RLTP vocabulary term must survive expansion with a real IRI, and
 // no protected-term error may occur.
@@ -34,7 +37,8 @@ try {
 
 const URLS = {
   vc: 'https://www.w3.org/ns/credentials/v2',
-  dtg: 'https://firstperson.network/credentials/dtg/v1',
+  dtg: 'https://registry.trustoverip.org/dtg/context/v1',
+  dtgWd01: 'https://firstperson.network/credentials/dtg/v1',
   rltp: 'https://real-life.org/rltp/v1',
 }
 const fetchJson = (url) => new Promise((resolve, reject) => https.get(url, { headers: { accept: 'application/ld+json, application/json' } }, (res) => {
@@ -48,7 +52,8 @@ try {
 } catch (e) {
   skip(`cannot fetch the W3C v2 context (${e.message})`)
 }
-docs.set(URLS.dtg, { '@context': { '@protected': true,
+docs.set(URLS.dtg, JSON.parse(fs.readFileSync(join(ROOT, 'contexts/dtg-v1.jsonld'), 'utf8')))
+docs.set(URLS.dtgWd01, { '@context': { '@protected': true,
   DTGCredential: 'https://firstperson.network/credentials/dtg#DTGCredential',
   RelationshipCredential: 'https://firstperson.network/credentials/dtg#RelationshipCredential',
   InvitationCredential: 'https://firstperson.network/credentials/dtg#InvitationCredential',
@@ -75,6 +80,7 @@ Object.assign(inviteFull.credentialSubject.card, { sentTo: inviteFull.credential
 const forms = {
   encounter: EC.credential,
   encounterFull,
+  encounter025: EC.credential025,
   vouch: V.vouch.u,
   invite: V.invite.payload.invite,
   inviteFull,
@@ -82,8 +88,9 @@ const forms = {
 // RLTP vocabulary IRIs that MUST survive expansion, per form — the *Full
 // forms together cover every term the pinned context defines
 const MUST = {
-  encounter: ['#credentialFormat', '#Ceremony', '#EnactmentBinding'],
-  encounterFull: ['#credentialFormat', '#Ceremony', '#EnactmentBinding', '#channel', '#commitment', '#commitmentSuite', '#commitmentValue', '#Challenge'],
+  encounter: ['#credentialFormat', '#Ceremony', '#EnactmentBinding', 'dtg:issuerScope'],
+  encounterFull: ['#credentialFormat', '#Ceremony', '#EnactmentBinding', '#channel', '#commitment', '#commitmentSuite', '#commitmentValue', '#Challenge', 'dtg:issuerScope'],
+  encounter025: ['#credentialFormat', '#Ceremony', '#EnactmentBinding'],
   vouch: ['#endorsement', '#genesisDigest', '#acceptDigest', '#provenance'],
   invite: ['#group', '#genesisDigest', '#displayNote', '#contactCard', '#cardVersion', '#anchor', '#keyAgreement', 'schema.org/name', 'security#proof'],
   inviteFull: ['#group', '#genesisDigest', '#displayNote', '#contactCard', '#cardVersion', '#anchor', '#keyAgreement', '#sentTo', '#boundTo', '#deliveryHints', '#challengeValue', '#challengeIssuedAt', 'schema.org/name', 'security#proof'],
@@ -100,19 +107,21 @@ const collectIris = (node, out = new Set()) => {
 const ctxIris = [...collectIris(docs.get(URLS.rltp))]
 // normalize MUST entries to full IRIs — coverage AND the expansion check
 // below both compare full IRIs by exact set membership (no substrings)
-const FULL = { 'schema.org/name': 'https://schema.org/name', 'security#proof': 'https://w3id.org/security#proof', 'security#challenge': 'https://w3id.org/security#challenge' }
+const FULL = { 'schema.org/name': 'https://schema.org/name', 'security#proof': 'https://w3id.org/security#proof', 'security#challenge': 'https://w3id.org/security#challenge', 'dtg:issuerScope': 'https://registry.trustoverip.org/dtg/credentials#issuerScope' }
 const fullIri = (m) => m.startsWith('#') ? 'https://real-life.org/rltp/v1' + m : (FULL[m] ?? m)
 // the exact @type IRIs each form MUST expand to — a re-mapped credential
 // type (e.g. EncounterCredential @id pointed at MembershipInvite) fails here
 const W3C_VC = 'https://www.w3.org/2018/credentials#VerifiableCredential'
-const DTG = 'https://firstperson.network/credentials/dtg#'
+const DTG = 'https://registry.trustoverip.org/dtg/credentials#'
+const DTG_WD01 = 'https://firstperson.network/credentials/dtg#'
 const RLTP = 'https://real-life.org/rltp/v1#'
 const MUST_TYPES = {
   encounter: [W3C_VC, DTG + 'DTGCredential', DTG + 'RelationshipCredential', RLTP + 'EncounterCredential'],
   encounterFull: [W3C_VC, DTG + 'DTGCredential', DTG + 'RelationshipCredential', RLTP + 'EncounterCredential'],
-  vouch: [W3C_VC, DTG + 'DTGCredential', DTG + 'EndorsementCredential', RLTP + 'AdmissionVouch'],
-  invite: [W3C_VC, DTG + 'DTGCredential', DTG + 'InvitationCredential', RLTP + 'MembershipInvite'],
-  inviteFull: [W3C_VC, DTG + 'DTGCredential', DTG + 'InvitationCredential', RLTP + 'MembershipInvite'],
+  encounter025: [W3C_VC, DTG_WD01 + 'DTGCredential', DTG_WD01 + 'RelationshipCredential', RLTP + 'EncounterCredential'],
+  vouch: [W3C_VC, DTG_WD01 + 'DTGCredential', DTG_WD01 + 'EndorsementCredential', RLTP + 'AdmissionVouch'],
+  invite: [W3C_VC, DTG_WD01 + 'DTGCredential', DTG_WD01 + 'InvitationCredential', RLTP + 'MembershipInvite'],
+  inviteFull: [W3C_VC, DTG_WD01 + 'DTGCredential', DTG_WD01 + 'InvitationCredential', RLTP + 'MembershipInvite'],
 }
 const covered = new Set([...Object.values(MUST).flat().map(fullIri), ...Object.values(MUST_TYPES).flat()])
 const uncovered = ctxIris.filter((i) => !covered.has(i))
@@ -145,4 +154,4 @@ for (const [name, doc] of Object.entries(forms)) {
   }
 }
 if (fail) { console.error('ld-expand: FAILED'); process.exit(1) }
-console.log('ld-expand: all three credential forms expand with full vocabulary.')
+console.log('ld-expand: every credential form expands with full vocabulary.')

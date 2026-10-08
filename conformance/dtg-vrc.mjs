@@ -37,8 +37,8 @@
 // are reported as notes, never silently.
 //
 //   usage: node conformance/dtg-vrc.mjs <file.json> [...]
-//          (a file holds one credential, an array of them, or an object
-//          whose `credentials` member is such an array)
+//          (every object typed RelationshipCredential anywhere in a file is
+//          checked; a file without one is checked as a single credential)
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import crypto from 'node:crypto'
@@ -167,6 +167,18 @@ export function checkVrc (cred) {
   return { ok: failures.length === 0, failures, passed, notes }
 }
 
+// every object in a vector file that types itself a RelationshipCredential
+// (a file may hold one credential, an array, or a vector suite of its own
+// shape); a found credential is not searched further
+export const collect = (node, out = []) => {
+  if (Array.isArray(node)) { for (const n of node) collect(n, out) }
+  else if (node && typeof node === 'object') {
+    if (Array.isArray(node.type) && node.type.includes('RelationshipCredential')) out.push(node)
+    else for (const v of Object.values(node)) collect(v, out)
+  }
+  return out
+}
+
 // ── CLI ───────────────────────────────────────────────────────────────────
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const files = process.argv.slice(2)
@@ -174,7 +186,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   let bad = 0
   for (const f of files) {
     const data = JSON.parse(readFileSync(f, 'utf8'))
-    const creds = Array.isArray(data) ? data : Array.isArray(data?.credentials) ? data.credentials : [data]
+    const found = collect(data)
+    const creds = found.length ? found : [data]
     creds.forEach((c, i) => {
       const r = checkVrc(c)
       const label = `${f}${creds.length > 1 ? `[${i}]` : ''} (${c?.issuer ?? '?'})`
