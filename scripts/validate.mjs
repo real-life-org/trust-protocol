@@ -229,5 +229,25 @@ for (const f of specFiles) {
   if (!errors) ok(`skos: ${links} hierarchy link(s) are IRIs naming concepts of the scheme`)
 }
 
+// ── 8. Ceremony definitions validate against the DTGWG meta-schema ───────
+// interop/ceremonies/dtgwg/ceremony.meta.schema.json is a byte copy of the
+// ToIP DTGWG trust-tasks-tf ceremonies/ceremony.meta.schema.json (provenance
+// in interop/ceremonies/index.md). Every *.ceremony.json MUST validate; a
+// definition with an enactmentPrivacy outside the meta-schema's enum MUST
+// fail, so the check is shown to fail.
+{
+  const meta = JSON.parse(readFileSync(join(ROOT, 'interop/ceremonies/dtgwg/ceremony.meta.schema.json'), 'utf8'))
+  const check = new Ajv2020({ strict: false, allErrors: true, validateFormats: false }).compile(meta)
+  const defs = readdirSync(join(ROOT, 'interop/ceremonies')).filter((f) => f.endsWith('.ceremony.json'))
+  for (const f of defs) {
+    const d = parsed[`interop/ceremonies/${f}`]
+    if (check(d)) ok(`ceremony: ${f} validates against the DTGWG ceremony meta-schema`)
+    else err(`ceremony: ${f}: ${check.errors.map((e) => `${e.instancePath || '/'} ${e.message}`).join('; ')}`)
+    if (check({ ...d, enactmentPrivacy: 'plain' })) err(`ceremony: ${f} with enactmentPrivacy "plain" is accepted — the meta-schema check is not effective`)
+    else ok(`ceremony: ${f} with enactmentPrivacy "plain" is rejected (must-fail)`)
+  }
+  if (!defs.length) err('ceremony: no *.ceremony.json under interop/ceremonies')
+}
+
 console.log(errors ? `\n${errors} error(s).` : '\nAll publication checks passed.')
 process.exit(errors ? 1 : 0)
