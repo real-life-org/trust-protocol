@@ -17,17 +17,18 @@
       "type": "https://real-life.org/trust-tasks/encounter-bundle/0.1",
       "issuer": "scanner",
       "recipient": "displayer",
-      "description": "The scanner's sent card (rltp-card/0.25, naming its recipient and the displayed-challenge value it answers) plus the scanner's step credential (rltp-encounter-credential/0.26) binding the displayer's challenge. On the offline path the sent card alone travels optically and creates the displayer's enactment record; the bundle follows through the delivery service and is accepted via that record.",
+      "description": "The scanner's sent card (rltp-card/0.25, naming its recipient and the displayed-challenge value it answers) plus the scanner's step credential (rltp-encounter-credential/0.26) binding the displayer's challenge. On the offline path the sent card alone travels optically and creates the displayer's enactment record; the bundle follows through the delivery service and is accepted via that record. Terminal: the enactment is complete once the bundle is accepted (Encounter Layer 5.2 C5, 5.8).",
       "prev": [],
-      "terminal": false
+      "terminal": true
     },
     "counter": {
       "kind": "task",
       "type": "https://real-life.org/trust-tasks/encounter-credential-delivery/0.1",
       "issuer": "displayer",
       "recipient": "scanner",
-      "description": "The displayer's counter-step credential (rltp-encounter-credential/0.26), binding the scanner's sent challenge, continuing the bundle's thread. Optional - one-sided outcomes are legitimate. Its delivery has no time bound; the credential's own issuance time falls under the issuance window of Encounter Layer 5.6 step 6.",
+      "description": "The displayer's counter-step credential (rltp-encounter-credential/0.26), binding the scanner's sent challenge, continuing the bundle's thread. Optional and terminal: one-sided outcomes are legitimate (Encounter Layer 5.2 C5), and the displayer may issue the counter-step at any later time over any carrier (RLTP-ENC-5750), which makes the outcome mutual. Its delivery has no time bound; the credential's own issuance time falls under the issuance window of Encounter Layer 5.6 step 6.",
       "prev": ["bundle"],
+      "optional": true,
       "terminal": true
     }
   },
@@ -37,7 +38,7 @@
     "derivation": "The RLTP enactment binding (Encounter Layer 5.4): a multibase-encoded multihash over the JCS canonicalization of {ceremony: \"encounter-scan@0.25\", challenges}, where the challenges are the two fresh single-use values (>=128 bits each) - the displayed challenge and the sent challenge - material neither party could have produced alone. This concretely instantiates the derivation the DTGWG registry's mutual-attestation/0.1 describes loosely."
   },
   "completion": "bundle",
-  "evidence": { "level": "countersigned" },
+  "evidence": { "level": "collected" },
   "enactmentPrivacy": "shared",
   "sideEffects": { "level": "mutating", "rationale": "Each confirming party mints an immutable, never-revoked encounter credential about the other; the enactment record is durable local state." },
   "exposure": { "discloses": "secret", "actsAsSubject": true, "rationale": "Each step delivers credential material the other party retains. enactmentPrivacy is shared: both steps run between the same two parties, who are meant to know they share the enactment, and both credentials carry the same enactment binding in plaintext (Encounter Layer 5.4), so a per-step commitment would describe a wire RLTP does not have. Correlation beyond the pair is bounded by the anchors instead: every enactment runs under fresh pair anchors (Encounter Layer 4.4), so a leaked credential pair links exactly one enactment between two anchors a collector cannot attribute, and relationship continuity is established after the ceremony by the visibility layer, holder-local and invisible to third parties (Encounter Layer 8 and 14)." },
@@ -46,6 +47,7 @@
     "org.real-life.rltp": {
       "note": "RLTP's one registered ceremony expressed in the ToIP DTGWG ceremony-definition format (informative interop artifact). The normative definition is spec/encounter-layer.md 5.8; this file exists so DTGWG tooling can read the RLTP ceremony. The connected path carries the bundle through the delivery service, the offline path presents the sent card optically; the two paths differ only in the carrier of the enactment material, and switching between them is free in both directions. This step graph describes the credential flow common to both.",
       "mutualOn": "counter",
+      "completionNote": "Completion is the bundle alone: bundle and counter are both terminal, counter is optional, so {bundle} and {bundle, counter} are each a complete enactment and the counter-step may follow at any later time without reopening it (Encounter Layer 5.2 C5, 5.8). Evidence is declared collected, not countersigned: a one-sided enactment carries only the scanner's signature, and countersigned (DTGWG design note 7.5) promises every participant's. Where the counter-step exists, both credentials carry the same enactment binding and each is signed by its issuer, a reciprocal pair (Personhood Predicates 4.1) - still not a DTGWG countersigned transcript. This is the boundary of the informative mapping: RLTP documents carry no DTGWG ceremony envelope member, so neither a signed ceremony.terminal marker nor prev digests exist on the wire; a DTGWG verifier can evaluate this definition against an RLTP enactment only through an adapter that maps the RLTP documents to steps.",
       "timeParameters": { "challengeMaxAge": "PT5M", "issuanceWindow": "PT24H", "skewTolerance": "PT5M" },
       "timeParametersNote": "Encounter Layer 9. No maxDuration is declared: the counter step's delivery document is produced only after the bundle has been accepted and has no time bound (Encounter Layer 5.8), so the spread of the steps' issuedAt values has none either. The credentials' validFrom and proof.created are bounded per challenge by challengeMaxAge + issuanceWindow, widened by skewTolerance (Encounter Layer 5.6 step 6)."
     }
