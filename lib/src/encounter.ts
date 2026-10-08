@@ -13,10 +13,28 @@ import type { Signer } from './crypto.js'
 import { b64uOf, iso } from './core.js'
 export { iso }
 
-// ── wire builders (0.25 generation, DTG adoption) ───────────────────────
+// ── wire builders (Encounter 0.31: card 0.25, credential 0.26) ─────────
 export const CEREMONY = 'encounter-scan@0.25'
 export const CARD_VERSION = 'rltp-card/0.25'
-export const CRED_FORMAT = 'rltp-encounter-credential/0.25'
+/** The credential form this library issues (Encounter 7.2). */
+export const CRED_FORMAT = 'rltp-encounter-credential/0.26'
+/** The DTG credential context, DTG Credentials WD 0.6.0 (exact bytes; the
+ *  document is pinned by SHA-256 in contexts/dtg-v1.jsonld). */
+export const DTG_CONTEXT = 'https://registry.trustoverip.org/dtg/context/v1'
+/** The pinned context set of the 0.26 credential (Encounter 2.3, RLTP-ENC-2250). */
+export const CRED_CONTEXT: readonly string[] = Object.freeze(['https://www.w3.org/ns/credentials/v2', DTG_CONTEXT, 'https://real-life.org/rltp/v1'])
+/** Every credential format a verifier of this version knows, with its schema
+ *  file. A held 0.25 credential stays valid under its own format (7.3, 12). */
+export const CRED_FORMATS: Readonly<Record<string, string>> = Object.freeze({
+  'rltp-encounter-credential/0.26': 'encounter-credential-0.26.schema.json',
+  'rltp-encounter-credential/0.25': 'encounter-credential-0.25.schema.json',
+})
+/** The schema file a credential is validated against, by the format it
+ *  names — null for an unknown format (ERR_VERSION at 5.6 step 1). */
+export const credentialSchemaOf = (cred: unknown): string | null => {
+  const f = (cred as { credentialSubject?: { format?: unknown } } | null)?.credentialSubject?.format
+  return typeof f === 'string' && Object.prototype.hasOwnProperty.call(CRED_FORMATS, f) ? CRED_FORMATS[f] : null
+}
 export const binding = (ceremony: string, c1: string, c2: string): Promise<string> => digestDoc({ ceremony, challenges: [c1, c2].sort() })
 export const challengeOf = (bytes17: Uint8Array): string => {
   // a producer never emits what every conformant receiver must reject:
@@ -69,9 +87,11 @@ export async function issueCredential (
   subjectChallenge: string, enactmentBinding: string, whenIso: string,
 ) {
   const body = {
-    '@context': ['https://www.w3.org/ns/credentials/v2', 'https://firstperson.network/credentials/dtg/v1', 'https://real-life.org/rltp/v1'],
+    '@context': [...CRED_CONTEXT],
     type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
     issuer: ctx.anchor,
+    // the issuer is a fresh pair anchor, known to exactly one counterparty (4.4)
+    issuerScope: 'pairwise',
     validFrom: whenIso,
     credentialSubject: { id: subjectAnchor, format: CRED_FORMAT, ceremony, challenge: subjectChallenge, enactmentBinding },
   }
