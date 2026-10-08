@@ -5,8 +5,8 @@ description: What turns encounters into a network. What you reveal when you trus
 
 ## Trust is a second step
 
-Verifying someone means this: a real person stands here, and this
-key is theirs. That is all an encounter records, and it is why you
+Verifying someone means this: you met them, and this key is
+theirs. That is all an encounter records, and it is why you
 can do it with anyone, without risk. Every encounter runs under a
 fresh pairwise anchor, so verifying a stranger gives them nothing of
 you beyond this one meeting.
@@ -61,7 +61,8 @@ community run through a keyed hash, with a key that holds for this sender, this
 recipient and this delivery only.
 
 The recipient can do exactly one thing with it: test the anchors
-they already hold. A hit means "this person trusted both of us".
+they already hold. A hit means you both hold this person's anchor,
+which they give only to people they trust.
 An anchor they do not hold reveals nothing, and no new anchor ever
 reaches them through a star. A star is deliberately unsigned, so it
 proves nothing about the sender's relationships to anyone; it is a
@@ -72,8 +73,8 @@ stand behind someone, the useful answer is not "forty" but "forty,
 three of whom you know". The star is how the three are found without
 anyone handing over a list.
 
-The star has a sibling for groups. Each group you are in travels to
-every contact as a blinded value too, so a contact who is in the same
+The star has a sibling for groups. Each group you are in, unless you
+switch it off, travels to every contact as a blinded value too, so a contact who is in the same
 group gets a hit: we know each other from somewhere. Who you are in
 that group stays sealed, and opens only for the contacts you trust,
 or for one you choose per group.
@@ -87,10 +88,10 @@ There are two ways to gain a contact: meet them, or be introduced by
 someone who knows you both. An **introduction** is five messages
 through the mediator: the request with a fresh card, the forward, the
 reply with the target's fresh card, the acknowledgement, and a voucher
-to each side. The mediator carries messages, never anchors; the two
-new pair anchors are issued by their owners for the new relationship.
-The target decides on their own device, and the requester is told the
-same thing whether the answer was yes or silence.
+to each side. The mediator passes on fresh cards, never the anchors
+of an existing relationship; the two new pair anchors are issued by
+their owners for the new relationship. The target decides on their
+own device, and a no looks the same to the requester as no answer.
 
 A relationship from an introduction carries that origin with it. The
 first real encounter upgrades it, and nothing downgrades it. The
