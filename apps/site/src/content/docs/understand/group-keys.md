@@ -12,14 +12,14 @@ seed, the anchors per context and the device keys, are the Identity
 layer's and are explained in [Foundations](/understand/foundations/).
 
 A group has two kinds of truth. Who belongs and what is allowed is
-decided by the **authority log**: every device replays the same
+decided by the **[authority log](term:AuthorityLog)**: every device replays the same
 signed entries and arrives at the same answer. What the content is
-encrypted with is produced by the **key port**: a procedure that turns
+encrypted with is produced by the **[key port](term:KeyPort)**: a procedure that turns
 the current membership into a secret only members hold.
 
 The protocol keeps the two apart. The authority side is the
 protocol's own and the same for every group. The key side is a port
-with six invariants, and a group picks a registered adapter to fill
+with six invariants, and a group picks a registered [adapter](term:Adapter) to fill
 it. Whatever the adapter does, the log decides and the keys follow:
 when the log says someone is out, the adapter owes a key that person
 cannot derive.
@@ -40,7 +40,7 @@ Where two states meet, the adapter brings them together into one,
 either by merging their secrets or by a fresh rotation that heals the
 split. Until it has, members keep reading and writing waits; one
 member is designated to issue the rotation, so the wait is short. The
-epoch number still exists, but only as a counter for views and
+[epoch](term:Epoch) number still exists, but only as a counter for views and
 ordering.
 
 Spec: [Access Layer §7.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#71-transitions-and-the-retained-set) ·
@@ -52,7 +52,7 @@ A member holding the current key can read the group's history as far
 back as the adapter's chain reaches. Under the first adapter each new
 state carries the previous key sealed under the new one, so a
 newcomer unlocks the past step by step from the group's own copy.
-History is never narrowed: a welcome brings one key, the replica
+History is never narrowed: a [welcome](term:Welcome) brings one key, the replica
 brings the rest.
 
 A group that opens its content to the world publishes its keys from
@@ -81,15 +81,15 @@ Spec: [Access Layer §9.4](https://github.com/real-life-org/trust-protocol/blob/
 ## What the replication service may know
 
 Members are rarely online at the same time, so a group may register a
-**replication service**: a party that stores its encrypted entries and
+**[replication service](term:Service)**: a party that stores its encrypted entries and
 hands them to whichever member connects next. The service holds no
 keys. What it knows beyond the ciphertext is the group's choice,
-stated at registration in one of three classes:
+stated at registration in one of three [classes](term:ServiceClass):
 
 | Class | Knows | Can do |
 |---|---|---|
 | `blind` | ciphertext and addresses | store and hand on, nothing else |
-| `view` | also which devices a signed view lists | refuse content from devices the view does not list |
+| `view` | also which devices a [signed view](term:AuthorizationView) lists | refuse content from devices the view does not list |
 | `log` | also the authority log itself | check every entry on its own |
 
 Four rules hold for every class. A service never blocks an entry of
@@ -113,14 +113,14 @@ Spec: [Access Layer §9.3](https://github.com/real-life-org/trust-protocol/blob/
 Keys travel in three situations, and each has its own path.
 
 A **newcomer** receives a welcome sealed to the key in their
-acceptance, together with the entry that admits them. They keep it
+[acceptance](term:Accept), together with the entry that admits them. They keep it
 provisionally, fetch the log, and become a member once the log
 confirms the admission. If the welcome never arrives or turns out
 wrong, they ask again, naming their own acceptance; a fabricated
 admission in a bad welcome cannot send them down a dead end.
 
 A **second phone** is bound by the person's first phone with a signed
-device card in the log, and receives material sealed to its own key.
+[device card](term:DeviceCard) in the log, and receives material sealed to its own key.
 If the first phone is lost before the second ever synced, the second
 one bootstraps on its own: it asks any member, keeps the answer
 provisionally, and the log confirms that the person is a member and

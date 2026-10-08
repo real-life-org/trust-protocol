@@ -7,7 +7,7 @@ description: How two people record that they met. The card, the challenge, the o
 
 Two people stand together. One shows a code, the other scans it,
 and each presses a button that says "I verify this person". Each
-press produces a credential that the other person keeps. That is an
+press produces a [credential](term:EncounterCredential) that the other person keeps. That is an
 encounter in RLTP.
 
 The credential proves four things and nothing more:
@@ -15,7 +15,7 @@ The credential proves four things and nothing more:
 | It proves | Because |
 |---|---|
 | The issuer held their key at that moment | the credential is signed with it |
-| The two codes were exchanged within one act | the credential binds the other side's fresh challenge |
+| The two codes were exchanged within one act | the credential binds the other side's fresh [challenge](term:Challenge) |
 | A human decided | nothing is issued without the press |
 | The fact survives the moment | the credential is immutable and stays with its holder |
 
@@ -27,7 +27,7 @@ Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob
 
 ## The card
 
-What travels over the code is a **contact card**: the anchor the
+What travels over the code is a **[contact card](term:ContactCard)**: the [anchor](term:Anchor) the
 person uses for this encounter, an encryption key so that the other
 side can seal messages to them, a one-time challenge, and optionally
 a name and delivery hints. The card is signed with the anchor. It is a
@@ -63,7 +63,7 @@ Spec: [Encounter Layer §5.3](https://github.com/real-life-org/trust-protocol/bl
 
 ## One scan
 
-The ceremony of this version needs one scan.
+The [ceremony](term:Ceremony) of this version needs one scan.
 
 1. B shows a card with challenge *c<sub>B</sub>*.
 2. A scans it, creates a sent card with a fresh challenge
@@ -77,20 +77,20 @@ The ceremony of this version needs one scan.
 
 Step 3 reaches B in one of two ways, and the device may switch
 between them at any moment. With a network, card and credential travel
-as a sealed bundle through the delivery service. Without one, A shows
+as a sealed [bundle](term:Bundle) through the delivery service. Without one, A shows
 the sent card as a code and B scans it; the credential follows
 whenever a network next carries it. Neither way needs a third party,
 and nothing about the encounter is decided by when a message arrives.
 
 A credential issued before the press, or without the other side's
-challenge, does not exist. The record on each device precedes the
+challenge, does not exist. The [record](term:EnactmentRecord) on each device precedes the
 credential, so a crash between the two leaves nothing half-written.
 
 Spec: [Encounter Layer §5](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#5-ceremonies-and-enactments)
 
 ## One-sided is a result
 
-The credentials of one encounter form an **edge** between the two
+The credentials of one encounter form an **[edge](term:Edge)** between the two
 anchors. If only A confirmed, the edge is one-sided: A says they
 verified B, B has said nothing. That is a legitimate outcome, not a
 failure, and the app shows it as such. The edge becomes mutual when
@@ -102,7 +102,7 @@ Spec: [Encounter Layer §4](https://github.com/real-life-org/trust-protocol/blob
 
 ## Fresh anchors, and what outsiders see
 
-Every encounter is performed under a **fresh pair anchor**, an
+Every encounter is performed under a **fresh [pair anchor](term:PairAnchor)**, an
 identifier created for this one act. The credential names that
 anchor, not the person. Anyone can verify that a credential is
 properly signed, and anyone holding both credentials of an encounter
@@ -112,7 +112,7 @@ that a meeting took place, and it does not show who the two are
 unless one of the holders discloses the link.
 
 Meeting the same person again creates a new pair anchor. After the
-ceremony, a continuity probe over the fresh channel lets the two
+ceremony, a [continuity probe](term:ContinuityProbe) over the fresh channel lets the two
 devices find out that they already share a relationship; only a
 counterpart that holds the earlier one can answer it. On a match the
 new pair is chained to that relationship, and the chain is visible to

@@ -24,7 +24,7 @@ import { ceremony, visibility } from '@real-life/trust-protocol'
 import { introduce, membership } from '@real-life/trust-protocol/probe'
 ```
 
-The `/probe` subpath carries the converged semantics of introductions and
+The `/probe` subpath carries the converged semantics of [introductions](term:Introduction) and
 group membership, but its transport shapes are not wire-normative yet. Do not
 treat them as an interoperability target.
 

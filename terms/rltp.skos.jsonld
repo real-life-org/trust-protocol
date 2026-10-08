@@ -1556,6 +1556,176 @@
    ],
    "rl:status": "proposed",
    "skos:editorialNote": "Does not exist in the spec yet. The source is the normative VEC profile in the DTG VSC registry; evaluating it for RLTP is pending (2026-10-03)."
+  },
+  {
+   "@id": "rltp:AnchorMapping",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:CommunityAnchor" },
+    { "@id": "rltp:PairAnchor" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Anker-Zuordnung",
+     "@language": "de"
+    },
+    {
+     "@value": "Anchor mapping",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Das nur vom Adressaten prüfbare Artefakt (anchor-mapping@3), das den Paaranker des Senders in einer Beziehung mit seinem aktuellen Gemeinschaftsanker verknüpft, für genau einen Adressaten: zwei MACs unter Schlüsseln, die mit diesem Adressaten vereinbart sind, sodass nur er sie prüfen und jeder von beiden sie hätte erzeugen können. Es trägt die Linie der Rotationen des Gemeinschaftsankers, damit der Adressat einer Rotation folgen kann.",
+     "@language": "de"
+    },
+    {
+     "@value": "The designated-verifier artifact (anchor-mapping@3) that links the sender's pair anchor in one relationship to the sender's current community anchor, for exactly one addressee: two MACs under keys agreed with that addressee, so only the addressee can verify it and either of the two could have produced it. It carries the lineage of the community anchor's rotations, so the addressee can follow a rotation.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#61-purpose-and-construction",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#65-anchor-rotation1-and-the-rotation-of-the-community-anchor"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Star",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:AnchorMapping" },
+    { "@id": "rltp:CommunityAnchor" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Stern",
+     "@language": "de"
+    },
+    {
+     "@value": "Star",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Das Artefakt (star@1), mit dem ein Sender genau einem Empfänger erlaubt, die Kontaktmenge des Senders auf die eigene zu beziehen: je zustellbarem Kontakt nur die Zahl oder dessen Anker, geblendet unter einem Schlüssel für diese Richtung und Zustellung. Er ist unsigniert und vom Empfänger fälschbar, trägt nie einen rohen Anker Dritter und nichts über die Gruppen des Senders; die reisen im Gruppenstern.",
+     "@language": "de"
+    },
+    {
+     "@value": "The artifact (star@1) by which a sender lets exactly one recipient relate the sender's contact set to the recipient's own: per deliverable contact only the count or the contact's anchor, blinded under a key for this direction and delivery. It is unsigned and recipient-forgeable, never carries a raw third-party anchor, and carries nothing about the sender's groups; those travel in the group star.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#5-the-star-normative",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#53-the-star-must-not-be-signed"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:ContinuityProbe",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:PairAnchor" },
+    { "@id": "rltp:Enactment" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Kontinuitäts-Probe",
+     "@language": "de"
+    },
+    {
+     "@value": "Continuity probe",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die geblendete Liste (continuity-probe@1), die eine Seite, möglichst beide, nach einem Begegnungsvorgang sendet: die eigenen Paaranker der zuvor aktiven Beziehungen, aufgefüllt auf ein Vielfaches von 256 und an das frische Paar geschlüsselt. Ein Treffer erkennt eine gemeinsame frühere Beziehung, an die das frische Paar gekettet wird; kein Treffer bedeutet einen neuen Kontakt. Der Regelweg der Kontinuität, bei jedem Vorgang, unabhängig von jeder Offenlegung.",
+     "@language": "de"
+    },
+    {
+     "@value": "The blinded list (continuity-probe@1) that either party, preferably both, sends after an enactment: its own pair anchors of the relationships active before, padded to a multiple of 256 and keyed to the fresh pair. A match identifies a shared prior relationship, to which the fresh pair is chained; no match means a new contact. The default path of continuity, run on every enactment, independent of any disclosure.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a-continuity-normative--the-other-half-of-encounter-44",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a2-continuity-probe1--sequenced-chunked-padded-blinded"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Introduction",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:PairAnchor" },
+    { "@id": "rltp:ContactCard" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Vorstellung",
+     "@language": "de"
+    },
+    {
+     "@value": "Introduction",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Der Akt, in dem ein Vermittler, der Kontakt beider ist, eine anfragende Person mit einer Zielperson bekannt macht: fünf Nachrichten (Anfrage, Weiterleitung, Antwort, Bestätigung, Voucher) über die bestehenden Beziehungskanäle. Der Vermittler überträgt Nachrichten, nie stehende Anker; die frischen Paaranker der neuen Beziehung stellen ihre Inhaber selbst aus. Die Beziehung trägt die Herkunft „Vorstellung“, bis der erste vollzogene Begegnungsvorgang sie auf „Begegnung“ hebt, nie umgekehrt.",
+     "@language": "de"
+    },
+    {
+     "@value": "The act by which a mediator who is a contact of both makes a requester known to a target: five messages (request, forward, reply, acknowledgement, voucher) over the existing relationship channels. The mediator transfers messages, never standing anchors; the fresh pair anchors of the new relationship are issued by their owners. The relationship carries the provenance introduction until its first completed enactment upgrades it to encounter, never downward.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#8-the-introduction-act-normative",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#86-provenance-normative"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Vouch",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:AdmissionEvidence" },
+    { "@id": "rltp:Accept" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Bürgschaft",
+     "@language": "de"
+    },
+    {
+     "@value": "Vouch",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die signierte Aussage eines Mitglieds für genau eine Aufnahme genau einer Person (vouch@2, ein DTG EndorsementCredential), gebunden an deren Annahme; eine Bürgschaftsregel der Gruppe zählt sie für diese eine Aufnahme und keine spätere. Wie der Bürge die Person kennt, begegnet oder vorgestellt, ist sein eigenes Wort, nicht geprüft; ein Begegnungs-Credential ist keine Bürgschaft.",
+     "@language": "de"
+    },
+    {
+     "@value": "A member's signed statement for exactly one admission of exactly one person (vouch@2, a DTG EndorsementCredential), bound to that person's accept; a group's vouch rule counts it for this one admission and no later one. How the voucher knows the person, met or introduced, is their own word, not verified; an encounter credential is not a vouch.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#53-admission-and-removal",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#42-requirement-types"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
   }
  ]
 }
