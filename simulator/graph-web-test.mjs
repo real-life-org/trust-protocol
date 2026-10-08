@@ -282,10 +282,10 @@ assert(w.transport.every((p, i) => p.n === i && typeof p.from === 'string' && ty
   const { makeValidator } = await import('./rltp-core.mjs')
   const { SCHEMAS } = await import('./rltp-schemas.mjs')
   const V = makeValidator(SCHEMAS)
-  const sch = V.SCHEMAS['encounter-credential-0.25.schema.json']
+  const sch = V.SCHEMAS['encounter-credential-0.26.schema.json']
   const anyCred = w.transport.find((p) => p.kind.startsWith('encounter-credential'))?.payload?.credential
   assert(!!anyCred && V.validate(anyCred, sch, sch).length === 0,
-    'DTG-Form: transportiertes EncounterCredential validiert gegen encounter-credential-0.25.schema.json')
+    'DTG-Form: transportiertes EncounterCredential validiert gegen encounter-credential-0.26.schema.json')
   assert(anyCred['@context'].length === 3 && anyCred.type.length === 4 && anyCred.type.includes('DTGCredential') && anyCred.type.includes('RelationshipCredential'),
     'DTG-Form: drei gepinnte Kontexte, vier Typen (Dual-Typing)')
 }

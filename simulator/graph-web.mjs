@@ -211,14 +211,14 @@ export async function diVerify(doc, expectedAnchor) {
 
 // ── encounter credentials (Encounter 7, browser twin) ───────────────────
 export const CEREMONY = 'encounter-scan@0.25'
-export const CRED_FORMAT = 'rltp-encounter-credential/0.25'
+export const CRED_FORMAT = 'rltp-encounter-credential/0.26'
 export const binding = (ceremony, c1, c2) => digestMB(jcs({ ceremony, challenges: [c1, c2].sort() }))
 
 async function issueCred(p, subjectAnchor, subjectChallenge, bind, when) {
   const body = {
-    '@context': ['https://www.w3.org/ns/credentials/v2', 'https://firstperson.network/credentials/dtg/v1', 'https://real-life.org/rltp/v1'],
+    '@context': ['https://www.w3.org/ns/credentials/v2', 'https://registry.trustoverip.org/dtg/context/v1', 'https://real-life.org/rltp/v1'],
     type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
-    issuer: p.anchor, validFrom: iso(when),
+    issuer: p.anchor, issuerScope: 'pairwise', validFrom: iso(when),
     credentialSubject: { id: subjectAnchor, format: CRED_FORMAT, ceremony: CEREMONY, challenge: subjectChallenge, enactmentBinding: bind },
   }
   return diSign(p, body, iso(when))

@@ -76,9 +76,9 @@ const out = await page.evaluate(async () => {
     const ctx = await C.mkCtx(C.dev.A);
     const ch1 = C.fresh(), ch2 = C.fresh();
     const bind = await C.binding(C.C1, ch1, ch2);
-    const gBody = { '@context': ['https://www.w3.org/ns/credentials/v2', 'https://firstperson.network/credentials/dtg/v1', 'https://real-life.org/rltp/v1'],
+    const gBody = { '@context': ['https://www.w3.org/ns/credentials/v2', 'https://registry.trustoverip.org/dtg/context/v1', 'https://real-life.org/rltp/v1'],
       type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
-      issuer: ctx.anchor, validFrom: C.iso(C.now(C.dev.A)),
+      issuer: ctx.anchor, issuerScope: 'pairwise', validFrom: C.iso(C.now(C.dev.A)),
       credentialSubject: { id: A.card.anchor, format: C.CREDF, ceremony: C.C1, challenge: ch2, enactmentBinding: bind, channel: 'in-person' } };
     const good = { ...gBody, proof: await C.sign(C.dev.A, ctx, gBody) };
     if (good) {

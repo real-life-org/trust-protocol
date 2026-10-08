@@ -42,12 +42,12 @@ const cdd = credentialDeliveryDocument(ben, counter, bundle.threadId, 'counter',
 const ra = receiveEnvelope(anna, seal(cdd, s.card.keyAgreement, xPubOfMk(s.card.keyAgreement)), now + 63_000)
 check(ra.acceptance === 'accepted', 'counter-credential accepted at the scanner')
 
-section('emitted artifacts against the shipped 0.25 schemas')
-check(CEREMONY === 'encounter-scan@0.25' && CARD_VERSION === 'rltp-card/0.25' && CRED_FORMAT === 'rltp-encounter-credential/0.25', 'generation strings are the 0.25 wire (DTG adoption)')
+section('emitted artifacts against the shipped schemas (card 0.25, credential 0.26)')
+check(CEREMONY === 'encounter-scan@0.25' && CARD_VERSION === 'rltp-card/0.25' && CRED_FORMAT === 'rltp-encounter-credential/0.26', 'generation strings: card 0.25, credential 0.26 (DTG WD 0.6.0)')
 schemaOK(displayed, 'contact-card-0.25.schema.json', 'displayed card')
 schemaOK(s.card, 'contact-card-0.25.schema.json', 'sent card')
-schemaOK(cred, 'encounter-credential-0.25.schema.json', 'credential')
-schemaOK(counter, 'encounter-credential-0.25.schema.json', 'counter-credential')
+schemaOK(cred, 'encounter-credential-0.26.schema.json', 'credential')
+schemaOK(counter, 'encounter-credential-0.26.schema.json', 'counter-credential')
 schemaOK({ card: s.card, credential: cred }, 'payload-encounter-bundle.schema.json', 'bundle payload')
 schemaOK({ credential: counter }, 'payload-encounter-credential-delivery.schema.json', 'credential-delivery payload')
 schemaOK(rb.ack.payload, 'payload-delivery-ack.schema.json', 'ack payload')
@@ -142,4 +142,4 @@ section('Stage B: visibility artifacts emitted live (schemas + MACs)')
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) { console.error('IUT simulator: FAILED'); process.exit(1) }
-console.log('IUT simulator: the engine emits conformant 0.25 artifacts.')
+console.log('IUT simulator: the engine emits conformant artifacts (card 0.25, credential 0.26).')
