@@ -1,10 +1,11 @@
 # RLTP Ceremony Simulator
 
 An interactive, browser-only implementation of the RLTP ceremony pair
-(Encounter Layer 0.28, wire 0.25 (DTG-typed credentials) · Delivery Contract 0.21) under
-**fresh-always pair anchors**: two app instances, one delivery
-channel, the complete protocol in WebCrypto (Ed25519, X25519, HKDF,
-AES-256-GCM) — including a live byte-for-byte reproduction of
+(Encounter Layer 0.31: card 0.25, credential 0.26 on DTG Credentials
+WD 0.6.0 · Delivery Contract 0.21) under **fresh-always pair
+anchors**: two app instances, one delivery channel, the complete
+protocol in WebCrypto (Ed25519, X25519, HKDF, AES-256-GCM) —
+including a live byte-for-byte reproduction of
 [`vectors/seal.json`](../vectors/seal.json) at boot. The Node engine
 (`engine.mjs`) additionally models the Identity §6 seed derivation
 and is checked by `conformance/iut-simulator.mjs`.

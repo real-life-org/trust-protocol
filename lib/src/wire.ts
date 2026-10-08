@@ -133,7 +133,7 @@ export type CarrierProof = ({
   sig: string
 })
 
-/** schemas/contact-card-0.25.schema.json — RLTP Contact Card (rltp-encounter@0.30) */
+/** schemas/contact-card-0.25.schema.json — RLTP Contact Card (rltp-encounter@0.31) */
 export type ContactCard025 = {
   version: "rltp-card/0.25"
   anchor: string
@@ -156,7 +156,7 @@ export type ContactCard025 = {
   }
 }
 
-/** schemas/contact-card.schema.json — RLTP Contact Card (rltp-encounter@0.30) — mobile $id, carried by the unversioned resource */
+/** schemas/contact-card.schema.json — RLTP Contact Card (rltp-encounter@0.31) — mobile $id, carried by the unversioned resource */
 export type ContactCard = {
   version: "rltp-card/0.25"
   anchor: string
