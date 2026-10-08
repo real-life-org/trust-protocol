@@ -10,7 +10,9 @@
   // fail-closed: if this module did not load, nothing is accepted.
   import { makeValidator } from './rltp-core.mjs'
   import { SCHEMAS } from './rltp-schemas.mjs'
-  window.RLTP = makeValidator(SCHEMAS)
+  // the library's format → schema dispatch (Encounter 5.6 step 1, ENC-5480)
+  import { credentialSchemaOf } from './lib/encounter.js'
+  window.RLTP = { ...makeValidator(SCHEMAS), credentialSchemaOf }
 </script>
 </head>
 <body>
@@ -1141,11 +1143,13 @@ class Component extends DCLogic {
   }
 
   async accept56(dev, cred) {
-    // 5.6 step 1: the document validates against the shipped credential
-    // schema — fail-closed: no loaded validator, no acceptance
+    // 5.6 step 1: a KNOWN format, validated against ITS shipped schema —
+    // the current 0.26, or a held 0.25 (7.3, 12); this device still issues
+    // and delivers only 0.26 — fail-closed: no loaded validator, no acceptance
     if (!window.RLTP) return { ok: false, code: 'ERR_VERSION (validator unavailable)' };
-    if (window.RLTP.validate(cred, window.RLTP.SCHEMAS['encounter-credential-0.26.schema.json'], window.RLTP.SCHEMAS['encounter-credential-0.26.schema.json']).length) return { ok: false, code: 'ERR_VERSION (schema)' };
-    if (cred.credentialSubject.format !== this.CREDF) return { ok: false, code: 'ERR_VERSION' };
+    const schema = window.RLTP.credentialSchemaOf(cred);
+    if (schema === null) return { ok: false, code: 'ERR_VERSION' };
+    if (window.RLTP.validate(cred, window.RLTP.SCHEMAS[schema], window.RLTP.SCHEMAS[schema]).length) return { ok: false, code: 'ERR_VERSION (schema)' };
     const body = { ...cred }; delete body.proof;
     if (!(await this.verify(cred.issuer, body, cred.proof))) return { ok: false, code: 'ERR_SIG' };
     const rec = dev.records.find(r => r.ownChallenge === cred.credentialSubject.challenge);

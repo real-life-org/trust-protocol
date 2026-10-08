@@ -34,6 +34,8 @@ export function base58(buf) {
   return out
 }
 import { SCHEMAS, validate } from '../conformance/lib.mjs'
+// the library's format → schema dispatch (Encounter 5.6 step 1, ENC-5480)
+import { credentialSchemaOf } from './lib/encounter.js'
 // Encounter 2.3: whole-second truncation of EVERY comparison operand (incl. now)
 export const tsec = (v) => Math.floor((typeof v === 'number' ? v : Date.parse(v)) / 1000) * 1000
 const schemaOK = (data, file) => { const s = SCHEMAS[file]; return validate(data, s, s).length === 0 }
@@ -428,8 +430,10 @@ function receiveAck(p, doc, now) {
 
 // ── Encounter acceptance (5.6) ──────────────────────────────────────────
 export function tryAccept(p, credential, now) {
-  if (!schemaOK(credential, 'encounter-credential-0.26.schema.json')) return 'ERR_VERSION'
-  if (credential.credentialSubject?.format !== CRED_FORMAT) return 'ERR_VERSION'
+  // 5.6 step 1: a KNOWN format, validated against ITS schema — the current
+  // 0.26, or a held 0.25 (7.3, 12); producers and delivery stay on 0.26
+  const schema = credentialSchemaOf(credential)
+  if (schema === null || !schemaOK(credential, schema)) return 'ERR_VERSION'
   if (!diVerify(credential, credential.issuer)) return 'ERR_SIG'
   const record = p.records.get(credential.credentialSubject.challenge)
   if (!record) return 'ERR_NO_RECORD'
