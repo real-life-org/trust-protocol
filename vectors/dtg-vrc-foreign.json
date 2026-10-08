@@ -214,6 +214,72 @@
       }
     },
     {
+      "name": "validFrom-impossible-day-z",
+      "failsAt": "validFrom",
+      "credential": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://registry.trustoverip.org/dtg/context/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential"
+        ],
+        "issuer": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5",
+        "issuerScope": "pairwise",
+        "validFrom": "2026-02-30T12:00:00Z",
+        "credentialSubject": {
+          "id": "did:peer:2.Ez6LSrQPf3hgyMFddHBcWcLQjbeKnnA7yNmDMGti1n1aGRUj8.Vz6MktAmSf8CaMHXdkJQeS3U9NdQSLHyrqMuxoUG9yjGiELEB"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-10-08T12:00:00Z",
+          "verificationMethod": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5#key-2",
+          "proofPurpose": "assertionMethod",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://registry.trustoverip.org/dtg/context/v1"
+          ],
+          "proofValue": "z3XiucSzcVXR2QyB2VPpYzjaSFadyBb2tCCnLThj8Gxy8GZHjfiQxPJppTeuua8foFFJbNXTzPfwDoArRz7cTd9u3"
+        }
+      }
+    },
+    {
+      "name": "validFrom-impossible-day-offset",
+      "failsAt": "validFrom",
+      "credential": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://registry.trustoverip.org/dtg/context/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential"
+        ],
+        "issuer": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5",
+        "issuerScope": "pairwise",
+        "validFrom": "2026-02-30T12:00:00+00:00",
+        "credentialSubject": {
+          "id": "did:peer:2.Ez6LSrQPf3hgyMFddHBcWcLQjbeKnnA7yNmDMGti1n1aGRUj8.Vz6MktAmSf8CaMHXdkJQeS3U9NdQSLHyrqMuxoUG9yjGiELEB"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-10-08T12:00:00Z",
+          "verificationMethod": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5#key-2",
+          "proofPurpose": "assertionMethod",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://registry.trustoverip.org/dtg/context/v1"
+          ],
+          "proofValue": "zv2MgsUKfXsg9jRT1mtgrLTdnNbSuXwVoYsHBt2HAAwUKwwZZhxeXvuQLTZRDAdJsYKv49mBpaXpSVXMCaZqmWnd"
+        }
+      }
+    },
+    {
       "name": "subject-replaced-after-signing",
       "failsAt": "proof-signature",
       "credential": {
@@ -241,6 +307,40 @@
           "@context": [
             "https://www.w3.org/ns/credentials/v2",
             "https://registry.trustoverip.org/dtg/context/v1"
+          ],
+          "proofValue": "z3yBuhJch4PNY2dXnpRqPVmBEXGTfV8hDSdj8pGUT1QiwEYVhaUmouWX4fH1otFApCTudVyD7huagi29Es43gzQo2"
+        }
+      }
+    },
+    {
+      "name": "proof-context-longer-than-document",
+      "failsAt": "proof-signature",
+      "credential": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://registry.trustoverip.org/dtg/context/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential"
+        ],
+        "issuer": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5",
+        "issuerScope": "pairwise",
+        "validFrom": "2026-10-08T12:00:00Z",
+        "credentialSubject": {
+          "id": "did:peer:2.Ez6LSrQPf3hgyMFddHBcWcLQjbeKnnA7yNmDMGti1n1aGRUj8.Vz6MktAmSf8CaMHXdkJQeS3U9NdQSLHyrqMuxoUG9yjGiELEB"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-10-08T12:00:00Z",
+          "verificationMethod": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5#key-2",
+          "proofPurpose": "assertionMethod",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://registry.trustoverip.org/dtg/context/v1",
+            "https://example.test/extra"
           ],
           "proofValue": "z3yBuhJch4PNY2dXnpRqPVmBEXGTfV8hDSdj8pGUT1QiwEYVhaUmouWX4fH1otFApCTudVyD7huagi29Es43gzQo2"
         }

@@ -14,7 +14,8 @@
 //   issuerScope      present, exactly one of pairwise|directed|public,
 //                    case-sensitive (Base Structure: a verifier MUST
 //                    reject absence or another value)
-//   validFrom        an RFC 3339 date-time; validUntil, if present, too
+//   validFrom        an RFC 3339 date-time on a real calendar date, in-range
+//                    time and offset; validUntil, if present, too
 //   subject          credentialSubject.id is a DID string
 //   proof-form       DataIntegrityProof, cryptosuite eddsa-jcs-2022 (the
 //                    only suite this tool verifies), proofValue present
@@ -111,6 +112,33 @@ const verifySig = (raw, bytes, zsig) => {
   return crypto.verify(null, bytes, pubFromRaw(Buffer.from(raw), EDS), sig)
 }
 
+const sameJson = (a, b) => { try { return jcs(a) === jcs(b) } catch { return false } }
+
+// RFC 3339 date-time (upper-case T and Z, any fraction, offset or Z), held
+// to a real calendar date and in-range time and offset — Date.parse
+// silently normalizes 2026-02-30 to 2026-03-02, so components are checked
+// here, not round-tripped through it. Second 60 (leap second) is allowed by
+// RFC 3339. Returns { ms } (the instant, fraction included) or null.
+const DT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?(Z|([+-])([0-9]{2}):([0-9]{2}))$/
+export function dateTime (v) {
+  const m = typeof v === 'string' && DT.exec(v)
+  if (!m) return null
+  const [Y, M, D, h, mi, s] = m.slice(1, 7).map(Number)
+  const leap = (Y % 4 === 0 && Y % 100 !== 0) || Y % 400 === 0
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][M - 1]
+  if (!days || D < 1 || D > days || h > 23 || mi > 59 || s > 60) return null
+  let off = 0
+  if (m[8] !== 'Z') {
+    const oh = Number(m[10]), om = Number(m[11])
+    if (oh > 23 || om > 59) return null
+    off = (m[9] === '-' ? -1 : 1) * (oh * 60 + om)
+  }
+  const d = new Date(0)
+  d.setUTCFullYear(Y, M - 1, D) // not Date.UTC: it maps years 0–99 to 1900–1999
+  d.setUTCHours(h, mi - off, s)
+  return { ms: d.getTime() + (m[7] ? Number('0' + m[7]) * 1000 : 0) }
+}
+
 /** Check a foreign DTG RelationshipCredential. Returns { ok, failures: [{ check, detail }], passed: [check], notes: [string] }. */
 export function checkVrc (cred) {
   const failures = [], passed = [], notes = []
@@ -136,10 +164,10 @@ export function checkVrc (cred) {
     `issuerScope must be exactly one of ${SCOPES.join('|')}; got ${JSON.stringify(cred.issuerScope)}`)
   if (cred.issuerScope && cred.issuerScope !== 'pairwise' && SCOPES.includes(cred.issuerScope)) notes.push(`issuerScope ${cred.issuerScope}: permitted for a VRC, pairwise is RECOMMENDED`)
 
-  const timeOk = (v) => typeof v === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$/.test(v) && !Number.isNaN(Date.parse(v))
-  step('validFrom', timeOk(cred.validFrom) && (cred.validUntil === undefined || (timeOk(cred.validUntil) && Date.parse(cred.validUntil) >= Date.parse(cred.validFrom))),
-    `validFrom (and validUntil, if present) must be RFC 3339 date-times, validUntil not before validFrom`)
-  if (typeof cred.validFrom === 'string' && /Z$/.test(cred.validFrom) && !calOK(cred.validFrom)) notes.push('validFrom is outside the RLTP timestamp profile (more than three fractional digits or calendar-invalid); not a DTG requirement')
+  const from = dateTime(cred.validFrom), until = cred.validUntil === undefined ? undefined : dateTime(cred.validUntil)
+  step('validFrom', !!from && until !== null && (until === undefined || until.ms >= from.ms),
+    `validFrom (and validUntil, if present) must be RFC 3339 date-times with a valid calendar date and time, validUntil not before validFrom`)
+  if (from && /Z$/.test(cred.validFrom) && !calOK(cred.validFrom)) notes.push('validFrom carries more than three fractional digits, outside the RLTP timestamp profile; not a DTG requirement')
 
   step('subject', isObj(cred.credentialSubject) && typeof cred.credentialSubject.id === 'string' && DID.test(cred.credentialSubject.id),
     'credentialSubject.id must be a DID string')
@@ -160,10 +188,18 @@ export function checkVrc (cred) {
   // proofValue; a proof @context must be a prefix of the document's
   const { proof: _p, ...unsecured } = cred
   const { proofValue, ...cfg } = proof
-  const ctxPrefix = cfg['@context'] === undefined || (Array.isArray(cfg['@context']) && Array.isArray(ctx) && cfg['@context'].every((c, i) => jcs(c) === jcs(ctx[i])))
-  const hashData = Buffer.concat([sha(Buffer.from(jcs(cfg), 'utf8')), sha(Buffer.from(jcs(unsecured), 'utf8'))])
-  step('proof-signature', ctxPrefix && verifySig(key.raw, hashData, proofValue),
-    ctxPrefix ? 'Ed25519 signature over the eddsa-jcs-2022 hash data does not verify' : 'proof @context is not a prefix of the document @context')
+  const pctx = cfg['@context']
+  const ctxPrefix = pctx === undefined || (Array.isArray(pctx) && Array.isArray(ctx) && pctx.length <= ctx.length && pctx.every((c, i) => sameJson(c, ctx[i])))
+  let sigOk = false, detail = 'proof @context is not a prefix of the document @context'
+  if (ctxPrefix) {
+    // canonicalization errors are this credential's failure, never the batch's
+    try {
+      const hashData = Buffer.concat([sha(Buffer.from(jcs(cfg), 'utf8')), sha(Buffer.from(jcs(unsecured), 'utf8'))])
+      sigOk = verifySig(key.raw, hashData, proofValue)
+      detail = 'Ed25519 signature over the eddsa-jcs-2022 hash data does not verify'
+    } catch (e) { detail = `cannot canonicalize the credential for eddsa-jcs-2022: ${e.message}` }
+  }
+  step('proof-signature', ctxPrefix && sigOk, detail)
   return { ok: failures.length === 0, failures, passed, notes }
 }
 
@@ -189,7 +225,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const found = collect(data)
     const creds = found.length ? found : [data]
     creds.forEach((c, i) => {
-      const r = checkVrc(c)
+      let r
+      try { r = checkVrc(c) } catch (e) { r = { ok: false, failures: [{ check: 'form', detail: `the check could not complete: ${e.message}` }], notes: [] } }
       const label = `${f}${creds.length > 1 ? `[${i}]` : ''} (${c?.issuer ?? '?'})`
       if (r.ok) console.log(`  ok    ${label}: plain DTG RelationshipCredential, issuerScope ${c.issuerScope}, eddsa-jcs-2022 proof verifies`)
       else { bad++; for (const x of r.failures) console.error(`  FAIL  ${label}: ${x.check} — ${x.detail}`) }

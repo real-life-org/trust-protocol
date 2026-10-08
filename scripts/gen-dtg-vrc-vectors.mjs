@@ -12,7 +12,8 @@
 // a re-run reproduces the file byte for byte.
 //
 // Each negative is signed after its defect is introduced (except where
-// the defect IS the signature), so it fails at exactly one check.
+// the defect IS the signature or its proof configuration), so it fails at
+// exactly one check.
 //
 //   usage: node scripts/gen-dtg-vrc-vectors.mjs [--check]
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -66,12 +67,16 @@ const positive = [
     notes: ['issuerScope directed: permitted for a VRC, pairwise is RECOMMENDED'] },
 ]
 const tampered = sign(vrc(), issuer.ed, vm2); tampered.credentialSubject = { id: other.did }
+const longProofCtx = sign(vrc(), issuer.ed, vm2); longProofCtx.proof['@context'] = [W3C, DTG, 'https://example.test/extra']
 const negative = [
   { name: 'issuerScope-absent', failsAt: 'issuerScope', credential: sign(without(vrc(), 'issuerScope'), issuer.ed, vm2) },
   { name: 'issuerScope-wrong-case', failsAt: 'issuerScope', credential: sign(vrc({ issuerScope: 'Pairwise' }), issuer.ed, vm2) },
   { name: 'context-wd01-iri', failsAt: 'context', credential: sign(vrc({ '@context': [W3C, 'https://firstperson.network/credentials/dtg/v1'] }), issuer.ed, vm2) },
   { name: 'two-concrete-subtypes', failsAt: 'type', credential: sign(vrc({ type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'MembershipCredential'] }), issuer.ed, vm2) },
+  { name: 'validFrom-impossible-day-z', failsAt: 'validFrom', credential: sign(vrc({ validFrom: '2026-02-30T12:00:00Z' }), issuer.ed, vm2) },
+  { name: 'validFrom-impossible-day-offset', failsAt: 'validFrom', credential: sign(vrc({ validFrom: '2026-02-30T12:00:00+00:00' }), issuer.ed, vm2) },
   { name: 'subject-replaced-after-signing', failsAt: 'proof-signature', credential: tampered },
+  { name: 'proof-context-longer-than-document', failsAt: 'proof-signature', credential: longProofCtx },
   { name: 'verification-method-is-key-agreement', failsAt: 'proof-key', credential: sign(vrc(), issuer.ed, issuer.did + '#key-1') },
   { name: 'verification-method-of-another-did', failsAt: 'proof-binding', credential: sign(vrc(), other.ed, other.did + '#key-2') },
 ]
