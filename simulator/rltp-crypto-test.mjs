@@ -86,8 +86,8 @@ section('builders — WebCrypto issues, node-crypto verifies (and back)')
   const bind = await C.binding(C.CEREMONY, chA, chB)
   const cred = await C.issueCredential(A, B.anchor, C.CEREMONY, chB, bind, '2026-08-25T14:00:00Z')
   const V = makeValidator(SCHEMAS)
-  const sch = SCHEMAS['encounter-credential-0.25.schema.json']
-  check(V.validate(cred, sch, sch).length === 0, 'issued credential validates against the shipped 0.25 schema')
+  const sch = SCHEMAS['encounter-credential-0.26.schema.json']
+  check(V.validate(cred, sch, sch).length === 0, 'issued credential validates against the shipped 0.26 schema')
   check(nodeDiVerify(cred, A.anchor).ok === true, 'node-crypto lib verifies the WebCrypto signature (cross-implementation)')
   check(await C.diVerify(cred, A.anchor), 'WebCrypto verifies its own signature')
   const card = await C.signCard(A, C.cardBody(A, { name: 'A.', challenge: { value: chA, issuedAt: '2026-08-25T14:00:00Z' } }), '2026-08-25T14:00:00Z')

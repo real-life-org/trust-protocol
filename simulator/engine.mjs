@@ -1,6 +1,6 @@
 // RLTP protocol engine — the executable core of the simulator.
 //
-// Implements, faithfully to the published specs (Encounter 0.28, wire 0.25 (DTG-typed credentials),
+// Implements, faithfully to the published specs (Encounter 0.31, wire 0.26 credentials (DTG WD 0.6.0),
 // Delivery Contract 0.21): JCS, multihash digests (emit u, accept u/z),
 // did:key and Multikey encoding, eddsa-jcs-2022 proofs (W3C-true, incl. the
 // proof @context copy), the enactment binding, the sealed envelope, contact
@@ -34,6 +34,8 @@ export function base58(buf) {
   return out
 }
 import { SCHEMAS, validate } from '../conformance/lib.mjs'
+// the library's format → schema dispatch (Encounter 5.6 step 1, ENC-5480)
+import { credentialSchemaOf } from './lib/encounter.js'
 // Encounter 2.3: whole-second truncation of EVERY comparison operand (incl. now)
 export const tsec = (v) => Math.floor((typeof v === 'number' ? v : Date.parse(v)) / 1000) * 1000
 const schemaOK = (data, file) => { const s = SCHEMAS[file]; return validate(data, s, s).length === 0 }
@@ -110,7 +112,7 @@ const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
 export const CEREMONY = 'encounter-scan@0.25'
 export const CARD_VERSION = 'rltp-card/0.25'
-export const CRED_FORMAT = 'rltp-encounter-credential/0.25'
+export const CRED_FORMAT = 'rltp-encounter-credential/0.26'
 
 export function displayCard(p, now) {
   const ctx = freshPairContext(p)               // fresh-always: fresh anchor per display
@@ -197,9 +199,10 @@ export const binding = (ceremony, c1, c2) => digest(jcs({ ceremony, challenges: 
 // ── encounter credential (Encounter 7) ──────────────────────────────────
 export function issueCredential(ctx, subjectAnchor, ceremony, subjectChallenge, enactmentBinding, now) {
   const body = {
-    '@context': ['https://www.w3.org/ns/credentials/v2', 'https://firstperson.network/credentials/dtg/v1', 'https://real-life.org/rltp/v1'],
+    '@context': ['https://www.w3.org/ns/credentials/v2', 'https://registry.trustoverip.org/dtg/context/v1', 'https://real-life.org/rltp/v1'],
     type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
     issuer: ctx.anchor,
+    issuerScope: 'pairwise',
     validFrom: iso(now),
     credentialSubject: { id: subjectAnchor, format: CRED_FORMAT, ceremony, challenge: subjectChallenge, enactmentBinding },
   }
@@ -307,7 +310,7 @@ function receiveBundle(p, doc, dd, now) {
   const { card, credential } = doc.payload
   // Contract 4.1 outer/inner consistency + pre-lock checks — validate, then consume:
   if (!schemaOK(card, 'contact-card-0.25.schema.json')) return dispose(p, doc, 'failed(validation-failed: card schema)')
-  if (!schemaOK(credential, 'encounter-credential-0.25.schema.json')) return dispose(p, doc, 'failed(validation-failed: credential schema)')
+  if (!schemaOK(credential, 'encounter-credential-0.26.schema.json')) return dispose(p, doc, 'failed(validation-failed: credential schema)')
   if (!diVerify(card, card.anchor)) return dispose(p, doc, 'failed(validation-failed: card proof)')
   if (!diVerify(credential, credential.issuer)) return dispose(p, doc, 'failed(validation-failed: credential proof)')
   if (doc.issuer !== card.anchor || doc.issuer !== credential.issuer) return dispose(p, doc, 'failed(validation-failed: issuer mismatch)')
@@ -392,7 +395,7 @@ function receiveCredentialDelivery(p, doc, dd, now) {
   const cred = doc.payload.credential
   // stage 8 here is schema + outer/inner consistency ONLY — the delivery
   // effect (durable buffer + ack) must not depend on credential acceptance
-  if (!schemaOK(cred, 'encounter-credential-0.25.schema.json')) return dispose(p, doc, 'failed(validation-failed: credential schema)')
+  if (!schemaOK(cred, 'encounter-credential-0.26.schema.json')) return dispose(p, doc, 'failed(validation-failed: credential schema)')
   if (doc.issuer !== cred.issuer) return dispose(p, doc, 'failed(validation-failed: issuer mismatch)')
   if (doc.recipient !== cred.credentialSubject.id) return dispose(p, doc, 'failed(validation-failed: outer recipient is not the subject)')
   if (!p.contexts.has(cred.credentialSubject?.id)) return dispose(p, doc, 'failed(validation-failed: not about me)')
@@ -427,8 +430,10 @@ function receiveAck(p, doc, now) {
 
 // ── Encounter acceptance (5.6) ──────────────────────────────────────────
 export function tryAccept(p, credential, now) {
-  if (!schemaOK(credential, 'encounter-credential-0.25.schema.json')) return 'ERR_VERSION'
-  if (credential.credentialSubject?.format !== CRED_FORMAT) return 'ERR_VERSION'
+  // 5.6 step 1: a KNOWN format, validated against ITS schema — the current
+  // 0.26, or a held 0.25 (7.3, 12); producers and delivery stay on 0.26
+  const schema = credentialSchemaOf(credential)
+  if (schema === null || !schemaOK(credential, schema)) return 'ERR_VERSION'
   if (!diVerify(credential, credential.issuer)) return 'ERR_SIG'
   const record = p.records.get(credential.credentialSubject.challenge)
   if (!record) return 'ERR_NO_RECORD'

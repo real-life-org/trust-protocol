@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Publication checks for the RLTP specifications",
   "scripts": {
-    "validate": "node --test scripts/check-encounter-trace.test.mjs scripts/check-companion-pins.test.mjs && node scripts/check-companion-pins.mjs && node scripts/validate.mjs"
+    "validate": "node --test scripts/check-encounter-trace.test.mjs scripts/check-companion-pins.test.mjs conformance/dtg-vrc.test.mjs && node scripts/check-companion-pins.mjs && node scripts/validate.mjs"
   },
   "devDependencies": { "ajv": "^8.17.1" }
 }

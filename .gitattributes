@@ -1,0 +1,3 @@
+# The shipped DTG context is byte-frozen and pinned by its SHA-256 digest
+# (Encounter RLTP-ENC-2265); no line-ending conversion may touch it.
+contexts/dtg-v1.jsonld -text

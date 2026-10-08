@@ -1,6 +1,7 @@
 // Adversarial checks INSIDE the browser build: reach into the live Component
 // and prove the crypto blockers are closed against forged inputs.
 import { chromium } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 const CHROME = process.env.CHROME_BIN || '/usr/bin/chromium'; // override with CHROME_BIN
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 const page = await browser.newPage({ viewport: { width: 1480, height: 1100 } });
@@ -76,9 +77,9 @@ const out = await page.evaluate(async () => {
     const ctx = await C.mkCtx(C.dev.A);
     const ch1 = C.fresh(), ch2 = C.fresh();
     const bind = await C.binding(C.C1, ch1, ch2);
-    const gBody = { '@context': ['https://www.w3.org/ns/credentials/v2', 'https://firstperson.network/credentials/dtg/v1', 'https://real-life.org/rltp/v1'],
+    const gBody = { '@context': ['https://www.w3.org/ns/credentials/v2', 'https://registry.trustoverip.org/dtg/context/v1', 'https://real-life.org/rltp/v1'],
       type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
-      issuer: ctx.anchor, validFrom: C.iso(C.now(C.dev.A)),
+      issuer: ctx.anchor, issuerScope: 'pairwise', validFrom: C.iso(C.now(C.dev.A)),
       credentialSubject: { id: A.card.anchor, format: C.CREDF, ceremony: C.C1, challenge: ch2, enactmentBinding: bind, channel: 'in-person' } };
     const good = { ...gBody, proof: await C.sign(C.dev.A, ctx, gBody) };
     if (good) {
@@ -98,6 +99,33 @@ const out = await page.evaluate(async () => {
   return r;
 });
 
+// F17: 5.6 step 1 picks the schema BY THE FORMAT the credential names
+// (ENC-5480, 7.3, 12) — a held 0.25 credential is re-read under ITS schema
+// on a device that holds its record and the credential itself
+const EC = JSON.parse(readFileSync(new URL('../vectors/encounter-cards.json', import.meta.url), 'utf8'));
+const held = await page.evaluate(async ({ c26, c25 }) => {
+  let C = null;
+  for (const el of document.querySelectorAll('*')) {
+    for (const k in el) if (k.startsWith('__reactFiber$')) {
+      for (let f = el[k]; f && !C; f = f.return) {
+        const sn = f.stateNode, ok = (o) => o && typeof o.accept56 === 'function' && o.dev && o.dev.A;
+        if (sn && ok(sn.logic)) C = sn.logic; else if (ok(sn)) C = sn;
+      }
+    }
+    if (C) break;
+  }
+  if (!C) return { error: 'no Component instance found' };
+  const reread = async (cred) => {
+    const cs = cred.credentialSubject;
+    const dev = { records: [{ ownChallenge: cs.challenge, ownCtx: { anchor: cs.id }, counterparty: cred.issuer, ceremony: cs.ceremony, ownChallengeIssuedAt: cred.validFrom, enactmentBinding: cs.enactmentBinding }],
+      received: [{ credential: cred, digest: await C.mdigest(cred), direction: 'incoming', issuer: cred.issuer }] };
+    return (await C.accept56(dev, cred)).code;
+  };
+  const relabel = JSON.parse(JSON.stringify(c26)); relabel.credentialSubject.format = 'rltp-encounter-credential/0.25';
+  const unknown = JSON.parse(JSON.stringify(c25)); unknown.credentialSubject.format = 'rltp-encounter-credential/0.24';
+  return { r26: await reread(c26), r25: await reread(c25), relabel: await reread(relabel), unknown: await reread(unknown) };
+}, { c26: EC.credential, c25: EC.credential025 });
+
 let fails = 0;
 const check = (c, m) => { console.log((c ? '✓ ' : '✗ FAIL ') + m); if (!c) fails++; };
 if (out.error) { console.log('SETUP FAIL:', out.error); process.exit(1); }
@@ -113,6 +141,11 @@ check(out.goodPassesGate === true, 'F16: echtes Credential passiert das Schema-G
 check(out.retypedRejected === true, 'F16: umgetyptes Credential → ERR_VERSION (schema) (' + out.retypedRejected + ')');
 check(out.noCtxRejected === true, 'F16: Credential ohne @context → ERR_VERSION (schema) (' + out.noCtxRejected + ')');
 check(out.failClosed === true, 'F16: Gate fail-closed ohne Validator (' + out.failClosed + ')');
+if (held.error) { console.log('SETUP FAIL:', held.error); process.exit(1); }
+check(held.r26 === 'idempotent (same digest)', 'F17: gehaltenes 0.26-Credential wiedergelesen ⇒ idempotent (' + held.r26 + ')');
+check(held.r25 === 'idempotent (same digest)', 'F17: gehaltenes 0.25-Credential unter dem 0.25-Schema wiedergelesen ⇒ idempotent (' + held.r25 + ')');
+check(held.relabel === 'ERR_VERSION (schema)', 'F17: 0.26-Körper mit 0.25-Formatangabe ⇒ ERR_VERSION (schema) (' + held.relabel + ')');
+check(held.unknown === 'ERR_VERSION', 'F17: unbekanntes Format ⇒ ERR_VERSION (' + held.unknown + ')');
 console.log(fails ? `\n${fails} FAILED` : '\nALLE UI-ADVERSARIAL-CHECKS BESTANDEN');
 await browser.close();
 process.exit(fails ? 1 : 0);

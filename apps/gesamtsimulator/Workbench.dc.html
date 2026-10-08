@@ -2003,8 +2003,8 @@ class Component extends DCLogic {
     const cards = active.filter((c) => c.card).map((c) => c.card);
     const disclosed = active.filter((c) => c.selfAnchor).map((c) => ({ counterpart: c.card && c.card.anchor, selfAnchor: c.selfAnchor, name: c.name }));
     const groups = [...p.groups.values()];
-    if (issued.length) cats.push(['encounter-credential/0.25 · issued', 'your step credentials, one per enactment', issued]);
-    if (received.length) cats.push(['encounter-credential/0.25 · received', 'their step credentials, accepted under 5.6', received]);
+    if (issued.length) cats.push(['encounter-credential/0.26 · issued', 'your step credentials, one per enactment', issued]);
+    if (received.length) cats.push(['encounter-credential/0.26 · received', 'their step credentials, accepted under 5.6', received]);
     if (cards.length) cats.push(['contact-card/0.25', 'their cards as received, bound to the record', cards]);
     if (disclosed.length) cats.push(['anchor-mapping@3 · received', 'stable identities disclosed to you (designated verifier)', disclosed]);
     if (groups.length) cats.push(['membership', 'genesis + roster · member anchors, never names on the wire', groups.map((g) => ({ label: g.label, genesisDigest: g.genesisDigest, role: g.role, myMemberAnchor: g.myMemberCtx && g.myMemberCtx.anchor, roster: [...g.roster.entries()].map(([anchor, m]) => ({ anchor, name: m.name, addedAt: m.addedAt, founder: !!m.founder })) }))]);

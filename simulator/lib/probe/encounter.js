@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // encounter — the ceremony's TRANSMISSION on the normative forms:
-// Encounter 0.30 (wire 0.25: rltp-card/0.25 · encounter-scan@0.25)
+// Encounter 0.31 (rltp-card/0.25 · rltp-encounter-credential/0.26 · encounter-scan@0.25)
 // carried by Delivery 0.79 — encounter-bundle/0.1 (§4.1),
 // encounter-credential-delivery/0.1 (§4.3), acknowledged with the
 // SIGNED delivery-ack/0.1 (§4.2/4.4 class rule: signature-class payloads
@@ -571,11 +571,13 @@ function reAck(p, digest) {
     return { handled: true, duplicate: true };
 }
 // ── the credential checks, in normative order ───────────────────────────
-// 5.6 step 1 — FORMAT: schema, format, ceremony AND version KNOWN
-// (registered: encounter-scan@0.25 only), calendar-valid timestamps,
-// digest parsed as a multihash, keys decode (2.3) — else ERR_VERSION
+// 5.6 step 1 — FORMAT: a KNOWN format validated against ITS schema (0.26,
+// or a held 0.25 — 7.3, 12), ceremony AND version KNOWN (registered:
+// encounter-scan@0.25 only), calendar-valid timestamps, digest parsed as a
+// multihash, keys decode (2.3) — else ERR_VERSION
 function credFormat(cred, ceremonyHere = true) {
-    if (!schemaOk('encounter-credential-0.25.schema.json', cred) || cred.credentialSubject?.format !== C.CRED_FORMAT)
+    const schema = C.credentialSchemaOf(cred);
+    if (schema === null || !schemaOk(schema, cred))
         return 'ERR_VERSION';
     // 5.6 step 1 knows the ceremony here; Delivery 4.1 places the ceremony
     // equality at its step 5 (after card proof, credential proof, addressee)

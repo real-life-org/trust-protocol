@@ -3,6 +3,7 @@
 // FRESH-ALWAYS pair contexts (0.24 wire): attackers sign correctly under
 // their OWN fresh contexts; what stops them is binding, never formatting.
 import * as E from './engine.mjs';
+import { readFileSync } from 'node:fs';
 
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 let now = Date.parse('2026-08-11T09:00:00Z');
@@ -88,6 +89,26 @@ assert(rExpires.disposition === 'failed(malformed)', 'F7: verbotenes expiresAt �
 // two enactments of the same person never share an anchor
 const cardA2 = E.displayCard(alice, now);
 assert(cardA.anchor !== cardA2.anchor, 'F14+: fresh-always — zwei Displays, zwei verschiedene pair-Anker');
+
+// F17 — Encounter 5.6 step 1 picks the schema BY THE FORMAT the credential
+// names (ENC-5480, 7.3, 12): a held 0.25 credential is re-read under the
+// 0.25 schema, not rejected as ERR_VERSION; an unknown format still is
+{
+  const EC = JSON.parse(readFileSync(new URL('../vectors/encounter-cards.json', import.meta.url), 'utf8'));
+  const reread = (cred) => {
+    const p = E.createPerson('Holder'), cs = cred.credentialSubject;
+    p.records.set(cs.challenge, { ceremony: cs.ceremony, counterparty: cred.issuer, own: { value: cs.challenge, issuedAt: cred.validFrom }, ownCtx: { anchor: cs.id }, binding: cs.enactmentBinding, time: Date.parse(cred.validFrom) });
+    p.edges.set(cred.issuer, { issued: [], received: [cred] });
+    return E.tryAccept(p, cred, Date.parse(cred.validFrom));
+  };
+  const r26 = reread(EC.credential), r25 = reread(EC.credential025);
+  assert(r26 === 'idempotent', 'F17: gehaltenes 0.26-Credential wiedergelesen ⇒ idempotent (' + r26 + ')');
+  assert(r25 === 'idempotent', 'F17: gehaltenes 0.25-Credential unter dem 0.25-Schema wiedergelesen ⇒ idempotent (' + r25 + ')');
+  const relabel = structuredClone(EC.credential); relabel.credentialSubject.format = 'rltp-encounter-credential/0.25';
+  assert(reread(relabel) === 'ERR_VERSION', 'F17: 0.26-Körper mit 0.25-Formatangabe ⇒ ERR_VERSION');
+  const unknown = structuredClone(EC.credential025); unknown.credentialSubject.format = 'rltp-encounter-credential/0.24';
+  assert(reread(unknown) === 'ERR_VERSION', 'F17: unbekanntes Format ⇒ ERR_VERSION');
+}
 
 console.log(fails ? `\n${fails} FAILED` : '\nALLE ADVERSARIAL-CHECKS BESTANDEN');
 process.exit(fails ? 1 : 0);
