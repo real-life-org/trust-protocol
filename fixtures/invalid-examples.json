@@ -6,7 +6,7 @@
       "document": {
         "@context": [
           "https://www.w3.org/ns/credentials/v2",
-          "https://firstperson.network/credentials/dtg/v1",
+          "https://registry.trustoverip.org/dtg/context/v1",
           "https://real-life.org/rltp/v1"
         ],
         "type": [
@@ -16,10 +16,11 @@
           "EncounterCredential"
         ],
         "issuer": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+        "issuerScope": "pairwise",
         "validFrom": "2026-08-23T12:00:00Z",
         "credentialSubject": {
           "id": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
-          "format": "rltp-encounter-credential/0.25",
+          "format": "rltp-encounter-credential/0.26",
           "ceremony": "encounter-scan@0.25",
           "challenge": "ujNsvrcZr0q9FERd0jSZaSb_Q2bYlcLquTMuuI7BfjP0",
           "enactmentBinding": "uEiCjr5L0z726fbvDwPpVdj0ozRCbw2ZHVfXL1PFjhCemZQ"
@@ -30,10 +31,10 @@
           "created": "2026-08-23T12:00:00Z",
           "verificationMethod": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J#z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
           "proofPurpose": "assertionMethod",
-          "proofValue": "z3Gf8AdeQMbsUxT6GDKdSQbCdEjXeLXC3b4Y3sDPwuu7uXjX1j5ELW2bdKJP5eCvnUpaY5bCXMZwj5TDUVp5xHFg7",
+          "proofValue": "z3QQ1z3aUqVqgCtJC8Juopy2y1m448kHHks6ru6AmwHrHakEuWeF4hq6G9rHpdaERUnKpQpPaeT8mM5cQ4ieQM3L8",
           "@context": [
             "https://www.w3.org/ns/credentials/v2",
-            "https://firstperson.network/credentials/dtg/v1",
+            "https://registry.trustoverip.org/dtg/context/v1",
             "https://real-life.org/rltp/v1"
           ]
         }

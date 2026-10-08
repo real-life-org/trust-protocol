@@ -208,15 +208,16 @@ export type EncounterCredential025 = {
   }
 }
 
-/** schemas/encounter-credential.schema.json — RLTP Encounter Credential (rltp-encounter@0.30) — mobile $id, carried by the unversioned resource */
-export type EncounterCredential = {
-  "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
+/** schemas/encounter-credential-0.26.schema.json — RLTP Encounter Credential (rltp-encounter@0.31) */
+export type EncounterCredential026 = {
+  "@context": ["https://www.w3.org/ns/credentials/v2", "https://registry.trustoverip.org/dtg/context/v1", "https://real-life.org/rltp/v1"]
   type: (Json[])
   issuer: string
+  issuerScope: "pairwise"
   validFrom: string
   credentialSubject: {
     id: string
-    format: "rltp-encounter-credential/0.25"
+    format: "rltp-encounter-credential/0.26"
     ceremony: string
     challenge: string
     enactmentBinding: string
@@ -233,7 +234,37 @@ export type EncounterCredential = {
     verificationMethod: string
     proofPurpose: "assertionMethod"
     proofValue: string
-    "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
+    "@context": ["https://www.w3.org/ns/credentials/v2", "https://registry.trustoverip.org/dtg/context/v1", "https://real-life.org/rltp/v1"]
+  }
+}
+
+/** schemas/encounter-credential.schema.json — RLTP Encounter Credential (rltp-encounter@0.31) — mobile $id, carried by the unversioned resource */
+export type EncounterCredential = {
+  "@context": ["https://www.w3.org/ns/credentials/v2", "https://registry.trustoverip.org/dtg/context/v1", "https://real-life.org/rltp/v1"]
+  type: (Json[])
+  issuer: string
+  issuerScope: "pairwise"
+  validFrom: string
+  credentialSubject: {
+    id: string
+    format: "rltp-encounter-credential/0.26"
+    ceremony: string
+    challenge: string
+    enactmentBinding: string
+    channel?: string
+    commitment?: {
+      suite: string
+      value: string
+    }
+  }
+  proof: {
+    type: "DataIntegrityProof"
+    cryptosuite: "eddsa-jcs-2022"
+    created: string
+    verificationMethod: string
+    proofPurpose: "assertionMethod"
+    proofValue: string
+    "@context": ["https://www.w3.org/ns/credentials/v2", "https://registry.trustoverip.org/dtg/context/v1", "https://real-life.org/rltp/v1"]
   }
 }
 

@@ -11,6 +11,7 @@ Normative JSON Schemas for every wire artifact. Each spec names the schema it bi
 - [`contact-card-0.25.schema.json`](contact-card-0.25.schema.json)
 - [`contact-card.schema.json`](contact-card.schema.json)
 - [`encounter-credential-0.25.schema.json`](encounter-credential-0.25.schema.json)
+- [`encounter-credential-0.26.schema.json`](encounter-credential-0.26.schema.json)
 - [`encounter-credential.schema.json`](encounter-credential.schema.json)
 - [`payload-access-operation.schema.json`](payload-access-operation.schema.json)
 - [`payload-delivery-ack.schema.json`](payload-delivery-ack.schema.json)
