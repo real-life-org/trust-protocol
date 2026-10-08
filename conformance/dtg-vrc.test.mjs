@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { checkVrc, dateTime } from './dtg-vrc.mjs'
+import { checkVrc, dateTime, cmpInstant } from './dtg-vrc.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const F = JSON.parse(readFileSync(join(HERE, '../vectors/dtg-vrc-foreign.json'), 'utf8'))
@@ -15,7 +15,8 @@ const positive = (name) => structuredClone(F.positive.find((p) => p.name === nam
 
 test('dateTime: RFC 3339 date-times with offsets and any fraction', () => {
   for (const t of ['2026-10-08T12:00:00Z', '2026-10-08T12:00:00+00:00', '2026-10-08T23:59:59-05:30', '2028-02-29T00:00:00Z',
-    '2000-02-29T00:00:00Z', '2026-10-08T12:00:00.123456789Z', '2026-12-31T23:59:60Z']) assert.ok(dateTime(t), t)
+    '2000-02-29T00:00:00Z', '2026-10-08T12:00:00.123456789Z', '2016-12-31T23:59:60Z', '2016-12-31T15:59:60-08:00',
+    '2017-01-01T05:29:60+05:30']) assert.ok(dateTime(t), t)
 })
 
 test('dateTime: calendar-impossible or out-of-range components are rejected', () => {
@@ -25,9 +26,23 @@ test('dateTime: calendar-impossible or out-of-range components are rejected', ()
     '2026-10-08T12:00:00', '2026-10-08 12:00:00Z', 20261008, undefined]) assert.equal(dateTime(t), null, String(t))
 })
 
-test('dateTime: the instant honours the offset', () => {
-  assert.ok(dateTime('2026-10-08T12:00:00+02:00').ms < dateTime('2026-10-08T11:00:00Z').ms)
-  assert.ok(dateTime('2026-10-08T12:00:00.0001Z').ms > dateTime('2026-10-08T12:00:00Z').ms)
+test('dateTime: second 60 only where it is 23:59:60 in UTC after the offset (RFC 3339 §5.7)', () => {
+  for (const t of ['2026-10-08T12:00:60Z', '2016-12-31T23:58:60Z', '2016-12-31T22:59:60Z', '2016-12-31T23:59:60+01:00',
+    '2016-12-31T15:59:60-07:00']) assert.equal(dateTime(t), null, t)
+})
+
+test('dateTime: the instant honours the offset, the leap second and any fraction exactly', () => {
+  const lt = (a, b) => assert.ok(cmpInstant(dateTime(a), dateTime(b)) < 0, `${a} < ${b}`)
+  const eq = (a, b) => assert.equal(cmpInstant(dateTime(a), dateTime(b)), 0, `${a} = ${b}`)
+  lt('2026-10-08T12:00:00+02:00', '2026-10-08T11:00:00Z')
+  lt('2026-10-08T12:00:00Z', '2026-10-08T12:00:00.0001Z')
+  lt('2026-10-08T12:00:00.000000001Z', '2026-10-08T12:00:00.000000002Z')
+  lt('2016-12-31T23:59:59.999999999Z', '2016-12-31T23:59:60Z')
+  lt('2016-12-31T23:59:60.999999999Z', '2017-01-01T00:00:00Z')
+  lt('2016-12-31T15:59:60-08:00', '2017-01-01T00:00:00Z')
+  eq('2016-12-31T23:59:60Z', '2016-12-31T15:59:60-08:00')
+  eq('2026-10-08T12:00:00.5Z', '2026-10-08T12:00:00.500Z')
+  eq('2026-10-08T12:00:00Z', '2026-10-08T14:00:00.000+02:00')
 })
 
 test('checkVrc: an impossible validFrom day fails at validFrom, with Z and with an offset', () => {
@@ -43,6 +58,32 @@ test('checkVrc: an impossible validFrom day fails at validFrom, with Z and with 
 test('checkVrc: an impossible validUntil day fails at validFrom', () => {
   const c = positive('did-key-issuer-directed'); c.validUntil = '2027-02-29T00:00:00Z'
   assert.ok(checkVrc(c).failures.some((f) => f.check === 'validFrom'))
+})
+
+test('checkVrc: impossible leap seconds and reversed windows fail at validFrom (#64)', () => {
+  for (const [from, until] of [['2026-10-08T12:00:60Z'], ['2017-01-01T00:00:00Z', '2016-12-31T23:59:60Z'],
+    ['2026-10-08T12:00:00.000000002Z', '2026-10-08T12:00:00.000000001Z']]) {
+    const c = positive('did-key-issuer-directed'); c.validFrom = from
+    if (until) c.validUntil = until
+    const r = checkVrc(c)
+    assert.ok(r.failures.some((f) => f.check === 'validFrom') && !r.passed.includes('validFrom'), `${from} / ${until}`)
+    if (!from.includes('.')) assert.ok(!r.notes.some((n) => /fractional digits/.test(n)), `${from}: no fractional-digit note`)
+  }
+})
+
+test('checkVrc: the signed #64 negatives fail at validFrom alone', () => {
+  for (const n of ['validFrom-leap-second-not-end-of-utc-day', 'validUntil-in-leap-second-before-validFrom', 'validUntil-before-validFrom-by-a-nanosecond']) {
+    const v = F.negative.find((x) => x.name === n)
+    assert.ok(v, n)
+    assert.deepEqual(checkVrc(v.credential).failures.map((f) => f.check), ['validFrom'], n)
+  }
+})
+
+test('checkVrc: a real leap second and a window ending in it pass', () => {
+  const c = positive('did-key-issuer-directed'); c.validFrom = '2016-12-31T23:59:59Z'; c.validUntil = '2016-12-31T23:59:60Z'
+  const r = checkVrc(c)
+  assert.ok(r.passed.includes('validFrom'))
+  assert.ok(!r.notes.some((n) => /fractional digits/.test(n)))
 })
 
 test('checkVrc: more than three fractional digits is a note (RLTP profile), not a failure', () => {

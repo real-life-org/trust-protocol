@@ -15,7 +15,8 @@
 //                    case-sensitive (Base Structure: a verifier MUST
 //                    reject absence or another value)
 //   validFrom        an RFC 3339 date-time on a real calendar date, in-range
-//                    time and offset; validUntil, if present, too
+//                    time and offset, second 60 only at 23:59:60 UTC;
+//                    validUntil, if present, too, and not before validFrom
 //   subject          credentialSubject.id is a DID string
 //   proof-form       DataIntegrityProof, cryptosuite eddsa-jcs-2022 (the
 //                    only suite this tool verifies), proofValue present
@@ -43,7 +44,7 @@
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import crypto from 'node:crypto'
-import { b58, fromB58, jcs, sha, calOK, EDS, pubFromRaw } from './lib.mjs'
+import { b58, fromB58, jcs, sha, EDS, pubFromRaw } from './lib.mjs'
 
 export const W3C_V2 = 'https://www.w3.org/ns/credentials/v2'
 export const DTG_V1 = 'https://registry.trustoverip.org/dtg/context/v1'
@@ -117,9 +118,15 @@ const sameJson = (a, b) => { try { return jcs(a) === jcs(b) } catch { return fal
 // RFC 3339 date-time (upper-case T and Z, any fraction, offset or Z), held
 // to a real calendar date and in-range time and offset — Date.parse
 // silently normalizes 2026-02-30 to 2026-03-02, so components are checked
-// here, not round-tripped through it. Second 60 (leap second) is allowed by
-// RFC 3339. Returns { ms } (the instant, fraction included) or null.
-const DT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?(Z|([+-])([0-9]{2}):([0-9]{2}))$/
+// here, not round-tripped through it. Second 60 is accepted only where it
+// is 23:59:60 in UTC once the offset is applied (RFC 3339 §5.7: a leap
+// second is inserted at the end of a UTC day). The tool holds no leap-second
+// table, so it accepts 23:59:60Z on any day — a deliberate approximation.
+// Returns the instant as { min, s, frac } or null: min the epoch ms of the
+// UTC minute, s its second (0–60), frac the fraction digits without
+// trailing zeros. Compare instants with cmpInstant, never as one Number:
+// second 60 belongs to its own minute and fractions of any length stay exact.
+const DT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?(Z|([+-])([0-9]{2}):([0-9]{2}))$/
 export function dateTime (v) {
   const m = typeof v === 'string' && DT.exec(v)
   if (!m) return null
@@ -135,8 +142,18 @@ export function dateTime (v) {
   }
   const d = new Date(0)
   d.setUTCFullYear(Y, M - 1, D) // not Date.UTC: it maps years 0–99 to 1900–1999
-  d.setUTCHours(h, mi - off, s)
-  return { ms: d.getTime() + (m[7] ? Number('0' + m[7]) * 1000 : 0) }
+  d.setUTCHours(h, mi - off, 0, 0)
+  if (s === 60 && (d.getUTCHours() !== 23 || d.getUTCMinutes() !== 59)) return null
+  return { min: d.getTime(), s, frac: (m[7] ?? '').replace(/0+$/, '') }
+}
+
+// order of two dateTime instants: negative, 0 or positive
+export function cmpInstant (a, b) {
+  if (a.min !== b.min) return a.min - b.min
+  if (a.s !== b.s) return a.s - b.s
+  const n = Math.max(a.frac.length, b.frac.length)
+  const fa = a.frac.padEnd(n, '0'), fb = b.frac.padEnd(n, '0')
+  return fa < fb ? -1 : fa > fb ? 1 : 0
 }
 
 /** Check a foreign DTG RelationshipCredential. Returns { ok, failures: [{ check, detail }], passed: [check], notes: [string] }. */
@@ -165,9 +182,9 @@ export function checkVrc (cred) {
   if (cred.issuerScope && cred.issuerScope !== 'pairwise' && SCOPES.includes(cred.issuerScope)) notes.push(`issuerScope ${cred.issuerScope}: permitted for a VRC, pairwise is RECOMMENDED`)
 
   const from = dateTime(cred.validFrom), until = cred.validUntil === undefined ? undefined : dateTime(cred.validUntil)
-  step('validFrom', !!from && until !== null && (until === undefined || until.ms >= from.ms),
+  step('validFrom', !!from && until !== null && (until === undefined || cmpInstant(until, from) >= 0),
     `validFrom (and validUntil, if present) must be RFC 3339 date-times with a valid calendar date and time, validUntil not before validFrom`)
-  if (from && /Z$/.test(cred.validFrom) && !calOK(cred.validFrom)) notes.push('validFrom carries more than three fractional digits, outside the RLTP timestamp profile; not a DTG requirement')
+  if (from && /Z$/.test(cred.validFrom) && /\.[0-9]{4,}Z$/.test(cred.validFrom)) notes.push('validFrom carries more than three fractional digits, outside the RLTP timestamp profile; not a DTG requirement')
 
   step('subject', isObj(cred.credentialSubject) && typeof cred.credentialSubject.id === 'string' && DID.test(cred.credentialSubject.id),
     'credentialSubject.id must be a DID string')

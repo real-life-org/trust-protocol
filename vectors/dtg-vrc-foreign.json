@@ -280,6 +280,107 @@
       }
     },
     {
+      "name": "validFrom-leap-second-not-end-of-utc-day",
+      "failsAt": "validFrom",
+      "credential": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://registry.trustoverip.org/dtg/context/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential"
+        ],
+        "issuer": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5",
+        "issuerScope": "pairwise",
+        "validFrom": "2026-10-08T12:00:60Z",
+        "credentialSubject": {
+          "id": "did:peer:2.Ez6LSrQPf3hgyMFddHBcWcLQjbeKnnA7yNmDMGti1n1aGRUj8.Vz6MktAmSf8CaMHXdkJQeS3U9NdQSLHyrqMuxoUG9yjGiELEB"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-10-08T12:00:00Z",
+          "verificationMethod": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5#key-2",
+          "proofPurpose": "assertionMethod",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://registry.trustoverip.org/dtg/context/v1"
+          ],
+          "proofValue": "z33W34Ug7fyTP9G3HqcQo858wERhmFCXPAByQYp5d5WVng2PWQguC3qYuV3bW6GhedAgJkyddK5QG4LAP5QprjMx8"
+        }
+      }
+    },
+    {
+      "name": "validUntil-in-leap-second-before-validFrom",
+      "failsAt": "validFrom",
+      "credential": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://registry.trustoverip.org/dtg/context/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential"
+        ],
+        "issuer": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5",
+        "issuerScope": "pairwise",
+        "validFrom": "2017-01-01T00:00:00Z",
+        "credentialSubject": {
+          "id": "did:peer:2.Ez6LSrQPf3hgyMFddHBcWcLQjbeKnnA7yNmDMGti1n1aGRUj8.Vz6MktAmSf8CaMHXdkJQeS3U9NdQSLHyrqMuxoUG9yjGiELEB"
+        },
+        "validUntil": "2016-12-31T23:59:60Z",
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-10-08T12:00:00Z",
+          "verificationMethod": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5#key-2",
+          "proofPurpose": "assertionMethod",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://registry.trustoverip.org/dtg/context/v1"
+          ],
+          "proofValue": "znYanWhocTkJSXrfpUTaLLLqY9J7DD6qaFgybjUqyk2YShwpFLqiiBeJcg1Ri6ZZo7uLocuXQarvT8ShwqkAa2i2"
+        }
+      }
+    },
+    {
+      "name": "validUntil-before-validFrom-by-a-nanosecond",
+      "failsAt": "validFrom",
+      "credential": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://registry.trustoverip.org/dtg/context/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential"
+        ],
+        "issuer": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5",
+        "issuerScope": "pairwise",
+        "validFrom": "2026-10-08T12:00:00.000000002Z",
+        "credentialSubject": {
+          "id": "did:peer:2.Ez6LSrQPf3hgyMFddHBcWcLQjbeKnnA7yNmDMGti1n1aGRUj8.Vz6MktAmSf8CaMHXdkJQeS3U9NdQSLHyrqMuxoUG9yjGiELEB"
+        },
+        "validUntil": "2026-10-08T12:00:00.000000001Z",
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-10-08T12:00:00Z",
+          "verificationMethod": "did:peer:2.Ez6LScTcd5w4KqD1Vtn7hfAsseMhb7wZw273BzyaH2L1yw2uB.Vz6MkhHgXh9gKJEA34c5KJzFtpJY1WwU4VwSnhWPddPMPikN5#key-2",
+          "proofPurpose": "assertionMethod",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://registry.trustoverip.org/dtg/context/v1"
+          ],
+          "proofValue": "z5becECF9tGNB5dZNtEion4ExxmLfUdejYZUCNVDaiHLp4podSL5Uhzkfpkc4GuS7NZyCiN8Q7pos22Rp6Y63y4BH"
+        }
+      }
+    },
+    {
       "name": "subject-replaced-after-signing",
       "failsAt": "proof-signature",
       "credential": {
