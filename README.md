@@ -117,9 +117,9 @@ document is fully **recast — never patched**. A layer counts as
 converged when consecutive review rounds produce no blocker-level
 findings.
 
-**Converged:** Encounter 0.30 · Identity 0.51 · Access Layer 0.55 ·
-Delivery Contract 0.79 · Membership Tasks 0.17 · Replication Contract
-0.26 · Network Visibility 0.29 · Personhood Predicates 0.12.
+**Converged:** Encounter 0.30 · Identity 0.52 · Access Layer 0.56 ·
+Delivery Contract 0.80 · Membership Tasks 0.18 · Replication Contract
+0.26 · Network Visibility 0.30 · Personhood Predicates 0.12.
 Succession 0.2 is parked; the Data layer is not published here yet.
 
 Two things are worth knowing about how this state was reached. The
