@@ -25,7 +25,7 @@
 // identity, Access 5.2) and `keyOpDigest` (the adapter's key-operation
 // digest, Access 9.2) — the runner marks them [not-proven].
 //
-//   usage: node scripts/gen-membership-tasks-vector.mjs
+//   usage: node scripts/gen-membership-tasks-vector.mjs [--check]
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -34,6 +34,7 @@ import { jcs, sha, hkdf, digestU, privEd, privX, pubRaw, xRawOfMk, pubFromRaw, X
 import { splitRules } from '../conformance/membership-partial.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CHECK = process.argv.includes('--check')
 const J = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'))
 const ID = J('vectors/identity-derivation.json')
 const DTG = J('vectors/dtg-credentials.json')
@@ -456,5 +457,12 @@ const vector = {
   reWelcomeNegatives,
   evidenceDocumentNegatives,
 }
-writeFileSync(join(ROOT, 'vectors/membership-tasks.json'), JSON.stringify(vector, null, 1) + '\n')
-console.log(`vectors/membership-tasks.json written; genesis ${genesisDigest}, operation ${operation.id}`)
+const text = JSON.stringify(vector, null, 1) + '\n'
+const path = join(ROOT, 'vectors/membership-tasks.json')
+if (CHECK) {
+  if (readFileSync(path, 'utf8') !== text) { console.error('vectors/membership-tasks.json is not what the generator produces'); process.exit(1) }
+  console.log('vectors/membership-tasks.json reproduces byte for byte')
+} else {
+  writeFileSync(path, text)
+  console.log(`vectors/membership-tasks.json written; genesis ${genesisDigest}, operation ${operation.id}`)
+}

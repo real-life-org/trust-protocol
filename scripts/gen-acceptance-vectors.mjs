@@ -16,13 +16,16 @@
 //
 // Deterministic: every key seed is sha256 of a fixed label. Re-running
 // this script reproduces the vector file byte-for-byte.
-import { writeFileSync } from 'node:fs'
+//
+//   usage: node scripts/gen-acceptance-vectors.mjs [--check]
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
 import { jcs, digestU, didOf, privEd, b58 } from '../conformance/lib.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CHECK = process.argv.includes('--check')
 const seed = (label) => crypto.createHash('sha256').update(`rltp/vector/acceptance/${label}`).digest()
 const sign = (s, bytes) => 'z' + b58(crypto.sign(null, bytes, privEd(s)))
 
@@ -141,9 +144,16 @@ const vector = {
   ],
 }
 
-writeFileSync(join(ROOT, 'vectors', 'acceptance-anchoring.json'), JSON.stringify(vector, null, 1) + '\n')
-console.log('vectors/acceptance-anchoring.json written:',
-  Object.keys(vector.registrations).length, 'registrations,',
-  vector.anchorCases.length, 'anchor cases,',
-  vector.casCases.length, 'CAS cases,',
-  vector.negative.length, 'negatives')
+const text = JSON.stringify(vector, null, 1) + '\n'
+const path = join(ROOT, 'vectors/acceptance-anchoring.json')
+if (CHECK) {
+  if (readFileSync(path, 'utf8') !== text) { console.error('vectors/acceptance-anchoring.json is not what the generator produces'); process.exit(1) }
+  console.log('vectors/acceptance-anchoring.json reproduces byte for byte')
+} else {
+  writeFileSync(path, text)
+  console.log('vectors/acceptance-anchoring.json written:',
+    Object.keys(vector.registrations).length, 'registrations,',
+    vector.anchorCases.length, 'anchor cases,',
+    vector.casCases.length, 'CAS cases,',
+    vector.negative.length, 'negatives')
+}

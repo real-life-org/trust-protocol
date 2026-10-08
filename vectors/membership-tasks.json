@@ -1283,7 +1283,7 @@
    "schema": "payload-access-operation.schema.json",
    "set": {
     "/operation": {
-     "v": "rltp-access-removal-notice/0.24",
+     "v": "rltp-access-removal-notice/0.25",
      "type": "removal-notice",
      "group": "did:key:z6Mkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
      "genesisDigest": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",

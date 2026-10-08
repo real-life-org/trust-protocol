@@ -46,7 +46,7 @@
 // takes from its caller (AEAD nonces, filler) is an HKDF counter stream
 // under a vector-only info string, stated in the file.
 //
-//   usage: (cd lib && npm run build) && node scripts/gen-anchor-vectors.mjs
+//   usage: (cd lib && npm run build) && node scripts/gen-anchor-vectors.mjs [--check]
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -56,7 +56,13 @@ import { SCHEMAS } from '../lib/dist/schemas.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const J = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'))
-const W = (p, o) => writeFileSync(join(ROOT, p), JSON.stringify(o, null, 1) + '\n')
+const CHECK = process.argv.includes('--check')
+const drift = []
+const W = (p, o) => {
+  const text = JSON.stringify(o, null, 1) + '\n'
+  if (!CHECK) return writeFileSync(join(ROOT, p), text)
+  if (readFileSync(join(ROOT, p), 'utf8') !== text) drift.push(p)
+}
 const V = L.visibility
 const te = new TextEncoder()
 const hexOf = (u8) => Buffer.from(u8).toString('hex')
@@ -464,4 +470,8 @@ const rot23 = await V.makeAnchorRotation(g2, g3)
     cases,
   })
 }
-console.log('anchor vectors written: identity-derivation.json, visibility.json, anchor-rotation.json, group-star.json, access-anchor-rotate.json')
+const FILES = 'identity-derivation.json, visibility.json, anchor-rotation.json, group-star.json, access-anchor-rotate.json'
+if (CHECK) {
+  if (drift.length) { for (const p of drift) console.error(`${p} is not what the generator produces`); process.exit(1) }
+  console.log(`anchor vectors reproduce byte for byte: ${FILES}`)
+} else console.log(`anchor vectors written: ${FILES}`)
