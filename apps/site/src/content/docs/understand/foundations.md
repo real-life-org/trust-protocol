@@ -67,12 +67,15 @@ Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/mai
 
 RLTP issues three credentials, all W3C Verifiable Credentials 2.0
 with closed schemas and three contexts pinned by value (W3C
-credentials v2, DTG v1, RLTP v1), verified without JSON-LD
-processing.
+credentials v2, a DTG context, RLTP v1), verified without JSON-LD
+processing. The encounter credential is a DTG Relationship
+Credential under DTG Credentials WD 0.6.0: it lists the DTG registry
+context v1 and declares `issuerScope: "pairwise"`. The invite and
+the vouch list the DTG context of Working Draft 01.
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
-| Encounter credential | A person verifies the other during an encounter; one per direction | Issuer's fresh pair anchor → counterpart's fresh pair anchor | `VerifiableCredential`, `DTGCredential`, `RelationshipCredential`, `EncounterCredential` | `DataIntegrityProof`, `eddsa-jcs-2022` | Never revoked, never expires: no `validUntil`, no `credentialStatus` | `encounter-credential-0.25` · `encounter-cards.json` |
+| Encounter credential | A person verifies the other during an encounter; one per direction | Issuer's fresh pair anchor → counterpart's fresh pair anchor | `VerifiableCredential`, `DTGCredential`, `RelationshipCredential`, `EncounterCredential` | `DataIntegrityProof`, `eddsa-jcs-2022` | Never revoked, never expires: no `validUntil`, no `credentialStatus` | `encounter-credential-0.26` · `encounter-cards.json` |
 | Membership invite (VIC) | A member invites someone into a group | Inviter's member anchor → invitee's member anchor | `VerifiableCredential`, `DTGCredential`, `InvitationCredential`, `MembershipInvite` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`; `validUntil`, default 90 days | `payload-membership-invite` · `dtg-credentials.json` |
 | Admission vouch (`vouch@2`) | A member vouches for a candidate's admission | Vouching member's anchor → candidate's member anchor | `VerifiableCredential`, `DTGCredential`, `EndorsementCredential`, `AdmissionVouch` | `DataIntegrityProof`, `eddsa-jcs-2022` | No `credentialStatus`, no `validUntil`; usable only for the one acceptance it is bound to | `access-vouch` · `dtg-credentials.json` |
 

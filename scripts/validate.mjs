@@ -181,7 +181,7 @@ for (const f of specFiles) {
 }
 
 // ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership ──
-// Always against the committed manifests conformance/encounter-rule-ids-0.30.txt,
+// Always against the committed manifests conformance/encounter-rule-ids-0.31.txt,
 // conformance/access-rule-ids-0.56.txt and conformance/membership-rule-ids-0.18.txt.
 // The private rule inventory of each layer is checked additionally when
 // present, and is REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /

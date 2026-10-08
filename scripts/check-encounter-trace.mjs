@@ -5,7 +5,7 @@
 // `--layer membership`).
 //
 // Two sources of truth for the rule set:
-//   · the public manifest (conformance/encounter-rule-ids-0.30.txt,
+//   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
 //     conformance/access-rule-ids-0.56.txt,
 //     conformance/membership-rule-ids-0.18.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
@@ -40,10 +40,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const LAYERS = {
   encounter: {
     prefix: 'RLTP-ENC',
-    title: 'Encounter Layer 0.30',
+    title: 'Encounter Layer 0.31',
     spec: join(ROOT, 'spec/encounter-layer.md'),
-    manifest: join(ROOT, 'conformance/encounter-rule-ids-0.30.txt'),
-    inventory: join(ROOT, '..', 'rltp', 'design', 'encounter-0.30-regelinventar.md'),
+    manifest: join(ROOT, 'conformance/encounter-rule-ids-0.31.txt'),
+    inventory: join(ROOT, '..', 'rltp', 'design', 'encounter-0.31-regelinventar.md'),
     env: 'ENCOUNTER_INVENTORY'
   },
   access: {

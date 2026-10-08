@@ -3,19 +3,17 @@
 **Real Life Trust Protocol — Layer 2: Encounter**
 
 - **Status:** Editor's Draft
-- **Version:** 0.31.0-draft
+- **Version:** 0.30.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-08
+- **Date:** 2026-10-05
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-encounter@0.31` (draft). Wire forms:
-  `rltp-card/0.25`, `rltp-encounter-credential/0.26` (a held
-  `rltp-encounter-credential/0.25` stays valid, Section 12), ceremony
+- **Conformance profile:** `rltp-encounter@0.30` (draft). Wire forms:
+  `rltp-card/0.25`, `rltp-encounter-credential/0.25`, ceremony
   `encounter-scan@0.25`.
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
-  Delivery Contract 0.79 (normative reference, Section 11); DTG
-  Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
-- **Supersedes:** version 0.30 (archived as
-  `archive/encounter-layer-0.30.md`). Earlier versions: Appendix C.
+  Delivery Contract 0.79 (normative reference, Section 11).
+- **Supersedes:** version 0.29 (archived as
+  `archive/encounter-layer-0.29.md`). Earlier versions: Appendix C.
 
 ## Abstract
 
@@ -45,11 +43,10 @@ witnessed succession, specified separately in *RLTP Succession*
 
 This is an Editor's Draft with no standing beyond its own argument.
 Its rules and wire forms are stable enough to implement against and
-are implemented in the reference library (Appendix A). The credential
-follows DTG Credentials Working Draft 0.6.0. The next expected change
-is the wire step to the DTG context of the DTG Implementer's Draft
-and the fields it defines, leaving the ceremony as it is. Open
-questions are listed in Section 16, and
+are implemented in the reference library (Appendix A); the next
+expected change is a wire step that moves the credential onto the
+DTG registry context and adds registry-defined fields, leaving the
+ceremony as it is. Open questions are listed in Section 16, and
 feedback is welcome via the issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 
@@ -245,8 +242,8 @@ rule: creation copies a present document `@context` into the proof
 configuration and the returned proof, and verification reconstructs
 the configuration from the embedded proof alone.
 
-**RLTP-ENC-2070** — A credential's proof MUST carry a copy of the
-credential's pinned context array (2250).
+**RLTP-ENC-2070** — A credential's proof MUST carry the pinned
+context array (2250).
 
 **RLTP-ENC-2080** — A card's proof MUST NOT carry an `@context`.
 
@@ -375,26 +372,13 @@ and hence one digest.
 
 #### Contexts
 
-**RLTP-ENC-2250** — An encounter credential's `@context` MUST be
-exactly the context array of the format version it names, in order,
-with no additions: for `rltp-encounter-credential/0.26`,
-`["https://www.w3.org/ns/credentials/v2",
-"https://registry.trustoverip.org/dtg/context/v1",
-"https://real-life.org/rltp/v1"]`; for
-`rltp-encounter-credential/0.25`,
+**RLTP-ENC-2250** — A credential's `@context` MUST be exactly
 `["https://www.w3.org/ns/credentials/v2",
 "https://firstperson.network/credentials/dtg/v1",
-"https://real-life.org/rltp/v1"]`.
+"https://real-life.org/rltp/v1"]`, in order, with no additions.
 
 **RLTP-ENC-2260** — The DTG context MUST be present as the second
 pinned context.
-
-**RLTP-ENC-2265** — An implementation that reads the DTG context
-document `https://registry.trustoverip.org/dtg/context/v1` MUST use
-the byte-exact copy shipped as `contexts/dtg-v1.jsonld`, whose
-SHA-256 digest is
-`3e1376acf401016a0162c1cdb31e44a85a7dd56749caed94a1dc0a0be6cbb448`,
-and MUST NOT dereference the IRI at runtime.
 
 **RLTP-ENC-2270** — An implementation MUST NOT apply RDF or JSON-LD
 expansion.
@@ -408,21 +392,11 @@ normative deliverable), never from JSON-LD processing at runtime;
 verification is JSON Schema plus the rules of this document. Runtime
 expansion fetches contexts over the network and makes meaning depend
 on it; an injected context would redefine terms. Without the DTG
-context the credential is not a DTG RelationshipCredential (7.1). The
-DTG compares its context IRI as an exact string and publishes each
-context version byte-frozen under a digest; a copy checked once
-against that digest cannot change underneath a verifier, and a
-verifier that never fetches the IRI reveals nothing to its host. The
-RLTP context defines no term the DTG context defines, so the DTG
-context's protected terms are never redefined by a later one. Each
-format version pins its own array because a held credential is never
-re-issued (7.3): the 0.25 form keeps the DTG context it was signed
-under.
+context the credential is not a DTG RelationshipCredential (7.1).
 
-*Editor's note.* The context set of a credential a companion defines
-— the Membership invite, the Access vouch — is pinned by that
-companion's schema; those credentials list the DTG context of
-Working Draft 01 until their own wire step.
+*Editor's note.* The DTG context IRI is pinned at its WD01 value.
+The next wire step moves it to the DTG registry context; the pin
+changes with that step, not before.
 
 ## 3. What an Encounter Establishes
 
@@ -903,10 +877,10 @@ never this device's. No second record arises in any of these cases.
 encounter credential about the local anchor, an implementation MUST
 evaluate steps 1 to 8 in order.
 
-**RLTP-ENC-5480** — Step 1, format: its `credentialSubject.format`
-MUST be a known format version (12), the document MUST validate
-against that version's schema, its ceremony and ceremony version MUST
-be known, its timestamps MUST parse calendar-valid, and its keys MUST
+**RLTP-ENC-5480** — Step 1, format: the document MUST validate against
+`schemas/encounter-credential-0.25.schema.json`, its
+`credentialSubject.format`, ceremony, and ceremony version MUST be
+known, its timestamps MUST parse calendar-valid, and its keys MUST
 decode per 2.3; else reject `ERR_VERSION`.
 
 **RLTP-ENC-5490** — Step 2, signature: the `DataIntegrityProof` MUST
@@ -1259,47 +1233,35 @@ a copy, and the subject gets no control over that copy.
 
 ### 7.1 Form
 
-**RLTP-ENC-7010** — An encounter credential this version issues
-(12026) MUST be a W3C Verifiable Credential 2.0 secured per 2.3, of type `VerifiableCredential`,
+**RLTP-ENC-7010** — An encounter credential MUST be a W3C Verifiable
+Credential 2.0 secured per 2.3, of type `VerifiableCredential`,
 `DTGCredential`, `RelationshipCredential`, `EncounterCredential`,
-conforming to the DTG RelationshipCredential base structure (DTG
-Credentials Working Draft 0.6.0: DTG context, type hierarchy with
-exactly one concrete subtype, `issuerScope`, subject `id`), with
-`EncounterCredential` as a non-authoritative RLTP hint type and every
+conforming to the DTG RelationshipCredential base structure (DTGWG
+Core Credentials WD01: DTG context, type hierarchy, subject `id`),
+with `EncounterCredential` as the concrete RLTP hint type and every
 RLTP field a legal additional subject property.
 
 *Rationale.* A DTG RelationshipCredential is a participant's
-credential — two per edge, one each direction, `pairwise` the
-recommended scope of the source party's identifier — which is this
-credential exactly; a third-party statement is not, and stamping a
-type without meeting its base structure would be paper conformance.
-The hint type follows the DTG pattern for personhood credentials: a
-non-authoritative addition beside the one concrete subtype. The
-fresh-always rule (4.4) yields a fresh pairwise identifier per
-enactment, stricter than the DTG's one per relationship. What stays
-deliberately ours, stated for verifiers: no `validUntil`, no
-`credentialStatus` — the DTG marks both optional, and their absence is
-this layer's immutability (7.3). Statements that are not encounters
-are outside this specification.
+credential — two per edge, one each direction, under mandatorily
+fresh pairwise identifiers — which is this credential exactly; the
+third-party `WitnessCredential` is not, and stamping a type without
+meeting its base structure would be paper conformance. The hint type
+follows the WD01 PHC pattern: a non-authoritative addition beside the
+one concrete subtype. The fresh-always rule (4.4) yields a fresh
+pairwise identifier per enactment, stricter than the DTG's one per
+relationship. What stays deliberately ours, stated for verifiers: no
+`validUntil`, no `credentialStatus` — WD01 marks both optional, and
+their absence is this layer's immutability (7.3). Statements that are
+not encounters are outside this specification.
 
 ### 7.2 Data model
 
 The normative wire format is
-`schemas/encounter-credential-0.26.schema.json`. A held credential of
-format `rltp-encounter-credential/0.25` is read under
-`schemas/encounter-credential-0.25.schema.json`: the same closed form
-without `issuerScope` and under its own context set (2250), dual-typed
-against the DTG base structure of Working Draft 01 (12025).
+`schemas/encounter-credential-0.25.schema.json`.
 
 **RLTP-ENC-7020** — The credential root and the credential subject
 MUST be closed: exactly the properties of the table below, no
 others.
-
-**RLTP-ENC-7025** — A credential of format
-`rltp-encounter-credential/0.26` MUST declare `issuerScope`
-`pairwise`, and a receiver MUST reject one whose `issuerScope` is
-absent or any other value, compared case-sensitively
-(`ERR_VERSION`).
 
 **RLTP-ENC-7030** — A receiver MUST treat a document carrying
 `validUntil`, `credentialStatus`, or any other validity-controlling
@@ -1313,10 +1275,9 @@ version, never through extra fields.
 | `@context` | array | 1 | exactly the three pinned contexts, in order (2.3) |
 | `type` | array | 1 | exactly `VerifiableCredential`, `DTGCredential`, `RelationshipCredential`, `EncounterCredential` (order-insensitive per schema, four members) |
 | `issuer` | anchor | 1 | the recognizing party |
-| `issuerScope` | string | 1 | `pairwise` (RLTP-ENC-7025) |
 | `validFrom` | datetime | 1 | issuance time (RLTP-ENC-7050) |
 | `credentialSubject.id` | anchor | 1 | the recognized party |
-| `credentialSubject.format` | string | 1 | `rltp-encounter-credential/0.26` |
+| `credentialSubject.format` | string | 1 | `rltp-encounter-credential/0.25` |
 | `credentialSubject.ceremony` | string | 1 | registered ceremony id and version; at most 56 characters (7.5) |
 | `credentialSubject.challenge` | string | 1 | the subject's challenge |
 | `credentialSubject.enactmentBinding` | multibase | 1 | per 5.4 |
@@ -1336,12 +1297,7 @@ like every member, its content carries no verdict.
 **RLTP-ENC-7080** — An encounter credential MUST NOT carry the
 counterparty's challenge.
 
-*Rationale.* The issuer of an encounter credential is a pair anchor
-minted for one enactment and known to exactly one counterparty (4.4);
-`pairwise` is the only truthful declaration, and the DTG requires a
-verifier to reject a missing or unknown one. A wider declaration would
-invite a verifier to correlate an identifier this layer keeps
-single-use. An open root or subject would admit fields that break the
+*Rationale.* An open root or subject would admit fields that break the
 size guarantee (7.5) and smuggle meaning; revocability and expiry
 through the back door would contradict 7.3; extra fields would
 re-interpret existing artifacts (Section 12). The suite registry
@@ -1423,7 +1379,6 @@ acceptance cap on the strength of the source guarantee.
 | `@context` | three pinned constants | 2.3 |
 | `type` | exactly four members, all fixed | 7.1 |
 | `issuer`, `credentialSubject.id` | 56 characters | `did:key` over Ed25519 (2.3) |
-| `issuerScope` | one constant | 7.2 |
 | `validFrom`, `proof.created` | 24 characters | RFC3339 UTC, ≤ 3 fractional digits (2.3) |
 | `credentialSubject.format` | one constant | 7.2 |
 | `credentialSubject.ceremony` | 56 characters | ≤ 48 label characters, ≤ 3 digits per version part (19 in the one registered ceremony, 5.1) |
@@ -1458,16 +1413,16 @@ the whole escaping range, at 64 `channel` characters:
 
 | `channel` alphabet | bytes per character | schema maximum (without `commitment`) | valid maximum (without `commitment`) |
 |---|---|---|---|
-| unescaped one-byte ASCII | 1 | 1318 | 1279 |
-| quote or backslash | 2 | 1382 | 1343 |
-| three-byte BMP code point | 3 | 1446 | 1407 |
-| non-BMP code point | 4 | 1510 | 1471 |
-| C0 control character | 6 | **1638** | **1599** |
+| unescaped one-byte ASCII | 1 | 1291 | 1252 |
+| quote or backslash | 2 | 1355 | 1316 |
+| three-byte BMP code point | 3 | 1419 | 1380 |
+| non-BMP code point | 4 | 1483 | 1444 |
+| C0 control character | 6 | **1611** | **1572** |
 
 The two columns are two different claims, and only one of them is a
 credential:
 
-- The **schema maximum without `commitment`, 1638 bytes**, takes
+- The **schema maximum without `commitment`, 1611 bytes**, takes
   every property at the bound its schema admits — a 56-character
   `ceremony`, a 49-character `enactmentBinding`. It is a size
   construction, not a valid credential: a 56-character ceremony
@@ -1476,7 +1431,7 @@ credential:
   multihash. It is nevertheless the number the guarantee rests on,
   because the cap is argued against the format: no document the
   schema admits can exceed it.
-- The **valid maximum without `commitment`, 1599 bytes**, takes every
+- The **valid maximum without `commitment`, 1572 bytes**, takes every
   property at the bound a credential that passes 5.6 can reach:
   `ceremony` is `encounter-scan@0.25`, 19 characters, the one
   ceremony this version registers (5.1); and `enactmentBinding` is 47
@@ -1491,8 +1446,8 @@ credential:
 
 **The `commitment` adjustment, measured:** the maximal `commitment`
 fragment `,"commitment":{"suite":"<32>","value":"<97>"}` measures
-**166 bytes**; adding it once gives schema maximum **1804**, valid
-maximum **1765** — under 2048 with margin. Emission is gated (7.2), so
+**166 bytes**; adding it once gives schema maximum **1777**, valid
+maximum **1738** — under 2048 with margin. Emission is gated (7.2), so
 no producible credential reaches these bounds until a suite is
 registered; the bounds cover the format either way. All base numbers
 are measured, not estimated.
@@ -1609,29 +1564,18 @@ An encounter must not depend on an operator.
 ## 12. Evolvability
 
 Wire version and profile version are distinct: the profile is
-`rltp-encounter@0.31`, the card is `rltp-card/0.25`, the credential
-`rltp-encounter-credential/0.26`. The unversioned schema files
-`schemas/encounter-credential.schema.json` and
-`schemas/contact-card.schema.json` carry the current forms under
-their mobile `$id`s; the same forms live in
-`schemas/encounter-credential-0.26.schema.json` and
-`schemas/contact-card-0.25.schema.json`. The credential form
-`rltp-encounter-credential/0.25` keeps its schema,
-`schemas/encounter-credential-0.25.schema.json`.
+`rltp-encounter@0.30`, the wire forms are `0.25`. The unversioned
+schema files `schemas/encounter-credential.schema.json` and
+`schemas/contact-card.schema.json` carry the 0.25 forms under their
+mobile `$id`s; the same forms live in
+`schemas/encounter-credential-0.25.schema.json` and
+`schemas/contact-card-0.25.schema.json`.
 
 **RLTP-ENC-12010** — Every wire artifact MUST carry an explicit format
 version — cards, credentials (`credentialSubject.format`), tasks
 (their Type URIs).
 
 **RLTP-ENC-12020** — A receiver MUST match format versions exactly.
-
-**RLTP-ENC-12025** — A receiver MUST know the credential formats
-`rltp-encounter-credential/0.26` and `rltp-encounter-credential/0.25`
-and validate a credential against the schema of the version it
-names.
-
-**RLTP-ENC-12026** — A producer MUST issue
-`rltp-encounter-credential/0.26`.
 
 **RLTP-ENC-12030** — A new ceremony, channel, or card field MUST
 register a new identifier.
@@ -1650,17 +1594,7 @@ pre-image (5.4) MUST NOT be renamed.
 *Rationale.* A verifier must know which rules apply; under exact
 match a 0.25 receiver rejects a `…/0.24` artifact and vice versa,
 where loose matching would let a mixed population judge silently
-differently. A credential is never re-issued (7.3), so a held 0.25
-credential must stay verifiable under the format it was signed in;
-the two credential forms differ only in the DTG context and
-`issuerScope`, and each is checked against its own closed schema, so
-neither passes as the other. Only one form is issued, so every
-credential minted under this version is a DTG Working Draft 0.6.0
-RelationshipCredential. The Delivery payloads that carry a credential
-during an enactment reference the mobile schema (Delivery 4.1, 4.3),
-so an enactment of this version transports the 0.26 form, and a peer
-that still issues 0.25 cannot complete an enactment with a peer of
-this version. Re-interpreting an existing identifier gives existing
+differently. Re-interpreting an existing identifier gives existing
 artifacts a new meaning after the fact (7.2); unknown constructs must
 never create assurance (6). The binding pre-image is JCS over its
 member names, so a rename would change every binding.
@@ -1747,35 +1681,21 @@ cards.
 
 ## 15. Conformance
 
-- **Profile** `rltp-encounter@0.31`, wire forms `rltp-card/0.25` and
-  `rltp-encounter-credential/0.26`, with `…/0.25` credentials still
-  read (Section 12); securing profile bound to `rltp-identity@0.51`
-  (2.3); normatively references the Delivery Contract 0.79 for the
-  one-scan transmission (Delivery names `encounter-scan@0.25`).
+- **Profile** `rltp-encounter@0.30`, wire forms `…/0.25` (Section
+  12); securing profile bound to `rltp-identity@0.51` (2.3);
+  normatively references the Delivery Contract 0.79 for the one-scan
+  transmission (Delivery names `encounter-scan@0.25`).
 - **Normative schemas (shipped):**
-  `schemas/encounter-credential-0.26.schema.json`,
-  `schemas/encounter-credential-0.25.schema.json` (the held form),
+  `schemas/encounter-credential-0.25.schema.json`,
   `schemas/contact-card-0.25.schema.json`.
-- **Pinned contexts (shipped):** `contexts/rltp-v1.jsonld`,
-  `contexts/dtg-v1.jsonld` (byte-exact, SHA-256 per RLTP-ENC-2265).
 - **Shipped vectors:** `vectors/encounter-cards.json` — displayed and
-  sent contact cards, a step credential in the 0.26 form (DTG
-  RelationshipCredential under DTG Credentials WD 0.6.0) and the same
-  step in the held 0.25 form, eddsa-jcs-2022 proofs recomputable from
-  the shared key oracle (`vectors/identity-derivation.json`), the
+  sent contact cards and a step credential in the 0.25 wire forms
+  (DTG-typed credential), eddsa-jcs-2022 proofs recomputable from the
+  shared key oracle (`vectors/identity-derivation.json`), the
   enactment binding recomputable from the challenge fixtures per 5.4,
   and negatives at the declared steps (mutation, unbound
-  verificationMethod, malformed sent card); schema negatives for
-  `issuerScope` (absent, `directed`, wrong case), the context set of
-  each form, and the format string in `fixtures/invalid-examples.json`;
-  ceremony-state checks stay in the plan below.
-- **Interoperability check (informative):**
-  `conformance/dtg-vrc.mjs` reads a plain DTG RelationshipCredential
-  of another implementation — base structure, `issuerScope`,
-  `eddsa-jcs-2022`, with a `did:key` or `did:peer:2` issuer — and
-  `vectors/dtg-vrc-foreign.json` exercises it. The check is a test
-  tool; it claims nothing about the identifiers this layer accepts
-  (2.3).
+  verificationMethod, malformed sent card); ceremony-state checks
+  stay in the plan below.
 
 **RLTP-ENC-13010** — Each acceptance error state of 5.6 MUST have a
 distinct conformance vector.
@@ -1859,19 +1779,19 @@ distinct conformance vector.
   identifier, 88-character challenge, 49-character binding,
   64-character `channel`, 24-character `validFrom` and
   `proof.created`, 89-character `proofValue`, and the `commitment`
-  object at its caps — serializes to **1804 bytes** with `channel` in
-  C0 control characters and **1484 bytes** with `channel` in
-  unescaped one-byte ASCII (without `commitment`: 1638/1318) ·
+  object at its caps — serializes to **1777 bytes** with `channel` in
+  C0 control characters and **1457 bytes** with `channel` in
+  unescaped one-byte ASCII (without `commitment`: 1611/1291) ·
   **at the valid maximum**, the largest credential that passes all of
   5.6 — ceremony `encounter-scan@0.25` (19 characters), 47-character
-  binding, everything else at its bound — serializes to **1765
-  bytes** (**1445** with `channel` in unescaped one-byte ASCII;
-  without `commitment` 1599/1279, and while the suite registry is
+  binding, everything else at its bound — serializes to **1738
+  bytes** (**1418** with `channel` in unescaped one-byte ASCII;
+  without `commitment` 1572/1252, and while the suite registry is
   empty the commitment member is not producible (7.2), so the largest
   producible valid credential is the figure without it) and is
   accepted · **the escaping range:** the same 64-character `channel`
   in quotes/backslashes, three-byte BMP code points and non-BMP code
-  points measures 1548 / 1612 / 1676 bytes at the schema maximum,
+  points measures 1521 / 1585 / 1649 bytes at the schema maximum,
   confirming the C0 case is the maximum over all alphabets · **over
   the bound, field by field, each `ERR_VERSION` at 5.6 step 1:**
   `proofValue` of 90 characters; `proofValue` of 64 characters (below
@@ -1990,14 +1910,13 @@ carry them; it describes the library as it is.
 | Whole-second normalization and emission, calendar validity (2.3) | `core` | `tsec` (truncation), `iso` (whole-second emission), `calOK` |
 | Anchor and Multikey decoding, `eddsa-jcs-2022` proofs (2.3) | `crypto` | `anchorOfEd`, `edRawOfAnchor`, `mkOfX`, `xRawOfMk`, `diSign`, `diVerify`, `digestDoc` (emits `u`) |
 | Pair anchor derivation (4.4) | `identity` | `pairContext`, `labeledContext`, `canonicalLabel` |
-| Wire strings, challenges, cards, binding, credentials (5.3, 5.4, 6, 7) | `encounter` | `CEREMONY`, `CARD_VERSION`, `CRED_FORMAT`, `CRED_CONTEXT`, `DTG_CONTEXT`, `challengeOf` (17 random bytes → 22 characters), `cardBody` (the sent profile carries `sentTo` and `boundTo` together), `signCard`, `binding`, `issueCredential` |
+| Wire strings, challenges, cards, binding, credentials (5.3, 5.4, 6, 7) | `encounter` | `CEREMONY`, `CARD_VERSION`, `CRED_FORMAT`, `challengeOf` (17 random bytes → 22 characters), `cardBody` (the sent profile carries `sentTo` and `boundTo` together), `signCard`, `binding`, `issueCredential` |
 | Time parameters (9) | `ceremony` | `CHALLENGE_MAX_AGE`, `ISSUANCE_WINDOW`, `SKEW_TOLERANCE` |
 | Own-challenge state model and aging latch (5.3) | `ceremony` | `resolve` |
 | Common trunk, counter-step, resumption (5.8) | `ceremony` | `show`, `scan`, `counter`, `resumeEncounter`, `flushEncounter` |
 | Optical leg (5.8), record gate outcomes `gate-future`, `gate-expired` (5.5) | `ceremony` | `captureSentCard` |
 | Connected path, staged evaluation, acceptance steps 1–8 with their error codes (5.6, 5.8) | `ceremony` | `receiveEncounter` |
-| Known credential formats and their schemas (12) | `encounter` | `CRED_FORMATS`, `credentialSchemaOf` |
-| Normative schemas, embedded for offline validation (15) | `schemas`, `wire` | the three schemas of 15 and their generated types |
+| Normative schemas, embedded for offline validation (15) | `schemas`, `wire` | the two 0.25 schemas and their generated types |
 
 The library's `ceremony` module operates on a host-owned world; the
 host carries storage and transport. The simulators under `simulator/`
@@ -2022,7 +1941,7 @@ anchor = `directed`, persona = `public`); RLTP messages adopt Trust
 Tasks as private specifications; the message layer is the RLTP
 Delivery Contract. Open upstream: whether the DTG credential family
 needs a participant-issued credential type for a witnessed enactment
-beside the third-party `dtg:witnessed` statement, or whether the
+beside the third-party `WitnessCredential`, or whether the
 RelationshipCredential pair (7.1) is that type.
 
 *Editor's note (edge verifiability).* An encounter credential is a
@@ -2071,17 +1990,14 @@ One line per version; the archived text is under `archive/`.
 | 0.28 | 2026-08-23 | Credential dual-typed as DTG RelationshipCredential under three pinned contexts; wire 0.25. |
 | 0.29 | 2026-08-23 | Community anchor and member-anchor-bound card uses named; no wire change. |
 | 0.30 | 2026-10-05 | Numbered rules with separate rationale; DTG scope vocabulary; no wire change. |
-| 0.31 | 2026-10-08 | Credential on DTG Credentials WD 0.6.0: registry context v1 pinned by digest, `issuerScope` `pairwise`; wire 0.26, 0.25 still read. |
 
 ## References
 
 [RFC2119] · [RFC8174] BCP 14 · [RFC3339] · [RFC8032] EdDSA
 (Ed25519 signature length, 2.3) · [RFC8785] JCS · [DI-EDDSA]
 W3C Data Integrity EdDSA Cryptosuites v1.0 · W3C Verifiable
-Credentials Data Model 2.0 · DTG Credentials Specification, Working
-Draft 0.6.0 (ToIP DTGWG, `trustoverip/dtgwg-cred-spec` at `4088056`),
-with its context `https://registry.trustoverip.org/dtg/context/v1` ·
-ToIP DTGWG Trust Ceremonies ADR 0001 and design note
+Credentials Data Model 2.0 · DTG Credential Specification (ToIP DTGWG,
+draft) · ToIP DTGWG Trust Ceremonies ADR 0001 and design note
 (Proposed) · did:key method draft · Multikey / multicodec registry ·
 **RLTP Identity 0.51** · **RLTP Delivery Contract 0.79 (normative)** ·
 RLTP Network Visibility (`rltp-visibility`) · RLTP Membership Tasks
