@@ -1,0 +1,35 @@
+# Renovate: daily dependency-update run for this repo.
+#
+# Everything about the runner (action pin, token fallback, environment,
+# concurrency) lives once, in the reusable workflow in meta:
+# https://github.com/real-life-org/meta/blob/main/.github/workflows/renovate.yml
+# What Renovate does is configured in renovate.json5 at the repo root.
+name: Renovate
+
+on:
+  # Once a day, early (UTC).
+  schedule:
+    - cron: '17 4 * * *'
+  # For the first run after the merge, and to look without waiting a day.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    # A reusable workflow can only narrow the permissions it is given, never
+    # widen them; the write rights for the GITHUB_TOKEN fallback are granted
+    # here.
+    permissions:
+      contents: write
+      pull-requests: write
+      # The Dependency Dashboard is an issue.
+      issues: write
+    uses: real-life-org/meta/.github/workflows/renovate.yml@main
+    secrets:
+      # Fine-grained token, this repo only: Contents, Pull requests, Issues,
+      # Workflows read+write, Dependabot alerts read. Without it Renovate
+      # falls back to GITHUB_TOKEN, and its PRs arrive without checks
+      # (GitHub starts no workflows for events caused by GITHUB_TOKEN).
+      RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
