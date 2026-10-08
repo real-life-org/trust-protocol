@@ -39,6 +39,44 @@
         }
       }
     },
+    "credential-0.25": {
+      "schema": "https://real-life.org/rltp/v1/schemas/encounter-credential-0.25.schema.json",
+      "document": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://firstperson.network/credentials/dtg/v1",
+          "https://real-life.org/rltp/v1"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "DTGCredential",
+          "RelationshipCredential",
+          "EncounterCredential"
+        ],
+        "issuer": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+        "validFrom": "2026-08-23T12:00:00Z",
+        "credentialSubject": {
+          "id": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+          "format": "rltp-encounter-credential/0.25",
+          "ceremony": "encounter-scan@0.25",
+          "challenge": "ujNsvrcZr0q9FERd0jSZaSb_Q2bYlcLquTMuuI7BfjP0",
+          "enactmentBinding": "uEiCjr5L0z726fbvDwPpVdj0ozRCbw2ZHVfXL1PFjhCemZQ"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-08-23T12:00:00Z",
+          "verificationMethod": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J#z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+          "proofPurpose": "assertionMethod",
+          "proofValue": "z3Gf8AdeQMbsUxT6GDKdSQbCdEjXeLXC3b4Y3sDPwuu7uXjX1j5ELW2bdKJP5eCvnUpaY5bCXMZwj5TDUVp5xHFg7",
+          "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://firstperson.network/credentials/dtg/v1",
+            "https://real-life.org/rltp/v1"
+          ]
+        }
+      }
+    },
     "card": {
       "schema": "https://real-life.org/rltp/v1/schemas/contact-card.schema.json",
       "document": {
@@ -1592,6 +1630,63 @@
       "name": "key-delivery: material without op names nothing it serves (RLTP-ACC-10040, 10176)",
       "base": "key-delivery-material",
       "delete": "/keyDelivery/op"
+    },
+    {
+      "name": "issuerScope is required at the credential root (RLTP-ENC-7010, DTG WD 0.6.0 Base Structure)",
+      "base": "credential",
+      "delete": "/issuerScope"
+    },
+    {
+      "name": "issuerScope of an encounter credential is pairwise — directed is a false declaration for a fresh pair anchor (RLTP-ENC-7025)",
+      "base": "credential",
+      "set": {
+        "/issuerScope": "directed"
+      }
+    },
+    {
+      "name": "issuerScope is compared case-sensitively (DTG WD 0.6.0 Base Structure)",
+      "base": "credential",
+      "set": {
+        "/issuerScope": "Pairwise"
+      }
+    },
+    {
+      "name": "the WD01 DTG context IRI is not the context set of the 0.26 form (RLTP-ENC-2250)",
+      "base": "credential",
+      "set": {
+        "/@context/1": "https://firstperson.network/credentials/dtg/v1",
+        "/proof/@context/1": "https://firstperson.network/credentials/dtg/v1"
+      }
+    },
+    {
+      "name": "the DTG context IRI is compared in its exact bytes — a trailing slash is another IRI (RLTP-ENC-2250)",
+      "base": "credential",
+      "set": {
+        "/@context/1": "https://registry.trustoverip.org/dtg/context/v1/",
+        "/proof/@context/1": "https://registry.trustoverip.org/dtg/context/v1/"
+      }
+    },
+    {
+      "name": "the 0.26 root names its own format version — a 0.25 format string is rejected (RLTP-ENC-12020)",
+      "base": "credential",
+      "set": {
+        "/credentialSubject/format": "rltp-encounter-credential/0.25"
+      }
+    },
+    {
+      "name": "the 0.25 form keeps its closed root — issuerScope is not one of its members (RLTP-ENC-7020, 7.3)",
+      "base": "credential-0.25",
+      "set": {
+        "/issuerScope": "pairwise"
+      }
+    },
+    {
+      "name": "the 0.25 form keeps its own context set — the registry context belongs to 0.26 (RLTP-ENC-2250)",
+      "base": "credential-0.25",
+      "set": {
+        "/@context/1": "https://registry.trustoverip.org/dtg/context/v1",
+        "/proof/@context/1": "https://registry.trustoverip.org/dtg/context/v1"
+      }
     }
   ]
 }

@@ -52,6 +52,7 @@ import {
   pubRaw, didOf, mkOf, ecdhRaw, ecdh, verifyRaw, diVerify, SCHEMAS, validate, XS, privEd,
 } from './lib.mjs'
 import { PARTIAL } from './membership-partial.mjs'
+import { checkVrc } from './dtg-vrc.mjs'
 
 const schemaOK = (data, file, label) => {
   const s = SCHEMAS[file]; const errs = validate(data, s, s)
@@ -982,12 +983,29 @@ for (const [name, card] of Object.entries(EC.cards)) {
 }
 {
   const cred = EC.credential
-  schemaOK(cred, 'encounter-credential-0.25.schema.json', 'credential')
+  schemaOK(cred, 'encounter-credential-0.26.schema.json', 'credential')
   schemaOK(cred, 'encounter-credential.schema.json', 'credential (mobile)')
+  check(cred.credentialSubject?.format === 'rltp-encounter-credential/0.26', 'credential: wire format rltp-encounter-credential/0.26 (Encounter 7.2)')
+  check(cred['@context']?.[1] === 'https://registry.trustoverip.org/dtg/context/v1', 'credential: DTG context v1 second, in its exact bytes (RLTP-ENC-2250, DTG WD 0.6.0 Base Structure)')
+  check(cred.issuerScope === 'pairwise', 'credential: issuerScope pairwise at the root (RLTP-ENC-7010, 7.2; follows from 4.4)')
   check(jcs(cred.proof['@context']) === jcs(cred['@context']), 'credential proof carries the @context copy')
   check(diVerify(cred, cred.issuer).ok, 'credential: DI proof verifies (W3C)')
   const binding = digestU({ ceremony: 'encounter-scan@0.25', challenges: [EC.fixtures.challengeA, EC.fixtures.challengeB].sort() })
   check(binding === cred.credentialSubject.enactmentBinding, 'enactmentBinding recomputes per Encounter 5.4')
+  // the same enactment step in the 0.25 form: immutable (7.3), still
+  // valid under its own format; neither form passes the other's schema
+  const old = EC.credential025
+  schemaOK(old, 'encounter-credential-0.25.schema.json', 'credential 0.25 (held form)')
+  check(diVerify(old, old.issuer).ok, 'credential 0.25: DI proof verifies (W3C)')
+  check(old.credentialSubject.enactmentBinding === binding && old.issuer === cred.issuer && old.credentialSubject.id === cred.credentialSubject.id, 'credential 0.25: the same step, issuer and subject')
+  schemaFails(old, 'encounter-credential-0.26.schema.json', 'credential 0.25 (no issuerScope, legacy DTG context)')
+  schemaFails(cred, 'encounter-credential-0.25.schema.json', 'credential 0.26 (closed 0.25 root)')
+  // an RLTP credential is a plain DTG RelationshipCredential to a verifier
+  // that knows nothing of RLTP (informative tool, conformance/dtg-vrc.mjs)
+  const r = checkVrc(cred)
+  check(r.ok, `credential: passes the plain DTG RelationshipCredential check${r.ok ? '' : ' — ' + r.failures.map((f) => f.check).join(', ')}`)
+  const r25 = checkVrc(old)
+  check(!r25.ok && r25.failures[0].check === 'context', 'credential 0.25: a WD 0.6.0 verifier rejects it at the context (DTG Context Versions)')
 }
 for (const n of EC.negative) {
   const a = n.artifact
@@ -1002,6 +1020,40 @@ for (const n of EC.negative) {
   } else if (n.name === 'sent-card-missing-boundTo') {
     schemaFails(a, 'contact-card-0.25.schema.json', n.name)
   } else err(`unknown negative ${n.name}`)
+}
+
+// ── suite 3a: the DTG context, pinned by digest ─────────────────────────
+section('contexts/dtg-v1.jsonld — the DTG v1 context, byte-frozen, pinned by digest')
+{
+  const bytes = readFileSync(join(ROOT, 'contexts/dtg-v1.jsonld'))
+  const mh = Buffer.concat([Buffer.from([0x12, 0x20]), sha(bytes)])
+  check(sha(bytes).toString('hex') === '3e1376acf401016a0162c1cdb31e44a85a7dd56749caed94a1dc0a0be6cbb448', 'SHA-256 of the shipped bytes = the digest DTG WD 0.6.0 Context Versions pins (RLTP-ENC-2265)')
+  check('z' + b58(mh) === 'zQmSWyCagdx8oPfXn3piSUx6yqVy5MZ7ZG7nW1TC64QvKZh', 'the same digest as base58btc multihash, as DTG states it')
+  const dtg = JSON.parse(bytes.toString('utf8'))['@context']
+  check(dtg['@protected'] === true && dtg.RelationshipCredential === 'https://registry.trustoverip.org/dtg/credentials#RelationshipCredential' && dtg.issuerScope === 'https://registry.trustoverip.org/dtg/credentials#issuerScope', 'the context defines RelationshipCredential and issuerScope, protected, under the unversioned DTG vocabulary')
+  // DTG Context Versions: a context listed after the DTG context MUST NOT
+  // redefine a protected DTG term at the same level
+  const rltp = J('contexts/rltp-v1.jsonld')['@context']
+  const clash = Object.keys(rltp).filter((k) => !k.startsWith('@') && k in dtg)
+  check(clash.length === 0, `the RLTP context redefines no top-level DTG term${clash.length ? ' — ' + clash.join(', ') : ''}`)
+}
+
+// ── suite 3b: foreign DTG RelationshipCredentials (informative tool) ────
+// conformance/dtg-vrc.mjs reads another implementation's VRCs; these
+// vectors show it accepting a plain one under did:peer:2 and failing each
+// negative at exactly its declared check. No RLTP rule is claimed here.
+section('dtg-vrc-foreign.json — plain DTG RelationshipCredentials, did:peer:2 issuers (informative)')
+{
+  const F = J('vectors/dtg-vrc-foreign.json')
+  for (const p of F.positive) {
+    const r = checkVrc(p.credential)
+    check(r.ok, `${p.name}: passes${r.ok ? '' : ' — ' + r.failures.map((f) => `${f.check}: ${f.detail}`).join('; ')}`)
+    if (p.notes) check(jcs(r.notes) === jcs(p.notes), `${p.name}: reports exactly the declared notes`)
+  }
+  for (const n of F.negative) {
+    const r = checkVrc(n.credential)
+    check(r.failures.length === 1 && r.failures[0].check === n.failsAt, `${n.name}: fails at ${n.failsAt} and nowhere else${r.failures.length ? ' (got ' + r.failures.map((f) => f.check).join(', ') + ')' : ''}`)
+  }
 }
 
 // ── suite 4: visibility vectors — every MAC, signature, digest ───────────
