@@ -1,0 +1,17 @@
+{
+  // Dependency updates for trust-protocol: every npm project in the repo
+  // (root checks, lib/, binding/, apps/site/) and the GitHub Actions in
+  // .github/workflows.
+  //
+  // The rules live in the shared preset of the real-life-org repos:
+  // https://github.com/real-life-org/meta/blob/main/renovate/default.json5
+  // In short: security PRs at once, our own packages (`@real-life/**`, e.g.
+  // the docs-kit the site will use) as soon as they are released, everything
+  // else as one grouped PR on the first of the month, majors only after
+  // approval in the Dependency Dashboard.
+  //
+  // The runner is .github/workflows/renovate.yml, which calls the shared
+  // workflow in meta.
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['github>real-life-org/meta//renovate/default.json5'],
+}
