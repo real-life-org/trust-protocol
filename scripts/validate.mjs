@@ -229,5 +229,67 @@ for (const f of specFiles) {
   if (!errors) ok(`skos: ${links} hierarchy link(s) are IRIs naming concepts of the scheme`)
 }
 
+// ── 8. Ceremony definitions validate against the DTGWG meta-schema ───────
+// interop/ceremonies/dtgwg/ceremony.meta.schema.json is a byte copy of the
+// ToIP DTGWG trust-tasks-tf ceremonies/ceremony.meta.schema.json (provenance
+// in interop/ceremonies/index.md). Every *.ceremony.json MUST validate; a
+// definition with an enactmentPrivacy outside the meta-schema's enum MUST
+// fail, so the check is shown to fail. The completion semantics of each
+// definition are checked beyond the schema below.
+{
+  const meta = JSON.parse(readFileSync(join(ROOT, 'interop/ceremonies/dtgwg/ceremony.meta.schema.json'), 'utf8'))
+  const check = new Ajv2020({ strict: false, allErrors: true, validateFormats: false }).compile(meta)
+  const defs = readdirSync(join(ROOT, 'interop/ceremonies')).filter((f) => f.endsWith('.ceremony.json'))
+  for (const f of defs) {
+    const d = parsed[`interop/ceremonies/${f}`]
+    if (check(d)) ok(`ceremony: ${f} validates against the DTGWG ceremony meta-schema`)
+    else err(`ceremony: ${f}: ${check.errors.map((e) => `${e.instancePath || '/'} ${e.message}`).join('; ')}`)
+    if (check({ ...d, enactmentPrivacy: 'plain' })) err(`ceremony: ${f} with enactmentPrivacy "plain" is accepted — the meta-schema check is not effective`)
+    else ok(`ceremony: ${f} with enactmentPrivacy "plain" is rejected (must-fail)`)
+  }
+  if (!defs.length) err('ceremony: no *.ceremony.json under interop/ceremonies')
+
+  // Schema validity cannot see whether a step set the definition calls
+  // complete is one a DTGWG verifier accepts (design note §7.9): the
+  // completion predicate holds, every non-optional step is present, every
+  // present step's prev is present, and a terminal step is among them —
+  // otherwise the set is a prefix. countersigned (§7.5) promises every
+  // participant's signature, so every role must issue a non-optional step.
+  const holds = (p, set) =>
+    typeof p === 'string' ? set.has(p)
+      : p.allOf ? p.allOf.every((q) => holds(q, set))
+      : p.anyOf ? p.anyOf.some((q) => holds(q, set))
+      : p.threshold?.of ? p.threshold.of.filter((q) => holds(q, set)).length >= p.threshold.n
+      : false
+  const complete = (d, names) => {
+    const set = new Set(names)
+    const steps = Object.entries(d.steps)
+    return holds(d.completion, set)
+      && steps.every(([n, s]) => s.optional || set.has(n))
+      && names.every((n) => d.steps[n] && (d.steps[n].prev ?? []).every((q) => set.has(q)))
+      && names.some((n) => d.steps[n].terminal)
+  }
+  for (const f of defs) {
+    const d = parsed[`interop/ceremonies/${f}`]
+    if (d.evidence?.level !== 'countersigned') continue
+    const silent = Object.keys(d.roles).filter((r) => !Object.values(d.steps).some((s) => s.issuer === r && !s.optional))
+    if (silent.length) err(`ceremony: ${f}: evidence countersigned, but a complete enactment need carry no step issued by ${silent.join(', ')}`)
+  }
+  const enc = parsed['interop/ceremonies/encounter-scan.ceremony.json']
+  if (enc) {
+    // Encounter Layer 5.2 C5 and 5.8 (RLTP-ENC-5750): the one-sided outcome is
+    // a complete enactment; the counter-step may follow at any later time.
+    const cases = [[['bundle'], true], [['bundle', 'counter'], true], [['counter'], false], [[], false]]
+    for (const [names, want] of cases) {
+      const got = complete(enc, names)
+      if (got === want) ok(`ceremony: encounter-scan {${names.join(', ')}} is ${want ? 'a complete enactment' : 'not complete'}`)
+      else err(`ceremony: encounter-scan {${names.join(', ')}} is ${got ? 'complete' : 'incomplete (a prefix)'}, expected ${want ? 'complete' : 'incomplete'}`)
+    }
+    const prefix = { ...enc, steps: { ...enc.steps, bundle: { ...enc.steps.bundle, terminal: false } } }
+    if (complete(prefix, ['bundle'])) err('ceremony: encounter-scan with a non-terminal bundle is still complete on {bundle} — the completion check is not effective')
+    else ok('ceremony: encounter-scan with a non-terminal bundle is a prefix on {bundle} (must-fail)')
+  }
+}
+
 console.log(errors ? `\n${errors} error(s).` : '\nAll publication checks passed.')
 process.exit(errors ? 1 : 0)

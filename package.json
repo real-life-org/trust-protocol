@@ -4,7 +4,9 @@
   "type": "module",
   "description": "Publication checks for the RLTP specifications",
   "scripts": {
-    "validate": "node --test scripts/check-encounter-trace.test.mjs scripts/check-companion-pins.test.mjs conformance/dtg-vrc.test.mjs && node scripts/check-companion-pins.mjs && node scripts/validate.mjs"
+    "validate": "node --test scripts/check-encounter-trace.test.mjs scripts/check-companion-pins.test.mjs conformance/dtg-vrc.test.mjs && node scripts/check-companion-pins.mjs && node scripts/validate.mjs && npm run --silent check:generators",
+    "check:generators": "node scripts/gen-encounter-credential-vector.mjs --check && node scripts/gen-dtg-vrc-vectors.mjs --check && node scripts/gen-acceptance-vectors.mjs --check && node scripts/gen-access-conflicts-vector.mjs --check && node scripts/gen-membership-tasks-vector.mjs --check",
+    "check:generators:lib": "node scripts/gen-anchor-vectors.mjs --check && node scripts/gen-delivery-ack-vector.mjs --check"
   },
   "devDependencies": { "ajv": "^8.17.1" }
 }

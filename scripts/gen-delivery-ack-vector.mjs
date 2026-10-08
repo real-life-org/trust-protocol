@@ -6,13 +6,14 @@
 // set review 12 demanded (tampered preimage, wrong direction, wrong
 // key, missing proof). Deterministic: fixed seeds and nonces, no clock.
 //
-//   usage: node scripts/gen-delivery-ack-vector.mjs   (from repo root;
+//   usage: node scripts/gen-delivery-ack-vector.mjs [--check]   (from repo root;
 //          requires lib/dist — build the library first)
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CHECK = process.argv.includes('--check')
 const { pairContext } = await import(join(ROOT, 'lib/dist/identity.js'))
 const { ecdh, hkdf, b64uOf, diSign } = await import(join(ROOT, 'lib/dist/crypto.js'))
 const { jcs } = await import(join(ROOT, 'lib/dist/core.js'))
@@ -88,5 +89,12 @@ const vector = {
     info: `rltp/v1/delivery/mac/ack/${C.anchor}/${B.anchor}`,
   },
 }
-writeFileSync(join(ROOT, 'vectors/delivery-ack.json'), JSON.stringify(vector, null, 1) + '\n')
-console.log('vectors/delivery-ack.json geschrieben; mac =', mac)
+const text = JSON.stringify(vector, null, 1) + '\n'
+const path = join(ROOT, 'vectors/delivery-ack.json')
+if (CHECK) {
+  if (readFileSync(path, 'utf8') !== text) { console.error('vectors/delivery-ack.json is not what the generator produces'); process.exit(1) }
+  console.log('vectors/delivery-ack.json reproduces byte for byte')
+} else {
+  writeFileSync(path, text)
+  console.log('vectors/delivery-ack.json written; mac =', mac)
+}

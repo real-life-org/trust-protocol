@@ -17,13 +17,14 @@
 // resolver's author is no subject of a sibling removal (3565), a leave
 // never lapses (3462), empty membership is terminal (5850).
 //
-//   usage: node scripts/gen-access-conflicts-vector.mjs
-import { writeFileSync } from 'node:fs'
+//   usage: node scripts/gen-access-conflicts-vector.mjs [--check]
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { opId, materialize, deliver, STATUSES, STATES } from '../conformance/access-conflicts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CHECK = process.argv.includes('--check')
 
 // An operation on explicit predecessors; `label` is informative only.
 const op = (label, kind, author, subject, role, preds) => {
@@ -346,6 +347,12 @@ const vector = {
   },
   cases
 }
-const out = join(ROOT, 'vectors/access-conflicts.json')
-writeFileSync(out, JSON.stringify(vector, null, 1) + '\n')
-console.log(`vectors/access-conflicts.json written: ${cases.length} cases`)
+const text = JSON.stringify(vector, null, 1) + '\n'
+const path = join(ROOT, 'vectors/access-conflicts.json')
+if (CHECK) {
+  if (readFileSync(path, 'utf8') !== text) { console.error('vectors/access-conflicts.json is not what the generator produces'); process.exit(1) }
+  console.log('vectors/access-conflicts.json reproduces byte for byte')
+} else {
+  writeFileSync(path, text)
+  console.log(`vectors/access-conflicts.json written: ${cases.length} cases`)
+}
