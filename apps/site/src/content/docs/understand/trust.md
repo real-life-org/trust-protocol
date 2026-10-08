@@ -22,9 +22,9 @@ Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob
 ## Trusting means showing who you are
 
 Besides the pair anchors of each relationship, every person has one
-anchor that is theirs across relationships: **the member anchor of
-their own personal community**. Nothing links it to any pair anchor,
-unless the holder says so.
+anchor that is theirs across relationships: **the anchor of their own
+personal community**. Nothing links it to any pair anchor, unless the
+holder says so.
 
 Trusting a contact is saying so, to that one contact: an **anchor
 mapping** that states "the person you met under this pair anchor and
@@ -34,28 +34,23 @@ between the two, not a signature. Whoever issues an anchor decides,
 per recipient, who gets to see it. Nobody may pass it on in your
 name.
 
-Spec: [Network Visibility §6.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#61-purpose-and-construction) ·
-[Identity Layer §6](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#6-context-labels-normative)
-
-## What your contact can do with it
-
-Two things. They can recognize you: wherever the anchor of your
-personal community turns up for them again, in another relationship or in a group where
-you lifted the pseudonym for them, their app knows it is you, and two
-entries become one person on their device. And they can test: when
-someone else sends them a star, they can check whether you are in it.
+From then on your contact recognizes you: wherever the anchor of your
+personal community turns up for them again, in another relationship
+or in a group where you lifted the pseudonym for them, their app
+knows it is you, and two entries become one person on their device.
 
 Two things they cannot do. They cannot prove the link to anyone else;
 the mapping verifies for them alone, and they could have forged it
 themselves. And they cannot take that anchor into a group or a star
 as a plain value; it never appears in the open.
 
-What they do hold from then on is your anchor and how to reach you.
-Trust is revocable in distribution, not in possession: you can stop
-sending, you cannot make someone forget.
+Withdrawing trust works forward. You stop sending, and when you renew
+your anchor, the contacts you still trust follow while the anchor the
+others hold goes stale. What someone has already seen, they keep.
 
-Spec: [Network Visibility §6.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#63-verification--the-closed-condition-list) ·
-[§5.2b](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#52b-group-star1--the-senders-groups-blinded-to-every-contact-sealed-to-the-chosen-ones)
+Spec: [Network Visibility §6](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6-anchor-mapping-normative) ·
+[§6.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#65-anchor-rotation1-and-the-rotation-of-the-community-anchor) ·
+[Identity Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#54-the-community-anchors-generations)
 
 ## The blinded star
 
