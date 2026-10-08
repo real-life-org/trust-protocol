@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // The ONE ceremony, executable: encounter-scan@0.25 with its connected and
-// optical legs — under FRESH-ALWAYS pair contexts (Encounter 0.28 wire 0.25,
-// spec 4.4): every enactment mints fresh pair anchors on both sides; the
-// carrier switch (lost ack) stays WITHIN the one enactment. Run against the
-// real engine.
+// optical legs — under FRESH-ALWAYS pair contexts (Encounter 0.31: card
+// 0.25, credential 0.26, spec 4.4): every enactment mints fresh pair
+// anchors on both sides; the carrier switch (lost ack) stays WITHIN the
+// one enactment. Run against the real engine.
 
 import {
   createPerson, displayCard, sentCard, issueCredential, binding,
