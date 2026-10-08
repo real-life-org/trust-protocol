@@ -1,0 +1,95 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "@protected": true,
+
+    "id": "@id",
+    "type": "@type",
+
+    "DTGCredential": "https://registry.trustoverip.org/dtg/credentials#DTGCredential",
+    "MembershipCredential": "https://registry.trustoverip.org/dtg/credentials#MembershipCredential",
+    "RelationshipCredential": "https://registry.trustoverip.org/dtg/credentials#RelationshipCredential",
+    "DelegationCredential": "https://registry.trustoverip.org/dtg/credentials#DelegationCredential",
+    "InvitationCredential": "https://registry.trustoverip.org/dtg/credentials#InvitationCredential",
+    "PersonaCredential": "https://registry.trustoverip.org/dtg/credentials#PersonaCredential",
+    "StatementCredential": "https://registry.trustoverip.org/dtg/credentials#StatementCredential",
+    "AuthorityCredential": "https://registry.trustoverip.org/dtg/credentials#AuthorityCredential",
+
+    "issuerScope": "https://registry.trustoverip.org/dtg/credentials#issuerScope",
+    "taskContext": "https://registry.trustoverip.org/dtg/credentials#taskContext",
+    "taskDigestMultibase": {
+      "@id": "https://registry.trustoverip.org/dtg/credentials#taskDigestMultibase",
+      "@type": "https://w3id.org/security#multibase"
+    },
+
+    "predicate": {
+      "@id": "https://registry.trustoverip.org/dtg/credentials#predicate",
+      "@type": "@id"
+    },
+    "object": {
+      "@id": "https://registry.trustoverip.org/dtg/credentials#object",
+      "@context": {
+        "@protected": true,
+        "value": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#value",
+          "@type": "@json"
+        }
+      }
+    },
+    "witnessContext": {
+      "@id": "https://registry.trustoverip.org/dtg/credentials#witnessContext",
+      "@context": {
+        "@protected": true,
+        "event": "https://registry.trustoverip.org/dtg/credentials#event",
+        "sessionId": "https://registry.trustoverip.org/dtg/credentials#sessionId",
+        "method": "https://registry.trustoverip.org/dtg/credentials#method"
+      }
+    },
+
+    "delegation": {
+      "@id": "https://registry.trustoverip.org/dtg/credentials#delegation",
+      "@context": {
+        "@protected": true,
+        "scope": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#delegationScope",
+          "@container": "@set"
+        },
+        "parent": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#parent",
+          "@type": "https://w3id.org/security#multibase"
+        },
+        "maxDepth": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#maxDepth",
+          "@type": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "accepts": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#accepts",
+          "@type": "https://w3id.org/security#multibase"
+        }
+      }
+    },
+
+    "authority": {
+      "@id": "https://registry.trustoverip.org/dtg/credentials#authority",
+      "@context": {
+        "@protected": true,
+        "scope": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#authorityScope",
+          "@type": "@id"
+        },
+        "actions": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#actions",
+          "@container": "@set"
+        },
+        "parent": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#parent",
+          "@type": "https://w3id.org/security#multibase"
+        },
+        "maxAttenuation": {
+          "@id": "https://registry.trustoverip.org/dtg/credentials#maxAttenuation",
+          "@type": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      }
+    }
+  }
+}
