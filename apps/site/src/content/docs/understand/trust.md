@@ -1,0 +1,156 @@
+---
+title: Trust
+description: What turns encounters into a network. What you reveal when you trust someone, the blinded star, being introduced, meeting again, vouching inside a group, and what nobody else can read.
+---
+
+## Trust is a second step
+
+Verifying someone means this: you met them, and this key is
+theirs. That is all an encounter records, and it is why you
+can do it with anyone, without risk. Every encounter runs under a
+fresh pairwise anchor, so verifying a stranger gives them nothing of
+you beyond this one meeting.
+
+Trust is a second, deliberate act. It follows only if you want it to,
+and only toward people you actually trust. It is not a document you
+could show to a third party; it is you sharing something about
+yourself explicitly with this one person. This page is about that act
+and what grows from it.
+
+Spec: [Encounter Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#3-what-an-encounter-establishes)
+
+## Trusting means showing who you are
+
+Besides the pair anchors of each relationship, every person has one
+anchor that is theirs across relationships: **the anchor of their own
+personal community**. Nothing links it to any pair anchor, unless the
+holder says so.
+
+Trusting a contact is saying so, to that one contact: an **anchor
+mapping** that states "the person you met under this pair anchor and
+the holder of this personal community are the same". It is built so
+that only the addressee can check it; the proof is a shared secret
+between the two, not a signature. Whoever issues an anchor decides,
+per recipient, who gets to see it. Nobody may pass it on in your
+name.
+
+From then on your contact recognizes you: wherever the anchor of your
+personal community turns up for them again, in another relationship
+or in a group where you lifted the pseudonym for them, their app
+knows it is you, and two entries become one person on their device.
+
+Two things they cannot do. They cannot prove the link to anyone else;
+the mapping verifies for them alone, and they could have forged it
+themselves. And they cannot take that anchor into a group or a star
+as a plain value; it never appears in the open.
+
+Withdrawing trust works forward. You stop sending, and when you renew
+your anchor, the contacts you still trust follow while the anchor the
+others hold goes stale. What someone has already seen, they keep.
+
+Spec: [Network Visibility §6](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6-anchor-mapping-normative) ·
+[§6.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#65-anchor-rotation1-and-the-rotation-of-the-community-anchor) ·
+[Identity Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#54-the-community-anchors-generations)
+
+## The blinded star
+
+A **star** is what one person sends to one contact to let them relate
+the two contact sets. It lists the people who trusted the sender,
+but not as anchors: each entry is the anchor of the person's personal
+community run through a keyed hash, with a key that holds for this sender, this
+recipient and this delivery only.
+
+The recipient can do exactly one thing with it: test the anchors
+they already hold. A hit means you both hold this person's anchor,
+which they give only to people they trust.
+An anchor they do not hold reveals nothing, and no new anchor ever
+reaches them through a star. A star is deliberately unsigned, so it
+proves nothing about the sender's relationships to anyone; it is a
+test instrument, not evidence.
+
+That is also what it is for. When a verifier asks how many people
+stand behind someone, the useful answer is not "forty" but "forty,
+three of whom you know". The star is how the three are found without
+anyone handing over a list.
+
+The star has a sibling for groups. Each group you are in, unless you
+switch it off, travels to every contact as a blinded value too, so a contact who is in the same
+group gets a hit: we know each other from somewhere. Who you are in
+that group stays sealed, and opens only for the contacts you trust,
+or for one you choose per group.
+
+Spec: [Network Visibility §5](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#5-the-star-normative) ·
+[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#7-relational-counts-normative-principle-artifact-unwritten)
+
+## Meeting through someone you both know
+
+There are two ways to gain a contact: meet them, or be introduced by
+someone who knows you both. An **introduction** is five messages
+through the mediator: the request with a fresh card, the forward, the
+reply with the target's fresh card, the acknowledgement, and a voucher
+to each side. The mediator passes on fresh cards, never the anchors
+of an existing relationship; the two new pair anchors are issued by
+their owners for the new relationship. The target decides on their
+own device, and a no looks the same to the requester as no answer.
+
+A relationship from an introduction carries that origin with it. The
+first real encounter upgrades it, and nothing downgrades it. The
+limit is stated plainly: a mediator could play one side itself.
+That is why an introduced relationship is the weaker one until the two
+have met.
+
+Spec: [Network Visibility §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#8-the-introduction-act-normative)
+
+## Meeting again
+
+Most relationships are one scan: you meet, you verify each other, and
+from then on you are in each other's contacts. A second scan happens
+when two people forgot that they already are, or when two who were
+introduced meet in person for the first time.
+
+Either way the devices sort it out. Every encounter runs under a fresh
+pairwise anchor, so on the wire the second scan looks like a stranger;
+right after it, the two devices run a **continuity probe**, a short
+list of blinded values that only a counterpart holding the earlier
+relationship can match. A match links the new pair to the existing
+relationship and the app shows "re-verified"; an introduced
+relationship becomes a met one. No match means a new contact,
+honestly, which is also what a contact who lost their data becomes.
+
+Spec: [Network Visibility §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a-continuity-normative--the-other-half-of-encounter-44) ·
+[Encounter Layer §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative)
+
+## Vouching inside a group
+
+A group can require that a newcomer is vouched for. A **vouch** is a
+member's signed statement for exactly one admission of exactly one
+person, made inside the group where other members can check it. It
+names how the voucher knows the person, met or introduced, as their
+own word, not as a verified fact. A vouch never stands for a later
+admission, and an encounter credential is not a vouch: its anchors are
+fresh pair anchors that no group rule can name.
+
+Spec: [Access Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#53-admission-and-removal)
+
+## What nobody else can read
+
+There is no graph anywhere. No directory, no crawl, no server that
+holds the relationships. A third party who collects leaked
+credentials learns that two anchors it cannot attribute assert an
+encounter. Mappings, continuity, vouchers of an introduction: a third
+party cannot even verify them, let alone attribute them.
+
+And trust does not travel. If you trust someone and they trust a
+third, the protocol computes nothing from it. There is no trust depth
+and no transitive score, on purpose. A verifier learns about a
+person's relationships only because that person shows them, and only
+as far as the verifier already knows the people involved.
+
+A transferable statement of trust, something you could present about
+a third person, does not exist in this version. Whether and in what
+form it should is an open question, discussed with the people who
+build the credential formats this protocol uses.
+
+Spec: [Personhood Predicates §1.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md#11-the-two-structural-facts) ·
+[§6](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md#6-what-no-predicate-establishes) ·
+[Encounter Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#8-what-a-third-party-can-verify)

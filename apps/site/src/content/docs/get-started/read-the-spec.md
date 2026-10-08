@@ -13,7 +13,7 @@ Considerations. They are dense. This order keeps the dependencies in view.
 
 | # | Document | What it settles |
 |---|---|---|
-| 1 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | How two people establish, record and maintain mutual recognition: the ceremony, contact cards, challenges, encounter credentials, edges. |
+| 1 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | How two people verify each other and keep the record of it: the ceremony, contact cards, challenges, encounter credentials, edges. |
 | 2 | [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) | One root seed, every identity derived: per-relationship pair anchors, per-group member anchors, service identities. |
 | 3 | [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) | How documents travel: private Trust Task types, the sealed envelope, staged dispositions, delivery promises. |
 | 4 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | How a group holds shared authority: the authority log, policies as decision rules, epochs that make revocation real. |
