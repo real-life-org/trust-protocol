@@ -3,20 +3,19 @@
 **Real Life Trust Protocol — Layer 2: Encounter**
 
 - **Status:** Editor's Draft
-- **Version:** 0.32.0-draft
+- **Version:** 0.31.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-09
+- **Date:** 2026-10-08
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-encounter@0.31` (draft; 0.32
-  changes no conformance requirement). Wire forms:
+- **Conformance profile:** `rltp-encounter@0.31` (draft). Wire forms:
   `rltp-card/0.25`, `rltp-encounter-credential/0.26` (a held
   `rltp-encounter-credential/0.25` stays valid, Section 12), ceremony
   `encounter-scan@0.25`.
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
   Delivery Contract 0.79 (normative reference, Section 11); DTG
   Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
-- **Supersedes:** version 0.31 (archived as
-  `archive/encounter-layer-0.31.md`). Earlier versions: Appendix C.
+- **Supersedes:** version 0.30 (archived as
+  `archive/encounter-layer-0.30.md`). Earlier versions: Appendix C.
 
 ## Abstract
 
@@ -37,11 +36,10 @@ switches carriers — never ceremonies — as conditions change.
 Relations that are not encounters exist as paths in the graph and are
 computed rather than asserted.
 
-Cryptography proves freshness and authorship; what an encounter is
-worth, each person judges by the people they already know. When a
-person's anchor changes, their edges follow through witnessed
-succession, specified separately in *RLTP Succession* (currently
-parked).
+Cryptography proves freshness and authorship; only a human can witness
+a human. When a person's anchor changes, their edges follow through
+witnessed succession, specified separately in *RLTP Succession*
+(currently parked).
 
 ## Status of This Document
 
@@ -67,23 +65,19 @@ feedback is welcome via the issues of the publication repository
 Three consequences shape this document:
 
 1. **The protocol does not prove personhood.** It proves that a key
-   was controlled and that an exchange was fresh. Whether a human
-   holds the key, and whether they are who they appear to be, no
-   artifact can show: anchors can be held by people and by agents
-   alike, and nothing in a key tells them apart. The confirming party
-   judges its counterpart; everyone else weighs the edge by the
-   anchors they already know (4.2). Because anchors are free to
-   create, nothing in a credential proves that distinct anchors are
-   distinct people; what the protocol makes expensive is forging an edge **to a
+   was controlled and that an exchange was fresh. That a human is
+   present, and that this human is the one they appear to be, is
+   witnessed by another human. Because anchors are free to create,
+   nothing in a credential proves that distinct anchors are distinct
+   people; what the protocol makes expensive is forging an edge **to a
    specific, known anchor** (Section 13).
 2. **An encounter is one thing.** An enactment establishes fresh
    recognition — mutual when both parties confirm; whatever ceremony
    it enacts, it produces the same kind of credential. Relations of
    other kinds are **paths and shared contexts derived from the
    graph**, computed rather than asserted.
-3. **Recognition is not trust.** An encounter says "I met this
-   counterpart, and this key is theirs". It does not say "I trust
-   them".
+3. **Recognition is not trust.** An encounter says "this person is
+   real and I met them". It does not say "I trust them".
 
 ### 1.2 Position in the layer model
 
@@ -435,10 +429,10 @@ Working Draft 01 until their own wire step.
 *In plain terms.* Two people exchanged fresh codes — by one scan or
 by two — and whoever issues a credential first pressed "yes, I
 recognize this person". That proves that the issuer's key was in the
-right hands at that moment and that the issuer deliberately decided;
-when both issue, it proves that for both. It does not prove that they
-stood in the same room, that they are who their names say, or that
-either trusts the other.
+right hands at that moment and that a human decided; when both issue,
+it proves that for both. It does not prove that they stood in the
+same room, that they are who their names say, or that either trusts
+the other.
 
 An encounter establishes exactly four things:
 
@@ -446,7 +440,7 @@ An encounter establishes exactly four things:
 |---|---|
 | **Key control** — the issuer controlled their anchor's key | proof (2.3) |
 | **Freshness** — the exchange happened within one enactment | challenge binding (5.3) |
-| **Deliberate recognition** — the issuer deliberately decided to confirm | the confirmation step (5.2, C4) |
+| **Deliberate recognition** — a human decided to confirm | the confirmation step (5.2, C4) |
 | **A durable record** — the fact survives the moment | the encounter credential (Section 7) |
 
 **RLTP-ENC-3010** — An implementation MUST NOT present an encounter
@@ -458,15 +452,6 @@ personhood, identity of a name to a legal person, or trust; a user
 who reads it as a presence, person, or trust proof is misled.
 Freshness and recognition are established toward the participants;
 what a third party can later verify is strictly less (Section 8).
-
-*Agents.* An anchor can be held by a person or by an agent; nothing
-in a key, a card or a credential tells them apart, and this layer
-does not try. An agent takes part in an encounter under the same
-rules. The confirmation step establishes the holder's deliberate
-decision, not that the holder is human. A verifier weighs an edge by
-the anchors it already knows (4.2; Personhood Predicates), so edges
-among anchors it does not know carry nothing for it, whoever holds
-them.
 
 ## 4. Anchors, Credentials, Edges
 
@@ -658,10 +643,8 @@ of C1 to C5:
   single-use and fresh at enactment time.
 - **C3 Binding.** Each step credential binds the challenge of its
   subject and the enactment binding (5.4).
-- **C4 Deliberate confirmation.** Before issuing, the holder
-  deliberately confirms recognition, by its own act for this
-  enactment; in an application a person uses, that act is the
-  person's.
+- **C4 Deliberate confirmation.** Before issuing, a human confirms
+  recognition.
 - **C5 Enactment record.** Each party durably records the enactment
   (5.5) before issuing. In a two-phase ceremony the enactment
   completes when the second record exists (5.8); one-sided outcomes
@@ -685,9 +668,6 @@ of a challenge holds the state that decides freshness and single use;
 the counterparty's challenge age is unverifiable without the
 counterparty's state and clock. C4 is the security boundary of this
 layer: automating it removes the only thing the layer secures.
-Automatic means without the holder's own decision for this
-enactment, such as an application that confirms on its user's
-behalf; an agent holding its own anchor decides as that holder.
 Interactions that establish something else — possession of a phone
 number, control of a domain — would otherwise be counted as
 encounters.
@@ -1061,7 +1041,7 @@ service.
 
 *Rationale.* `boundTo` tells B's device which of its own challenges
 this enactment answers, and `sentTo` makes the card non-redirectable.
-The record precedes issuance (C5) and the confirmation precedes
+The record precedes issuance (C5) and the human confirmation precedes
 issuance (C4).
 
 #### Connected path
@@ -1695,8 +1675,8 @@ document does not state a further reason.
 presence.
 
 - **Freshness is not presence.** A channel can be relayed.
-- **The confirmation step is the security boundary.** C4 is where the
-  holder decides; automating it removes the only thing this layer
+- **The confirmation step is the security boundary.** C4 is where a
+  human decides; automating it removes the only thing this layer
   secures (RLTP-ENC-5080).
 - **Keys are bound to anchors by the Layer-1 binding rule**, verified
   decoded (2.3).
@@ -1708,8 +1688,8 @@ presence.
   race the legitimate scanner to its single-use challenge — but cannot
   burn it with garbage: the Delivery Contract's validate-then-consume
   order means only a fully valid bundle consumes (RLTP-ENC-5640). The
-  displayed party's protection at confirmation is the confirming party's
-  check that the claimed identity matches the counterpart present.
+  displayed party's protection at confirmation is the human check that
+  the claimed identity matches the person present.
 - **Replay and substitution.** Challenge binding, the uniqueness
   check, and record idempotency by document digest make retries and
   replays safe.
@@ -2092,7 +2072,6 @@ One line per version; the archived text is under `archive/`.
 | 0.29 | 2026-08-23 | Community anchor and member-anchor-bound card uses named; no wire change. |
 | 0.30 | 2026-10-05 | Numbered rules with separate rationale; DTG scope vocabulary; no wire change. |
 | 0.31 | 2026-10-08 | Credential on DTG Credentials WD 0.6.0: registry context v1 pinned by digest, `issuerScope` `pairwise`; wire 0.26, 0.25 still read. |
-| 0.32 | 2026-10-09 | The confirmation is the holder's deliberate act, not a guaranteed human; agents may hold anchors; no rule identifier, wire or conformance change. |
 
 ## References
 

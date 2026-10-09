@@ -84,8 +84,8 @@ self-description: anchor, key agreement key, and in an encounter a
 fresh [challenge](term:Challenge).
 
 An encounter establishes exactly four things: the issuer controlled
-their key, the exchange was fresh, a human deliberately verified
-the other, and the fact survives as a record. It does not
+their key, the exchange was fresh, the issuer deliberately
+verified the other, and the fact survives as a record. It does not
 establish physical presence, personhood, that a name belongs to a
 legal person, or trust. Freshness and verification are established
 toward the two participants only.

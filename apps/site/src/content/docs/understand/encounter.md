@@ -16,7 +16,7 @@ The credential proves four things and nothing more:
 |---|---|
 | The issuer held their key at that moment | the credential is signed with it |
 | The two codes were exchanged within one act | the credential binds the other side's fresh [challenge](term:Challenge) |
-| A human decided | nothing is issued without the press |
+| The issuer decided | nothing is issued without the press |
 | The fact survives the moment | the credential is immutable and stays with its holder |
 
 It does not prove that the two were in the same room, that their
