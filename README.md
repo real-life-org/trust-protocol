@@ -5,7 +5,8 @@ protocol rooted in **encounters between people**: two humans meet,
 recognize each other, and record that recognition as verifiable
 credentials. Trust is anchored in real meetings rather than in a
 certifying institution. Cryptography proves freshness and authorship;
-only a human can witness a human.
+what an encounter is worth, each person judges by the people they
+already know.
 
 Published by the [Real Life Organisation](https://real-life.org). RLTP is
 the third generation of this protocol. The second,
