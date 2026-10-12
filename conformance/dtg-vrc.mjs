@@ -23,7 +23,8 @@
 //   proof-binding    the verificationMethod's DID is the issuer
 //   proof-key        the verificationMethod resolves, without network, to
 //                    an Ed25519 key of the issuer listed under the proof's
-//                    proofPurpose (absent: assertionMethod): did:key
+//                    proofPurpose (absent: assertionMethod; a present
+//                    value, null included, must name a relationship): did:key
 //                    (fragment = the method-specific id; the key serves
 //                    the signing relationships, never keyAgreement), or
 //                    did:peer:2 (fragment #key-N = the Nth key segment,
@@ -216,11 +217,15 @@ export function checkVrc (cred) {
   const formOk = isObj(proof) && proof.type === 'DataIntegrityProof' && proof.cryptosuite === 'eddsa-jcs-2022' && typeof proof.proofValue === 'string' && typeof proof.verificationMethod === 'string'
   step('proof-form', formOk, `proof must be a DataIntegrityProof with cryptosuite eddsa-jcs-2022 (the suite this tool verifies); got ${JSON.stringify(isObj(proof) ? { type: proof.type, cryptosuite: proof.cryptosuite } : proof)}`)
   if (!formOk) return { ok: false, failures, passed, notes }
-  if (proof.proofPurpose !== 'assertionMethod') notes.push(`proofPurpose ${JSON.stringify(proof.proofPurpose)}; DTG examples use assertionMethod`)
+  // the default applies only to an absent member; any present value (null,
+  // a non-string, an unknown name) must name a verification relationship
+  const purpose = 'proofPurpose' in proof ? proof.proofPurpose : 'assertionMethod'
+  if (!('proofPurpose' in proof)) notes.push('proofPurpose absent, read as assertionMethod; DTG examples carry it')
+  else if (purpose !== 'assertionMethod' && RELATIONSHIPS.includes(purpose)) notes.push(`proofPurpose ${JSON.stringify(purpose)}; DTG examples use assertionMethod`)
 
   const vmDid = proof.verificationMethod.split('#')[0]
   step('proof-binding', vmDid === cred.issuer, `verificationMethod DID ${vmDid} is not the issuer ${cred.issuer}`)
-  const key = resolveVm(proof.verificationMethod, notes, proof.proofPurpose ?? 'assertionMethod')
+  const key = resolveVm(proof.verificationMethod, notes, purpose)
   step('proof-key', !!key.raw, key.error)
   if (!key.raw) return { ok: false, failures, passed, notes }
 

@@ -191,3 +191,33 @@ test('checkVrc: key-purpose negatives fail at proof-key with the purpose as reas
     assert.match(r.failures[0].detail, re, n)
   }
 })
+
+test('checkVrc: proofPurpose defaults to assertionMethod only when the member is absent', () => {
+  const c = positive('did-peer-2-issuer-pairwise'); delete c.proof.proofPurpose
+  const r = checkVrc(c)
+  assert.ok(r.passed.includes('proof-key'), 'absent member: the assertionMethod key resolves')
+  assert.deepEqual(r.failures.map((f) => f.check), ['proof-signature'], 'only the signature, which covered the member, breaks')
+})
+
+test('checkVrc: a present proofPurpose that is null, not a string or unknown is refused at proof-key', () => {
+  for (const [v, re] of [[null, /proofPurpose null is not a verification relationship/],
+    [5, /proofPurpose 5 is not a verification relationship/],
+    [['assertionMethod'], /proofPurpose \["assertionMethod"\] is not a verification relationship/],
+    ['', /proofPurpose "" is not a verification relationship/],
+    ['somethingElse', /proofPurpose "somethingElse" is not a verification relationship/]]) {
+    const c = positive('did-peer-2-issuer-pairwise'); c.proof.proofPurpose = v
+    const r = checkVrc(c)
+    assert.deepEqual(r.failures.map((f) => f.check), ['proof-key'], JSON.stringify(v))
+    assert.match(r.failures[0].detail, re, JSON.stringify(v))
+  }
+})
+
+test('checkVrc: the signed proofPurpose negatives fail at proof-key alone', () => {
+  for (const [n, re] of [['proofPurpose-null', /proofPurpose null/], ['proofPurpose-not-a-string', /proofPurpose \["assertionMethod"\]/]]) {
+    const v = F.negative.find((x) => x.name === n)
+    assert.ok(v, n)
+    const r = checkVrc(v.credential)
+    assert.deepEqual(r.failures.map((f) => f.check), ['proof-key'], n)
+    assert.match(r.failures[0].detail, re, n)
+  }
+})
