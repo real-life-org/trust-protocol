@@ -22,11 +22,18 @@
 //                    only suite this tool verifies), proofValue present
 //   proof-binding    the verificationMethod's DID is the issuer
 //   proof-key        the verificationMethod resolves, without network, to
-//                    an Ed25519 key of the issuer: did:key (fragment = the
-//                    method-specific id), or did:peer:2 (fragment #key-N
-//                    over the key entries in order, or the key's own
-//                    multibase value; the entry is purpose V or A and an
-//                    Ed25519 Multikey z6Mk…)
+//                    an Ed25519 key of the issuer listed under the proof's
+//                    proofPurpose (absent: assertionMethod; a present
+//                    value, null included, must name a relationship): did:key
+//                    (fragment = the method-specific id; the key serves
+//                    the signing relationships, never keyAgreement), or
+//                    did:peer:2 (fragment #key-N = the Nth key segment,
+//                    S segments skipped, or the key's own multibase value;
+//                    the segment's purpose code — A assertionMethod,
+//                    V authentication, E keyAgreement, I
+//                    capabilityInvocation, D capabilityDelegation — must
+//                    match the proofPurpose, and the key is an Ed25519
+//                    Multikey z6Mk…)
 //   proof-signature  W3C eddsa-jcs-2022 verification from the embedded
 //                    proof alone; a proof @context must be a prefix of the
 //                    document @context
@@ -81,8 +88,19 @@ export function parseDidPeer2 (did) {
   return keys.length ? { keys } : null
 }
 
-// verificationMethod → { raw } of an Ed25519 key, or { error }; notes collect tolerances
-export function resolveVm (vm, notes = []) {
+// did:peer:2 purpose codes → verification relationships (did:peer method
+// spec, numalgo 2); S (service) is not a key
+export const PEER2_PURPOSE = { A: 'assertionMethod', E: 'keyAgreement', V: 'authentication', I: 'capabilityInvocation', D: 'capabilityDelegation' }
+export const RELATIONSHIPS = Object.values(PEER2_PURPOSE)
+// an Ed25519 did:key's own key serves every signing relationship; its
+// keyAgreement key is a derived X25519 key under another id
+const DID_KEY_SERVES = ['assertionMethod', 'authentication', 'capabilityInvocation', 'capabilityDelegation']
+const article = (w) => /^[aeiou]/i.test(w) ? 'an' : 'a'
+
+// verificationMethod → { raw } of an Ed25519 key listed under the proof's
+// purpose (default assertionMethod), or { error }; notes collect tolerances
+export function resolveVm (vm, notes = [], purpose = 'assertionMethod') {
+  if (!RELATIONSHIPS.includes(purpose)) return { error: `proofPurpose ${JSON.stringify(purpose)} is not a verification relationship` }
   if (typeof vm !== 'string' || !vm.includes('#')) return { error: 'verificationMethod is not a DID URL with a fragment' }
   const i = vm.indexOf('#'), did = vm.slice(0, i), frag = vm.slice(i)
   if (did.startsWith('did:key:')) {
@@ -90,17 +108,23 @@ export function resolveVm (vm, notes = []) {
     if (frag !== '#' + id) return { error: 'did:key fragment is not the method-specific identifier' }
     const k = multikey(id)
     if (!k || k.codec !== 'ed25519-pub') return { error: 'did:key does not encode an Ed25519 key' }
+    if (!DID_KEY_SERVES.includes(purpose)) return { error: `${frag} is a did:key signing key, not ${purpose}` }
     return { raw: k.raw }
   }
   if (did.startsWith('did:peer:2.')) {
     const doc = parseDidPeer2(did)
     if (!doc) return { error: 'did:peer:2 does not parse' }
-    const k = doc.keys.find((x) => x.id === frag || '#' + x.mb === frag)
+    // #key-N names exactly one entry; a multibase-value fragment may name
+    // the same key under several purposes and resolves to the one serving
+    // the proof purpose, if any
+    const byId = doc.keys.find((x) => x.id === frag)
+    const byMb = doc.keys.filter((x) => '#' + x.mb === frag)
+    const k = byId ?? byMb.find((x) => PEER2_PURPOSE[x.purpose] === purpose) ?? byMb[0]
     if (!k) return { error: `did:peer:2 has no key ${frag}` }
+    const rel = PEER2_PURPOSE[k.purpose]
+    if (rel !== purpose) return { error: `${frag} is ${article(rel)} ${rel} key, not ${purpose}` }
     if (k.codec !== 'ed25519-pub') return { error: `${frag} is a ${k.codec} key, not Ed25519` }
-    if (k.purpose !== 'V' && k.purpose !== 'A') return { error: `${frag} has purpose ${k.purpose}, neither V nor A` }
-    if (k.purpose === 'V') notes.push(`${frag} is a V (authentication) entry used for an assertionMethod proof; a verifier that enforces the proof purpose against the resolved document would require an A entry`)
-    if ('#' + k.mb === frag) notes.push(`${frag} names the key by its multibase value rather than #key-N`)
+    if (!byId) notes.push(`${frag} names the key by its multibase value rather than #key-N`)
     return { raw: k.raw }
   }
   return { error: `DID method of ${did} is not resolvable offline by this tool` }
@@ -193,11 +217,15 @@ export function checkVrc (cred) {
   const formOk = isObj(proof) && proof.type === 'DataIntegrityProof' && proof.cryptosuite === 'eddsa-jcs-2022' && typeof proof.proofValue === 'string' && typeof proof.verificationMethod === 'string'
   step('proof-form', formOk, `proof must be a DataIntegrityProof with cryptosuite eddsa-jcs-2022 (the suite this tool verifies); got ${JSON.stringify(isObj(proof) ? { type: proof.type, cryptosuite: proof.cryptosuite } : proof)}`)
   if (!formOk) return { ok: false, failures, passed, notes }
-  if (proof.proofPurpose !== 'assertionMethod') notes.push(`proofPurpose ${JSON.stringify(proof.proofPurpose)}; DTG examples use assertionMethod`)
+  // the default applies only to an absent member; any present value (null,
+  // a non-string, an unknown name) must name a verification relationship
+  const purpose = 'proofPurpose' in proof ? proof.proofPurpose : 'assertionMethod'
+  if (!('proofPurpose' in proof)) notes.push('proofPurpose absent, read as assertionMethod; DTG examples carry it')
+  else if (purpose !== 'assertionMethod' && RELATIONSHIPS.includes(purpose)) notes.push(`proofPurpose ${JSON.stringify(purpose)}; DTG examples use assertionMethod`)
 
   const vmDid = proof.verificationMethod.split('#')[0]
   step('proof-binding', vmDid === cred.issuer, `verificationMethod DID ${vmDid} is not the issuer ${cred.issuer}`)
-  const key = resolveVm(proof.verificationMethod, notes)
+  const key = resolveVm(proof.verificationMethod, notes, purpose)
   step('proof-key', !!key.raw, key.error)
   if (!key.raw) return { ok: false, failures, passed, notes }
 

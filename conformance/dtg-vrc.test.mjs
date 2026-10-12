@@ -7,7 +7,8 @@ import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { checkVrc, dateTime, cmpInstant } from './dtg-vrc.mjs'
+import { checkVrc, dateTime, cmpInstant, resolveVm } from './dtg-vrc.mjs'
+import { b58, privEd, privX, pubRaw, didOf } from './lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const F = JSON.parse(readFileSync(join(HERE, '../vectors/dtg-vrc-foreign.json'), 'utf8'))
@@ -111,4 +112,112 @@ test('CLI: a failing credential does not abort the batch; the next one is still 
   assert.match(r.stderr, /FAIL {2}.*\[0\].*proof-signature/)
   assert.match(r.stdout, /ok {4}.*\[1\]/)
   assert.match(r.stdout, /1 credential\(s\) failed/)
+})
+
+// did:peer:2 key purposes (did:peer method spec, numalgo 2): A → assertionMethod,
+// E → keyAgreement, V → authentication, I → capabilityInvocation,
+// D → capabilityDelegation; #key-N counts key segments in order, S skipped
+const edMk = (n) => 'z' + b58(Buffer.concat([Buffer.from([0xed, 0x01]), pubRaw(privEd(Buffer.alloc(32, n)))]))
+const xMk = (n) => 'z' + b58(Buffer.concat([Buffer.from([0xec, 0x01]), pubRaw(privX(Buffer.alloc(32, n)))]))
+const AVE = `did:peer:2.A${edMk(1)}.V${edMk(1)}.E${xMk(2)}`
+const SVC = 'S' + Buffer.from(JSON.stringify({ t: 'dm', s: 'https://example.test' })).toString('base64url')
+
+test('resolveVm: did:peer:2 #key-N must carry the purpose of the proof', () => {
+  assert.ok(resolveVm(AVE + '#key-1').raw, 'A key for assertionMethod (default)')
+  assert.ok(resolveVm(AVE + '#key-1', [], 'assertionMethod').raw)
+  const v = resolveVm(AVE + '#key-2', [], 'assertionMethod')
+  assert.equal(v.raw, undefined)
+  assert.equal(v.error, '#key-2 is an authentication key, not assertionMethod')
+  assert.equal(resolveVm(AVE + '#key-2').error, '#key-2 is an authentication key, not assertionMethod', 'default purpose is assertionMethod')
+  assert.ok(resolveVm(AVE + '#key-2', [], 'authentication').raw, 'V key for an authentication proof')
+  assert.equal(resolveVm(AVE + '#key-1', [], 'authentication').error, '#key-1 is an assertionMethod key, not authentication')
+  assert.match(resolveVm(AVE + '#key-3').error, /#key-3 is a keyAgreement key, not assertionMethod/)
+})
+
+test('resolveVm: a did:peer:2 with only a V signing key cannot sign for assertionMethod', () => {
+  const vOnly = `did:peer:2.V${edMk(3)}`
+  assert.equal(resolveVm(vOnly + '#key-1').error, '#key-1 is an authentication key, not assertionMethod')
+  const ev = `did:peer:2.E${xMk(4)}.V${edMk(3)}`
+  assert.equal(resolveVm(ev + '#key-2').error, '#key-2 is an authentication key, not assertionMethod')
+})
+
+test('resolveVm: did:peer:2 S segments are not counted as keys; I and D map to capabilities', () => {
+  const did = `did:peer:2.${SVC}.I${edMk(5)}.D${edMk(6)}.A${edMk(7)}`
+  assert.ok(resolveVm(did + '#key-1', [], 'capabilityInvocation').raw)
+  assert.ok(resolveVm(did + '#key-2', [], 'capabilityDelegation').raw)
+  assert.ok(resolveVm(did + '#key-3', [], 'assertionMethod').raw)
+  assert.equal(resolveVm(did + '#key-1').error, '#key-1 is a capabilityInvocation key, not assertionMethod')
+  assert.match(resolveVm(did + '#key-4').error, /no key #key-4/)
+})
+
+test('resolveVm: a multibase-value fragment resolves only to an entry of the proof purpose', () => {
+  const k = edMk(1)
+  const notes = []
+  assert.ok(resolveVm(AVE + '#' + k, notes).raw, 'the same key is also listed under A')
+  assert.ok(notes.some((n) => /multibase value/.test(n)))
+  const vOnly = `did:peer:2.V${edMk(3)}`
+  assert.match(resolveVm(vOnly + '#' + edMk(3)).error, /authentication key, not assertionMethod/)
+})
+
+test('resolveVm: did:key serves the signing relationships, never keyAgreement', () => {
+  const did = didOf(Buffer.alloc(32, 9)), vm = `${did}#${did.slice(8)}`
+  for (const p of ['assertionMethod', 'authentication', 'capabilityInvocation', 'capabilityDelegation']) assert.ok(resolveVm(vm, [], p).raw, p)
+  assert.ok(resolveVm(vm).raw, 'default assertionMethod')
+  assert.match(resolveVm(vm, [], 'keyAgreement').error, /not .*keyAgreement/)
+  assert.match(resolveVm(`${did}#key-1`).error, /fragment is not the method-specific identifier/)
+})
+
+test('resolveVm: an unknown proof purpose is refused', () => {
+  assert.match(resolveVm(AVE + '#key-1', [], 'somethingElse').error, /proofPurpose "somethingElse"/)
+})
+
+test('checkVrc: the did:peer:2 positive signs with its A key and carries no key-purpose note', () => {
+  const c = positive('did-peer-2-issuer-pairwise')
+  assert.match(c.issuer, /^did:peer:2\.Az6Mk[^.]+\.Vz6Mk[^.]+\.Ez6LS[^.]+$/)
+  assert.equal(c.proof.verificationMethod, c.issuer + '#key-1')
+  const r = checkVrc(c)
+  assert.ok(r.ok, JSON.stringify(r.failures))
+  assert.deepEqual(r.notes, [])
+})
+
+test('checkVrc: key-purpose negatives fail at proof-key with the purpose as reason', () => {
+  for (const [n, re] of [['verification-method-is-authentication-only-did', /#key-1 is an authentication key, not assertionMethod/],
+    ['verification-method-is-authentication-key', /#key-2 is an authentication key, not assertionMethod/],
+    ['verification-method-is-key-agreement', /#key-3 is a keyAgreement key, not assertionMethod/]]) {
+    const v = F.negative.find((x) => x.name === n)
+    assert.ok(v, n)
+    const r = checkVrc(v.credential)
+    assert.deepEqual(r.failures.map((f) => f.check), ['proof-key'], n)
+    assert.match(r.failures[0].detail, re, n)
+  }
+})
+
+test('checkVrc: proofPurpose defaults to assertionMethod only when the member is absent', () => {
+  const c = positive('did-peer-2-issuer-pairwise'); delete c.proof.proofPurpose
+  const r = checkVrc(c)
+  assert.ok(r.passed.includes('proof-key'), 'absent member: the assertionMethod key resolves')
+  assert.deepEqual(r.failures.map((f) => f.check), ['proof-signature'], 'only the signature, which covered the member, breaks')
+})
+
+test('checkVrc: a present proofPurpose that is null, not a string or unknown is refused at proof-key', () => {
+  for (const [v, re] of [[null, /proofPurpose null is not a verification relationship/],
+    [5, /proofPurpose 5 is not a verification relationship/],
+    [['assertionMethod'], /proofPurpose \["assertionMethod"\] is not a verification relationship/],
+    ['', /proofPurpose "" is not a verification relationship/],
+    ['somethingElse', /proofPurpose "somethingElse" is not a verification relationship/]]) {
+    const c = positive('did-peer-2-issuer-pairwise'); c.proof.proofPurpose = v
+    const r = checkVrc(c)
+    assert.deepEqual(r.failures.map((f) => f.check), ['proof-key'], JSON.stringify(v))
+    assert.match(r.failures[0].detail, re, JSON.stringify(v))
+  }
+})
+
+test('checkVrc: the signed proofPurpose negatives fail at proof-key alone', () => {
+  for (const [n, re] of [['proofPurpose-null', /proofPurpose null/], ['proofPurpose-not-a-string', /proofPurpose \["assertionMethod"\]/]]) {
+    const v = F.negative.find((x) => x.name === n)
+    assert.ok(v, n)
+    const r = checkVrc(v.credential)
+    assert.deepEqual(r.failures.map((f) => f.check), ['proof-key'], n)
+    assert.match(r.failures[0].detail, re, n)
+  }
 })
