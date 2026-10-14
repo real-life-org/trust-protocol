@@ -188,8 +188,7 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#8-visibility-modes",
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#8-visibility-modes"
    ],
    "skos:editorialNote": "German text: draft; the spec names the term only in its fragment table, definition still to be quoted"
   },
@@ -713,17 +712,17 @@
    ],
    "skos:definition": [
     {
-     "@value": "Der Anker der persönlichen Gemeinschaft einer Person in ihrer aktuellen Generation (Identity §5.4), der als selbstgewählte beziehungsübergreifende Koordinate der Person dient; er ist Mitglied keiner Gruppe und erscheint in keinem Artefakt der Zugangsschicht außer innerhalb von anchor.rotate. Den Übergang von einem Mitgliedsanker zu einem Kontakt leistet das Gruppenpaar der Sichtbarkeitsschicht.",
+     "@value": "Der Anker der persönlichen Gemeinschaft einer Person in ihrer aktuellen Generation (Identity §5.4), der als selbstgewählte beziehungsübergreifende Koordinate der Person dient; er ist Mitglied keiner Gruppe und erscheint in keinem Artefakt der Zugangsschicht außer innerhalb von anchor.rotate. Den Übergang von einem Mitgliedsanker zu einem Kontakt leistet das Gruppenpaar der Vertrauensschicht.",
      "@language": "de"
     },
     {
-     "@value": "The anchor of a person's personal community at its current generation (Identity §5.4), serving as the person's chosen cross-relationship coordinate; it is a member of no group and appears in no artifact of the Access Layer except inside anchor.rotate. The crossing from a member anchor to a contact is the group pair of the Network Visibility layer.",
+     "@value": "The anchor of a person's personal community at its current generation (Identity §5.4), serving as the person's chosen cross-relationship coordinate; it is a member of no group and appears in no artifact of the Access Layer except inside anchor.rotate. The crossing from a member anchor to a contact is the group pair of the Trust Layer.",
      "@language": "en"
     }
    ],
    "dct:source": [
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#56-anchorrotate--the-lineage-entry",
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#52b-group-star1--the-senders-groups-blinded-to-every-contact-sealed-to-the-chosen-ones",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#52b-group-star1--the-senders-groups-blinded-to-every-contact-sealed-to-the-chosen-ones",
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#54-the-community-anchors-generations"
    ],
    "skos:editorialNote": "German text: draft, not normative"
@@ -1577,17 +1576,56 @@
    ],
    "skos:definition": [
     {
-     "@value": "Das nur vom Adressaten prüfbare Artefakt (anchor-mapping@3), das den Paaranker des Senders in einer Beziehung mit seinem aktuellen Gemeinschaftsanker verknüpft, für genau einen Adressaten: zwei MACs unter Schlüsseln, die mit diesem Adressaten vereinbart sind, sodass nur er sie prüfen und jeder von beiden sie hätte erzeugen können. Es trägt die Linie der Rotationen des Gemeinschaftsankers, damit der Adressat einer Rotation folgen kann.",
+     "@value": "Das nur vom Adressaten prüfbare Artefakt (anchor-mapping@4), das den Paaranker des Senders in einer Beziehung mit seinem aktuellen Gemeinschaftsanker verknüpft, für genau einen Adressaten: zwei MACs unter Schlüsseln, die mit diesem Adressaten vereinbart sind, sodass nur er sie prüfen und jeder von beiden sie hätte erzeugen können. Auf einer Beziehung, auf der der Sender schon unter einer früheren Generation seines Gemeinschaftsankers eine Zuordnung ausgestellt hat, trägt es die Linie der Rotationen (jede mit der Bindung an die übernächste Generation) von der ersten Generation, die der Adressat auf dieser Beziehung hielt, bis zur aktuellen, höchstens deren 64 jüngste Glieder, damit der Adressat einer Rotation folgen kann; nie Generationen davor. Ein Adressat, der auf der Beziehung keine frühere Generation hielt, erhält nur die aktuelle Generation, mit leerer Linie.",
      "@language": "de"
     },
     {
-     "@value": "The designated-verifier artifact (anchor-mapping@3) that links the sender's pair anchor in one relationship to the sender's current community anchor, for exactly one addressee: two MACs under keys agreed with that addressee, so only the addressee can verify it and either of the two could have produced it. It carries the lineage of the community anchor's rotations, so the addressee can follow a rotation.",
+     "@value": "The designated-verifier artifact (anchor-mapping@4) that links the sender's pair anchor in one relationship to the sender's current community anchor, for exactly one addressee: two MACs under keys agreed with that addressee, so only the addressee can verify it and either of the two could have produced it. On a relationship on which the sender issued a mapping under an earlier generation of its community anchor, it carries the lineage of rotations, each carrying the binding to the generation after its next, from the first generation the addressee held on that relationship up to the current one, at most its 64 most recent elements, so the addressee can follow a rotation; never a generation before that. An addressee that held no earlier generation on the relationship receives the current generation only, with an empty lineage.",
      "@language": "en"
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#61-purpose-and-construction",
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#65-anchor-rotation1-and-the-rotation-of-the-community-anchor"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#61-purpose-and-construction",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#65-anchor-rotation2-and-the-rotation-of-the-community-anchor"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:AnchorRotation",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:CommunityAnchor"
+    },
+    {
+     "@id": "rltp:AnchorMapping"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Anker-Rotation",
+     "@language": "de"
+    },
+    {
+     "@value": "Anchor rotation",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Das Artefakt (anchor-rotation@2), mit dem ein Halter seinen Gemeinschaftsanker auf die nächste Generation desselben Digests bewegt (Identity §5.4): Es nennt die verlassene Generation (prev) und die neue (next), ist von beiden signiert und trägt die Pre-Rotation-Bindung von next, den SHA-256-Multihash über den öffentlichen Schlüssel der Generation danach (commit). Jede Generation trägt die Bindung an ihre Nachfolgerin, Generation 1 in der Selbstkarte. Eine Rotation ist nur gültig, wenn der Hash von next der für prev gehaltenen Bindung entspricht; wer diese Bindung hält, verwirft jeden anderen Nachfolger, sodass eine Generation nur einen Nachfolger hat. Die Bindung ist nur aus dem Seed berechenbar, deshalb kann ein kopierter Schlüssel die Kontakte des Halters nicht auf einen eigenen Schlüssel mitnehmen: Wo ein Kontakt die Bindung hält, wird der Nachfolger des Kopierers verworfen; unter einer eigenen Bindung bleibt der Kopierer ein getrennter Eintrag. Die Rotation reist nur in der Linie einer Anker-Zuordnung und im eigenen Log des Halters (anchor.rotate).",
+     "@language": "de"
+    },
+    {
+     "@value": "The artifact (anchor-rotation@2) by which a holder moves its community anchor to the next generation of the same digest (Identity §5.4): it names the generation it leaves (prev) and the one it moves to (next), is signed by both, and carries the pre-rotation binding of next, the SHA-256 multihash over the public key of the generation after it (commit). Every generation carries the binding to its successor, generation 1 in the self card. A rotation is valid only if the hash of next equals the binding held for prev; a party holding that binding discards any other successor, so a generation has one successor only. The binding is computable only from the seed, so a copied key cannot take the holder's contacts along to a key of its own: where a contact holds the binding, the copier's successor is discarded; under a binding of its own, the copier stays a separate entry. The rotation travels only in the lineage of an anchor mapping and in the holder's own log (anchor.rotate).",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#65-anchor-rotation2-and-the-rotation-of-the-community-anchor",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#54-the-community-anchors-generations",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#56-anchorrotate--the-lineage-entry"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -1611,17 +1649,17 @@
    ],
    "skos:definition": [
     {
-     "@value": "Das Artefakt (star@1), mit dem ein Sender genau einem Empfänger erlaubt, die Kontaktmenge des Senders auf die eigene zu beziehen: je zustellbarem Kontakt nur die Zahl oder dessen Anker, geblendet unter einem Schlüssel für diese Richtung und Zustellung. Er ist unsigniert und vom Empfänger fälschbar, trägt nie einen rohen Anker Dritter und nichts über die Gruppen des Senders; die reisen im Gruppenstern.",
+     "@value": "Das Artefakt (star@2), mit dem ein Sender genau einem Empfänger erlaubt, die Kontaktmenge des Senders auf die eigene zu beziehen: je zustellbarem Kontakt nur dessen Anker, geblendet unter einem Schlüssel für diese Richtung und Zustellung. Er ist unsigniert und vom Empfänger fälschbar, trägt nie einen rohen Anker Dritter und nichts über die Gruppen des Senders; die reisen im Gruppenstern.",
      "@language": "de"
     },
     {
-     "@value": "The artifact (star@1) by which a sender lets exactly one recipient relate the sender's contact set to the recipient's own: per deliverable contact only the count or the contact's anchor, blinded under a key for this direction and delivery. It is unsigned and recipient-forgeable, never carries a raw third-party anchor, and carries nothing about the sender's groups; those travel in the group star.",
+     "@value": "The artifact (star@2) by which a sender lets exactly one recipient relate the sender's contact set to the recipient's own: per deliverable contact only the contact's anchor, blinded under a key for this direction and delivery. It is unsigned and recipient-forgeable, never carries a raw third-party anchor, and carries nothing about the sender's groups; those travel in the group star.",
      "@language": "en"
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#5-the-star-normative",
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#53-the-star-must-not-be-signed"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#5-the-star-normative",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#53-the-star-is-not-signed"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -1654,8 +1692,8 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a-continuity-normative--the-other-half-of-encounter-44",
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a2-continuity-probe1--sequenced-chunked-padded-blinded"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a2-continuity-probe1-sequenced-chunked-padded-blinded"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -1688,8 +1726,72 @@
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#8-the-introduction-act-normative",
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#86-provenance-normative"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#8-the-introduction-act",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#86-provenance"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:TrustClass",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:Star" },
+    { "@id": "rltp:AnchorMapping" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Vertrauensklasse",
+     "@language": "de"
+    },
+    {
+     "@value": "Trust class",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Eine Art von Akt eines Senders gegenüber genau einem Kontakt, mit festgelegtem Gegenstand, Prüferkreis, Publikumsklasse und normativem Standard-Empfängerkreis: der Stern, der geblendete Gruppenstern, die Anker-Zuordnung, der versiegelte Gruppenstern und das Profil. Jede Klasse hat je Kontakt eine von drei Stellungen, Standard, an oder aus, die für die Person auf allen Beziehungen zu ihr gilt; zusätzlich ist der geblendete Gruppenstern je Gruppe einstellbar, für alle Kontakte zugleich, und der versiegelte Gruppenstern je Gruppe und Kontakt. Vertraut ist ein Kontakt, gegenüber dem die Anker-Zuordnung an ist: Der Vertrauensakt schaltet sie ein, und jede Klasse in Standardstellung, deren Standard die vertrauten Kontakte sind, folgt ihr. Wird die Anker-Zuordnung zurückgenommen, fallen diese Klassen auf aus; ausdrücklich eingeschaltete Klassen bleiben an. Keine Stellung steht als Feld auf dem Draht: Wem ein Sender seine Anker-Zuordnung gab, zeigt sich in den Sternen dieses Kontakts; jede andere Stellung zeigt sich nur dem Kontakt, den sie betrifft. Keine Klasse setzt eine andere voraus. Eine Klasse beantwortet, was ein Sender zeigt, nicht wie sehr er vertraut.",
+     "@language": "de"
+    },
+    {
+     "@value": "One kind of act of a sender toward one contact, with a fixed subject, verifier set, audience class and normative default set of recipients: the star, the blinded group star, the anchor mapping, the sealed group star, and the profile. Each class has, toward each contact, one of three settings, default, on or off, which holds for the person on every relationship with them; in addition, the blinded group star is settable per group, toward every contact at once, and the sealed group star per group and contact. A trusted contact is one toward which the anchor mapping class is on: the Trust act turns it on, and every class at its default whose default is the trusted contacts follows it. Withdrawing the anchor mapping turns those classes off; classes switched on explicitly stay on. No setting is a field on the wire: whom a sender gave its anchor mapping shows in that contact's stars; every other setting shows only to the contact it concerns. No class is conditional on another. A class answers what a sender reveals, not how much it trusts.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#2a-trust-classes-normative"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Profile",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:broader": { "@id": "rltp:TrustClass" },
+   "skos:prefLabel": [
+    {
+     "@value": "Profil",
+     "@language": "de"
+    },
+    {
+     "@value": "Profile",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Vertrauensklasse und ihr Artefakt (profile@1), mit dem ein Sender genau einem Kontakt seinen Namen, optional ein Bild und optional einen Text mitteilt, standardmäßig den vertrauten Kontakten. Eine Aussage über sich selbst an einen Adressaten (Publikumsklasse S): ein MAC unter dem gerichteten Schlüssel der Beziehung, nur vom Adressaten prüfbar, nie signiert, ohne Anker und ohne Aussage über Dritte. Ein Profil je Sender, gleich für alle Empfänger; je Kontakt einstellbar, auch ohne Anker-Zuordnung, ohne den Empfänger damit vertraut zu machen. Eine neuere Revision ersetzt die ältere, ein Entzug beendet das Senden, ohne Gesehenes zurückzuholen.",
+     "@language": "de"
+    },
+    {
+     "@value": "The trust class, and its artifact (profile@1), by which a sender states its own name, an optional image and an optional text to exactly one contact, by default to its trusted contacts. A statement about oneself to one addressee (audience class S): a MAC under the relationship's directional key, verifiable by the addressee alone, never signed, carrying no anchor and no statement about a third party. One profile per sender, the same for every recipient; settable per contact, also without an anchor mapping, which does not make the recipient trusted. A newer revision replaces the older one, and withdrawal stops sending without recalling what was seen.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6b-profile1-normative",
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#2a-trust-classes-normative"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },

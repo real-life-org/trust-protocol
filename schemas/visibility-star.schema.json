@@ -15,12 +15,11 @@
         "salt",
         "seq",
         "last",
-        "count",
         "blinded"
       ],
       "properties": {
         "type": {
-          "const": "star@1"
+          "const": "star@2"
         },
         "salt": {
           "type": "string",
@@ -32,10 +31,6 @@
         },
         "last": {
           "type": "boolean"
-        },
-        "count": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]{0,17})$"
         },
         "blinded": {
           "type": "array",
@@ -62,5 +57,5 @@
       }
     }
   },
-  "title": "RLTP star@1 (rltp-visibility@0.30)"
+  "title": "RLTP star@2 (rltp-trust@0.31)"
 }

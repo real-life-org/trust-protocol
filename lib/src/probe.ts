@@ -13,7 +13,7 @@
 //
 // The modules map onto two specifications:
 //
-//   Network Visibility   introduce (mediated introductions over a
+//   Trust Layer          introduce (mediated introductions over a
 //                        rendezvous drop) — the trust act, the blinded
 //                        star, §6a continuity and the deniable ack
 //                        GRADUATED to the root entry point on

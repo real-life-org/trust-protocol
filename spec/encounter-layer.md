@@ -82,7 +82,7 @@ Three consequences shape this document:
 ### 1.2 Position in the layer model
 
 This layer consumes Layer-1 anchors and produces the edges that Layer
-3 policies may reference and that applications display. It requires no
+4 policies may reference and that applications display. It requires no
 authority substrate. It uses the Delivery service through a port
 (Section 11), whose message semantics are the **RLTP Delivery
 Contract**; nothing in this layer depends on a transport, and the
@@ -503,7 +503,7 @@ credential between the same two anchors to that one edge, including a
 late counter-credential to an earlier enactment, accepted under 5.6
 against that enactment's record.
 
-**RLTP-ENC-4050** — Counting and Layer-3 evaluation MUST count edges,
+**RLTP-ENC-4050** — Counting and Layer-4 evaluation MUST count edges,
 never enactments or credentials.
 
 **RLTP-ENC-4060** — Counting MUST consider only incoming credentials
@@ -512,7 +512,7 @@ or mutual edges.
 **RLTP-ENC-4070** — An outgoing credential MUST NOT count toward its
 issuer's own standing.
 
-**RLTP-ENC-4080** — A Layer-3 policy that counts edges MUST state
+**RLTP-ENC-4080** — A Layer-4 policy that counts edges MUST state
 that a count is meaningful only relative to anchors the evaluator
 already has reason to care about.
 
@@ -553,9 +553,9 @@ every enactment, first contact and re-encounter alike.
 label register before the card is displayed or sent.
 
 **RLTP-ENC-4120** — Relationship continuity MUST be established after
-the ceremony, by the visibility layer's continuity probe and
+the ceremony, by the Trust layer's continuity probe and
 continuity mapping over the fresh enactment channel
-(`rltp-visibility` §6a), never inside the ceremony.
+(`rltp-trust` §6a), never inside the ceremony.
 
 **RLTP-ENC-4130** — A party MUST NOT enact under a group anchor, its
 community anchor included.
@@ -585,7 +585,7 @@ a reused pair anchor links two enactments. A received artifact naming
 such an anchor is not detectably invalid — the receiver cannot
 distinguish anchor classes, which is the point — but issuing it is
 nonconformant. What a pair anchor means beyond this ceremony is the
-visibility layer's contract. Re-recognition after data loss follows
+Trust layer's contract. Re-recognition after data loss follows
 Identity §9.3: relationships are re-created, not recovered — a party
 that cannot answer the continuity probe is, protocol-wise, a new
 relationship.
@@ -950,7 +950,7 @@ credential — including a re-proofed copy — MUST be rejected
 counted as an encounter.
 
 **RLTP-ENC-5590** — A credential failing any check MUST NOT satisfy a
-Layer-3 encounter predicate.
+Layer-4 encounter predicate.
 
 *Rationale.* A fixed order yields a deterministic error code for every
 state (Section 15). Step 1 catches an unknown version, foreign fields,
@@ -1528,7 +1528,7 @@ shrinks further, by design: the anchors in a credential pair are pair
 anchors — meaningful to the two holders, opaque capabilities to
 everyone else. A collector of leaked credential pairs learns that two
 anchors it cannot attribute assert an encounter; attribution requires
-a per-recipient mapping act of the holder (`rltp-visibility` §6).
+a per-recipient mapping act of the holder (`rltp-trust` §6).
 This is the collector-blind regime pair anchors exist for.
 *(Informative: in DTGWG evidence terms the pair is `collected` step
 evidence joined by a shared descriptor — deliberately no more.)*
@@ -1576,7 +1576,7 @@ the registered choice; this document does not derive them.
 
 Relations weaker than an encounter are computed, not asserted: *A
 knows B through C* is a path in the graph; *A and B share a context*
-is derived from Layer 3 membership or a shared context artifact
+is derived from Layer 4 membership or a shared context artifact
 (OI-2). Because these are derived, they cannot be forged independently
 of the edges they rest on.
 
@@ -1969,7 +1969,7 @@ drifts.
    enactment after `gate-expired` and the simultaneous-scan race to
    the same edge. Under fresh-always enactment (4.4) every enactment
    carries new pair anchors, so two such enactments formally fall on
-   two anchor pairs, joined only through the visibility layer's
+   two anchor pairs, joined only through the Trust layer's
    continuity chain. The two rules and the vector "two enactments,
    one edge" (Section 15) therefore read "anchor pair" differently: as
    one enactment tuple in 4.4, as the continuity-linked relationship
@@ -2084,5 +2084,5 @@ with its context `https://registry.trustoverip.org/dtg/context/v1` ·
 ToIP DTGWG Trust Ceremonies ADR 0001 and design note
 (Proposed) · did:key method draft · Multikey / multicodec registry ·
 **RLTP Identity 0.51** · **RLTP Delivery Contract 0.79 (normative)** ·
-RLTP Network Visibility (`rltp-visibility`) · RLTP Membership Tasks
+RLTP Trust Layer (`rltp-trust`) · RLTP Membership Tasks
 0.16 · RLTP Access Layer 0.53.

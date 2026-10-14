@@ -77,6 +77,6 @@
       }
     }
   },
-  "title": "RLTP group-star@1 (rltp-visibility@0.30)",
-  "description": "The sender's groups, blinded to every contact, sealed to the chosen ones (Network Visibility 5.2b): one chunk of a group-star delivery on the relationship channel, carried by the task group-star/0.1. Entries are {d, c} of fixed size, padded to the next positive multiple of 16 (the all-filler star has 16), at most 64 per chunk, sorted by d once and sliced under the 5.2a rules with the group star's own salt, seq and last."
+  "title": "RLTP group-star@1 (rltp-trust@0.31)",
+  "description": "The sender's groups, blinded to every contact, sealed to the chosen ones (Trust Layer 5.2b): one chunk of a group-star delivery on the relationship channel, carried by the task group-star/0.1. Entries are {d, c} of fixed size, padded to the next positive multiple of 16 (the all-filler star has 16), at most 64 per chunk, sorted by d once and sliced under the 5.2a rules with the group star's own salt, seq and last."
 }

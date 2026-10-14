@@ -1,47 +1,60 @@
-// trust — der GRADUIERTE Vertrauensakt: seit dem Nachzug auf Visibility
-// 0.30 + Delivery 0.80 baut dieses Modul die ECHTEN Wire-Artefakte
-// (anchor-mapping@3 · grade-declaration@1 · star@1 mit 5.2a-Chunks),
-// getragen von den registrierten Task-Dokumenten (Delivery §4.4:
-// anchor-mapping/0.2 · grade-declaration/0.1 · star/0.1 — Payload = das
+// trust — der GRADUIERTE Vertrauensakt auf Trust Layer 0.31 + Delivery
+// 0.81: dieses Modul baut die ECHTEN Wire-Artefakte (anchor-mapping@4
+// mit self-card@2 und Lineage aus anchor-rotation@2 · star@2 mit
+// 5.2a-Chunks), getragen von den registrierten Task-Dokumenten
+// (Delivery §4.4: anchor-mapping/0.3 · star/0.2 — Payload = das
 // Artefakt, Dokument proof-frei, ein Träger), quittiert mit dem
 // deniablen delivery-ack (4.2-Klassenregel). Formen und Schlüssel sind
 // byte-kompatibel zu vectors/visibility.json (vectors3.test.mjs rechnet
 // sie unabhängig nach).
 //
-// Die Rotation des Gemeinschaftsankers (Identity 0.52 §5.4, Visibility
-// 0.30 §6.5): rotateCommunityAnchor leitet die nächste Generation ab,
-// hält die Lineage und stellt jedem vertrauten Kontakt ein
-// anchor-mapping@3 mit höherer Revision neu aus; der Empfänger
-// klassifiziert einen geänderten self als Rotation (die Lineage trägt
-// den gehaltenen self — der Anker rückt vor, Merges bleiben, Sterntests
-// laufen gegen jede gehaltene Generation) oder als neue Community
-// (Korrektur; eine verschmolzene Beziehung spaltet sich ab — der
-// Eintrag behält Position und Status, sie tritt per Promotion-Commit
-// neu ein, §6.3 Nr. 8). Gabeln die gehaltenen Glieder zweier
-// Beziehungen (dasselbe prev, verschiedene next), verschmelzen sie
-// nicht (§6a.1, die Gabelregel).
+// Die Rotation des Gemeinschaftsankers (Identity 0.54 §5.4, Trust 0.31
+// §6.5): rotateCommunityAnchor leitet die nächste Generation ab, hält
+// die Lineage und stellt jedem vertrauten Kontakt ein anchor-mapping@4
+// mit höherer Revision neu aus; jede Generation trägt die Bindung
+// (Pre-Rotation) an die nächste. Die Lineage beginnt je Beziehung bei
+// der ersten Generation, unter der dort ein Mapping ausgestellt wurde
+// (6420, 2285), sonst ist sie leer. Der Empfänger prüft die Bindungen
+// gegen die, die diese Beziehung hält (6.3 Bedingung 4b), und nimmt
+// einen geänderten self nur als Rotation an (Bedingung 8, 6170: die
+// Lineage trägt den gehaltenen self als prev eines Glieds — der Anker
+// rückt vor, Merges bleiben, Sterntests laufen gegen jede gehaltene
+// Generation); ein Wechsel ohne solches Segment wird abgewiesen, ohne
+// Ack und ohne Mutation. Eine per manuellem Merge eingetretene
+// Beziehung, deren erstes Mapping keinen der Anker der übrigen
+// Beziehungen nennt oder für einen eine andere Bindung hält, verlässt
+// den Eintrag (2080: der Eintrag behält Position und Status, sie tritt
+// per Promotion-Commit neu ein). Halten zwei Beziehungen für einen
+// Anker verschiedene Bindungen, verschmelzen sie nicht (6605, die
+// Bindungsregel); ein
+// Eintrag hält so nie zwei Nachfolger eines Ankers, sein Ankerkopf ist
+// immer definiert.
 //
 // Die Zustandsmaschinen sind die konvergierten:
 //   · Admissionsschicht (Sektion 2): Promotion-Commit beim ERSTEN
-//     verifizierten anchor-mapping@3 einer BEZIEHUNG (relId = die
+//     verifizierten anchor-mapping@4 einer BEZIEHUNG (relId = die
 //     Kette, der Idempotenzschlüssel); genau ein Eintrag je Beziehung,
 //     self-Korrektur per höherer Revision in place; gleiche self auf
 //     zweiter Beziehung = Weg-2-Merge (früheste Position überlebt,
 //     Aliase); EINE totale Verifikations-Commit-Ordnung (a.seq).
-//   · Rekonziliation (5.4): Sicht = {(member, grade)} der admittierten,
-//     unmaskierten Mitglieder (Maske: 24h grade-wait ab Admission, fällt
-//     mit verifizierter Declaration oder Ablauf → fail-closed count);
+//   · Rekonziliation (5.4): Sicht = {(member, Ankerkopf)} der
+//     admittierten Mitglieder, ab dem Commit, der sie admittiert;
 //     Baseline-Automat monoton über Ack-Completions, highWater überlebt
 //     ⊥, kein Failure-Ereignis, nie Rollback.
 //   · Byte-identische Redelivery (4.2): jede unquittierte Zustellung
 //     wird als DASSELBE Dokument erneut gesendet (outbox hält die Envs);
 //     der Empfänger re-ackt duplicate-known byte-identisch (ackStore).
+// Noch nicht implementiert (Stufe 2): die Trust-Klassen (2a) als API —
+// der Trust-Akt steht hier für „Mapping-Klasse an" —, profile@1 (6b),
+// das Nachlaufen (6595/6596): die Sendepfade halten auf einer
+// nachlaufenden Beziehung nichts zurück, auch nicht die Neuausgabe nach
+// einer Rotation.
 import { jcs, makeValidator, sameDigest } from '../core.js'
 import { SCHEMAS } from '../schemas.js'
 import * as C from './deps.js'
 import type { Person } from './deps.js'
 import { buildAck, verifyAck, ACK_TYPE } from './acks.js'
-import { makeSelfCard, makeAnchorRotation, buildAnchorMapping, verifyAnchorMapping, classifyMapping, mappingAnchors, lineageLinks, LINEAGE_MAX } from './anchor.js'
+import { makeSelfCard, makeAnchorRotation, buildAnchorMapping, verifyAnchorMapping, classifyMapping, mappingAnchors, mappingBindings, lineageLinks, LINEAGE_MAX } from './anchor.js'
 
 const te = new TextEncoder()
 const S = globalThis.crypto.subtle
@@ -50,12 +63,12 @@ const say = (p: Person, m: string) => p.log.push(m)
 const uuid = (ent?: any) => ent ?? globalThis.crypto.randomUUID()
 const V = makeValidator(SCHEMAS)
 const schemaOk = (file: string, data: any) => V.validate(data, SCHEMAS[file], SCHEMAS[file]).length === 0
-export const GRADE_WAIT = 86_400_000  // 5.4: PT24H, in when-Millisekunden
 export const ADMISSION_BOUND = 10n ** 18n - 1n  // Sektion 2 — unerreichbar, geführt für die Totalität
 const CHUNK_MAX = 1024                // 5.2a: blinded[] je Chunk
-// registrierte Task-Versionen (Delivery 0.80 §4.4): anchor-mapping/0.2
-// trägt anchor-mapping@3; alle übrigen Visibility-Tasks bleiben 0.1
-const TASK_VERSION: Record<string, string> = { 'anchor-mapping': '0.2' }
+// registrierte Task-Versionen (Delivery 0.81 §4.4): anchor-mapping/0.3
+// trägt anchor-mapping@4, star/0.2 trägt star@2; die übrigen Tasks der
+// Familie bleiben 0.1
+const TASK_VERSION: Record<string, string> = { 'anchor-mapping': '0.3', 'star': '0.2' }
 const taskOf = (slug: string) => slug + '/' + (TASK_VERSION[slug] ?? '0.1')
 
 // ── Primitiven ──────────────────────────────────────────────────────────
@@ -73,16 +86,19 @@ export const selfCard = async (p: Person, whenIso: string) => {
   const s = await communityContext(p)
   return C.signCard(s, C.cardBody(s, { name: p.name }), whenIso)
 }
-// self-card@1 (§6.2): { body: {type, anchor, keyAgreement}, proof:
-// {proofValue} } — ROHE Ed25519-Signatur über JCS(body), 'z'+base58
-// (§2.1: bewusst KEINE DI-Suite; zwei Artefakt-Familien)
-export async function selfCard1 (p: Person) {
-  return makeSelfCard(await communityContext(p))
+/** Die Generation nach der aktuellen — ihre Bindung trägt die Karte (Identity §5.4). */
+export const nextCommunityContext = (p: Person) => C.communityContext(p.rootIkm, p.communityGenesis, (p.communityGeneration ?? 1) + 1)
+// self-card@2 (§6.2): { body: {type, anchor, keyAgreement, commit},
+// proof: {proofValue} } — ROHE Ed25519-Signatur über JCS(body),
+// 'z'+base58 (§2.1: bewusst KEINE DI-Suite; zwei Artefakt-Familien);
+// commit = die Bindung an die nächste Generation
+export async function selfCard2 (p: Person) {
+  return makeSelfCard(await communityContext(p), await nextCommunityContext(p))
 }
 const chShared = (contact: any) => C.ecdh(contact.channel.own.x.priv, C.xRawOfMk(contact.channel.counterpartKa)!)
 const relKey = async (contact: any, info: string) => C.hkdf(await chShared(contact), info)
 
-// ── anchor-mapping@3 — die normative Wire-Form (§6.1–6.3) ──────────────
+// ── anchor-mapping@4 — die normative Wire-Form (§6.1–6.3) ──────────────
 // body = { type, pair, self, to, card, lineage, revision, issuedAt } ·
 // proof = { mac1 (Kanal-DH, info map1) · mac2 (selfX der AKTUELLEN
 // Generation × pairX-Adressat, info map2) }, beide 'u'-MACs über
@@ -92,12 +108,31 @@ const relKey = async (contact: any, info: string) => C.hkdf(await chShared(conta
 // reissueTrust), erreichen ihn mit vorreservierter Revision. Der
 // explizite Revisionspfad ist NICHT mehr exportiert (Review 9, B-2:
 // er umging Lock, Deaktivierungs-Check und Persistenz).
+// das Lineage-Segment je Beziehung (6420, 2285): ab der frühesten
+// Generation, unter der auf DIESER Beziehung ein Mapping ausgestellt
+// wurde (contact.mapFirstGen, Ketten-Zustand) — nie davor; eine
+// Beziehung, die keine frühere Generation hielt, bekommt keine Lineage.
+// p.lineage hält jede eigene Rotation in Kettenreihenfolge; ihr erstes
+// Glied verlässt die Generation (aktuell − Länge).
+export const lineageFor = (p: Person, firstGen: number | undefined): any[] => {
+  const all = p.lineage ?? []
+  const g = p.communityGeneration ?? 1
+  if (firstGen === undefined || firstGen >= g) return []
+  const offset = g - all.length               // die Generation, die das erste Glied verlässt
+  return all.slice(Math.max(0, firstGen - offset)).slice(-LINEAGE_MAX)   // höchstens die LINEAGE_MAX jüngsten (§6.1)
+}
 async function buildMappingArtifact (p: Person, contact: any, counterpartAnchor: string, when: number, revision: string) {
   return buildAnchorMapping({
     pair: contact.channel.own, to: counterpartAnchor, toKeyAgreement: contact.channel.counterpartKa,
-    // die Abbildung trägt höchstens die LINEAGE_MAX jüngsten Glieder (§6.1)
-    self: await communityContext(p), lineage: (p.lineage ?? []).slice(-LINEAGE_MAX), revision, issuedAt: C.iso(when),
+    self: await communityContext(p), nextGen: await nextCommunityContext(p),
+    lineage: lineageFor(p, contact.mapFirstGen), revision, issuedAt: C.iso(when),
   })
+}
+// die früheste Generation dieser Beziehung, synchron mit dem Commit der
+// Ausstellung festgehalten (2285: Ketten-Zustand, die frühere gewinnt)
+const noteFirstGen = (p: Person, contact: any) => {
+  const g = p.communityGeneration ?? 1
+  if (contact.mapFirstGen === undefined || g < contact.mapFirstGen) contact.mapFirstGen = g
 }
 export async function makeMapping (p: Person, counterpartAnchor: string, when: number) {
   const contact = p.contacts.get(counterpartAnchor)
@@ -112,29 +147,31 @@ export async function makeMapping (p: Person, counterpartAnchor: string, when: n
     if (contact.deactivated) throw new Error('tuple deactivated — issues nothing (§6.4)')
     contact.mapRevOut = revision
     contact.sentMapping = m
+    noteFirstGen(p, contact)
     return m
   })
 }
 // Verifikation ist EMPFÄNGER-PRIVAT (§6.3, geschlossene Liste) — und
 // die Liste wird IN IHRER REIHENFOLGE ausgewertet (Review 19, B-1:
 // „all of the following hold, evaluated in this order"): 1 Schema
-// (anchor-mapping@1 und @2 sind nicht implementiert) · 2 to · 3 pair ·
-// 4 Card verifiziert unter IHREM Anker · 4a Lineage · 5 card.anchor ==
-// self · 6 k2 aus card.keyAgreement · 7 MACs (anchor.ts).
+// (anchor-mapping@1 bis @3 sind nicht implementiert) · 2 to · 3 pair ·
+// 4 Card verifiziert unter IHREM Anker · 4a Lineage · 4b Pre-Rotation
+// gegen die Bindungen, die DIESE Beziehung hält (6610) · 5 card.anchor
+// == self · 6 k2 aus card.keyAgreement · 7 MACs (anchor.ts).
 // arrivalKey = das Ankunftstupel (Empfangspfad); standalone wählt
 // body.pair (Schritt 3 dann trivial).
 export async function verifyMapping (p: Person, m: any, arrivalKey?: string) {
   const key = arrivalKey ?? m?.body?.pair
   const entry = p.contacts.get(key)
   if (!entry?.channel?.own || entry.deactivated) return false
-  return (await verifyAnchorMapping(m, { own: entry.channel.own, pair: key, pairKeyAgreement: entry.channel.counterpartKa })).ok
+  return (await verifyAnchorMapping(m, { own: entry.channel.own, pair: key, pairKeyAgreement: entry.channel.counterpartKa, held: entry.heldBindings })).ok
 }
 // Abstreitbarkeits-Demo: der Empfänger fabriziert ein identisch
 // verifizierendes Mapping — ein Leak beweist Dritten nichts (Klasse V)
 export async function forgeMapping (forger: Person, victimCard: any, pairAnchor: string, when: number) {
   const entry = forger.contacts.get(pairAnchor)
   const whenIso = C.iso(when)
-  const body = { type: 'anchor-mapping@3', pair: pairAnchor, self: victimCard.body.anchor, to: entry.channel.own.anchor, card: victimCard, lineage: [], revision: '1', issuedAt: whenIso }
+  const body = { type: 'anchor-mapping@4', pair: pairAnchor, self: victimCard.body.anchor, to: entry.channel.own.anchor, card: victimCard, lineage: [], revision: '1', issuedAt: whenIso }
   const msg = jcs(body)
   const k2 = await C.hkdf(await C.ecdh(entry.channel.own.x.priv, C.xRawOfMk(victimCard.body.keyAgreement)!), 'rltp/visibility/mac/map2')
   return { body, proof: {
@@ -168,48 +205,35 @@ const reidentify = (p: Person, a: any, e: any) => {
   if (next !== undefined) e.id = next
 }
 const boundOf = (p: Person): bigint => (p as any).admissionBound ?? ADMISSION_BOUND
-// grade-wait läuft nur ab, wenn ein Admissionszeitpunkt EXISTIERT
-// (Review 5, MAJOR): jede Zustandsoperation verlangt eine endliche Uhr
+// jede Zustandsoperation verlangt eine endliche Uhr (Review 5, MAJOR)
 const finite = (when: number): number => {
-  if (!Number.isFinite(when)) throw new Error('admission requires a finite clock (5.4 grade-wait)')
+  if (!Number.isFinite(when)) throw new Error('admission requires a finite clock')
   return when
 }
 // Scope-Preflight (Review 5, B-5): prüft OHNE zu verbrauchen — ein Akt,
 // der in einem erschöpften Scope ausstellen müsste, suspendiert atomar
 const scopeOk = (cur?: string) => BigInt(cur ?? '0') < ADMISSION_BOUND
 // EIN atomarer Merge zweier Einträge: früheste Position überlebt,
-// Aliase lösen auf, Grade nach commitOrder; k admitted → k−1 Slots
-// frei → die nächsten Pending admittieren (Set-Änderung via reconcile)
+// Aliase lösen auf; k admitted → k−1 Slots frei → die nächsten Pending
+// admittieren (Set-Änderung via reconcile)
 function mergeEntries (p: Person, a: any, survivorIn: any, goneIn: any, when: number) {
   const survivor = goneIn.pos < survivorIn.pos ? goneIn : survivorIn
   const gone = survivor === goneIn ? survivorIn : goneIn
   for (const rid of gone.relIds) { survivor.relIds.add(rid); a.byRel.set(rid, survivor) }
   for (const ck of gone.rels) survivor.rels.add(ck)
-  // jede gehaltene Generation und jedes gehaltene Glied bleibt bei SEINER Beziehung (§6a.1)
+  // jede gehaltene Generation, jedes Glied und jede Bindung bleibt bei SEINER Beziehung (§6a.1, 6610)
   for (const [rid, h] of heldOf(gone)) heldOf(survivor).set(rid, h)
   settle(a, survivor)
-  // Declarations bleiben je Herkunftstupel (B-2): höchste order je Tupel
-  for (const [ck, g] of gone.grades ?? []) {
-    const cur = survivor.grades?.get(ck)
-    if (!cur || g.order > cur.order) (survivor.grades ??= new Map()).set(ck, g)
-  }
-  // NUMERISCHES Minimum (Review 22): admittedAt ist eine Zahl — der
-  // Default-Sort verglich Strings (9 > 10) und konnte den grade-wait
-  // des verschmolzenen Members fälschlich verlängern
-  survivor.admittedAt = [survivor.admittedAt, gone.admittedAt].filter((x) => x !== undefined).sort((x: number, y: number) => x - y)[0]
   if (survivor.status === 'admitted' && gone.status === 'admitted') { a.admitted -= 1n; admitPending(p, a, when) }
   else if (gone.status === 'admitted') { survivor.status = 'admitted' }
   return survivor
 }
-const admitPending = (p: Person, a: any, when: number) => {
+const admitPending = (p: Person, a: any, _when: number) => {
   // k−1-Nachrücken in Promotion-Commit-Ordnung (Sektion 2)
   while (a.admitted < boundOf(p)) {
     const next = [...new Set(a.byRel.values())].filter((x: any) => x.status === 'pending').sort((x: any, y: any) => x.pos < y.pos ? -1 : 1)[0]
     if (!next) break
     ;(next as any).status = 'admitted'
-    // grade-wait ankert an der ADMISSION (Review 4, B-3): Nachrücker
-    // sind provisorisch maskiert, bis Declaration oder Fensterablauf
-    ;(next as any).admittedAt = when
     a.admitted += 1n
   }
 }
@@ -232,13 +256,10 @@ export function departMember (p: Person, relId: string, when: number) {
   }
   e.relIds.delete(relId)
   a.byRel.delete(relId)
-  // der Grade-Strang der GEGANGENEN Beziehung stirbt mit ihr (Review
-  // 17, B-1): „across the member's LIVE relationships' active heads" —
-  // Kontaktschlüssel dieser Beziehung verlassen die effektive
-  // Grade-Auswertung atomar mit dem Departure
+  // die Kontaktschlüssel der GEGANGENEN Beziehung verlassen den Eintrag
   for (const ck of [...e.rels]) {
     const c = p.contacts.get(ck)
-    if ((c?.relId ?? ck) === relId) { e.rels.delete(ck); e.grades?.delete(ck) }
+    if ((c?.relId ?? ck) === relId) e.rels.delete(ck)
   }
   // was die gegangene Beziehung hielt, geht mit ihr (§6a.1)
   for (const rid of [...heldOf(e).keys()]) if (rid === relId || (p.contacts.get(rid)?.relId ?? rid) === relId) heldOf(e).delete(rid)
@@ -249,123 +270,116 @@ export function departMember (p: Person, relId: string, when: number) {
 // die Glieder prev → next, die eine verifizierte Ankermenge in
 // Kettenreihenfolge trägt (leer, wenn sie nur self ist)
 const linksOfHeld = (held: string[]): [string, string][] => held.slice(1).map((n, i) => [held[i]!, n])
-// was ein Eintrag hält, JE BEZIEHUNG (§6a.1, §6.3 Nr. 8): ihre Anker, ihre
-// Glieder und ihren Kopf (den aktuellen self dieser Beziehung). Herkunft
-// bleibt bei der Beziehung — ein Split nimmt sie mit
-type Held = { anchors: Set<string>, links: Map<string, string>, head: string }
-const heldOf = (x: any): Map<string, Held> => (x.held ??= new Map([[x.id, { anchors: new Set([x.self]), links: new Map(), head: x.self }]]))
-// was ein Eintrag als überholt hält (§6a.1 Nr. 2 (b)): jedes prev eines
-// Glieds irgendeiner seiner Beziehungen, dazu die Nachfolger, die eine
-// lokale Auflösung (Nr. 3) überholt hat
+// was ein Eintrag hält, JE BEZIEHUNG (§6a.1, 6610): ihre Anker, ihre
+// Glieder, ihre Pre-Rotation-Bindungen (Anker → commit) und ihren Kopf
+// (den aktuellen self dieser Beziehung). Herkunft bleibt bei der
+// Beziehung — ein Split nimmt sie mit
+type Held = { anchors: Set<string>, links: Map<string, string>, head: string, bindings: Map<string, string> }
+const heldOf = (x: any): Map<string, Held> => (x.held ??= new Map([[x.id, { anchors: new Set([x.self]), links: new Map(), head: x.self, bindings: new Map() }]]))
+// was ein Eintrag als überholt hält (§6a.1 rung 2, 6540): jedes prev
+// eines Glieds irgendeiner seiner Beziehungen
 const supersededIn = (x: any, skip: (rid: string) => boolean = () => false): Set<string> =>
-  new Set([...linksOfEntry(x, skip).map(([prv]) => prv), ...(x.resolution?.superseded ?? [])])
+  new Set(linksOfEntry(x, skip).map(([prv]) => prv))
 // das Lineage-Wissen eines Eintrags: die Glieder ALLER seiner Beziehungen
 // (ohne die Beziehungen, die `skip` als eigene ausweist)
 const linksOfEntry = (x: any, skip: (rid: string) => boolean = () => false): [string, string][] =>
   [...heldOf(x)].filter(([rid]) => !skip(rid)).flatMap(([, h]) => [...h.links])
-// Kopf und Anker eines Eintrags, IMMER aus dem bestimmt, was seine
-// Beziehungen halten (§6a.1 Nr. 2, §2): die Anker = die Vereinigung ihrer
-// gehaltenen Anker (was keine Beziehung mehr hält, fällt heraus); der Kopf =
-// der neueste ihrer Köpfe entlang der gehaltenen Glieder. Haben sie
-// unvergleichbare neueste Köpfe (zwei Nachfolger eines Ankers in einem
-// Eintrag, ein manueller Merge einer Recovery-Gabel), ist der Eintrag
-// KOPFKONFLIKTIERT: die Merges bleiben, sein Kopf ist für die Kopfregel
-// undefiniert, bis die lokale Auflösung (Nr. 3, resolveHead) einen nennt.
-// Eine Auflösung, deren Kopf keine Beziehung mehr hält, erlischt.
-const settle = (a: any, x: any) => {
-  const held = [...heldOf(x)]
-  if (held.length === 0) { x.anchors = new Set([x.self]); return }
-  x.anchors = new Set(held.flatMap(([, h]) => [...h.anchors]))
-  if (x.resolution && !x.anchors.has(x.resolution.head)) delete x.resolution
+// das Wissen, das die Bindungsregel vergleicht (6605): Glieder und
+// Bindungen eines Eintrags (ohne `skip`) oder einer einzelnen Beziehung
+type Know = { links: [string, string][], bindings: [string, string][] }
+const knowOf = (x: any, skip: (rid: string) => boolean = () => false): Know => {
+  const held = [...heldOf(x)].filter(([rid]) => !skip(rid)).map(([, h]) => h)
+  return { links: held.flatMap((h) => [...h.links]), bindings: held.flatMap((h) => [...h.bindings]) }
+}
+const knowOfHeld = (h: Held): Know => ({ links: [...h.links], bindings: [...h.bindings] })
+// die Bindungsregel (6605): zwei Wissensstände halten für einen Anker
+// verschiedene Pre-Rotation-Bindungen. Ein gehaltenes Glied prev → next
+// legt die Bindung von prev fest (6610) — zwei verschiedene next zu
+// einem prev sind darum ebenfalls verschiedene Bindungen
+const conflicts = (k1: Know, k2: Know): boolean =>
+  k1.links.some(([p1, n1]) => k2.links.some(([p2, n2]) => p1 === p2 && n1 !== n2))
+  || k1.bindings.some(([a1, c1]) => k2.bindings.some(([a2, c2]) => a1 === a2 && c1 !== c2))
+// die neuesten Köpfe einer Menge gehaltener Beziehungs-Stände: die, von
+// denen entlang der gehaltenen Glieder kein anderer Kopf erreichbar ist
+const newestHeads = (held: Held[]): string[] => {
   const next = new Map<string, string[]>()
-  for (const [prv, nxt] of linksOfEntry(x)) next.set(prv, [...(next.get(prv) ?? []), nxt])
+  for (const h of held) for (const [prv, nxt] of h.links) next.set(prv, [...(next.get(prv) ?? []), nxt])
   const reaches = (from: string, to: string) => {
     const seen = new Set<string>(); const todo = [...(next.get(from) ?? [])]
     while (todo.length) { const n = todo.pop()!; if (n === to) return true; if (!seen.has(n)) { seen.add(n); todo.push(...(next.get(n) ?? [])) } }
     return false
   }
-  const heads = [...new Set(held.map(([, h]) => h.head))].filter((h) => !x.resolution?.superseded.has(h))
-  const newest = heads.filter((h) => !heads.some((o) => o !== h && reaches(h, o)))
-  const tips = newest.length > 0 ? newest : heads
-  x.headConflict = tips.length !== 1
-  x.tips = tips
-  // im Konflikt trägt die Sicht den Kopf der ältesten Beziehung (Promotion-
-  // Reihenfolge), die einen der konkurrierenden Köpfe hält — unabhängig von
-  // der Ankunftsreihenfolge; ein Kopf für die Kopfregel ist das nicht
-  const order = (rid: string) => a.relOrder.get(rid) ?? BigInt(Number.MAX_SAFE_INTEGER)
-  x.self = tips.length === 1 ? tips[0] : held.filter(([, h]) => tips.includes(h.head)).sort(([r1], [r2]) => (order(r1) < order(r2) ? -1 : order(r1) > order(r2) ? 1 : 0))[0]![1].head
+  const heads = [...new Set(held.map((h) => h.head))]
+  return heads.filter((h) => !heads.some((o) => o !== h && reaches(h, o)))
 }
-// die Kopfregel (§6a.1 Nr. 2), eintragsweit: ein Kopf `head` mit der
-// getragenen Lineage `links` schließt an den Eintrag x an, wenn (a) er x'
-// aktueller Kopf ist oder die Lineage diesen fortsetzt (als prev trägt) UND
-// (b) x ihn nicht als überholt hält. Ein kopfkonfliktierter Eintrag hat
-// keinen Kopf: er nimmt an keinem automatischen Merge teil
+// Kopf und Anker eines Eintrags, IMMER aus dem bestimmt, was seine
+// Beziehungen halten (§6a.1 rung 2, §2): die Anker = die Vereinigung
+// ihrer gehaltenen Anker (was keine Beziehung mehr hält, fällt heraus);
+// der Ankerkopf = der neueste ihrer Köpfe entlang der gehaltenen Glieder
+// (6560). Er ist immer genau einer: jeder Merge-Pfad lässt nur Stände
+// zusammen, die die Kopfregel und die Bindungsregel zulassen, und eine
+// Beziehung, die im Eintrag eine andere Bindung vorlegt, verlässt ihn
+// (2080) — ein Eintrag hält nie zwei Nachfolger eines Ankers (6605)
+const settle = (_a: any, x: any) => {
+  const held = [...heldOf(x)]
+  if (held.length === 0) { x.anchors = new Set([x.self]); return }
+  x.anchors = new Set(held.flatMap(([, h]) => [...h.anchors]))
+  const newest = newestHeads(held.map(([, h]) => h))
+  if (newest.length !== 1) throw new Error('entry without exactly one anchor head (6560, 6605) — a merge path admitted incomparable heads')
+  x.self = newest[0]
+}
+// die Kopfregel (§6a.1 rung 2, 6530/6540), eintragsweit: ein Kopf `head`
+// mit der getragenen Lineage `links` schließt an den Eintrag x an, wenn
+// (a) er x' aktueller Kopf ist oder die Lineage diesen fortsetzt (als
+// prev trägt) UND (b) x ihn nicht als überholt hält
 const joins = (head: string, links: [string, string][], x: any, skip?: (rid: string) => boolean) =>
-  !x.headConflict && (head === x.self || links.some(([prv]) => prv === x.self)) && !supersededIn(x, skip).has(head)
-// die Gabelregel (§6a.1): zwei Gliedmengen, die für dasselbe prev
-// verschiedene next tragen, führen nie zusammen
-const forks = (l1: [string, string][], l2: [string, string][]) => l1.some(([p1, n1]) => l2.some(([p2, n2]) => p1 === p2 && n1 !== n2))
+  (head === x.self || links.some(([prv]) => prv === x.self)) && !supersededIn(x, skip).has(head)
 // die übrigen Einträge in Positionsreihenfolge (die früheste zuerst)
 const entriesByPos = (a: any): any[] => [...new Set<any>(a.byRel.values())].sort((x, y) => (x.pos < y.pos ? -1 : x.pos > y.pos ? 1 : 0))
-// die Kopfregel nach einem akzeptierten Update des Eintrags e (§6a.1 Nr. 2),
+// die Kopfregel nach einem akzeptierten Update des Eintrags e (§6a.1 rung 2, 6580),
 // in beiden Verarbeitungsrichtungen:
 //   · die EINGEHENDE Beziehung `relId` gegen jeden anderen Eintrag — bei
 //     JEDEM akzeptierten Mapping, nicht nur bei einer Kopfänderung (auch
 //     neu getragene verbindende Lineage zählt). Beweiskraft hat sie nur,
 //     wenn ihr Kopf der Kopf ihres Eintrags ist: der Kopf einer
-//     nachhinkenden Beziehung ist in ihrem eigenen Eintrag überholt. Und
-//     sie zieht keinen Eintrag herein, dessen Kopf ihr Eintrag SCHON VOR
-//     diesem Mapping als überholt hielt — der wurde unter einem überholten
-//     Anker abgewiesen und tritt erst bei, wenn er selbst einen aktuellen
-//     Kopf vorlegt; nur neu getragenes verbindendes Wissen verbindet
+//     nachhinkenden Beziehung ist in ihrem eigenen Eintrag überholt
+//     (6550). Und sie zieht keinen Eintrag herein, dessen Kopf ihr Eintrag
+//     SCHON VOR diesem Mapping als überholt hielt — der wurde unter einem
+//     überholten Anker abgewiesen und tritt erst bei, wenn er selbst einen
+//     aktuellen Kopf vorlegt (6590)
 //   · die Gegenrichtung, wenn sich e's Kopf geändert hat (`before`): ein
 //     anderer Eintrag schließt sich nur an, wenn ER die Kopfregel gegen e
-//     erfüllt. Ein unter überholtem Anker abgewiesener Eintrag kommt so nie
-//     über ein späteres ehrliches Update hinein
-// beide mit der eintragsweiten Gabelprüfung; ein kopfkonfliktierter
-// Eintrag nimmt an keinem automatischen Merge teil
+//     erfüllt
+// beide mit der eintragsweiten Bindungsregel (6605)
 const converge = (p: Person, a: any, e: any, before: string | undefined, when: number, incoming?: { relId: string, supersededBefore: Set<string> }) => {
-  if (e.headConflict) return e
   const mine = incoming && heldOf(e).get(incoming.relId)
   if (incoming && mine && mine.head === e.self) {
-    const twin = entriesByPos(a).find((x) => x !== e && !incoming.supersededBefore.has(x.self) && joins(mine.head, [...mine.links], x) && !forks(linksOfEntry(e), linksOfEntry(x)))
+    const twin = entriesByPos(a).find((x) => x !== e && !incoming.supersededBefore.has(x.self) && joins(mine.head, [...mine.links], x) && !conflicts(knowOf(e), knowOf(x)))
     if (twin) e = mergeEntries(p, a, e, twin, when)
   }
-  if (e.headConflict || e.self === before) return e
-  const twin = entriesByPos(a).find((x) => x !== e && !x.headConflict && joins(x.self, linksOfEntry(x), e) && !forks(linksOfEntry(x), linksOfEntry(e)))
+  if (e.self === before) return e
+  const twin = entriesByPos(a).find((x) => x !== e && joins(x.self, linksOfEntry(x), e) && !conflicts(knowOf(x), knowOf(e)))
   return twin ? mergeEntries(p, a, e, twin, when) : e
 }
 /**
- * Die lokale Auflösung eines Kopfkonflikts (§6a.1 Nr. 3): der Halter wählt,
- * welcher der konkurrierenden Nachfolger maßgeblich ist; die anderen werden
- * überholtes Wissen des Eintrags. Die Markierung fällt, die automatischen
- * Merges laufen wieder — der Kopf ist neu bestimmt, also gilt die
- * Gegenrichtung der Kopfregel sofort.
- */
-export function resolveHead (p: Person, entryId: string, head: string, when: number) {
-  finite(when)
-  const a = admission(p)
-  const e = a.byRel.get(entryId)
-  if (!e) throw new Error('no such entry')
-  if (!e.headConflict) throw new Error('the entry holds no head conflict')
-  if (!e.tips.includes(head)) throw new Error('the named head is none of the competing heads')
-  e.resolution = { head, superseded: new Set(e.tips.filter((t: string) => t !== head)) }
-  settle(a, e)
-  return converge(p, a, e, undefined, when)
-}
-/**
  * Promotion-Commit (Sektion 2). `held` = alle Generationen, die die
- * verifizierte Abbildung trägt (self + Lineage, Kettenreihenfolge), `kind`
- * = die §6.3-Klassifikation (Nr. 8) gegen den Kopf, den DIESE Beziehung
- * hielt: 'same' und 'rotation' bleiben in place und behalten jeden Merge;
- * 'new-community' ist eine Korrektur: ist der Eintrag verschmolzen,
- * verlässt diese Beziehung ihn atomar (der Eintrag behält Position, Status
- * und die übrigen Beziehungen) und tritt per gewöhnlichem Promotion-Commit
- * neu ein — die eine benannte Ausnahme von „no re-promotion" (§6.3 Nr. 8,
- * Sektion 2). 'first' (noch keine Abbildung auf dieser Beziehung): ein
- * geänderter Kopf wirkt wie 'new-community'.
+ * verifizierte Abbildung trägt (self + Lineage, Kettenreihenfolge),
+ * `kind` = die §6.3-Klassifikation (Bedingung 8) gegen den self, den
+ * DIESE Beziehung hielt, `bindings` = die Pre-Rotation-Bindungen, die
+ * die Abbildung nennt (6610, anchor.mappingBindings). Nur angenommene
+ * Abbildungen kommen hierher: 'first' (die Beziehung hielt noch keinen
+ * self), 'same' und 'rotation' — ein geänderter self ohne Segment, das
+ * den gehaltenen erreicht, ist schon in Bedingung 8 abgewiesen (6170)
+ * und mutiert nichts. Fortgesetzt wird in place akkumuliert, jeder
+ * Merge bleibt. Der Split (2080): das erste Mapping auf einer Beziehung,
+ * die ohne eigenes Mapping im Eintrag sitzt, und das keinen Anker der
+ * übrigen Beziehungen nennt, oder eine Beziehung, die für einen Anker
+ * eine andere Bindung hält als die übrigen — sie verlässt den Eintrag
+ * atomar (der Eintrag behält Position, Status und die übrigen
+ * Beziehungen) und tritt per gewöhnlichem Promotion-Commit neu ein
+ * (2090).
  */
-export function promotionCommit (p: Person, relId: string, self: string, contactKey: string, when: number, held: string[] = [self], kind: 'first' | 'same' | 'rotation' | 'new-community' = 'first') {
+export function promotionCommit (p: Person, relId: string, self: string, contactKey: string, when: number, held: string[] = [self], kind: 'first' | 'same' | 'rotation' = 'first', bindings: Map<string, string> = new Map()) {
   finite(when)
   const a = admission(p)
   const heldSet = new Set([self, ...held])
@@ -379,40 +393,49 @@ export function promotionCommit (p: Person, relId: string, self: string, contact
   // der Kopf, den DIESE Beziehung hielt — nicht das gemeinsame Eintragsfeld
   // (Review 4, M2): auf einem verschmolzenen Eintrag können die Köpfe der
   // Beziehungen auseinanderliegen
-  const relHead = e ? (heldOf(e).get(relId)?.head ?? e.self) : undefined
-  const leaves = kind === 'new-community' || (kind === 'first' && relHead !== undefined && relHead !== self)
+  const mine0 = e ? heldOf(e).get(relId) : undefined
+  // Bedingung 8 (6170): eine Beziehung, die einen self hält, ändert ihn nur
+  // als Rotation; 'first' auf einer solchen wäre ein unverketteter Wechsel
+  if (kind === 'first' && mine0 !== undefined && mine0.head !== self) throw new Error('promotionCommit: a relationship that holds a self changes it only by a rotation (6.3 condition 8, 6170)')
+  // was diese Beziehung danach hält (6610): über Rotationen akkumuliert
+  const next: Held = mine0
+    ? { anchors: new Set([...mine0.anchors, ...heldSet]), links: new Map([...mine0.links, ...links]), head: self, bindings: new Map([...mine0.bindings, ...bindings]) }
+    : { anchors: new Set(heldSet), links: new Map(links), head: self, bindings: new Map(bindings) }
+  // 2080: das erste Mapping einer Beziehung, die ohne eigenes Mapping im
+  // Eintrag sitzt, nennt keinen Anker, den die übrigen Beziehungen halten
+  const unlinked = e !== undefined && mine0 === undefined && ![...heldOf(e)].some(([rid, h]) => !own(rid) && [...heldSet].some((x) => h.anchors.has(x)))
+  const leaves = unlinked || (e !== undefined && conflicts(knowOfHeld(next), knowOf(e, own)))
   if (e && leaves && foreign(e)) {
-    // der Split (§6.3 Nr. 8): nichts verbindet die beiden — die Beziehung
-    // (samt Ketten-Aliasen, Herkunfts- und Kontinuitätsfakten) verlässt den
-    // Eintrag, ohne dessen Slot, Position oder Status zu berühren
+    // der Split (2080): nichts verbindet sie mehr mit den übrigen
+    // Beziehungen, oder sie hält für einen Anker eine andere Bindung — die
+    // Beziehung (samt Ketten-Aliasen, Herkunfts- und Kontinuitätsfakten)
+    // verlässt den Eintrag, ohne dessen Slot, Position oder Status zu berühren
     for (const rid of [...e.relIds]) if (own(rid)) { e.relIds.delete(rid); a.byRel.delete(rid) }
-    for (const ck of [...e.rels]) if (ownRel(ck)) { e.rels.delete(ck); e.grades?.delete(ck) }
+    for (const ck of [...e.rels]) if (ownRel(ck)) e.rels.delete(ck)
     for (const rid of [...heldOf(e).keys()]) if (own(rid)) heldOf(e).delete(rid)
     settle(a, e)   // der Kopf des Rests aus dem, was seine Beziehungen halten (§2)
     reidentify(p, a, e)
     e = undefined
   }
   if (e) {
-    // spätere Verifikation derselben Beziehung: in place — auch eine
-    // self-KORREKTUR per höherer Revision ändert nur den Inhalt, nie
-    // Position oder Status (Sektion 2)
-    const hm = heldOf(e)
-    const mine = hm.get(relId)
+    // spätere Verifikation derselben Beziehung: in place — eine höhere
+    // Revision oder eine Rotation ändert nur den Inhalt, nie Position oder
+    // Status (Sektion 2)
     const supersededBefore = supersededIn(e)
-    if (leaves) hm.set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self })
-    else hm.set(relId, { anchors: new Set([...(mine?.anchors ?? []), ...heldSet]), links: new Map([...(mine?.links ?? []), ...links]), head: self })
-    const before = e.headConflict ? undefined : e.self
+    heldOf(e).set(relId, next)
+    const before = e.self
     settle(a, e)
     e.rels.add(contactKey)
     return converge(p, a, e, before, when, { relId, supersededBefore })
   }
   // erreicht die eingehende Abbildung den aktuellen Kopf eines ANDEREN
-  // Eintrags, ohne dort überholt zu sein und ohne zu gabeln = der Weg-2-Merge
-  const twin = entriesByPos(a).find((x) => foreign(x) && joins(self, links, x, own) && !forks(links, linksOfEntry(x, own)))
+  // Eintrags, ohne dort überholt zu sein und ohne eine andere Bindung zu
+  // halten = der Weg-2-Merge
+  const twin = entriesByPos(a).find((x) => foreign(x) && joins(self, links, x, own) && !conflicts(knowOfHeld(next), knowOf(x, own)))
   if (twin) {
     const before = twin.self
     twin.relIds.add(relId); twin.rels.add(contactKey); a.byRel.set(relId, twin)
-    heldOf(twin).set(relId, { anchors: new Set(heldSet), links: new Map(links), head: self })
+    heldOf(twin).set(relId, next)
     settle(a, twin)
     return converge(p, a, twin, before, when)
   }
@@ -421,88 +444,70 @@ export function promotionCommit (p: Person, relId: string, self: string, contact
   // deliverable-pending (triggert nichts, rückt bei Abgang nach)
   const status = a.admitted < boundOf(p) ? 'admitted' : 'pending'
   if (status === 'admitted') a.admitted += 1n
-  e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, held: new Map([[relId, { anchors: new Set(heldSet), links: new Map(links), head: self }]]), rels: new Set([contactKey]), status, admittedAt: status === 'admitted' ? when : undefined, grades: new Map() }  // id = kanonische Identität (Review 36)
+  e = { id: relId, pos: (a.seq += 1n), relIds: new Set([relId]), self, held: new Map([[relId, next]]), rels: new Set([contactKey]), status }  // id = kanonische Identität (Review 36)
   settle(a, e)
   a.byRel.set(relId, e)
   return e
 }
 /** Kettung (B-4): der neue Kopf löst über die überlebende Beziehung auf;
  *  hält die frische Beziehung schon einen EIGENEN Eintrag, verschmilzt
- *  er atomar mit dem der alten (früheste Position, Aliase, k−1) */
+ *  er atomar mit dem der alten (früheste Position, Aliase, k−1) — nur,
+ *  wenn ihre Köpfe über die gehaltene Lineage vergleichbar sind und sie
+ *  keine verschiedenen Bindungen halten (6605). Sonst bleibt die frische
+ *  Beziehung ein eigener Eintrag, bis eine Abbildung auf ihr die Lineage
+ *  ab der gehaltenen Generation trägt und das Netz sie zusammenführt
+ *  (review5 R5-5; kein Konfliktzustand) */
 export function chainAdmission (p: Person, survivingRelId: string, freshRelId: string, newContactKey: string, when: number) {
   finite(when)
   const a = admission(p)
   const oldE = a.byRel.get(survivingRelId)
   const freshE = a.byRel.get(freshRelId)
   let e = oldE
-  if (oldE && freshE && oldE !== freshE) e = mergeEntries(p, a, oldE, freshE, when)
+  if (oldE && freshE && oldE !== freshE) {
+    const both = [...heldOf(oldE).values(), ...heldOf(freshE).values()]
+    if (conflicts(knowOf(oldE), knowOf(freshE)) || newestHeads(both).length !== 1) return freshE
+    e = mergeEntries(p, a, oldE, freshE, when)
+  }
   else if (!oldE && freshE) { e = freshE; freshE.relIds.add(survivingRelId); a.byRel.set(survivingRelId, freshE) }
   if (e) { e.relIds.add(freshRelId); a.byRel.set(freshRelId, e); e.rels.add(newContactKey) }
   return e
 }
-// Declarations je HERKUNFTSTUPEL (Review 5, B-2): §6.4 — „a deactivated
-// head's declarations are dead with their tuple". order = dieselbe
-// totale Verifikations-Commit-Ordnung wie die Promotions.
-// order stammt aus dem Moment der VERIFIKATION (Review 6, B-2): eine
-// vor dem Mapping verifizierte Declaration trägt ihren Stempel schon
-// und erhält beim späteren Commit KEINEN neuen — sonst schlüge sie
-// nach einem Merge eine echt später verifizierte Declaration
-const declCommit = (p: Person, relId: string, grade: string, contactKey: string, order?: bigint) => {
-  const e = admission(p).byRel.get(relId)
-  if (e) (e.grades ??= new Map()).set(contactKey, { grade, order: order ?? (admission(p).seq += 1n) })
-  return e
-}
-// die effektive Grade beim LESEN über die aktiven Köpfe berechnet —
-// Deaktivierung tötet die Declaration ohne Migrations- oder Aufräumlogik
-const effectiveGrade = (p: Person, e: any): { grade: string, order: bigint } | null => {
-  let best = null
-  for (const [ck, g] of e.grades ?? []) {
-    const c = p.contacts.get(ck)
-    if (!c || c.deactivated) continue
-    if (!best || g.order > best.order) best = g
-  }
-  return best
-}
 /**
- * Die Rekonziliations-Sicht (5.4): {(member, grade)} der admittierten,
- * unmaskierten Mitglieder. Maske: keine verifizierte Declaration UND
- * grade-wait (24h ab Admission) offen → nicht in der Sicht; nach
- * Ablauf fail-closed 'count'.
+ * Die Rekonziliations-Sicht (5.4, 5610/5620): die Paare (member,
+ * Ankerkopf seines Eintrags) aller admittierten Mitglieder, ab dem
+ * Commit, der sie admittiert; deliverable-pending nie. member = die
+ * Position des Eintrags (sie überlebt Merge und Umbenennung).
  */
-export function viewOf (p: Person, when: number): { member: string, grade: string }[] {
+export function viewOf (p: Person, _when?: number): { member: string, anchor: string }[] {
   const seen = new Set<any>()
-  const out: { member: string, grade: string }[] = []
+  const out: { member: string, anchor: string }[] = []
   for (const e of admission(p).byRel.values()) {
     if (seen.has(e)) continue
     seen.add(e)
     if (e.status !== 'admitted') continue   // deliverable-pending triggert nichts (Sektion 2)
-    const g = effectiveGrade(p, e)          // nur AKTIVE Köpfe zählen (B-2)
-    if (g) out.push({ member: e.self, grade: g.grade })
-    // Grenzzeitpunkt: „the window elapses only strictly afterwards" —
-    // bei exakter Gleichheit bleibt maskiert (Review 11, B-4)
-    else if (e.admittedAt === undefined || when <= e.admittedAt + GRADE_WAIT) continue  // provisorisch maskiert (B-3)
-    else out.push({ member: e.self, grade: 'count' })
+    out.push({ member: String(e.pos), anchor: e.self })
   }
   return out.sort((x, y) => x.member < y.member ? -1 : x.member > y.member ? 1 : 0)
 }
 
-// ── star@1 — die normative Wire-Form (5.2/5.2a) ────────────────────────
+// ── star@2 — die normative Wire-Form (5.2/5.2a) ────────────────────────
 const kStar = (contact: any, counterpartAnchor: string, salt: string) =>
   relKey(contact, `rltp/visibility/blind/star/${contact.channel.own.anchor}/${counterpartAnchor}/${salt}`)
 const kStarIn = (contact: any, counterpartAnchor: string, salt: string) =>
   relKey(contact, `rltp/visibility/blind/star/${counterpartAnchor}/${contact.channel.own.anchor}/${salt}`)
-// reine Berechnung: die 5.2a-Chunk-Serie einer Zustellung — count zählt
-// ALLE Mitglieder der Sicht, blinded[] nur die blinded-graded Teilmenge
-async function buildStarChunks (contact: any, counterpartAnchor: string, salt: string, view: { member: string, grade: string }[]) {
+// reine Berechnung: die 5.2a-Chunk-Serie einer Zustellung — jedes
+// Mitglied der Sicht in genau einer Form, geblendet: der Ankerkopf seines
+// Eintrags (5010); Mitglieder mit demselben Ankerkopf ergeben EINEN
+// Eintrag (5050); die Union einmal sortiert, dann geschnitten (5220)
+async function buildStarChunks (contact: any, counterpartAnchor: string, salt: string, view: { member: string, anchor: string }[]) {
   const k = await kStar(contact, counterpartAnchor, salt)
   const blinded: string[] = []
-  for (const v of view) if (v.grade === 'blinded') blinded.push(await hmacU(k, v.member))
+  for (const anchor of new Set(view.map((v) => v.anchor))) blinded.push(await hmacU(k, anchor))
   blinded.sort()
-  const count = String(view.length)
   const n = Math.max(1, Math.ceil(blinded.length / CHUNK_MAX))
   const chunks = []
   for (let i = 0; i < n; i++) {
-    const body = { type: 'star@1', salt, seq: String(i + 1), last: i === n - 1, count, blinded: blinded.slice(i * CHUNK_MAX, (i + 1) * CHUNK_MAX) }
+    const body = { type: 'star@2', salt, seq: String(i + 1), last: i === n - 1, blinded: blinded.slice(i * CHUNK_MAX, (i + 1) * CHUNK_MAX) }
     chunks.push({ body, proof: { mac: await hmacU(k, jcs(body)) } })
   }
   return chunks
@@ -547,21 +552,10 @@ export async function refreshStarInfo (p: Person) {
       for (const anchor of e.selfAnchors ?? [e.selfAnchor]) if (!hit && await starMatch(p, entry, entry.starReceived, anchor)) hit = true
       if (hit) known.push(e.name)
     }
-    entry.starInfo = { count: entry.starReceived.count, knownNames: known.sort() }  // count bleibt String — 18 Stellen exakt
+    // count = die Zahl der geblendeten Einträge des Empfangenen (lokal
+    // abgeleitet; star@2 trägt keinen Zähler)
+    entry.starInfo = { count: entry.starReceived.count, knownNames: known.sort() }
   }
-}
-
-// ── grade-declaration@1 (5.5) ──────────────────────────────────────────
-const kGrade = (subjectCtx: any, holderKa: string, subjectAnchor: string, holderAnchor: string) =>
-  C.ecdh(subjectCtx.x.priv, C.xRawOfMk(holderKa)!).then((sh) => C.hkdf(sh, `rltp/visibility/mac/grade/${subjectAnchor}/${holderAnchor}`))
-// revision IMMER vorreserviert (gepeekt) vom Aufrufer, der den
-// Issue-Lock hält und den Zähler synchron committet (Review 8, B-1:
-// kein Defaultpfad, der vor fehlbarer Arbeit verbraucht)
-async function buildGradeDecl (p: Person, counterpartAnchor: string, grade: string, when: number, revision: string) {
-  const contact = p.contacts.get(counterpartAnchor)
-  const body = { type: 'grade-declaration@1', subject: contact.channel.own.anchor, holder: counterpartAnchor, grade, revision, issuedAt: C.iso(when) }
-  const k = await kGrade(contact.channel.own, contact.channel.counterpartKa, body.subject, body.holder)
-  return { body, proof: { mac: await hmacU(k, jcs(body)) } }
 }
 
 // ── Dokumente, Outbox, byte-identische Redelivery (Delivery §3/4.2/4.4) ─
@@ -588,7 +582,7 @@ async function sendDoc (p: Person, counterpartAnchor: string, slug: string, payl
 // Revisions-Producer; die Revision wird nur GEPEEKT, alles Fehlbare
 // (Bau, Seal, Digest) läuft davor, und Zähler + Outbox + Zustand
 // committen in EINEM synchronen Zug am Ende — ein Fehlschlag
-// verbraucht NICHTS, und gradeOutLast folgt der Ausstellungsordnung.
+// verbraucht NICHTS.
 export const withIssueLock = <T>(contact: any, fn: () => Promise<T>): Promise<T> => {
   const run = (contact.issueLock ?? Promise.resolve()).then(fn, fn)
   contact.issueLock = run.catch(() => {})
@@ -633,8 +627,8 @@ export const withContactLock = <T>(contact: any, fn: () => Promise<T>): Promise<
 const withStarLock = withContactLock
 // der Baseline-Automat (5.4, totale Tabelle): completion(salt), sobald
 // JEDER Chunk-Digest des Salts quittiert ist
-const subOf = (contact: any) => (contact.sub ??= { highWater: 0n, baseline: null as null | { member: string, grade: string }[], inFlight: new Map<string, any>() })
-const sameView = (a: any[], b: any[]) => a.length === b.length && a.every((x, i) => x.member === b[i].member && x.grade === b[i].grade)
+const subOf = (contact: any) => (contact.sub ??= { highWater: 0n, baseline: null as null | { member: string, anchor: string }[], inFlight: new Map<string, any>() })
+const sameView = (a: any[], b: any[]) => a.length === b.length && a.every((x, i) => x.member === b[i].member && x.anchor === b[i].anchor)
 
 /**
  * reconcile (5.4 — die eine Regel): divergiert die Sicht von der
@@ -698,24 +692,17 @@ export async function reconcile (p: Person, counterpartAnchor: string, when: num
       const envs = []
       for (const prep of preps) { const out = commitDoc(prep); pending.set(prep.digest, { env: out.env }); envs.push(out.env) }
       s.inFlight.set(salt, { view, pending, threadId })
-      return { to: contact, kind: 'star/0.1', envs, salt }
+      return { to: contact, kind: taskOf('star'), envs, salt }
     }
   })
 }
 
-// die eigene Grade-ENTSCHEIDUNG trägt einen Ausstellungs-Ordnungsstempel
-// (Review 27): beim Chaining gewinnt die ZULETZT AUSGESTELLTE („MUST
-// re-issue its most recently issued grade"), nie die des zufällig
-// frischeren Kopfs
-export const stampGradeOut = (p: Person, contact: any, grade: string) => {
-  contact.gradeOutLast = grade
-  contact.gradeOutOrder = ((p as any).gradeIssueSeq = ((p as any).gradeIssueSeq ?? 0n) + 1n)
-}
 // ── der Vertrauensakt (register no. 3: EIN menschlicher Akt) ────────────
-// setTrust stellt aus: anchor-mapping@3 (Offenlegung) + grade-
-// declaration@1 'blinded' (die Wahl) — zwei registrierte Dokumente.
-// Der Stern folgt über reconcile (5.4: die Promotion der Gegenseite
-// erzeugt dort die Divergenz; hier entsteht nur die eigene Sicht).
+// setTrust stellt aus: anchor-mapping@4 (Offenlegung) — ein
+// registriertes Dokument. Der Akt steht hier für „Mapping-Klasse an"
+// (Sektion 2a; die Klassen-API ist Stufe 2). Der Stern folgt über
+// reconcile (5.4: die Promotion der Gegenseite erzeugt dort die
+// Divergenz; hier entsteht nur die eigene Sicht).
 export async function setTrust (p: Person, counterpartAnchor: string, when: number, ent: any = {}) {
   const contact = p.contacts.get(counterpartAnchor)
   if (!contact) return { error: 'kein Kontakt' }
@@ -731,52 +718,23 @@ export async function setTrust (p: Person, counterpartAnchor: string, when: numb
     if (contact.deactivated) return { error: 'tuple deactivated — Kopf der Beziehung ist gewandert' }
     if (contact.trustGiven) return { error: 'bereits geschenkt (Einweg-Tür)' }
     if (contact.trustPending) return { error: 'bereits unterwegs (Einweg-Tür)' }  // Latch (Review 6, B-1)
-    if (!scopeOk(contact.mapRevOut) || !scopeOk(contact.gradeRevOut)) return { error: 'scope exhausted — act suspended (2.1)' }
+    if (!scopeOk(contact.mapRevOut)) return { error: 'scope exhausted — act suspended (2.1)' }
     contact.trustPending = true
     try {
       const mapRev = peekRev(contact, 'mapRevOut')
-      const gradeRev = peekRev(contact, 'gradeRevOut')
       const whenIso = C.iso(when)
       const mapping = await buildMappingArtifact(p, contact, counterpartAnchor, when, mapRev)
-      const grade = await buildGradeDecl(p, counterpartAnchor, 'blinded', when, gradeRev)
       const prepM = await prepareDoc(p, counterpartAnchor, 'anchor-mapping', mapping, when, uuid(ent.threadId), {}, ent)
-      const prepG = await prepareDoc(p, counterpartAnchor, 'grade-declaration', grade, when, uuid(), {}, ent)
       if (contact.deactivated) return { error: 'tuple deactivated — Kopf der Beziehung ist gewandert' }  // Re-Check (B-2), danach kein await
       // COMMIT — ein synchroner Zug (§6.4: assigning + persisting = one step)
       contact.mapRevOut = mapRev
-      contact.gradeRevOut = gradeRev
-      const outbound = [commitDoc(prepM), commitDoc(prepG)]
+      const outbound = [commitDoc(prepM)]
       contact.trustGiven = whenIso
-      stampGradeOut(p, contact, 'blinded')  // die zuletzt ausgestellte Entscheidung (für V2), mit Ordnungsstempel
       contact.sentMapping = mapping
-      say(p, `Vertrauen geschenkt an ${contact.name}: Anker offengelegt (anchor-mapping@3) + Grade 'blinded' erklärt`)
-      return { to: contact, outbound, env: outbound[0].env }
+      noteFirstGen(p, contact)
+      say(p, `Vertrauen geschenkt an ${contact.name}: Anker offengelegt (anchor-mapping@4)`)
+      return { to: contact, outbound, env: outbound[0]!.env }
     } finally { contact.trustPending = false }
-  })
-}
-/**
- * setGrade (5.5): die spätere Grade-Entscheidung des Subjekts — auch
- * 'count' (die Wahl gehört dem Kontakt; register no. 3 kollabiert sie
- * nur im Default-UX). Producer der Declaration, Revision monoton.
- */
-export async function setGrade (p: Person, counterpartAnchor: string, grade: 'count' | 'blinded', when: number, ent: any = {}) {
-  const contact = p.contacts.get(counterpartAnchor)
-  if (!contact?.channel?.own || contact.deactivated) return { error: 'kein aktiver Kanal' }
-  return withIssueLock(contact, async () => {
-    // Re-Check nach dem Lock-Erwerb (Review 8, B-2): eine Kettung
-    // während der Wartezeit deaktiviert dieses Tupel — es stellt nichts
-    // mehr aus, gradeOutLast des neuen Kopfs bleibt die Wahrheit
-    if (contact.deactivated) return { error: 'tuple deactivated — Kopf der Beziehung ist gewandert' }
-    const gradeRev = peekRev(contact, 'gradeRevOut')   // wirft bei Erschöpfung, verbraucht nichts (B-1)
-    const g = await buildGradeDecl(p, counterpartAnchor, grade, when, gradeRev)
-    const prep = await prepareDoc(p, counterpartAnchor, 'grade-declaration', g, when, uuid(), {}, ent)
-    if (contact.deactivated) return { error: 'tuple deactivated — Kopf der Beziehung ist gewandert' }  // Re-Check (B-2), danach kein await
-    // COMMIT — ein synchroner Zug (Review 7, B-1)
-    contact.gradeRevOut = gradeRev
-    const out = commitDoc(prep)
-    stampGradeOut(p, contact, grade)
-    say(p, `Grade '${grade}' erklärt an ${contact.name}`)
-    return { to: contact, outbound: [out] }
   })
 }
 // Pause (5.4): initial unpaused, EINZIGE Transition ist dieser Akt;
@@ -788,77 +746,71 @@ export function setTrustPaused (p: Person, counterpartAnchor: string, paused: bo
   say(p, paused ? `Kontakt-Updates an ${contact.name} pausiert (Geliefertes bleibt)` : `Kontakt-Updates an ${contact.name} wieder aktiv`)
 }
 /**
- * V2 (5.5): auf dem neuen Kopf stellt das Subjekt seinen zuletzt
- * ausgestellten Grade neu aus — Revision startet im neuen Tupel-Scope,
- * keine Nutzerfrage; das Mapping reist als MAY (6a.4) mit. Die Pause
- * supprimiert dies NICHT (5.5 kennt keine Pause-Ausnahme — sie
- * supprimiert nur die Stern-Delivery); die Pflicht (trustReissueDue)
- * stirbt erst mit der QUITTIERTEN Zustellung der Declaration.
+ * Nach einer Kettung (6980): auf dem neuen Kopf stellt der Sender sein
+ * anchor-mapping@4 ohne neue Nutzerfrage neu aus, solange der
+ * Trust-Akt steht (Mapping-Klasse an) — mit der Lineage ab der frühesten
+ * Generation, die die Beziehung hielt (2285, 6420); so werden die Köpfe
+ * beim Empfänger über die Lineage vergleichbar (review5 R5-5). Revision
+ * startet im neuen Tupel-Scope. Die Pause supprimiert nur die
+ * Stern-Delivery; die Pflicht (trustReissueDue) stirbt erst mit der
+ * QUITTIERTEN Zustellung.
  */
 export async function reissueTrust (p: Person, counterpartAnchor: string, when: number, ent: any = {}) {
   const contact = p.contacts.get(counterpartAnchor)
-  // Gate: eine AUSGESTELLTE Declaration ODER der Trust-Akt trägt die
-  // Pflicht (Review 33, B-1) — nie nur trustGiven
-  if (!contact?.channel?.own || contact.deactivated || (!contact.trustGiven && contact.gradeOutLast === undefined)) return null
-  // KEINE Pause-Suppression (Review 12, B-4): 5.4 supprimiert die
-  // DELIVERY-Pflicht (Stern); die Register-5-Neuausstellung läuft
-  // „on the next available delivery contact" ohne Pause-Ausnahme (5.5)
+  if (!contact?.channel?.own || contact.deactivated || !contact.trustGiven) return null
   if (contact.reissuePending) return null                   // Single-Flight
   contact.reissuePending = true
   try {
     return await withIssueLock(contact, async () => {
       if (contact.deactivated) return null   // Re-Check nach dem Lock-Erwerb (Review 8, B-2)
       // unquittierte Neuausstellung → byte-identischer Retry
-      for (const [digest, o] of outboxOf(contact)) if (o.kind === 'grade-declaration' && o.v2) {
-        return { to: contact, outbound: [{ to: contact, kind: 'grade-declaration/0.1 (Retry, byte-identisch)', env: o.env }] }
+      for (const [, o] of outboxOf(contact)) if (o.kind === 'anchor-mapping' && o.v2) {
+        return { to: contact, outbound: [{ to: contact, kind: taskOf('anchor-mapping') + ' (Retry, byte-identisch)', env: o.env }] }
       }
-      // die MUST-Grade hängt NIE am MAY-Mapping (Review 5, B-5): Grade-
       // Scope erschöpft → Pflicht suspendiert (2.1, trustReissueDue
-      // bleibt); Revisionen nur gepeekt, Commit synchron (Review 7, B-1)
-      if (!scopeOk(contact.gradeRevOut)) return null
-      const gradeRev = peekRev(contact, 'gradeRevOut')
-      const grade = await buildGradeDecl(p, counterpartAnchor, contact.gradeOutLast ?? 'blinded', when, gradeRev)
-      const prepG = await prepareDoc(p, counterpartAnchor, 'grade-declaration', grade, when, uuid(), { v2: true }, ent)
-      let prepM: any, mapping: any, mapRev: string | undefined
-      if (contact.trustGiven && scopeOk(contact.mapRevOut)) {   // das MAY-Mapping gehört zum TRUST-Akt (6a.4)
-        try {
-          mapRev = peekRev(contact, 'mapRevOut')
-          mapping = await buildMappingArtifact(p, contact, counterpartAnchor, when, mapRev)
-          prepM = await prepareDoc(p, counterpartAnchor, 'anchor-mapping', mapping, when, uuid(), {}, ent)
-        } catch { prepM = undefined /* MAY (6a.4) — ein Mapping-Fehler suspendiert nur das Mapping, verbraucht nichts */ }
-      }
+      // bleibt); Revision nur gepeekt, Commit synchron (Review 7, B-1)
+      if (!scopeOk(contact.mapRevOut)) return null
+      const mapRev = peekRev(contact, 'mapRevOut')
+      const mapping = await buildMappingArtifact(p, contact, counterpartAnchor, when, mapRev)
+      const prepM = await prepareDoc(p, counterpartAnchor, 'anchor-mapping', mapping, when, uuid(), { v2: true }, ent)
       if (contact.deactivated) return null   // Re-Check (B-2), danach kein await
       // COMMIT — ein synchroner Zug (§6.4)
-      contact.gradeRevOut = gradeRev
-      stampGradeOut(p, contact, grade.body.grade)   // die Neuausstellung IST eine Ausstellung (Review 27)
-      const outbound = [commitDoc(prepG)]
-      if (prepM) { contact.mapRevOut = mapRev; outbound.push(commitDoc(prepM)); contact.sentMapping = mapping }
-      say(p, `Vertrauen auf dem neuen Kopf neu ausgestellt an ${contact.name} (5.5 — ohne neue Nutzerfrage)`)
+      contact.mapRevOut = mapRev
+      const outbound = [commitDoc(prepM)]
+      contact.sentMapping = mapping
+      noteFirstGen(p, contact)
+      say(p, `Vertrauen auf dem neuen Kopf neu ausgestellt an ${contact.name} (6980 — ohne neue Nutzerfrage)`)
       return { to: contact, outbound }
     })
   } finally { contact.reissuePending = false }
 }
 /**
- * Die Rotation des Gemeinschaftsankers (Identity §5.4, Visibility §6.5):
- * Generation g → g + 1. Reihenfolge der Senderpflichten: erst das Label
- * persistieren (hier: der Registerkopf `communityGeneration`), dann die
- * Lineage halten, dann jedem VERTRAUTEN Kontakt ein anchor-mapping@3 mit
- * höherer Revision neu ausstellen (die Self-Card reist darin, unter dem
- * neuen Anker). Alles Fehlbare (Ableitung, beide Signaturen) läuft vor
- * der ersten Mutation. Der Log-Eintrag `anchor.rotate` (Access §5.6)
- * gehört ins Log der persönlichen Community unter dem Gründer-Paar-
- * Anker — die Probe-Welt führt dieses Log nicht (COMMUNITY_GENESIS ist
- * eine Fixture), der Eintrag entsteht hier nicht.
- * Rotation ist Schlüsselhygiene, kein Kompromittierungsweg: sie
- * braucht den Schlüssel der aktuellen Generation (Identity §8.6).
+ * Die Rotation des Gemeinschaftsankers (Identity §5.4, Trust §6.5):
+ * Generation g → g + 1, die Generation, an die g gebunden ist; die
+ * Rotation trägt die Bindung von g + 1 an g + 2. Reihenfolge der
+ * Senderpflichten: erst das Label persistieren (hier: der Registerkopf
+ * `communityGeneration`), dann die Lineage halten, dann jedem VERTRAUTEN
+ * Kontakt ein anchor-mapping@4 mit höherer Revision neu ausstellen (die
+ * Self-Card reist darin, unter dem neuen Anker, mit der Bindung an die
+ * Generation danach), je Beziehung mit dem Lineage-Segment ab ihrer
+ * frühesten Generation (6370, 6420). Alles Fehlbare (Ableitung, beide
+ * Signaturen) läuft vor der ersten Mutation. Der Log-Eintrag
+ * `anchor.rotate` (Access §5.6) gehört ins Log der persönlichen
+ * Community unter dem Gründer-Paar-Anker — die Probe-Welt führt dieses
+ * Log nicht (COMMUNITY_GENESIS ist eine Fixture), der Eintrag entsteht
+ * hier nicht. Rotation ist Schlüsselhygiene, kein Kompromittierungsweg:
+ * sie braucht den Schlüssel der aktuellen Generation (Identity §8.6).
  */
 export async function rotateCommunityAnchor (p: Person, when: number, ent: any = {}) {
   finite(when)
   const g = p.communityGeneration ?? 1
-  if (g >= Number.MAX_SAFE_INTEGER) throw new Error('rotation ends at 2^53 − 1 (Identity §5.4)')
+  // jede Generation trägt eine Bindung an die nächste: die Rotation endet
+  // bei 2^53 − 2, deren Bindung an 2^53 − 1 geht (review5, Generationsbereich)
+  if (g + 2 > Number.MAX_SAFE_INTEGER) throw new Error('rotation ends at generation 2^53 − 2 (Identity §5.4)')
   const prev = await communityContext(p)
   const next = await C.communityContext(p.rootIkm, p.communityGenesis, g + 1)
-  const rotation = await makeAnchorRotation(prev, next)
+  const after = await C.communityContext(p.rootIkm, p.communityGenesis, g + 2)
+  const rotation = await makeAnchorRotation(prev, next, after)
   // COMMIT — ein synchroner Zug: Label, Lineage, aktueller Kontext
   p.communityGeneration = g + 1
   p.lineage = [...(p.lineage ?? []), rotation]
@@ -877,6 +829,7 @@ export async function rotateCommunityAnchor (p: Person, when: number, ent: any =
         if (contact.deactivated) return null   // Re-Check, danach kein await
         contact.mapRevOut = mapRev
         contact.sentMapping = mapping
+        noteFirstGen(p, contact)
         return commitDoc(prep)
       })
       if (out) outbound.push(out)
@@ -895,9 +848,8 @@ export async function starRefreshAll (p: Person, when: number, ent: any = {}) {
   for (const [anchor, contact] of p.contacts) {
     if (contact.deactivated) continue
     try {
-      // die V2-Pflicht läuft AUCH pausiert (Review 12, B-4) und AUCH
-      // ohne Trust-Akt (Review 33, B-1: eine ausgestellte Declaration
-      // genügt); nur die Stern-Delivery braucht trustGiven
+      // die Neuausstellungs-Pflicht nach einer Kettung läuft AUCH
+      // pausiert (Review 12, B-4); die Stern-Delivery braucht trustGiven
       if (contact.trustReissueDue) {
         const r = await reissueTrust(p, anchor, when, ent)
         if (r) outbound.push(...r.outbound)
@@ -952,7 +904,7 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
   }
   if (typeof doc?.type !== 'string' || !doc.type.startsWith(TT)) return { handled: false, doc }
   const slug = doc.type.slice(TT.length)
-  if (!['anchor-mapping/0.2', 'grade-declaration/0.1', 'star/0.1'].includes(slug)) return { handled: false, doc }
+  if (![taskOf('anchor-mapping'), taskOf('star')].includes(slug)) return { handled: false, doc }
   // Dokumentprofil (Delivery §3): Schema-validiert, proof-frei, Bindungen
   if (!schemaOk('rltp-delivery-document.schema.json', doc)) return { handled: true, error: 'malformed document' }
   if (doc.proof !== undefined) return { handled: true, error: 'document proof forbidden (one carrier)' }
@@ -976,7 +928,7 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
     return { ...result, ack: { to: from, kind: 'delivery-ack/0.1', env: ackEnv } }
   }
   const r0: any = await (async () => { switch (slug) {
-    case 'anchor-mapping/0.2': {
+    case taskOf('anchor-mapping'): {
       return withContactLock(from, async () => {
       // Reentry (B-1/B-2): Kopf noch aktiv? Duplikat inzwischen? Revision noch frisch?
       if (from.deactivated) return { handled: true, error: 'tuple deactivated' }
@@ -1007,76 +959,44 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
         return { handled: true, error: 'equivocation (gleiche Revision, anderer Body)' }
       }
       if (BigInt(m.body.revision) < BigInt(from.mapRevIn ?? '0')) return { handled: true, error: 'mapping revision (niedriger)' }
+      // §6.3 Bedingung 8 (6170): ein GEÄNDERTER self ohne Segment, das den
+      // gehaltenen self als prev erreicht, wird abgewiesen wie jede
+      // Abbildung, die eine Bedingung verfehlt — kein Ack, keine Mutation;
+      // auch nach mehr als 64 verpassten Rotationen (6400)
+      if (classifyMapping(from.selfAnchor, m.body) === 'rejected') { say(p, `Mapping von ${from.name} ändert den Anker ohne Kette zum gehaltenen — verworfen (6170)`); return { handled: true, error: 'mapping (6.3 condition 8, 6170: unlinked change of self)' } }
+      const bindings = await mappingBindings(m.body)   // die Bindungen, die die Abbildung nennt (6610)
       const ackEnv = await mkAck()             // fehlbar VOR jeder Mutation
       // synchroner Re-Check nach dem LETZTEN await (Review 5, B-1): eine
       // Kettung unter dem Lock eines ANDEREN Kontakts kann dieses Tupel
       // während verify/mkAck deaktiviert haben — danach kein await mehr
       if (from.deactivated) return { handled: true, error: 'tuple deactivated' }
       if (BigInt(m.body.revision) <= BigInt(from.mapRevIn ?? '0')) return { handled: true, error: 'mapping revision (nicht strikt größer)' }
-      // §6.3 Nr. 8: ein GEÄNDERTER self ist Rotation (die Lineage trägt
-      // den gehaltenen self) oder neue Community (nichts verbindet beide)
-      // — auch, wenn das getragene Segment gegen die gehaltenen Glieder
-      // dieser Beziehung gabelt (§6a.1, die Gabelregel)
-      const classification = classifyMapping(from.selfAnchor, m.body, from.heldLinks)
-      const held = mappingAnchors(m.body)   // die verifizierte Ankermenge (§6a.1 Nr. 2)
+      // §6.3 Bedingung 8 nach dem LETZTEN await erneut: 'first', 'same'
+      // (unveränderter self) oder 'rotation' (die Lineage trägt den
+      // gehaltenen self als prev, 6160); ein unverketteter Wechsel bleibt
+      // abgewiesen (6170). Ein Segment, das einen anderen Nachfolger eines
+      // Ankers nennt, dessen Bindung die Beziehung hält, hat Bedingung 4b
+      // schon verworfen
+      const classification = classifyMapping(from.selfAnchor, m.body)
+      if (classification === 'rejected') return { handled: true, error: 'mapping (6.3 condition 8, 6170: unlinked change of self)' }
+      const held = mappingAnchors(m.body)   // die verifizierte Ankermenge (§6a.1 rung 2)
       from.mapRevIn = m.body.revision
-      const continues = classification === 'rotation' || classification === 'same'
-      from.selfAnchors = continues ? [...new Set([...(from.selfAnchors ?? [from.selfAnchor]), ...held])] : held
-      from.heldLinks = new Map([...(continues ? from.heldLinks ?? [] : []), ...lineageLinks(m.body.lineage)])
+      from.selfAnchors = [...new Set([...(from.selfAnchors ?? (from.selfAnchor === undefined ? [] : [from.selfAnchor])), ...held])]
+      // Glieder und Bindungen der Beziehung (6610): über Rotationen
+      // akkumuliert — Ketten-Zustand (2280)
+      from.heldLinks = new Map([...(from.heldLinks ?? []), ...lineageLinks(m.body.lineage)])
+      from.heldBindings = new Map([...(from.heldBindings ?? []), ...bindings])
       from.selfAnchor = m.body.self
       from.mapping = m
       from.trustReceived = doc.issuedAt
-      const e = promotionCommit(p, relIdOf(p, fromKey), m.body.self, fromKey, when, held, classification)
-      e.admittedAt ??= when                    // grade-wait ankert an der Admission (5.4)
-      // eine VOR dem Mapping verifizierte Declaration steht und wirkt
-      // bei der Admission sofort (Sektion 2 / 5.4)
-      if (from.gradeIn && !e.grades?.has(fromKey)) declCommit(p, relIdOf(p, fromKey), from.gradeIn, fromKey, from.gradeInOrder)
+      promotionCommit(p, relIdOf(p, fromKey), m.body.self, fromKey, when, held, classification, bindings)
       say(p, classification === 'rotation' ? `${from.name} hat den Anker erneuert: neue Generation geprüft übernommen, die Kette bleibt gehalten`
-        : classification === 'new-community' ? `${from.name} legt einen anderen Anker offen: neue Community (nichts verbindet beide)`
         : `${from.name} vertraut dir: stabiler Anker geprüft übernommen (nur für dich beweisend)`)
       // der Producer-Sweep läuft NACH der Lock-Sektion (Reentranz!)
       return commit({ handled: true, disclosed: m.body.self, classification, fromName: from.name, __sweep: true }, ackEnv)
       })
     }
-    case 'grade-declaration/0.1': {
-      return withContactLock(from, async () => {
-      if (from.deactivated) return { handled: true, error: 'tuple deactivated' }
-      if ((p.deliveryCache ?? new Set()).has(opened.digest!)) {
-        const stored = from.ackStore?.get(opened.digest)
-        return { handled: true, duplicate: true, ack: stored ? { to: from, kind: 'delivery-ack/0.1 (Re-Ack, byte-identisch)', env: stored } : undefined }
-      }
-      const g = doc.payload
-      if (!schemaOk('visibility-grade-declaration.schema.json', g)) return { handled: true, error: 'malformed grade' }
-      if (doc.issuer !== fromKey) return { handled: true, error: 'outer binding (issuer, Stufe 8)' }
-      if (!C.calOK(g.body.issuedAt)) return { handled: true, error: 'calendar-invalid issuedAt' }  // Stufe 8, nach dem Schema (Review 31)
-      if (doc.ceremony?.enactment !== undefined) return { handled: true, error: 'ceremony.enactment kann nicht nachrechnen (validation-failed)' }  // Stufe 8 — NACH dem Payload-Schema (Review 30)
-      if (g.body.subject !== fromKey || g.body.holder !== from.channel.own.anchor) return { handled: true, error: 'grade binding' }
-      const k = await kGrade(from.channel.own, from.channel.counterpartKa, g.body.subject, g.body.holder)
-      if ((await hmacU(k, jcs(g.body))) !== g.proof.mac) return { handled: true, error: 'grade mac' }
-      // 6.4, die GENERISCHE Revisionsregel (Review 11, B-2):
-      // dreiteilig — siehe Mapping-Pfad
-      if (BigInt(g.body.revision) === BigInt(from.gradeRevIn ?? '0')) {
-        if (from.gradeBodyIn && jcs(g.body) === from.gradeBodyIn) {
-          const ackEnv = await mkAck()
-          if (from.deactivated) return { handled: true, error: 'tuple deactivated' }
-          return commit({ handled: true, idempotent: true }, ackEnv)
-        }
-        return { handled: true, error: 'equivocation (gleiche Revision, anderer Body)' }
-      }
-      if (BigInt(g.body.revision) < BigInt(from.gradeRevIn ?? '0')) return { handled: true, error: 'grade revision (niedriger)' }
-      const ackEnv = await mkAck()             // fehlbar VOR jeder Mutation
-      if (from.deactivated) return { handled: true, error: 'tuple deactivated' }  // Re-Check (B-1), danach kein await
-      if (BigInt(g.body.revision) <= BigInt(from.gradeRevIn ?? '0')) return { handled: true, error: 'grade revision (nicht strikt größer)' }
-      from.gradeRevIn = g.body.revision
-      from.gradeBodyIn = jcs(g.body)                 // für den Idempotenz-Vergleich (Review 11, B-2)
-      from.gradeIn = g.body.grade
-      from.gradeInOrder = (admission(p).seq += 1n)   // Verifikations-Commit-Ordnung JETZT (B-2)
-      if (from.selfAnchor) declCommit(p, relIdOf(p, fromKey), g.body.grade, fromKey, from.gradeInOrder)
-      say(p, `${from.name} erklärt Grade '${g.body.grade}'`)
-      return commit({ handled: true, grade: g.body.grade, __sweep: true }, ackEnv)
-      })
-    }
-    case 'star/0.1': {
+    case taskOf('star'): {
       // Stage-9-Lockmenge in kind: konkurrierende Chunks derselben
       // Assembly serialisieren über den Kontakt-Lock (§4.4)
       return withStarLock(from, async () => {
@@ -1116,8 +1036,8 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
       const cur = asmOf(from)
       const displaced = cur && BigInt(b.salt) > BigInt(cur.salt)
       if (cur && !displaced && BigInt(b.salt) < BigInt(cur.salt)) return { handled: true, error: 'below open assembly' }
-      const a = (!cur || displaced) ? { salt: b.salt, threadId: doc.threadId, count: b.count, chunks: new Map(), lastSeq: undefined as string | undefined } : cur
-      if (doc.threadId !== a.threadId || b.count !== a.count) { from.asm = undefined; (from.starPoison ??= new Set()).add(b.salt); return { handled: true, error: 'assembly conflict (threadId/count)' } }
+      const a = (!cur || displaced) ? { salt: b.salt, threadId: doc.threadId, chunks: new Map(), lastSeq: undefined as string | undefined } : cur
+      if (doc.threadId !== a.threadId) { from.asm = undefined; (from.starPoison ??= new Set()).add(b.salt); return { handled: true, error: 'assembly conflict (threadId)' } }
       const seq = b.seq
       if (a.chunks.has(seq)) { from.asm = undefined; (from.starPoison ??= new Set()).add(b.salt); return { handled: true, error: 'assembly conflict (seq)' } }
       if (b.last && a.lastSeq !== undefined) { from.asm = undefined; (from.starPoison ??= new Set()).add(b.salt); return { handled: true, error: 'assembly conflict (two last)' } }
@@ -1144,16 +1064,19 @@ export async function receiveTrustDoc (p: Person, env: any, when: number, ent: a
       const union: string[] = []
       for (let i = 1n; i <= BigInt(candLast!); i++) union.push(...(String(i) === seq ? b : a.chunks.get(String(i))).blinded)
       const sorted = [...union].every((x, i, arr) => i === 0 || arr[i - 1] < x)
-      if (!sorted || BigInt(union.length) > BigInt(a.count)) { from.asm = undefined; (from.starPoison ??= new Set()).add(a.salt); return { handled: true, error: 'assembly invalid (order/|union|>count)' } }
+      // 5300/5310: strikt aufsteigend über die ganze Union — Ordnung und
+      // Duplikatfreiheit in einem
+      if (!sorted) { from.asm = undefined; (from.starPoison ??= new Set()).add(a.salt); return { handled: true, error: 'assembly invalid (order/duplicate)' } }
       ackEnv = await mkAck()   // JETZT ist alles validiert (M-2), vor der Übernahme
       if (from.deactivated) return { handled: true, error: 'tuple deactivated' }  // Re-Check (B-1), danach kein await
       from.asm = undefined
       from.starSaltIn = a.salt
-      from.starReceived = { salt: a.salt, count: a.count, blinded: union }
+      // count: die Zahl der empfangenen geblendeten Einträge, lokal abgeleitet
+      from.starReceived = { salt: a.salt, count: String(union.length), blinded: union }
       if (from.starPoison) for (const ps of from.starPoison) if (BigInt(ps) <= BigInt(a.salt)) from.starPoison.delete(ps)  // Gift unterhalb des High-Water ist gegenstandslos
       const out = commit({ handled: true, star: true }, ackEnv)
       await refreshStarInfo(p)
-      say(p, `Kontakt-Update von ${from.name}: ${a.count} Kontakte (geblendet: ${union.length})`)
+      say(p, `Kontakt-Update von ${from.name}: ${union.length} Kontakte (geblendet)`)
       return out
       })
     }

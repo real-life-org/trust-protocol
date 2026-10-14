@@ -156,7 +156,7 @@ test('access CLI: --layer access checks, writes manifests; an unknown layer exit
   assert.deepEqual(manifestIds(require('node:fs').readFileSync(out, 'utf8')), ['RLTP-ACC-3005', 'RLTP-ACC-14010'])
   const w2 = cli('--layer', 'access', '--write-manifest', invB, '--manifest', out)
   assert.equal(w2.status, 0, w2.stderr)
-  assert.match(require('node:fs').readFileSync(out, 'utf8'), /^# Access Layer 0\.56/)
+  assert.match(require('node:fs').readFileSync(out, 'utf8'), /^# Access Layer 0\.57/)
 })
 
 // ── Membership Tasks (`--layer membership`, prefix RLTP-MT) ──────────────
@@ -195,7 +195,7 @@ test('membership CLI: --layer membership checks and writes the manifest from the
   const w = cli('--layer', 'membership', '--write-manifest-from-spec', s, '--manifest', out)
   assert.equal(w.status, 0, w.stderr)
   const text = require('node:fs').readFileSync(out, 'utf8')
-  assert.match(text, /^# Membership Tasks 0\.18/)
+  assert.match(text, /^# Membership Tasks 0\.19/)
   assert.match(text, /--layer membership --write-manifest-from-spec/)
   assert.deepEqual(manifestIds(text), ['RLTP-MT-2010', 'RLTP-MT-10020'])
   const ok = cli('--layer', 'membership', '--spec', s, '--manifest', out, '--inventory', minventory(['RLTP-MT-2010', 'RLTP-MT-10020']))
@@ -230,13 +230,13 @@ test('membership profile checks: a declaration the registry does not match fails
   const { membershipProfileChecks } = await import('./membership-checks.mjs')
   const { readFileSync } = await import('node:fs')
   const real = readFileSync(new URL('../spec/membership-tasks.md', import.meta.url), 'utf8')
-  const manifest = new Set(manifestIds(readFileSync(new URL('../conformance/membership-rule-ids-0.18.txt', import.meta.url), 'utf8')))
+  const manifest = new Set(manifestIds(readFileSync(new URL('../conformance/membership-rule-ids-0.19.txt', import.meta.url), 'utf8')))
   const ok = membershipProfileChecks({ specText: real, manifest })
   assert.ok(ok.every((c) => c.ok), JSON.stringify(ok.filter((c) => !c.ok)))
   const wrong = real.replace(/side effects\n?\s*\*mutating\*/, 'side effects *read-only*')
   assert.notEqual(wrong, real)
   assert.ok(membershipProfileChecks({ specText: wrong, manifest }).some((c) => !c.ok && c.rules.includes('RLTP-MT-3375')))
-  const noProfile = real.replace('`rltp-membership@0.18` (draft)', '`rltp-membership@0.19` (draft)')
+  const noProfile = real.replace('`rltp-membership@0.19` (draft)', '`rltp-membership@0.20` (draft)')
   assert.ok(membershipProfileChecks({ specText: noProfile, manifest }).some((c) => !c.ok && c.rules.includes('RLTP-MT-10010')))
   assert.ok(membershipProfileChecks({ specText: real, manifest: new Set(['RLTP-MT-2010']) }).some((c) => !c.ok && c.rules.includes('RLTP-MT-10090')))
 })
@@ -258,4 +258,39 @@ test('membership coverage: complete, partial and state-dependent sets of Section
   has(checkCoverage({ ...base, partial: ['RLTP-MT-3270', 'RLTP-MT-2030'], proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], partialNamed: ['RLTP-MT-3270', 'RLTP-MT-2030'] }), 'RLTP-MT-2030: partially checked and in the state-dependent set')
   has(checkCoverage({ ...base, manifest: [...M, 'RLTP-MT-4444'], proven: ['RLTP-MT-3005', 'RLTP-MT-10100'], partialNamed: ['RLTP-MT-3270'] }), 'RLTP-MT-4444: neither vector-checked nor in the state-dependent set')
   assert.match(coverageSets({ specText: '# none' }).error, /names no state-dependent and vector-checked/)
+})
+
+// ── Trust Layer (`--layer trust`, prefix RLTP-TRU) ───────────────────────
+// The trust inventory carries the ID in a row's first cell, in part B and
+// in the new-rule tables of part D; struck rows (`X-nn`) and reference rows
+// (`= RLTP-TRU-…`) are no IDs of their own.
+const TGOOD = '**RLTP-TRU-1010** — An anchor MUST reach a party only through its issuer.\n\n**RLTP-TRU-6435** — `name` MUST be at most 64 characters.\n\n**RLTP-TRU-12010** — An implementation MUST NOT emit a raw anchor.'
+const TIDS = ['RLTP-TRU-1010', 'RLTP-TRU-6435', 'RLTP-TRU-12010']
+const tinventory = (ids) => file('## B. Rückverfolgungstabelle\n| ID | Abschnitt | Z. |\n|---|---|---|\n' +
+  ids.map((i) => `| ${i} | § | 1 |\n`).join('') + '| X-01 | 2 | 3 |\n| = RLTP-TRU-1010 | 2 | 4 |\n| X-08 … X-14 | 5.5 | 5 |\n')
+const trun = (s, m, inv) => checkTrace({ layer: 'trust', spec: spec(s), manifest: manifest(m), inventory: inv === undefined ? null : tinventory(inv) })
+
+test('trust: complete trace passes; struck and reference rows of the inventory do not count', () => {
+  assert.deepEqual(trun(TGOOD, TIDS).errors, [])
+  assert.deepEqual(trun(TGOOD, TIDS, TIDS).errors, [])
+  assert.deepEqual(inventoryIds('| X-01 | a |\n| = RLTP-TRU-2010 | b |\n| RLTP-TRU-2010 | c |\n', 'RLTP-TRU'), ['RLTP-TRU-2010'])
+  has(trun(TGOOD, TIDS, [...TIDS, 'RLTP-TRU-2800']), 'RLTP-TRU-2800: in the inventory, not a rule')
+  has(trun(TGOOD, ['RLTP-TRU-1010', 'RLTP-TRU-6435']), 'RLTP-TRU-12010: a rule in the specification, not in the manifest')
+  has(trun(TGOOD + '\n\n**RLTP-ENC-2010** — Other layer.', [...TIDS, 'RLTP-ENC-2010']), 'malformed identifier "RLTP-ENC-2010"')
+})
+
+test('trust CLI: --layer trust checks and writes the manifest from the spec', () => {
+  const { spawnSync } = require('node:child_process')
+  const cli = (...a) => spawnSync(process.execPath, [new URL('./check-encounter-trace.mjs', import.meta.url).pathname, ...a], { encoding: 'utf8' })
+  const s = spec(TGOOD)
+  const out = join(dir, 'trust-written.txt')
+  const w = cli('--layer', 'trust', '--write-manifest-from-spec', s, '--manifest', out)
+  assert.equal(w.status, 0, w.stderr)
+  const text = require('node:fs').readFileSync(out, 'utf8')
+  assert.match(text, /^# Trust Layer 0\.31/)
+  assert.match(text, /--layer trust --write-manifest-from-spec/)
+  assert.deepEqual(manifestIds(text), TIDS)
+  const ok = cli('--layer', 'trust', '--spec', s, '--manifest', out, '--inventory', tinventory(TIDS))
+  assert.equal(ok.status, 0, ok.stderr)
+  assert.equal(cli('--layer', 'trust', '--spec', s, '--manifest', out, '--inventory', tinventory(['RLTP-TRU-1010'])).status, 1)
 })

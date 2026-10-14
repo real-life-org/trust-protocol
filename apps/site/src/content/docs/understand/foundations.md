@@ -49,7 +49,10 @@ as a `did:key`, and an X25519 key for key agreement, carried in the
 `did:key` over Ed25519 is the only DID method specified today.
 Consumers treat an anchor as an opaque DID, but the schemas pin the
 `did:key` pattern, so another method would be a coordinated change. A
-`did:key` cannot rotate; a successor with verifiable key history is
+`did:key` cannot rotate as an identifier. The anchor of the personal
+community rotates outside it: each generation is bound in advance to
+the next by a pre-rotation binding, so only the holder of the seed can
+produce a valid successor. A verifiable key history for every anchor is
 named as open work, its format deliberately not chosen. `did:webvh`
 and `did:peer` are not specified.
 
@@ -124,16 +127,27 @@ out of. The mapping is designated-verifier: a MAC under a key the two
 share, so the contact can check it but could have forged it, and
 nobody else can.
 
+The mapping and the star are two of five **[trust classes](term:TrustClass)**, besides
+the group star in a blinded and a sealed form and the **[profile](term:Profile)**, a
+name with an optional picture and text: trusting someone sends the
+classes meant for trusted contacts in one step, and each class can be
+switched on its own, per contact and per group.
+
 Meeting the same person again needs no disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
 history and chains it to the existing relationship.
 
 Every artifact belongs to one audience class. Class P covers
-statements about oneself meant to be shown, such as contact cards and
-membership documents, and only these are transferably signed; class V
-covers anything linking two contexts of one person, and class D
-covers statements about third parties, both designated-verifier, with
-class D additionally blinded.
+statements meant to be shown, such as the encounter credential, the
+contact card and the membership document, and these are transferably
+signed; class S covers statements about oneself meant for one contact,
+the profile and the anchor mapping, proved by a MAC only that contact
+can check; class V covers other links between two contexts of one
+person, and class D covers statements about third parties, both
+designated-verifier, with class D additionally blinded. The
+introduction request and reply are the exception in class D: they are
+signed, each under a fresh anchor made for the introduction, and name
+no standing anchor.
 
 A third party holding both credentials of one encounter can verify
 both proofs and the shared [enactment binding](term:EnactmentBinding), and learns exactly
@@ -143,7 +157,7 @@ Personhood predicates therefore measure confirmations relative to
 anchors the verifier already knows.
 
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
-[Network Visibility](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md) ·
+[Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) ·
 [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md)
 
 ## Trust Tasks
@@ -165,12 +179,12 @@ is rejected, never silently ignored.
 | `access-operation/0.1` | Membership | the admitting operation and [welcome](term:Welcome), sent to the new member |
 | `key-delivery/0.1` | Access | epoch keys, welcomes, key requests |
 | `removal-notice/0.1` | Access | tells a removed member |
-| `star/0.1` | Visibility | lets a contact relate your contacts to theirs, blinded or as a count |
-| `group-star/0.1` | Visibility | your groups, blinded to every contact; your member anchor sealed to the ones you choose |
-| `grade-declaration/0.1` | Visibility | a contact's choice between count and blinded |
-| `anchor-mapping/0.2` | Visibility | links a pair anchor to the community anchor for one addressee |
-| `continuity-probe/0.1`, `continuity-mapping/0.1` | Visibility | detect a re-encounter and chain it to the existing relationship |
-| `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Visibility | the five steps of introducing two people through a mutual contact |
+| `star/0.2` | Trust | lets a contact relate your contacts to theirs, blinded |
+| `group-star/0.1` | Trust | your groups, blinded to every contact; your member anchor sealed to the ones you choose |
+| `anchor-mapping/0.3` | Trust | links a pair anchor to the community anchor for one addressee |
+| `profile/0.1` | Trust | your name, with an optional picture and text, for one contact |
+| `continuity-probe/0.1`, `continuity-mapping/0.1` | Trust | detect a re-encounter and chain it to the existing relationship |
+| `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Trust | the five steps of introducing two people through a mutual contact |
 
 The Delivery Contract and the Membership Tasks declare Trust Tasks
 framework 0.4 as their target. The current framework is 0.7.0; the

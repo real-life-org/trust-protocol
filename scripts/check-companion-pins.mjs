@@ -29,7 +29,7 @@ export const SPECS = {
   Delivery: 'delivery-contract.md',
   Membership: 'membership-tasks.md',
   Replication: 'replication-contract.md',
-  Visibility: 'network-visibility.md',
+  Trust: 'trust-layer.md',
   Predicates: 'personhood-predicates.md',
   Succession: 'succession.md',
 }

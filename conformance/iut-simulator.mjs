@@ -6,7 +6,7 @@
 // anchor discipline. Stage-A acceptance of the simulator's 0.24 upgrade.
 //
 //   usage: node conformance/iut-simulator.mjs
-import { SCHEMAS, validate, diVerify, digestU, jcs, hmacU, hkdf, verifyRaw, fromB58, XS, pubFromRaw } from './lib.mjs'
+import { SCHEMAS, validate, diVerify, digestU, jcs, hmacU, hkdf, verifyRaw, fromB58, XS, pubFromRaw, didOf, sha } from './lib.mjs'
 import crypto from 'node:crypto'
 import * as V from '../simulator/visibility.mjs'
 import {
@@ -122,22 +122,41 @@ section('Stage B: visibility artifacts emitted live (schemas + MACs)')
   const rm = V.receiveContinuityMapping(receiver, nonRel, m)
   check(!!rm.chained, 'record-side mapping verifies and chains at the receiver')
   check(receiver.relationships.length === 1 && sender.relationships.length === 1, 'both sides hold ONE relationship after continuity')
-  // trust act + star
+  // trust act (anchor mapping) + star
   const relRcv = receiver.relationships[0], relSnd = sender.relationships[0]
   const am = V.issueAnchorMapping(sender, relSnd)
   schemaOK(am, 'visibility-anchor-mapping.schema.json', 'live anchor mapping')
   schemaOK(am.body.card, 'visibility-self-card.schema.json', 'live self card')
   check(verifyRaw(am.body.card.body.anchor, Buffer.from(jcs(am.body.card.body), 'utf8'), am.body.card.proof.proofValue), 'self card raw signature recomputes')
+  // the pre-rotation binding (Identity 0.54 §5.4), independently: generation 2
+  // of the sender's community derived from its seed, its multikey bytes
+  // (0xed 0x01 || key, the bytes its did:key encodes) hashed as a sha2-256 multihash
+  const g2mk = fromB58(didOf(hkdf(sender.rootIkm, 'rltp/anchor/ed/' + V.communityIdentity(sender).label + '/2')).slice('did:key:z'.length))
+  check(am.body.type === 'anchor-mapping@4' && am.body.card.body.type === 'self-card@2' && g2mk.length === 34 && am.body.card.body.commit === 'u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(g2mk)]).toString('base64url'), 'self-card@2 commit = the binding over generation 2 (multihash over its multikey bytes)')
   const ram = V.receiveAnchorMapping(receiver, relRcv, am)
   check(!!ram.self, 'anchor mapping passes the closed 6.3 list at the receiver')
-  const grade = V.issueGrade(sender, relSnd, 'blinded')
-  schemaOK(grade, 'visibility-grade-declaration.schema.json', 'live grade declaration')
+  // the counter trust act: the receiver's mapping makes it a member of the sender's deliverable set (2040)
+  const back = V.receiveAnchorMapping(sender, relSnd, V.issueAnchorMapping(receiver, relRcv))
+  check(!!back.self, 'counter anchor mapping passes the closed 6.3 list at the sender')
+  // star@2 (Trust Layer 0.31 §5.2): closed body { type, salt, seq, last, blinded }, no count, no grade
   const star = V.buildStar(sender, relSnd)
-  schemaOK(star, 'visibility-star.schema.json', 'live star')
+  schemaOK(star, 'visibility-star.schema.json', 'live star@2')
   // star MAC independently recomputed under the directional key
   const th = relSnd.head
   const kStar = hkdf(ecdhK(th.ownCtx.keys.x.privateKey, th.counterpartMk), `rltp/visibility/blind/star/${th.ownCtx.anchor}/${th.counterpartAnchor}/${star.body.salt}`)
   check(hmacU(kStar, jcs(star.body)) === star.proof.mac, 'star MAC recomputes under the directional key')
+  check(jcs(star.body.blinded) === jcs([hmacU(kStar, back.self)]), 'star blinds every deliverable member, exactly once, under the same key (5010, 5080)')
+  // reception: strictly greater salt, compared exactly over the full 18-digit domain (5150, 2590)
+  check(!V.receiveStar(receiver, relRcv, star).error, 'star accepted at the receiver')
+  check(V.receiveStar(receiver, relRcv, star).error === 'salt not strictly greater', 'byte-identical replay rejected: salt not strictly greater (5150)')
+  th.starSalt = 2n ** 53n - 1n // salts are strictly increasing, never dense (5130)
+  const s53 = V.buildStar(sender, relSnd), s53p1 = V.buildStar(sender, relSnd)
+  check(s53.body.salt === '9007199254740992' && s53p1.body.salt === '9007199254740993', 'salts past 2^53 in their exact wire form')
+  check(!V.receiveStar(receiver, relRcv, s53).error && !V.receiveStar(receiver, relRcv, s53p1).error, 'salt 2^53 + 1 after 2^53 accepted: no binary floating-point comparison (2590)')
+  th.starSalt = 10n ** 18n - 2n
+  const sMax = V.buildStar(sender, relSnd)
+  check(sMax.body.salt === '999999999999999999' && !V.receiveStar(receiver, relRcv, sMax).error, 'the largest wire integer 10^18 − 1 as salt is accepted (2.1)')
+  check(V.receiveStar(receiver, relRcv, s53p1).error === 'salt not strictly greater', 'an older salt after the largest is rejected (5150)')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

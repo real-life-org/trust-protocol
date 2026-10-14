@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 // Traceability check for the numbered rules of a layer specification —
 // the Encounter Layer (`RLTP-ENC`, the default), the Access Layer
-// (`RLTP-ACC`, `--layer access`) and Membership Tasks (`RLTP-MT`,
-// `--layer membership`).
+// (`RLTP-ACC`, `--layer access`), Membership Tasks (`RLTP-MT`,
+// `--layer membership`) and the Trust Layer (`RLTP-TRU`, `--layer trust`).
 //
 // Two sources of truth for the rule set:
 //   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
-//     conformance/access-rule-ids-0.56.txt,
-//     conformance/membership-rule-ids-0.18.txt), one identifier per line,
+//     conformance/access-rule-ids-0.57.txt,
+//     conformance/membership-rule-ids-0.19.txt,
+//     conformance/trust-rule-ids-0.31.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
 //     outside this repository) — checked additionally when present, and
 //     REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
-//     MEMBERSHIP_INVENTORY names it. The Encounter and Access inventories
-//     carry the ID in a row's first cell; the Membership inventory in its
-//     `Ziel-ID` column.
+//     MEMBERSHIP_INVENTORY / TRUST_INVENTORY names it. The Encounter,
+//     Access and Trust inventories carry the ID in a row's first cell; the
+//     Membership inventory in its `Ziel-ID` column. Only cells that start
+//     with the layer's own prefix count, so the Trust inventory's struck
+//     rows (`X-nn`) and reference rows (`= RLTP-TRU-…`) are not read.
 //
 // A rule in the specification is a paragraph that starts, unindented and
 // outside any code fence, with `**<PREFIX>-nnnn** — <statement>`. The
@@ -24,9 +27,9 @@
 // is malformed (no separator, empty statement, ID not 4–5 digits); an
 // empty manifest or inventory.
 //
-//   usage: node scripts/check-encounter-trace.mjs [--layer encounter|access|membership] [--inventory <file>] [--spec <file>] [--manifest <file>]
-//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership] --write-manifest <inventory.md>
-//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership] --write-manifest-from-spec <spec.md>
+//   usage: node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust] [--inventory <file>] [--spec <file>] [--manifest <file>]
+//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust] --write-manifest <inventory.md>
+//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust] --write-manifest-from-spec <spec.md>
 //
 // Exit 1 on any violation, 2 on usage errors.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
@@ -48,22 +51,30 @@ export const LAYERS = {
   },
   access: {
     prefix: 'RLTP-ACC',
-    title: 'Access Layer 0.56',
+    title: 'Access Layer 0.57',
     spec: join(ROOT, 'spec/access-layer.md'),
-    manifest: join(ROOT, 'conformance/access-rule-ids-0.56.txt'),
+    manifest: join(ROOT, 'conformance/access-rule-ids-0.57.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'access-0.56-regelinventar.md'),
     env: 'ACCESS_INVENTORY',
     inventorySection: 'B'
   },
   membership: {
     prefix: 'RLTP-MT',
-    title: 'Membership Tasks 0.18',
+    title: 'Membership Tasks 0.19',
     spec: join(ROOT, 'spec/membership-tasks.md'),
-    manifest: join(ROOT, 'conformance/membership-rule-ids-0.18.txt'),
+    manifest: join(ROOT, 'conformance/membership-rule-ids-0.19.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'membership-0.18-regelinventar.md'),
     env: 'MEMBERSHIP_INVENTORY',
     inventorySection: 'B',
     inventoryColumn: 'Ziel-ID'
+  },
+  trust: {
+    prefix: 'RLTP-TRU',
+    title: 'Trust Layer 0.31',
+    spec: join(ROOT, 'spec/trust-layer.md'),
+    manifest: join(ROOT, 'conformance/trust-rule-ids-0.31.txt'),
+    inventory: join(ROOT, '..', 'rltp', 'design', 'trust-0.31-regelinventar.md'),
+    env: 'TRUST_INVENTORY'
   }
 }
 export const DEFAULT_SPEC = LAYERS.encounter.spec
@@ -199,7 +210,7 @@ export function checkTrace ({ layer = 'encounter', spec, manifest, inventory = n
 }
 
 // Which inventory to use: an explicit ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
-// MEMBERSHIP_INVENTORY
+// MEMBERSHIP_INVENTORY / TRUST_INVENTORY
 // (or --inventory) is mandatory; otherwise the sibling workshop checkout
 // when present.
 export const resolveInventory = (explicit, layer = 'encounter') => {

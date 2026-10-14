@@ -46,6 +46,6 @@
       "description": "HMAC(HKDF(ECDH(memberX_sender, pairX_recipient), \"rltp/visibility/mac/group-pair\"), canonical bytes of this object without proof); memberX_sender is the key-agreement key of the card enclosed in the operation memberOp names"
     }
   },
-  "title": "RLTP group-pair@1 (rltp-visibility@0.30)",
-  "description": "The opened body of a sealed group-star entry (Network Visibility 5.2b): it proves, to the recipient alone, control of the sender's member anchor in one group the recipient is a current member of. Class V: never republished, never carried into a group space, never evidence toward a third party."
+  "title": "RLTP group-pair@1 (rltp-trust@0.31)",
+  "description": "The opened body of a sealed group-star entry (Trust Layer 5.2b): it proves, to the recipient alone, control of the sender's member anchor in one group the recipient is a current member of. Class V: never republished, never carried into a group space, never evidence toward a third party."
 }

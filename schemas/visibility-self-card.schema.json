@@ -13,11 +13,12 @@
       "required": [
         "type",
         "anchor",
-        "keyAgreement"
+        "keyAgreement",
+        "commit"
       ],
       "properties": {
         "type": {
-          "const": "self-card@1"
+          "const": "self-card@2"
         },
         "anchor": {
           "type": "string",
@@ -26,6 +27,11 @@
         "keyAgreement": {
           "type": "string",
           "pattern": "^z6LS[1-9A-HJ-NP-Za-km-z]{44}$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^u[A-Za-z0-9_-]{45}[AQgw]$",
+          "description": "the pre-rotation binding to the next generation of the community anchor named in anchor (generation g + 1 of the same digest): u + base64url (unpadded) of the sha2-256 multihash (0x12 0x20 || 32 digest bytes) over the multikey bytes of that generation's Ed25519 public key, 0xed 0x01 || 32 key bytes (Identity 5.4, 8.1)"
         }
       }
     },
@@ -43,5 +49,5 @@
       }
     }
   },
-  "title": "RLTP self-card@1 (rltp-visibility@0.30)"
+  "title": "RLTP self-card@2 (rltp-trust@0.31)"
 }
