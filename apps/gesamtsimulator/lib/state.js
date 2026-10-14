@@ -4,8 +4,9 @@
 export function emptyState(codec) {
     return {
         codec,
+        commitSeq: '0',
         lastWhen: 0,
-        register: { labels: [], pairNonces: {}, carriers: {}, devices: { names: [], revoked: [] }, community: null },
+        register: { labels: [], pairNonces: {}, carriers: {}, devices: { names: [], revoked: [] }, community: null, lineage: [] },
         addresses: { keys: {}, tombstones: [] },
         contacts: {},
         relationships: {},

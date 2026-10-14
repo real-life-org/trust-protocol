@@ -11,9 +11,25 @@
 //
 // This is the ONLY file in src/ that touches the platform's generators
 // (test/entropy-lint.test.mjs enforces it).
+// Where the probe's old `ent` fields go (23 inputs: 22 `ent.*` fields and
+// group-star's `rand`). Four are not entropy and leave the port: domain
+// decisions are act input or group state (note §3).
+//
+//   ent.ephSeed         seal.eph           ent.id, ent.docId   doc.id
+//   ent.sealNonce       seal.nonce         ent.threadId        thread.id
+//   ent.envNonce        seal.nonce         ent.ackId           ack.id
+//   ent.ch, .chA, .chB  challenge          ent.groupSeed       group.seed
+//   ent.nonce, .nonceA, .nonceB            founding.nonce (pair-context nonce)
+//   ent.foundingNonce   founding.nonce     ent.dropNonce       drop.nonce
+//   ent.secret          rendezvous.secret  ent.pad             pad
+//   group-star rand     groupstar.nonce (AEAD nonces), pad (filler d and c)
+//   ent.vouchThreshold  not entropy: group rule, group state
+//   ent.candidacy       not entropy: the human's choice, act input
+//   ent.cls             not entropy: act input
+//   ent.recipient       not entropy: act input
 export const ENTROPY_PURPOSES = Object.freeze([
-    'seal.eph', 'seal.nonce', 'env.nonce', 'doc.id', 'thread.id', 'ack.id',
-    'challenge', 'group.seed', 'founding.nonce', 'drop.nonce', 'pad',
+    'seal.eph', 'seal.nonce', 'doc.id', 'thread.id', 'ack.id', 'challenge',
+    'group.seed', 'founding.nonce', 'drop.nonce', 'rendezvous.secret', 'groupstar.nonce', 'pad',
 ]);
 export class EntropyError extends Error {
     code;

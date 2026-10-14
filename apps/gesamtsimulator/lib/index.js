@@ -56,7 +56,7 @@ export * from './carrier.js';
 export * from './holder.js';
 export * as visibility from './visibility.js';
 export * as ceremony from './ceremony.js';
-export { CODEC, MIGRATIONS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
+export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
 export { InfraError } from './results.js';
 export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
