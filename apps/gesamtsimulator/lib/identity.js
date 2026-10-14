@@ -28,7 +28,7 @@ import { allowed15, WHITE_SPACE_15 } from './unicode15.js';
 // multihash: 47 characters, no padding, no non-zero trailing bits, no z.
 const digestComponent = (d) => d.length === 47 && d[0] === 'u' && toU(d) === d;
 // the generation domain of the community anchor (Identity §5.4): [2,
-// 2^53 − 1] — the 7a.3 domain (holder.ts GENERATION_MAX); generation 1
+// 2^53 − 1] — the 7a.3 domain (carrier-holder.ts GENERATION_MAX); generation 1
 // is the plain group/<digest>
 const GENERATION_MAX = Number.MAX_SAFE_INTEGER;
 // §6.1: a decimal integer in [2, 2^53 − 1], no sign, no leading zero —

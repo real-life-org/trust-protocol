@@ -6,3 +6,4 @@ export { InMemoryStore } from './store-memory.js';
 export { scriptedEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
 export { emptyState } from './state.js';
+export { freezeDeep } from './engine.js';
