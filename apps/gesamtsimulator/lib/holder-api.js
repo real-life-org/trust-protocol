@@ -15,23 +15,28 @@
 // the Delivery stages 1–4 in the core and the task register's dispatch.
 // No stub stands in for it.
 import { createEngine } from './engine.js';
-import { DECIDE, promptsModule } from './prompts.js';
+import { DECIDE, collectDecisions, promptsModule } from './prompts.js';
+import { toOpaque } from './state.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
-    const engine = await createEngine(ports, [promptsModule, ...(opts.modules ?? [])]);
+    const modules = [...(opts.modules ?? [])];
+    const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules]);
     const read = async () => (await engine.snapshot()).state;
     return Object.freeze({
         act: (command, input, when, o) => engine.act(command, input, when, o),
-        decide: (promptId, choice, when, o) => engine.act(DECIDE, { promptId, choice }, when, o),
+        decide: (promptId, choice, o) => engine.act(DECIDE, { promptId, choice }, o?.when, o?.actId === undefined ? {} : { actId: o.actId }),
         tick: (when) => engine.tick(when),
         resume: (when) => engine.resume(when),
         report: (report, when) => engine.report(report, when),
         subscribe: (listener) => engine.subscribe(listener),
-        snapshot: () => engine.snapshot(),
+        snapshot: async () => {
+            const s = await engine.snapshot();
+            return Object.freeze({ commitSeq: s.commitSeq, state: toOpaque(s.state) });
+        },
         contacts: async () => contactsView(await read()),
         contact: async (id) => contactView(await read(), id),
         groups: async () => groupsView(await read()),

@@ -1,5 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
+/** The structural state as the opaque one, for the store and the facade. */
+export const toOpaque = (s) => s;
 /** An outbox item's trias position (Delivery §6.1): its last step that is
  *  not pre-transport, `submitted` before any. */
 export function triasOf(item) {

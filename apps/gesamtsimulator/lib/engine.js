@@ -66,10 +66,11 @@
 //     invalid state is a programming error and throws
 import { jcs, b64uOf } from './core.js';
 import { CODEC, decodeState, encodeState } from './codec.js';
-import { emptyState, triasOf } from './state.js';
+import { emptyState, toOpaque, triasOf } from './state.js';
 import { CryptoUnavailableError, InfraError } from './results.js';
 import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
+import { freezeDeep } from './util-freeze.js';
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
 /** Defaults of the retry policy and the retention it implies. */
@@ -88,15 +89,6 @@ const HORIZON_MAX = 90 * DAY;
 const BUILTIN = ['tick', 'resume', 'report'];
 const TASK_URI = /^[a-z][a-z0-9+.-]*:\S+\/[0-9]+\.[0-9]+$/;
 // ── helpers ────────────────────────────────────────────────────────────
-/** Freezes an object graph in place and returns it. */
-export function freezeDeep(x) {
-    if (x !== null && typeof x === 'object' && !Object.isFrozen(x)) {
-        Object.freeze(x);
-        for (const v of Object.values(x))
-            freezeDeep(v);
-    }
-    return x;
-}
 const ALGORITHMS = ['Ed25519', 'X25519', 'HKDF', 'HMAC', 'AES-GCM', 'SHA-256'];
 const concat = (a, b) => { const o = new Uint8Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; };
 /** Resolves the WebCrypto handle and probes every algorithm the library uses. */
@@ -317,7 +309,7 @@ class HolderEngine {
         }
         let cause;
         try {
-            if ((await this.#store.commit(null, emptyState(CODEC))).ok)
+            if ((await this.#store.commit(null, toOpaque(emptyState(CODEC)))).ok)
                 return;
         }
         catch (e) {
@@ -415,7 +407,7 @@ class HolderEngine {
             const text = encodeState(next); // validates; an invalid next state is a programming error
             let res;
             try {
-                res = await this.#store.commit(version, next);
+                res = await this.#store.commit(version, toOpaque(next));
             }
             catch (e) {
                 this.#unsettled = { text, commitSeq: seq, events, ...(def.human ? { actId } : {}) };
