@@ -64,7 +64,7 @@
 //     invalid state is a programming error and throws
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
-import { emptyState } from './state.js'
+import { emptyState, triasOf } from './state.js'
 import type { Dec, Duty, HolderState, Millis, OutboxItem, OutboxStep } from './state.js'
 import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, RetryPolicy, Store, StoreSnapshot } from './ports.js'
 import type { HolderEvent } from './events.js'
@@ -302,15 +302,6 @@ const releaseOf = (state: Readonly<HolderState>): KeyRelease => (rkid) => {
 }
 
 const isRefusal = (r: unknown): r is Refusal => (r as Refusal)?.ok === false
-
-/** The item's trias position: the last step that is not pre-transport. */
-const triasOf = (item: OutboxItem): 'submitted' | 'accepted' | 'delivered' | 'failed' => {
-  for (let i = item.history.length - 1; i >= 0; i--) {
-    const s = item.history[i].status
-    if (s !== 'awaiting-transport') return s
-  }
-  return 'submitted'
-}
 
 const checkWhen = (when: unknown): void => {
   if (!Number.isSafeInteger(when) || (when as number) < 0) throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`)

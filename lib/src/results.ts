@@ -26,6 +26,10 @@ export type ActError =
   | 'actid-missing'
   | 'log-missing'
   | 'unknown-digest'
+  /** prompt.decide: no open prompt has this id */
+  | 'unknown-prompt'
+  /** prompt.decide: the prompt's expiresAt is not after when; tick removes it */
+  | 'prompt-expired'
 
 export type ActResult =
   | { ok: true, outbound: Outbound[], events: HolderEvent[] }

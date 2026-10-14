@@ -5,7 +5,7 @@
 // type, and re-reads its views on any event. Events do not survive a
 // restart; the act journal keeps them only to answer a repeated actId.
 // Pure JSON, like the state that journals them.
-import type { Dec, OutboxStatus, PromptKind } from './state.js'
+import type { Dec, OutboxStatus, PromptChoice, PromptKind } from './state.js'
 
 /** Fields every event carries. */
 export interface EventBase {
@@ -30,6 +30,8 @@ export type HolderEvent = EventBase & (
   | { type: 'trust.paused', contactId: string, paused: boolean }
   | { type: 'group.joined', groupId: string }
   | { type: 'prompt.opened', promptId: string, kind: PromptKind }
+  /** the human decided a prompt; it is closed (prompts.ts) */
+  | { type: 'prompt.decided', promptId: string, kind: PromptKind, choice: PromptChoice }
   /** sender status trias (Delivery §6.1) */
   | { type: 'delivery.status', digest: string, threadId: string, status: OutboxStatus, late?: boolean }
   /** contactId null: the holder's own profile */

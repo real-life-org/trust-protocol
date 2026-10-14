@@ -341,6 +341,8 @@ export interface Rotation {
 }
 
 export type PromptKind = 'encounter-confirm' | 'group-invite' | 'introduction'
+/** The human's answer to a prompt (prompts.ts). */
+export type PromptChoice = 'accept' | 'decline'
 
 export interface Prompt {
   id: string
@@ -370,6 +372,16 @@ export interface EncounterState {
   challenges: Record<string, Json>
   records: Record<string, Json>
   introductions: Record<string, Json>
+}
+
+/** An outbox item's trias position (Delivery §6.1): its last step that is
+ *  not pre-transport, `submitted` before any. */
+export function triasOf (item: Readonly<OutboxItem>): OutboxStatus {
+  for (let i = item.history.length - 1; i >= 0; i--) {
+    const s = item.history[i].status
+    if (s !== 'awaiting-transport') return s
+  }
+  return 'submitted'
 }
 
 /** A fresh holder's state. */
