@@ -39,8 +39,12 @@
 //
 // The Stage-2 holder (contract, engine core and facade):
 //
-//   holder-api        createHolder — the facade: act, tick, resume, report,
-//                     subscribe, snapshot (receive follows in PR 3)
+//   holder-api        createHolder — the facade: act, decide, tick, resume,
+//                     report, subscribe, snapshot and the views (receive
+//                     follows in PR 3)
+//   views             pure projections state → view: contacts, groups,
+//                     profile, prompts, delivery status
+//   prompts           the human's open decisions; decide closes them
 //   engine            the act in four steps over a CAS store, the act
 //                     journal, module registration (HolderModule types)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
@@ -50,7 +54,7 @@
 //   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
 //   entropy           the Entropy port by closed purpose
 //   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
-//                     freezeDeep
+//                     freezeDeep, sampleState, openPromptModule
 //
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 export * from './core.js';
@@ -61,7 +65,12 @@ export * from './delivery.js';
 export * from './carrier-identity.js';
 export * from './carrier.js';
 export * from './carrier-holder.js';
+/** @deprecated The probe-world Trust Layer API; apps use createHolder.
+ *  Kept until its consumers (the gesamtsimulator) move in PR 7; nothing
+ *  new is added to it. */
 export * as visibility from './visibility.js';
+/** @deprecated The probe-world ceremony API; apps use createHolder.
+ *  Kept until its consumers move in PR 7; nothing new is added to it. */
 export * as ceremony from './ceremony.js';
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
 export { InfraError, CryptoUnavailableError } from './results.js';
@@ -69,3 +78,5 @@ export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
 export { seedKeys } from './keys-seed.js';
 export { createHolder } from './holder-api.js';
+export { contactsView, contactView, groupsView, profileView, promptsView, deliveryStatusView } from './views.js';
+export { DECIDE } from './prompts.js';

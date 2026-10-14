@@ -2,6 +2,12 @@
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // @real-life/trust-protocol — visibility: the GRADUATED Trust Layer.
 //
+// @deprecated as an app API (lib Stage 2): apps use createHolder, whose
+// stateful acts and views replace the probe-world Person. This barrel
+// stays until its consumers (apps/gesamtsimulator, the simulator shims)
+// move in PR 7; nothing new is added to it. Its pure wire builders and
+// checks stay reachable from the root afterwards (note §4.6).
+//
 // Graduated 04.09.2026 after a 39-round adversarial conformance loop
 // (design/probe-nachzug-konvergenz-2026-09.md): these modules implement
 // the NORMATIVE wire forms of Trust Layer 0.31 (with Identity 0.54 §5.4)

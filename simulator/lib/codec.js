@@ -210,6 +210,7 @@ const EVENT_FIELDS = {
     'trust.paused': [{ contactId: str, paused: bool }],
     'group.joined': [{ groupId: str }],
     'prompt.opened': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction') }],
+    'prompt.decided': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), choice: lit('accept', 'decline') }],
     'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
     'profile.updated': [{ contactId: nullable(str) }],
     'anchor.rotated': [{ generation: dec }],

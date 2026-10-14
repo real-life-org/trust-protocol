@@ -66,7 +66,7 @@
 //     invalid state is a programming error and throws
 import { jcs, b64uOf } from './core.js';
 import { CODEC, decodeState, encodeState } from './codec.js';
-import { emptyState } from './state.js';
+import { emptyState, triasOf } from './state.js';
 import { CryptoUnavailableError, InfraError } from './results.js';
 import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
@@ -194,15 +194,6 @@ const releaseOf = (state) => (rkid) => {
     return k.retiredAt !== undefined ? { status: 'retired' } : { status: 'live', label: k.label };
 };
 const isRefusal = (r) => r?.ok === false;
-/** The item's trias position: the last step that is not pre-transport. */
-const triasOf = (item) => {
-    for (let i = item.history.length - 1; i >= 0; i--) {
-        const s = item.history[i].status;
-        if (s !== 'awaiting-transport')
-            return s;
-    }
-    return 'submitted';
-};
 const checkWhen = (when) => {
     if (!Number.isSafeInteger(when) || when < 0)
         throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`);

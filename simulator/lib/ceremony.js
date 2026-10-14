@@ -3,6 +3,10 @@
 // @real-life/trust-protocol — ceremony: the GRADUATED transmission of the
 // Encounter ceremony on the normative forms.
 //
+// @deprecated as an app API (lib Stage 2): apps use createHolder. This
+// barrel stays until its consumers (apps/gesamtsimulator, the simulator
+// shims) move in PR 7; nothing new is added to it.
+//
 // Graduated 05.09.2026 after a 25-round adversarial conformance loop
 // (design/encounter-nachzug-konvergenz-2026-09.md): this module implements
 // the one registered ceremony `encounter-scan@0.25` (Encounter 0.31, wire
