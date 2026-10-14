@@ -47,11 +47,14 @@ export type KeyRelease = (rkid: string) =>
   | { status: 'retired' }
   | { status: 'unknown' }
 
-/** Outcome of a key agreement: the raw X25519 shared secret, or why not. */
+/** Outcome of a key agreement: the raw X25519 shared secret, or why not.
+ *  `invalid`: the epk is not 32 bytes or yields the all-zero secret (a
+ *  low-order point, Delivery §5) — the sender's fault, never the host's. */
 export type Agreement =
   | { status: 'available', shared: Uint8Array }
   | { status: 'retired' }
   | { status: 'unknown' }
+  | { status: 'invalid' }
 
 /** A carrier-relationship principal (Identity §7a.4) with its signing operation. */
 export interface CarrierKey {

@@ -66,4 +66,5 @@ export type { ActError, ActResult, ReceiveFailure, ReceiveStageNo, ReceiveResult
 export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js'
 export type { Entropy, EntropyPurpose, EntropyErrorCode } from './entropy.js'
 export { storeContract } from './store-contract.js'
+export { seedKeys } from './keys-seed.js'
 export type { ContractHarness } from './store-contract.js'
