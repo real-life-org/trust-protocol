@@ -13,13 +13,18 @@
 // the Delivery stages 1–4 in the core and the task register's dispatch.
 // No stub stands in for it.
 import { createEngine } from './engine.js'
-import type { CommitListener, EnginePorts, HolderModule, HolderSnapshot } from './engine.js'
+import type { CommitListener, EnginePorts, HolderModule } from './engine.js'
 import type { DeliveryReport } from './ports.js'
-import { DECIDE, promptsModule } from './prompts.js'
+import { DECIDE, collectDecisions, promptsModule } from './prompts.js'
 import type { ActResult, ResumeResult } from './results.js'
-import type { Millis, PromptChoice } from './state.js'
+import { toOpaque } from './state.js'
+import type { Dec, Millis, OpaqueHolderState, PromptChoice } from './state.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
 import type { ContactView, DeliveryStatusView, GroupView, ProfileView, PromptView } from './views.js'
+
+/** The committed state and its commitSeq; the state is opaque (note §4.5):
+ *  apps read the views, store tooling may persist it. */
+export interface HolderSnapshot { commitSeq: Dec, state: OpaqueHolderState }
 
 export interface HolderOptions {
   /** domain modules to register beside the built-ins and the prompts module */
@@ -28,8 +33,9 @@ export interface HolderOptions {
 
 export interface Holder {
   act (command: string, input: unknown, when: Millis, opts?: { actId?: string }): Promise<ActResult>
-  /** the human's decision on an open prompt: a human act, needs an actId */
-  decide (promptId: string, choice: PromptChoice, when: Millis, opts?: { actId?: string }): Promise<ActResult>
+  /** the human's decision on an open prompt: a human act under the app's
+   *  actId (note §4.2); a missing actId is also refused at runtime */
+  decide (promptId: string, choice: PromptChoice, opts: { when: Millis, actId: string }): Promise<ActResult>
   tick (when: Millis): Promise<ActResult>
   resume (when: Millis): Promise<ResumeResult>
   report (report: DeliveryReport, when: Millis): Promise<ActResult>
@@ -51,16 +57,21 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const engine = await createEngine(ports, [promptsModule, ...(opts.modules ?? [])])
+  const modules = [...(opts.modules ?? [])]
+  const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules])
   const read = async () => (await engine.snapshot()).state
   return Object.freeze({
     act: (command: string, input: unknown, when: Millis, o?: { actId?: string }) => engine.act(command, input, when, o),
-    decide: (promptId: string, choice: PromptChoice, when: Millis, o?: { actId?: string }) => engine.act(DECIDE, { promptId, choice }, when, o),
+    decide: (promptId: string, choice: PromptChoice, o: { when: Millis, actId: string }) =>
+      engine.act(DECIDE, { promptId, choice }, o?.when as Millis, o?.actId === undefined ? {} : { actId: o.actId }),
     tick: (when: Millis) => engine.tick(when),
     resume: (when: Millis) => engine.resume(when),
     report: (report: DeliveryReport, when: Millis) => engine.report(report, when),
     subscribe: (listener: CommitListener) => engine.subscribe(listener),
-    snapshot: () => engine.snapshot(),
+    snapshot: async (): Promise<HolderSnapshot> => {
+      const s = await engine.snapshot()
+      return Object.freeze({ commitSeq: s.commitSeq, state: toOpaque(s.state) })
+    },
     contacts: async () => contactsView(await read()),
     contact: async (id: string) => contactView(await read(), id),
     groups: async () => groupsView(await read()),

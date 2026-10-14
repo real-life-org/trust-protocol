@@ -38,19 +38,21 @@
 // The Stage-2 holder (contract, engine core and facade):
 //
 //   holder-api        createHolder — the facade: act, decide, tick, resume,
-//                     report, subscribe, snapshot and the views (receive
-//                     follows in PR 3)
-//   views             pure projections state → view: contacts, groups,
-//                     profile, prompts, delivery status
-//   prompts           the human's open decisions; decide closes them
-//   engine            the act in four steps over a CAS store, the act
-//                     journal, module registration (HolderModule types)
+//                     report, subscribe, snapshot and the views: contacts,
+//                     contact, groups, profile, prompts, deliveryStatus
+//                     (receive follows in PR 3)
+//   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
-//   state             HolderState — the holder's whole state as JSON
-//   codec             decodeState / encodeState under the codec version
+//   state             HolderState — opaque here (note §4.5): store adapters
+//                     persist it, apps read the views
+//   codec             decodeState (to the opaque state), CODEC, StateCodecError
 //   ports             Store, KeyProvider, Log, Access, DeliveryReport, Outbound
 //   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
 //   entropy           the Entropy port by closed purpose
+//   ./internal        the structural state, encodeState and the codec chain,
+//                     the engine's module types (HolderModule, DecisionHandler,
+//                     …), the pure view functions — for the library's modules
+//                     and tests, not an app contract
 //   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
 //                     freezeDeep, sampleState, openPromptModule
 //
@@ -71,9 +73,16 @@ export * as visibility from './visibility.js'
 /** @deprecated The probe-world ceremony API; apps use createHolder.
  *  Kept until its consumers move in PR 7; nothing new is added to it. */
 export * as ceremony from './ceremony.js'
-export type * from './state.js'
-export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
-export type { StateCodecErrorCode, StateValidator } from './codec.js'
+import { decodeState as decodeStructural } from './codec.js'
+import type { OpaqueHolderState } from './state.js'
+export type { OpaqueHolderState as HolderState, Dec, Millis, B64u, TrustClass, Setting, PromptKind, PromptChoice, OutboxStatus } from './state.js'
+export { CODEC, StateCodecError } from './codec.js'
+export type { StateCodecErrorCode } from './codec.js'
+/** Load a stored state (a JSON string or a parsed value): an independent,
+ *  opaque copy at the current codec, or StateCodecError. */
+export function decodeState (raw: unknown): OpaqueHolderState {
+  return decodeStructural(raw) as unknown as OpaqueHolderState
+}
 export type * from './ports.js'
 export type * from './events.js'
 export { InfraError, CryptoUnavailableError } from './results.js'
@@ -83,10 +92,7 @@ export type { Entropy, EntropyPurpose, EntropyErrorCode, PlatformRandom } from '
 export { storeContract } from './store-contract.js'
 export { seedKeys } from './keys-seed.js'
 export { createHolder } from './holder-api.js'
-export type { Holder, HolderOptions } from './holder-api.js'
-export { contactsView, contactView, groupsView, profileView, promptsView, deliveryStatusView } from './views.js'
+export type { Holder, HolderOptions, HolderSnapshot } from './holder-api.js'
 export type { ContactView, ClassView, ContactProfileView, GroupView, ProfileView, PromptView, DeliveryItemView, DeliveryStatusView } from './views.js'
-export { DECIDE } from './prompts.js'
-export type { DecideInput } from './prompts.js'
-export type { HolderModule, CommandDef, PrepareCtx, Prepared, Applied, Refusal, TaskHandler, DutyHandler, EventDraft, OutboundDraft, EnginePorts, CommitListener, HolderSnapshot, CryptoHandle } from './engine.js'
+export type { EnginePorts, CommitListener, CryptoHandle } from './engine.js'
 export type { ContractHarness } from './store-contract.js'

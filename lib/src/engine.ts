@@ -64,8 +64,8 @@
 //     invalid state is a programming error and throws
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
-import { emptyState, triasOf } from './state.js'
-import type { Dec, Duty, HolderState, Millis, OutboxItem, OutboxStep } from './state.js'
+import { emptyState, toOpaque, triasOf } from './state.js'
+import type { Dec, Duty, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind } from './state.js'
 import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, RetryPolicy, Store, StoreSnapshot } from './ports.js'
 import type { HolderEvent } from './events.js'
 import { CryptoUnavailableError, InfraError } from './results.js'
@@ -73,6 +73,7 @@ import type { ActError, ActResult, InfraErrorCode, ResumeResult } from './result
 import { randomEntropy } from './entropy.js'
 import type { Entropy, PlatformRandom } from './entropy.js'
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
+import { freezeDeep } from './util-freeze.js'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -143,12 +144,24 @@ export interface DutyHandler<P = any> {
   apply: (state: Readonly<HolderState>, prepared: Prepared<P>, duty: Duty, when: Millis) => Applied | Refusal
 }
 
+/**
+ * What a human's choice on a prompt of one kind does in its domain
+ * (prompts.ts): synchronous and pure like apply, run inside the decision's
+ * own transition, so the domain effect and the closing commit together.
+ * It sees the prompt still open; the prompts module removes it after. A
+ * refusal refuses the decision.
+ */
+export type DecisionHandler = (state: Readonly<HolderState>, prompt: Readonly<Prompt>, choice: PromptChoice, when: Millis) => Applied | Refusal
+
 /** A domain module: what it registers with the engine. */
 export interface HolderModule {
   name: string
   commands: Record<string, CommandDef>
   tasks?: Record<string, TaskHandler>
   duties?: Record<string, DutyHandler>
+  /** at most one handler per prompt kind across all modules; collected by
+   *  createHolder for the prompts module (prompts.ts) */
+  decisions?: Partial<Record<PromptKind, DecisionHandler>>
 }
 
 /** The ports of a holder (note §3); retry fields fall back to ENGINE_DEFAULTS. */
@@ -166,7 +179,7 @@ export interface EnginePorts {
 export type CommitListener = (commit: { commitSeq: Dec, events: HolderEvent[] }) => void
 
 /** A deep-frozen decoded state and its commitSeq. */
-export interface HolderSnapshot { state: Readonly<HolderState>, commitSeq: Dec }
+export interface EngineSnapshot { state: Readonly<HolderState>, commitSeq: Dec }
 
 export interface Engine {
   /** the names registered at construction, frozen */
@@ -179,7 +192,7 @@ export interface Engine {
   /** an adapter's delivery report (Delivery §6.1) */
   report (report: DeliveryReport, when: Millis): Promise<ActResult>
   subscribe (listener: CommitListener): () => void
-  snapshot (): Promise<HolderSnapshot>
+  snapshot (): Promise<EngineSnapshot>
 }
 
 // ── defaults ───────────────────────────────────────────────────────────
@@ -205,15 +218,6 @@ const BUILTIN = ['tick', 'resume', 'report'] as const
 const TASK_URI = /^[a-z][a-z0-9+.-]*:\S+\/[0-9]+\.[0-9]+$/
 
 // ── helpers ────────────────────────────────────────────────────────────
-
-/** Freezes an object graph in place and returns it. */
-export function freezeDeep<T> (x: T): T {
-  if (x !== null && typeof x === 'object' && !Object.isFrozen(x)) {
-    Object.freeze(x)
-    for (const v of Object.values(x as object)) freezeDeep(v)
-  }
-  return x
-}
 
 const ALGORITHMS = ['Ed25519', 'X25519', 'HKDF', 'HMAC', 'AES-GCM', 'SHA-256'] as const
 
@@ -425,7 +429,7 @@ class HolderEngine implements Engine {
     const snap = await this.#readRaw()
     if (snap.state !== null) { decodeState(snap.state); return }
     let cause: unknown
-    try { if ((await this.#store.commit(null, emptyState(CODEC))).ok) return } catch (e) { cause = e }
+    try { if ((await this.#store.commit(null, toOpaque(emptyState(CODEC)))).ok) return } catch (e) { cause = e }
     const again = await this.#readRaw()   // conflict or unknown outcome: someone (maybe we) wrote
     if (again.state === null) throw new InfraError('store-commit', 'could not initialise the store', { cause })
     decodeState(again.state)
@@ -514,7 +518,7 @@ class HolderEngine implements Engine {
       const next: HolderState = { ...r.state, commitSeq: seq, lastWhen: at, outbox, duties, acts }
       const text = encodeState(next)   // validates; an invalid next state is a programming error
       let res
-      try { res = await this.#store.commit(version, next) } catch (e) {
+      try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {
         this.#unsettled = { text, commitSeq: seq, events, ...(def.human ? { actId } : {}) }
         throw new InfraError('unknown-commit-outcome', undefined, { cause: e })
       }
@@ -709,7 +713,7 @@ class HolderEngine implements Engine {
     return () => { this.#listeners.delete(listener) }
   }
 
-  snapshot (): Promise<HolderSnapshot> {
+  snapshot (): Promise<EngineSnapshot> {
     return this.#enqueue(async () => {
       const { state } = await this.#read()
       return Object.freeze({ state, commitSeq: state.commitSeq })

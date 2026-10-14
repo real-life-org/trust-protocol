@@ -21,6 +21,19 @@ export type B64u = string
 /** Milliseconds since the epoch, a non-negative safe integer. */
 export type Millis = number
 
+declare const OPAQUE: unique symbol
+
+/**
+ * The holder's state at the consumer boundary (note §4.5): opaque. Store
+ * adapters persist it as JSON and hand it back; apps never read inside it
+ * and use the views (holder methods) instead. At runtime it is the
+ * structural HolderState below, which only ./internal exposes.
+ */
+export interface OpaqueHolderState { readonly [OPAQUE]: 'HolderState' }
+
+/** The structural state as the opaque one, for the store and the facade. */
+export const toOpaque = (s: Readonly<HolderState>): OpaqueHolderState => s as unknown as OpaqueHolderState
+
 export interface HolderState {
   /** state format version (codec.ts) */
   codec: number

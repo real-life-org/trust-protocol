@@ -37,6 +37,8 @@
     "dist/views.*",
     "dist/prompts.*",
     "dist/fixtures.*",
+    "dist/internal.*",
+    "dist/util-freeze.*",
     "README.md"
   ],
   "exports": {
@@ -51,6 +53,10 @@
     "./testing": {
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
+    },
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "default": "./dist/internal.js"
     }
   },
   "scripts": {

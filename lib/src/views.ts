@@ -18,26 +18,35 @@
 //     by any of its aliases (2140)
 //   - provenance and via come from the contact's oldest relationship (by
 //     its provenance time, then id): how the person came, not how often
-//   - verification is over every tuple of every relationship of the
-//     contact: `outgoing` an anchor mapping was issued (mappingOut), and
-//     `incoming` one was verified (mappingIn), `mutual` both, `met` neither
+//   - tuples belong to the entry their entryId names (2145): an entry's
+//     tuples are those whose entryId is its id or one of its aliases, over
+//     its own relationships and any relationship that stands behind two
+//     entries. Its heads are the active-head tuples among them of live
+//     relationships (not chained into another), not deactivated; under
+//     2146 the appended tuple's entry takes the chain's active head
+//   - verification is over all of the entry's tuples, deactivated and
+//     older ones included (historical evidence): `outgoing` an anchor
+//     mapping was issued (mappingOut), `incoming` one was verified
+//     (mappingIn), `mutual` both, `met` neither
 //   - trust.given is the anchor mapping class on (the Trust act, 2770);
 //     trust.received a verified anchor mapping from the contact, whose
 //     class has no default recipient (2760); trust.paused the pause of 5.4,
 //     star and blinded group star both `off` (2780); trust.pending: given,
-//     but not yet out on every live relationship (no mapping issued on its
-//     active head, the relationship lags (6595), or a re-issue or class-on
-//     duty for the anchor mapping is open). Delivery of the documents is
-//     not part of it; deliveryStatus answers that
+//     but not yet out on every head (no mapping issued on it, or its
+//     relationship lags (6595)), or a re-issue or class-on duty for the
+//     anchor mapping is open. Delivery of the documents is not part of
+//     it; deliveryStatus answers that
 //   - classes give the setting and whether the class is on toward the
 //     contact (2760, 2840); per-group settings of the sealed group star
 //     (2830) are not projected yet
-//   - a contact's profile is the verified profile@1 body (6b.2) of its
-//     tuple with the highest revision; displayName is that profile's name
+//   - a contact's profile (6425): among the verified profile@1 bodies
+//     (6b.2) on its heads whose relationship does not lag (6461, 6595),
+//     the highest revision, among equal ones the one verified last
+//     (highest verifiedSeq); displayName is that profile's name
 //   - deliveryStatus(x) lists the outbox items whose digest or threadId is
 //     x, by first submission, then digest; an unknown x lists none
 //   - a contact without a relationship breaks an invariant and throws
-import { freezeDeep } from './engine.js'
+import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
 import { triasOf } from './state.js'
 import type {
@@ -149,10 +158,33 @@ const classOn = (cls: TrustClass, setting: Setting, trusted: boolean): boolean =
   return trusted
 }
 
-const relationshipsOf = (state: Readonly<HolderState>, c: Readonly<Contact>): Relationship[] => {
-  const rels = c.relIds.filter((id) => Object.hasOwn(state.relationships, id)).map((id) => state.relationships[id])
-  if (!rels.length) throw new Error(`views: contact ${c.id} has no relationship`)
-  return rels
+/** entry id → the relationships holding a tuple of that entry (2145) */
+type EntryIndex = Map<string, Set<string>>
+
+const entryIndex = (state: Readonly<HolderState>): EntryIndex => {
+  const ix: EntryIndex = new Map()
+  for (const r of Object.values(state.relationships)) {
+    for (const t of r.tuples) {
+      let s = ix.get(t.entryId)
+      if (!s) ix.set(t.entryId, (s = new Set()))
+      s.add(r.id)
+    }
+  }
+  return ix
+}
+
+/** The contact's own relationships, then those holding a tuple of its entry. */
+const relationshipsOf = (state: Readonly<HolderState>, c: Readonly<Contact>, ids: ReadonlySet<string>, ix: EntryIndex): { own: Relationship[], all: Relationship[] } => {
+  const own = c.relIds.filter((id) => Object.hasOwn(state.relationships, id)).map((id) => state.relationships[id])
+  if (!own.length) throw new Error(`views: contact ${c.id} has no relationship`)
+  const seen = new Set(own.map((r) => r.id))
+  const all = [...own]
+  for (const id of ids) {
+    for (const rid of ix.get(id) ?? []) {
+      if (!seen.has(rid)) { seen.add(rid); all.push(state.relationships[rid]) }
+    }
+  }
+  return { own, all }
 }
 
 const activeTuple = (r: Relationship): Tuple | undefined => r.tuples.find((t) => t.ownPairLabel === r.activeHead)
@@ -167,27 +199,30 @@ const findContact = (state: Readonly<HolderState>, id: string): Contact | undefi
   return Object.values(state.contacts).find((c) => c.aliases.includes(id))
 }
 
-const project = (state: Readonly<HolderState>, c: Readonly<Contact>): ContactView => {
-  const rels = relationshipsOf(state, c)
-  const tuples = rels.flatMap((r) => r.tuples)
-  const origin = [...rels].sort((a, b) => (a.provenance.at - b.provenance.at) || cmp(a.id, b.id))[0]
+const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex): ContactView => {
+  const ids = new Set([c.id, ...c.aliases])
+  const { own, all: rels } = relationshipsOf(state, c, ids, ix)
+  const mine = (t: Tuple): boolean => ids.has(t.entryId)
+  const tuples = rels.flatMap((r) => r.tuples.filter(mine))
+  const origin = [...own].sort((a, b) => (a.provenance.at - b.provenance.at) || cmp(a.id, b.id))[0]
   const out = tuples.some((t) => t.mappingOut.body !== null)
   const inn = tuples.some((t) => t.mappingIn.body !== null)
   const trusted = c.settings.anchorMapping === 'on'
   const classes = {} as Record<TrustClass, ClassView>
   for (const cls of CLASSES) classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) }
-  const live = rels.filter((r) => r.chainedInto === null)
+  const heads: Array<{ r: Relationship, t: Tuple, lagging: boolean }> = []
+  for (const r of rels) {
+    if (r.chainedInto !== null) continue
+    const t = activeTuple(r)
+    if (t && !t.deactivated && mine(t)) heads.push({ r, t, lagging: lags(r, rels) })
+  }
   const owed = Object.values(state.duties).some((d) =>
     (d.kind === 'reissue-mapping' && d.contactId === c.id) ||
     (d.kind === 'class-on' && d.contactId === c.id && d.cls === 'anchorMapping'))
-  const pending = trusted && (owed || live.some((r) => {
-    const t = activeTuple(r)
-    if (!t || t.deactivated) return false
-    return t.mappingOut.body === null || lags(r, rels)
-  }))
+  const pending = trusted && (owed || heads.some((h) => h.t.mappingOut.body === null || h.lagging))
   let best: Tuple | undefined
-  for (const t of tuples) {
-    if (t.profileIn.body === null) continue
+  for (const { t, lagging } of heads) {
+    if (lagging || t.profileIn.body === null) continue
     if (!best || cmpDec(t.profileIn.rev, best.profileIn.rev) > 0 ||
       (cmpDec(t.profileIn.rev, best.profileIn.rev) === 0 && cmpDec(t.profileIn.verifiedSeq, best.profileIn.verifiedSeq) > 0)) best = t
   }
@@ -240,13 +275,14 @@ export function contactsView (state: Readonly<HolderState>): ContactView[] {
     if (b.pos !== null) return 1
     return cmp(a.id, b.id)
   })
-  return freezeDeep(order.map((c) => project(state, c)))
+  const ix = entryIndex(state)
+  return freezeDeep(order.map((c) => project(state, c, ix)))
 }
 
 /** One contact by entry id or alias; undefined if there is none. */
 export function contactView (state: Readonly<HolderState>, id: string): ContactView | undefined {
   const c = findContact(state, id)
-  return c ? freezeDeep(project(state, c)) : undefined
+  return c ? freezeDeep(project(state, c, entryIndex(state))) : undefined
 }
 
 /** The holder's groups, by genesis digest. */
