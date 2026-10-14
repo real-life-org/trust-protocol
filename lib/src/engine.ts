@@ -39,9 +39,11 @@
 //     commits, because its journal entry is the result. Refusals and
 //     journal replays commit nothing, lastWhen included
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
-//     when + ceil(backoff(1)); resume() re-emits only items that are due,
-//     skips items whose last step is awaiting-transport (the adapter holds
-//     them) and gives up only at the horizon, never by attempt count
+//     when + ceil(backoff(1)); resume() re-emits only items that are due
+//     and pauses re-emission while the last step is awaiting-transport
+//     (the adapter holds the item). It gives up every non-terminal item,
+//     held or not, at first submission + horizonMs, never by attempt
+//     count; nextDueAt is the earliest due re-emission or horizon expiry
 //   - the holder's give-up is failed(expired-by-adapter-policy); a later
 //     delivered report is late by that history, whatever the adapter says
 //   - replay of a human act returns the journaled events and the outbound
@@ -50,7 +52,11 @@
 //     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
 //     bounds effects and their acks; after it the same actId is a new act
 //   - KeyProvider, Log and Access rejections inside a preparation become
-//     InfraError('key-provider' | 'log' | 'access') with the cause
+//     InfraError('key-provider' | 'log' | 'access') with the cause. Known
+//     limitation: a provider's argument errors (a module passing a label
+//     outside the registry, say) are wrapped the same way, so a module
+//     programming error surfaces as an infrastructure error; the original
+//     error stays in `cause`
 //   - events are deep-frozen before listeners or callers see them; a
 //     listener's throw or rejection is dropped
 //   - the next state is validated by the codec before every commit; an
@@ -570,15 +576,19 @@ class HolderEngine implements Engine {
         for (const digest of order) {
           const it = state.outbox[digest]
           if (triasOf(it) !== 'submitted') continue
-          if (it.history[it.history.length - 1]?.status === 'awaiting-transport') continue   // the adapter holds it until it reports again
-          if (it.nextAttemptAt !== undefined && it.nextAttemptAt > when) { due(it.nextAttemptAt); continue }
+          // the horizon applies to every non-terminal item, held or not
           const first = it.history.length ? it.history[0].at : when
-          if (when - first >= p.horizonMs) {
+          const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
+          if (when >= expiry) {
             const { nextAttemptAt: _, ...rest } = it
             outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'expired-by-adapter-policy' }] }
             events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' })
             continue
           }
+          due(expiry)
+          // re-emission pauses while the adapter holds the item (until it reports again)
+          if (it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
+          if (it.nextAttemptAt !== undefined && it.nextAttemptAt > when) { due(it.nextAttemptAt); continue }
           const attempt = it.attempt + 1
           const nextAttemptAt = dueAt(when, p.backoff(attempt))
           outbox[digest] = { ...it, attempt, nextAttemptAt, history: [...it.history, { status: 'submitted', at: when, attempt }] }
