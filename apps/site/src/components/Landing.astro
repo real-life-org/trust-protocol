@@ -24,6 +24,11 @@ const encounter: Card[] = [
   ['shield-check', 'Encounter credentials', 'Verifiable credentials under fresh identifiers, never revoked.', spec('encounter-layer.md')],
   ['message-square', 'Contact cards', 'Signed addressing material, handed to the parties, not published.', spec('encounter-layer.md')],
 ]
+const trust: Card[] = [
+  ['waypoints', 'Anchor mapping', 'Links your identifiers for one contact, in a form only they can check.', '/understand/trust/#trusting-means-showing-who-you-are'],
+  ['users', 'Stars', 'Who trusts us both, and which groups we share, blinded per recipient.', '/understand/trust/#the-blinded-star'],
+  ['user', 'Profile', 'Name and picture, to the people you trust. Never signed, so its origin cannot be proven to others.', '/understand/trust/#what-you-share'],
+]
 const space: [IconName, string, string][] = [
   ['lock', 'End-to-end encrypted', 'AES-256 · epoch keys only on member devices'],
   ['hard-drive', 'Complete on every device', 'full replica · offline first'],
@@ -53,8 +58,8 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
   <section class="tp-section flip" id="layers">
     <div>
       <div class="tp-badge">Architecture</div>
-      <h2>Three layers, two services</h2>
-      <p>RLTP specifies identity, encounter and access. An application sits on top and uses them through one library.</p>
+      <h2>Four layers, two services</h2>
+      <p>RLTP specifies identity, encounter, trust and access. An application sits on top and uses them through one library.</p>
       <p>Several apps can build on the same graph: a map, a chat, a tool a community has not built yet.</p>
       <p>Delivery and replication are services behind ports. The specification names no transport and no CRDT, only what a substrate has to guarantee.</p>
     </div>
@@ -82,6 +87,21 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     </div>
     <div class="tp-list">
       {encounter.map(([icon, name, desc, href]) => (
+        <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
+      ))}
+    </div>
+  </section>
+
+  <section class="tp-section" id="trust">
+    <div>
+      <div class="tp-badge">Trust</div>
+      <h2>Trust is a deliberate act</h2>
+      <p>Meeting someone is not yet trusting them. Trust is a second step you take on purpose: you show your contact who you are beyond this meeting, by linking your identifiers for them alone, in a form only they can check.</p>
+      <p>From then on they recognize you across contexts. What you share with whom is a setting per class: the anchor, the stars, your profile. None of it proves a relationship or a person to anyone else; a signed key rotation proves only that one key succeeded another.</p>
+      <p><a class="tp-more" href="/understand/trust/" aria-label="More on trust, the Trust primer">More →</a></p>
+    </div>
+    <div class="tp-list">
+      {trust.map(([icon, name, desc, href]) => (
         <a class="tp-item" href={href}><Icon name={icon} /><div><strong>{name}</strong><span>{desc}</span></div></a>
       ))}
     </div>

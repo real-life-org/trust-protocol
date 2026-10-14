@@ -1,7 +1,7 @@
 import { icons, type IconName } from '../components/icons'
 
 /**
- * The protocol as a picture: applications on top, the three layers RLTP
+ * The protocol as a picture: applications on top, the four layers RLTP
  * specifies below them, and beside the layers the two services behind ports,
  * which the layers use rather than stand on. Each band leads to its section
  * below, so the picture is also the map of the page.
@@ -12,6 +12,7 @@ interface Service { key: string; label: string; text: string; icon: IconName }
 const bands: Band[] = [
   { key: 'apps', label: 'Applications', kind: 'apps', chips: [['globe', 'Your app'], ['rocket', 'Web of Trust']] },
   { key: 'access', label: 'Access', kind: 'layer', href: '#access', chips: [['users', 'Groups as places'], ['shield', 'Policy as data'], ['lock', 'Epochs']] },
+  { key: 'trust', label: 'Trust', kind: 'layer', href: '#trust', chips: [['waypoints', 'Anchor mapping'], ['users', 'Stars'], ['user', 'Profile']] },
   { key: 'encounter', label: 'Encounter', kind: 'layer', href: '#encounter', chips: [['wot', 'Ceremony'], ['shield-check', 'Credentials'], ['message-square', 'Contact cards']] },
   { key: 'identity', label: 'Identity', kind: 'layer', href: '#identity', chips: [['fingerprint', 'One seed'], ['waypoints', 'Anchor per context'], ['hard-drive', 'Recovery']] },
 ]
@@ -40,5 +41,6 @@ export function layerDiagramHtml(): string {
   const svc = services
     .map((s) => `<a class="tp-band svc" data-svc="${s.key}" href="#services"><span class="tp-band-label">${s.label}</span><ul><li>${svg(s.icon)}<span>${s.text}</span></li></ul></a>`)
     .join('')
-  return `<nav class="tp-bands" aria-label="How RLTP is built">${stack}${rail}<div class="tp-svcs">${svc}</div></nav>`
+  const layers = bands.filter((b) => b.kind === 'layer').length
+  return `<nav class="tp-bands" style="--layers:${layers}" aria-label="How RLTP is built">${stack}${rail}<div class="tp-svcs">${svc}</div></nav>`
 }
