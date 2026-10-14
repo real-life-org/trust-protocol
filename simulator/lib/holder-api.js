@@ -9,7 +9,10 @@
 // the Delivery stages 1–4 in the core and the task register's dispatch.
 // No stub stands in for it.
 import { createEngine } from './engine.js';
-/** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`. */
+/** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
+ *  The crypto handle (default globalThis.crypto) is resolved and probed
+ *  here and also feeds the default entropy; an app that injects one
+ *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
     const engine = await createEngine(ports, [...(opts.modules ?? [])]);
     return Object.freeze({

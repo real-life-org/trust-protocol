@@ -29,7 +29,8 @@
 import { jcs } from './core.js';
 import { b64uOf, fromB64u, base58, fromBase58, sha } from './crypto.js';
 import { validCarrierIdentifier } from './carrier-identity.js';
-const S = globalThis.crypto.subtle;
+import { platformSubtle } from './crypto.js';
+const S = platformSubtle;
 const te = new TextEncoder();
 const DAY = 86_400_000;
 const DOMAINS = [
@@ -158,8 +159,8 @@ async function verifySignature(p) {
     const pub = decodedEd(p.principal);
     const sig = decodedSig(p.sig);
     const { sig: _omit, ...signed } = p;
-    const key = await S.importKey('raw', pub, { name: 'Ed25519' }, false, ['verify']);
-    return S.verify({ name: 'Ed25519' }, key, sig, te.encode(jcs(signed)));
+    const key = await S().importKey('raw', pub, { name: 'Ed25519' }, false, ['verify']);
+    return S().verify({ name: 'Ed25519' }, key, sig, te.encode(jcs(signed)));
 }
 /** compatibility shim for the shape+signature question alone (tests,
  * tooling): stateless, no challenge semantics. */

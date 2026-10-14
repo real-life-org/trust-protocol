@@ -15,7 +15,8 @@ import { jcs } from './core.js';
 import { base58 } from './crypto.js';
 import { carrierPrincipal } from './carrier-identity.js';
 import { PROOF_V } from './carrier.js';
-const S = globalThis.crypto.subtle;
+import { platformSubtle } from './crypto.js';
+const S = platformSubtle;
 const te = new TextEncoder();
 /** derive-and-wrap: one holder context per (relationship × carrier) */
 export async function holderContext(rootIkm, carrier, nonce, rkid, generation) {
@@ -27,7 +28,7 @@ async function sign(ctx, fields) {
         carrier: ctx.carrier, principal: ctx.identity.principal, rkid: ctx.rkid,
         ...fields,
     };
-    const sig = new Uint8Array(await S.sign({ name: 'Ed25519' }, ctx.identity.key.priv, te.encode(jcs(p))));
+    const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.identity.key.priv, te.encode(jcs(p))));
     return { ...p, sig: 'z' + base58(sig) };
 }
 /** register/rebind proof: both succession fields present (§5a.3).

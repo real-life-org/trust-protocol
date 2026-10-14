@@ -91,8 +91,8 @@ export async function carrierPrincipal(rootIkm, carrier, nonce) {
     // M-3: the derivation reads its inputs at entry, once. Caller-held
     // buffers can be mutated while the HKDF awaits; copies make the
     // derived principal a function of the arguments as passed.
-    const ikm = rootIkm.slice();
-    const n = nonce.slice();
+    const ikm = new Uint8Array(rootIkm);
+    const n = new Uint8Array(nonce);
     const info = CARRIER_INFO_PREFIX + await mh(te.encode(carrier)) + await mh(n);
     const seed = await hkdf(ikm, info);
     const key = await edFromSeed(seed);
@@ -106,8 +106,8 @@ export async function carrierScopedIdentity(rootIkm, carrier, nonce, scope) {
         throw new Error('invalid carrier identifier (7a.2)');
     if (nonce.length !== 32)
         throw new Error('carrier nonce must be 32 bytes (7a.3)');
-    const ikm = rootIkm.slice();
-    const n = nonce.slice();
+    const ikm = new Uint8Array(rootIkm);
+    const n = new Uint8Array(nonce);
     const prefix = scope === 'connection' ? CONNECTION_INFO_PREFIX : EGRESS_INFO_PREFIX;
     const info = prefix + await mh(te.encode(carrier)) + await mh(n);
     const seed = await hkdf(ikm, info);

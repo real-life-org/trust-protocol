@@ -50,24 +50,27 @@ const checkLength = (purpose, n) => {
     if (!Number.isSafeInteger(n) || n < 0)
         throw new EntropyError('length', purpose, `invalid length ${n}`);
 };
+import { CryptoUnavailableError } from './results.js';
 // getRandomValues fills at most 65536 bytes per call
 const QUOTA = 65536;
-/** Platform randomness; the crypto handle is resolved here, not at import. */
-export function randomEntropy(c = globalThis.crypto) {
-    if (typeof c?.getRandomValues !== 'function' || typeof c?.randomUUID !== 'function')
-        throw new Error('randomEntropy: no WebCrypto getRandomValues/randomUUID in this runtime');
+export function randomEntropy(handle) {
+    const c = handle ?? globalThis.crypto;
+    const missing = ['getRandomValues', 'randomUUID'].filter((m) => typeof c?.[m] !== 'function');
+    if (missing.length || !c)
+        throw new CryptoUnavailableError(missing);
+    const gen = c;
     return {
         bytes(purpose, n) {
             checkPurpose(purpose);
             checkLength(purpose, n);
             const out = new Uint8Array(n);
             for (let i = 0; i < n; i += QUOTA)
-                c.getRandomValues(out.subarray(i, Math.min(n, i + QUOTA)));
+                gen.getRandomValues(out.subarray(i, Math.min(n, i + QUOTA)));
             return out;
         },
         id(purpose) {
             checkPurpose(purpose);
-            return c.randomUUID();
+            return gen.randomUUID();
         },
     };
 }
@@ -83,7 +86,7 @@ export function scriptedEntropy(script) {
         checkPurpose(purpose);
         if (v === undefined)
             continue;
-        queues.set(purpose, (Array.isArray(v) ? v : [v]).map((x) => (x instanceof Uint8Array ? x.slice() : x)));
+        queues.set(purpose, (Array.isArray(v) ? v : [v]).map((x) => (x instanceof Uint8Array ? new Uint8Array(x) : x)));
     }
     const next = (purpose) => {
         checkPurpose(purpose);
@@ -98,7 +101,7 @@ export function scriptedEntropy(script) {
             const v = next(purpose);
             if (!(v instanceof Uint8Array) || v.length !== n)
                 throw new EntropyError('mismatch', purpose, `expected ${n} bytes`);
-            return v.slice();
+            return new Uint8Array(v);
         },
         id(purpose) {
             const v = next(purpose);
