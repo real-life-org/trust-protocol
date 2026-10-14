@@ -41,5 +41,6 @@ export function layerDiagramHtml(): string {
   const svc = services
     .map((s) => `<a class="tp-band svc" data-svc="${s.key}" href="#services"><span class="tp-band-label">${s.label}</span><ul><li>${svg(s.icon)}<span>${s.text}</span></li></ul></a>`)
     .join('')
-  return `<nav class="tp-bands" aria-label="How RLTP is built">${stack}${rail}<div class="tp-svcs">${svc}</div></nav>`
+  const layers = bands.filter((b) => b.kind === 'layer').length
+  return `<nav class="tp-bands" style="--layers:${layers}" aria-label="How RLTP is built">${stack}${rail}<div class="tp-svcs">${svc}</div></nav>`
 }

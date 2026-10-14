@@ -27,7 +27,7 @@ const encounter: Card[] = [
 const trust: Card[] = [
   ['waypoints', 'Anchor mapping', 'Links your identifiers for one contact, in a form only they can check.', '/understand/trust/#trusting-means-showing-who-you-are'],
   ['users', 'Stars', 'Who trusts us both, and which groups we share, blinded per recipient.', '/understand/trust/#the-blinded-star'],
-  ['user', 'Profile', 'Name and picture, to the people you trust. Never signed, never shown on.', '/understand/trust/#what-you-share'],
+  ['user', 'Profile', 'Name and picture, to the people you trust. Never signed, so its origin cannot be proven to others.', '/understand/trust/#what-you-share'],
 ]
 const space: [IconName, string, string][] = [
   ['lock', 'End-to-end encrypted', 'AES-256 · epoch keys only on member devices'],
@@ -97,7 +97,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <div class="tp-badge">Trust</div>
       <h2>Trust is a deliberate act</h2>
       <p>Meeting someone is not yet trusting them. Trust is a second step you take on purpose: you show your contact who you are beyond this meeting, by linking your identifiers for them alone, in a form only they can check.</p>
-      <p>From then on they recognize you across contexts. What you share with whom is a setting per class: the anchor, the stars, your profile. Nothing in it is a proof to show elsewhere.</p>
+      <p>From then on they recognize you across contexts. What you share with whom is a setting per class: the anchor, the stars, your profile. None of it proves a relationship or a person to anyone else; a signed key rotation proves only that one key succeeded another.</p>
       <p><a class="tp-more" href="/understand/trust/" aria-label="More on trust, the Trust primer">More →</a></p>
     </div>
     <div class="tp-list">
