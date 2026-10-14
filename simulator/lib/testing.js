@@ -1,0 +1,8 @@
+// GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
+// Source of truth: lib/src/*.ts. CI enforces freshness (--check).
+// @real-life/trust-protocol/testing — tools for tests, vectors and
+// adapter authors (lib Stage 2, note §4.6). Not for production holders.
+export { InMemoryStore } from './store-memory.js';
+export { scriptedEntropy } from './entropy.js';
+export { storeContract } from './store-contract.js';
+export { emptyState } from './state.js';
