@@ -185,8 +185,8 @@ export interface RetryPolicy {
    *  non-negative, rounded up to whole ms */
   backoff (attempt: number): number
   /** the holder's own give-up: this long after the first submission every
-   *  non-terminal item (also one the adapter holds, awaiting-transport)
-   *  becomes failed(expired-by-adapter-policy).
+   *  non-terminal item (submitted, accepted, or held by the adapter as
+   *  awaiting-transport) becomes failed(expired-by-adapter-policy).
    *  Within Delivery's give-up range [P1D, P90D]. It also sets the
    *  retention of effects and the act journal, max(P90D, horizonMs) —
    *  Delivery §7 key-retention. There is no attempt-count give-up:

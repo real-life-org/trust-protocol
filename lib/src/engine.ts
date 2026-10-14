@@ -41,8 +41,9 @@
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
 //     when + ceil(backoff(1)); resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
-//     (the adapter holds the item). It gives up every non-terminal item,
-//     held or not, at first submission + horizonMs, never by attempt
+//     (the adapter holds the item) and never re-emits an accepted one. It
+//     gives up every non-terminal item (submitted, held or accepted) at
+//     first submission + horizonMs, never by attempt
 //     count; nextDueAt is the earliest due re-emission or horizon expiry
 //   - the holder's give-up is failed(expired-by-adapter-policy); a later
 //     delivered report is late by that history, whatever the adapter says
@@ -255,12 +256,19 @@ const dropUndefined = (x: unknown): unknown => {
   const proto = Object.getPrototypeOf(x)
   if (proto !== null && proto !== Object.prototype) return x
   if (Object.getOwnPropertyNames(x).length !== Object.keys(x).length) return x
+  // own data properties, never assignment: a "__proto__" key stays a key
+  // (assignment would hit the inherited setter and change the prototype)
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(x)) if (v !== undefined) out[k] = dropUndefined(v)
+  for (const [k, v] of Object.entries(x)) {
+    if (v !== undefined) Object.defineProperty(out, k, { value: dropUndefined(v), enumerable: true, writable: true, configurable: true })
+  }
   return out
 }
 
-/** The act input as bound at the call: canonical JSON, deep-frozen. */
+/** The act input as bound at the call: canonical JSON, deep-frozen. A
+ *  "__proto__" member is an ordinary key throughout: jcs serializes own
+ *  keys (Object.keys) and JSON.parse defines own data properties, so it is
+ *  hashed, journaled and handed to prepare/apply like any other key. */
 const bindInput = <T>(x: T): T => freezeDeep(JSON.parse(jcs(x === undefined ? null : dropUndefined(x))) as T)
 
 /** when + ceil(delay), clamped to safe integer milliseconds. */
@@ -575,8 +583,9 @@ class HolderEngine implements Engine {
           ((state.outbox[a].nextAttemptAt ?? 0) - (state.outbox[b].nextAttemptAt ?? 0)) || (a < b ? -1 : a > b ? 1 : 0))
         for (const digest of order) {
           const it = state.outbox[digest]
-          if (triasOf(it) !== 'submitted') continue
-          // the horizon applies to every non-terminal item, held or not
+          const trias = triasOf(it)
+          if (trias === 'delivered' || trias === 'failed') continue
+          // the horizon applies to every non-terminal item: held, accepted or not
           const first = it.history.length ? it.history[0].at : when
           const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
           if (when >= expiry) {
@@ -586,8 +595,9 @@ class HolderEngine implements Engine {
             continue
           }
           due(expiry)
-          // re-emission pauses while the adapter holds the item (until it reports again)
-          if (it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
+          // never re-emitted: an accepted item (the service has it) and one the
+          // adapter holds (awaiting-transport, until it reports again)
+          if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
           if (it.nextAttemptAt !== undefined && it.nextAttemptAt > when) { due(it.nextAttemptAt); continue }
           const attempt = it.attempt + 1
           const nextAttemptAt = dueAt(when, p.backoff(attempt))
