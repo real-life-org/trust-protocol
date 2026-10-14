@@ -186,6 +186,8 @@ is rejected, never silently ignored.
 | `continuity-probe/0.1`, `continuity-mapping/0.1` | Trust | detect a re-encounter and chain it to the existing relationship |
 | `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Trust | the five steps of introducing two people through a mutual contact |
 
+The full register, by layer, with schemas: [Trust Tasks](/reference/trust-tasks/).
+
 The Delivery Contract and the Membership Tasks declare Trust Tasks
 framework 0.4 as their target. The current framework is 0.7.0; the
 lift is pending, and with it the type URIs change form.
