@@ -59,7 +59,11 @@ Key material and the removal notice.
 
 The transport of membership changes: invitation, consent, the
 admitting operation, and the evidence relay. A sender issues
-`membership-evidence/0.2`; a receiver also accepts `/0.1`.
+`membership-evidence/0.2`; a receiver also accepts `/0.1`
+([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)).
+The Delivery register (§4.4) still lists `membership-evidence/0.1`;
+Membership is the registering document, so `/0.2` is what a sender
+issues, and the register entry follows with the next Delivery version.
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
