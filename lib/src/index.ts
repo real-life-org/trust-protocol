@@ -21,7 +21,8 @@
 //   delivery          the sealed envelope and the generic receive stages 1–4
 //   carrier-identity  the carrier-relationship principal (Identity §7a)
 //   carrier           the carrier side of the port (Delivery §4.4 + §5a)
-//   holder            the holder side: proofs, verdicts, recovery (§5a, §9.3)
+//   carrier-holder    the holder side of the carrier port: proofs, verdicts,
+//                     recovery (§5a, §9.3)
 //   visibility        Trust Layer 0.31 on Delivery 0.81 — the trust
 //                     act, the blinded star, the group star, the community
 //                     anchor's rotation with pre-rotation (Identity 0.54
@@ -52,7 +53,7 @@ export * from './encounter.js'
 export * from './delivery.js'
 export * from './carrier-identity.js'
 export * from './carrier.js'
-export * from './holder.js'
+export * from './carrier-holder.js'
 export * as visibility from './visibility.js'
 export * as ceremony from './ceremony.js'
 export type * from './state.js'

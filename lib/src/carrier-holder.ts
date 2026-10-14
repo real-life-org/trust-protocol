@@ -1,4 +1,4 @@
-// holder — the holder's side of the carrier port (Delivery §5a, the
+// carrier-holder — the holder's side of the carrier port (Delivery §5a, the
 // client half): proof construction for all four purposes, the recovery
 // flow of Identity §9.3, and verdict handling.
 //

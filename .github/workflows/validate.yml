@@ -36,6 +36,9 @@ jobs:
       - run: diff -r simulator/lib apps/gesamtsimulator/lib
       # the simulator suites run AGAINST that frozen copy — they are the
       # workbench-level integration tests of lib/src
+      # simulator-side parity with the library build (node:test suites)
+      - run: npm test
+        working-directory: simulator
       - run: |
           cd simulator
           for t in rltp-crypto-test clock-test introduce-test trust-test \

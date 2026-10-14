@@ -18,7 +18,7 @@
     "dist/delivery.*",
     "dist/carrier.*",
     "dist/carrier-identity.*",
-    "dist/holder.*",
+    "dist/carrier-holder.*",
     "dist/wire.*",
     "dist/schemas.*",
     "dist/unicode15.*",
