@@ -1,4 +1,4 @@
-// continuity.mjs — rltp-visibility §6a im Simulator: continuity-probe@1 +
+// continuity — Trust Layer 0.31 §6a: continuity-probe@1 +
 // continuity-mapping@1. „Kontinuität wird NACH der Zeremonie aufgelöst,
 // nie in ihr" (Encounter 4.4): jedes Enactment UND jede Vorstellung prägt
 // ein frisches Tupel; ob es ein Wiedersehen war, klärt die Probe über den
@@ -156,14 +156,16 @@ async function buildMapping (p: Person, newKey: string, oldKey: string, when: nu
 }
 
 // ── die Kette: neues Tupel wird Kopf, das alte deaktiviert ──────────────
-// Visibility 0.29 §6.4: PER-TUPEL-ZUSTAND WANDERT NICHT — Grade,
-// Stern-Salts, Baseline und empfangene Sterne sterben mit dem alten
-// Kopf (der neue beginnt fail-closed; das Fenster schließen 5.5s
-// Neuausstellung und das New-Head-Korollar von 5.4, nie eine
-// Migration). KETTEN-Ebene wandert: Kontakt-Gedächtnis, Evidenz
-// (✓ akkumuliert), das WISSEN um den offengelegten Anker (die
-// Admissionsschicht hängt an der Beziehung), die eigene
-// Vertrauens-ENTSCHEIDUNG (trustGiven) und die Pause.
+// Trust §6.4 (6250): PER-TUPEL-ZUSTAND WANDERT NICHT — Stern-Salts,
+// Baseline und empfangene Sterne sterben mit dem alten Kopf (der neue
+// beginnt fail-closed; das Fenster schließen die Neuausstellung des
+// Mappings (6980) und das New-Head-Korollar von 5.4 (5810), nie eine
+// Migration). KETTEN-Ebene wandert (2280): Kontakt-Gedächtnis, Evidenz
+// (✓ akkumuliert), das WISSEN um den offengelegten Anker samt der
+// gehaltenen Glieder und Pre-Rotation-Bindungen (die Admissionsschicht
+// hängt an der Beziehung), die früheste Generation, unter der hier ein
+// Mapping ausgestellt wurde (2285), die eigene Vertrauens-ENTSCHEIDUNG
+// (trustGiven) und die Pause.
 function chainTuple (p: Person, newKey: string, oldKey: string, when: number) {
   const head = p.contacts.get(newKey), old = p.contacts.get(oldKey)
   if (!head || !old || head === old || old.deactivated) return false // idempotent; NIE Selbst-Kette (§6a)
@@ -181,7 +183,15 @@ function chainTuple (p: Person, newKey: string, oldKey: string, when: number) {
   head.since = [old.since, head.since].filter(Boolean).sort()[0]
   head.name = old.name // lokales Kontakt-Gedächtnis
   head.selfAnchor ??= old.selfAnchor      // Ketten-WISSEN: wer das ist (das Mapping selbst stirbt mit dem Tupel, §6.4)
-  head.selfAnchors ??= old.selfAnchors    // …samt jeder gehaltenen Generation (Visibility §6.3 Nr. 8)
+  head.selfAnchors ??= old.selfAnchors    // …samt jeder gehaltenen Generation (Trust §6.3 Bedingung 8)
+  // Glieder und Bindungen sind Ketten-Zustand (2280, 6610): was beide
+  // Tupel halten, vereinigt — die Bindungsprüfung (4b) des nächsten
+  // Mappings auf dem neuen Kopf läuft gegen alles, was die Beziehung hielt
+  if (old.heldLinks || head.heldLinks) head.heldLinks = new Map([...(old.heldLinks ?? []), ...(head.heldLinks ?? [])])
+  if (old.heldBindings || head.heldBindings) head.heldBindings = new Map([...(old.heldBindings ?? []), ...(head.heldBindings ?? [])])
+  // die früheste Generation dieser Beziehung (2285): halten Kette und
+  // Tupel je eine, die frühere
+  if (old.mapFirstGen !== undefined && (head.mapFirstGen === undefined || old.mapFirstGen < head.mapFirstGen)) head.mapFirstGen = old.mapFirstGen
   const oldRel = old.relId ?? oldKey
   // Admission (B-4): der neue Kopf löst über die überlebende Beziehung
   // auf; ein schon existierender Eintrag der frischen Beziehung
@@ -202,15 +212,7 @@ function chainTuple (p: Person, newKey: string, oldKey: string, when: number) {
   // die GANZE Kette identifiziert sich als DIESE Beziehung — auch der
   // alte Kopf (Review 36: der Abgang räumt sämtliche Ketten-Aliase)
   old.relId = head.relId
-  head.trustGiven ??= old.trustGiven      // die Entscheidung gehört der Beziehung (V2)
-  // 5.5: „MUST re-issue its most recently ISSUED grade" — der
-  // Ordnungsstempel entscheidet, nie der zufällig frischere Kopf
-  // (Review 27: setGrade auf dem alten Kopf NACH dem Trust-Akt des
-  // frischen muss die Kettung überleben)
-  if (old.gradeOutLast !== undefined && (head.gradeOutLast === undefined || (old.gradeOutOrder ?? 0n) > (head.gradeOutOrder ?? 0n))) {
-    head.gradeOutLast = old.gradeOutLast
-    head.gradeOutOrder = old.gradeOutOrder
-  }
+  head.trustGiven ??= old.trustGiven      // die Entscheidung gehört der Beziehung (2280)
   // Pause ist chain-level und ÜBERLEBT die Kettung (Review 37, B-2):
   // der Zustand der Beziehung, auf die gekettet wird, gewinnt gegen
   // Vor-Kettungs-Akte des frischen Tupels
@@ -218,19 +220,17 @@ function chainTuple (p: Person, newKey: string, oldKey: string, when: number) {
   head.sharedGroups = [...new Set([...(old.sharedGroups ?? []), ...(head.sharedGroups ?? [])])]
   // NICHT migriert (per Tupel, stirbt mit dem alten Kopf):
   // trustReceived, starReceived, starInfo, starSaltIn, sentMapping,
-  // sub (Baseline/inFlight), starSeqNext. Die 5.5-Neuausstellung ist
-  // die stehende Pflicht des neuen Kopfs; ihr Producer ist
+  // sub (Baseline/inFlight), starSeqNext. Die Neuausstellung des
+  // Mappings auf dem neuen Kopf (6980) ist die stehende Pflicht des
+  // neuen Kopfs, solange der Trust-Akt steht; ihr Producer ist
   // trust.reissueTrust via starRefreshAll.
-  // die Pflicht entsteht, wenn eine DECLARATION ausgestellt war (5.5:
-  // „a subject holding an issued declaration … MUST re-issue") — auch
-  // ohne Trust-Akt (eigenständiges setGrade); Review 33, B-1
-  if (head.trustGiven || head.gradeOutLast !== undefined) head.trustReissueDue = true
+  if (head.trustGiven) head.trustReissueDue = true
   say(p, `Kontinuität: ${head.name} wiedererkannt — neues Tupel an die Beziehung gekettet (${head.state}, ${head.chain.length + 1} Enactments)`)
   return true
 }
 
-// V2-Hook (5.5): direkt nach der Kettung wird die Neuausstellung
-// versucht; ein Bau-Fehler lässt die Pflicht (trustReissueDue) stehen —
+// Neuausstellungs-Hook (6980): direkt nach der Kettung wird die
+// Neuausstellung des Mappings versucht; ein Bau-Fehler lässt die Pflicht (trustReissueDue) stehen —
 // ihr Producer ist starRefreshAll, nie eine Wiederzustellung.
 async function v2Reissue (p: Person, newKey: string, when: number, ent: any, outbound: any[]): Promise<string | undefined> {
   const t = p.contacts.get(newKey)

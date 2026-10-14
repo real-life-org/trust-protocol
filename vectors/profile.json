@@ -1,0 +1,317 @@
+{
+ "description": "profile@1 (Trust Layer 0.31 §6b): body { type, revision, name, image?, text? }, proof { mac }. k_pr = HKDF-SHA-256(X25519(pairX_sender, pairX_recipient), salt empty, info \"rltp/visibility/mac/profile/\" || senderPairAnchor || \"/\" || recipientPairAnchor, 32 bytes), anchors as the UTF-8 bytes of their did:key strings (2.1, 6440); mac = \"u\" || base64url(HMAC-SHA-256(k_pr, JCS(body))) (2.1). Regenerate: node scripts/gen-profile-vector.mjs (deterministic).",
+ "inputs": {
+  "source": "oracle IKM = rootIkm of vectors/identity-derivation.json; sender A and recipient B are the parties A and B of vectors/visibility.json (the established relationship A_B), their pair contexts derived from the listed relationship nonces",
+  "sender": {
+   "party": "A",
+   "relationshipNonce": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+   "label": "pair/uEiBjDc0pZsQzZpESVEi7sltP9BKknHMtssirwbhYG9cQ3Q",
+   "anchor": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+   "keyAgreement": "z6LSjZCn6MctoMKaXj3wjRugvV1U5Y41vGLBNgJESZY5vXwr"
+  },
+  "recipient": {
+   "party": "B",
+   "relationshipNonce": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "label": "pair/uEiCvlhN2D3JjX720SloKY8OfEq8w-VCm7lyXG-GI6JxAUQ",
+   "anchor": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+   "keyAgreement": "z6LSm7JKtznYfyTzZMPncAyLXPd5pmWk9ixXE2nTW7PBsgsU"
+  },
+  "body": {
+   "type": "profile@1",
+   "revision": "1",
+   "name": "Anna",
+   "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+   "text": "Brot, Gärten, Fahrräder."
+  },
+  "image": "an 8×8 lossless WebP (one VP8L chunk, no metadata chunks)",
+  "dimensions": {
+   "width": 8,
+   "height": 8
+  }
+ },
+ "intermediate": {
+  "sharedSecret": "ufAOSG_5fF6lvqS665dJngoyd70nFG7webEIBqTM3IH8",
+  "info": "rltp/visibility/mac/profile/did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J/did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+  "kpr": "uf20_JFUovy2JG6c81_h-cNrzRJvpMRIb1mJ1nFkcStc",
+  "preimage": "{\"image\":\"data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=\",\"name\":\"Anna\",\"revision\":\"1\",\"text\":\"Brot, Gärten, Fahrräder.\",\"type\":\"profile@1\"}"
+ },
+ "output": {
+  "profile": {
+   "body": {
+    "type": "profile@1",
+    "revision": "1",
+    "name": "Anna",
+    "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+    "text": "Brot, Gärten, Fahrräder."
+   },
+   "proof": {
+    "mac": "uy6PahK2MOHWKDXGpwOeTVqlvsYNigVFbDc7ubslmpvg"
+   }
+  }
+ },
+ "negatives": [
+  {
+   "name": "wrong-direction",
+   "note": "the key of the reverse direction (B → A): the anchors swapped in the info string; a profile under it MUST NOT verify as A → B, so a profile cannot be replayed from one direction into the other (6440)",
+   "info": "rltp/visibility/mac/profile/did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw/did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+   "wrongMac": "ugua3_A09boURHvW-Bcg8tLO3r2Nf5yrztezwBpRf0G0",
+   "expect": "reject: mac"
+  },
+  {
+   "name": "wrong-relationship",
+   "note": "the same sender and body under the key of another relationship (A2 → B2): its MAC MUST NOT verify on (A, B), so a profile cannot be replayed into another relationship (6440)",
+   "sender": "A2",
+   "recipient": "B2",
+   "info": "rltp/visibility/mac/profile/did:key:z6MkkvEkew8FeB7yfeTfw1Cyd7CVgz9jj227LPz3AFmn35RU/did:key:z6MkivTs68mDEg7Bot6VTnvSr4TioRGyyb4841Hi1UiYv5RZ",
+   "wrongMac": "uNsQiJHLyKjAjbyzZ1vChC-ZCtHYNAcR3bIyyj0eqzlA",
+   "expect": "reject: mac"
+  },
+  {
+   "name": "tampered-body",
+   "note": "name changed, the mac of the positive kept: MUST NOT verify",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anne",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uy6PahK2MOHWKDXGpwOeTVqlvsYNigVFbDc7ubslmpvg"
+    }
+   },
+   "expect": "reject: mac"
+  },
+  {
+   "name": "signed",
+   "note": "a genuine raw Ed25519 signature of the sender pair key over JCS(body) as proofValue in place of mac: rejected by the closed proof (6430, 6470)",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "proofValue": "zfvnyzsyZV1NCe5rYHkyQjgsBytFqz7SMDECqrRVQg4q2FdXzq85gthoWG3egQcQgZEQ5jHz37fPD3xsDxCwQ9nP"
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "signed-and-mac",
+   "note": "the genuine mac plus a proofValue: a proof with more than mac is rejected (6430, 6470)",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uy6PahK2MOHWKDXGpwOeTVqlvsYNigVFbDc7ubslmpvg",
+     "proofValue": "zfvnyzsyZV1NCe5rYHkyQjgsBytFqz7SMDECqrRVQg4q2FdXzq85gthoWG3egQcQgZEQ5jHz37fPD3xsDxCwQ9nP"
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "third-party-anchor",
+   "note": "an anchor member naming a third party (R_T), mac over the mutated body: the closed body rejects it (6430, 6490)",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder.",
+     "anchor": "did:key:z6MkiPnVJgyz6BrKq75TCPBfNutb7zrQH8wzszGvPPnSLTSL"
+    },
+    "proof": {
+     "mac": "u5PtVhMJ0a40C_jRLpQe9HMpmQogB27dHpdoGe7vsuEU"
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "name-65",
+   "note": "name of 65 characters, mac over the mutated body (6435)",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uwqPzUehYYqwsxJLajJS7AjNFkCTGggkjCk-2T5-AR5E"
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "text-257",
+   "note": "text of 257 characters, mac over the mutated body (6435)",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+    },
+    "proof": {
+     "mac": "u5eJzpApU9Tex9nZlB08IjSzct4il8iBHQkP8mfPVD8A"
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "image-png",
+   "note": "image of media type image/png, mac over the mutated body (6435)",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/png;base64,iVBORw0KGgo=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uT3OU2XL6gGXsBJ_Xa0dTYXyuc71huyaJQOAubxoQeJw"
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "image-60003",
+   "note": "image of 60 003 characters (6435): built as prefix || repeat.char × repeat.count and set at pointer; mac irrelevant",
+   "mutate": {
+    "pointer": "/body/image",
+    "prefix": "data:image/webp;base64,",
+    "repeat": {
+     "char": "A",
+     "count": 59980
+    }
+   },
+   "expect": "reject: schema"
+  },
+  {
+   "name": "image-1025x1025",
+   "note": "a well-formed WebP whose VP8L header declares 1025 × 1025 pixels, one past the bound in each dimension; schema-valid, mac over the mutated body valid: only the pixel bound read from the encoded header before decoding rejects it (6435, 6475)",
+   "dimensions": {
+    "width": 1025,
+    "height": 1025
+   },
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4TEQAAAAvAAQAAQdQ0OJVq/8BAUnS//2BEf3P+M9//vOf//znP//5z3/+85///Oc///nPf/7zn//85z//+c9//vOf//znP///BA==",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uxjCjQP5DcJHpiOiGJFYXNecn89kodf8uKcF11v5HocI"
+    }
+   },
+   "expect": "reject: dimensions"
+  },
+  {
+   "name": "image-4096x4096",
+   "note": "a well-formed WebP of 704 bytes whose VP8L header declares 4096 × 4096 pixels, 64 MiB once decoded to RGBA; schema-valid, mac over the mutated body valid: only the pixel bound read from the encoded header before decoding rejects it (6435, 6475)",
+   "dimensions": {
+    "width": 4096,
+    "height": 4096
+   },
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRrgCAABXRUJQVlA4TKsCAAAv/8//AwdQ0OJVq//BEhIk+H+7PSISvYUECf/fm4zo/wQABeLvP4qIkP/+899///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333///ffff//9999///3333//AQA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "utF7Gf8l_Noxa19mu-vmQ46-Sx3exQQ-217RaQVCwaS0"
+    }
+   },
+   "expect": "reject: dimensions"
+  },
+  {
+   "name": "image-vp8x-canvas-8-frame-1025",
+   "note": "a VP8X container whose canvas (VP8X chunk) declares 8 × 8 and whose frame (the VP8L chunk of image-1025x1025) declares 1025 × 1025; schema-valid, mac over the mutated body valid: a reader that reads only the canvas accepts it, the bound applies to both declarations (6435, 6475)",
+   "dimensions": {
+    "canvas": {
+     "width": 8,
+     "height": 8
+    },
+    "frame": {
+     "width": 1025,
+     "height": 1025
+    }
+   },
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4WAoAAAAAAAAABwAABwAAVlA4TEQAAAAvAAQAAQdQ0OJVq/8BAUnS//2BEf3P+M9//vOf//znP//5z3/+85///Oc///nPf/7zn//85z//+c9//vOf//znP///BA==",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uuz5yZPjQohhW_m1cZV4oR3KTLgl-sVSPARZSSBl9Fuc"
+    }
+   },
+   "expect": "reject: dimensions"
+  },
+  {
+   "name": "image-vp8x-canvas-1025-frame-8",
+   "note": "a VP8X container whose canvas (VP8X chunk) declares 1025 × 1025 and whose frame (the VP8L chunk of the positive) declares 8 × 8; schema-valid, mac over the mutated body valid: a reader that reads only the frame accepts it, the bound applies to both declarations (6435, 6475)",
+   "dimensions": {
+    "canvas": {
+     "width": 1025,
+     "height": 1025
+    },
+    "frame": {
+     "width": 8,
+     "height": 8
+    }
+   },
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "1",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4WAoAAAAAAAAAAAQAAAQAVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "uGviRgzXDAZZr1jWLHGXPPzOHbbqg7s81YhDrB_TOkT4"
+    }
+   },
+   "expect": "reject: dimensions"
+  },
+  {
+   "name": "revision-0",
+   "note": "revision \"0\" is outside the wire-integer domain (2580, 6450), mac over the mutated body",
+   "artifact": {
+    "body": {
+     "type": "profile@1",
+     "revision": "0",
+     "name": "Anna",
+     "image": "data:image/webp;base64,UklGRioAAABXRUJQVlA4TB4AAAAvB8ABAA/wU+u//I/M/McSBAJEtjgtFvRE9D/GxgA=",
+     "text": "Brot, Gärten, Fahrräder."
+    },
+    "proof": {
+     "mac": "u8GHhQINup36v5cR2kERLt5Ix3SgxAF5iUSLkDz8W0bA"
+    }
+   },
+   "expect": "reject: schema"
+  }
+ ]
+}

@@ -3,16 +3,16 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.80.0-draft (eightieth casting — the trust-act
-  registry follows Network Visibility 0.30)
+- **Version:** 0.81.0-draft (eighty-first casting — the
+  trust-layer registry follows the Trust Layer 0.31)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-07
+- **Date:** 2026-10-14
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/`
 - **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-delivery@0.80` (draft)
-- **Supersedes:** version 0.79 (archived as
-  `archive/delivery-contract-0.79.md`) and versions 0.78–0.1,
+- **Conformance profile:** `rltp-delivery@0.81` (draft)
+- **Supersedes:** version 0.80 (archived as
+  `archive/delivery-contract-0.80.md`) and versions 0.79–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
   (wot-spec v0.1, German) in its delivery aspects.
@@ -35,8 +35,8 @@ document profile all types
 share, the sealed envelope they travel in, and the **task registry**
 (4.4) through which companion layers register theirs: the membership
 and access types (registered in their own documents) and the
-introduction, continuity, and trust-act types of the
-network-visibility layer.
+Trust layer's introduction and continuity types and its
+trust-layer family.
 
 Addressing is a **triple**, never an account (Section 5a): the
 `rkid` a sender seals to, one per relationship; a queue locator
@@ -186,7 +186,7 @@ profile — normative wire form
   has no other carrier (1.1); MUST be absent on the other types of
   this casting, whose authenticity is carried by the payloads'
   own proofs inside — signatures or designated-verifier MACs
-  (the trust-act family of 4.4 is deliberately unsigned). Where `proof` is present, TT §4.8.2 audience binding is
+  (the trust-layer family of 4.4 is deliberately unsigned). Where `proof` is present, TT §4.8.2 audience binding is
   satisfied by the in-band `recipient`.
 - `payload` — REQUIRED; governed by the type's **payload schema**.
   For the types this document registers itself, the schema's `$id`
@@ -369,7 +369,7 @@ The arrival acknowledgement (DO-1).
     before derivation (as in Section 5) — **one regime for every
     DV-type ack**, keyed by the channel, never by the payload's
     internal MAC structure (a multi-MAC payload like
-    `anchor-mapping@3` changes nothing here). A wrong proof form for the payload's class is
+    `anchor-mapping@4` changes nothing here). A wrong proof form for the payload's class is
     invalid. The MAC form is receiver-forgeable by construction —
     that is its purpose (deniability): for DV payloads the ack is
     **evidence to the sender alone**, not an attestation.
@@ -471,41 +471,41 @@ schema, proof declaration, and consistency rules:
 - `key-delivery/0.1` · `removal-notice/0.1` — Access §10;
 - `introduction-request/0.1` · `introduction-forward/0.1` ·
   `introduction-reply/0.1` · `introduction-ack/0.1` ·
-  `introduction-voucher/0.1` — Network Visibility §8.1; payload
+  `introduction-voucher/0.1` — Trust Layer §8.1; payload
   schemas `schemas/visibility-payload-introduction-request.schema.json`,
   `…-forward…`, `…-reply…`, `…-ack…`, `…-voucher….schema.json`;
-  proofs per Visibility §2.1 (the artifacts carry their own MACs
+  proofs per Trust Layer §2.1 (the artifacts carry their own MACs
   and signatures; the documents carry none — one carrier);
-- `continuity-probe/0.1` · `continuity-mapping/0.1` — Network
-  Visibility §6a.2/§6a.4; the payload is the artifact itself
+- `continuity-probe/0.1` · `continuity-mapping/0.1` — Trust
+  Layer §6a.2/§6a.4; the payload is the artifact itself
   (`schemas/visibility-continuity-probe.schema.json`,
   `schemas/visibility-continuity-mapping.schema.json`), travelling
   on the enactment tuple's own channel (its §6a.3);
-- `star/0.1` · `group-star/0.1` · `grade-declaration/0.1` ·
-  `anchor-mapping/0.2` — the trust-act family, Network Visibility
-  §5.2/§5.2b/§5.5/§6.1; the payload is the artifact itself
+- `star/0.2` · `group-star/0.1` · `anchor-mapping/0.3` ·
+  `profile/0.1` — the trust-layer family, Trust Layer
+  §5.2/§5.2b/§6.1/§6b; the payload is the artifact itself
   (`schemas/visibility-star.schema.json`,
   `schemas/visibility-group-star.schema.json`,
-  `schemas/visibility-grade-declaration.schema.json`,
-  `schemas/visibility-anchor-mapping.schema.json`), travelling on
+  `schemas/visibility-anchor-mapping.schema.json`,
+  `schemas/trust-profile.schema.json`), travelling on
   the relationship channel of its tuple; the artifacts carry
   their own MACs, the documents carry none — one carrier.
   **Defined effect, per document:** durable buffering toward the
   recipient's receive chain — for a star or group-star chunk,
-  into the single open assembly of its artifact (Visibility §5.2a,
+  into the single open assembly of its artifact (Trust Layer §5.2a,
   §5.2b); the acknowledgement fires at
   that effect like every type's (4.2), under the class rule
   below — **with one sharpening for the completing chunk**: the
   chunk that closes an assembly has as its defined effect the
   **validated, committed assembly** — assembly validation
-  (Visibility §5.2a), the accepted snapshot, and the receiver's
+  (Trust Layer §5.2a), the accepted snapshot, and the receiver's
   completed-salt advance commit in the same transaction as the
   effect cache entry and the acknowledgement (6.2) — and for star
   and group-star chunks the stage-9 lock set extends by the
   **assembly key (tuple, type, salt)**, so concurrent chunks of
   one assembly serialize and the completing commit sees them all. A crash
   before that commit leaves the completing chunk unacknowledged,
-  so a sender's completion (Visibility §5.4) always attests the
+  so a sender's completion (Trust Layer §5.4) always attests the
   receiver's committed state, never a buffered fragment. **Closed acceptance bindings:** the outer document's
   `issuer` MUST equal the sender's pair anchor of the tuple and
   its `recipient` the addressee's; the tuple is selected by the
@@ -515,16 +515,16 @@ schema, proof declaration, and consistency rules:
   `salt` is one thread**: the sender mints one fresh `threadId` per delivery and stamps it on
   **every** chunk of that salt — arrival order is irrelevant, and
   the receiver rejects a delivery whose chunks disagree on
-  `threadId` (Visibility §5.2a); each chunk is its own **document** under
+  `threadId` (Trust Layer §5.2a); each chunk is its own **document** under
   this contract's dispositions and earns its own acknowledgement —
   "delivery" in this entry always means the salt-level unit.
   A retried chunk is re-sent **byte-identical as a document**
   (threadId included), per 4.2's redelivery rule — re-packaging a
   chunk under a new threadId is nonconformant. A chunked star
-  delivery (Visibility §5.2a) is one document per chunk under one
+  delivery (Trust Layer §5.2a) is one document per chunk under one
   `salt`; each chunk is its own **document** under this
   contract's dispositions, and what "the delivery completed"
-  means for the sender's reconciliation state is Visibility
+  means for the sender's reconciliation state is Trust Layer
   §5.4's definition over the acknowledgements.
 
 **The acknowledgement class rule (normative, for every registered
@@ -532,7 +532,7 @@ type):** an acknowledgement MUST NOT be more provable than the
 payload it acknowledges. For a type whose payload authenticity is
 a transferable signature, the `delivery-ack` carries its standard
 proof. For a type whose payload authenticity is
-designated-verifier — the trust-act family above,
+designated-verifier — the trust-layer family above,
 `continuity-probe/0.1` and `continuity-mapping/0.1`, and every
 future MAC-authenticated type — the `delivery-ack`'s `proof` is
 the **MAC form of 4.2**, under the arrival tuple's ack key: one
@@ -578,7 +578,7 @@ per `schemas/payload-registry-declaration.schema.json`;
 document `issuer` (the declaring party — §3's proof rule names
 this type). Defined effect: durable recording per (issuer,
 role) under the **generic revision rule** (the pattern of
-Visibility §6.4): a higher `revision` wins; an equal revision
+Trust Layer §6.4): a higher `revision` wins; an equal revision
 with JCS-identical payload is idempotent; an equal revision with
 a different payload is an equivocation error — reject, keep
 state; a lower revision is rejected — so a delayed or redelivered
@@ -592,15 +592,15 @@ and the registering specification closes which constant names a
 role admits and their domains; unknown constant names or
 out-of-domain values reject the declaration. The first
 registration: `ack-delay`, a duration in the grammar this section
-fixes below, `PT1S ≤ ack-delay ≤ PT1H` (Visibility §8.4). **This declaration IS
-the "task registration entry" Visibility §8.4 publishes from** —
+fixes below, `PT1S ≤ ack-delay ≤ PT1H` (Trust Layer §8.4). **This declaration IS
+the "task registration entry" Trust Layer §8.4 publishes from** —
 that entry's per-party published form; one mechanism, two names.
 **Act binding and revision skew, stated honestly:** each side of a
 running act computes from the declaration it holds — the mediator
 from its own current value at the act's arrival, the requester
 from the highest revision it holds at send. A revision landing
 between the two is safe by construction: the requester's early
-`failed` is Visibility §8.4's named role divergence, converged by
+`failed` is Trust Layer §8.4's named role divergence, converged by
 the retry as a new act; a mediator that raises its `ack-delay`
 SHOULD expect such retries until the new declaration reaches its
 contacts. **A party MUST declare identical constants to all
@@ -608,7 +608,7 @@ counterparts** ("per party, fixed"); the declaration is
 transferably signed for exactly this reason — two counterparts
 comparing declarations hold attributable proof of an
 equivocation. The first registered constant is the introduction
-mediator's `ack-delay` (Visibility §8.4): a requester computes
+mediator's `ack-delay` (Trust Layer §8.4): a requester computes
 its verdict window from the mediator's declared value and MUST
 NOT send an `introduction-request` to a mediator whose
 declaration it does not hold — asking first is the flow, not an
@@ -2409,7 +2409,7 @@ enactment** continues on the optical leg, and the late bundle is
 accepted via the record (4.1). A **fresh enactment** arises only when
 the optical leg's `boundTo` no longer resolves — the `gate-expired`
 outcome of Encounter 5.8; the resulting parallel enactments are
-reconciled by **Encounter 0.29 (wire 0.25), 4.2 and 5.8**: both are valid, a late
+reconciled by **Encounter 0.31 (wire 0.25), 4.2 and 5.8**: both are valid, a late
 counter-credential to the first is accepted, and enactment
 multiplicity never multiplies edges (one edge per anchor pair). This
 contract adds nothing to those rules and relies on them.
@@ -2634,11 +2634,11 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 
 ## 11. Conformance
 
-- **Profile** `rltp-delivery@0.80`; the Identity pin is
-  **Identity 0.52** (§7a, the control principal); the Encounter
-  pin is `rltp-encounter@0.29` (wire 0.25); companion
-  registrations per 4.4 (Network Visibility 0.30, Access 0.56,
-  Membership Tasks 0.18, Replication 0.26).
+- **Profile** `rltp-delivery@0.81`; the Identity pin is
+  **Identity 0.54** (§7a, the control principal); the Encounter
+  pin is `rltp-encounter@0.31` (wire 0.25); companion
+  registrations per 4.4 (Trust Layer 0.31, Access 0.57,
+  Membership Tasks 0.19, Replication 0.26).
 - **Classes:** *sender* (sealing, status trias, ack-wait switch
   trigger; principal-free submission, 5a.4) · *receiver*
   (unsealing, staged dispositions, ack generation; the addressing
@@ -2764,7 +2764,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   `registry-declaration/0.1`: valid declaration recorded;
   unsigned or foreign-signed → discarded; replacement
   prospective-only · introduction-ack timing computed from the
-  declared `ack-delay` (Visibility §8.4); an introduction-request
+  declared `ack-delay` (Trust Layer §8.4); an introduction-request
   sent without holding the mediator's declaration →
   nonconformant at the sender ·
   the derivation seam itself is executable in
@@ -3042,16 +3042,16 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 ## References
 
 [RFC2119] · [RFC8174] BCP 14 · [RFC3339] · [RFC8785] JCS · [RFC5869]
-HKDF · **RLTP Identity Layer 0.52** (normative; §5.2 the `rkid`'s
+HKDF · **RLTP Identity Layer 0.54** (normative; §5.2 the `rkid`'s
 key material, §5.3 the recovery context, §7 service identities,
 **§7a the carrier-relationship identity**, §9.3 recovery) ·
 [TT] ToIP DTGWG Trust Tasks framework specification 0.4
 (§4.8.2, §4.11.1, §6.1, §6.3, §6.5, §7.2–7.3) · RLTP Encounter Layer
-0.29, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
-fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Network
-Visibility 0.30 (§2.1, §5.2b, §6a, §8) · RLTP Access Layer 0.56,
+0.31, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
+fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Trust
+Layer 0.31 (§2.1, §5.2b, §6a, §6b, §8) · RLTP Access Layer 0.57,
 wire 0.25 · RLTP Replication Contract 0.26 (§7/I14, the
-direct-effect seam of 4.4) · RLTP Membership Tasks 0.18 (§3) · Sync
+direct-effect seam of 4.4) · RLTP Membership Tasks 0.19 (§3) · Sync
 001/003 (superseded transport specs, Appendix A).
 
 **External references of the adapter obligations (5a.10).** These

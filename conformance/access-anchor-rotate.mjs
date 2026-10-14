@@ -1,5 +1,5 @@
 // Reference materialization of the anchor.rotate entries of a personal
-// community's log under Access 0.56 §5.6 — the oracle behind
+// community's log under Access 0.57 §5.6 — the oracle behind
 // vectors/access-anchor-rotate.json.
 //
 // An operation is a real rltp-access/0.25 envelope (group.genesis,
@@ -12,14 +12,18 @@
 // keeping VALIDITY and CANONICITY apart (3325, 3330, 3345):
 //
 //   1. validity — each anchor.rotate is judged against its own ancestor
-//      closure and nothing else (3325):
+//      closure and nothing else (3325, 5962):
 //      5950 — its author is the sole member at its position;
-//      5955 — its body is exactly { rotation } and the rotation verifies
-//             as anchor-rotation@1 under both its signatures (the caller
-//             supplies that predicate);
-//      5960 — its rotation.body.prev equals the next of the lineage head
-//             of its ancestor closure, or is unconstrained where that
-//             closure holds no canonical anchor.rotate;
+//      5955 — its body is exactly { rotation };
+//      5956 — the rotation verifies as anchor-rotation@2 under both its
+//             signatures (the caller supplies that predicate);
+//      5958 — its rotation.body.prev equals the next of the lineage head
+//             of its ancestor closure;
+//      5960 — the pre-rotation binding computed over its
+//             rotation.body.next (Identity 5.4; the caller supplies that
+//             function) equals the commit of that lineage head;
+//      5958 and 5960 are unconstrained where that closure holds no
+//      canonical anchor.rotate;
 //   2. displacement — the dispositions of 3.6 run before the walk
 //      (5965): a canonical terminal operation displaces every concurrent
 //      anchor.rotate (3465, 3470). Terminal here is a last-member
@@ -28,18 +32,19 @@
 //      admission merges (5840). The CANDIDATES of the walk are the valid
 //      anchor.rotate operations no terminal operation displaces; a
 //      displaced one stays VALID (3325, 3345);
-//   3. canonicity — 5965, over the candidates. An ENTRY is a rotation
+//   3. canonicity — the walk of 5965, over the candidates. An ENTRY is a rotation
 //      body; the candidate operations carrying JCS-identical bodies are one
 //      entry (idempotent, 3475), its id the smallest id among them (the
 //      representative), the others repeats. The walk starts at a virtual
 //      root, where the candidates are the FIRST entries (carried by a
 //      valid operation whose ancestor closure holds no canonical
 //      anchor.rotate); at a chosen head the candidates are the entries
-//      not yet visited whose prev equals the head's next; of the
-//      candidates the one with the smaller id in unsigned bytewise order
-//      becomes the new head; repeat until no candidate. Exactly the
-//      visited entries (and their repeats) are canonical; every other
-//      valid operation stays VALID but not canonical (the 5240 pattern);
+//      not yet visited whose prev equals the head's next and whose next
+//      meets the head's commit (5967); of the candidates the one with the
+//      smaller id in unsigned bytewise order becomes the new head; repeat
+//      until no candidate. Exactly the visited entries (and their
+//      repeats) are canonical (5966); every other valid operation stays
+//      VALID but not canonical (5968, the 5240 pattern);
 //   4. 5970 — no anchor.rotate changes the roster, the epoch or the
 //      policy version: the state is that of the other operations, or
 //      { terminal: true } where a terminal operation is canonical.
@@ -61,7 +66,8 @@ import { jcs } from './lib.mjs'
 
 const cmpBytes = (a, b) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
 
-export async function materializeRotations (ops, verifyRotation) {
+export async function materializeRotations (ops, verifyRotation, bindingOf) {
+  if (typeof verifyRotation !== 'function' || typeof bindingOf !== 'function') throw new Error('access-anchor-rotate oracle: the caller supplies verifyRotation and bindingOf')
   const byId = new Map(ops.map((o) => [o.id, o]))
   const anc = new Map()
   const ancestors = (id) => {
@@ -105,16 +111,17 @@ export async function materializeRotations (ops, verifyRotation) {
   const validMemo = new Map()
   const valid = (o) => {
     if (validMemo.has(o.id)) return validMemo.get(o.id)
-    let ok = shapeOK.get(o.id)
-    if (ok) { const m = membersAt(o.id); ok = m.size === 1 && m.has(o.author) }
+    let ok = shapeOK.get(o.id)                                       // 5955, 5956
+    if (ok) { const m = membersAt(o.id); ok = m.size === 1 && m.has(o.author) }   // 5950
     if (ok) {
       const head = closureHead(o)
-      ok = !head || o.body.rotation.body.prev === head.next
+      ok = !head || (o.body.rotation.body.prev === head.next &&        // 5958
+        bindingOf(o.body.rotation.body.next) === head.commit)          // 5960
     }
     validMemo.set(o.id, ok)
     return ok
   }
-  // the head of an operation's ancestor closure (memoized): 5960 and "first"
+  // the head of an operation's ancestor closure (memoized): 5958, 5960 and "first"
   const headMemo = new Map()
   const closureHead = (o) => {
     if (!headMemo.has(o.id)) headMemo.set(o.id, walk(ancestors(o.id)).head)
@@ -125,11 +132,11 @@ export async function materializeRotations (ops, verifyRotation) {
   // terminal operation of the set
   function walk (ids) {
     const displacing = canonicalTerminals(ids)
-    const entries = new Map()   // body key → { key, prev, next, first, ops: [...] }
+    const entries = new Map()   // body key → { key, prev, next, commit, bound (the binding over next), first, ops: [...] }
     for (const o of rotates) {
       if (!ids.has(o.id) || !valid(o) || displacing.some((t) => concurrent(t.id, o.id))) continue
       const k = bodyKey(o)
-      if (!entries.has(k)) entries.set(k, { key: k, prev: o.body.rotation.body.prev, next: o.body.rotation.body.next, first: false, ops: [] })
+      if (!entries.has(k)) { const rb = o.body.rotation.body; entries.set(k, { key: k, prev: rb.prev, next: rb.next, commit: rb.commit, bound: bindingOf(rb.next), first: false, ops: [] }) }
       const e = entries.get(k)
       e.ops.push(o)
       if (!closureHead(o)) e.first = true
@@ -139,7 +146,8 @@ export async function materializeRotations (ops, verifyRotation) {
     const visited = new Set()
     let at = null
     for (;;) {
-      const cands = [...entries.values()].filter((e) => !visited.has(e.key) && (at === null ? e.first : e.prev === at.next))
+      // at the root the first entries (5965 step 1), at a head the entries 5967 admits
+      const cands = [...entries.values()].filter((e) => !visited.has(e.key) && (at === null ? e.first : e.prev === at.next && e.bound === at.commit))
       if (!cands.length) break
       cands.sort((a, b) => cmpBytes(a.ops[0].id, b.ops[0].id))
       at = cands[0]

@@ -48,8 +48,14 @@ Withdrawing trust works forward. You stop sending, and when you renew
 your anchor, the contacts you still trust follow while the anchor the
 others hold goes stale. What someone has already seen, they keep.
 
-Spec: [Network Visibility §6](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6-anchor-mapping-normative) ·
-[§6.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#65-anchor-rotation1-and-the-rotation-of-the-community-anchor) ·
+Each generation of your anchor commits to the next, so someone who
+copies your key cannot take your contacts along to a key of their own:
+where a contact holds that commitment, the copier's successor is
+discarded, and under a commitment of its own the copier stays a
+separate entry.
+
+Spec: [Trust Layer §6](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6-anchor-mapping-normative) ·
+[§6.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#65-anchor-rotation2-and-the-rotation-of-the-community-anchor) ·
 [Identity Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md#54-the-community-anchors-generations)
 
 ## The blinded star
@@ -79,8 +85,31 @@ group gets a hit: we know each other from somewhere. Who you are in
 that group stays sealed, and opens only for the contacts you trust,
 or for one you choose per group.
 
-Spec: [Network Visibility §5](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#5-the-star-normative) ·
-[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#7-relational-counts-normative-principle-artifact-unwritten)
+Spec: [Trust Layer §5](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#5-the-star-normative) ·
+[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#7-relational-counts-normative-principle-artifact-unwritten)
+
+## What you share
+
+You share several things with a contact, and each is its own
+**[trust class](term:TrustClass)** with its own default. Every contact gets your star
+and your groups, blinded, from the start, before you trust them. The
+people you trust also get your anchor mapping, who you are in the
+groups you share, and your
+**[profile](term:Profile)**: your name, and if you like a picture and a short text,
+one profile, the same for everyone who gets it. Like the mapping, the
+profile can be checked by that contact alone and is never signed.
+Next to your anchor it links nothing more; given without the
+mapping, the same profile links the relationships that receive it.
+
+Trusting someone means your mapping is on for them; who you are in
+your shared groups and your profile follow it, and whoever wants to
+sets each class on its own, per person, and the group ones per group.
+Whom you give your mapping to, everyone who holds your anchor sees
+through the stars; that is what the star is for. Everything else you switch on or off is seen only by the
+contact it concerns. What a contact has already seen, they keep.
+
+Spec: [Trust Layer §2a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#2a-trust-classes-normative) ·
+[§6b](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6b-profile1-normative)
 
 ## Meeting through someone you both know
 
@@ -99,7 +128,7 @@ limit is stated plainly: a mediator could play one side itself.
 That is why an introduced relationship is the weaker one until the two
 have met.
 
-Spec: [Network Visibility §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#8-the-introduction-act-normative)
+Spec: [Trust Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#8-the-introduction-act)
 
 ## Meeting again
 
@@ -117,7 +146,7 @@ relationship and the app shows "re-verified"; an introduced
 relationship becomes a met one. No match means a new contact,
 honestly, which is also what a contact who lost their data becomes.
 
-Spec: [Network Visibility §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md#6a-continuity-normative--the-other-half-of-encounter-44) ·
+Spec: [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44) ·
 [Encounter Layer §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative)
 
 ## Vouching inside a group

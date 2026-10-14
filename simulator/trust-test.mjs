@@ -39,7 +39,7 @@ const keyOf = (p, name) => [...p.contacts.entries()].find(([, c]) => c.name === 
 // ── 1. der Vertrauensakt: einseitig, verifiziert, Einweg-Tür ────────────
 {
   const pkt = await T.setTrust(anton, keyOf(anton, 'Berta'), T0 + 10_000)
-  check(!pkt.error && pkt.outbound?.length === 2, 'Vertrauensakt Anton→Berta: anchor-mapping/0.2 + grade-declaration/0.1 versiegelt auf dem Kanal')
+  check(!pkt.error && pkt.outbound?.length === 1, 'Vertrauensakt Anton→Berta: anchor-mapping/0.3 versiegelt auf dem Kanal')
   const r = await deliverAct(world, berta, pkt, T0 + 11_000)
   const bA = berta.contacts.get(keyOf(berta, 'Anton'))
   check(r.disclosed && bA.selfAnchor === (await T.communityContext(anton)).anchor, 'Berta hält Antons stabilen Anker — Mapping VERIFIZIERT übernommen')
@@ -65,7 +65,7 @@ const keyOf = (p, name) => [...p.contacts.entries()].find(([, c]) => c.name === 
   await I.consent(berta, rB.entry, drop, T0 + 23_000)   // jetzt freigeben → ⇄
   await I.checkDrop(carla, rC.entry, drop)
   const pkt = await T.setTrust(berta, oneKey, T0 + 24_000)
-  check(!pkt.error && pkt.outbound?.length === 2, 'vorgestellt + beidseitig (⇄): Vertrauensakt ERLAUBT (Offenlegung ist meine Entscheidung)')
+  check(!pkt.error && pkt.outbound?.length === 1, 'vorgestellt + beidseitig (⇄): Vertrauensakt ERLAUBT (Offenlegung ist meine Entscheidung)')
   const r = await deliverAct(world, carla, pkt, T0 + 25_000)
   const cIntro = [...carla.contacts.values()].find((c) => c.provenance !== 'ceremony' && c.name === 'Berta')
   check(r.disclosed && cIntro.selfAnchor === (await T.communityContext(berta)).anchor, 'Mapping verifiziert auch über den VORGESTELLTEN Kanal — kein Zeremonie-Credential nötig')

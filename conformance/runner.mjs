@@ -64,9 +64,9 @@ const schemaFails = (data, file, label) => {
   check(errs.length > 0, `${label} rejected by ${file}`)
 }
 
-// anchor-rotation@1 (Network Visibility 0.30 §6.5), independently: schema
-// (closed body { type, prev, next }), next ≠ prev, raw Ed25519 under prev
-// (proofValue) and under next (successorProofValue) over JCS(body)
+// anchor-rotation@2 (Trust Layer 0.31 §6.5), independently: schema
+// (closed body { type, prev, next, commit }), next ≠ prev, raw Ed25519
+// under prev (proofValue) and under next (successorProofValue) over JCS(body)
 const GENERATION_MAX = 9007199254740991n
 const rotationOK = (a) => {
   const s = SCHEMAS['visibility-anchor-rotation.schema.json']
@@ -75,11 +75,30 @@ const rotationOK = (a) => {
   const bytes = Buffer.from(jcs(a.body), 'utf8')
   return verifyRaw(a.body.prev, bytes, a.proof.proofValue) && verifyRaw(a.body.next, bytes, a.proof.successorProofValue)
 }
-// the lineage as given (6.3 condition 4a): at most 64, each element
-// verifies, each prev the preceding next, the last next = self
+// anchor-rotation@2 as the personal community's log carries it (Access
+// §5.6, RLTP-ACC-5955, 5956): the envelope schema's $defs/anchorRotation,
+// a $ref onto the Trust schema
+const rotationLogOK = (a) => {
+  const env = SCHEMAS['access-operation-envelope.schema.json']
+  if (validate(a, env.$defs.anchorRotation, env).length) return false
+  if (a.body.prev === a.body.next) return false
+  const bytes = Buffer.from(jcs(a.body), 'utf8')
+  return verifyRaw(a.body.prev, bytes, a.proof.proofValue) && verifyRaw(a.body.next, bytes, a.proof.successorProofValue)
+}
+// the pre-rotation binding (Identity 0.54 §5.4): the sha2-256 multihash
+// over the multikey bytes 0xed 0x01 || 32-byte Ed25519 key — the bytes the
+// did:key identifier encodes (Identity §8.1) — in the u digest encoding
+const multikeyOf = (did) => { const b = fromB58(did.slice('did:key:z'.length)); return b && b[0] === 0xed && b[1] === 1 && b.length === 34 ? b : null }
+const commitOf = (did) => { const b = multikeyOf(did); return b ? 'u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(b)]).toString('base64url') : null }
+// the lineage as given (6.3 conditions 4a and 4b): at most 64, each element
+// verifies, each prev the preceding next, the last next = self (4a); each
+// next meets the binding the preceding element commits to, and `held`
+// (optional) is the binding the receiver holds for the first element's
+// prev (4b)
 const LINEAGE_MAX = 64
-const lineageOK = (lineage, self) => lineage.length <= LINEAGE_MAX
-  && lineage.every((r, i) => rotationOK(r) && (i === 0 || r.body.prev === lineage[i - 1].body.next))
+const lineageOK = (lineage, self, held) => lineage.length <= LINEAGE_MAX
+  && lineage.every((r, i) => rotationOK(r) && (i === 0 || (r.body.prev === lineage[i - 1].body.next && commitOf(r.body.next) === lineage[i - 1].body.commit)))
+  && (held === undefined || lineage.length === 0 || commitOf(lineage[0].body.next) === held)
   && (lineage.length === 0 || lineage.at(-1).body.next === self)
 // the generation row of the closed registry (Identity 0.52 §6.1)
 const generationLabel = (l) => {
@@ -1076,37 +1095,57 @@ const macCheck = (label, body, mac, privSeed, peerMk, info) =>
 {
   const kStar = hkdf(ecdh(P.A.x, P.B.mk), `rltp/visibility/blind/star/${P.A.did}/${P.B.did}/1`)
   check(hmacU(kStar, jcs(A.star.body)) === A.star.proof.mac, 'star: mac')
-  check(A.star.body.blinded.includes(hmacU(kStar, V.self.anchor)), 'star: blinded entry = HMAC(k, self anchor)')
-  macCheck('grade: mac', A.gradeDeclaration.body, A.gradeDeclaration.proof.mac, P.B.x, P.A.mk, `rltp/visibility/mac/grade/${P.B.did}/${P.A.did}`)
+  // the deliverable set of A toward B is the contact C who gave A its mapping (2040): C's
+  // community anchor, group/<D_C> under the second-party IKM — never A's own self (5010)
+  const IKM2C = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
+  const SC = V.starContact, scLabel = 'group/u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(Buffer.from(SC.genesisPreimage, 'utf8'))]).toString('base64url')
+  check(SC.label === scLabel && didOf(hkdf(IKM2C, 'rltp/anchor/ed/' + scLabel)) === SC.anchor && mkOf(hkdf(IKM2C, 'rltp/anchor/x/' + scLabel)) === SC.keyAgreement, 'star contact C: group/<D_C> under the second-party IKM')
+  check(jcs(A.star.body.blinded) === jcs([hmacU(kStar, SC.anchor)]), 'star: blinded = [HMAC(k, anchor of contact C)] (5010)')
+  check(!A.star.body.blinded.includes(hmacU(kStar, V.self.anchor)), 'star: never blinds the sender\'s own community anchor (5010)')
+  const genAnchor = (g) => didOf(hkdf(IKM, 'rltp/anchor/ed/' + (g === 1 ? V.self.label : `${V.self.label}/${g}`)))
+  // self-card@2 (6.2): the card introducing generation 1 commits to generation 2 (Identity 5.4)
+  schemaOK(A.selfCard, 'visibility-self-card.schema.json', 'self-card@2')
   check(verifyRaw(V.self.anchor, Buffer.from(jcs(A.selfCard.body), 'utf8'), A.selfCard.proof.proofValue), 'self-card: raw Ed25519 signature')
+  check(A.selfCard.body.type === 'self-card@2' && A.selfCard.body.anchor === V.self.anchor && A.selfCard.body.commit === commitOf(genAnchor(2)), 'self-card@2: commit = the binding over generation 2 (multihash over its multikey bytes)')
   macCheck('anchor-mapping: mac1', A.anchorMapping.body, A.anchorMapping.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
   check(hmacU(hkdf(ecdhRaw(selfX, xRawOfMk(P.B.mk)), 'rltp/visibility/mac/map2'), jcs(A.anchorMapping.body)) === A.anchorMapping.proof.mac2, 'anchor-mapping: mac2 (self key)')
-  check(A.anchorMapping.body.type === 'anchor-mapping@3' && Array.isArray(A.anchorMapping.body.lineage) && A.anchorMapping.body.lineage.length === 0, 'anchor-mapping@3: an empty lineage — the sender presents no history')
-  check(jcs(A.anchorMapping.body.card) === jcs(A.selfCard), 'anchor-mapping@3: the enclosed card is the self-card')
+  check(A.anchorMapping.body.type === 'anchor-mapping@4' && Array.isArray(A.anchorMapping.body.lineage) && A.anchorMapping.body.lineage.length === 0, 'anchor-mapping@4: an empty lineage — the sender presents no history')
+  check(jcs(A.anchorMapping.body.card) === jcs(A.selfCard), 'anchor-mapping@4: the enclosed card is the self-card@2')
   // the rotation case (6.5): generation 2 of the same community, the mapping re-issued under it
   const g2 = V.selfGenerations['2']
   const g2Ed = hkdf(IKM, 'rltp/anchor/ed/' + g2.label), g2X = hkdf(IKM, 'rltp/anchor/x/' + g2.label)
   check(g2.label === V.self.label + '/2' && didOf(g2Ed) === g2.anchor && mkOf(g2X) === g2.keyAgreement, 'community anchor generation 2: group/<digest>/2 on the ordinary path')
-  const rot = A.anchorRotation, mr = A.anchorMappingRotated
-  check(rotationOK(rot) && rot.body.prev === V.self.anchor && rot.body.next === g2.anchor && jcs(Object.keys(rot.body).sort()) === jcs(['next', 'prev', 'type']), 'anchor-rotation@1: generation 1 → 2, { type, prev, next }, signed by both (6.5)')
-  schemaOK(mr, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@3 (rotated)')
-  check(mr.body.self === g2.anchor && mr.body.card.body.anchor === g2.anchor && verifyRaw(g2.anchor, Buffer.from(jcs(mr.body.card.body), 'utf8'), mr.body.card.proof.proofValue), 'rotated mapping: self and card under generation 2')
-  check(mr.body.lineage.length === 1 && jcs(mr.body.lineage[0]) === jcs(rot) && lineageOK(mr.body.lineage, mr.body.self), 'rotated mapping: 6.3 condition 4a — the lineage verifies as a chain and ends at self')
+  for (const g of ['3', '4']) check(V.selfGenerations[g].label === `${V.self.label}/${g}` && genAnchor(+g) === V.selfGenerations[g].anchor && mkOf(hkdf(IKM, 'rltp/anchor/x/' + V.selfGenerations[g].label)) === V.selfGenerations[g].keyAgreement, `community anchor generation ${g}: group/<digest>/${g}`)
+  const rot = A.anchorRotation, rot23 = A.anchorRotation23, mr = A.anchorMappingRotated
+  check(rotationOK(rot) && rot.body.prev === V.self.anchor && rot.body.next === g2.anchor && rot.body.commit === commitOf(genAnchor(3)) && jcs(Object.keys(rot.body).sort()) === jcs(['commit', 'next', 'prev', 'type']), 'anchor-rotation@2: generation 1 → 2, { type, prev, next, commit }, commit = the binding over generation 3, signed by both (6.5)')
+  check(commitOf(rot.body.next) === A.selfCard.body.commit, 'anchor-rotation@2 1 → 2: the binding over next equals the binding the generation-1 card committed to')
+  check(rotationOK(rot23) && rot23.body.prev === g2.anchor && rot23.body.next === genAnchor(3) && rot23.body.commit === commitOf(genAnchor(4)) && commitOf(rot23.body.next) === rot.body.commit, 'anchor-rotation@2 2 → 3: next meets the binding of 1 → 2; commit = the binding over generation 4')
+  schemaOK(mr, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@4 (rotated)')
+  check(mr.body.self === g2.anchor && mr.body.card.body.anchor === g2.anchor && mr.body.card.body.commit === commitOf(genAnchor(3)) && verifyRaw(g2.anchor, Buffer.from(jcs(mr.body.card.body), 'utf8'), mr.body.card.proof.proofValue), 'rotated mapping: self and card under generation 2, the card committing to generation 3')
+  check(mr.body.lineage.length === 1 && jcs(mr.body.lineage[0]) === jcs(rot) && V.rotation.heldBinding === A.anchorMapping.body.card.body.commit && lineageOK(mr.body.lineage, mr.body.self, V.rotation.heldBinding), 'rotated mapping: 6.3 conditions 4a and 4b — the lineage verifies as a chain, meets the binding held from the generation-1 card, and ends at self')
   macCheck('rotated mapping: mac1', mr.body, mr.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
   check(hmacU(hkdf(ecdhRaw(g2X, xRawOfMk(P.B.mk)), 'rltp/visibility/mac/map2'), jcs(mr.body)) === mr.proof.mac2, 'rotated mapping: mac2 under selfX of the CURRENT generation')
   check(BigInt(mr.body.revision) > BigInt(A.anchorMapping.body.revision), 'rotated mapping: a higher revision in the same scope (6.4)')
   const held = V.rotation.heldSelf
-  check(held === A.anchorMapping.body.self && held !== mr.body.self && mr.body.lineage.some((r) => r.body.prev === held || r.body.next === held) && V.rotation.classification === 'rotation', '6.3 condition 8: the held self appears in the lineage — a ROTATION, not a new community')
+  check(held === A.anchorMapping.body.self && held !== mr.body.self && mr.body.lineage.some((r) => r.body.prev === held) && V.rotation.classification === 'rotation', '6.3 condition 8: the held self is the prev of a lineage element — a ROTATION (6160)')
+  // the chain over three generations: 1 → 2 → 3, each next meeting the binding before it
+  const m3 = A.anchorMappingGeneration3
+  schemaOK(m3, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@4 under generation 3')
+  const g3X = hkdf(IKM, 'rltp/anchor/x/' + V.selfGenerations['3'].label)
+  check(m3.body.self === genAnchor(3) && m3.body.card.body.anchor === genAnchor(3) && m3.body.card.body.commit === commitOf(genAnchor(4)) && verifyRaw(genAnchor(3), Buffer.from(jcs(m3.body.card.body), 'utf8'), m3.body.card.proof.proofValue), 'generation-3 mapping: self and card under generation 3, the card committing to generation 4')
+  check(jcs(m3.body.lineage) === jcs([rot, rot23]) && lineageOK(m3.body.lineage, m3.body.self, V.chain3.heldBinding) && V.chain3.heldBinding === A.selfCard.body.commit, 'generation-3 mapping: lineage [1 → 2, 2 → 3] verifies, meets the held binding of the generation-1 card, and ends at self (4a, 4b)')
+  macCheck('generation-3 mapping: mac1', m3.body, m3.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
+  check(hmacU(hkdf(ecdhRaw(g3X, xRawOfMk(P.B.mk)), 'rltp/visibility/mac/map2'), jcs(m3.body)) === m3.proof.mac2, 'generation-3 mapping: mac2 under generation 3')
+  check([1, 2].every((g) => m3.body.lineage.some((r) => r.body.prev === genAnchor(g)) && V.chain3.classifications[genAnchor(g)] === 'rotation'), 'generation-3 mapping: a contact holding generation 1 or 2 finds it in the lineage — a ROTATION (6.3 condition 8)')
   // the bound (6.1): 64 elements, generations 2 … 66 of the same community, the chain as given
   const m64 = A.anchorMappingLineage64
-  schemaOK(m64, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@3 with 64 lineage elements')
-  const genAnchor = (g) => didOf(hkdf(IKM, 'rltp/anchor/ed/' + (g === 1 ? V.self.label : `${V.self.label}/${g}`)))
-  check(m64.body.lineage.length === LINEAGE_MAX && m64.body.lineage.every((r, i) => r.body.prev === genAnchor(i + 2) && r.body.next === genAnchor(i + 3)) && lineageOK(m64.body.lineage, m64.body.self), 'a 64-element lineage: rotations 2→3 … 65→66, a verifying chain ending at self (4a)')
+  schemaOK(m64, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@4 with 64 lineage elements')
+  check(m64.body.lineage.length === LINEAGE_MAX && m64.body.lineage.every((r, i) => r.body.prev === genAnchor(i + 2) && r.body.next === genAnchor(i + 3) && r.body.commit === commitOf(genAnchor(i + 4))) && lineageOK(m64.body.lineage, m64.body.self, commitOf(genAnchor(3))) && m64.body.card.body.commit === commitOf(genAnchor(67)), 'a 64-element lineage: rotations 2→3 … 65→66, each committing to the generation after its next, a verifying chain ending at self (4a, 4b); the card commits to generation 67')
   const g66X = hkdf(IKM, 'rltp/anchor/x/' + V.lineageBound.self)
   macCheck('64-element mapping: mac1', m64.body, m64.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
   check(V.lineageBound.self === V.self.label + '/66' && hmacU(hkdf(ecdhRaw(g66X, xRawOfMk(P.B.mk)), 'rltp/visibility/mac/map2'), jcs(m64.body)) === m64.proof.mac2, '64-element mapping: mac2 under generation 66')
-  const inSegment = (h) => m64.body.lineage.some((r) => r.body.prev === h || r.body.next === h)
-  check(inSegment(genAnchor(2)) && V.lineageBound.classifications[genAnchor(2)] === 'rotation' && !inSegment(genAnchor(1)) && V.lineageBound.classifications[genAnchor(1)] === 'new-community', '6.3 condition 8 over the carried segment: generation 2 held → rotation; generation 1 held (more than 64 rotations missed) → new community')
+  const inSegment = (h) => m64.body.lineage.some((r) => r.body.prev === h)
+  check(inSegment(genAnchor(2)) && V.lineageBound.classifications[genAnchor(2)] === 'rotation' && !inSegment(genAnchor(1)) && V.lineageBound.classifications[genAnchor(1)] === 'rejected', '6.3 condition 8 over the carried segment: generation 2 held → rotation (6160); generation 1 held (more than 64 rotations missed) → rejected, the held anchor kept (6170, 6400)')
   const kp = hkdf(ecdh(P.A2.x, P.B2.mk), `rltp/visibility/blind/probe/${P.A2.did}/${P.B2.did}`)
   const pb = A.continuityProbe.body
   check(hmacU(kp, jcs(pb)) === A.continuityProbe.proof.mac, 'probe: mac')
@@ -1129,8 +1168,8 @@ const macCheck = (label, body, mac, privSeed, peerMk, info) =>
   check(diVerify(V.introductionCards.target, V.introductionCards.target.anchor).ok, 'target card: DI proof (real card)')
 }
 schemaOK(V.artifacts.star, 'visibility-star.schema.json', 'star')
-schemaOK(V.artifacts.anchorMapping, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@3')
-schemaOK(V.artifacts.anchorRotation, 'visibility-anchor-rotation.schema.json', 'anchor-rotation@1')
+schemaOK(V.artifacts.anchorMapping, 'visibility-anchor-mapping.schema.json', 'anchor-mapping@4')
+schemaOK(V.artifacts.anchorRotation, 'visibility-anchor-rotation.schema.json', 'anchor-rotation@2')
 schemaOK(V.artifacts.continuityProbe, 'visibility-continuity-probe.schema.json', 'probe')
 schemaOK(V.artifacts.introductionRequest, 'visibility-introduction-request.schema.json', 'request')
 schemaOK(V.payloads.introductionRequest, 'visibility-payload-introduction-request.schema.json', 'payload request')
@@ -1142,16 +1181,31 @@ for (const n of V.negative) {
     schemaOK(a, 'visibility-anchor-mapping.schema.json', `${n.name} (step 1 passes)`)
     check(a.body.card.body.anchor !== a.body.self, `${n.name}: step 5 (card.anchor != self) is the failing check`)
     macCheck(`${n.name}: MACs over the MUTATED body verify (steps 1–4a pass)`, a.body, a.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
+  } else if (n.name === 'mapping-card-1') {
+    schemaFails(a, 'visibility-anchor-mapping.schema.json', n.name)
+    check(a.body.type === 'anchor-mapping@4' && a.body.card.body.type === 'self-card@1' && !('commit' in a.body.card.body) && verifyRaw(a.body.card.body.anchor, Buffer.from(jcs(a.body.card.body), 'utf8'), a.body.card.proof.proofValue), `${n.name}: a genuine self-card@1 (no commit) inside anchor-mapping@4 — step 1 rejects it`)
+    macCheck(`${n.name}: the MACs over this body verify — only the card version rejects it`, a.body, a.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
   } else if (n.name === 'mapping-lineage-not-ending-at-self') {
     schemaOK(a, 'visibility-anchor-mapping.schema.json', `${n.name} (step 1 passes)`)
     check(verifyRaw(a.body.card.body.anchor, Buffer.from(jcs(a.body.card.body), 'utf8'), a.body.card.proof.proofValue) && a.body.card.body.anchor === a.body.self, `${n.name}: steps 4 and 5 hold on their own`)
-    check(a.body.lineage.every((r) => rotationOK(r)) && a.body.lineage.at(-1).body.next !== a.body.self && !lineageOK(a.body.lineage, a.body.self), `${n.name}: step 4a fails only at "the last next equals self"`)
+    check(a.body.lineage.every((r) => rotationOK(r)) && commitOf(a.body.lineage[0].body.next) === A.selfCard.body.commit && a.body.lineage.at(-1).body.next !== a.body.self && !lineageOK(a.body.lineage, a.body.self), `${n.name}: step 4a fails only at "the last next equals self"`)
     check(hmacU(hkdf(ecdhRaw(selfX, xRawOfMk(P.B.mk)), 'rltp/visibility/mac/map2'), jcs(a.body)) === a.proof.mac2, `${n.name}: the MACs over the mutated body verify — only the lineage rejects it`)
+  } else if (n.name === 'mapping-lineage-binding-broken') {
+    schemaOK(a, 'visibility-anchor-mapping.schema.json', `${n.name} (step 1 passes)`)
+    const [e0, e1] = a.body.lineage
+    check(a.body.lineage.length === 2 && a.body.lineage.every((r) => rotationOK(r)) && e1.body.prev === e0.body.next && e1.body.next === a.body.self && a.body.card.body.anchor === a.body.self && verifyRaw(a.body.self, Buffer.from(jcs(a.body.card.body), 'utf8'), a.body.card.proof.proofValue), `${n.name}: both elements verify, the chain links and ends at self, the card verifies under self`)
+    check(commitOf(e0.body.next) === A.selfCard.body.commit && commitOf(e1.body.next) !== e0.body.commit && !lineageOK(a.body.lineage, a.body.self), `${n.name}: step 4a passes, step 4b fails at the binding alone — the second next does not meet the commit of the first`)
+    const fX = hkdf(Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64)), 'rltp/anchor/x/' + V.self.label + '/3')
+    macCheck(`${n.name}: mac1 under the pair key verifies`, a.body, a.proof.mac1, P.A.x, P.B.mk, 'rltp/visibility/mac/map1')
+    check(hmacU(hkdf(ecdhRaw(fX, xRawOfMk(P.B.mk)), 'rltp/visibility/mac/map2'), jcs(a.body)) === a.proof.mac2, `${n.name}: mac2 under the foreign generation 3 verifies — only the binding rejects it`)
   } else if (n.name === 'mapping-lineage-65') {
     schemaFails(a, 'visibility-anchor-mapping.schema.json', n.name)
-    check(a.body.lineage.length === LINEAGE_MAX + 1 && a.body.lineage.every((r, i) => rotationOK(r) && (i === 0 || r.body.prev === a.body.lineage[i - 1].body.next)) && a.body.lineage.at(-1).body.next === a.body.self, `${n.name}: a genuine chain ending at self — only the bound of 64 rejects it`)
+    check(a.body.lineage.length === LINEAGE_MAX + 1 && a.body.lineage.every((r, i) => rotationOK(r) && (i === 0 || (r.body.prev === a.body.lineage[i - 1].body.next && commitOf(r.body.next) === a.body.lineage[i - 1].body.commit))) && a.body.lineage.at(-1).body.next === a.body.self, `${n.name}: a genuine chain with its bindings, ending at self — only the bound of 64 rejects it`)
   } else if (n.name === 'legacy-version-2') {
     check(a.body.type === 'anchor-mapping@2', `${n.name}: anchor-mapping@2 is rejected like @1 (2.1 rejection before crypto)`)
+    schemaFails(a, 'visibility-anchor-mapping.schema.json', n.name)
+  } else if (n.name === 'legacy-version-3') {
+    check(a.body.type === 'anchor-mapping@3' && a.body.card.body.type === 'self-card@1', `${n.name}: anchor-mapping@3 (card @1) is rejected (2.1 rejection before crypto)`)
     schemaFails(a, 'visibility-anchor-mapping.schema.json', n.name)
   } else if (n.name === 'probe-shape-255') schemaFails(a, 'visibility-continuity-probe.schema.json', n.name)
   else if (n.name === 'reply-wrong-request-digest') {
@@ -1162,8 +1216,8 @@ for (const n of V.negative) {
   else err(`unknown negative ${n.name}`)
 }
 
-// ── suite 4a: anchor-rotation.json — the community anchor's rotation (Visibility 0.30 §6.5) ──
-section('anchor-rotation.json — anchor-rotation@1: a key-chain link signed by both keys')
+// ── suite 4a: anchor-rotation.json — the community anchor's rotation with its binding (Trust 0.31 §6.5, Identity 0.54 §5.4) ──
+section('anchor-rotation.json — anchor-rotation@2: a key-chain link signed by both keys, bound in advance')
 {
   const RT = J('vectors/anchor-rotation.json')
   check(RT.community.genesisDigest === ID.genesisDigestSample, 'anchor-rotation: the community of visibility.json (the genesis digest sample)')
@@ -1172,11 +1226,23 @@ section('anchor-rotation.json — anchor-rotation@1: a key-chain link signed by 
     check(p.label === label && didOf(hkdf(IKM, 'rltp/anchor/ed/' + label)) === p.anchor && mkOf(hkdf(IKM, 'rltp/anchor/x/' + label)) === p.keyAgreement, `anchor-rotation: generation ${g} derives from ${g === '1' ? 'group/<D>' : 'group/<D>/' + g}`)
   }
   const G = RT.community.generations
-  const NC = RT.newCommunity
-  check(mhU(Buffer.from(NC.preimage, 'ascii')) === NC.genesisDigest && NC.generation1.label === 'group/' + NC.genesisDigest && didOf(hkdf(IKM, 'rltp/anchor/ed/' + NC.generation1.label)) === NC.generation1.anchor, 'anchor-rotation: the new personal community is generation 1 of another digest, same seed (Identity 9.3)')
+  for (const [g, b] of Object.entries(RT.community.bindings)) {
+    const mk = multikeyOf(G[g].anchor)
+    check(b.anchor === G[g].anchor && b.label === G[g].label && b.multikeyBytes === mk.toString('hex') && b.sha256 === sha(mk).toString('hex') && b.commit === commitOf(G[g].anchor) && b.commit.length === 47, `binding over generation ${g}: u + base64url(0x12 0x20 || SHA-256(0xed 0x01 || key)) recomputes`)
+  }
+  const IKM2R = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
+  const F = RT.foreignGenerations
+  for (const g of ['3', '4']) check(F[g].label === `group/${RT.community.genesisDigest}/${g}` && didOf(hkdf(IKM2R, 'rltp/anchor/ed/' + F[g].label)) === F[g].anchor && F[g].commit === commitOf(F[g].anchor) && F[g].anchor !== G[g].anchor, `foreign generation ${g}: group/<D>/${g} under the second-party IKM — another key`)
+  schemaOK(RT.card, 'visibility-self-card.schema.json', 'anchor-rotation: the generation-1 card (self-card@2)')
+  check(RT.card.body.anchor === G['1'].anchor && RT.card.body.commit === RT.community.bindings['2'].commit && verifyRaw(G['1'].anchor, Buffer.from(jcs(RT.card.body), 'utf8'), RT.card.proof.proofValue), 'anchor-rotation: the generation-1 card commits to generation 2, signed under generation 1')
+  const byName = Object.fromEntries(RT.valid.map((v) => [v.name, v]))
+  const heldOf = (h) => (h.from === 'card' ? RT.card.body.commit : byName[h.from].artifact.body.commit)
   for (const v of RT.valid) {
     schemaOK(v.artifact, 'visibility-anchor-rotation.schema.json', `anchor-rotation ${v.name}`)
     check(v.artifact.body.prev === didOf(hkdf(IKM, 'rltp/anchor/ed/' + v.prevLabel)) && v.artifact.body.next === didOf(hkdf(IKM, 'rltp/anchor/ed/' + v.nextLabel)) && rotationOK(v.artifact), `anchor-rotation ${v.name}: ${v.prevLabel.slice(-12)} → ${v.nextLabel.slice(-12)}, proofValue under prev, successorProofValue under next`)
+    check(heldOf(v.heldBinding) === v.heldBinding.commit && commitOf(v.artifact.body.next) === v.heldBinding.commit, `anchor-rotation ${v.name}: the binding over next equals the binding held for prev (from ${v.heldBinding.from})`)
+    const nextG = Object.keys(G).find((g) => G[g].anchor === v.artifact.body.next)
+    check(v.artifact.body.commit === RT.community.bindings[String(+nextG + 1)].commit, `anchor-rotation ${v.name}: commit = the binding over generation ${+nextG + 1}, the generation after next`)
   }
   for (const n of RT.negative) {
     const a = n.artifact
@@ -1191,6 +1257,13 @@ section('anchor-rotation.json — anchor-rotation@1: a key-chain link signed by 
     } else if (n.name === 'prev-equals-next') {
       schemaOK(a, 'visibility-anchor-rotation.schema.json', `${n.name} (schema passes)`)
       check(a.body.prev === a.body.next && verifyRaw(a.body.prev, bytes, a.proof.proofValue) && verifyRaw(a.body.next, bytes, a.proof.successorProofValue) && !rotationOK(a), `${n.name}: both signatures genuine, next ≠ prev rejects it`)
+    } else if (n.name === 'binding-mismatch') {
+      schemaOK(a, 'visibility-anchor-rotation.schema.json', `${n.name} (schema passes)`)
+      check(rotationOK(a) && a.body.prev === G['2'].anchor && a.body.next === F['3'].anchor, `${n.name}: generation 2 → the foreign generation 3, both signatures genuine`)
+      check(heldOf(n.heldBinding) === n.heldBinding.commit && commitOf(a.body.next) !== n.heldBinding.commit && commitOf(G['3'].anchor) === n.heldBinding.commit, `${n.name}: the binding over next misses the binding held for generation 2 — rejected; only generation 3 of the same seed meets it`)
+    } else if (n.name === 'commit-missing') {
+      schemaFails(a, 'visibility-anchor-rotation.schema.json', n.name)
+      check(!('commit' in a.body) && a.body.type === 'anchor-rotation@2' && verifyRaw(a.body.prev, bytes, a.proof.proofValue) && verifyRaw(a.body.next, bytes, a.proof.successorProofValue) && !rotationOK(a), `${n.name}: both signatures genuine, the required commit is missing`)
     } else err(`unknown anchor-rotation negative ${n.name}`)
   }
 }
@@ -1359,8 +1432,8 @@ section('group-star.json — k_g, k_e(G), blinded digests, sealed group pairs, f
   }
 }
 
-// ── suite 4c: access-anchor-rotate.json — anchor.rotate (Access 0.56 §5.6) ──
-section('access-anchor-rotate.json — the lineage entry of the personal community (RLTP-ACC-5950 … 5970)')
+// ── suite 4c: access-anchor-rotate.json — anchor.rotate (Access 0.57 §5.6) ──
+section('access-anchor-rotate.json — the lineage entry of the personal community (validity RLTP-ACC-5950 … 5962, canonicity 5965 … 5968, 5970)')
 {
   const AR = J('vectors/access-anchor-rotate.json')
   const { materializeRotations } = await import('./access-anchor-rotate.mjs')
@@ -1368,10 +1441,26 @@ section('access-anchor-rotate.json — the lineage entry of the personal communi
   const fLabel = 'pair/' + mhU(Buffer.from(PC.founderRelationshipNonce, 'hex'))
   check(fLabel === PC.founder.label && didOf(hkdf(IKM, 'rltp/anchor/ed/' + fLabel)) === PC.founder.anchor, 'the founder is a fresh pair context of the holder (RLTP-ACC-3275)')
   const gen = AR.operations.genesis
-  check(mhU(opInput(gen)) === PC.genesisDigest && gen.body.members.length === 1 && gen.body.members[0] === PC.founder.anchor && gen.author === PC.founder.anchor, 'personal community: genesis digest over the signature input; the founding pair anchor is the sole member — never the community anchor (Identity 0.52 §2)')
+  check(mhU(opInput(gen)) === PC.genesisDigest && gen.body.members.length === 1 && gen.body.members[0] === PC.founder.anchor && gen.author === PC.founder.anchor, 'personal community: genesis digest over the signature input; the founding pair anchor is the sole member — never the community anchor (Identity 0.54 §2)')
   for (const [g, p] of Object.entries(PC.generations)) {
     const label = g === '1' ? 'group/' + PC.genesisDigest : `group/${PC.genesisDigest}/${g}`
     check(p.label === label && didOf(hkdf(IKM, 'rltp/anchor/ed/' + label)) === p.anchor, `personal community: community anchor generation ${g}`)
+  }
+  const IKM2A = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
+  for (const [g, p] of Object.entries(PC.foreignGenerations)) check(didOf(hkdf(IKM2A, 'rltp/anchor/ed/' + `group/${PC.genesisDigest}/${g}`)) === p.anchor && p.anchor !== PC.generations[g]?.anchor, `personal community: generation ${g} under the second-party IKM, a key of another seed`)
+  for (const [g, p] of Object.entries(PC.newCommunity.generations)) {
+    const label = g === '1' ? 'group/' + PC.newCommunity.genesisDigest : `group/${PC.newCommunity.genesisDigest}/${g}`
+    check(mhU(Buffer.from(PC.newCommunity.preimage, 'ascii')) === PC.newCommunity.genesisDigest && didOf(hkdf(IKM, 'rltp/anchor/ed/' + label)) === p.anchor, `another personal community of the same seed: generation ${g}`)
+  }
+  for (const [g, c] of Object.entries(PC.bindings)) check(commitOf(PC.generations[g].anchor) === c, `the binding over generation ${g}: sha2-256 multihash over its multikey bytes (Identity 5.4)`)
+  for (const [label, op] of Object.entries(AR.operations)) if (op.op === 'anchor.rotate' && label !== 'rot2bad') check(rotationLogOK(op.body.rotation), `${label}: anchor-rotation@2 under the envelope's $defs/anchorRotation, both signatures verify`)
+  check(!rotationLogOK(AR.operations.rot2bad.body.rotation), 'rot2bad: the successor signature does not verify (RLTP-ACC-5956)')
+  {
+    const O = AR.operations
+    const at = (l) => O[l].body.rotation.body
+    check(at('rot2').commit === PC.bindings['3'] && at('rot3').prev === at('rot2').next && commitOf(at('rot3').next) === at('rot2').commit && at('rot3').commit === PC.bindings['4'], 'chain 1 → 2 → 3: each commit is the binding over the generation after next; the prev of 2 → 3 is the next of 1 → 2 (RLTP-ACC-5958), its next meets the commit of 1 → 2 (RLTP-ACC-5960)')
+    for (const l of ['rot4skip', 'rotNewCommunity', 'rot3foreign']) check(at(l).prev === at('rot2').next && commitOf(at(l).next) !== at('rot2').commit, `${l}: prev is the head's next (RLTP-ACC-5958), but next misses the head's commit (RLTP-ACC-5960)`)
+    check(at('rot3prevBreak').prev !== at('rot2').next && commitOf(at('rot3prevBreak').next) === at('rot2').commit, "rot3prevBreak: next meets the head's commit (RLTP-ACC-5960), but prev is not the head's next (RLTP-ACC-5958)")
   }
   check(!gen.body.members.includes(PC.generations['1'].anchor), 'the community anchor is not a member of its personal community')
   for (const [label, op] of Object.entries(AR.operations)) {
@@ -1384,8 +1473,13 @@ section('access-anchor-rotate.json — the lineage entry of the personal communi
   check(jcs(Object.keys(AR.operations.rot2.body)) === jcs(['rotation']), 'the body of anchor.rotate is exactly { rotation } (RLTP-ACC-5955)')
   schemaFails({ ...AR.operations.rot2, body: { lineage: AR.operations.rot2.body.rotation } }, 'access-operation-envelope.schema.json', 'anchor.rotate with a body field other than rotation')
   schemaFails({ ...AR.operations.rot2, body: { rotation: AR.operations.rot2.body.rotation, note: 'x' } }, 'access-operation-envelope.schema.json', 'anchor.rotate with an extra body field')
+  {
+    const { commit, ...v1Body } = AR.operations.rot2.body.rotation.body
+    schemaFails({ ...AR.operations.rot2, body: { rotation: { ...AR.operations.rot2.body.rotation, body: v1Body } } }, 'access-operation-envelope.schema.json', 'anchor.rotate whose rotation lacks commit (anchor-rotation@2 requires it)')
+    schemaFails({ ...AR.operations.rot2, body: { rotation: { ...AR.operations.rot2.body.rotation, body: { ...v1Body, type: 'anchor-rotation@1' } } } }, 'access-operation-envelope.schema.json', 'anchor.rotate carrying an anchor-rotation@1')
+  }
   for (const c of AR.cases) {
-    const got = await materializeRotations(c.ops.map((l) => ({ label: l, ...AR.operations[l] })), rotationOK)
+    const got = await materializeRotations(c.ops.map((l) => ({ label: l, ...AR.operations[l] })), rotationLogOK, commitOf)
     check(jcs(got) === jcs(c.expect), `case ${c.name}: ${Object.entries(c.expect.status).map(([l, s]) => `${l} ${s}`).join(', ')}${c.expect.repeat.length ? `; repeat ${c.expect.repeat.join(', ')}` : ''}; chain [${c.expect.chain.join(' → ')}]; ${c.expect.state.terminal ? 'terminal' : 'state unchanged'} [${c.rules.join(', ')}]`)
   }
 }
@@ -1852,17 +1946,17 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the cases review 3 added are all present')
 }
 
-// ── suite: membership-tasks.json — Membership Tasks 0.18 from a real genesis ──
+// ── suite: membership-tasks.json — Membership Tasks 0.19 from a real genesis ──
 // Every check that proves a Membership rule names it (checkR, `rules` of
 // the vector cases); `--coverage membership` prints the proven set.
-section('membership-tasks.json — Membership Tasks 0.18: genesis → invite → accept → welcome → member.add, evidence, re-welcome')
+section('membership-tasks.json — Membership Tasks 0.19: genesis → invite → accept → welcome → member.add, evidence, re-welcome')
 {
   const M = J('vectors/membership-tasks.json')
   const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
   const P = 'https://real-life.org/trust-tasks/'
   const VF = 'failed(validation-failed)'
   const MEMBERSHIP_SKEW = 300 // PT5M (RLTP-MT-5020)
-  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.18.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
+  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.19.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
   const ptr = (p) => p.split('/').slice(1).map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'))
   const mutate = (base, m) => {
     const doc = JSON.parse(JSON.stringify(base))
@@ -1900,7 +1994,7 @@ section('membership-tasks.json — Membership Tasks 0.18: genesis → invite →
   const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'vouchPositives', 'inviteeNegatives', 'inviteePositives', 'inviteReceiptCases', 'sealCases', 'senderSealCases', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives']
   const allCases = caseLists.flatMap((l) => M[l])
   const named = (c) => [...(c.rules ?? []), ...Object.keys(c.rulesPartial ?? {})]
-  check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.18.txt`)
+  check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.19.txt`)
   check(allCases.every((c) => c.rules.every((r) => !PARTIAL[r]) && Object.keys(c.rulesPartial ?? {}).every((r) => PARTIAL[r] === c.rulesPartial[r])), 'no case names a partially checked rule in `rules`; every rulesPartial entry states the obligation left unchecked')
 
   // ── the genesis: a real one, its digest the group identity ──────────────

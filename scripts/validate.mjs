@@ -74,6 +74,160 @@ try {
   ok('seal vector reproduces byte-for-byte (JCS, X25519, HKDF, AES-GCM, multihash digest)')
 } catch (e) { err(`seal vector: ${e.message}`) }
 
+// ── 3a. The profile@1 vector reproduces byte-for-byte (Trust Layer §6b) ──
+// k_pr and mac recomputed with node:crypto from the oracle IKM and the pair
+// contexts of vectors/visibility.json (scripts/gen-profile-vector.mjs); the
+// positive passes its schema, every negative fails as it declares. The
+// pixel bound (6435, 6475) is checked from the encoded header alone, before
+// any decoding: WebP (VP8, VP8L, VP8X — canvas and frame, both bounded)
+// and JPEG (SOFn); unreadable = reject.
+try {
+  const { createHmac } = await import('node:crypto')
+  const pv = parsed['vectors/profile.json'], vis = parsed['vectors/visibility.json']
+  const ikm = Buffer.from(parsed['vectors/identity-derivation.json'].rootIkm, 'hex')
+  const xKey = (name) => {
+    const p = vis.parties[name]
+    const label = 'pair/u' + b64u(Buffer.concat([Buffer.from([0x12, 0x20]), createHash('sha256').update(Buffer.from(p.relationshipNonce, 'hex')).digest()]))
+    if (label !== p.label) throw new Error(`party ${name}: label is not pair/<multihash(nonce)>`)
+    return createPrivateKey({ key: pkcs8(Buffer.from(hkdfSync('sha256', ikm, Buffer.alloc(0), 'rltp/anchor/x/' + label, 32))), format: 'der', type: 'pkcs8' })
+  }
+  const ikmOf = (s, r) => diffieHellman({ privateKey: xKey(s), publicKey: createPublicKey(xKey(r)) })
+  const macU = (s, r, info, preimage) => 'u' + b64u(createHmac('sha256', Buffer.from(hkdfSync('sha256', ikmOf(s, r), Buffer.alloc(0), info, 32))).update(Buffer.from(preimage, 'utf8')).digest())
+  const { sender: S, recipient: R, body } = pv.inputs
+  for (const p of [S, R]) if (jcs({ ...vis.parties[p.party], party: p.party }) !== jcs(p)) throw new Error(`party ${p.party} differs from vectors/visibility.json`)
+  const info = `rltp/visibility/mac/profile/${S.anchor}/${R.anchor}`
+  const shared = ikmOf(S.party, R.party)
+  if (shared.every((x) => x === 0)) throw new Error('all-zero shared secret')
+  if ('u' + b64u(shared) !== pv.intermediate.sharedSecret) throw new Error('shared secret mismatch')
+  if (info !== pv.intermediate.info) throw new Error('info string mismatch')
+  if ('u' + b64u(Buffer.from(hkdfSync('sha256', shared, Buffer.alloc(0), info, 32))) !== pv.intermediate.kpr) throw new Error('HKDF k_pr mismatch')
+  if (jcs(body) !== pv.intermediate.preimage || jcs(pv.output.profile.body) !== jcs(body)) throw new Error('JCS preimage mismatch')
+  const mac = macU(S.party, R.party, info, jcs(body))
+  if (mac !== pv.output.profile.proof.mac) throw new Error('mac mismatch')
+  const validate = validators[parsed['schemas/trust-profile.schema.json'].$id]
+  if (!validate(pv.output.profile)) throw new Error(`positive fails trust-profile.schema.json: ${ajv.errorsText(validate.errors)}`)
+  const img = Buffer.from(body.image.split(',')[1], 'base64')
+  if (img.subarray(0, 4).toString() !== 'RIFF' || img.subarray(8, 12).toString() !== 'WEBP' || img.readUInt32LE(4) + 8 !== img.length) throw new Error('image is not a well-formed RIFF/WEBP')
+  // picture dimensions from the encoded header, no decoding (6475); null = unreadable
+  const headerDims = (uri) => {
+    const [, mt] = /^data:(image\/(?:jpeg|webp));base64,/.exec(uri) ?? []
+    const b = Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64')
+    if (mt === 'image/webp') {
+      if (b.length < 30 || b.subarray(0, 4).toString() !== 'RIFF' || b.subarray(8, 12).toString() !== 'WEBP' || b.readUInt32LE(4) + 8 !== b.length) return null
+      // the frame of a VP8L or VP8 chunk at offset o (its payload at o + 8)
+      const frame = (o) => {
+        const fourcc = b.subarray(o, o + 4).toString(), p = o + 8
+        if (fourcc === 'VP8L' && p + 5 <= b.length && b[p] === 0x2f) { const v = b.readUInt32LE(p + 1); return { width: (v & 0x3fff) + 1, height: ((v >>> 14) & 0x3fff) + 1 } }
+        if (fourcc === 'VP8 ' && p + 10 <= b.length && b[p + 3] === 0x9d && b[p + 4] === 0x01 && b[p + 5] === 0x2a) return { width: b.readUInt16LE(p + 6) & 0x3fff, height: b.readUInt16LE(p + 8) & 0x3fff }
+        return null
+      }
+      if (b.subarray(12, 16).toString() !== 'VP8X') return frame(12)
+      // VP8X carries two declarations: the canvas in its own chunk and the
+      // frame in the VP8/VP8L chunk that follows; both are read (6475). An
+      // animation (flag bit 1, ANIM/ANMF) is not a single still picture.
+      if (b.readUInt32LE(16) !== 10 || (b[20] & 0x02)) return null
+      const canvas = { width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1 }
+      for (let o = 30; o + 8 <= b.length; o += 8 + b.readUInt32LE(o + 4) + (b.readUInt32LE(o + 4) & 1)) {
+        const fourcc = b.subarray(o, o + 4).toString()
+        if (fourcc === 'ANIM' || fourcc === 'ANMF') return null
+        if (fourcc === 'VP8L' || fourcc === 'VP8 ') { const f = frame(o); return f === null ? null : { canvas, frame: f } }
+      }
+      return null
+    }
+    if (mt === 'image/jpeg') {
+      if (b[0] !== 0xff || b[1] !== 0xd8) return null
+      for (let i = 2; i + 9 <= b.length;) {
+        if (b[i] !== 0xff) return null
+        const m = b[i + 1], len = b.readUInt16BE(i + 2)
+        if (m >= 0xc0 && m <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(m)) return { width: b.readUInt16BE(i + 7), height: b.readUInt16BE(i + 5) }
+        i += 2 + len
+      }
+    }
+    return null
+  }
+  const within = (d) => d.width >= 1 && d.height >= 1 && d.width <= 1024 && d.height <= 1024
+  const dimsOk = (d) => d !== null && (d.canvas ? within(d.canvas) && within(d.frame) : within(d))
+  const posDims = headerDims(body.image)
+  if (!dimsOk(posDims) || jcs(posDims) !== jcs(pv.inputs.dimensions)) throw new Error(`positive image header declares ${jcs(posDims)}, not ${jcs(pv.inputs.dimensions)} within 1024 × 1024`)
+  for (const n of pv.negatives) {
+    if (n.wrongMac) {
+      const [s, r] = n.sender ? [n.sender, n.recipient] : [S.party, R.party]
+      if (n.info === info || macU(s, r, n.info, jcs(body)) !== n.wrongMac || n.wrongMac === mac) throw new Error(`negative ${n.name}: the wrong key does not reproduce or coincides with k_pr`)
+      continue
+    }
+    const a = n.artifact ?? (() => { const d = structuredClone(pv.output.profile); d.body[n.mutate.pointer.split('/').at(-1)] = n.mutate.prefix + n.mutate.repeat.char.repeat(n.mutate.repeat.count); return d })()
+    if (n.expect === 'reject: mac' && (!validate(a) || macU(S.party, R.party, info, jcs(a.body)) === a.proof.mac)) throw new Error(`negative ${n.name}: not a schema-valid artifact whose mac fails`)
+    if (n.expect === 'reject: schema' && validate(a)) throw new Error(`negative ${n.name}: passes the schema`)
+    if (n.expect === 'reject: dimensions') {
+      if (!validate(a) || macU(S.party, R.party, info, jcs(a.body)) !== a.proof.mac) throw new Error(`negative ${n.name}: not a schema-valid, mac-valid artifact`)
+      const d = headerDims(a.body.image)
+      if (d === null || jcs(d) !== jcs(n.dimensions) || dimsOk(d)) throw new Error(`negative ${n.name}: header declares ${jcs(d)}, not ${jcs(n.dimensions)} beyond 1024 × 1024`)
+    }
+    if (!['reject: mac', 'reject: schema', 'reject: dimensions'].includes(n.expect)) throw new Error(`negative ${n.name}: unknown expectation ${n.expect}`)
+  }
+  ok(`profile vector reproduces byte-for-byte (X25519, HKDF k_pr, JCS, HMAC mac); schema-valid; header dimensions within 1024 × 1024; ${pv.negatives.length} negatives fail as declared`)
+} catch (e) { err(`profile vector: ${e.message}`) }
+
+// ── 3b. The pre-rotation bindings reproduce byte-for-byte (Identity 5.4, Trust 6.5) ──
+// commit(g) = "u" || base64url(0x12 0x20 || SHA-256(0xed 0x01 || Ed25519
+// public key of generation g)): the multikey bytes are exactly the bytes
+// the did:key identifier encodes after its "z" (Identity 8.1). Every key
+// is re-derived from the oracle IKM (HKDF(IKM, "rltp/anchor/ed/" || label)),
+// every binding recomputed, and every commit the anchor vectors carry
+// checked against the generation it names.
+try {
+  const ar = parsed['vectors/anchor-rotation.json'], vis = parsed['vectors/visibility.json']
+  const ikm = Buffer.from(parsed['vectors/identity-derivation.json'].rootIkm, 'hex')
+  const ikm2 = Buffer.from(hkdfSync('sha256', ikm, Buffer.alloc(0), 'rltp/vector/second-party-root-ikm', 64))
+  const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+  const b58 = (b) => { let n = BigInt('0x' + b.toString('hex')), s = ''; while (n > 0n) { s = B58[Number(n % 58n)] + s; n /= 58n } for (const x of b) { if (x === 0) s = '1' + s; else break } return s }
+  const edPkcs8 = (seed) => Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed])
+  const multikey = (root, label) => {
+    const seed = Buffer.from(hkdfSync('sha256', root, Buffer.alloc(0), 'rltp/anchor/ed/' + label, 32))
+    const spki = createPublicKey(createPrivateKey({ key: edPkcs8(seed), format: 'der', type: 'pkcs8' })).export({ format: 'der', type: 'spki' })
+    return Buffer.concat([Buffer.from([0xed, 0x01]), spki.subarray(spki.length - 32)])
+  }
+  const commitOver = (mk) => 'u' + b64u(Buffer.concat([Buffer.from([0x12, 0x20]), createHash('sha256').update(mk).digest()]))
+  const D = ar.community.genesisDigest
+  const labelOf = (g) => (g === 1 ? `group/${D}` : `group/${D}/${g}`)
+  const did = {}, commit = {}
+  for (let g = 1; g <= 67; g++) { const mk = multikey(ikm, labelOf(g)); did[g] = 'did:key:z' + b58(mk); commit[g] = commitOver(mk) }
+  for (const [g, p] of Object.entries(ar.community.generations)) if (p.anchor !== did[g]) throw new Error(`generation ${g}: the anchor is not did:key:z || base58btc(multikey bytes)`)
+  for (const [g, b] of Object.entries(ar.community.bindings)) {
+    const mk = multikey(ikm, labelOf(+g))
+    if (b.multikeyBytes !== mk.toString('hex') || mk.length !== 34) throw new Error(`binding ${g}: multikey bytes differ`)
+    if (b.sha256 !== createHash('sha256').update(mk).digest('hex')) throw new Error(`binding ${g}: SHA-256 differs`)
+    if (b.commit !== commit[g] || b.commit.length !== 47) throw new Error(`binding ${g}: commit differs`)
+  }
+  for (const g of ['3', '4']) {
+    const mk = multikey(ikm2, labelOf(+g))
+    if (ar.foreignGenerations[g].anchor !== 'did:key:z' + b58(mk) || ar.foreignGenerations[g].commit !== commitOver(mk)) throw new Error(`foreign generation ${g}: anchor or commit differs`)
+  }
+  const gOf = (a) => { const g = Object.keys(did).find((k) => did[k] === a); return g === undefined ? null : +g }
+  // a carrier introducing generation g commits to g + 1; a rotation prev → next commits to the generation after next
+  const cardOK = (c) => c.body.commit === commit[gOf(c.body.anchor) + 1]
+  const rotOK = (r) => r.body.commit === commit[gOf(r.body.next) + 1] && gOf(r.body.next) === gOf(r.body.prev) + 1
+  if (!cardOK(ar.card) || gOf(ar.card.body.anchor) !== 1) throw new Error('the generation-1 card does not commit to generation 2')
+  for (const v of ar.valid) {
+    if (!rotOK(v.artifact)) throw new Error(`${v.name}: commit is not the binding over the generation after next`)
+    if (commit[gOf(v.artifact.body.next)] !== v.heldBinding.commit) throw new Error(`${v.name}: the binding over next is not the held binding`)
+  }
+  const mm = ar.negative.find((n) => n.name === 'binding-mismatch')
+  if (!mm || commitOver(multikey(ikm2, labelOf(3))) === mm.heldBinding.commit || mm.artifact.body.next !== ar.foreignGenerations['3'].anchor || mm.heldBinding.commit !== commit[3]) throw new Error('binding-mismatch: the held binding is not generation 3\'s, or the foreign next meets it')
+  const A = vis.artifacts
+  if (!cardOK(A.selfCard) || gOf(A.selfCard.body.anchor) !== 1) throw new Error('visibility selfCard does not commit to generation 2')
+  for (const [name, m] of [['anchorMappingRotated', A.anchorMappingRotated], ['anchorMappingGeneration3', A.anchorMappingGeneration3], ['anchorMappingLineage64', A.anchorMappingLineage64]]) {
+    if (!cardOK(m.body.card)) throw new Error(`${name}: the card does not commit to the generation after self`)
+    m.body.lineage.forEach((r, i) => {
+      if (!rotOK(r)) throw new Error(`${name}: lineage element ${i}: commit is not the binding over the generation after next`)
+      if (i > 0 && commit[gOf(r.body.next)] !== m.body.lineage[i - 1].body.commit) throw new Error(`${name}: lineage element ${i}: next misses the preceding binding`)
+    })
+  }
+  const broken = vis.negative.find((n) => n.name === 'mapping-lineage-binding-broken')?.artifact
+  if (!broken || broken.body.lineage[0].body.commit !== commit[3] || broken.body.lineage[1].body.next !== ar.foreignGenerations['3'].anchor || commitOver(multikey(ikm2, labelOf(3))) === broken.body.lineage[0].body.commit) throw new Error('mapping-lineage-binding-broken: the break is not at the binding')
+  ok('pre-rotation bindings reproduce byte-for-byte (HKDF → Ed25519 → multikey bytes 0xed 0x01 || key → sha2-256 multihash, u-encoded); every card and rotation commits to the generation after the one it introduces; the binding negatives miss it')
+} catch (e) { err(`anchor bindings: ${e.message}`) }
+
 // ── 4. Conformance fixtures: bases MUST pass, mutations MUST fail ────────
 const fx = parsed['fixtures/invalid-examples.json']
 const setPointer = (obj, ptr, val) => {
@@ -180,16 +334,19 @@ for (const f of specFiles) {
   }
 }
 
-// ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership ──
+// ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership, Trust ──
 // Always against the committed manifests conformance/encounter-rule-ids-0.31.txt,
-// conformance/access-rule-ids-0.56.txt and conformance/membership-rule-ids-0.18.txt.
-// The private rule inventory of each layer is checked additionally when
+// conformance/access-rule-ids-0.57.txt, conformance/membership-rule-ids-0.19.txt
+// and conformance/trust-rule-ids-0.31.txt. The private rule inventory of the
+// Encounter, Access and Membership layers is checked additionally when
 // present, and is REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
-// MEMBERSHIP_INVENTORY names it.
+// MEMBERSHIP_INVENTORY names it. The Trust trace runs against its manifest
+// only (the inventory is checked by hand: check-encounter-trace.mjs --layer
+// trust --inventory <file>).
 {
   const { checkTrace, resolveInventory, LAYERS } = await import('./check-encounter-trace.mjs')
-  for (const layer of ['encounter', 'access', 'membership']) {
-    const { path: inventory } = resolveInventory(process.env[LAYERS[layer].env], layer)
+  for (const layer of ['encounter', 'access', 'membership', 'trust']) {
+    const { path: inventory } = layer === 'trust' ? { path: null } : resolveInventory(process.env[LAYERS[layer].env], layer)
     const r = checkTrace({ layer, inventory })
     for (const e of r.errors) err(`${layer} trace: ${e}`)
     if (!r.errors.length) ok(`${layer} trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)

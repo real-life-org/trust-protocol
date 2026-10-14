@@ -1,13 +1,13 @@
 # RLTP Access Layer
 
-**Real Life Trust Protocol — Layer 3: Access**
+**Real Life Trust Protocol — Layer 4: Access**
 
 - **Status:** Editor's Draft
-- **Version:** 0.56.0-draft
+- **Version:** 0.57.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-07
+- **Date:** 2026-10-14
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-access@0.56` (draft). Wire forms:
+- **Conformance profile:** `rltp-access@0.57` (draft). Wire forms:
   the operation envelope `rltp-access/0.25`, key material and key
   distribution `/0.25`, the removal notice
   `rltp-access-removal-notice/0.25`, the service registration
@@ -16,15 +16,15 @@
   forms `…/1` (3.6), the vouch (`vouch@2`, 5.3) as a W3C VC in
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
-- **Companions:** RLTP Identity 0.52 (securing profile, 2.3);
-  RLTP Encounter 0.30; RLTP Delivery Contract 0.80 (normative
+- **Companions:** RLTP Identity 0.54 (securing profile, 2.3);
+  RLTP Encounter 0.31; RLTP Delivery Contract 0.81 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
-  Membership Tasks 0.18 (the task types that transport this
-  layer's admission documents); RLTP Network Visibility 0.30 (the
-  group pair, §5.2b, and the `anchor-rotation@1` artifact, §6.5).
-- **Supersedes:** version 0.55 (archived as
-  `archive/access-layer-0.55.md`). Earlier versions: Appendix C.
+  Membership Tasks 0.19 (the task types that transport this
+  layer's admission documents); RLTP Trust Layer 0.31 (the
+  group pair, §5.2b, and the `anchor-rotation@2` artifact, §6.5).
+- **Supersedes:** version 0.56 (archived as
+  `archive/access-layer-0.56.md`). Earlier versions: Appendix C.
 
 ## Status of This Document
 
@@ -807,7 +807,7 @@ disposition, a removal with authority taking effect, the
 canonical walk of the `anchor.rotate` entries over the operations
 no other disposition displaces, where an entry the walk does not visit — the loser among candidates with the same
 `prev` or among first entries, and everything only beyond it —
-stays valid but not canonical (RLTP-ACC-5965),
+stays valid but not canonical (RLTP-ACC-5965, 5968),
 and the revision of a terminality-by-emptiness verdict (5.4) —
 and nothing else; an open list would let a merge revoke an
 admission whose welcome was already delivered. Same-subject
@@ -1115,8 +1115,8 @@ the value folded last and first-bound-wins across anchors per 5.2.
 | `member.leave` ∥ `member.remove`, same subject | gone either way; the removal's transition governs (RLTP-ACC-3505) |
 | `member.leave` ∥ `member.leave` | both merge (RLTP-ACC-3510) |
 | `service-identity.announce` ∥ additive | union; folded-last per anchor (RLTP-ACC-3515) |
-| `anchor.rotate` ∥ `anchor.rotate`, same `rotation.body.prev` | JCS-identical `rotation.body`: one entry, idempotent; differing bodies: where the walk reaches them as candidates at one step (the root or a head), the smaller entry `id` is visited and canonical, the other valid but not canonical; each later choice is made at the head the walk then stands on (RLTP-ACC-5965) |
-| `anchor.rotate` ∥ `anchor.rotate`, both first entries (no canonical `anchor.rotate` in either ancestor closure), differing `rotation.body.prev` | candidates at the root: the smaller entry `id` is visited and canonical; the other is valid and canonical only if the walk later reaches it as a candidate (its `prev` equals the `next` of a visited head), otherwise valid but not canonical (RLTP-ACC-5965) |
+| `anchor.rotate` ∥ `anchor.rotate`, same `rotation.body.prev` | JCS-identical `rotation.body`: one entry, idempotent; differing bodies: where the walk reaches them as candidates at one step (the root or a head), the smaller entry `id` is visited and canonical, the other valid but not canonical; each later choice is made at the head the walk then stands on (RLTP-ACC-5965, 5966, 5968) |
+| `anchor.rotate` ∥ `anchor.rotate`, both first entries (no canonical `anchor.rotate` in either ancestor closure), differing `rotation.body.prev` | candidates at the root: the smaller entry `id` is visited and canonical; the other is valid and canonical only if the walk later reaches it as a candidate (its `prev` equals the `next` of a visited head and its `next` meets that head's `commit`), otherwise valid but not canonical (RLTP-ACC-5965, 5967, 5968) |
 | `anchor.rotate` ∥ any other non-terminal operation | both take effect; a removal of its author disposes it like every additive (RLTP-ACC-3425, 3435, 3400) |
 | `anchor.rotate` ∥ terminal operation | as every additive: the terminal operation prevails — a canonical `group.dissolve` and a last-member `member.leave` displace it (RLTP-ACC-3465, 3470) |
 
@@ -1664,7 +1664,8 @@ enforcement-prevails pairings
 (RLTP-ACC-3485, RLTP-ACC-3505), the removal disposition applied
 only by removals with authority (RLTP-ACC-3385, RLTP-ACC-3390,
 RLTP-ACC-3520), the canonical walk of `anchor.rotate` entries
-(RLTP-ACC-5965), and the terminality-by-emptiness verdict of 5.4.
+(RLTP-ACC-5966, RLTP-ACC-5968), and the terminality-by-emptiness
+verdict of 5.4.
 
 **RLTP-ACC-3825** — A `policy.change` that a concurrent
 `member.leave` renders unsatisfiable MUST NOT be reversed
@@ -2063,14 +2064,14 @@ effect, and closed body profile that the following table states.
 | `visibility.change` | enforcement | **transition, atomic** | `mode`, `transition` (Section 8) |
 | `history.expose` | additive | none | `toEpoch` (optional), `keys` (Section 8) |
 | `lineage.repair` | additive | none | `transition`, `opens` (operation ids), `ct`; valid only under `linear/0.1` (9.4.1) |
-| `document.attach` | additive | none | `document` (identifier), `dataPolicy` (Layer-4 disposition declaration) |
+| `document.attach` | additive | none | `document` (identifier), `dataPolicy` (disposition declaration of the layer above this one) |
 | `document.detach` | enforcement | **transition, atomic** | `document`, `transition` |
 | `device.add` | additive | none | `card` (the device card, 5.1); the author is the device's person |
 | `dag.join` | additive | none | empty; joins DAG heads (RLTP-ACC-3172) |
 | `device.revoke` | enforcement | **transition, atomic** | `subject` (the device's person), `device` (the digest of the revoked device card), `transition` |
 | `group.dissolve` | terminal | terminal | empty (three paths, 5.4) |
 | `service-identity.announce` | additive | none | `serviceIdentity` (5.2) |
-| `anchor.rotate` | additive | none | `rotation` (one `anchor-rotation@1` artifact, Network Visibility §6.5); valid only at a position of sole membership (5.6) |
+| `anchor.rotate` | additive | none | `rotation` (one `anchor-rotation@2` artifact, Trust Layer §6.5); valid only at a position of sole membership (5.6) |
 
 ¹ `member.leave` cannot carry a transition; it obligates one (5.4).
 ² a leave at a position of sole membership is the last-member
@@ -2360,18 +2361,17 @@ the view identity set a single point of change per transition
 identity rotation after a key compromise ride the `epoch.rotate`
 that the compromise warrants anyway.
 
-*Editor's note (device × group).* Identity 0.52 derives the service
+*Editor's note (device × group).* Identity 0.54 derives the service
 identity per person and group (Identity §7, the information string
 `rltp/v1/service-identity/` followed by the canonical genesis
-digest) and reserves the `device/` prefix for a device-level
-successor (Identity §15.1); it defines no per-device derivation. A
-byte-exact derivation for RLTP-ACC-5210 therefore awaits that
-successor, and until it exists conformance to RLTP-ACC-5210 cannot
-be claimed. The same successor decides the open half of the device
-model: device keys global across groups would let a service that
-serves several groups link them through a device, whereas device
-keys scoped to the group, or bound per group only through the
-device card, would not. This document keeps the member anchor of
+digest) and a device key per device and anchor context under the
+label `device/<name>/<context>` (Identity §5.5); it defines no
+per-device service identity (Identity §15.1).
+A byte-exact derivation for RLTP-ACC-5210 therefore awaits that
+form, and until it exists conformance to RLTP-ACC-5210 cannot be
+claimed. Because a device key is scoped to its anchor context
+(Identity §5.5), a service that serves several groups cannot link
+them through a device key. This document keeps the member anchor of
 Identity per group and leaves the device side to Identity.
 
 ### 5.3 Admission and removal
@@ -2487,9 +2487,9 @@ candidate consents to in asking for them, so the log learns the
 member anchor and nothing else; enclosed vouches count against the
 transported variant proof's caps. The candidate never needs to
 know who is a member: a member holding the verified pair surfaces
-the candidacy into the group space as Layer-4 content, and members vouch over an existing
-relationship, after meeting, or by introduction (Network
-Visibility §8). A group that wants a fallback without vouches
+the candidacy into the group space as content above this layer, and members vouch over an existing
+relationship, after meeting, or by introduction (Trust
+Layer §8). A group that wants a fallback without vouches
 writes `any[vouch(n), …]` into its policy.
 
 **Materialization accepts an admitting `member.add` only if, at its
@@ -2732,8 +2732,8 @@ its devices bound by device cards (5.1).
 *Rationale.* No privileged operation may race a removal, and a
 removed member's device is a theft target. Eviction binds for every
 way membership ends; in the terminal state replication of the group
-ends for all peers, and local holdings follow the Layer-4
-`dataPolicy`. No replica can act on a commit it has not yet seen,
+ends for all peers, and local holdings follow the
+`dataPolicy` declared at attach time. No replica can act on a commit it has not yet seen,
 and none may forward to the evicted peer after it has; a lagging
 replica must not leak around its own lag (commit-before-forward).
 The forwarding gate is a gate on authority, not on evidence: entries
@@ -2850,7 +2850,7 @@ and the newcomer inherits the open duties. A canonical
 concurrent additive branches (Section 3.6), and it is not revived.
 Dissolution ends capabilities with the group; there is no next key
 world, former members keep the last one as knowledge, services
-treat a terminal view per 7.3, and documents follow the Layer-4
+treat a terminal view per 7.3, and documents follow the
 `dataPolicy` declared at attach time.
 
 ### 5.5 The group boundary is crossed elsewhere
@@ -2858,66 +2858,86 @@ treat a terminal view per 7.3, and documents follow the Layer-4
 **RLTP-ACC-5880** — An artifact of this layer MUST NOT link a member
 anchor to any other context of its holder, the `anchor.rotate` of
 5.6 excepted. The one deliberate crossing of the group boundary is
-the group pair of Network Visibility §5.2b, which travels on the
+the group pair of Trust Layer §5.2b, which travels on the
 relationship channel of its addressee and never through a group
 space.
 
 *Rationale.* Pseudonymity of membership holds only if the crossing
 is one artifact, addressed to one person, deniable, and outside the
-group. The visibility layer owns that artifact; this layer owns the
+group. The Trust layer owns that artifact; this layer owns the
 roster the artifact points into.
 
 ### 5.6 `anchor.rotate` — the lineage entry
 
-Body: `{ "rotation": <anchor-rotation@1 artifact> }`. The artifact is
+Body: `{ "rotation": <anchor-rotation@2 artifact> }`. The artifact is
 the holder's own statement that its community anchor moved from one
 generation to the next (Identity §5.4); the log of the holder's
 personal community carries it so that the holder's own replicas,
 and later readers of that space, hold the lineage where the
-holder's state lives. It is a record, not an authority change.
+holder's state lives. It is a record, not an authority change. The
+**lineage head** of a set of operations is the last entry that the
+walk of RLTP-ACC-5965 visits over that set.
 
 **RLTP-ACC-5950** — An `anchor.rotate` MUST be valid only at a
 position where its author is the sole member.
 
 **RLTP-ACC-5955** — The body of an `anchor.rotate` MUST be exactly
-`rotation`, and `rotation` MUST verify as an `anchor-rotation@1` under
-both of its own signatures (Network Visibility §6.5) before any rule
-of this section is evaluated.
+`rotation`.
 
-**RLTP-ACC-5960** — `rotation.body.prev` MUST equal the
-`rotation.body.next` of the lineage head in the operation's
-ancestor closure, or be unconstrained where that closure holds no
-canonical `anchor.rotate`. The lineage head of a set of operations
-is the last entry the walk of RLTP-ACC-5965 visits over that set.
+**RLTP-ACC-5956** — The `rotation` of an `anchor.rotate` MUST verify
+as an `anchor-rotation@2` under both of its own signatures (Trust
+Layer §6.5) before any rule of this section other than
+RLTP-ACC-5955 is evaluated.
 
-**RLTP-ACC-5965** — The validity of an `anchor.rotate` MUST be
+**RLTP-ACC-5958** — Where the operation's ancestor closure holds a
+canonical `anchor.rotate`, `rotation.body.prev` MUST equal the
+`rotation.body.next` of the lineage head of that closure.
+
+**RLTP-ACC-5960** — Where the operation's ancestor closure holds a
+canonical `anchor.rotate`, the pre-rotation binding computed over
+`rotation.body.next` (Identity §5.4) MUST equal the `commit` of the
+lineage head of that closure.
+
+**RLTP-ACC-5962** — The validity of an `anchor.rotate` MUST be
 judged per RLTP-ACC-3325 against its own ancestor closure
-(RLTP-ACC-5950, 5955, 5960). The candidates of the walk are the valid
-`anchor.rotate` operations that no disposition of 3.6 displaces — at
-sole membership exactly these can: a concurrent canonical
-`group.dissolve` or last-member `member.leave` (RLTP-ACC-3465, 3470),
-the removal disposition of a concurrent removal of the author
-(RLTP-ACC-3400, 3525), and the forked state (RLTP-ACC-3440, 3568). An
-*entry* is a `rotation.body`: the candidates carrying JCS-identical
-`rotation.body` are one entry (idempotent, RLTP-ACC-3475), and the
-entry's `id` is the smallest `id` among them. At materialization the
-lineage MUST be walked over the operations at hand, and in no other
-way:
+(RLTP-ACC-5950, 5955, 5956, 5958, 5960).
+
+The *candidates* of the walk are the valid `anchor.rotate` operations
+that no disposition of 3.6 displaces — at sole membership exactly
+these can: a concurrent canonical `group.dissolve` or last-member
+`member.leave` (RLTP-ACC-3465, 3470), the removal disposition of a
+concurrent removal of the author (RLTP-ACC-3400, 3525), and the
+forked state (RLTP-ACC-3440, 3568). An *entry* is a `rotation.body`:
+the candidates carrying JCS-identical `rotation.body` are one entry
+(idempotent, RLTP-ACC-3475), and the entry's `id` is the smallest
+`id` among them.
+
+**RLTP-ACC-5965** — At materialization the lineage MUST be walked
+over the operations at hand in these steps, and in no other way:
 
 1. The walk starts at a virtual root. At the root the candidates are
    the *first entries*: the entries carried by a candidate whose
    ancestor closure holds no canonical `anchor.rotate`.
-2. At a chosen head the candidates are the entries, not yet visited,
-   whose `prev` equals the head's `next`.
+2. At a chosen head the candidates are the entries that
+   RLTP-ACC-5967 admits.
 3. Of the distinct candidates, the one with the smaller `id` in
    unsigned bytewise order is chosen and becomes the new head.
 4. Steps 2 and 3 repeat until no candidate remains.
 
-Exactly the visited entries MUST be canonical: every candidate
-carrying one, the one with the entry's `id` its representative and
-the others repeats with no further effect. Every other valid
-`anchor.rotate`, a displaced one included, MUST remain valid and MUST
-NOT be canonical (RLTP-ACC-3345; the pattern of RLTP-ACC-5240).
+**RLTP-ACC-5966** — Exactly the entries the walk of RLTP-ACC-5965
+visits MUST be canonical: every candidate carrying one, the one with
+the entry's `id` its representative and the others repeats with no
+further effect.
+
+**RLTP-ACC-5967** — At a chosen head of the walk of RLTP-ACC-5965, an
+entry not yet visited MUST be a candidate exactly when its `prev`
+equals the head's `next` and its `next` meets the head's `commit`
+(Identity §5.4).
+
+**RLTP-ACC-5968** — Every other valid `anchor.rotate`, a displaced
+one included, MUST NOT be canonical; its validity stays that of
+RLTP-ACC-5962, which no merge revises (RLTP-ACC-3345, 3820; the
+pattern of RLTP-ACC-5240).
 
 **RLTP-ACC-5970** — An `anchor.rotate` MUST NOT change the roster,
 the epoch, any binding of 5.1 or 5.2, any policy, or any
@@ -2926,28 +2946,66 @@ authorization view (7.3).
 **RLTP-ACC-5975** — A replica MUST NOT export an `anchor.rotate` or
 its `rotation` beyond the log (RLTP-ACC-3020); the rotation reaches
 contacts only as an element of the `lineage` of an
-`anchor-mapping@3` (Network Visibility §6.5).
+`anchor-mapping@4` (Trust Layer §6.5).
 
 *Rationale.* The community anchor is not a member of any group
 (Identity §2), so its rotation touches no card, no service
 identity, and no key; the entry needs an author with standing in
 the log, and at sole membership that is the founder's pair anchor.
 Two devices rotating apart derive the same generation to the same
-key (Identity §5.4), which is why a repeat is the ordinary
-concurrent case and a differing body is evidence of a different
-seed or a copied key. The chain carries no numbers: the order is
-`prev` to `next`, so a rotation onto a new personal community after
-a loss (Identity §9.3) is the same entry as any other. Validity
-stays a function of the ancestor closure, as everywhere in this
-layer; only canonicity is decided over the merged log, so a
-successor written on a branch that later loses keeps its validity
-and loses only its effect — the lineage head, which is what
-RLTP-ACC-5960 and the holder's mapping read. The walk decides one
-head at a time: an entry beneath a head that won its own choice can
-still lose the next one, so canonicity is "visited", never
-"reachable from a winner". The log stays
-unreadable to non-members; the contact-facing proof is the same
-artifact, re-signed by nobody, carried by the mapping.
+key and the same binding (Identity §5.4), which is why a repeat is
+the ordinary concurrent case and a differing body is evidence of a
+different seed or a copied key. The chain carries no numbers: the
+order is `prev` to `next`, and the binding fixes each step in the
+log as it does toward a contact (Trust Layer §6.3, condition 4b).
+After a lineage head, an entry is valid only if its `prev` is that
+head's `next` (RLTP-ACC-5958) and its `next` is the key that head
+committed to (RLTP-ACC-5960), so a rotation onto a skipped
+generation, onto another personal community, or onto a key of a
+copier's own fails at RLTP-ACC-5960, and the walk never moves a
+head onto an entry the head's binding does not admit
+(RLTP-ACC-5967). Two entries that follow one head therefore name the
+same `next` and differ, if at all, only in their `commit`. The first entry has no lineage head
+before it, so nothing in the log binds it; it is held to the
+binding by the contacts that hold one for its `prev` (Trust Layer
+§6.3). Validity stays a function of the ancestor closure, as
+everywhere in this layer; only canonicity is decided over the
+merged log, so a successor written on a branch that later loses
+keeps its validity and loses only its effect — the lineage head,
+which is what RLTP-ACC-5958, 5960 and the holder's mapping read. The
+walk decides one head at a time: an entry beneath a head that won its
+own choice can still lose the next one, so canonicity is "visited",
+never "reachable from a winner". The log stays unreadable to
+non-members; the contact-facing proof is the same artifact,
+re-signed by nobody, carried by the mapping.
+
+**RLTP-ACC-5980** — An `anchor.rotate` MUST be written only with a
+`rotation.body.prev` that the ancestor closure it is written over
+holds as current: the `rotation.body.next` of the lineage head of
+that closure, or, where that closure holds no canonical
+`anchor.rotate`, generation 1 of the holder's community anchor
+(Identity §5.4), the anchor of `group/<D>` with `D` the genesis
+digest (3.2) of the genesis that closure holds.
+
+*Rationale.* The label register and this log are both the holder's
+state (Identity §6.3), and they reach a device separately: the
+label of a generation can arrive before the entry that introduced
+it. A device that rotated from the register alone would write over
+an ancestor closure whose lineage head is an earlier generation, and
+its entry would fail RLTP-ACC-5958; or, over an ancestor closure
+that holds no canonical `anchor.rotate`, it would write a first
+entry from a later generation, which RLTP-ACC-5958 and 5960 leave
+unconstrained, so the log would carry a successor that no binding in
+the log holds. At the root the founding takes the place of a lineage
+head: the genesis every ancestor closure holds names the digest `D`,
+and generation 1 of `D` is the generation the self card introduced
+with its binding (Identity §5.4), so the first entry starts where
+that binding holds. A device that does not hold the lineage through
+the rotation's `prev` synchronizes first (Identity §5.4), and every
+entry after the first stays under the binding of the entry before
+it. The rule binds the writer, not validity: validity is judged
+against the ancestor closure by RLTP-ACC-5950, 5955, 5956, 5958 and
+5960 alone (RLTP-ACC-5962).
 
 
 ## 6. Actions and the Implicit Capability
@@ -4544,8 +4602,8 @@ This layer requires, and does not define:
 
 - **Delivery port:** authenticated end-to-end-encrypted delivery to
   derived identities with durable buffering and explicit
-  disposition — satisfied by the Delivery Contract (0.80), whose
-  task types for this layer are the Membership Tasks (0.18) plus the
+  disposition — satisfied by the Delivery Contract (0.81), whose
+  task types for this layer are the Membership Tasks (0.19) plus the
   two types registered below.
 - **Replication port:** convergent replication of the encrypted
   authority log and documents; deterministic merge; offline
@@ -5079,7 +5137,7 @@ idempotence, not an authority question.
 
 ## 11. Evolvability
 
-Profile `rltp-access@0.56` produces and accepts these wire forms:
+Profile `rltp-access@0.57` produces and accepts these wire forms:
 
 | Artifact | Wire version |
 |---|---|
@@ -5164,7 +5222,7 @@ group that depends on a rule introduced by a later profile can
 refuse operations under an earlier one.
 
 **RLTP-ACC-11100** — The task type `access-operation/0.1` of the
-Membership Tasks (0.18) MUST transport envelopes of version
+Membership Tasks (0.19) MUST transport envelopes of version
 `rltp-access/0.25`, and the welcome `material` that Membership §4
 carries MUST be `rltp-access-material/0.25`; a receiver MUST reject
 an envelope or a welcome material of any other version there.
@@ -5335,7 +5393,7 @@ deterministic merge; any other path to authority bypasses both.
   its person leaving (5.1), and a device card needs the signature of
   an existing device of the same person, so a stranger cannot bind a
   device to someone else's name. Under the shared-seed device model
-  of Identity 0.52 (Identity 3.2), every acting device holds its
+  of Identity 0.54 (Identity 3.2), every acting device holds its
   person's root IKM; a captured device whose seed is extracted
   yields the member anchor itself, and revoking the device does not
   revoke the seed. Recovery from a seed compromise is the Identity
@@ -5364,7 +5422,7 @@ merge into exclusion, and a hidden one leaves a member wondering why
 they read nothing. A stale runtime generation that keeps acting
 after a removal or an identity switch acts with authority nobody
 holds any more. Wiping is a security act with a data-loss failure
-mode in both directions; the Layer-4 `dataPolicy` governs it, and
+mode in both directions; the `dataPolicy` declared at attach time governs it, and
 only an explicit boundary makes it checkable.
 
 - **Time gates.** The only wall-clock checks of this layer sit at
@@ -5373,8 +5431,8 @@ only an explicit boundary makes it checkable.
   never consults a clock (RLTP-ACC-3180).
 - **Member-anchor scoping and the mapping's deniability.** A member
   anchor reused across groups voids its own pseudonymity, so 5.1's
-  scoping rule is normative, not advice. A leaked group pair (Network
-  Visibility §5.2b) proves nothing to third parties — the addressee
+  scoping rule is normative, not advice. A leaked group pair (Trust
+  Layer §5.2b) proves nothing to third parties — the addressee
   could have forged it — so a cross-group link exists as knowledge,
   never as transferable evidence; and the vouch's subject is the
   member anchor, so the log never carries the coordinate that would
@@ -5421,7 +5479,7 @@ what its service may know; nothing beyond it reaches the service
   admission enclosure — both cards, both proofs, forever in the log —
   is stated in Membership §8 and capped by its size budget, and it
   prices in group-scoped identifiers, never cross-group coordinates:
-  without a person's own group pairs (Network Visibility §5.2b), no
+  without a person's own group pairs (Trust Layer §5.2b), no
   cryptographic join key exists. After voluntary disclosures toward
   members of several groups, those members can join the person as
   knowledge, never as transferable proof; the disclosure stays a
@@ -5457,14 +5515,15 @@ Membership Tasks' document schemas, `sealed-envelope.schema.json`,
 `contact-card.schema.json`, and
 `visibility-anchor-rotation.schema.json`.
 
-**RLTP-ACC-14020** — The profile `rltp-access@0.56` MUST produce and
+**RLTP-ACC-14020** — The profile `rltp-access@0.57` MUST produce and
 accept exactly the wire forms of Section 11 and MUST be read against
-the companions RLTP Identity 0.52 (whose per-device derivation 5.2
-awaits, so conformance claims no device-level derivation), RLTP
-Encounter 0.30 (`rltp-encounter@0.30`, wire 0.25, where cards are
-consumed), RLTP Network Visibility 0.30 (`rltp-visibility@0.30`,
-the `anchor-rotation@1` of 5.6), the Delivery Contract 0.80, and the
-Membership Tasks 0.18 (`rltp-membership@0.18`), whose pins of this layer's wire forms
+the companions RLTP Identity 0.54 (whose per-device service
+identity of 5.2 awaits, so conformance claims no device-level
+service identity), RLTP
+Encounter 0.31 (`rltp-encounter@0.31`, card form `rltp-card/0.25`,
+where cards are consumed), RLTP Trust Layer 0.31 (`rltp-trust@0.31`,
+the `anchor-rotation@2` of 5.6), the Delivery Contract 0.81, and the
+Membership Tasks 0.19 (`rltp-membership@0.19`), whose pins of this layer's wire forms
 RLTP-ACC-11100 states; the two documents move together, so the
 Membership Tasks text carried in the same publication names this
 version, and the removal notice travels as
@@ -5506,7 +5565,7 @@ while B removes C.
 
 **RLTP-ACC-14060** — A vector and a conformance report MUST reference
 rules by their `RLTP-ACC` identifiers, against the identifier list
-`conformance/access-rule-ids-0.56.txt`.
+`conformance/access-rule-ids-0.57.txt`.
 
 **RLTP-ACC-14070** — Every normative statement of this document MUST
 be vector-testable or named in the state-dependent set: signal
@@ -5529,14 +5588,19 @@ in both directions.
 **Shipped vectors.**
 
 - `vectors/access-anchor-rotate.json` — `anchor.rotate` (5.6): a
-  chain; a first entry with any `prev`; a derivation skip; a
-  rotation onto a new personal community; a broken `prev`; an author
+  chain whose every `next` meets the `commit` of the lineage head; a
+  first entry with any `prev`, and a bound chain after it; rejected
+  for missing the head's binding: a derivation skip, a rotation onto
+  another personal community, and one onto a key of another seed; a
+  first entry the walk does not visit because its `next` misses the
+  binding of the head it would follow; a broken `prev`; an author
   who is not the sole member; a repeat (idempotent); two differing
   bodies with the same `prev`, the smaller `id` canonical and the
   other valid but not canonical; a delayed merge with a successor on
   the losing branch (valid, not canonical); successors on both
   branches; a successor written after the merge; a nested fork (a
-  second choice under the head that won the first); two first
+  second choice under the head that won the first, between two
+  successors differing in their `commit` alone); two first
   entries with different `prev`, one the walk never reaches and one
   it reaches as the winner's successor.
 - `vectors/dtg-credentials.json` — `vouch@2` and invite forms,
@@ -5750,8 +5814,8 @@ in both directions.
   checked, partial key sets composing to a complete union, more than
   4096 entries schema-invalid;
   publication idempotent per artifact.
-- *Candidacy carrier* — a `member.add` that cites only Layer-4
-  candidacy content fails materialization.
+- *Candidacy carrier* — a `member.add` that cites only candidacy
+  content above this layer fails materialization.
 
 
 ## 15. Open Issues
@@ -5909,6 +5973,7 @@ One line per version; the archived text of 0.4 and later is under
 | 0.54 | 2026-10-06 | Two ports: authority port and key port (KV1–KV6), adapters `linear/0.1` and `beekem/0.1`; conflict matrix without the enforcement-pair fork, concurrent removals with authority all take effect; persons in the log, devices in the key structure with device cards; service classes `blind`, `view`, `log` (`rltp-access-registration/0.27`); `keyOpDigest` (`rltp-access/0.25`); numbered rules with separate rationale; the sibling-epoch-merge open issue closed. |
 | 0.55 | 2026-10-06 | Key request by admission reference (`admission { subject, acceptDigest }`); bootstrap of a bound device without a replica; displacement record separate from the completed-effect entry; removal notice `rltp-access-removal-notice/0.25` with `issuer`; at most 16 vouches in the evidence relay, checked at receipt; only the 0.25 envelope and material accepted; Membership Tasks 0.17 pinned; schema corrections (vouch `$id`, `vouch@2` in the envelope's credentials). |
 | 0.56 | 2026-10-07 | `anchor.rotate` (5.6); `member-mapping@1` and `rltp-access-member-mapping/0.24` removed, the crossing is Network Visibility §5.2b (RLTP-ACC-5880; 5890–5940 retired); Identity 0.52, Visibility 0.30, Delivery 0.80, Membership Tasks 0.18 pinned. |
+| 0.57 | 2026-10-14 | Layer 4 in the layer model, below it the Trust Layer 0.31 (formerly Network Visibility), cited as Trust Layer §5.2b, §6.5, §8; `anchor.rotate` carries `anchor-rotation@2` (5.6), the form Trust Layer §6.5 defines; RLTP-ACC-5960 and 5967 check its pre-rotation binding against the lineage head, RLTP-ACC-5958 its predecessor, and RLTP-ACC-5980 has a device write it only over the lineage it holds, a first entry only from generation 1 of the community whose genesis its ancestor closure holds; the rules of 5.6 carry one requirement each (RLTP-ACC-5956 from 5955; 5962, 5966 and 5968 from 5965); the editor's note of 5.2 reads the device keys of Identity 0.54 §5.5; Identity 0.54, Encounter 0.31, Delivery 0.81, Membership Tasks 0.19 pinned. No other requirement changed. |
 
 
 ## References
@@ -5917,15 +5982,15 @@ One line per version; the archived text of 0.4 and later is under
 (epoch terminology) · W3C Data Integrity EdDSA Cryptosuites v1.0
 (`eddsa-jcs-2022`) · W3C Verifiable Credentials Data Model 2.0 · DTG
 Credential Specification (ToIP DTGWG, draft; EndorsementCredential)
-· **RLTP Identity 0.52** (root IKM §4, contexts and the label
+· **RLTP Identity 0.54** (root IKM §4, contexts and the label
 registry §6, the community anchor's generations §5.4, derived
-service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.30**, wire 0.25 (securing
+service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.31**, card wire 0.25 (securing
 profile 2.3, contact card §6, pair anchors §4.4) · **RLTP Delivery
-Contract 0.80 (normative)** (document profile, sealed envelope §5,
-dispositions §6) · **RLTP Membership Tasks 0.18 (normative)**
+Contract 0.81 (normative)** (document profile, sealed envelope §5,
+dispositions §6) · **RLTP Membership Tasks 0.19 (normative)**
 (document shapes §3, welcome seal §4, timing §5) · **RLTP Replication
-Contract** (replication port, service targets) · **RLTP Network
-Visibility 0.30** (§2.1 wire conventions, §3 audience classes,
+Contract** (replication port, service targets) · **RLTP Trust
+Layer 0.31** (§2.1 wire conventions, §3 audience classes,
 §5.2b group pair, §6 mapping construction and §6.5 anchor rotation,
 §6a convergence net, §8 introduction act) ·
 Keyhive / BeeKEM design documents (causal encryption; ePrint

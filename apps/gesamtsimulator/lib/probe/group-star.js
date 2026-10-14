@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // group-star — the sender's groups, blinded to every contact, sealed to
-// the chosen ones (Network Visibility 0.30 §5.2b, task group-star/0.1).
+// the chosen ones (Trust Layer 0.31 §5.2b, task group-star/0.1).
 //
 // Pure constructions over identity Contexts; entropy (AEAD nonces,
 // filler) comes from the CALLER's `rand`, so the vectors replay.
@@ -45,7 +45,7 @@ const shared = async (own, peerKeyAgreement) => {
         throw new Error('peer key agreement is not a multikey');
     const sh = await ecdh(own.x.priv, x);
     if (sh.every((b) => b === 0))
-        throw new Error('all-zero shared secret (Visibility §2.1)'); // rejected before key derivation
+        throw new Error('all-zero shared secret (Trust §2.1)'); // rejected before key derivation
     return sh;
 };
 /** k_g of one direction: `sender` and `recipient` are the two pair anchors, salt in its wire string form. */

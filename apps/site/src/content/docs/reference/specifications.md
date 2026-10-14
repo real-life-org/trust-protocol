@@ -12,11 +12,11 @@ beside them.
 |---|---|
 | [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) | Layer 1 |
 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | Layer 2 |
-| [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | Layer 3 |
-| [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | Layer 3, transport of membership changes |
+| [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) | Layer 3 |
+| [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | Layer 4 |
+| [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | Layer 4, transport of membership changes |
 | [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) | Service behind a port |
 | [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) | Service behind a port |
-| [Network Visibility](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md) | Cross-cutting |
 | [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md) | Cross-cutting |
 | [VTI mediator adapter](https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md) | Delivery profile |
 | [Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md) | Parked draft |

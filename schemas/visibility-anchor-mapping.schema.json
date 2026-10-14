@@ -22,7 +22,7 @@
       ],
       "properties": {
         "type": {
-          "const": "anchor-mapping@3"
+          "const": "anchor-mapping@4"
         },
         "pair": {
           "type": "string",
@@ -51,11 +51,12 @@
               "required": [
                 "type",
                 "anchor",
-                "keyAgreement"
+                "keyAgreement",
+                "commit"
               ],
               "properties": {
                 "type": {
-                  "const": "self-card@1"
+                  "const": "self-card@2"
                 },
                 "anchor": {
                   "type": "string",
@@ -64,6 +65,11 @@
                 "keyAgreement": {
                   "type": "string",
                   "pattern": "^z6LS[1-9A-HJ-NP-Za-km-z]{44}$"
+                },
+                "commit": {
+                  "type": "string",
+                  "pattern": "^u[A-Za-z0-9_-]{45}[AQgw]$",
+                  "description": "the pre-rotation binding to the next generation of the community anchor named in anchor (generation g + 1 of the same digest): u + base64url (unpadded) of the sha2-256 multihash (0x12 0x20 || 32 digest bytes) over the multikey bytes of that generation's Ed25519 public key, 0xed 0x01 || 32 key bytes (Identity 5.4, 8.1)"
                 }
               }
             },
@@ -99,11 +105,12 @@
                 "required": [
                   "type",
                   "prev",
-                  "next"
+                  "next",
+                  "commit"
                 ],
                 "properties": {
                   "type": {
-                    "const": "anchor-rotation@1"
+                    "const": "anchor-rotation@2"
                   },
                   "prev": {
                     "type": "string",
@@ -113,7 +120,12 @@
                   "next": {
                     "type": "string",
                     "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$",
-                    "description": "the community anchor the rotation moves to: the next generation of the same digest, or generation 1 of a new personal community (Identity 5.4, 9.3); it differs from prev"
+                    "description": "the community anchor the rotation moves to: the next generation of the same digest (Identity 5.4); it differs from prev, and the binding computed over next equals the binding held for prev (the commit of the card or rotation that introduced prev)"
+                  },
+                  "commit": {
+                    "type": "string",
+                    "pattern": "^u[A-Za-z0-9_-]{45}[AQgw]$",
+                    "description": "the pre-rotation binding to the generation after next: u + base64url (unpadded) of the sha2-256 multihash (0x12 0x20 || 32 digest bytes) over the multikey bytes of that generation's Ed25519 public key, 0xed 0x01 || 32 key bytes (Identity 5.4, 8.1)"
                   }
                 }
               },
@@ -139,7 +151,7 @@
               }
             }
           },
-          "description": "at most the 64 most recent anchor-rotation@1 artifacts of the lineage, in chain order: each prev equals the preceding next, the last next equals self (Network Visibility 6.1, 6.3, 6.5); empty where the sender presents no history",
+          "description": "at most the 64 most recent anchor-rotation@2 artifacts of the lineage, in chain order: each prev equals the preceding next, each next satisfies the binding the preceding element commits to, the last next equals self (Trust Layer 6.1, 6.3, 6.5); empty where the sender presents no history",
           "maxItems": 64
         },
         "revision": {
@@ -171,5 +183,5 @@
       }
     }
   },
-  "title": "RLTP anchor-mapping@3 (rltp-visibility@0.30)"
+  "title": "RLTP anchor-mapping@4 (rltp-trust@0.31)"
 }

@@ -431,7 +431,7 @@ applicable declaration. Nothing else changes:
   at read time by whoever consumes an edge. Implementations MUST verify
   every hop (5.4) independently, MUST reject cycles, and MUST treat a
   hop that verifies as ambiguous (two complete successions of one
-  anchor to different targets, OI-5) as **unresolved** — a Layer-3
+  anchor to different targets, OI-5) as **unresolved** — a Layer-4
   predicate over an unresolved anchor is not satisfied.
 - **Presentation follows resolution.** Implementations SHOULD present X
   and Y as one person once the relation is verified, and SHOULD surface

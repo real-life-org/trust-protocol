@@ -80,7 +80,7 @@ export interface Person {
   communityGenesis: string
   /** the head of the community anchor's generations in the label register (Identity §5.4); absent = 1 */
   communityGeneration?: number
-  /** the holder's whole lineage: every anchor-rotation@1 it produced, in chain order (Visibility §6.5); a mapping carries the most recent LINEAGE_MAX */
+  /** the holder's whole lineage: every anchor-rotation@2 it produced, in chain order (Trust §6.5); a mapping carries, per relationship, the segment from the earliest generation issued there (6420), at most the most recent LINEAGE_MAX */
   lineage?: any[]
   selfCtx?: Context
   starInfo?: any

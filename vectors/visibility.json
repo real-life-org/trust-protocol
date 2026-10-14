@@ -64,7 +64,7 @@
  },
  "roles": {
   "note": "ack/voucher keys are the CHANNEL tuples (8.1): M_R/R_M = mediator-requester channel, M_T/T_M = mediator-target channel",
-  "A_B": "established relationship (star, grade, mapping, prior tuple of continuity)",
+  "A_B": "established relationship (star, mapping, profile, prior tuple of continuity)",
   "A2_B2": "fresh enactment tuple (continuity)",
   "R_T": "requester's fresh context toward the target",
   "R_M": "requester toward mediator (precondition 8.1)",
@@ -77,61 +77,49 @@
   "label": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA",
   "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
   "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6",
-  "note": "the community anchor at generation 1: the group-context derivation over the personal community’s genesis digest (Identity 0.52 §2, §5.4; the S-DID cut of 0.13); the vector key name „self“ mirrors the frozen wire field spelling"
+  "note": "the community anchor at generation 1: the group-context derivation over the personal community’s genesis digest (Identity 0.54 §2, §5.4; the S-DID cut of 0.13); the vector key name „self“ mirrors the frozen wire field spelling"
  },
  "artifacts": {
   "star": {
    "body": {
-    "type": "star@1",
+    "type": "star@2",
     "salt": "1",
     "seq": "1",
     "last": true,
-    "count": "1",
     "blinded": [
-     "uydxWgMen73vdK5VTmYi_pGQ1z_vONJZo2Y6QnfoOkWo"
+     "uB5Kfa0z0f1zXbCTKA6K0qg8yOJIEuuxirZ1E-8Lz1w4"
     ]
    },
    "proof": {
-    "mac": "uPblnbN9yjd_FGDFWKrLKsAvI_gbaAqP-SMCTrOptIAo"
-   }
-  },
-  "gradeDeclaration": {
-   "body": {
-    "type": "grade-declaration@1",
-    "subject": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
-    "holder": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
-    "grade": "blinded",
-    "revision": "1",
-    "issuedAt": "2026-08-23T12:00:00Z"
-   },
-   "proof": {
-    "mac": "uc2OZBr_GydZ-stFzi8YZsoR8b0a5xObMiqaFMmYtA0Y"
+    "mac": "uX0ulUCLKBSGzI7Q_UXa6Xc1UVI2pIevIq3fH_eJ09yo"
    }
   },
   "selfCard": {
    "body": {
-    "type": "self-card@1",
+    "type": "self-card@2",
     "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-    "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6"
+    "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6",
+    "commit": "uEiB8ZaOeFjp7ZvOa0oDstAUYs6AuS9I_mTx-sz8nUq_1cw"
    },
    "proof": {
-    "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
+    "proofValue": "z46YGuV93yAjQ1frc3dq5G5ezKCjVCFbn1v9dX1PWCyzdLkxVfVfRV4GdtfB7RjiVFPJd4jtuKbtwiq9PjbB5JE7p"
    }
   },
   "anchorMapping": {
    "body": {
-    "type": "anchor-mapping@3",
+    "type": "anchor-mapping@4",
     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
     "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
     "card": {
      "body": {
-      "type": "self-card@1",
+      "type": "self-card@2",
       "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-      "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6"
+      "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6",
+      "commit": "uEiB8ZaOeFjp7ZvOa0oDstAUYs6AuS9I_mTx-sz8nUq_1cw"
      },
      "proof": {
-      "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
+      "proofValue": "z46YGuV93yAjQ1frc3dq5G5ezKCjVCFbn1v9dX1PWCyzdLkxVfVfRV4GdtfB7RjiVFPJd4jtuKbtwiq9PjbB5JE7p"
      }
     },
     "lineage": [],
@@ -139,8 +127,8 @@
     "issuedAt": "2026-08-23T12:00:00Z"
    },
    "proof": {
-    "mac1": "ul1j6zs6kJ6EyxwXzvRDivMjSi7a9VhuBEV-iSbHO00M",
-    "mac2": "uaI81RMtPVXQUGSQIwS9zXePo0ac3xDDWCDuPfaccGOI"
+    "mac1": "ua6CHxjJjKQuj-Kx1mubkrWqu9_CKDTIvD5NxIE3Dl_o",
+    "mac2": "ut-6YH8PBWFVZsLs820AF1BxXv1-TeC6LWUDynqmN9o8"
    }
   },
   "continuityProbe": {
@@ -500,41 +488,44 @@
   },
   "anchorRotation": {
    "body": {
-    "type": "anchor-rotation@1",
+    "type": "anchor-rotation@2",
     "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-    "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
+    "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+    "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
    },
    "proof": {
-    "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
-    "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
+    "proofValue": "z3CTMQuzuaQ1SmBanxqivmGNopYotx3L5vT9xKsevY2YVtY8rYf9hJXiw6uo1jxfXFuV73FKjjGHaQdRnPkmZuaEB",
+    "successorProofValue": "z3YKi9kBsK8y4maHLR9yyDFGwkQZShdi1UMbauMwS2S1QYVFFteVfCoMeDHyVVeLVMiG5HtJpBqP9JUZrAx2GfDGs"
    }
   },
   "anchorMappingRotated": {
    "body": {
-    "type": "anchor-mapping@3",
+    "type": "anchor-mapping@4",
     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
     "self": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
     "card": {
      "body": {
-      "type": "self-card@1",
+      "type": "self-card@2",
       "anchor": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
-      "keyAgreement": "z6LSp6eTGCjVEfG9xBRdi1fEXv7JeiSnbMe1thgMgqoswerD"
+      "keyAgreement": "z6LSp6eTGCjVEfG9xBRdi1fEXv7JeiSnbMe1thgMgqoswerD",
+      "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
      },
      "proof": {
-      "proofValue": "z52U5HXmcKLPExMe3e9E4cdciZzTG1ccNnQG19N1rf42v4f6jjUNSeBn4SjpQ2DXrs2y6PWoPPkojbBCAteNeFa9y"
+      "proofValue": "z36Johey1hXk7SpM8oV8GYQW2b73MRJ2UsccXFFayht7jMv5AQvvZRD5Dc7Tu7wz7yRB2gfAkZTgzoYWkq7eWzKU6"
      }
     },
     "lineage": [
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-       "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
+       "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+       "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
       },
       "proof": {
-       "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
-       "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
+       "proofValue": "z3CTMQuzuaQ1SmBanxqivmGNopYotx3L5vT9xKsevY2YVtY8rYf9hJXiw6uo1jxfXFuV73FKjjGHaQdRnPkmZuaEB",
+       "successorProofValue": "z3YKi9kBsK8y4maHLR9yyDFGwkQZShdi1UMbauMwS2S1QYVFFteVfCoMeDHyVVeLVMiG5HtJpBqP9JUZrAx2GfDGs"
       }
      }
     ],
@@ -542,729 +533,794 @@
     "issuedAt": "2026-10-07T12:00:00Z"
    },
    "proof": {
-    "mac1": "uAB87U-BIN7WyY-jOUPjmuyqZRBKC1vPku2Zvbfqn6Rg",
-    "mac2": "uqMMypYvpQ0nVL1Jc2H27mIOGWCimTyDcv91T42HRK6c"
+    "mac1": "u-Go0cJ9kVsDrxDXTgwbaczWNRQwtBUzIH4GXpfQYT54",
+    "mac2": "u6lFytRt8sZWi1BNNZc9PXycKvyjZQ5IajFbot6c6xWs"
    }
   },
   "anchorMappingLineage64": {
    "body": {
-    "type": "anchor-mapping@3",
+    "type": "anchor-mapping@4",
     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
     "self": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
     "card": {
      "body": {
-      "type": "self-card@1",
+      "type": "self-card@2",
       "anchor": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
-      "keyAgreement": "z6LScDGGMDYreACeLFvCiewjcvF5Y8WoSQXi9M9fUfszA4wv"
+      "keyAgreement": "z6LScDGGMDYreACeLFvCiewjcvF5Y8WoSQXi9M9fUfszA4wv",
+      "commit": "uEiDRj5xEaUuOJ8HEOuQwB16AQ9iEM9_2Tvqgc9cdADpNtw"
      },
      "proof": {
-      "proofValue": "z4J7FPzUeev3eXdB7QorbdPFyDTBdUK2PLj7RqBkhDuuoe8oP8w2GVkKMQDnTtojP23PW9dVU9z9AVF1RHc64RVwC"
+      "proofValue": "z4q1RoWhEKTuNrtKJWbHtfSiFe77HLeSDHVeuuiG8M1A6C6WmGbqT91wzyfQGuEY3eT4inhXrfp6sdapBWmusazMr"
      }
     },
     "lineage": [
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
-       "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN"
+       "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+       "commit": "uEiDowqu9gHXmoSVGcCQ0xqLPsH5-vtivv24c3z65Os5HIQ"
       },
       "proof": {
-       "proofValue": "z5riHWZW4w4CWevdAoU3jSqfkrdtCoc2CMGEssxj25mzPjF1k7jSFu591ukwKJhNs8ojjVkmyUiEQPZQVgozzCD2p",
-       "successorProofValue": "z2hoV8ZSS5dQSSMQ9jgvuTMXiDqJGeDd5j88yKzdeKsJicJrZBKvE6D28M5NtfAJ4GmP9f7jMiJ7Wn2SoExvucy1C"
+       "proofValue": "z4QvnDXJo1FoBbLCNoDvtswZ1vbCr7eycqEmc5jVMqTy2R7VpQmuYWBXM9AXSeiKAagSXKGwTSnRTi41X4mVTMthB",
+       "successorProofValue": "z7xVmBvDHS79GwZJiwiTKEBqoyvfm1ebCxnmcNucryCc3c8uHcNfnNWiCk57zTyBT2AsFio8AoD9CtoCc4v12KXm"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
-       "next": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7"
+       "next": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
+       "commit": "uEiDJ2i4ifSELF5eBhuBniYKUKkTplrF1bt_8DkiyRFay-Q"
       },
       "proof": {
-       "proofValue": "z4gFzWLJzYsKDP6zXoot7nP5Mx974hrcVWBH831Nt3YCR66frZq78Qd6uyNWNLjMiJqEp2i6UhHuFXwz1i5fmJuqt",
-       "successorProofValue": "z2owJUtiiyiCkgF7utKRUgjAaQMRrvMWtu3agEohLtNyuPcfsMMF4uqhAYJ6as3446XRBf5n6DdkeuaDE6xYyvewu"
+       "proofValue": "z5K7uManfRR4mjqNdo3yPmYHPZGLLFevsrY4nUFPVCfwc9djuGVniUzoFocbLCDnmauP2KeL2r6kBby5RHnRAB5AL",
+       "successorProofValue": "z3bTyQu98hF1WCyiZ6DXpCv61SohvYJLFtXxguuKYes3fRZdgNqLVNY61cLZTZStndr9N5nNTRLf9468JPqUNry2U"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
-       "next": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1"
+       "next": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1",
+       "commit": "uEiAIxxiuBwmEXpRfLDzAav5eP5pX5G-0yL-9_4Gp3-ozKQ"
       },
       "proof": {
-       "proofValue": "z2GUWiRZXpG7ApyWQaW6xszmZ2zEHpwiK8xUyM5fJLdZHDmnnGXyRQnt85afmv6SxaXxEWPKKE4o6EXLg5ERnGmBm",
-       "successorProofValue": "z2bBGzUdCPXs2zKzaWYM5ECtuU1jssy8yX5ZFMFAvw1AXE52RhHnsuvPQPXedrTBYnXUWd1bfVFSg4QEbvFKxYc3R"
+       "proofValue": "z2Svv2KNVbBQMkXSXuxdr8qufjgcBQwEoUNxoVNJsHn1NEa4yS3ekVaTHTCVRJkcJHWQCnnkVLgY3hz85Rxqfi7Cr",
+       "successorProofValue": "z26gxwBMGEKtuy3bBT6ZsG3yD8UD4JHkVrrLsNWyLr2UEQQczgB8kEkbqf4A7C1StogMQWfnH8zGfaTSpF1AUmu7o"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1",
-       "next": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ"
+       "next": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ",
+       "commit": "uEiABVAWPXsrqKvD8nl_nJClHEDjZxofYcYL8w2Rv7h5gVw"
       },
       "proof": {
-       "proofValue": "z2R9j6eHfd6tG6VpYHbo1WwB93d1JT4t5kEggGNHWuDaQCd9KAXAReFUstabJi9tArAXWzi7RPHtH3RqbiuKHmdnk",
-       "successorProofValue": "zeNZitkuXVnMQeD42VaWXte9viyEckjweygTjJacda4zLHFRffJxMWA2BtWH9CFJFnkCFRookVgdJwtAtomDVHKU"
+       "proofValue": "z3N5zAqxu3xaoJSUwEydoV8KiVCXwWmCT12ot3b8o8jdLNQ4HKnM9ZKSdr6aKeoAPfQQEVfxbCW8ZGrghZn1AivVC",
+       "successorProofValue": "z2doqBEUdj1Lz4e7wgwzEsp1n8i1ywpE5WuYnsBwTG6rjgVWC1jStB2C5uTjZW2r8zXj5KBjn5wczdmiU4UjZTov6"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ",
-       "next": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ"
+       "next": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ",
+       "commit": "uEiBdWcAWGI9B1-oAPTozPm8jEXWBkDAP06XsVup-7UF_Iw"
       },
       "proof": {
-       "proofValue": "z49cyRBURuF28F8pefmCP7ad6Lyiv38tMYkaRrTdzkwyXBTbwinoynWLAA3xsPzb3hyC7TRqE8VbLWV9D8TpBx3KN",
-       "successorProofValue": "z5z6vNZcSSJJXhg3LhBbcP6Gb2K3kmgZPhWPQRC5NULcjUxANa3rJAEEhPVJRQufqVAWw9NW1AnakkYo1yZMw7SHQ"
+       "proofValue": "z3s77HQZCtzPvxb6g4Kkj79V8bRT67xLZMtszkp2xY2yrXZVA9XufNTgXXKgo3kkP2W1zK6bKmtPwhpXDJLgUQxwi",
+       "successorProofValue": "ztU4n8Utg5fR8LXpMdELiZx8VmAL7svY4nctjHWgXkYfpTZoTXUSMProE5JLShjDa57WiViXmCsKHghPNdeCiA1C"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ",
-       "next": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz"
+       "next": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz",
+       "commit": "uEiDs4mRfZQp96Frn6rrFasn5HmQgnLoQqN1lzd4T6ROK8A"
       },
       "proof": {
-       "proofValue": "z4Fb5trfVy7TscZZ2suvpKtJG2toQivo9xEmwHdycW1pit2RFaHFXirYGDXBAgRpsiVLhxAMKzDMr2K5xcs83mFfP",
-       "successorProofValue": "z4Sifm74sp22bqKURxtM3qVz9U8qZXf3Wi4b3Nxos9GnhbJBddtt4tU7QbWEJnxiL1z4o91XJnsfkonR8BE4GQXPo"
+       "proofValue": "z53Q9SNGyCKDVxvyCh8JF64iV57wja5EV2XTch55figRSA78pg395hxpS61UGdorWpmj9LDX2uWjf6y5JKk8ASXQ3",
+       "successorProofValue": "z3Sp3YBBxb12x67wke7dwXXu1FUkAo6wYrTMD9r36ycAUUujjjhtEst1LHEoyEBoCGZcBo4ssu89wdaYPgFM4Z2Pr"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz",
-       "next": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE"
+       "next": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE",
+       "commit": "uEiBdEgRy_O1XXj52l3wr5-v93OTlqF3e6jf84vpT-zdpFA"
       },
       "proof": {
-       "proofValue": "z5GvXUaAp5LDc9eLi2AZLKNfQbW7BPiXJgeHd12wukAkZnKQvWABFNZ5Y5QB6n3PNYsPQG62CFxJf2fx1nznXeEfC",
-       "successorProofValue": "zDHaDeyvRDkPspocNbEbyXLbdE6YqimHe3tAUQ7C87tYbMfVAwgT8emr9RXNYeHyoqBvRS5bfgsQSR8ZNZp1FK7K"
+       "proofValue": "z2Mrzvwb6Cqa9upkdEDnAyjZttfHYcmJBgUniVkdb7keA4oTn3HUGnmrM48pRskdmuamWLmXkTFvFYjUQreqzC9NQ",
+       "successorProofValue": "zayKQVcMaiWhNSkM7qLFND97JzZHroWJfuKePCCU9vni8xi6pfXwtFzYWPCoChoqveaUm1Qbt1QjEhDb4pa87sWf"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE",
-       "next": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr"
+       "next": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr",
+       "commit": "uEiD9UBjSac26cJ6DqAiu9vuZjoLnUOreS_6j-H5EGeDBCA"
       },
       "proof": {
-       "proofValue": "z2WPZ9Visq4u6HPFVgjXwXgkgvyT6EmmMuQh5g1UkmwzvNJ1V6JzKby4D3MxSHF3oGuoNzZrBcgJzq9rZE8ikHVA1",
-       "successorProofValue": "z5VQ8CJMMiNWE1FjDqSg68Uchp1WFCQzzjAypVRbKsuwMJ559GGv5smwS43mk59rKn52Grt1hVQt9iEVLNHWHehmG"
+       "proofValue": "zV9toaiQ8fVYg7QQyLN5RrRVdvahLHeVWrLwzK13aYNTceL5FEFu6XuLSsdA74tth4G2JYBLBMhUGGWrDQrzaKiP",
+       "successorProofValue": "z4agLB6sKQD4ozDP4gjeeUiuiGNtY9Cxdo18N9t4VbrzcqpNJKP1FSLmS2BFRFXtVxwmeYSpcaqGYdxtqFZ8Q7wMZ"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr",
-       "next": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4"
+       "next": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4",
+       "commit": "uEiD-yMWg4yJ4o4U57w4oX9ZXq-MXJDRu6geRLlsgvIZCiQ"
       },
       "proof": {
-       "proofValue": "z65FqvAsh4SChSNvc4qZxUPoP8VPNWwiVWMTHwRpzJPHGpgmgEeNWZk6Eoo2BSakV35eZhWUXeKnZcN8cfRPwYFPT",
-       "successorProofValue": "z5x1ctoDH3a2xR3xEKPikKtbsgM4tVtHwJ2rtCxGZtMxrA9MuJHHSinS9NrMYb4jsN1cfX5EWPPWyeHMJKJ6CJptc"
+       "proofValue": "z5j5Xk8bDjXKgHUwsy755yJuFrnCrkvYBvZk5vVmpamdt8AnU1Zet51WizWXFMdpBoi2qhEiB2TZ4wYuZMTwRxteY",
+       "successorProofValue": "z5FAWhXSsb6TQcJa4wPPPF7RucC6rr2X2Q1kW1kj5WHfK3jU2DdpTbHXiM8zAHKTKotmrZzPEDpzC1ibMyzoeDgBV"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4",
-       "next": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M"
+       "next": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M",
+       "commit": "uEiAnDyyAZ388s4AiGALQ4ifTYTnI5XqpBctuKM2T-l9WBA"
       },
       "proof": {
-       "proofValue": "z5aox1Z6v1UXgnW2Q33br7PXMT3iTWU2uRrByuPWoU2UHNegWDQ3Xr4sm8obq9pxvygVe5BysbYYA1fzFdY6Lsob4",
-       "successorProofValue": "z3rWfdszdcN6ud5emV4mr2LbfrY4HwGjKtTfD4PhqjotAG8v3J8gw6WwEARY5ADJqe6j4nrc9XBGuxXf9n7GgXEtb"
+       "proofValue": "z59GY4Cz7wZ5X1kgsjjXGkG8ShQkoMMYxf76iuoDzsFjny7FG9MRBJwzqSvRRgi9R1BmGdUYJyJdyjNpg5FMNyntL",
+       "successorProofValue": "z5JFg8nZTniHRa8PVBg1xtr4WL3uiLWHZL2ZSqZX3T2mTephZABrWhRzZzK5WtCq2KhGZZxdHqW59rVqUhVcxAv4k"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M",
-       "next": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5"
+       "next": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5",
+       "commit": "uEiDTWM8FPjPRyOWDmEG5--A9ncsXPj3-bUr1-82gMxvONQ"
       },
       "proof": {
-       "proofValue": "z4wmeozpA7RE6WmfHBPNp8CHDX28fSwsaCpjXTDkLDypzfVa2HCuipqEE4FeBiHvb5hy1QBj1KsJ2znES5aAFxnZM",
-       "successorProofValue": "z3kpdSWpXKEv566e1QChobH2UcmSFZZNsyzZuZodogSoeyfAPvXXHVj7MmhCHk6Bv2PBUNTLuq8jqP2Q6FTSd6bAK"
+       "proofValue": "z4THHADSQMjoGEEucya1XpWh141qwEeWwpGwnMZmvkbGwwoNYYdUBK3fR4guy4khGBsUY6xLfUC2N6k3cYE8Mj9P2",
+       "successorProofValue": "zqC8PjkiW8Nbyts53Cc9bvPDWSEGtz26V1HY9s9Vhim1jqjBZ18BvEFrTMeQE2XwBXrVfKb3Din4qPKhC6zC3uFk"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5",
-       "next": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4"
+       "next": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4",
+       "commit": "uEiD5peMaB-go09QzCli20b2v7w4XwnXEMZjq53eDe2yuWw"
       },
       "proof": {
-       "proofValue": "zbhBNsE8485nDge4qvexUK6QXA6o3TUgBSUrkEqJMWbEsBCJYCrxgCY8HoJtuFsx4GzDXPXqnHtUoEotVDF3t6im",
-       "successorProofValue": "z5qbPjHgnym1KN6mMPiF91ZTGH7QkDsxKyUepgHYdqNjPJJxSoiPPNBcs2yYeCXXLSFZ1LbmfbfJhcT8ab7JywufA"
+       "proofValue": "z4rpLoted3DTktBwmMu1gwPyh2d4CX2kLEMCSspYCCAyB61pPTU2hMHKUyhVAXsdpnJcpvzR94qG4AhqHMc58HV4y",
+       "successorProofValue": "z33vK5YdrvxaeFDubNMAnswmqKZ48moN7EPcHxYDBCxT3BhKxfFm3fkZQ6xCeq7PkrnC2VJ1kBrJ6XH3rwZfPc4Jc"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4",
-       "next": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm"
+       "next": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm",
+       "commit": "uEiA4I0cGckAiKmhSTOZXLwhrw2E01aUhRkcaa9yVgn9Z4w"
       },
       "proof": {
-       "proofValue": "z3HspUm6Yw4v6czbZQqLDyZmSkhNQREBcspsRkJFD7u7hWyAZ4s6c9BUjpJHDCWtAwk7j5vvhXeMbQd1MQjjBKnuy",
-       "successorProofValue": "z4q7XPdqVae19SnWcxXAJhga49WGFL6jBHvCkd46WJ29FX4G8PQuRZ1rutAD7dGuRr8fe2hCURryTNbCL6oajBa7r"
+       "proofValue": "z24euruy5H5T21hfLZJ6ys57eRC63bp3oXpT36mPUJfT6oQXNmCFgyDDSAp8tcQC1qGhBjq7AFLW5yS5TmUnbU4ia",
+       "successorProofValue": "z2vs6XzmyX561q6iGMbb8gFwe5J5RX1Nvz341AQiuqjGcJXUghmreS3H2k2kR5BaUpoPDanZthmCfNvXuLmfdAWmK"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm",
-       "next": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6"
+       "next": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6",
+       "commit": "uEiD4Ujv-545wf6qrnilknx3385KV-US2SmhC6LBtf_xoxg"
       },
       "proof": {
-       "proofValue": "z3ZnKJ3tdGqsR5kgUBaj5PME6kren2jfatKbQgw9ZHY3wzgJyQPTzTKZBTs8bzcQxvEhWaZM9ezrGV5RMvtLXHB5q",
-       "successorProofValue": "z2kWme8hUcFfW8vYvPWhPSCqrXSQ3n5rU2XTFKeEzodP5AJDFMUevVPRFLdhLpENcapUrgf7JRJBiocvJWAvQ5F1a"
+       "proofValue": "z5gWAte89zfBJQNyNk6C8yLELBt7x28iQ2kDdokwqBZPrUno7W4ftcuAMSbDUKczf4AqJV43bEivFvL3BKBhbS3FE",
+       "successorProofValue": "z41KtsQCHEmmKU95sobSXphtUZhk8MJRKV42L1BwFAhyg78ACjGrqzt69YFu4hbM1UJnELTpg2cmShGRq69UkNns2"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6",
-       "next": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R"
+       "next": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R",
+       "commit": "uEiDXNuW0wjepQg3rK9MgHcylpd64PxDK4qRS15wmHfXfcQ"
       },
       "proof": {
-       "proofValue": "z4T2HyHkoJ4YMVdrnJkpDT2wSQqrGDaug93B389QSZVPn71Sp9DAk1DzqmhvLFsu9u2G9Ui8XJVWxz6wvfxWoTXJX",
-       "successorProofValue": "z5SQD9QnphqvGegAjkYvaGtTQ7QZjCHE2KnRWmjwW8rf94rGuS79CEXTrqbKt89CSnzjf6GgEzVWQvYFT3GpTufSm"
+       "proofValue": "zUhWG5S6QbfRv9ouFf8WwP9y3HPAEzTqmdoLR8QKnt1tmx4hnyRGfUQQvk7D2WWL5oULb35JPN3RnqFzWzwycTNa",
+       "successorProofValue": "zmRG2S2ctRoZ4sGFPWoJFKKzyFyqGfNdCY3FdbLaTwChNFpPeW4MiJ4UQ6GcUfHSd1Fz3KoUuhLAFZBS3ju2KMs2"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R",
-       "next": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN"
+       "next": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN",
+       "commit": "uEiDQbSb9hokvEJjz-qvkwi4BJbz6AYNAUOvTSpsFz_E-SQ"
       },
       "proof": {
-       "proofValue": "z4ZP7obAUCRv8HCZhC3EeG581V11UB44xGv4ytQnsTQ2pR4cSXkAUvAEMph1d7VDHtyesytviHYB2jWTtBiv8EEZT",
-       "successorProofValue": "z27tBb8sZLUYpPPJL6gY2fcsm6MEbawCDG89Mz3gMamhqjbtv7Ra1QDeqN2VbhBZqwckEn1QVjHjZFbtDCospWYuj"
+       "proofValue": "z4Bic4rsFaU4Ko4jGqWPznrcG8FXiTeJ8PRWiViJDmUirEpstU9TNYEVtTHrK6DkTZZ7PP8u4DTL5GjLGqbp3f8Ej",
+       "successorProofValue": "z5yPaU8M51Uf89LMd6Z6DNEDHAEDBMjYafziDPWf6xZMB3aTGJUjJ53ckP6HxJBt7A3mmqVskmDZyR5pGqEi6mSZz"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN",
-       "next": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP"
+       "next": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP",
+       "commit": "uEiBi99l3vaCE_ZWSSu1w_pMybeonwUy_Zgmprz1ktIZYrw"
       },
       "proof": {
-       "proofValue": "z4SDrULHKo98o5ggEGYoWJux6YwAHyf19NNGvNBtu1ewPiTNJtGUzfmq1XMEQWePuh1UoxxTnyKJ1pE9fANCoa7ej",
-       "successorProofValue": "z26sbqCigCS2snJBvexo7Y8SmqreA7b1mTFGiRWABko2gFCqqYeBmPcUBhpFXED7FAFAwjzBPKJmAcVTxWSTrGE4S"
+       "proofValue": "z2pdwcfeynd7TP5auW3L9VzmEH2LAm9M34Guo3jPjd2CGuJAh2TvWTCuRuVPEj9449e9RG5hByDFJk7eCrBrEL5za",
+       "successorProofValue": "z4vf6eDM6icxLDXMAeEzZBSAhbZTLs3yLHXSM35fh5YTrPK5nScepj3NtdCV9pR9vbBbBTdowcAsCLvXYjBC1MNt5"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP",
-       "next": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt"
+       "next": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt",
+       "commit": "uEiDSNjIafN69NpzKU2A4I9zVMPtBwCn_nPJdg26wnHD62Q"
       },
       "proof": {
-       "proofValue": "z4CkNsu3UMEE3bJHst37eximdkPG3qKdGdbHzUcisuTQPX18PK528cPzUSQCiZ2hECNMRsK7bMcQsUH9ghbSyb4Mk",
-       "successorProofValue": "z5aw1hHp51uGqkKiJphTKN93yUgcLm46dcwdwgixMpjyRFVURP3YPZbnQnkttcxbk1UjUEAa1M1swTZAKwHAWdc1H"
+       "proofValue": "z4hDWUuYM7iTJKpkzXK8Cohy95ZBtVRvWgNCdnU5shSXKcwNksFzAtmgLiwswC9REZ11XrEK8PPoaweuzcUTh65HF",
+       "successorProofValue": "z5Up7Xj5G98YrcpjXEjWcEaSJJm1U7Go7JLyVNS2jtxZA6obAy9rnQpKRnND6FfAmortSkwKn3rCU1JtYiX7EkHiu"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt",
-       "next": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3"
+       "next": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3",
+       "commit": "uEiBEYZS8F54aFYmpu02NDyBcj7ZIYtDo6KkuJPCgwagnsw"
       },
       "proof": {
-       "proofValue": "z3eZUAm6y62tqfepSzPou5DSJL2qqp5MdHryHWBwYyPPqFz3xCGALDn6yWAAb3m2RxdBoaY5rWKiuuJN8FtUhbe2p",
-       "successorProofValue": "zRxwCrFRhXr9kyez7VoWFYwkXtrBA7zFsUr1RGFabXdk7F9LmP4RDkDzhDHtKQnu6pdRaN22cAwMY1NHKuS5HEph"
+       "proofValue": "z4QQ5oyGJ49tsjhRBJ85MT69A43CQZ7pcKkjwQaKoQoqQNTqGYJpgw8Q6axw9yLrviT1jb9K7rNN5uhBf4oa7z7B6",
+       "successorProofValue": "z5t78XHsk5SoFW95Fev9EfqH8RitfmEmmDajFV5HxMSs5QuFEw1YQMbPLEStQTweQ6UX5Z7ydwKxLjEu467XY7FZp"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3",
-       "next": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta"
+       "next": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta",
+       "commit": "uEiB7p5uOfZsY-PW8HuWe9H9PKZRacw1odw4Vvl63cmXqCA"
       },
       "proof": {
-       "proofValue": "zCGj122vZKDujrcGkDpikAQhf41bayq9S6M8XKzMNZbEsX7EKttjQCX8pobxxm49UEGj4WRu5U8eRKgsWFgoZyJE",
-       "successorProofValue": "z2zdvUfdxbTu8NFGS4vgYLFYem2FADXj35XxbagR523YUCTSvEgFR18TdFkjGmaBLJFztspEfpSrXqpjGUdvtmtd5"
+       "proofValue": "zEmeEdV3f3bqrpg3hUXYrGX6XVXxnhCCZzp68H1D5uWYUjF2ZhdbVx4kJCVhE82n8myoC1j17WTQn6jKTQMprNKe",
+       "successorProofValue": "z58bnJerNFQMPh2YWwAaugNnrHCGqRW2uajRBd4XoQAQsUT6K1aWmq4bhzWu4ArV7CC26yUDmsEidznz8mYv45BzD"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta",
-       "next": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm"
+       "next": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm",
+       "commit": "uEiCYfqKWECcoEqF91MpAdDvAWzFaTLmKdTC2ZQYiQp1zQQ"
       },
       "proof": {
-       "proofValue": "z3A5KoToSBbYJim4btE6BX5aW1qvTDP5YHHjet9rBea6jJsjQG3czH1mXhtjAuLxqefTkjNLiVGr8Jd5tSfQDFcSZ",
-       "successorProofValue": "z64JvgRocc6f18C36Uh9chBmNds2wUKGWGiSJCc214WozwsBS2TvhYdPGWnPVKzSuwkJVaJb9D8z9mNP52Mdu6Fqp"
+       "proofValue": "z5EodWstmtSJLLGLV6aHGHnraqRyvTLPWXniR9qeoNciE4DVDdse2i8ydRc65JNfQPV4jv5AxzCERo1iCfvSxXG9c",
+       "successorProofValue": "z44d8hFEJa5N52aWAg9RTBP6btDkb1vCPmJ4L18LWDDkCoxjUyuCHSg8ENgvfswWoP7khCj5GMwrAcEfLQCuoUqwy"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm",
-       "next": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA"
+       "next": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA",
+       "commit": "uEiAMiv70fTwqkOGuyZF6coXF9kf4NfEjIicFHw_VUmrPOA"
       },
       "proof": {
-       "proofValue": "z5PCi2QpyvzpuwpUYeLnduYEbNhkcT1K3dWhozudKBg4juapAyUx88xN354RTHwQh4p92gmrBU82kHH2ANUaJ9iEZ",
-       "successorProofValue": "z28jpLjLnq3HGC6g7gpaRDSXURALktxiMmzi1tmajoopYio2Wyta8Kwg7GjZWU8awBR2smjPcHJp3QnPifVsoEqPi"
+       "proofValue": "z4a6n97s7G1myoFAhVwiVQXbmb7xZfwDLgkErqkGyPDDBPtowCn9UNee1h2diF2W4BSvsC6ixt2naYGAkRWsYRBo5",
+       "successorProofValue": "z25AUAjyHoawCYqdksUunMAhscXJ2aRP4Run9jdxjtFib1mrK8fEgjk1GknecxaNQpCNYa5XSqTtyqkTJkPGqbFFx"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA",
-       "next": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd"
+       "next": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd",
+       "commit": "uEiAQQNZC-guyaZ5_DK5De5E9-9GkV2e5DpJCPvqo9iFQRQ"
       },
       "proof": {
-       "proofValue": "z5Fw3VEYpK3EZEN67wsThjqvRrL9vnNj6ggGzLQoY2eEc8fSBwdotz26k2Yf2J1FjddN4hxeYpFyysqM5UfK21hcp",
-       "successorProofValue": "z5YdDXgtbUHVCGJ8H8Kq2neibPE1wzgjUwdSt1i6DUsXVTnVkAKUaXwah6gBq4aPKxTb6KCteAD2kqyYRFWTm7kkG"
+       "proofValue": "z5CLj4FsMYqNS63NyuDfCHXgcLSYFQogfFoWidmSFdLNUi6hLvSiEJr97XUHMYHEvJKEoGhvgYAVF3b6vm8AvA7Em",
+       "successorProofValue": "z3Xb4p2ZvyWzmDZuj1Ma5GBpmPNq18hpkDKBytUxEaQghrVUysSoej1Q7Rk2HUwmWR4gMycqiZBHeGyYvK7Hr3sAM"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd",
-       "next": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9"
+       "next": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9",
+       "commit": "uEiDTFKDkkMwaI2DlPLEARb0WW6qDl49Od9s7nAf0MZwqng"
       },
       "proof": {
-       "proofValue": "z3ZH94kykQ1oCKYHatD9KeLjPY9RDFvb7hxeYJzQ2dNtsE3aEx5dNCmGtMkqfFtSzCoTeZyTgH5EkoeyYxwTrS2xv",
-       "successorProofValue": "z4U2wtLBdu5MLqMUEPf13Yr2xTJo4zoz4BYQm5s7TWwB7nArGshKo9aKDyR1QddmE4X1Vu8rQHvwQnL5gBsr6sXRR"
+       "proofValue": "z2S4TuSVG43UCfYBRks4WcX11wUF3cD5XWggtm8LdD2FjpjKZqC6WTWmiqLr9C78HefhZiJbRxapG4QRcXrj5LLRn",
+       "successorProofValue": "z4LexZ75TotTaDj5K8hoVNCki9XTY29gyuHhTPwZeeaEK4QanRtc9rDmZQPKDknPEXtg2SjKvuDJrwd6TTiR6icrB"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9",
-       "next": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U"
+       "next": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U",
+       "commit": "uEiDjKoSUaqSkN6jPKi_bxOrgxGMX3ChlOWm5kILhVhew7g"
       },
       "proof": {
-       "proofValue": "z2oLUKrxp99ST5n8TdpyJ361M3MJ9N5pxfh4aLyxdAX1G4cudHCgv6y1Wrpv4a3W3P7rsjELhjME9c73Ahj1XCPX9",
-       "successorProofValue": "z35pqj9WzzruxjFmdyT9SkrRsKx9zwA4bH1Sg1hpqSUr9PWHAjHf1oALzfSDnHksPquXgvpSdndVqZkQEqdtSE7pJ"
+       "proofValue": "z2pBEmHYaGY9Vn1wNB6Cg9wU1ZQtw9rEAr73H77GoQTSeCb55yv9aeaNPRrez7kGWKfRvrsWvokc3LjjoDZbseVqD",
+       "successorProofValue": "z26V4S8rBpoHr6KjL81jyQbrpc4d4SFRpNfuZiCjyRMSVoUTc3j6M6KkQC2Qtpkzq4gqquzAK1NibpdtkceA5utYQ"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U",
-       "next": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve"
+       "next": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve",
+       "commit": "uEiD-5jAzWFvLs5_s0e-EJ5a8dCdnd07ZBhRj_ZA5FC3Fhw"
       },
       "proof": {
-       "proofValue": "z4j59k2cMRpZdqPGBLN6XZ2nsEYj324GJBALVp6p8JkGuLCsbSYgSLtDAFMsJYMvxvmLrENgwhXMj8Jg4NfXEGgMS",
-       "successorProofValue": "z3a1G7HkHaBXDWkfQUm1F1AKUxuDkedSPpjLiqHjPLsT64FnZc84KgeFDuTTcGso8pPqP2fS1BGPTPAfZw8CCkAbG"
+       "proofValue": "z5vz2JmvJts9uwFrK3qAxBHStvpJPuat3yw6QArrYz9RgCwh35TcAQy81eGL224GfXaXsCbtjjDipcvyxSeCPZNqm",
+       "successorProofValue": "z2UfcjqVLAKbYSV4EUt9Y8A2ANHXKaBdYpXgccE4hSFakmhtrkozZNpg7s1owEiFiefqrxAM465kT3FScgf33APPi"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve",
-       "next": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i"
+       "next": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i",
+       "commit": "uEiDWIS944pOPoqg8bw8D46zzkF6e37nFwyRpHH5Xu0_tug"
       },
       "proof": {
-       "proofValue": "ze7PHSjNx3FdRrvdryaJhCA3fcxmrpr2d9LkaU97ewzfzBKj6RubB7axTmxWeBdKZbAgANeEttAfBSAmZkJ1KgBH",
-       "successorProofValue": "z4dPAXiCpmkhgA5LjyGUNE2LNDxsDv8dxUQvQMsvi7iCQ3dL4BNNi3ghMUaNjytSPyYnW1VT1MTdd3392UtpGRuG5"
+       "proofValue": "z4BDdYp53o6KozyfwgJVp4W2FfTBiTXBFjqpj9bLLsRtkUKNu4DUwm85Pv2Gek3fdNmE9xtq79k1oLqt4nDTYUKMH",
+       "successorProofValue": "z2vCafsxbJ5PDmCEGUDVmRrXeuLTWX7rFazZG76pisB95q2dD988znHD4dNyzA4xhkYdJ3865ou319ASrV5iZeCTm"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i",
-       "next": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX"
+       "next": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX",
+       "commit": "uEiBK12_vsYmFqqIVPOL2YMqo78jRtITy0Iy7eJACdMl3SQ"
       },
       "proof": {
-       "proofValue": "z4VFFuWaTvkVGmcJHA1ufHy6MCH9VDG9FF7wTq9wt456R4b1S5PTjSaFTjDjUxxpnPkYm1XEgpwvsmkp799sbzF8j",
-       "successorProofValue": "zc6jjatSvJMW9yCe2R76BrA9QJPCSwRkMiize8M7HXgXjgQFLHbVq8u2yWFdkSiqGLv8YFS6TdBYLAWTzZHRiiyh"
+       "proofValue": "z2m3p4xnjhU6kWHpriWR9RDk3qmicwXMRt63WsLpEfakCM8bsWoUjqjQZeimk8Xf9vM5PQZcNrmY9a9ETEapUNCiU",
+       "successorProofValue": "z8GE1yu2UUuGtuibtBqQazqcaf7hjLFsYHQ2w2WUmkDZJhp5JqoQcvnTBsUvHcL31U7h4fKiBzLG3f1LyQbSrgLC"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX",
-       "next": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu"
+       "next": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu",
+       "commit": "uEiCxDxsW8OYmN6nq50maaJEdZxygqgIy9epfDyfnFmkrXg"
       },
       "proof": {
-       "proofValue": "z1Uv1JjsEVrBMhwCxuy1wrqrDMw5og3yevduEtRWo31LzUapaCHy7QCA1rcLpcBb7hWNDQXwTZixyuZE5A1g2NdJ",
-       "successorProofValue": "zkbPMWVWNgjvCMnXgEEFrAMLMcbWtRJJTKhBavZMV45EornkVJbRhQYxMXCvMt9sXGn4WjzJNUrxdUfhHTScmp26"
+       "proofValue": "z443EuEhD6cLFuXVKs4L1RZ64yUnGyjWuquyLGXpkEmz4VcvPqA9sNwPu3MChB6J9hEXNhfc6nghue5eBpAYeq5Vv",
+       "successorProofValue": "z4U7NXCHAdzKeFkDz1aR2WDJsp1doUdMVYq3fd3PynkjDSAKnvVdzVJF7beMJFL6YPPEuoraXerJjVxzfnnT9qPqC"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu",
-       "next": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN"
+       "next": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN",
+       "commit": "uEiDxsnfgrEHv35MW44DEQ-lYhvUPVKQznkulL-wRUHVkog"
       },
       "proof": {
-       "proofValue": "z5oRwzoYqjPtGCAhQnHSTpPMjR9NXuYNbqpRxXSXn9ZmocaTgHNXWFqiDsfN6nGLz8DL5YdM9dubM1uW5Ygp75a4S",
-       "successorProofValue": "z5c1SCZ2kUozTWiTGEEvY825hWPC7NADC6RBBRq2KsdGxZfaDz3rX9sfTZtVcWiWxPfVxAZReSfEH9K33akD1JTEA"
+       "proofValue": "z4kpBT58SaJBsVKZvYqKV3yoDox2uBSsZ7J2mwxLMkDvqTmQBxL1kD3zyEE89bqmEkmp6cCQ757Dot2T97RAuvkNR",
+       "successorProofValue": "z5BYUs5YkZWdi5hQfak9QyHHoqcKDHdJPggmDWd7ua5wu33xNU57PjJAVupDN92f5nRL38ArqBhA8ve9fY7Uvv3dZ"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN",
-       "next": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT"
+       "next": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT",
+       "commit": "uEiCUS1-GWLxKCQsHRLz3I2IlJsiUE7vmIDaa9aE9JBD_aA"
       },
       "proof": {
-       "proofValue": "z3oHzo61zyep9qJppv5f5Am8XbTM8HuRas7jdgzRsXU6zLFHebFAH4MqCkDnUPyHRrBTg9yqT8WGdttPrmyKkwR6g",
-       "successorProofValue": "z2wqviaSubXkUesWPbvGcTtYGY2sy11X6SqbTFk3uXNBBsvzswLBaGGfBY3TkaFc6mwxW9nLT8pZMA1tKzWSxTPzh"
+       "proofValue": "z2TKW7QN1zEKukow1YFnpdaxii611sx3sVhgmsz7hHRz3eYSG2stPfRFVRRx7CjA7zYuSk387Jb7tpq3sJQyXXzn9",
+       "successorProofValue": "z4rqhUxHyoBNhix5569ubyyqxVQa2PojbmCweYFWqPa5T1Hat5dT6MDmhjqpEkUjE2yuMVfLjneqmCDWbbLVSTwVx"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT",
-       "next": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8"
+       "next": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8",
+       "commit": "uEiCCJhe44d26xvz_KqNfxNSoZlPvZq9RwrBEDwaCBGnoog"
       },
       "proof": {
-       "proofValue": "zhGS6T57WkoyNerncQ7TdpECif6RNX3hE3Qxkqziwx7i6TuuV4Wfh7URr38ha24YSYrjKtAgPptiay3XET6ttYwe",
-       "successorProofValue": "z2SEfYMvduoL9FUKUnpFVhGriBMxMugS9dh3ACb9WJ3eDgbPTDnK4kH8Rq3q9x9aHVAzYpidzCErcZVZBQTsSt4Sq"
+       "proofValue": "z4wmMPqGJF7uabs1WusJuYTtumisvLk2Gdwm1yx88kiHmQBDRK9KFpk52CqrE4RaYpKmR6gDjmALcCZ6ieLRhTi7T",
+       "successorProofValue": "z2xvRwvLu6BDuHaELtswvUdzW5st2p6uVmkywtwuoLK5cjRUFDDwRfTMcrVWGDczLgDvVMe3wjVAhQzszYFRajYTf"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8",
-       "next": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX"
+       "next": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX",
+       "commit": "uEiABWYzL85IyadNLLVWZE4hswHZ12XMS-y9ba0qImde8ug"
       },
       "proof": {
-       "proofValue": "z34hM3ncLSVLLtWo1uiHx6svi4qHrp5H3cx3Vik861HANo7LWrqakQdoc4mFYAuPMPpW1vXfd2NX5pDZpvnZo1tUY",
-       "successorProofValue": "z2WPeUWsVT3SBWpNoAaYmbrU2JEVqrQUups3Nzhp7vzhozAb2qcyyTam63DzfNRaRQHCiABNMucaYEzU8DhGYzNuU"
+       "proofValue": "zX5BN3rtWPKs7tnfaKY5ETTiMmDMUaWdsLdC7kXoSyj1aHeujou94KswhZc6jpo2JCGU137rPggeyoDWXrrBQbmj",
+       "successorProofValue": "z3yH8BEb3ZWLPsFJ2bJAvQ1ujK2NFxrTqWResW8bhc75kcMaDYsshnYtqXEe2Znbt6Uud22ip8epsz7Evn1HPUejs"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX",
-       "next": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48"
+       "next": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48",
+       "commit": "uEiBlKWD1V7TsLS7Lo9cY3nCUMi7emHcghRvg2bkQm4OKQQ"
       },
       "proof": {
-       "proofValue": "zK5uHGbGFNX1qDsKiXN6m2Qh7p5VMub6Tk8dGEHsVUgrbmnvFZ2qXYCW4EuBQZEGLjwuAthYEsczagpGnDpefNc8",
-       "successorProofValue": "z5RjEj3ov2oavgVZWprLoHrcLzzELgUaPTMSSEz8fLoip5JWiZ9QacER3YDJmpMjB2CVVs5LhAGgGzgdbK3ix4ZVd"
+       "proofValue": "z3yfquGY4YMaWsS7wNMWrAGXhGCFa74Xbtj2hAv26Ani11HGvb2axqMY1ycr3AZwJpqaKbeZfBnaAPhKnoy5pHfHg",
+       "successorProofValue": "z2TGMC1DFwo5r2ZTYLFz3yQQJpbXWiXCvD86amqbX6tBh6ZQ9soGRqYhguPsZqENsfjmXKmes4HPxRkUnLsZgQnRv"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48",
-       "next": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM"
+       "next": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM",
+       "commit": "uEiA4O78ilW8jeNDNdwd6Ff2XJI0iSSB0nI2Hr7SGnaZ00g"
       },
       "proof": {
-       "proofValue": "z5W9WYL1jTFNegDf3LmuxJJbVDnoWF1Feoq2eUNSTMR893afi5ZzLRVj5umdbhFPMpW3jz5ecdTkoPBx3R5ptbHbn",
-       "successorProofValue": "z3cBoQ9LXp6Cup9ktQfSJcXxx6QHRJZdm5gZnWSkjkbSgFhfRtLSJPTt2viNRXmsGuzUnGgLJLSomRFQjnasDX8ab"
+       "proofValue": "z2HvqNrR6pm71Cw74DhBLMrHCo7VpUkUiMh4MKDFnCqpEK6k6REKFBSUCC2ofYgww3chZaGRb9bvkZunkgcXe4cdq",
+       "successorProofValue": "z4mZfup7E58JKnuSS1AEUjpenskDKM3BZ3PgGqmhvwmcnUFjUfUpAyxTVBfL4UiNh3TNtfMGNsBfVJ4E35ZCJhMmH"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM",
-       "next": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB"
+       "next": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB",
+       "commit": "uEiCErguAx5lxTnLXvonz_z8isKxumQA63Pm6YK51N7OobA"
       },
       "proof": {
-       "proofValue": "z42dYWgm862JcP6b4gnLTMEwLazaZqpVti1859PjT4ZuejgJhsjk1TxuMkCaHc4BkkGJuaHy7hvgtmu8B6e9NTzgD",
-       "successorProofValue": "zUtKtrWVAkpSKCr5pkzbTXoegvMDTgwPSc4v6Eth8AKuSqF3JAQuVB5trjLAn1HkVahWzCN2dCDJBisnBK4gdZAH"
+       "proofValue": "z5P5E3GBWEJ8WSRriWMF3YnwnjJabMnpea75oyqkdoGYyS2pPsebWgJZTJBvAi3uy4t2YbiZazjoDk4exLRrvPEBF",
+       "successorProofValue": "z4fwr5Zk22JsF8MgotZ3kyBPkhUY983qko1CSL8Ktekg2WeX244wwV3Dwus9thyFxZqKhuKM9o3ab7aQAFsiam6Ax"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB",
-       "next": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e"
+       "next": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e",
+       "commit": "uEiCvzvSHd2FGIZQoADu_qDRgKD1TLsqNrvMvSay8NA6GLQ"
       },
       "proof": {
-       "proofValue": "zNcGMeKjLjSGiFyZoK7wWgwDN1AD64PSobByFtq6fH58KCBANZEJAAPHXYAxd39LDdp5SSsioovzjaRXtnU4BTXy",
-       "successorProofValue": "zQ46xViH1Yhz1q1VyNouvw1jVCus23JBkCwLySr5NHLZBtQJK7vq61P6CkP2NVxZg3kVxedXTA6h1PfU9WxqYKv2"
+       "proofValue": "z55iTDuLfQ57ruhgr3bw6ZWDq9FTxBS3xocNo9unDMVHUKUk6nMBtMDRGdg1XTAJxKi8pCQdSJVx6mpwUSnFY4Ypc",
+       "successorProofValue": "z3o5KtNb5wjxLkTaGBjaKLdkrC6LzCzdZV1hXQEzbeFRwqdywgdTteYXwtF41KAvnK1ExHzYGGizQjE6TCtfffP3g"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e",
-       "next": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR"
+       "next": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR",
+       "commit": "uEiDhSXLUq433VFurQb3iwRRPcrUWOp9xqxXLFR2eXzw2nw"
       },
       "proof": {
-       "proofValue": "z3SDAi5tXD2KeGWJfsLcviSXpM34beRi2qfSzS9xLKKmAuafm5fYtRTC638737veP4nJaTetghccBoTryQrkVjBav",
-       "successorProofValue": "z4MkQEm86j1HkzvEKmKWwxUNn87ZxQqUYget6f6zWsTNpdKjL2mbsqhyoWriJ1C5GJJmk5ABtPbnysQRybHjuzFCi"
+       "proofValue": "z2E2CVMVLDewPD4bkqad1QFyLKFcusHq715zvNM7A7Ygf27PGYQ6rw93MQ96T3fmj4zbVGJ7GtEWVD1oQqjF9uRN2",
+       "successorProofValue": "z2AwQsVXqL5q2jhjEbxjgmocJs6ccs58LwUu2nvvyYJjjeW94m1MjpCCKMdUuC2wbRMo5iMxpQRMV2ysDoDaGYuQP"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR",
-       "next": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG"
+       "next": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG",
+       "commit": "uEiC7SKpcETIILXS9oMYk8AJtJgyRPT6b5s5hVySPKQSGnw"
       },
       "proof": {
-       "proofValue": "z22d8MTJQfuL4wRBTwPiiGCHcbCSj2rWWivxTDPBehrZ5JVv6kPG6XEzUKcGE97MW6xrKF88mNavvsu51atqfJW3s",
-       "successorProofValue": "z2UrohFLZHXXyCJDH6uafkbcRAg2bjqiKgi534Sw7KctAQEZ7js5ca2SXUpq2dkuBGt88GCtXsuYV85Tkw7dgyGHQ"
+       "proofValue": "z3krZuPfBzDMZtE7vYRLnjxxo6tC8TjNet9T4E9QmeJdEU3dhmK7USkfvMLSWFq878jGLikfGeKkRPv67Tczc5foQ",
+       "successorProofValue": "z3uxFMYwtnhzNfvAJJzU5jqifC2odSES7MY9UUNDziNRrGagNeYCtHhPuChLUr7k5thjw7PrhMohWEirtvbW7N9Pk"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG",
-       "next": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT"
+       "next": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT",
+       "commit": "uEiCRvyGFvArKobhTsDa4McJnanS2VesxBc1PGK7l64hXlw"
       },
       "proof": {
-       "proofValue": "z2wAnz33CTangg3cBZEFbNw9QWcLYfJ7DnLqJovhNcQRPMfNjpCLY4oXydFfkPkjWRoUVYF2bAER2a62XwCBHeDt3",
-       "successorProofValue": "z2deiKEa8STjQERMrvLbBQ8kDA9u9kVfH2aCXVtWDnKVFosmZEh6NpXvSS1jHp4538kyZSUANEz9Lb3Ba6n6YVhnB"
+       "proofValue": "z2EscwZzDDUiSuRGaopUjad6wq6mvRMKrQLtyMRZGS4d5x3Lt1PZBuNaQ3hcUEX6qi4Mi7qdsXGXCxFZBb7tbTXvw",
+       "successorProofValue": "z2wHPry2ecTWFV346M7xuSeeoqXFi29FQ4QXKFBU99wXkAiqQ22hVkk6s6i7WjeeMKR3Rz6SsNxet6SajNxvASMnv"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT",
-       "next": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2"
+       "next": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2",
+       "commit": "uEiBn8QBrPzmWoHITghPdg567D_I4_BDjl8PLOguyLBc-VA"
       },
       "proof": {
-       "proofValue": "z4THiEfRFVht2sjGAMh32deivGazMoaxjmksAaAKBNto4zD2sS9gBm3ZWFqb9Bs3zatPL4w1Xs2Ef4j68b5UCe2GZ",
-       "successorProofValue": "z5msdftFE1KaYPHZq7gqDEZ4v6c4ovtdocRj81PKc3WoSua7eRyvbeqs5b2NYF4u3CzV8uuqYHPxEs3MHvSB3YEKa"
+       "proofValue": "z5avg31FPsaaB4UjdZ2DT5XFXuhvx4BtijSWKtAJ3Hzup3p33CVDjosB7ovf2uDCF1KNbcdYszxTKCtDDWKPgUSzx",
+       "successorProofValue": "z3EcfDs4fBNfbrEtppQ7BNtYV6NVkvWYUkucT6bHH3epzefNVr2pQ26vPvnbbzMSD2pZQ9USbCNkqbrtikMztCgx7"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2",
-       "next": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc"
+       "next": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc",
+       "commit": "uEiBOAYEE_cZfp_dCGtmqhgfOXK-s7kfazKBh7OVljfjY3A"
       },
       "proof": {
-       "proofValue": "z4BfG5Nw6xaZarHgnqrETo1k9te9S9ns5wq6P6ByVUZqS7cmM8HCPnssS8q6WPn5YnJAQgMdrrEw9tAzKdwLMQD1b",
-       "successorProofValue": "z5YFHaCuisTZdhvsXrJhKBxkZSiJTABP2HevhFt9V7RNME5m7jY3T42ickUC5mStxWuAj8CE4WEWrBSZm2hzAYxpe"
+       "proofValue": "z4zXwPki9SNQQSJrE3GmjGh9XbEHufRqFyfiJHUzGDjUQVXfBRr1MYjkQnqgVqnQ3nevsU9YSyEFubxQyY1YMaRVC",
+       "successorProofValue": "z5EnNvp2k91355q2eodjsKUB838snz8Kzs27DX82rFTgfjbeV3wNGS8afowk36qoBK73YPD6jQNEhkpU2ZZrzozh"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc",
-       "next": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs"
+       "next": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs",
+       "commit": "uEiBpa0BTM_HDm3cwAR1-Ml-07K0bHLqKZ8pwNcAoWlsFJg"
       },
       "proof": {
-       "proofValue": "z2LK2KUC9is2Tigy5ZR1ERePfUTddUggfV6mxwhGdXpML1adjx1R2WTvjjXgArMV9TQD647mpwzx5b9N1aVdJNsWQ",
-       "successorProofValue": "z2XsKS64CFxWnhRPEN7z1YNuHcpjx6N1ytCSsfNTKCjvjGJQ2WJLB2dr4MctRV2DUZUPDqbYrNLF6ySS14DQG3fxK"
+       "proofValue": "z5aiN2SA4Ne6Wahd1tGnC4WZ6ybYRAr88XZBovnauGfJB1D2hXjGr6DdHbGsvmZKk3cvB85dRRv4pvYH3hJrwwUGm",
+       "successorProofValue": "z48fYEeVof4heLbJqSdXW9d8ADeEFr213334gUcwnEX9vztRRY5dMyNPnzKGMGmtjbfonMxoQz2EufxFEvb17Ced"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs",
-       "next": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL"
+       "next": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL",
+       "commit": "uEiAIRjJ8yraPaVvSkWc3VP7dzQC94tC5LbxvUklta2xMYg"
       },
       "proof": {
-       "proofValue": "z5qBdY7ERF4pw6S8sEYgnuYtoTkfWkmmGWYCjzAiKKsauDtNhphA7KBG4VFFLTth4kyhoyMPawFHPgRGraWatTE3c",
-       "successorProofValue": "z9QB2Rs1Q3dwXKkLCAkUJk14Sa2nyuCmtNKKVuhrQeixYcEixbwRbx2E1gT1XxJuNhuPpmucSCQFvhzpmLSY4F6m"
+       "proofValue": "z5nV6A1pHBLkcyms4REZbuBxbZd49ADxnLxLtJWXpkRbKwJv41YDS1icdSo9Gmjd1NYpP99mXmbVew1pwcDmRhhHD",
+       "successorProofValue": "z5yxcudjZ3bMkrFptYuJHPM9bCiJ6G7quWnyQWWUNBjqqRdXZvWgmsqM6NkmJjNaC1rhPejT9cPUjk9rMQTb89r6R"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL",
-       "next": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR"
+       "next": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR",
+       "commit": "uEiDS1IE6RXD3_UiLOLNHFxsIXmNKxrxnAcRhgNU54HxtPA"
       },
       "proof": {
-       "proofValue": "z4xNy3617CH7mscqcAi6TpWgemJUuETEYGJZbhrjkxpzyDV2z1S1ya9PCGH1tZXpYgAUFxdN8BbgfTBXThrGLMQNQ",
-       "successorProofValue": "z2epMCGufhnqWeRX3jTLemZvrJkhZPvU3MnUothMaa4Dd4Uw5DUt73VZt4Z2GvjaoP8A91ZDgbeWqvWcfXrDvNNjq"
+       "proofValue": "z592nHehaUyQsZVN4fYwBxWLQH1kBWoHt2gjv8ovCrTbMfHTPzGbzdKki4Kv8zDwd7AhM67fmXFCQkutsWqAq3kM1",
+       "successorProofValue": "z5NsxtmcueYdgc385AAP1wkhxBcbfQsP6bkNA1ZWVM6XrWFWQXg9wuTTYN2fw8r28J3CamQCj93VgypkMVqBYUJKZ"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR",
-       "next": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi"
+       "next": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi",
+       "commit": "uEiBUYyTSPF1GYs51k93pRJGFHzVrQ8TMcqWvojzsgfPWPw"
       },
       "proof": {
-       "proofValue": "zcaxy2bifRez1zEY9N7Smm4QU3iqCUym5PRo1PW3RkgvEm2Y5LoYBehvrgT6QAJBwumLF6ZBD8SWbPivi6pVQnUd",
-       "successorProofValue": "z4rmFpA9AD6Khnh9Nu7nEBf2LPAkNyhVMopaPqQMX4eDoEn1oZKPLQ8PvEjHW2hvh9CagM66ypmxvyD5PuzYudDHu"
+       "proofValue": "z4fA2gh8R3ej51xNC8du1LX2fZNprFkK5XkwgzNwhKbB34ifthmuV4JtiofAhDZvVnj5xDRtthHJqKeznHa17jdbE",
+       "successorProofValue": "z55LqhPUz99qjei8yVR2AgiMb9gH2V7JY9fDcBdYod8LeYvxDTENT8yt7ijgwe8ppnPC3ssyMLFscD6Yj42YCYsLJ"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi",
-       "next": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2"
+       "next": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2",
+       "commit": "uEiAlBfMpxEtXNmeXbmYkiEZFmelFeXbrODtzxIvGQFXUAQ"
       },
       "proof": {
-       "proofValue": "zLdRg94h532eVmnxPYcuNM5Mw2RxMXrHkb5MW53QvYbmVDF8NSGAGrDe2aa8iL14m7FL34x7YtDGgAzJV6MFTMGT",
-       "successorProofValue": "z59rN7yTcCNnfF68bZDa5KvyoTopfRVybbQsh7NEQqzf9KdhQRWbYtHuxfYNzZsv45w8Ct6tBvhFwhgAtr7wr9Wyr"
+       "proofValue": "zR29kMWnygCJPjXfm9sxzukuGzEaw1uy6pjhKxjdFU627AAswnBntzjY5HVxQ4QHhjG9QXUMzJrXRsasPhRAYvmr",
+       "successorProofValue": "z2fxPA98z14gkkfLpKs9WFADq2p9F9FRzQw4q5d2bEtDXe18SPmBBqPYx9a6hVN9eMR6agP8GHSWUoc6XmfC7uyAx"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2",
-       "next": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q"
+       "next": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q",
+       "commit": "uEiC7-g9acW6Bzg8Gw2bAbDUavUf4utrT0iBN5P8f2gmOGg"
       },
       "proof": {
-       "proofValue": "z3vQzhUDPUDsAnzcNEEfFXru5TtpgUKkXKGivHWYUQLPpwToYyjdfGzp46mtTb5RH2DiVDMKYk15M6gEjBy8dvPgz",
-       "successorProofValue": "z4tRkWifuF8Rf9CwWD7cTtV6EpZPgoSgxXLrpZNXgFFwVa9yHUw3ekBBxQ2XRmQe2XKajxpayoyPXAmGSNXLe6m4y"
+       "proofValue": "zuC1cDTGD3bpSkfKXPn4ADDVHDJ7iwtdBgm23Md8iMCEkivM3BFSTcyGGgzMbWyJnvREqTRbrn1TzS2ST64AResF",
+       "successorProofValue": "zJ67hnSpgQLXxpKDgYxpJH7RGfTo4X5Fw4wkWUWHqUGnQFiP7s3qVhh6GFXqiF368EVRHSZSpyJCZM1MSRQj72G8"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q",
-       "next": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo"
+       "next": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo",
+       "commit": "uEiDRsQJ5sxFBAl5pTceqO6wZnropp5WbmIi2uExW7jiO1w"
       },
       "proof": {
-       "proofValue": "z28UMEXiEzNCDgeMw4KJ7JezrPYkgeJeLeHJaLk5Rd3sbu17xKWSGRZ75BMdWiCJm7iubg73VsQNrEWb3dQsK6NhY",
-       "successorProofValue": "z4xLYwP7FB1ZMCEngvMw2GzzFrXpe5y1gNTMqMdEniUDhm848YWuXtNzMYVXr19w3MU8c7XZfXc3XJdYbusjJe6b5"
+       "proofValue": "zPe4iVNm5XZrhtiuXgHW9urqR85yMjf435aMXu6CoPWQBf41EonYsnQcR96vZSDt9z4cdEyGPyhWfynzYvpcohNf",
+       "successorProofValue": "z3bZdtjp4VtK2y3M8xmwr5Y4YPHqMwxoi1K62bJFSrLAzzTmo2zeRh18tThdKaceFtsa5sPYgsqBe8qqGaAhRBpjW"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo",
-       "next": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ"
+       "next": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ",
+       "commit": "uEiA-hIWDHNCZIM-j4N3sYY_PCAzyu-slWimR1556V1uXCQ"
       },
       "proof": {
-       "proofValue": "z3dyeAYWNeHj2ttXiW5ispqSj1M7YukFWN1WwCypqhNJdmcs83iF87GuvE3ArfRHixqzFLSpZM424AzD9TEjenrUp",
-       "successorProofValue": "z5R9veuKyB9scvS7iTfkpnGjCjhGXhrB7XzFdkiiy6KLKbV1VMaDGZXy4o4gFtEJ3ea5RHn9ifPeLhJSoCoLE9SVx"
+       "proofValue": "z5y2MrFUNLEd1wdGiyG2xSFv53KUVaF7555HDBHhEV7Nw93Z4GHzpoum2rtttE3jegbj8yw9Yo8nGLAS4K22DjRGK",
+       "successorProofValue": "z5KLwXwai9K4e2EJcG5A3B6WBBuorroSZA4kEJJyy4L3QfYcjWJeDcR9VZGeV2nEGMyW2s1bxjTCM69d1YAgtyBME"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ",
-       "next": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9"
+       "next": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9",
+       "commit": "uEiDbAhVbdk7qrf_WU-ti-2DwxQHMyev20Xya4EMKjbS2pw"
       },
       "proof": {
-       "proofValue": "z3iJCdgcXaUY6VNixUw3SkK69NBG3dUTH7PA6oBhi5Xa28r3ZkZoTnqq9fn6iKSG81ZB9zdSfJD3NWGSbq87DcGhW",
-       "successorProofValue": "z4gPyD4wATW49C84SMeyCpfHgKgrRoiKHXNshApwCe4qFbpUEYX8wo7oHxrvEtTn7rFmftgV1U9X4ZBbS8A3Jgejj"
+       "proofValue": "z4VZo6X289xUMYRWakMPfnMgFMw3HzhpwePc9m66s9ce2hT9ZvRP7Fwf5HZz9uV4sbFkSPorpgKNiuBim9ojP4N35",
+       "successorProofValue": "zgbYNHh9WnQLBT7s97TdcBCTmuZWLsRszrB9e4ukF3tbKSsbfb3embtswddx7HbzAV78n75oTHFAa6R4abyrAMty"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9",
-       "next": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh"
+       "next": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh",
+       "commit": "uEiDrbkM_FCC7U3SVFAfocG_Tl3LB1r0aXrRuPmkm759quQ"
       },
       "proof": {
-       "proofValue": "zwvttEDbMvdAtWX5hf9bReTAEsdXTcv7KhxcFUYySyZdg29rUs81n6UuwewNLNCXagsmneskdaqXoyQA5f5cwya8",
-       "successorProofValue": "z3Zr6aVM5ueJjf3Mitm48R6KRoVjhRhxoKd5zdrg4kHmvzYizEFr98PTV2dF1sdVnttodmuV3zh7hQzrnnKaDdyAb"
+       "proofValue": "z4M48phdbumrsExJTsiDX3jA9DMiq1ZR2zQQEBKx73CL6Vi8acEbzQjYjmzkctqggiGPKScAnRYzVgeEQBnVe6dTv",
+       "successorProofValue": "z48AyCnJpgNZEcDEh7ptNbffXQWsrUWs9Vyvm2W6jxCNe1yaxeX52RWik3Q5CSQJ6hBoBhpeZ5mEXDKxTcsufRQmy"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh",
-       "next": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4"
+       "next": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4",
+       "commit": "uEiDclrd4HP9ISfLiktZj2UR9JQLwPg94KW7ltAr5QpzKPA"
       },
       "proof": {
-       "proofValue": "z39q14L3UrJhhwgbUvdJS9xYjWRuGaYR6jyWiXzqvxabDPxuSvoUUvDzURZcAj2wqGLgrt8WtC7Q9YV7joCYN4qQq",
-       "successorProofValue": "z5ftQrVFC5MHcmFqv4Fg5q9qTfJGogZ5S5ZaVPjqncdpShxbZ2DuusaHoQKLtdqUrezLpRAgNmPGurMR6wZGymcwT"
+       "proofValue": "zXveNgW7pzRowXx9MbpAJPUFbPZk9k7L7D1JpusnzDko4ednTWi5PfdefzjXf2F9JsGjdsjSMhTN8WWrjFTrxhXw",
+       "successorProofValue": "z2H992dSN96aSQYoCWCjt7PZyZjusRQWrBB4HX4ctq5u2721LhheHn7knyGnrvbRAhqxm6mkYaAs3njtjoDXnDNab"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4",
-       "next": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA"
+       "next": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA",
+       "commit": "uEiBta3CNgEr2BRP9hNvCBIkKdtPGFPDjtjMCZHu52W3gqA"
       },
       "proof": {
-       "proofValue": "z48wBrqvCsw8cD1ZLbNSztiVW8twLBVR1uynTo1tQvn4SJS65AZr9VFQK9YAqzhphwb1KZ33B8nMmWW6YdaxZixdb",
-       "successorProofValue": "z63jhRGqbZSNiuKYttuavn3pdkkzAKzK848dDfFtnCCYeHwBCiMZY1tTrjFjBkgkCqBZagsp7zv1NFkKM7Sqc9Ve3"
+       "proofValue": "z41aUGcGXhidHmJUQ5knjZJEtj7tsLZ5dyFmTBstJY371s3zt6umHFTTzSSBSHcQW2n1qLghUEFaqTRJYm4USCNYb",
+       "successorProofValue": "z3ERUzb68FQZQgR838gm4sT3zWaUUsvCgJLeiNpLW9rNj8AZWQd2Q1AispjceyJ3E42FEAVH2BjLWmVAnZnd1QP3k"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA",
-       "next": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ"
+       "next": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ",
+       "commit": "uEiDzr4N_2J4T9H4hk93IrPiGgStuK_b1Y942JX_Omw3t0g"
       },
       "proof": {
-       "proofValue": "z5SWyCrKYniJNN5UCn1gtQT2CHbgS7cYTtey6J288pDdzAzcUPUveBrt1v3QSc4DWRiph6ceHh4iqRQhzvCVmGb75",
-       "successorProofValue": "z4Kg3kjET6E4rz16bSKqj6fThAJF6t6oxD4SgED3jVvCRMQAEAppAt9ZG2bmoFJfSXG5j8gmsF8P8FCzNZkw4MK3y"
+       "proofValue": "z4N17kFSmc5FtWuvMzNY98xah9dxxz95ozkqxefCkWkij2sWb7dqih5PCjzfS3j43wvyfEHb7QNZL8sLX5Ta7GZHH",
+       "successorProofValue": "z2bcdPGdRousU4kYbRE3ZdUDiDnUjg94WDq8HVC4djsjpzyPizMzZTaDB9EzNMZ8SJgnfvXx1JkvwMC3qxmMckegM"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ",
-       "next": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh"
+       "next": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh",
+       "commit": "uEiCNny94xXI7cMXHPKm-6uTektb2TSm0Poab8PGp_CBVrA"
       },
       "proof": {
-       "proofValue": "zLShYv1FuNSbQuGC6E449msDhsBkRmNYaeRbYmbPYJKZAjDjNYTmPvWFnTJcxMW7NrWyT5jxMT1vBABjzVMTWFgS",
-       "successorProofValue": "z4ksM3Tf2u8FF6pJHaqxHUEswLmX1e1ZTsfzcf7TL3BZtTPYxpnwQpf3BqA31oa2mPZDfFxBxCMZpQjHeFZZyDND4"
+       "proofValue": "z4JH65mrHMTaAZtptDBrHCE7UitKV2pDbck29qiLgHzF7GbyZ92TRN8gL85HBKXrTMWsokJQVrUtF5NcEDUEPQhM8",
+       "successorProofValue": "zJXRptLzy8DiJTCmgFZ5twuP8GXAJqQQyZbC1hVZ4DcvNGRHPhQ33hU1omdPWpcPLAAEX5VMTjobvWf9mRbgqM9u"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh",
-       "next": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty"
+       "next": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty",
+       "commit": "uEiDXtuKJQ3l4a_Vbq4sWvmc68yJh_fj9cA1rgZNXBCREnQ"
       },
       "proof": {
-       "proofValue": "z5nz8kWz2LuBrh4uSt8UdtaRxEWC9XrYwzTPxpGVzjQ7VMTWmtd1znXskLka47Zk68Jc8kCcF5d5u6Xc9Gv1tpejA",
-       "successorProofValue": "z2gnJVYRz1p1QUuCDhB29mpXGdpRw7cQVik8YshVJvwFmZwmbtTBghQpCSY5DLQXqrT71ELD5fkAnnLPpENmTa5Zx"
+       "proofValue": "z2PKYKq9vvRG6f6Gd3nZ2DbhTcVowf42Kkk4UdGL3kXvmXZu1AGbCoKM6xHGSmn4TdXSKH2NGDd1JGVuYeuNs3ASH",
+       "successorProofValue": "z29qQExnFA5fpkmWehfXvghGPtLFc7u3onTeADTMsH1waVZEpQDCxRZvhXnukLGwbdGRZCNRaeLf5soT1bFw1EqcC"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty",
-       "next": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC"
+       "next": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC",
+       "commit": "uEiB6OkN975R4qxY_SL4YRBL-IvjGiTgwECdhzjWvsWkRFA"
       },
       "proof": {
-       "proofValue": "z5gk4gW3Ef6cyVpWBag7Q26h73V2XzuHT7vHhTk5o5kif5ESBjNxn522WWG65x2KcbcxVYa2nigiZ194Dnep4qGzw",
-       "successorProofValue": "zQapxwVn4cxKsQvWvWxH4ewGdtSbRiJ87KjaxvzQMJA1WzHRGGay8Ed5VuWUM875VUkqQdZ8Q24BU4wnPZEcwWUG"
+       "proofValue": "z2WSsMygkS8HY3xAbpSRLnEUxQCKcsoeR27KD3SeF1AH6nPb7ULiA56mL1wYJyjs2hCiMWmwNNbzCqLzPCbZvgee3",
+       "successorProofValue": "z5RY71u9SnVP4BDJza4quDKB3mw4eqULawdqR3UFBfB15DANvicoPt723ec1EJiZr2kR8ga8xdJyBocFV2DwUVSYp"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC",
-       "next": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C"
+       "next": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C",
+       "commit": "uEiCY8MVISepLYG-hwl7xzbPcMA6ZcXu6nHMI5xAov_uI7Q"
       },
       "proof": {
-       "proofValue": "z4aHteFkkhz6YQwY6jN3YXnSgijoeMy6Fyikt4smEHagvaJhUYXf1fU97m1S2otL2jtnQZajZ9mdrbF3HHHWMenoT",
-       "successorProofValue": "z3PsBTMYTJ1vF38dJPHK6B9R8SJFMFe2az7UfKS3Ct9xUQPe2A9KqzbPFgyzUokA1sNGftLAxpsJPocDcs1T9UweH"
+       "proofValue": "zATQTfuubiXgC4TuJq85mX8qiqdAAZhUAnh57MTfiGi65QjC5ZywcKnTciZDEBej9tpKNxj5nh11mZdmEJWQPPYk",
+       "successorProofValue": "z2JToSv5qXcnESi3i5wh1QFvnmSdRJaeQK6orwc8YbtzZu2r9inCDM2UZPJhGq1j4f8sX2EdfXU2p6oWnEuUrSGMH"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C",
-       "next": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K"
+       "next": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K",
+       "commit": "uEiBcsL0uE0xpe1B-9w65qohRPxaksDFX_RLLqrhCBfk80A"
       },
       "proof": {
-       "proofValue": "z2gmHd51KKjriU7RZ6k5SdPEXzqtAeVJNr6WoqjHjLf7SAnfJJhYes1fPtf9TJQJJBY8EtwK7deoJVi5dKd5RAFtK",
-       "successorProofValue": "z2cGTTfit3xnyW6wyycEeoF6HvtK6rgWxMfk2n3EridVSn1wyMqEwZ7fhsdcwSv5yLEigDf9hPdMyms2QmoR3o3Dy"
+       "proofValue": "z3XKCWu4jCAWzHpuQM7pSdLhg88M1rTb7HjRbx6WEcwjJMsMsKYvnbS9fNDhZB73GKYQtb7PMnHS8zUWbeyWmVxRP",
+       "successorProofValue": "zKDc2utkXH9sRisJdZ781uMhKXEmXfAkQpAqHPya2LpejR8csdhYHtrNMY9JLsnzQ5nyFARKtHNRGmELfpotFbwV"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K",
-       "next": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT"
+       "next": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT",
+       "commit": "uEiAjoL7WgR29StE2bBKSwl2_T263eKQynRpbBb9xrgK7MA"
       },
       "proof": {
-       "proofValue": "z5yiMnDbC7wis7EuKc1YoZKxZPa5tdwnXXYxidfTQjxcowSFX5JM6xC12RNDiewKqFyE5mga1b6RbDVvxHyWtvLyR",
-       "successorProofValue": "z496X4UPhtQTg4aN6jSJuqyKaAWbX4NtaSnAMPkJNjHDNrq5TvvSBShNw2MmU3NjUAERjgWLFYyxYcf3JhEJqVyuV"
+       "proofValue": "zZuSkwMLTaBd31RGTQpLpUvHh2JxNTZMPTr2ShEpT5BkiqcFbgpHAB6TYUXfKKqfe8jmpR1tmfBKwrKaveM8piZ3",
+       "successorProofValue": "z2CA5SzHQG8DTD6EBDgWk7hALKMK27wfZHwtvEzwVjmKYHdPtGHuAusWrRFK5foUYkz6BrNKDvQAsKAHLSdYgNTpW"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT",
-       "next": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6"
+       "next": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6",
+       "commit": "uEiBEwYl9IPU9ddkxGiGkEJJlNGGntyYh8KNGc44KezRG9A"
       },
       "proof": {
-       "proofValue": "z325tmAPKSAQJiXRRpDpAtGs9LM5GZ9r9o3Cy594en1npFqux4S81CcJNKCyKxV6pqHxxRsCH1xagssqSr7psD9Vu",
-       "successorProofValue": "zQv29F2UwecUryCpMriGcKXZ2zKcdCMGiSXmo5oqcD2Dz1BPfW7gCh1uD5ENYmM6G6525vepoPBZb7rozejfK79t"
+       "proofValue": "z42FBdRbwqgpVyz5yf5aEsgPiJPB618anfhksNeiw1DX7p5ZBny1PCZzXZJp8NPjAbJuMAdYqtE48aMmDESLhZir5",
+       "successorProofValue": "z4UgXSEBLqaePBaQbuoKAk1jsLBDz94gxSvr8MVvLmR4HmR1m4dzfPtk4bdys4va6k2xuQyRqgAHexeYdW6jm5Vtk"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6",
-       "next": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq"
+       "next": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq",
+       "commit": "uEiCt_9nVLZYDNEzhvwopyD5B-_WDKMUvh1KkNBvH7JPQHg"
       },
       "proof": {
-       "proofValue": "z5mFpNtUpmbktW4k1XXJX3ACxmqDLjbXgySAfDg75hZzDj8ahdD7n1XJAQSSsH2MoqzA8s9yVoMXEAktAjnMmjAS9",
-       "successorProofValue": "z5W8fKTkyA6bv61bbffkT4NQmGTK2oStoN94vpNrwDp8oz91bs3VS24vDR1uNeW5jEw14FP3NKHfLJoSrcA8VBMpT"
+       "proofValue": "z3ucmcpQ7jUFuhdVuCBn3ZUgVjX8gXrJLa4xRWN1A9TMx3VGVQfzWAMgjw9tqe8CW6iewhiKNeYLvbcdmnLCstuGX",
+       "successorProofValue": "z2YBUyGrCjTo1qz4Qwz2Vj43QygguJkTTm1JF2yGqytwCraFqoEEQcJ6ESqt3ufAXxiyv8ZW5NYH2VttYNKnAvpsR"
       }
      },
      {
       "body": {
-       "type": "anchor-rotation@1",
+       "type": "anchor-rotation@2",
        "prev": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq",
-       "next": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz"
+       "next": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
+       "commit": "uEiDRj5xEaUuOJ8HEOuQwB16AQ9iEM9_2Tvqgc9cdADpNtw"
       },
       "proof": {
-       "proofValue": "z3XxgsfenecS9hYyMzRDQkLoWt993wzWzDd3a9L44a34tHMRFfBe7jv6QwrNJDy9nheAgidV8EMQcF19z3Ystu7ka",
-       "successorProofValue": "z2dBmpq1FMYwdrtujKgXNuRC9y9Auptq9ye3S8G9RUCq7XJkbRs7LPf3TZZCojj3zwEqwAQ4QNVKoAYk3pYque287"
+       "proofValue": "z5Km52DcQ6V3bPcGDGN5jZynpa6tpGwZp5emPPzEN9CqEPUDfSy9dNrXWwom9e19ATCscUfDBDREbjmSxrDY4Xmqu",
+       "successorProofValue": "zA96B4f24Ejt8SDJiWWxWVah2KdPnxWozUa94WvGi6Tqg8PxJQumeBQ2DrVGmR7HBaxeUrsNKhcL9NYBDyUeLQam"
       }
      }
     ],
@@ -1272,8 +1328,71 @@
     "issuedAt": "2026-10-07T12:00:00Z"
    },
    "proof": {
-    "mac1": "u-D0EAUYzXPbaqpI8DBg7pKvZVbbhh_WRrn7MnmJGF6U",
-    "mac2": "uc42Q1i4iGR4A4MunqCIoiF7bYwlCUXmeHVURi15FFvY"
+    "mac1": "upk8348Ak4kArg77VN9LGUsRlJcX5-BZbITpIaJF-oSk",
+    "mac2": "u3uT8dFVBXrZglTMglqPYx_UfKRwx7yT5y6TPPaMH8fA"
+   }
+  },
+  "anchorRotation23": {
+   "body": {
+    "type": "anchor-rotation@2",
+    "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+    "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+    "commit": "uEiDowqu9gHXmoSVGcCQ0xqLPsH5-vtivv24c3z65Os5HIQ"
+   },
+   "proof": {
+    "proofValue": "z4QvnDXJo1FoBbLCNoDvtswZ1vbCr7eycqEmc5jVMqTy2R7VpQmuYWBXM9AXSeiKAagSXKGwTSnRTi41X4mVTMthB",
+    "successorProofValue": "z7xVmBvDHS79GwZJiwiTKEBqoyvfm1ebCxnmcNucryCc3c8uHcNfnNWiCk57zTyBT2AsFio8AoD9CtoCc4v12KXm"
+   }
+  },
+  "anchorMappingGeneration3": {
+   "body": {
+    "type": "anchor-mapping@4",
+    "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+    "self": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+    "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+    "card": {
+     "body": {
+      "type": "self-card@2",
+      "anchor": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+      "keyAgreement": "z6LSeA36p2wDBY4fL2RMMNA4MdhVjErNBwStmpgPe4uKynwm",
+      "commit": "uEiDowqu9gHXmoSVGcCQ0xqLPsH5-vtivv24c3z65Os5HIQ"
+     },
+     "proof": {
+      "proofValue": "z4Evj5kxCtvLJ2PM7m911iSFpjPWcD2XDmRsxj1zDJhpgGEp47k4tkkZxvmEMKnzb1LhV5osyNwvfjC9RjUthef8v"
+     }
+    },
+    "lineage": [
+     {
+      "body": {
+       "type": "anchor-rotation@2",
+       "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+       "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+       "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
+      },
+      "proof": {
+       "proofValue": "z3CTMQuzuaQ1SmBanxqivmGNopYotx3L5vT9xKsevY2YVtY8rYf9hJXiw6uo1jxfXFuV73FKjjGHaQdRnPkmZuaEB",
+       "successorProofValue": "z3YKi9kBsK8y4maHLR9yyDFGwkQZShdi1UMbauMwS2S1QYVFFteVfCoMeDHyVVeLVMiG5HtJpBqP9JUZrAx2GfDGs"
+      }
+     },
+     {
+      "body": {
+       "type": "anchor-rotation@2",
+       "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+       "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+       "commit": "uEiDowqu9gHXmoSVGcCQ0xqLPsH5-vtivv24c3z65Os5HIQ"
+      },
+      "proof": {
+       "proofValue": "z4QvnDXJo1FoBbLCNoDvtswZ1vbCr7eycqEmc5jVMqTy2R7VpQmuYWBXM9AXSeiKAagSXKGwTSnRTi41X4mVTMthB",
+       "successorProofValue": "z7xVmBvDHS79GwZJiwiTKEBqoyvfm1ebCxnmcNucryCc3c8uHcNfnNWiCk57zTyBT2AsFio8AoD9CtoCc4v12KXm"
+      }
+     }
+    ],
+    "revision": "3",
+    "issuedAt": "2026-10-14T12:00:00Z"
+   },
+   "proof": {
+    "mac1": "usuEW3AizmPJ0dgALgyh52-n2QkAjUiVlYLRjdSUkfUo",
+    "mac2": "uJ-4n0yNX5EA3RRMB3IIn3r-F4HDCRUpNDh1SsfLvct4"
    }
   }
  },
@@ -1400,13 +1519,45 @@
   {
    "name": "mapping-foreign-self",
    "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
-   "checkOrder": "6.3 steps 1-8 in order; steps 1-4a PASS (MACs are over the mutated body), step 5 FAILS",
+   "checkOrder": "6.3 steps 1-8 in order; steps 1-4b PASS (MACs are over the mutated body), step 5 FAILS",
    "expect": "reject: card.anchor != body.self",
    "artifact": {
     "body": {
-     "type": "anchor-mapping@3",
+     "type": "anchor-mapping@4",
      "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
      "self": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "card": {
+      "body": {
+       "type": "self-card@2",
+       "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+       "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6",
+       "commit": "uEiB8ZaOeFjp7ZvOa0oDstAUYs6AuS9I_mTx-sz8nUq_1cw"
+      },
+      "proof": {
+       "proofValue": "z46YGuV93yAjQ1frc3dq5G5ezKCjVCFbn1v9dX1PWCyzdLkxVfVfRV4GdtfB7RjiVFPJd4jtuKbtwiq9PjbB5JE7p"
+      }
+     },
+     "lineage": [],
+     "revision": "1",
+     "issuedAt": "2026-08-23T12:00:00Z"
+    },
+    "proof": {
+     "mac1": "uqZmWC2j8WyyDLF5ibJ8vEeZHX7fvJUDf7FIf3bcnSuU",
+     "mac2": "u91eyj5KAro3cZyWecOPaZELzxxs_TDklqKDhhnund7U"
+    }
+   }
+  },
+  {
+   "name": "mapping-card-1",
+   "fixture": "none needed",
+   "checkOrder": "6.3 step 1 FAILS: the card is a self-card@1 (no commit), the mapping otherwise anchor-mapping@4; MACs are over this body",
+   "expect": "reject: the card of anchor-mapping@4 is a self-card@2",
+   "artifact": {
+    "body": {
+     "type": "anchor-mapping@4",
+     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+     "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
      "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
      "card": {
       "body": {
@@ -1423,42 +1574,44 @@
      "issuedAt": "2026-08-23T12:00:00Z"
     },
     "proof": {
-     "mac1": "uyVb2OrRho4yOSt2fhUp6sNUqG3MIhEWsfpWYxBAP9Yo",
-     "mac2": "unBefti9qlK-jo0dFIhPTqad7xSPuRV1hVjz0zKhZJcI"
+     "mac1": "ueG18YYNT3YNheoZFoUZTj7nZ_D1IKxYWslwxrJQxlvU",
+     "mac2": "uVtkF0AJjHnuBSJzdpoBbZcNnESwe8HYrCcrLspQcKEQ"
     }
    }
   },
   {
    "name": "mapping-lineage-not-ending-at-self",
    "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
-   "checkOrder": "6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)",
+   "checkOrder": "6.3 steps 1-4 PASS, step 4a FAILS: the lineage element verifies under both signatures and meets the binding of the generation-1 card, but its next is generation 2 while self is generation 1 (MACs are over the mutated body)",
    "expect": "reject: the last next of lineage != self",
    "artifact": {
     "body": {
-     "type": "anchor-mapping@3",
+     "type": "anchor-mapping@4",
      "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
      "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
      "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
      "card": {
       "body": {
-       "type": "self-card@1",
+       "type": "self-card@2",
        "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-       "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6"
+       "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6",
+       "commit": "uEiB8ZaOeFjp7ZvOa0oDstAUYs6AuS9I_mTx-sz8nUq_1cw"
       },
       "proof": {
-       "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
+       "proofValue": "z46YGuV93yAjQ1frc3dq5G5ezKCjVCFbn1v9dX1PWCyzdLkxVfVfRV4GdtfB7RjiVFPJd4jtuKbtwiq9PjbB5JE7p"
       }
      },
      "lineage": [
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
+        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+        "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
        },
        "proof": {
-        "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
-        "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
+        "proofValue": "z3CTMQuzuaQ1SmBanxqivmGNopYotx3L5vT9xKsevY2YVtY8rYf9hJXiw6uo1jxfXFuV73FKjjGHaQdRnPkmZuaEB",
+        "successorProofValue": "z3YKi9kBsK8y4maHLR9yyDFGwkQZShdi1UMbauMwS2S1QYVFFteVfCoMeDHyVVeLVMiG5HtJpBqP9JUZrAx2GfDGs"
        }
       }
      ],
@@ -1466,746 +1619,869 @@
      "issuedAt": "2026-08-23T12:00:00Z"
     },
     "proof": {
-     "mac1": "uBkK60khfrza24IirIJ4q4SCV4PZkd-YRtEARcgqRDgw",
-     "mac2": "u8ViXqyzusUdecHFvSvkE9ipLpy5-Bcpv4JZO5LCQoDY"
+     "mac1": "uy-CHuljEbgyWycBPlckOaZ1TAO1DYAqNJRb2ex53lcg",
+     "mac2": "uqUQvnbj-CJ5CrNwwC3_uT3hKjHURjKE_eADTMCecBg4"
+    }
+   }
+  },
+  {
+   "name": "mapping-lineage-binding-broken",
+   "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
+   "checkOrder": "6.3 steps 1-4a PASS, step 4b FAILS at the binding alone: both elements verify under both signatures, each prev is the preceding next and the last next is self (the foreign generation 3 of anchor-rotation.json), but the binding computed over the second element's next is not the commit of the first element (MACs under the pair key and the foreign key verify)",
+   "expect": "reject: a lineage element whose next does not meet the binding the preceding element commits to",
+   "artifact": {
+    "body": {
+     "type": "anchor-mapping@4",
+     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+     "self": "did:key:z6MknCzSx13B8vvPkpj24JC3fSa58uifHFLDQ9WGywzMg3QJ",
+     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "card": {
+      "body": {
+       "type": "self-card@2",
+       "anchor": "did:key:z6MknCzSx13B8vvPkpj24JC3fSa58uifHFLDQ9WGywzMg3QJ",
+       "keyAgreement": "z6LSkbyTL2U6T3Fkc9PeCfCZYokomchRTXeLjizCxSFusM1R",
+       "commit": "uEiBLZlCjT3RWq0mijJ7UubCaJxgByAWol8fTVreMv95VzA"
+      },
+      "proof": {
+       "proofValue": "z3B4AWnxCxm2fZftLxnCEZVPVVgYWoQvnQ5g9tGibVons745uaV9fCyeYcKeAuQXsNZe1DHJkzMEGJFTX9VHG7nyh"
+      }
+     },
+     "lineage": [
+      {
+       "body": {
+        "type": "anchor-rotation@2",
+        "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+        "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
+       },
+       "proof": {
+        "proofValue": "z3CTMQuzuaQ1SmBanxqivmGNopYotx3L5vT9xKsevY2YVtY8rYf9hJXiw6uo1jxfXFuV73FKjjGHaQdRnPkmZuaEB",
+        "successorProofValue": "z3YKi9kBsK8y4maHLR9yyDFGwkQZShdi1UMbauMwS2S1QYVFFteVfCoMeDHyVVeLVMiG5HtJpBqP9JUZrAx2GfDGs"
+       }
+      },
+      {
+       "body": {
+        "type": "anchor-rotation@2",
+        "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+        "next": "did:key:z6MknCzSx13B8vvPkpj24JC3fSa58uifHFLDQ9WGywzMg3QJ",
+        "commit": "uEiBLZlCjT3RWq0mijJ7UubCaJxgByAWol8fTVreMv95VzA"
+       },
+       "proof": {
+        "proofValue": "z3YhNARQJrTDxiEriDu7Brg9RtrA7beZFASKsFhk2kLLcFp7g9kGXvk3tLESnpdvWiDjVRAhusuHfvZLSRhqauYa6",
+        "successorProofValue": "z2HbA3sRBZY21AogAJ8De7ruQ5hoD3Zn5wX6ipZ9vr5DNN6qyXBahDewvyQhsNqKQcGFLQobgUGdrBFhECMjP6Jjq"
+       }
+      }
+     ],
+     "revision": "3",
+     "issuedAt": "2026-10-14T12:00:00Z"
+    },
+    "proof": {
+     "mac1": "uGDUqFzleX6Zc6RdBDvS1MngGyCq55MnxcTmqM5GgGEQ",
+     "mac2": "u8SpauQyBINor6RQkWDyhIiBCCpLW2hchWXIMuY3Lxyg"
     }
    }
   },
   {
    "name": "mapping-lineage-65",
    "fixture": "addressee B holds tuple (A,B) active; arrival on that tuple",
-   "checkOrder": "6.3 step 1 FAILS: the lineage carries 65 elements, the schema admits at most 64; every element verifies and the chain ends at self (generation 66)",
+   "checkOrder": "6.3 step 1 FAILS: the lineage carries 65 elements, the schema admits at most 64; every element verifies, the bindings chain and the chain ends at self (generation 66)",
    "expect": "reject: more than 64 lineage elements",
    "artifact": {
     "body": {
-     "type": "anchor-mapping@3",
+     "type": "anchor-mapping@4",
      "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
      "self": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
      "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
      "card": {
       "body": {
-       "type": "self-card@1",
+       "type": "self-card@2",
        "anchor": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
-       "keyAgreement": "z6LScDGGMDYreACeLFvCiewjcvF5Y8WoSQXi9M9fUfszA4wv"
+       "keyAgreement": "z6LScDGGMDYreACeLFvCiewjcvF5Y8WoSQXi9M9fUfszA4wv",
+       "commit": "uEiDRj5xEaUuOJ8HEOuQwB16AQ9iEM9_2Tvqgc9cdADpNtw"
       },
       "proof": {
-       "proofValue": "z4J7FPzUeev3eXdB7QorbdPFyDTBdUK2PLj7RqBkhDuuoe8oP8w2GVkKMQDnTtojP23PW9dVU9z9AVF1RHc64RVwC"
+       "proofValue": "z4q1RoWhEKTuNrtKJWbHtfSiFe77HLeSDHVeuuiG8M1A6C6WmGbqT91wzyfQGuEY3eT4inhXrfp6sdapBWmusazMr"
       }
      },
      "lineage": [
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
-        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV"
+        "next": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
+        "commit": "uEiD53KO6HpI2IPWzrsuleKzAGu7symkwmrbu6RCaxXMBCw"
        },
        "proof": {
-        "proofValue": "z2uCPKEt4xi14G3RfiSV6myLahL5MXKDXRxZYn6QjdUd4w1dcEwcCLrn7PWvncKYHjFYVoaSW1tnXCdYjmWVHNLna",
-        "successorProofValue": "z2aJUNtFjiTobjA9L9vccQSoj2JMvd2wPVXZAFr3LygNRgi2pj1Y3nPcjuos4AZNVGuc9DKhF15Uc4VHFLHo9ETey"
+        "proofValue": "z3CTMQuzuaQ1SmBanxqivmGNopYotx3L5vT9xKsevY2YVtY8rYf9hJXiw6uo1jxfXFuV73FKjjGHaQdRnPkmZuaEB",
+        "successorProofValue": "z3YKi9kBsK8y4maHLR9yyDFGwkQZShdi1UMbauMwS2S1QYVFFteVfCoMeDHyVVeLVMiG5HtJpBqP9JUZrAx2GfDGs"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
-        "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN"
+        "next": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+        "commit": "uEiDowqu9gHXmoSVGcCQ0xqLPsH5-vtivv24c3z65Os5HIQ"
        },
        "proof": {
-        "proofValue": "z5riHWZW4w4CWevdAoU3jSqfkrdtCoc2CMGEssxj25mzPjF1k7jSFu591ukwKJhNs8ojjVkmyUiEQPZQVgozzCD2p",
-        "successorProofValue": "z2hoV8ZSS5dQSSMQ9jgvuTMXiDqJGeDd5j88yKzdeKsJicJrZBKvE6D28M5NtfAJ4GmP9f7jMiJ7Wn2SoExvucy1C"
+        "proofValue": "z4QvnDXJo1FoBbLCNoDvtswZ1vbCr7eycqEmc5jVMqTy2R7VpQmuYWBXM9AXSeiKAagSXKGwTSnRTi41X4mVTMthB",
+        "successorProofValue": "z7xVmBvDHS79GwZJiwiTKEBqoyvfm1ebCxnmcNucryCc3c8uHcNfnNWiCk57zTyBT2AsFio8AoD9CtoCc4v12KXm"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
-        "next": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7"
+        "next": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
+        "commit": "uEiDJ2i4ifSELF5eBhuBniYKUKkTplrF1bt_8DkiyRFay-Q"
        },
        "proof": {
-        "proofValue": "z4gFzWLJzYsKDP6zXoot7nP5Mx974hrcVWBH831Nt3YCR66frZq78Qd6uyNWNLjMiJqEp2i6UhHuFXwz1i5fmJuqt",
-        "successorProofValue": "z2owJUtiiyiCkgF7utKRUgjAaQMRrvMWtu3agEohLtNyuPcfsMMF4uqhAYJ6as3446XRBf5n6DdkeuaDE6xYyvewu"
+        "proofValue": "z5K7uManfRR4mjqNdo3yPmYHPZGLLFevsrY4nUFPVCfwc9djuGVniUzoFocbLCDnmauP2KeL2r6kBby5RHnRAB5AL",
+        "successorProofValue": "z3bTyQu98hF1WCyiZ6DXpCv61SohvYJLFtXxguuKYes3fRZdgNqLVNY61cLZTZStndr9N5nNTRLf9468JPqUNry2U"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
-        "next": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1"
+        "next": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1",
+        "commit": "uEiAIxxiuBwmEXpRfLDzAav5eP5pX5G-0yL-9_4Gp3-ozKQ"
        },
        "proof": {
-        "proofValue": "z2GUWiRZXpG7ApyWQaW6xszmZ2zEHpwiK8xUyM5fJLdZHDmnnGXyRQnt85afmv6SxaXxEWPKKE4o6EXLg5ERnGmBm",
-        "successorProofValue": "z2bBGzUdCPXs2zKzaWYM5ECtuU1jssy8yX5ZFMFAvw1AXE52RhHnsuvPQPXedrTBYnXUWd1bfVFSg4QEbvFKxYc3R"
+        "proofValue": "z2Svv2KNVbBQMkXSXuxdr8qufjgcBQwEoUNxoVNJsHn1NEa4yS3ekVaTHTCVRJkcJHWQCnnkVLgY3hz85Rxqfi7Cr",
+        "successorProofValue": "z26gxwBMGEKtuy3bBT6ZsG3yD8UD4JHkVrrLsNWyLr2UEQQczgB8kEkbqf4A7C1StogMQWfnH8zGfaTSpF1AUmu7o"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkrYqEi6gBtzzgtWhdrxZLDz48qSEx6cway564wJPKgsG1",
-        "next": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ"
+        "next": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ",
+        "commit": "uEiABVAWPXsrqKvD8nl_nJClHEDjZxofYcYL8w2Rv7h5gVw"
        },
        "proof": {
-        "proofValue": "z2R9j6eHfd6tG6VpYHbo1WwB93d1JT4t5kEggGNHWuDaQCd9KAXAReFUstabJi9tArAXWzi7RPHtH3RqbiuKHmdnk",
-        "successorProofValue": "zeNZitkuXVnMQeD42VaWXte9viyEckjweygTjJacda4zLHFRffJxMWA2BtWH9CFJFnkCFRookVgdJwtAtomDVHKU"
+        "proofValue": "z3N5zAqxu3xaoJSUwEydoV8KiVCXwWmCT12ot3b8o8jdLNQ4HKnM9ZKSdr6aKeoAPfQQEVfxbCW8ZGrghZn1AivVC",
+        "successorProofValue": "z2doqBEUdj1Lz4e7wgwzEsp1n8i1ywpE5WuYnsBwTG6rjgVWC1jStB2C5uTjZW2r8zXj5KBjn5wczdmiU4UjZTov6"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkfMQewGYcYNYyvMftgikHtrsvFUyyrrnmts6cmHznLpsZ",
-        "next": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ"
+        "next": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ",
+        "commit": "uEiBdWcAWGI9B1-oAPTozPm8jEXWBkDAP06XsVup-7UF_Iw"
        },
        "proof": {
-        "proofValue": "z49cyRBURuF28F8pefmCP7ad6Lyiv38tMYkaRrTdzkwyXBTbwinoynWLAA3xsPzb3hyC7TRqE8VbLWV9D8TpBx3KN",
-        "successorProofValue": "z5z6vNZcSSJJXhg3LhBbcP6Gb2K3kmgZPhWPQRC5NULcjUxANa3rJAEEhPVJRQufqVAWw9NW1AnakkYo1yZMw7SHQ"
+        "proofValue": "z3s77HQZCtzPvxb6g4Kkj79V8bRT67xLZMtszkp2xY2yrXZVA9XufNTgXXKgo3kkP2W1zK6bKmtPwhpXDJLgUQxwi",
+        "successorProofValue": "ztU4n8Utg5fR8LXpMdELiZx8VmAL7svY4nctjHWgXkYfpTZoTXUSMProE5JLShjDa57WiViXmCsKHghPNdeCiA1C"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkiJcRfJrMzJmnRUA7Kf3Hi8yq1fTTS1Lxanf2Ti7tD3SQ",
-        "next": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz"
+        "next": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz",
+        "commit": "uEiDs4mRfZQp96Frn6rrFasn5HmQgnLoQqN1lzd4T6ROK8A"
        },
        "proof": {
-        "proofValue": "z4Fb5trfVy7TscZZ2suvpKtJG2toQivo9xEmwHdycW1pit2RFaHFXirYGDXBAgRpsiVLhxAMKzDMr2K5xcs83mFfP",
-        "successorProofValue": "z4Sifm74sp22bqKURxtM3qVz9U8qZXf3Wi4b3Nxos9GnhbJBddtt4tU7QbWEJnxiL1z4o91XJnsfkonR8BE4GQXPo"
+        "proofValue": "z53Q9SNGyCKDVxvyCh8JF64iV57wja5EV2XTch55figRSA78pg395hxpS61UGdorWpmj9LDX2uWjf6y5JKk8ASXQ3",
+        "successorProofValue": "z3Sp3YBBxb12x67wke7dwXXu1FUkAo6wYrTMD9r36ycAUUujjjhtEst1LHEoyEBoCGZcBo4ssu89wdaYPgFM4Z2Pr"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkoj8r1oUFD6kBhzkiNFAcTPPFPP7FXsvzefxscTagdEYz",
-        "next": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE"
+        "next": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE",
+        "commit": "uEiBdEgRy_O1XXj52l3wr5-v93OTlqF3e6jf84vpT-zdpFA"
        },
        "proof": {
-        "proofValue": "z5GvXUaAp5LDc9eLi2AZLKNfQbW7BPiXJgeHd12wukAkZnKQvWABFNZ5Y5QB6n3PNYsPQG62CFxJf2fx1nznXeEfC",
-        "successorProofValue": "zDHaDeyvRDkPspocNbEbyXLbdE6YqimHe3tAUQ7C87tYbMfVAwgT8emr9RXNYeHyoqBvRS5bfgsQSR8ZNZp1FK7K"
+        "proofValue": "z2Mrzvwb6Cqa9upkdEDnAyjZttfHYcmJBgUniVkdb7keA4oTn3HUGnmrM48pRskdmuamWLmXkTFvFYjUQreqzC9NQ",
+        "successorProofValue": "zayKQVcMaiWhNSkM7qLFND97JzZHroWJfuKePCCU9vni8xi6pfXwtFzYWPCoChoqveaUm1Qbt1QjEhDb4pa87sWf"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkvVop3LSuSzF8FDmR6aCPjA9Ld1hnBUbXokz4PoWTENWE",
-        "next": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr"
+        "next": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr",
+        "commit": "uEiD9UBjSac26cJ6DqAiu9vuZjoLnUOreS_6j-H5EGeDBCA"
        },
        "proof": {
-        "proofValue": "z2WPZ9Visq4u6HPFVgjXwXgkgvyT6EmmMuQh5g1UkmwzvNJ1V6JzKby4D3MxSHF3oGuoNzZrBcgJzq9rZE8ikHVA1",
-        "successorProofValue": "z5VQ8CJMMiNWE1FjDqSg68Uchp1WFCQzzjAypVRbKsuwMJ559GGv5smwS43mk59rKn52Grt1hVQt9iEVLNHWHehmG"
+        "proofValue": "zV9toaiQ8fVYg7QQyLN5RrRVdvahLHeVWrLwzK13aYNTceL5FEFu6XuLSsdA74tth4G2JYBLBMhUGGWrDQrzaKiP",
+        "successorProofValue": "z4agLB6sKQD4ozDP4gjeeUiuiGNtY9Cxdo18N9t4VbrzcqpNJKP1FSLmS2BFRFXtVxwmeYSpcaqGYdxtqFZ8Q7wMZ"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkj3tBKkizSC48gxsAmf37tCHGuvWARXtAoGe1nR2Tt9sr",
-        "next": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4"
+        "next": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4",
+        "commit": "uEiD-yMWg4yJ4o4U57w4oX9ZXq-MXJDRu6geRLlsgvIZCiQ"
        },
        "proof": {
-        "proofValue": "z65FqvAsh4SChSNvc4qZxUPoP8VPNWwiVWMTHwRpzJPHGpgmgEeNWZk6Eoo2BSakV35eZhWUXeKnZcN8cfRPwYFPT",
-        "successorProofValue": "z5x1ctoDH3a2xR3xEKPikKtbsgM4tVtHwJ2rtCxGZtMxrA9MuJHHSinS9NrMYb4jsN1cfX5EWPPWyeHMJKJ6CJptc"
+        "proofValue": "z5j5Xk8bDjXKgHUwsy755yJuFrnCrkvYBvZk5vVmpamdt8AnU1Zet51WizWXFMdpBoi2qhEiB2TZ4wYuZMTwRxteY",
+        "successorProofValue": "z5FAWhXSsb6TQcJa4wPPPF7RucC6rr2X2Q1kW1kj5WHfK3jU2DdpTbHXiM8zAHKTKotmrZzPEDpzC1ibMyzoeDgBV"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkfiJXZxexH7zD5uYxkYLzrrKHgSiucE5NHqvAsVs3MzP4",
-        "next": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M"
+        "next": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M",
+        "commit": "uEiAnDyyAZ388s4AiGALQ4ifTYTnI5XqpBctuKM2T-l9WBA"
        },
        "proof": {
-        "proofValue": "z5aox1Z6v1UXgnW2Q33br7PXMT3iTWU2uRrByuPWoU2UHNegWDQ3Xr4sm8obq9pxvygVe5BysbYYA1fzFdY6Lsob4",
-        "successorProofValue": "z3rWfdszdcN6ud5emV4mr2LbfrY4HwGjKtTfD4PhqjotAG8v3J8gw6WwEARY5ADJqe6j4nrc9XBGuxXf9n7GgXEtb"
+        "proofValue": "z59GY4Cz7wZ5X1kgsjjXGkG8ShQkoMMYxf76iuoDzsFjny7FG9MRBJwzqSvRRgi9R1BmGdUYJyJdyjNpg5FMNyntL",
+        "successorProofValue": "z5JFg8nZTniHRa8PVBg1xtr4WL3uiLWHZL2ZSqZX3T2mTephZABrWhRzZzK5WtCq2KhGZZxdHqW59rVqUhVcxAv4k"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkf7jn1nhg9wr4VxxyzHTJDi1HLJGiRycp7kiXW2JVCh7M",
-        "next": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5"
+        "next": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5",
+        "commit": "uEiDTWM8FPjPRyOWDmEG5--A9ncsXPj3-bUr1-82gMxvONQ"
        },
        "proof": {
-        "proofValue": "z4wmeozpA7RE6WmfHBPNp8CHDX28fSwsaCpjXTDkLDypzfVa2HCuipqEE4FeBiHvb5hy1QBj1KsJ2znES5aAFxnZM",
-        "successorProofValue": "z3kpdSWpXKEv566e1QChobH2UcmSFZZNsyzZuZodogSoeyfAPvXXHVj7MmhCHk6Bv2PBUNTLuq8jqP2Q6FTSd6bAK"
+        "proofValue": "z4THHADSQMjoGEEucya1XpWh141qwEeWwpGwnMZmvkbGwwoNYYdUBK3fR4guy4khGBsUY6xLfUC2N6k3cYE8Mj9P2",
+        "successorProofValue": "zqC8PjkiW8Nbyts53Cc9bvPDWSEGtz26V1HY9s9Vhim1jqjBZ18BvEFrTMeQE2XwBXrVfKb3Din4qPKhC6zC3uFk"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkf3UGdTrRL1pfWu56C2v95wBZVdb5f2FrXWQjy1cY69Q5",
-        "next": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4"
+        "next": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4",
+        "commit": "uEiD5peMaB-go09QzCli20b2v7w4XwnXEMZjq53eDe2yuWw"
        },
        "proof": {
-        "proofValue": "zbhBNsE8485nDge4qvexUK6QXA6o3TUgBSUrkEqJMWbEsBCJYCrxgCY8HoJtuFsx4GzDXPXqnHtUoEotVDF3t6im",
-        "successorProofValue": "z5qbPjHgnym1KN6mMPiF91ZTGH7QkDsxKyUepgHYdqNjPJJxSoiPPNBcs2yYeCXXLSFZ1LbmfbfJhcT8ab7JywufA"
+        "proofValue": "z4rpLoted3DTktBwmMu1gwPyh2d4CX2kLEMCSspYCCAyB61pPTU2hMHKUyhVAXsdpnJcpvzR94qG4AhqHMc58HV4y",
+        "successorProofValue": "z33vK5YdrvxaeFDubNMAnswmqKZ48moN7EPcHxYDBCxT3BhKxfFm3fkZQ6xCeq7PkrnC2VJ1kBrJ6XH3rwZfPc4Jc"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MknLzT2D6uM7uUJUcKydxSwB2koRdFsdLQJ6EAJw8XBtw4",
-        "next": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm"
+        "next": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm",
+        "commit": "uEiA4I0cGckAiKmhSTOZXLwhrw2E01aUhRkcaa9yVgn9Z4w"
        },
        "proof": {
-        "proofValue": "z3HspUm6Yw4v6czbZQqLDyZmSkhNQREBcspsRkJFD7u7hWyAZ4s6c9BUjpJHDCWtAwk7j5vvhXeMbQd1MQjjBKnuy",
-        "successorProofValue": "z4q7XPdqVae19SnWcxXAJhga49WGFL6jBHvCkd46WJ29FX4G8PQuRZ1rutAD7dGuRr8fe2hCURryTNbCL6oajBa7r"
+        "proofValue": "z24euruy5H5T21hfLZJ6ys57eRC63bp3oXpT36mPUJfT6oQXNmCFgyDDSAp8tcQC1qGhBjq7AFLW5yS5TmUnbU4ia",
+        "successorProofValue": "z2vs6XzmyX561q6iGMbb8gFwe5J5RX1Nvz341AQiuqjGcJXUghmreS3H2k2kR5BaUpoPDanZthmCfNvXuLmfdAWmK"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MksfrMTWzKBVqy1gCbcw9Kdrr2mBUL9pggGfmJyEP1fDbm",
-        "next": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6"
+        "next": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6",
+        "commit": "uEiD4Ujv-545wf6qrnilknx3385KV-US2SmhC6LBtf_xoxg"
        },
        "proof": {
-        "proofValue": "z3ZnKJ3tdGqsR5kgUBaj5PME6kren2jfatKbQgw9ZHY3wzgJyQPTzTKZBTs8bzcQxvEhWaZM9ezrGV5RMvtLXHB5q",
-        "successorProofValue": "z2kWme8hUcFfW8vYvPWhPSCqrXSQ3n5rU2XTFKeEzodP5AJDFMUevVPRFLdhLpENcapUrgf7JRJBiocvJWAvQ5F1a"
+        "proofValue": "z5gWAte89zfBJQNyNk6C8yLELBt7x28iQ2kDdokwqBZPrUno7W4ftcuAMSbDUKczf4AqJV43bEivFvL3BKBhbS3FE",
+        "successorProofValue": "z41KtsQCHEmmKU95sobSXphtUZhk8MJRKV42L1BwFAhyg78ACjGrqzt69YFu4hbM1UJnELTpg2cmShGRq69UkNns2"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkioX71FckoKNeFZxo9i1E27cimp6kyHBCVK7BbzjjU9B6",
-        "next": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R"
+        "next": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R",
+        "commit": "uEiDXNuW0wjepQg3rK9MgHcylpd64PxDK4qRS15wmHfXfcQ"
        },
        "proof": {
-        "proofValue": "z4T2HyHkoJ4YMVdrnJkpDT2wSQqrGDaug93B389QSZVPn71Sp9DAk1DzqmhvLFsu9u2G9Ui8XJVWxz6wvfxWoTXJX",
-        "successorProofValue": "z5SQD9QnphqvGegAjkYvaGtTQ7QZjCHE2KnRWmjwW8rf94rGuS79CEXTrqbKt89CSnzjf6GgEzVWQvYFT3GpTufSm"
+        "proofValue": "zUhWG5S6QbfRv9ouFf8WwP9y3HPAEzTqmdoLR8QKnt1tmx4hnyRGfUQQvk7D2WWL5oULb35JPN3RnqFzWzwycTNa",
+        "successorProofValue": "zmRG2S2ctRoZ4sGFPWoJFKKzyFyqGfNdCY3FdbLaTwChNFpPeW4MiJ4UQ6GcUfHSd1Fz3KoUuhLAFZBS3ju2KMs2"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkpdSB1VJPDiSLkWfGWCcJdGNLeNdhGu7XxhdCFUfJvb3R",
-        "next": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN"
+        "next": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN",
+        "commit": "uEiDQbSb9hokvEJjz-qvkwi4BJbz6AYNAUOvTSpsFz_E-SQ"
        },
        "proof": {
-        "proofValue": "z4ZP7obAUCRv8HCZhC3EeG581V11UB44xGv4ytQnsTQ2pR4cSXkAUvAEMph1d7VDHtyesytviHYB2jWTtBiv8EEZT",
-        "successorProofValue": "z27tBb8sZLUYpPPJL6gY2fcsm6MEbawCDG89Mz3gMamhqjbtv7Ra1QDeqN2VbhBZqwckEn1QVjHjZFbtDCospWYuj"
+        "proofValue": "z4Bic4rsFaU4Ko4jGqWPznrcG8FXiTeJ8PRWiViJDmUirEpstU9TNYEVtTHrK6DkTZZ7PP8u4DTL5GjLGqbp3f8Ej",
+        "successorProofValue": "z5yPaU8M51Uf89LMd6Z6DNEDHAEDBMjYafziDPWf6xZMB3aTGJUjJ53ckP6HxJBt7A3mmqVskmDZyR5pGqEi6mSZz"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkiTzeyJJ9AjDR4J5BhyWqbLTs3q5E4gciq1DY68u1y7NN",
-        "next": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP"
+        "next": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP",
+        "commit": "uEiBi99l3vaCE_ZWSSu1w_pMybeonwUy_Zgmprz1ktIZYrw"
        },
        "proof": {
-        "proofValue": "z4SDrULHKo98o5ggEGYoWJux6YwAHyf19NNGvNBtu1ewPiTNJtGUzfmq1XMEQWePuh1UoxxTnyKJ1pE9fANCoa7ej",
-        "successorProofValue": "z26sbqCigCS2snJBvexo7Y8SmqreA7b1mTFGiRWABko2gFCqqYeBmPcUBhpFXED7FAFAwjzBPKJmAcVTxWSTrGE4S"
+        "proofValue": "z2pdwcfeynd7TP5auW3L9VzmEH2LAm9M34Guo3jPjd2CGuJAh2TvWTCuRuVPEj9449e9RG5hByDFJk7eCrBrEL5za",
+        "successorProofValue": "z4vf6eDM6icxLDXMAeEzZBSAhbZTLs3yLHXSM35fh5YTrPK5nScepj3NtdCV9pR9vbBbBTdowcAsCLvXYjBC1MNt5"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mku6EWmh3aAV4jysoWCNL8qTz1RdJgUrYWJw1NqUFiR8mP",
-        "next": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt"
+        "next": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt",
+        "commit": "uEiDSNjIafN69NpzKU2A4I9zVMPtBwCn_nPJdg26wnHD62Q"
        },
        "proof": {
-        "proofValue": "z4CkNsu3UMEE3bJHst37eximdkPG3qKdGdbHzUcisuTQPX18PK528cPzUSQCiZ2hECNMRsK7bMcQsUH9ghbSyb4Mk",
-        "successorProofValue": "z5aw1hHp51uGqkKiJphTKN93yUgcLm46dcwdwgixMpjyRFVURP3YPZbnQnkttcxbk1UjUEAa1M1swTZAKwHAWdc1H"
+        "proofValue": "z4hDWUuYM7iTJKpkzXK8Cohy95ZBtVRvWgNCdnU5shSXKcwNksFzAtmgLiwswC9REZ11XrEK8PPoaweuzcUTh65HF",
+        "successorProofValue": "z5Up7Xj5G98YrcpjXEjWcEaSJJm1U7Go7JLyVNS2jtxZA6obAy9rnQpKRnND6FfAmortSkwKn3rCU1JtYiX7EkHiu"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MksqEW6G9xDGLZRy6ghRVi5RJ9mDW1ZCzSacuJP1sBmoQt",
-        "next": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3"
+        "next": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3",
+        "commit": "uEiBEYZS8F54aFYmpu02NDyBcj7ZIYtDo6KkuJPCgwagnsw"
        },
        "proof": {
-        "proofValue": "z3eZUAm6y62tqfepSzPou5DSJL2qqp5MdHryHWBwYyPPqFz3xCGALDn6yWAAb3m2RxdBoaY5rWKiuuJN8FtUhbe2p",
-        "successorProofValue": "zRxwCrFRhXr9kyez7VoWFYwkXtrBA7zFsUr1RGFabXdk7F9LmP4RDkDzhDHtKQnu6pdRaN22cAwMY1NHKuS5HEph"
+        "proofValue": "z4QQ5oyGJ49tsjhRBJ85MT69A43CQZ7pcKkjwQaKoQoqQNTqGYJpgw8Q6axw9yLrviT1jb9K7rNN5uhBf4oa7z7B6",
+        "successorProofValue": "z5t78XHsk5SoFW95Fev9EfqH8RitfmEmmDajFV5HxMSs5QuFEw1YQMbPLEStQTweQ6UX5Z7ydwKxLjEu467XY7FZp"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkuvT82RMKPimtVPAk4niwdkbtFopjsdi6Ley9EtkXbfW3",
-        "next": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta"
+        "next": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta",
+        "commit": "uEiB7p5uOfZsY-PW8HuWe9H9PKZRacw1odw4Vvl63cmXqCA"
        },
        "proof": {
-        "proofValue": "zCGj122vZKDujrcGkDpikAQhf41bayq9S6M8XKzMNZbEsX7EKttjQCX8pobxxm49UEGj4WRu5U8eRKgsWFgoZyJE",
-        "successorProofValue": "z2zdvUfdxbTu8NFGS4vgYLFYem2FADXj35XxbagR523YUCTSvEgFR18TdFkjGmaBLJFztspEfpSrXqpjGUdvtmtd5"
+        "proofValue": "zEmeEdV3f3bqrpg3hUXYrGX6XVXxnhCCZzp68H1D5uWYUjF2ZhdbVx4kJCVhE82n8myoC1j17WTQn6jKTQMprNKe",
+        "successorProofValue": "z58bnJerNFQMPh2YWwAaugNnrHCGqRW2uajRBd4XoQAQsUT6K1aWmq4bhzWu4ArV7CC26yUDmsEidznz8mYv45BzD"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkuxy2nD1e9JQpKjnnEeGAYXvKBtQcnNCsteMQYtgbX7Ta",
-        "next": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm"
+        "next": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm",
+        "commit": "uEiCYfqKWECcoEqF91MpAdDvAWzFaTLmKdTC2ZQYiQp1zQQ"
        },
        "proof": {
-        "proofValue": "z3A5KoToSBbYJim4btE6BX5aW1qvTDP5YHHjet9rBea6jJsjQG3czH1mXhtjAuLxqefTkjNLiVGr8Jd5tSfQDFcSZ",
-        "successorProofValue": "z64JvgRocc6f18C36Uh9chBmNds2wUKGWGiSJCc214WozwsBS2TvhYdPGWnPVKzSuwkJVaJb9D8z9mNP52Mdu6Fqp"
+        "proofValue": "z5EodWstmtSJLLGLV6aHGHnraqRyvTLPWXniR9qeoNciE4DVDdse2i8ydRc65JNfQPV4jv5AxzCERo1iCfvSxXG9c",
+        "successorProofValue": "z44d8hFEJa5N52aWAg9RTBP6btDkb1vCPmJ4L18LWDDkCoxjUyuCHSg8ENgvfswWoP7khCj5GMwrAcEfLQCuoUqwy"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MktYVg2kwAxbfdALT7NT3oegSt22aRmc2N9FjdRKwkmxvm",
-        "next": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA"
+        "next": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA",
+        "commit": "uEiAMiv70fTwqkOGuyZF6coXF9kf4NfEjIicFHw_VUmrPOA"
        },
        "proof": {
-        "proofValue": "z5PCi2QpyvzpuwpUYeLnduYEbNhkcT1K3dWhozudKBg4juapAyUx88xN354RTHwQh4p92gmrBU82kHH2ANUaJ9iEZ",
-        "successorProofValue": "z28jpLjLnq3HGC6g7gpaRDSXURALktxiMmzi1tmajoopYio2Wyta8Kwg7GjZWU8awBR2smjPcHJp3QnPifVsoEqPi"
+        "proofValue": "z4a6n97s7G1myoFAhVwiVQXbmb7xZfwDLgkErqkGyPDDBPtowCn9UNee1h2diF2W4BSvsC6ixt2naYGAkRWsYRBo5",
+        "successorProofValue": "z25AUAjyHoawCYqdksUunMAhscXJ2aRP4Run9jdxjtFib1mrK8fEgjk1GknecxaNQpCNYa5XSqTtyqkTJkPGqbFFx"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkmrBYbRjpk3zpznRPHdPmHM4gAeop58fkF23KSaR42zmA",
-        "next": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd"
+        "next": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd",
+        "commit": "uEiAQQNZC-guyaZ5_DK5De5E9-9GkV2e5DpJCPvqo9iFQRQ"
        },
        "proof": {
-        "proofValue": "z5Fw3VEYpK3EZEN67wsThjqvRrL9vnNj6ggGzLQoY2eEc8fSBwdotz26k2Yf2J1FjddN4hxeYpFyysqM5UfK21hcp",
-        "successorProofValue": "z5YdDXgtbUHVCGJ8H8Kq2neibPE1wzgjUwdSt1i6DUsXVTnVkAKUaXwah6gBq4aPKxTb6KCteAD2kqyYRFWTm7kkG"
+        "proofValue": "z5CLj4FsMYqNS63NyuDfCHXgcLSYFQogfFoWidmSFdLNUi6hLvSiEJr97XUHMYHEvJKEoGhvgYAVF3b6vm8AvA7Em",
+        "successorProofValue": "z3Xb4p2ZvyWzmDZuj1Ma5GBpmPNq18hpkDKBytUxEaQghrVUysSoej1Q7Rk2HUwmWR4gMycqiZBHeGyYvK7Hr3sAM"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkmVVbt54uBEKn7JVGfpzFBFvh7g8DtFr1QebZecyr8sWd",
-        "next": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9"
+        "next": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9",
+        "commit": "uEiDTFKDkkMwaI2DlPLEARb0WW6qDl49Od9s7nAf0MZwqng"
        },
        "proof": {
-        "proofValue": "z3ZH94kykQ1oCKYHatD9KeLjPY9RDFvb7hxeYJzQ2dNtsE3aEx5dNCmGtMkqfFtSzCoTeZyTgH5EkoeyYxwTrS2xv",
-        "successorProofValue": "z4U2wtLBdu5MLqMUEPf13Yr2xTJo4zoz4BYQm5s7TWwB7nArGshKo9aKDyR1QddmE4X1Vu8rQHvwQnL5gBsr6sXRR"
+        "proofValue": "z2S4TuSVG43UCfYBRks4WcX11wUF3cD5XWggtm8LdD2FjpjKZqC6WTWmiqLr9C78HefhZiJbRxapG4QRcXrj5LLRn",
+        "successorProofValue": "z4LexZ75TotTaDj5K8hoVNCki9XTY29gyuHhTPwZeeaEK4QanRtc9rDmZQPKDknPEXtg2SjKvuDJrwd6TTiR6icrB"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MktfA4X26Hxn6oWyDubLEkDnWhpUcbmB6CGB55WtnnqxB9",
-        "next": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U"
+        "next": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U",
+        "commit": "uEiDjKoSUaqSkN6jPKi_bxOrgxGMX3ChlOWm5kILhVhew7g"
        },
        "proof": {
-        "proofValue": "z2oLUKrxp99ST5n8TdpyJ361M3MJ9N5pxfh4aLyxdAX1G4cudHCgv6y1Wrpv4a3W3P7rsjELhjME9c73Ahj1XCPX9",
-        "successorProofValue": "z35pqj9WzzruxjFmdyT9SkrRsKx9zwA4bH1Sg1hpqSUr9PWHAjHf1oALzfSDnHksPquXgvpSdndVqZkQEqdtSE7pJ"
+        "proofValue": "z2pBEmHYaGY9Vn1wNB6Cg9wU1ZQtw9rEAr73H77GoQTSeCb55yv9aeaNPRrez7kGWKfRvrsWvokc3LjjoDZbseVqD",
+        "successorProofValue": "z26V4S8rBpoHr6KjL81jyQbrpc4d4SFRpNfuZiCjyRMSVoUTc3j6M6KkQC2Qtpkzq4gqquzAK1NibpdtkceA5utYQ"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkjhP99XYciatN5BviRAfJhUeXpNH5fPsQsE4WeCYLoh3U",
-        "next": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve"
+        "next": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve",
+        "commit": "uEiD-5jAzWFvLs5_s0e-EJ5a8dCdnd07ZBhRj_ZA5FC3Fhw"
        },
        "proof": {
-        "proofValue": "z4j59k2cMRpZdqPGBLN6XZ2nsEYj324GJBALVp6p8JkGuLCsbSYgSLtDAFMsJYMvxvmLrENgwhXMj8Jg4NfXEGgMS",
-        "successorProofValue": "z3a1G7HkHaBXDWkfQUm1F1AKUxuDkedSPpjLiqHjPLsT64FnZc84KgeFDuTTcGso8pPqP2fS1BGPTPAfZw8CCkAbG"
+        "proofValue": "z5vz2JmvJts9uwFrK3qAxBHStvpJPuat3yw6QArrYz9RgCwh35TcAQy81eGL224GfXaXsCbtjjDipcvyxSeCPZNqm",
+        "successorProofValue": "z2UfcjqVLAKbYSV4EUt9Y8A2ANHXKaBdYpXgccE4hSFakmhtrkozZNpg7s1owEiFiefqrxAM465kT3FScgf33APPi"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkiNvV7JxHBxhJPD9uAj9879AwQTzvANUWdbVZHZtobkve",
-        "next": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i"
+        "next": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i",
+        "commit": "uEiDWIS944pOPoqg8bw8D46zzkF6e37nFwyRpHH5Xu0_tug"
        },
        "proof": {
-        "proofValue": "ze7PHSjNx3FdRrvdryaJhCA3fcxmrpr2d9LkaU97ewzfzBKj6RubB7axTmxWeBdKZbAgANeEttAfBSAmZkJ1KgBH",
-        "successorProofValue": "z4dPAXiCpmkhgA5LjyGUNE2LNDxsDv8dxUQvQMsvi7iCQ3dL4BNNi3ghMUaNjytSPyYnW1VT1MTdd3392UtpGRuG5"
+        "proofValue": "z4BDdYp53o6KozyfwgJVp4W2FfTBiTXBFjqpj9bLLsRtkUKNu4DUwm85Pv2Gek3fdNmE9xtq79k1oLqt4nDTYUKMH",
+        "successorProofValue": "z2vCafsxbJ5PDmCEGUDVmRrXeuLTWX7rFazZG76pisB95q2dD988znHD4dNyzA4xhkYdJ3865ou319ASrV5iZeCTm"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkmHtwHVKCk1bG2YrnGenZnauarfL34HP3jjJymFqMDz3i",
-        "next": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX"
+        "next": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX",
+        "commit": "uEiBK12_vsYmFqqIVPOL2YMqo78jRtITy0Iy7eJACdMl3SQ"
        },
        "proof": {
-        "proofValue": "z4VFFuWaTvkVGmcJHA1ufHy6MCH9VDG9FF7wTq9wt456R4b1S5PTjSaFTjDjUxxpnPkYm1XEgpwvsmkp799sbzF8j",
-        "successorProofValue": "zc6jjatSvJMW9yCe2R76BrA9QJPCSwRkMiize8M7HXgXjgQFLHbVq8u2yWFdkSiqGLv8YFS6TdBYLAWTzZHRiiyh"
+        "proofValue": "z2m3p4xnjhU6kWHpriWR9RDk3qmicwXMRt63WsLpEfakCM8bsWoUjqjQZeimk8Xf9vM5PQZcNrmY9a9ETEapUNCiU",
+        "successorProofValue": "z8GE1yu2UUuGtuibtBqQazqcaf7hjLFsYHQ2w2WUmkDZJhp5JqoQcvnTBsUvHcL31U7h4fKiBzLG3f1LyQbSrgLC"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkpM8XQuhRcdGvNMsSAEFk2qvhteu6F3cZhTxTzPNvgwyX",
-        "next": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu"
+        "next": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu",
+        "commit": "uEiCxDxsW8OYmN6nq50maaJEdZxygqgIy9epfDyfnFmkrXg"
        },
        "proof": {
-        "proofValue": "z1Uv1JjsEVrBMhwCxuy1wrqrDMw5og3yevduEtRWo31LzUapaCHy7QCA1rcLpcBb7hWNDQXwTZixyuZE5A1g2NdJ",
-        "successorProofValue": "zkbPMWVWNgjvCMnXgEEFrAMLMcbWtRJJTKhBavZMV45EornkVJbRhQYxMXCvMt9sXGn4WjzJNUrxdUfhHTScmp26"
+        "proofValue": "z443EuEhD6cLFuXVKs4L1RZ64yUnGyjWuquyLGXpkEmz4VcvPqA9sNwPu3MChB6J9hEXNhfc6nghue5eBpAYeq5Vv",
+        "successorProofValue": "z4U7NXCHAdzKeFkDz1aR2WDJsp1doUdMVYq3fd3PynkjDSAKnvVdzVJF7beMJFL6YPPEuoraXerJjVxzfnnT9qPqC"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkfcimUEzeXMMZkDN8WhDYFNuBwc17jtuPTuJRCwqvFWWu",
-        "next": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN"
+        "next": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN",
+        "commit": "uEiDxsnfgrEHv35MW44DEQ-lYhvUPVKQznkulL-wRUHVkog"
        },
        "proof": {
-        "proofValue": "z5oRwzoYqjPtGCAhQnHSTpPMjR9NXuYNbqpRxXSXn9ZmocaTgHNXWFqiDsfN6nGLz8DL5YdM9dubM1uW5Ygp75a4S",
-        "successorProofValue": "z5c1SCZ2kUozTWiTGEEvY825hWPC7NADC6RBBRq2KsdGxZfaDz3rX9sfTZtVcWiWxPfVxAZReSfEH9K33akD1JTEA"
+        "proofValue": "z4kpBT58SaJBsVKZvYqKV3yoDox2uBSsZ7J2mwxLMkDvqTmQBxL1kD3zyEE89bqmEkmp6cCQ757Dot2T97RAuvkNR",
+        "successorProofValue": "z5BYUs5YkZWdi5hQfak9QyHHoqcKDHdJPggmDWd7ua5wu33xNU57PjJAVupDN92f5nRL38ArqBhA8ve9fY7Uvv3dZ"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MktQdE4CQUQQAs6M56v86Mwcu3P2sC13Y64ZkNcNwMvRUN",
-        "next": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT"
+        "next": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT",
+        "commit": "uEiCUS1-GWLxKCQsHRLz3I2IlJsiUE7vmIDaa9aE9JBD_aA"
        },
        "proof": {
-        "proofValue": "z3oHzo61zyep9qJppv5f5Am8XbTM8HuRas7jdgzRsXU6zLFHebFAH4MqCkDnUPyHRrBTg9yqT8WGdttPrmyKkwR6g",
-        "successorProofValue": "z2wqviaSubXkUesWPbvGcTtYGY2sy11X6SqbTFk3uXNBBsvzswLBaGGfBY3TkaFc6mwxW9nLT8pZMA1tKzWSxTPzh"
+        "proofValue": "z2TKW7QN1zEKukow1YFnpdaxii611sx3sVhgmsz7hHRz3eYSG2stPfRFVRRx7CjA7zYuSk387Jb7tpq3sJQyXXzn9",
+        "successorProofValue": "z4rqhUxHyoBNhix5569ubyyqxVQa2PojbmCweYFWqPa5T1Hat5dT6MDmhjqpEkUjE2yuMVfLjneqmCDWbbLVSTwVx"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkqARa1gxnuLf37FTv3VffjGJW1Vyspy14vxP6DGBhgkNT",
-        "next": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8"
+        "next": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8",
+        "commit": "uEiCCJhe44d26xvz_KqNfxNSoZlPvZq9RwrBEDwaCBGnoog"
        },
        "proof": {
-        "proofValue": "zhGS6T57WkoyNerncQ7TdpECif6RNX3hE3Qxkqziwx7i6TuuV4Wfh7URr38ha24YSYrjKtAgPptiay3XET6ttYwe",
-        "successorProofValue": "z2SEfYMvduoL9FUKUnpFVhGriBMxMugS9dh3ACb9WJ3eDgbPTDnK4kH8Rq3q9x9aHVAzYpidzCErcZVZBQTsSt4Sq"
+        "proofValue": "z4wmMPqGJF7uabs1WusJuYTtumisvLk2Gdwm1yx88kiHmQBDRK9KFpk52CqrE4RaYpKmR6gDjmALcCZ6ieLRhTi7T",
+        "successorProofValue": "z2xvRwvLu6BDuHaELtswvUdzW5st2p6uVmkywtwuoLK5cjRUFDDwRfTMcrVWGDczLgDvVMe3wjVAhQzszYFRajYTf"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkp9tNrsZPVArMgRu8yK4Nz9ouUndgi15rinWCGNaY5qB8",
-        "next": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX"
+        "next": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX",
+        "commit": "uEiABWYzL85IyadNLLVWZE4hswHZ12XMS-y9ba0qImde8ug"
        },
        "proof": {
-        "proofValue": "z34hM3ncLSVLLtWo1uiHx6svi4qHrp5H3cx3Vik861HANo7LWrqakQdoc4mFYAuPMPpW1vXfd2NX5pDZpvnZo1tUY",
-        "successorProofValue": "z2WPeUWsVT3SBWpNoAaYmbrU2JEVqrQUups3Nzhp7vzhozAb2qcyyTam63DzfNRaRQHCiABNMucaYEzU8DhGYzNuU"
+        "proofValue": "zX5BN3rtWPKs7tnfaKY5ETTiMmDMUaWdsLdC7kXoSyj1aHeujou94KswhZc6jpo2JCGU137rPggeyoDWXrrBQbmj",
+        "successorProofValue": "z3yH8BEb3ZWLPsFJ2bJAvQ1ujK2NFxrTqWResW8bhc75kcMaDYsshnYtqXEe2Znbt6Uud22ip8epsz7Evn1HPUejs"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkkqEm6rBDh73JxgAPHcTtszwXH8CAnXEqeW5hTJaQxkKX",
-        "next": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48"
+        "next": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48",
+        "commit": "uEiBlKWD1V7TsLS7Lo9cY3nCUMi7emHcghRvg2bkQm4OKQQ"
        },
        "proof": {
-        "proofValue": "zK5uHGbGFNX1qDsKiXN6m2Qh7p5VMub6Tk8dGEHsVUgrbmnvFZ2qXYCW4EuBQZEGLjwuAthYEsczagpGnDpefNc8",
-        "successorProofValue": "z5RjEj3ov2oavgVZWprLoHrcLzzELgUaPTMSSEz8fLoip5JWiZ9QacER3YDJmpMjB2CVVs5LhAGgGzgdbK3ix4ZVd"
+        "proofValue": "z3yfquGY4YMaWsS7wNMWrAGXhGCFa74Xbtj2hAv26Ani11HGvb2axqMY1ycr3AZwJpqaKbeZfBnaAPhKnoy5pHfHg",
+        "successorProofValue": "z2TGMC1DFwo5r2ZTYLFz3yQQJpbXWiXCvD86amqbX6tBh6ZQ9soGRqYhguPsZqENsfjmXKmes4HPxRkUnLsZgQnRv"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkhWttcU8W6fkxLNZcK1AoSwQ82DBiuDo4tzLmq8LXZu48",
-        "next": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM"
+        "next": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM",
+        "commit": "uEiA4O78ilW8jeNDNdwd6Ff2XJI0iSSB0nI2Hr7SGnaZ00g"
        },
        "proof": {
-        "proofValue": "z5W9WYL1jTFNegDf3LmuxJJbVDnoWF1Feoq2eUNSTMR893afi5ZzLRVj5umdbhFPMpW3jz5ecdTkoPBx3R5ptbHbn",
-        "successorProofValue": "z3cBoQ9LXp6Cup9ktQfSJcXxx6QHRJZdm5gZnWSkjkbSgFhfRtLSJPTt2viNRXmsGuzUnGgLJLSomRFQjnasDX8ab"
+        "proofValue": "z2HvqNrR6pm71Cw74DhBLMrHCo7VpUkUiMh4MKDFnCqpEK6k6REKFBSUCC2ofYgww3chZaGRb9bvkZunkgcXe4cdq",
+        "successorProofValue": "z4mZfup7E58JKnuSS1AEUjpenskDKM3BZ3PgGqmhvwmcnUFjUfUpAyxTVBfL4UiNh3TNtfMGNsBfVJ4E35ZCJhMmH"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkrjdBnKmggNgBoo4uUGAX7JRHyvvLMS8969aTXt4PmfyM",
-        "next": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB"
+        "next": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB",
+        "commit": "uEiCErguAx5lxTnLXvonz_z8isKxumQA63Pm6YK51N7OobA"
        },
        "proof": {
-        "proofValue": "z42dYWgm862JcP6b4gnLTMEwLazaZqpVti1859PjT4ZuejgJhsjk1TxuMkCaHc4BkkGJuaHy7hvgtmu8B6e9NTzgD",
-        "successorProofValue": "zUtKtrWVAkpSKCr5pkzbTXoegvMDTgwPSc4v6Eth8AKuSqF3JAQuVB5trjLAn1HkVahWzCN2dCDJBisnBK4gdZAH"
+        "proofValue": "z5P5E3GBWEJ8WSRriWMF3YnwnjJabMnpea75oyqkdoGYyS2pPsebWgJZTJBvAi3uy4t2YbiZazjoDk4exLRrvPEBF",
+        "successorProofValue": "z4fwr5Zk22JsF8MgotZ3kyBPkhUY983qko1CSL8Ktekg2WeX244wwV3Dwus9thyFxZqKhuKM9o3ab7aQAFsiam6Ax"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkfzwSUTne6ueGwzJxM7GdC1uPxuHEkB6u2T44ftYVXmQB",
-        "next": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e"
+        "next": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e",
+        "commit": "uEiCvzvSHd2FGIZQoADu_qDRgKD1TLsqNrvMvSay8NA6GLQ"
        },
        "proof": {
-        "proofValue": "zNcGMeKjLjSGiFyZoK7wWgwDN1AD64PSobByFtq6fH58KCBANZEJAAPHXYAxd39LDdp5SSsioovzjaRXtnU4BTXy",
-        "successorProofValue": "zQ46xViH1Yhz1q1VyNouvw1jVCus23JBkCwLySr5NHLZBtQJK7vq61P6CkP2NVxZg3kVxedXTA6h1PfU9WxqYKv2"
+        "proofValue": "z55iTDuLfQ57ruhgr3bw6ZWDq9FTxBS3xocNo9unDMVHUKUk6nMBtMDRGdg1XTAJxKi8pCQdSJVx6mpwUSnFY4Ypc",
+        "successorProofValue": "z3o5KtNb5wjxLkTaGBjaKLdkrC6LzCzdZV1hXQEzbeFRwqdywgdTteYXwtF41KAvnK1ExHzYGGizQjE6TCtfffP3g"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkgUC8316wL5DDTe8KgLFmRzYKT19ABif4BgA81zTJos1e",
-        "next": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR"
+        "next": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR",
+        "commit": "uEiDhSXLUq433VFurQb3iwRRPcrUWOp9xqxXLFR2eXzw2nw"
        },
        "proof": {
-        "proofValue": "z3SDAi5tXD2KeGWJfsLcviSXpM34beRi2qfSzS9xLKKmAuafm5fYtRTC638737veP4nJaTetghccBoTryQrkVjBav",
-        "successorProofValue": "z4MkQEm86j1HkzvEKmKWwxUNn87ZxQqUYget6f6zWsTNpdKjL2mbsqhyoWriJ1C5GJJmk5ABtPbnysQRybHjuzFCi"
+        "proofValue": "z2E2CVMVLDewPD4bkqad1QFyLKFcusHq715zvNM7A7Ygf27PGYQ6rw93MQ96T3fmj4zbVGJ7GtEWVD1oQqjF9uRN2",
+        "successorProofValue": "z2AwQsVXqL5q2jhjEbxjgmocJs6ccs58LwUu2nvvyYJjjeW94m1MjpCCKMdUuC2wbRMo5iMxpQRMV2ysDoDaGYuQP"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mki3fmVFbTuFZRkhVfmsjL337GKpNJuAiSmsoYwT8tCdcR",
-        "next": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG"
+        "next": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG",
+        "commit": "uEiC7SKpcETIILXS9oMYk8AJtJgyRPT6b5s5hVySPKQSGnw"
        },
        "proof": {
-        "proofValue": "z22d8MTJQfuL4wRBTwPiiGCHcbCSj2rWWivxTDPBehrZ5JVv6kPG6XEzUKcGE97MW6xrKF88mNavvsu51atqfJW3s",
-        "successorProofValue": "z2UrohFLZHXXyCJDH6uafkbcRAg2bjqiKgi534Sw7KctAQEZ7js5ca2SXUpq2dkuBGt88GCtXsuYV85Tkw7dgyGHQ"
+        "proofValue": "z3krZuPfBzDMZtE7vYRLnjxxo6tC8TjNet9T4E9QmeJdEU3dhmK7USkfvMLSWFq878jGLikfGeKkRPv67Tczc5foQ",
+        "successorProofValue": "z3uxFMYwtnhzNfvAJJzU5jqifC2odSES7MY9UUNDziNRrGagNeYCtHhPuChLUr7k5thjw7PrhMohWEirtvbW7N9Pk"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkhC9c9s8F4Hxe8MbwF1mTswQgNkDhMGB1a3zDwiPU8PsG",
-        "next": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT"
+        "next": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT",
+        "commit": "uEiCRvyGFvArKobhTsDa4McJnanS2VesxBc1PGK7l64hXlw"
        },
        "proof": {
-        "proofValue": "z2wAnz33CTangg3cBZEFbNw9QWcLYfJ7DnLqJovhNcQRPMfNjpCLY4oXydFfkPkjWRoUVYF2bAER2a62XwCBHeDt3",
-        "successorProofValue": "z2deiKEa8STjQERMrvLbBQ8kDA9u9kVfH2aCXVtWDnKVFosmZEh6NpXvSS1jHp4538kyZSUANEz9Lb3Ba6n6YVhnB"
+        "proofValue": "z2EscwZzDDUiSuRGaopUjad6wq6mvRMKrQLtyMRZGS4d5x3Lt1PZBuNaQ3hcUEX6qi4Mi7qdsXGXCxFZBb7tbTXvw",
+        "successorProofValue": "z2wHPry2ecTWFV346M7xuSeeoqXFi29FQ4QXKFBU99wXkAiqQ22hVkk6s6i7WjeeMKR3Rz6SsNxet6SajNxvASMnv"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkiQ8SAPS7GSWk69qiXtMLC15fDGr3RMJacvab66oNC1TT",
-        "next": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2"
+        "next": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2",
+        "commit": "uEiBn8QBrPzmWoHITghPdg567D_I4_BDjl8PLOguyLBc-VA"
        },
        "proof": {
-        "proofValue": "z4THiEfRFVht2sjGAMh32deivGazMoaxjmksAaAKBNto4zD2sS9gBm3ZWFqb9Bs3zatPL4w1Xs2Ef4j68b5UCe2GZ",
-        "successorProofValue": "z5msdftFE1KaYPHZq7gqDEZ4v6c4ovtdocRj81PKc3WoSua7eRyvbeqs5b2NYF4u3CzV8uuqYHPxEs3MHvSB3YEKa"
+        "proofValue": "z5avg31FPsaaB4UjdZ2DT5XFXuhvx4BtijSWKtAJ3Hzup3p33CVDjosB7ovf2uDCF1KNbcdYszxTKCtDDWKPgUSzx",
+        "successorProofValue": "z3EcfDs4fBNfbrEtppQ7BNtYV6NVkvWYUkucT6bHH3epzefNVr2pQ26vPvnbbzMSD2pZQ9USbCNkqbrtikMztCgx7"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkrPkvQEnDfCzsf8fCXqSxBHH7ANr1uBJwzmqsaLcnJHX2",
-        "next": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc"
+        "next": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc",
+        "commit": "uEiBOAYEE_cZfp_dCGtmqhgfOXK-s7kfazKBh7OVljfjY3A"
        },
        "proof": {
-        "proofValue": "z4BfG5Nw6xaZarHgnqrETo1k9te9S9ns5wq6P6ByVUZqS7cmM8HCPnssS8q6WPn5YnJAQgMdrrEw9tAzKdwLMQD1b",
-        "successorProofValue": "z5YFHaCuisTZdhvsXrJhKBxkZSiJTABP2HevhFt9V7RNME5m7jY3T42ickUC5mStxWuAj8CE4WEWrBSZm2hzAYxpe"
+        "proofValue": "z4zXwPki9SNQQSJrE3GmjGh9XbEHufRqFyfiJHUzGDjUQVXfBRr1MYjkQnqgVqnQ3nevsU9YSyEFubxQyY1YMaRVC",
+        "successorProofValue": "z5EnNvp2k91355q2eodjsKUB838snz8Kzs27DX82rFTgfjbeV3wNGS8afowk36qoBK73YPD6jQNEhkpU2ZZrzozh"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MknNmdMFqb7v6ccTJsMaxgT3z53DvUS7evAQzwBVp8wucc",
-        "next": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs"
+        "next": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs",
+        "commit": "uEiBpa0BTM_HDm3cwAR1-Ml-07K0bHLqKZ8pwNcAoWlsFJg"
        },
        "proof": {
-        "proofValue": "z2LK2KUC9is2Tigy5ZR1ERePfUTddUggfV6mxwhGdXpML1adjx1R2WTvjjXgArMV9TQD647mpwzx5b9N1aVdJNsWQ",
-        "successorProofValue": "z2XsKS64CFxWnhRPEN7z1YNuHcpjx6N1ytCSsfNTKCjvjGJQ2WJLB2dr4MctRV2DUZUPDqbYrNLF6ySS14DQG3fxK"
+        "proofValue": "z5aiN2SA4Ne6Wahd1tGnC4WZ6ybYRAr88XZBovnauGfJB1D2hXjGr6DdHbGsvmZKk3cvB85dRRv4pvYH3hJrwwUGm",
+        "successorProofValue": "z48fYEeVof4heLbJqSdXW9d8ADeEFr213334gUcwnEX9vztRRY5dMyNPnzKGMGmtjbfonMxoQz2EufxFEvb17Ced"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkpbbbaEog5ef8Z3oCidxhbankEnwVh3CDCHnpvrHXpLDs",
-        "next": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL"
+        "next": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL",
+        "commit": "uEiAIRjJ8yraPaVvSkWc3VP7dzQC94tC5LbxvUklta2xMYg"
        },
        "proof": {
-        "proofValue": "z5qBdY7ERF4pw6S8sEYgnuYtoTkfWkmmGWYCjzAiKKsauDtNhphA7KBG4VFFLTth4kyhoyMPawFHPgRGraWatTE3c",
-        "successorProofValue": "z9QB2Rs1Q3dwXKkLCAkUJk14Sa2nyuCmtNKKVuhrQeixYcEixbwRbx2E1gT1XxJuNhuPpmucSCQFvhzpmLSY4F6m"
+        "proofValue": "z5nV6A1pHBLkcyms4REZbuBxbZd49ADxnLxLtJWXpkRbKwJv41YDS1icdSo9Gmjd1NYpP99mXmbVew1pwcDmRhhHD",
+        "successorProofValue": "z5yxcudjZ3bMkrFptYuJHPM9bCiJ6G7quWnyQWWUNBjqqRdXZvWgmsqM6NkmJjNaC1rhPejT9cPUjk9rMQTb89r6R"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkgur5wodHLyJuhajKLVk83bn2tnbyZVrBCP8jdaMyZpEL",
-        "next": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR"
+        "next": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR",
+        "commit": "uEiDS1IE6RXD3_UiLOLNHFxsIXmNKxrxnAcRhgNU54HxtPA"
        },
        "proof": {
-        "proofValue": "z4xNy3617CH7mscqcAi6TpWgemJUuETEYGJZbhrjkxpzyDV2z1S1ya9PCGH1tZXpYgAUFxdN8BbgfTBXThrGLMQNQ",
-        "successorProofValue": "z2epMCGufhnqWeRX3jTLemZvrJkhZPvU3MnUothMaa4Dd4Uw5DUt73VZt4Z2GvjaoP8A91ZDgbeWqvWcfXrDvNNjq"
+        "proofValue": "z592nHehaUyQsZVN4fYwBxWLQH1kBWoHt2gjv8ovCrTbMfHTPzGbzdKki4Kv8zDwd7AhM67fmXFCQkutsWqAq3kM1",
+        "successorProofValue": "z5NsxtmcueYdgc385AAP1wkhxBcbfQsP6bkNA1ZWVM6XrWFWQXg9wuTTYN2fw8r28J3CamQCj93VgypkMVqBYUJKZ"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkw5DpsCnBYDidWt59QZsZLABihMWSWHnW8XEnD48thYQR",
-        "next": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi"
+        "next": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi",
+        "commit": "uEiBUYyTSPF1GYs51k93pRJGFHzVrQ8TMcqWvojzsgfPWPw"
        },
        "proof": {
-        "proofValue": "zcaxy2bifRez1zEY9N7Smm4QU3iqCUym5PRo1PW3RkgvEm2Y5LoYBehvrgT6QAJBwumLF6ZBD8SWbPivi6pVQnUd",
-        "successorProofValue": "z4rmFpA9AD6Khnh9Nu7nEBf2LPAkNyhVMopaPqQMX4eDoEn1oZKPLQ8PvEjHW2hvh9CagM66ypmxvyD5PuzYudDHu"
+        "proofValue": "z4fA2gh8R3ej51xNC8du1LX2fZNprFkK5XkwgzNwhKbB34ifthmuV4JtiofAhDZvVnj5xDRtthHJqKeznHa17jdbE",
+        "successorProofValue": "z55LqhPUz99qjei8yVR2AgiMb9gH2V7JY9fDcBdYod8LeYvxDTENT8yt7ijgwe8ppnPC3ssyMLFscD6Yj42YCYsLJ"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkoYcveGapoQSDHrBjatSX4DyEmnkakdeWTffWpcsmsJMi",
-        "next": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2"
+        "next": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2",
+        "commit": "uEiAlBfMpxEtXNmeXbmYkiEZFmelFeXbrODtzxIvGQFXUAQ"
        },
        "proof": {
-        "proofValue": "zLdRg94h532eVmnxPYcuNM5Mw2RxMXrHkb5MW53QvYbmVDF8NSGAGrDe2aa8iL14m7FL34x7YtDGgAzJV6MFTMGT",
-        "successorProofValue": "z59rN7yTcCNnfF68bZDa5KvyoTopfRVybbQsh7NEQqzf9KdhQRWbYtHuxfYNzZsv45w8Ct6tBvhFwhgAtr7wr9Wyr"
+        "proofValue": "zR29kMWnygCJPjXfm9sxzukuGzEaw1uy6pjhKxjdFU627AAswnBntzjY5HVxQ4QHhjG9QXUMzJrXRsasPhRAYvmr",
+        "successorProofValue": "z2fxPA98z14gkkfLpKs9WFADq2p9F9FRzQw4q5d2bEtDXe18SPmBBqPYx9a6hVN9eMR6agP8GHSWUoc6XmfC7uyAx"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkfqKSDswtiUhc9MYXvX9caKXJXCbb5pp5HmGCLgFXLdt2",
-        "next": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q"
+        "next": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q",
+        "commit": "uEiC7-g9acW6Bzg8Gw2bAbDUavUf4utrT0iBN5P8f2gmOGg"
        },
        "proof": {
-        "proofValue": "z3vQzhUDPUDsAnzcNEEfFXru5TtpgUKkXKGivHWYUQLPpwToYyjdfGzp46mtTb5RH2DiVDMKYk15M6gEjBy8dvPgz",
-        "successorProofValue": "z4tRkWifuF8Rf9CwWD7cTtV6EpZPgoSgxXLrpZNXgFFwVa9yHUw3ekBBxQ2XRmQe2XKajxpayoyPXAmGSNXLe6m4y"
+        "proofValue": "zuC1cDTGD3bpSkfKXPn4ADDVHDJ7iwtdBgm23Md8iMCEkivM3BFSTcyGGgzMbWyJnvREqTRbrn1TzS2ST64AResF",
+        "successorProofValue": "zJ67hnSpgQLXxpKDgYxpJH7RGfTo4X5Fw4wkWUWHqUGnQFiP7s3qVhh6GFXqiF368EVRHSZSpyJCZM1MSRQj72G8"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkks5ikvHhSh85qJ5gAKQWGEaDSVBByxnQ2ZAGEvoBa48Q",
-        "next": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo"
+        "next": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo",
+        "commit": "uEiDRsQJ5sxFBAl5pTceqO6wZnropp5WbmIi2uExW7jiO1w"
        },
        "proof": {
-        "proofValue": "z28UMEXiEzNCDgeMw4KJ7JezrPYkgeJeLeHJaLk5Rd3sbu17xKWSGRZ75BMdWiCJm7iubg73VsQNrEWb3dQsK6NhY",
-        "successorProofValue": "z4xLYwP7FB1ZMCEngvMw2GzzFrXpe5y1gNTMqMdEniUDhm848YWuXtNzMYVXr19w3MU8c7XZfXc3XJdYbusjJe6b5"
+        "proofValue": "zPe4iVNm5XZrhtiuXgHW9urqR85yMjf435aMXu6CoPWQBf41EonYsnQcR96vZSDt9z4cdEyGPyhWfynzYvpcohNf",
+        "successorProofValue": "z3bZdtjp4VtK2y3M8xmwr5Y4YPHqMwxoi1K62bJFSrLAzzTmo2zeRh18tThdKaceFtsa5sPYgsqBe8qqGaAhRBpjW"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkfcqqam1C79vTnSjiLdLebUxgpy8pGyjTwGj2V4hEDxFo",
-        "next": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ"
+        "next": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ",
+        "commit": "uEiA-hIWDHNCZIM-j4N3sYY_PCAzyu-slWimR1556V1uXCQ"
        },
        "proof": {
-        "proofValue": "z3dyeAYWNeHj2ttXiW5ispqSj1M7YukFWN1WwCypqhNJdmcs83iF87GuvE3ArfRHixqzFLSpZM424AzD9TEjenrUp",
-        "successorProofValue": "z5R9veuKyB9scvS7iTfkpnGjCjhGXhrB7XzFdkiiy6KLKbV1VMaDGZXy4o4gFtEJ3ea5RHn9ifPeLhJSoCoLE9SVx"
+        "proofValue": "z5y2MrFUNLEd1wdGiyG2xSFv53KUVaF7555HDBHhEV7Nw93Z4GHzpoum2rtttE3jegbj8yw9Yo8nGLAS4K22DjRGK",
+        "successorProofValue": "z5KLwXwai9K4e2EJcG5A3B6WBBuorroSZA4kEJJyy4L3QfYcjWJeDcR9VZGeV2nEGMyW2s1bxjTCM69d1YAgtyBME"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkm5DUBBJ7JtauptmDiHJcKhufuwPYvWbAKVczBMc5sRfZ",
-        "next": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9"
+        "next": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9",
+        "commit": "uEiDbAhVbdk7qrf_WU-ti-2DwxQHMyev20Xya4EMKjbS2pw"
        },
        "proof": {
-        "proofValue": "z3iJCdgcXaUY6VNixUw3SkK69NBG3dUTH7PA6oBhi5Xa28r3ZkZoTnqq9fn6iKSG81ZB9zdSfJD3NWGSbq87DcGhW",
-        "successorProofValue": "z4gPyD4wATW49C84SMeyCpfHgKgrRoiKHXNshApwCe4qFbpUEYX8wo7oHxrvEtTn7rFmftgV1U9X4ZBbS8A3Jgejj"
+        "proofValue": "z4VZo6X289xUMYRWakMPfnMgFMw3HzhpwePc9m66s9ce2hT9ZvRP7Fwf5HZz9uV4sbFkSPorpgKNiuBim9ojP4N35",
+        "successorProofValue": "zgbYNHh9WnQLBT7s97TdcBCTmuZWLsRszrB9e4ukF3tbKSsbfb3embtswddx7HbzAV78n75oTHFAa6R4abyrAMty"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkuXQPLqLA8pZKdTTMdi7JCTdbdSzMYAKoqJCSHVFBogK9",
-        "next": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh"
+        "next": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh",
+        "commit": "uEiDrbkM_FCC7U3SVFAfocG_Tl3LB1r0aXrRuPmkm759quQ"
        },
        "proof": {
-        "proofValue": "zwvttEDbMvdAtWX5hf9bReTAEsdXTcv7KhxcFUYySyZdg29rUs81n6UuwewNLNCXagsmneskdaqXoyQA5f5cwya8",
-        "successorProofValue": "z3Zr6aVM5ueJjf3Mitm48R6KRoVjhRhxoKd5zdrg4kHmvzYizEFr98PTV2dF1sdVnttodmuV3zh7hQzrnnKaDdyAb"
+        "proofValue": "z4M48phdbumrsExJTsiDX3jA9DMiq1ZR2zQQEBKx73CL6Vi8acEbzQjYjmzkctqggiGPKScAnRYzVgeEQBnVe6dTv",
+        "successorProofValue": "z48AyCnJpgNZEcDEh7ptNbffXQWsrUWs9Vyvm2W6jxCNe1yaxeX52RWik3Q5CSQJ6hBoBhpeZ5mEXDKxTcsufRQmy"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkvmewYhyGYBP7yotfdE7xaCvTStk3nF1deA8WYe4MKybh",
-        "next": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4"
+        "next": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4",
+        "commit": "uEiDclrd4HP9ISfLiktZj2UR9JQLwPg94KW7ltAr5QpzKPA"
        },
        "proof": {
-        "proofValue": "z39q14L3UrJhhwgbUvdJS9xYjWRuGaYR6jyWiXzqvxabDPxuSvoUUvDzURZcAj2wqGLgrt8WtC7Q9YV7joCYN4qQq",
-        "successorProofValue": "z5ftQrVFC5MHcmFqv4Fg5q9qTfJGogZ5S5ZaVPjqncdpShxbZ2DuusaHoQKLtdqUrezLpRAgNmPGurMR6wZGymcwT"
+        "proofValue": "zXveNgW7pzRowXx9MbpAJPUFbPZk9k7L7D1JpusnzDko4ednTWi5PfdefzjXf2F9JsGjdsjSMhTN8WWrjFTrxhXw",
+        "successorProofValue": "z2H992dSN96aSQYoCWCjt7PZyZjusRQWrBB4HX4ctq5u2721LhheHn7knyGnrvbRAhqxm6mkYaAs3njtjoDXnDNab"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkiwi59NxWYmscrGdYoU146kiSAdrTLfrE3GbeFARj2Jm4",
-        "next": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA"
+        "next": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA",
+        "commit": "uEiBta3CNgEr2BRP9hNvCBIkKdtPGFPDjtjMCZHu52W3gqA"
        },
        "proof": {
-        "proofValue": "z48wBrqvCsw8cD1ZLbNSztiVW8twLBVR1uynTo1tQvn4SJS65AZr9VFQK9YAqzhphwb1KZ33B8nMmWW6YdaxZixdb",
-        "successorProofValue": "z63jhRGqbZSNiuKYttuavn3pdkkzAKzK848dDfFtnCCYeHwBCiMZY1tTrjFjBkgkCqBZagsp7zv1NFkKM7Sqc9Ve3"
+        "proofValue": "z41aUGcGXhidHmJUQ5knjZJEtj7tsLZ5dyFmTBstJY371s3zt6umHFTTzSSBSHcQW2n1qLghUEFaqTRJYm4USCNYb",
+        "successorProofValue": "z3ERUzb68FQZQgR838gm4sT3zWaUUsvCgJLeiNpLW9rNj8AZWQd2Q1AispjceyJ3E42FEAVH2BjLWmVAnZnd1QP3k"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkojaQRfkJQm6wEeuZ4ydFACoijfeWF8X5mVc1bV9v1vcA",
-        "next": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ"
+        "next": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ",
+        "commit": "uEiDzr4N_2J4T9H4hk93IrPiGgStuK_b1Y942JX_Omw3t0g"
        },
        "proof": {
-        "proofValue": "z5SWyCrKYniJNN5UCn1gtQT2CHbgS7cYTtey6J288pDdzAzcUPUveBrt1v3QSc4DWRiph6ceHh4iqRQhzvCVmGb75",
-        "successorProofValue": "z4Kg3kjET6E4rz16bSKqj6fThAJF6t6oxD4SgED3jVvCRMQAEAppAt9ZG2bmoFJfSXG5j8gmsF8P8FCzNZkw4MK3y"
+        "proofValue": "z4N17kFSmc5FtWuvMzNY98xah9dxxz95ozkqxefCkWkij2sWb7dqih5PCjzfS3j43wvyfEHb7QNZL8sLX5Ta7GZHH",
+        "successorProofValue": "z2bcdPGdRousU4kYbRE3ZdUDiDnUjg94WDq8HVC4djsjpzyPizMzZTaDB9EzNMZ8SJgnfvXx1JkvwMC3qxmMckegM"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkw6D6VBuy2Ui2K46TJB2ozEgtMYhbzSfKVHkUjYLvKFjZ",
-        "next": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh"
+        "next": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh",
+        "commit": "uEiCNny94xXI7cMXHPKm-6uTektb2TSm0Poab8PGp_CBVrA"
        },
        "proof": {
-        "proofValue": "zLShYv1FuNSbQuGC6E449msDhsBkRmNYaeRbYmbPYJKZAjDjNYTmPvWFnTJcxMW7NrWyT5jxMT1vBABjzVMTWFgS",
-        "successorProofValue": "z4ksM3Tf2u8FF6pJHaqxHUEswLmX1e1ZTsfzcf7TL3BZtTPYxpnwQpf3BqA31oa2mPZDfFxBxCMZpQjHeFZZyDND4"
+        "proofValue": "z4JH65mrHMTaAZtptDBrHCE7UitKV2pDbck29qiLgHzF7GbyZ92TRN8gL85HBKXrTMWsokJQVrUtF5NcEDUEPQhM8",
+        "successorProofValue": "zJXRptLzy8DiJTCmgFZ5twuP8GXAJqQQyZbC1hVZ4DcvNGRHPhQ33hU1omdPWpcPLAAEX5VMTjobvWf9mRbgqM9u"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkp5hgFGmJxrdFa1CyMiJMBVfqnYfN2LW1CsN9Go1WyKjh",
-        "next": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty"
+        "next": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty",
+        "commit": "uEiDXtuKJQ3l4a_Vbq4sWvmc68yJh_fj9cA1rgZNXBCREnQ"
        },
        "proof": {
-        "proofValue": "z5nz8kWz2LuBrh4uSt8UdtaRxEWC9XrYwzTPxpGVzjQ7VMTWmtd1znXskLka47Zk68Jc8kCcF5d5u6Xc9Gv1tpejA",
-        "successorProofValue": "z2gnJVYRz1p1QUuCDhB29mpXGdpRw7cQVik8YshVJvwFmZwmbtTBghQpCSY5DLQXqrT71ELD5fkAnnLPpENmTa5Zx"
+        "proofValue": "z2PKYKq9vvRG6f6Gd3nZ2DbhTcVowf42Kkk4UdGL3kXvmXZu1AGbCoKM6xHGSmn4TdXSKH2NGDd1JGVuYeuNs3ASH",
+        "successorProofValue": "z29qQExnFA5fpkmWehfXvghGPtLFc7u3onTeADTMsH1waVZEpQDCxRZvhXnukLGwbdGRZCNRaeLf5soT1bFw1EqcC"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkuhgZasC3xCF7StCPKJDf3rtyboNsyH53yVWMPgrDF9ty",
-        "next": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC"
+        "next": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC",
+        "commit": "uEiB6OkN975R4qxY_SL4YRBL-IvjGiTgwECdhzjWvsWkRFA"
        },
        "proof": {
-        "proofValue": "z5gk4gW3Ef6cyVpWBag7Q26h73V2XzuHT7vHhTk5o5kif5ESBjNxn522WWG65x2KcbcxVYa2nigiZ194Dnep4qGzw",
-        "successorProofValue": "zQapxwVn4cxKsQvWvWxH4ewGdtSbRiJ87KjaxvzQMJA1WzHRGGay8Ed5VuWUM875VUkqQdZ8Q24BU4wnPZEcwWUG"
+        "proofValue": "z2WSsMygkS8HY3xAbpSRLnEUxQCKcsoeR27KD3SeF1AH6nPb7ULiA56mL1wYJyjs2hCiMWmwNNbzCqLzPCbZvgee3",
+        "successorProofValue": "z5RY71u9SnVP4BDJza4quDKB3mw4eqULawdqR3UFBfB15DANvicoPt723ec1EJiZr2kR8ga8xdJyBocFV2DwUVSYp"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkoKhqwHGCyBxejkc9xXvAVpUr8s4AaMghkPcox6JgHEuC",
-        "next": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C"
+        "next": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C",
+        "commit": "uEiCY8MVISepLYG-hwl7xzbPcMA6ZcXu6nHMI5xAov_uI7Q"
        },
        "proof": {
-        "proofValue": "z4aHteFkkhz6YQwY6jN3YXnSgijoeMy6Fyikt4smEHagvaJhUYXf1fU97m1S2otL2jtnQZajZ9mdrbF3HHHWMenoT",
-        "successorProofValue": "z3PsBTMYTJ1vF38dJPHK6B9R8SJFMFe2az7UfKS3Ct9xUQPe2A9KqzbPFgyzUokA1sNGftLAxpsJPocDcs1T9UweH"
+        "proofValue": "zATQTfuubiXgC4TuJq85mX8qiqdAAZhUAnh57MTfiGi65QjC5ZywcKnTciZDEBej9tpKNxj5nh11mZdmEJWQPPYk",
+        "successorProofValue": "z2JToSv5qXcnESi3i5wh1QFvnmSdRJaeQK6orwc8YbtzZu2r9inCDM2UZPJhGq1j4f8sX2EdfXU2p6oWnEuUrSGMH"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkgQFnJekQbuzwRsb9hkPhxqDVWpZC7uxhUok2e8preY7C",
-        "next": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K"
+        "next": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K",
+        "commit": "uEiBcsL0uE0xpe1B-9w65qohRPxaksDFX_RLLqrhCBfk80A"
        },
        "proof": {
-        "proofValue": "z2gmHd51KKjriU7RZ6k5SdPEXzqtAeVJNr6WoqjHjLf7SAnfJJhYes1fPtf9TJQJJBY8EtwK7deoJVi5dKd5RAFtK",
-        "successorProofValue": "z2cGTTfit3xnyW6wyycEeoF6HvtK6rgWxMfk2n3EridVSn1wyMqEwZ7fhsdcwSv5yLEigDf9hPdMyms2QmoR3o3Dy"
+        "proofValue": "z3XKCWu4jCAWzHpuQM7pSdLhg88M1rTb7HjRbx6WEcwjJMsMsKYvnbS9fNDhZB73GKYQtb7PMnHS8zUWbeyWmVxRP",
+        "successorProofValue": "zKDc2utkXH9sRisJdZ781uMhKXEmXfAkQpAqHPya2LpejR8csdhYHtrNMY9JLsnzQ5nyFARKtHNRGmELfpotFbwV"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6Mkw5XKDJVkPisTE2nKg8JhQq49YA13EQvBK9iQdukPY75K",
-        "next": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT"
+        "next": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT",
+        "commit": "uEiAjoL7WgR29StE2bBKSwl2_T263eKQynRpbBb9xrgK7MA"
        },
        "proof": {
-        "proofValue": "z5yiMnDbC7wis7EuKc1YoZKxZPa5tdwnXXYxidfTQjxcowSFX5JM6xC12RNDiewKqFyE5mga1b6RbDVvxHyWtvLyR",
-        "successorProofValue": "z496X4UPhtQTg4aN6jSJuqyKaAWbX4NtaSnAMPkJNjHDNrq5TvvSBShNw2MmU3NjUAERjgWLFYyxYcf3JhEJqVyuV"
+        "proofValue": "zZuSkwMLTaBd31RGTQpLpUvHh2JxNTZMPTr2ShEpT5BkiqcFbgpHAB6TYUXfKKqfe8jmpR1tmfBKwrKaveM8piZ3",
+        "successorProofValue": "z2CA5SzHQG8DTD6EBDgWk7hALKMK27wfZHwtvEzwVjmKYHdPtGHuAusWrRFK5foUYkz6BrNKDvQAsKAHLSdYgNTpW"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkeW4fxaoxguC39yaMrL6iWsjheFxKdLdpoDw9e8LZyCmT",
-        "next": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6"
+        "next": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6",
+        "commit": "uEiBEwYl9IPU9ddkxGiGkEJJlNGGntyYh8KNGc44KezRG9A"
        },
        "proof": {
-        "proofValue": "z325tmAPKSAQJiXRRpDpAtGs9LM5GZ9r9o3Cy594en1npFqux4S81CcJNKCyKxV6pqHxxRsCH1xagssqSr7psD9Vu",
-        "successorProofValue": "zQv29F2UwecUryCpMriGcKXZ2zKcdCMGiSXmo5oqcD2Dz1BPfW7gCh1uD5ENYmM6G6525vepoPBZb7rozejfK79t"
+        "proofValue": "z42FBdRbwqgpVyz5yf5aEsgPiJPB618anfhksNeiw1DX7p5ZBny1PCZzXZJp8NPjAbJuMAdYqtE48aMmDESLhZir5",
+        "successorProofValue": "z4UgXSEBLqaePBaQbuoKAk1jsLBDz94gxSvr8MVvLmR4HmR1m4dzfPtk4bdys4va6k2xuQyRqgAHexeYdW6jm5Vtk"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkkzJcRiaaQ8RGr2h8ah9e2iug8jMkyr6d5MQcviZK8DS6",
-        "next": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq"
+        "next": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq",
+        "commit": "uEiCt_9nVLZYDNEzhvwopyD5B-_WDKMUvh1KkNBvH7JPQHg"
        },
        "proof": {
-        "proofValue": "z5mFpNtUpmbktW4k1XXJX3ACxmqDLjbXgySAfDg75hZzDj8ahdD7n1XJAQSSsH2MoqzA8s9yVoMXEAktAjnMmjAS9",
-        "successorProofValue": "z5W8fKTkyA6bv61bbffkT4NQmGTK2oStoN94vpNrwDp8oz91bs3VS24vDR1uNeW5jEw14FP3NKHfLJoSrcA8VBMpT"
+        "proofValue": "z3ucmcpQ7jUFuhdVuCBn3ZUgVjX8gXrJLa4xRWN1A9TMx3VGVQfzWAMgjw9tqe8CW6iewhiKNeYLvbcdmnLCstuGX",
+        "successorProofValue": "z2YBUyGrCjTo1qz4Qwz2Vj43QygguJkTTm1JF2yGqytwCraFqoEEQcJ6ESqt3ufAXxiyv8ZW5NYH2VttYNKnAvpsR"
        }
       },
       {
        "body": {
-        "type": "anchor-rotation@1",
+        "type": "anchor-rotation@2",
         "prev": "did:key:z6MkeqNtfVR7S8U9aY32w95YMaHkC5c3KtYnfrEqKB93zEwq",
-        "next": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz"
+        "next": "did:key:z6Mkjm8Uvx3Jiq2PrLNmzx4TfhEPirZthk7G6rKoVm6WzoHz",
+        "commit": "uEiDRj5xEaUuOJ8HEOuQwB16AQ9iEM9_2Tvqgc9cdADpNtw"
        },
        "proof": {
-        "proofValue": "z3XxgsfenecS9hYyMzRDQkLoWt993wzWzDd3a9L44a34tHMRFfBe7jv6QwrNJDy9nheAgidV8EMQcF19z3Ystu7ka",
-        "successorProofValue": "z2dBmpq1FMYwdrtujKgXNuRC9y9Auptq9ye3S8G9RUCq7XJkbRs7LPf3TZZCojj3zwEqwAQ4QNVKoAYk3pYque287"
+        "proofValue": "z5Km52DcQ6V3bPcGDGN5jZynpa6tpGwZp5emPPzEN9CqEPUDfSy9dNrXWwom9e19ATCscUfDBDREbjmSxrDY4Xmqu",
+        "successorProofValue": "zA96B4f24Ejt8SDJiWWxWVah2KdPnxWozUa94WvGi6Tqg8PxJQumeBQ2DrVGmR7HBaxeUrsNKhcL9NYBDyUeLQam"
        }
       }
      ],
@@ -2213,8 +2489,8 @@
      "issuedAt": "2026-10-07T12:00:00Z"
     },
     "proof": {
-     "mac1": "u4TE5hcQqjWxkV9xF_0XxwrgYwg0EbNCOwGWrvm5KH5U",
-     "mac2": "uFNlPZjDssUYMaTg_edKQNXbCDoVGsMmpsis-lyHyeSM"
+     "mac1": "uWdileWrtK9yVbWngRDnIe78A2zc_ysqSNgRLAJV_zU0",
+     "mac2": "uvGyUwKRdNmMhW-vg_HvQX01STJaTHYdaM1O0xJjGIC8"
     }
    }
   },
@@ -2532,7 +2808,7 @@
    "name": "legacy-version-2",
    "fixture": "none needed",
    "checkOrder": "2.1 type check, before any crypto",
-   "expect": "reject: anchor-mapping@2 not implemented (Visibility 0.30 2.1)",
+   "expect": "reject: anchor-mapping@2 not implemented (Trust 0.31 2.1)",
    "artifact": {
     "body": {
      "type": "anchor-mapping@2",
@@ -2559,23 +2835,53 @@
    }
   },
   {
+   "name": "legacy-version-3",
+   "fixture": "none needed",
+   "checkOrder": "2.1 type check, before any crypto",
+   "expect": "reject: anchor-mapping@3 not implemented (Trust 0.31 2.1); its card is a self-card@1, its lineage carries anchor-rotation@1",
+   "artifact": {
+    "body": {
+     "type": "anchor-mapping@3",
+     "pair": "did:key:z6MkoFmDjYURbueh9eraATv8YBJMqhbZpFnK9W9qZfm1jF4J",
+     "self": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+     "to": "did:key:z6MkgH4AfnsQtPHYYLsg3TywkVTmZGoJL9D5bstbFM6AehKw",
+     "card": {
+      "body": {
+       "type": "self-card@1",
+       "anchor": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+       "keyAgreement": "z6LSfGq1jMrqQ3jmQFB1pJrsKvVQhgQxRFtdkpdBYSn6Lum6"
+      },
+      "proof": {
+       "proofValue": "z3oMk6wADqZCgu4kpZL7cuhfVQQcU1YEJovYtrjcNDH9DthximjMyQK6nbMSPhnkj4DXBgmspAc4X615tH5LB3ezN"
+      }
+     },
+     "lineage": [],
+     "revision": "1",
+     "issuedAt": "2026-08-23T12:00:00Z"
+    },
+    "proof": {
+     "mac1": "ul1j6zs6kJ6EyxwXzvRDivMjSi7a9VhuBEV-iSbHO00M",
+     "mac2": "uaI81RMtPVXQUGSQIwS9zXePo0ac3xDDWCDuPfaccGOI"
+    }
+   }
+  },
+  {
    "name": "star-salt-replay",
    "fixture": "recipient state: highest completed salt for tuple (A,B) = 1 (after accepting this file's star)",
    "checkOrder": "salt comparison before assembly",
    "expect": "reject: salt not strictly greater (5.2)",
    "artifact": {
     "body": {
-     "type": "star@1",
+     "type": "star@2",
      "salt": "1",
      "seq": "1",
      "last": true,
-     "count": "1",
      "blinded": [
-      "uydxWgMen73vdK5VTmYi_pGQ1z_vONJZo2Y6QnfoOkWo"
+      "uB5Kfa0z0f1zXbCTKA6K0qg8yOJIEuuxirZ1E-8Lz1w4"
      ]
     },
     "proof": {
-     "mac": "uPblnbN9yjd_FGDFWKrLKsAvI_gbaAqP-SMCTrOptIAo"
+     "mac": "uX0ulUCLKBSGzI7Q_UXa6Xc1UVI2pIevIq3fH_eJ09yo"
     }
    }
   }
@@ -2585,20 +2891,50 @@
    "label": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA/2",
    "anchor": "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV",
    "keyAgreement": "z6LSp6eTGCjVEfG9xBRdi1fEXv7JeiSnbMe1thgMgqoswerD",
-   "note": "generation 2 of the same community anchor: group/<digest>/2 (Identity 0.52 §5.4)"
+   "note": "generation 2 of the same community anchor: group/<digest>/2 (Identity 0.54 §5.4)"
+  },
+  "3": {
+   "label": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA/3",
+   "anchor": "did:key:z6MkhPjg5MgkyGp2WTuWe8cA1nWczN1strK8AcUSVCZpPEnN",
+   "keyAgreement": "z6LSeA36p2wDBY4fL2RMMNA4MdhVjErNBwStmpgPe4uKynwm",
+   "note": "generation 3: group/<digest>/3"
+  },
+  "4": {
+   "label": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA/4",
+   "anchor": "did:key:z6MknXvHPd2AimwxPVcptemsQL1eNeizHcujQR4Q3bNkVda7",
+   "keyAgreement": "z6LSh5wqDVEmZ2QpEKgx3TE4fxak4gyqz2M8upUHo3bPEjw3",
+   "note": "generation 4: group/<digest>/4 — only its binding appears (the commit of the generation-3 card and of the rotation 2 → 3)"
   }
  },
  "rotation": {
-  "note": "anchorMappingRotated: the sender A rotated its community anchor from generation 1 to 2 (anchorRotation) and re-issued the mapping on tuple (A,B) under a higher revision with lineage [anchorRotation]; B, holding anchorMapping (self = generation 1), classifies it as a ROTATION (6.3 condition 8): the previously held self is the prev of a lineage element",
+  "note": "anchorMappingRotated: the sender A rotated its community anchor from generation 1 to 2 (anchorRotation) and re-issued the mapping on tuple (A,B) under a higher revision with lineage [anchorRotation]; B, holding anchorMapping (self = generation 1, its card committing to generation 2), checks that the binding computed over the first element's next equals that held binding (heldBinding) and classifies the mapping as a ROTATION (6.3 condition 8): the previously held self is the prev of a lineage element. The binding is computed as anchor-rotation.json states",
   "heldSelf": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+  "heldBinding": "uEiB8ZaOeFjp7ZvOa0oDstAUYs6AuS9I_mTx-sz8nUq_1cw",
   "classification": "rotation"
  },
  "lineageBound": {
-  "note": "anchorMappingLineage64: A at generation 66 of <D> (group/<D>/66) carries the 64 most recent rotations, 2→3 … 65→66, in chain order (6.1, 6.3 condition 4a); it verifies. A contact holding generation 2 finds it in the carried segment — a ROTATION; one holding generation 1 missed more than 64 rotations — a NEW COMMUNITY (6.3 condition 8, 6.5). The 65-element mapping is the negative mapping-lineage-65",
+  "note": "anchorMappingLineage64: A at generation 66 of <D> (group/<D>/66) carries the 64 most recent rotations, 2→3 … 65→66, in chain order, each committing to the generation after its next (6.1, 6.3 conditions 4a and 4b); the card under generation 66 commits to generation 67; it verifies. A contact holding generation 2 finds it in the carried segment — a ROTATION; one holding generation 1 missed more than 64 rotations: the segment does not carry its held self as the prev of an element, so it REJECTS the mapping and keeps the anchor it holds (6.3 condition 8, 6170, 6400). The 65-element mapping is the negative mapping-lineage-65",
   "self": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA/66",
   "classifications": {
    "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV": "rotation",
-   "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t": "new-community"
+   "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t": "rejected"
+  }
+ },
+ "starContact": {
+  "party": "C",
+  "genesisPreimage": "rltp/vectors/visibility/star-contact/C/genesis",
+  "label": "group/uEiBu2zGmgfsWIoYWegoJalB3jkpavqPuMWTN7OTgBPixiQ",
+  "anchor": "did:key:z6Mkme68u8nMcYJShRMBWHDASxXiP2gB8LgTmnM98HEtyTig",
+  "keyAgreement": "z6LSmRgkrpUS83CXTyrghZMg9R3QcXES7SfW97z71o4SmBcf",
+  "note": "a contact C of A whose anchor-mapping@3 toward A, A has verified under 6.3 (fixture: that mapping lies outside this vector), so C is the one member of A's deliverable set toward B (2040). The star A → B blinds C's community anchor (5010); it never carries A's own community anchor `self`. C's anchor is group/<D_C> under the second-party IKM, HKDF-SHA-256(oracle IKM, salt empty, info \"rltp/vector/second-party-root-ikm\", 64 bytes); D_C = \"u\" || base64url(0x12 0x20 || SHA-256(UTF-8 of genesisPreimage)), a documented sample"
+ },
+ "chain3": {
+  "note": "anchorMappingGeneration3: A at generation 3 carries the chain 1 → 2 → 3 (anchorRotation, anchorRotation23) under revision 3; the second element's next meets the binding the first commits to, and the first element's next meets the binding of the generation-1 card B holds. The card under generation 3 commits to generation 4, as the last element does. B holding generation 1 or 2 classifies it as a ROTATION",
+  "heldSelf": "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t",
+  "heldBinding": "uEiB8ZaOeFjp7ZvOa0oDstAUYs6AuS9I_mTx-sz8nUq_1cw",
+  "classifications": {
+   "did:key:z6Mkp252PiZp5e3EzakYaFCbWuJjpCiVfkr2ZffkqyEVAE2t": "rotation",
+   "did:key:z6MkvupvL6g3x4vFhofchskCygbDVitPwdUug27Ni8LRe9SV": "rotation"
   }
  }
 }

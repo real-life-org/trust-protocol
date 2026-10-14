@@ -119,7 +119,7 @@ new pair is chained to that relationship, and the chain is visible to
 its two holders alone.
 
 Spec: [Encounter Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#8-what-a-third-party-can-verify) ·
-[Network Visibility](https://github.com/real-life-org/trust-protocol/blob/main/spec/network-visibility.md)
+[Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44)
 
 ## What the credential is
 

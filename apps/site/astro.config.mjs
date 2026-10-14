@@ -19,6 +19,8 @@ function legacyRedirects() {
   const out = {}
   const specs = readdirSync(new URL('../../spec/', import.meta.url)).filter((f) => f.endsWith('.md'))
   for (const f of specs) out[`/spec/${f.replace(/\.md$/, '')}`] = `${REPO}/blob/main/spec/${f}`
+  // Renamed documents keep their old address.
+  out['/spec/network-visibility'] = `${REPO}/blob/main/spec/trust-layer.md`
   return out
 }
 

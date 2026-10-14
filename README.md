@@ -70,8 +70,9 @@ stable identifier travelling.
 
 | Layer | Concern |
 |---|---|
-| 4 Data | items, relations, schema composition, portability (not published yet) |
-| 3 Access | groups as places, policy, epochs, authorization views toward services |
+| 5 Data | items, relations, schema composition, portability (not published yet) |
+| 4 Access | groups as places, policy, epochs, authorization views toward services |
+| 3 Trust | trust classes, stars, anchor mappings, profile, continuity, introductions |
 | 2 Encounter | ceremony, encounter credentials, contact cards |
 | 1 Identity | root-derived anchors per context, devices, recovery |
 
@@ -93,14 +94,14 @@ live.
 | [`spec/delivery-contract.md`](spec/delivery-contract.md) | **RLTP Delivery Contract** — how documents travel: private Trust Task types (`encounter-bundle`, `delivery-ack`, `encounter-credential-delivery`), the sealed envelope, staged dispositions, delivery promises |
 | [`spec/membership-tasks.md`](spec/membership-tasks.md) | **RLTP Membership Tasks** — how membership changes travel: invitation, explicit consent (`membership-invite`, `membership-accept`, `membership-evidence`), the `access-operation` carrier narrowed to the one operation that crosses the replica boundary — the admitting `member.add` delivered to its own subject — with the admission chain (provable invitation provenance), and the welcome seal |
 | [`spec/access-layer.md`](spec/access-layer.md) | **RLTP Access Layer** — how a group holds shared authority over its membership, data, and itself: the authority log (a causally linked DAG whose genesis digest *is* the group's identity), policies as group-defined decision rules, epochs that make revocation real, chained quorum-signed authorization views toward services, and the enforcement port that keeps the replication/key-agreement substrate replaceable |
-| [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived: the self context, per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act |
+| [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived: the community anchor of the person's personal community, each generation bound in advance to the next (pre-rotation), per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act |
 | [`spec/replication-contract.md`](spec/replication-contract.md) | **RLTP Replication Contract** — the service contract behind the Access Layer's replication port: sixteen promises over individually signed, causally linked entries — attested convergence targets, one ingest admission for every road, immutable verdicts under merge-revisable canonicality dispositions, key-blind by construction; the substrate that moves the bytes stays outside the trusted computing base |
-| [`spec/network-visibility.md`](spec/network-visibility.md) | **RLTP Network Visibility** — who may learn that an edge exists: visibility grades, stars, anchor mappings, introductions, and the audience discipline the other layers build on |
+| [`spec/trust-layer.md`](spec/trust-layer.md) | **RLTP Trust Layer** — what a person reveals to a contact and how far it travels: trust classes, stars, anchor mappings (`anchor-mapping@4` with `self-card@2`), the rotation of the community anchor (`anchor-rotation@2`), the profile, continuity, introductions, and the audience discipline the other layers build on |
 | [`spec/personhood-predicates.md`](spec/personhood-predicates.md) | **RLTP Personhood Predicates** — verifier-relative witnessing predicates over encounter credentials: what "a human vouched for a human" can and cannot prove |
 | [`spec/succession.md`](spec/succession.md) | **RLTP Succession** (parked draft) — recovering a person's anchor by the act of several people when the seed is lost |
 | [`schemas/`](schemas/) | Normative JSON Schemas for every wire artifact |
 | [`contexts/`](contexts/) | The pinned RLTP JSON-LD context |
-| [`vectors/`](vectors/) | Deterministic test vectors (seal, identity derivation, encounter cards, DTG credentials, visibility) — implementations MUST reproduce them byte-for-byte |
+| [`vectors/`](vectors/) | Deterministic test vectors (seal, identity derivation, encounter cards, DTG credentials, the trust layer, the profile) — implementations MUST reproduce them byte-for-byte |
 | [`conformance/`](conformance/) | Conformance runner — recomputes every cryptographic claim of the shipped vectors and validates every schema claim; negatives must fail at their declared stage |
 | [`interop/ceremonies/`](interop/ceremonies/) | RLTP ceremonies expressed in the ToIP DTGWG ceremony-definition format |
 | [`simulator/`](simulator/) | Interactive browser simulator of the full ceremony (both paths, fault injections) + a Node reference engine |
@@ -117,9 +118,9 @@ document is fully **recast — never patched**. A layer counts as
 converged when consecutive review rounds produce no blocker-level
 findings.
 
-**Converged:** Encounter 0.31 · Identity 0.52 · Access Layer 0.56 ·
-Delivery Contract 0.80 · Membership Tasks 0.18 · Replication Contract
-0.26 · Network Visibility 0.30 · Personhood Predicates 0.12.
+**Converged:** Encounter 0.31 · Identity 0.54 · Access Layer 0.57 ·
+Delivery Contract 0.81 · Membership Tasks 0.19 · Replication Contract
+0.26 · Trust Layer 0.31 · Personhood Predicates 0.12.
 Succession 0.2 is parked; the Data layer is not published here yet.
 
 Two things are worth knowing about how this state was reached. The
