@@ -181,13 +181,15 @@ export interface Outbound {
 // ── Retry policy (parameter of createHolder) ───────────────────────────
 
 export interface RetryPolicy {
-  /** delay before attempt n+1 after attempt n, in ms */
+  /** delay before attempt n+1 after attempt n, in ms; finite and
+   *  non-negative, rounded up to whole ms */
   backoff (attempt: number): number
-  /** give up after this many attempts */
-  maxAttempts: number
-  /** or after this long since the first attempt, in ms; also sets the
+  /** the holder's own give-up: this long after the first submission an
+   *  item it still re-emits becomes failed(expired-by-adapter-policy).
+   *  Within Delivery's give-up range [P1D, P90D]. It also sets the
    *  retention of effects and the act journal, max(P90D, horizonMs) —
-   *  Delivery §7 key-retention */
+   *  Delivery §7 key-retention. There is no attempt-count give-up:
+   *  re-emissions are local and say nothing about transport. */
   horizonMs: number
   /** CAS attempts of one act before InfraError('commit-conflict'); default 8 */
   commitAttempts?: number

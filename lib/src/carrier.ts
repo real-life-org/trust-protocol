@@ -28,8 +28,9 @@ import { jcs } from './core.js'
 import type { Json } from './core.js'
 import { b64uOf, fromB64u, base58, fromBase58, sha } from './crypto.js'
 import { validCarrierIdentifier } from './carrier-identity.js'
+import { platformSubtle } from './crypto.js'
 
-const S = globalThis.crypto.subtle
+const S = platformSubtle
 const te = new TextEncoder()
 
 // ── declared constants (guarantee 1: the declaration binds) ─────────────
@@ -194,8 +195,8 @@ export function checkProofShape (
 async function verifySignature (p: CarrierProof): Promise<boolean> {
   const pub = decodedEd(p.principal)!; const sig = decodedSig(p.sig)!
   const { sig: _omit, ...signed } = p
-  const key = await S.importKey('raw', pub as Uint8Array<ArrayBuffer>, { name: 'Ed25519' }, false, ['verify'])
-  return S.verify({ name: 'Ed25519' }, key, sig as Uint8Array<ArrayBuffer>, te.encode(jcs(signed as unknown as Json)))
+  const key = await S().importKey('raw', pub as Uint8Array<ArrayBuffer>, { name: 'Ed25519' }, false, ['verify'])
+  return S().verify({ name: 'Ed25519' }, key, sig as Uint8Array<ArrayBuffer>, te.encode(jcs(signed as unknown as Json)))
 }
 
 /** compatibility shim for the shape+signature question alone (tests,

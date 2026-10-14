@@ -75,22 +75,30 @@ const checkLength = (purpose: string, n: number): void => {
   if (!Number.isSafeInteger(n) || n < 0) throw new EntropyError('length', purpose, `invalid length ${n}`)
 }
 
+import { CryptoUnavailableError } from './results.js'
+
 // getRandomValues fills at most 65536 bytes per call
 const QUOTA = 65536
 
 /** Platform randomness; the crypto handle is resolved here, not at import. */
-export function randomEntropy (c: Pick<Crypto, 'getRandomValues' | 'randomUUID'> = globalThis.crypto): Entropy {
-  if (typeof c?.getRandomValues !== 'function' || typeof c?.randomUUID !== 'function') throw new Error('randomEntropy: no WebCrypto getRandomValues/randomUUID in this runtime')
+/** The platform generators a crypto handle offers to randomEntropy. */
+export type PlatformRandom = Pick<Crypto, 'getRandomValues' | 'randomUUID'>
+
+export function randomEntropy (handle?: Partial<PlatformRandom>): Entropy {
+  const c = handle ?? (globalThis.crypto as Partial<Crypto> | undefined)
+  const missing = (['getRandomValues', 'randomUUID'] as const).filter((m) => typeof c?.[m] !== 'function')
+  if (missing.length || !c) throw new CryptoUnavailableError(missing)
+  const gen = c as PlatformRandom
   return {
     bytes (purpose, n) {
       checkPurpose(purpose); checkLength(purpose, n)
       const out = new Uint8Array(n)
-      for (let i = 0; i < n; i += QUOTA) c.getRandomValues(out.subarray(i, Math.min(n, i + QUOTA)))
+      for (let i = 0; i < n; i += QUOTA) gen.getRandomValues(out.subarray(i, Math.min(n, i + QUOTA)))
       return out
     },
     id (purpose) {
       checkPurpose(purpose)
-      return c.randomUUID()
+      return gen.randomUUID()
     },
   }
 }
@@ -108,7 +116,7 @@ export function scriptedEntropy (script: EntropyScript): Entropy {
   for (const [purpose, v] of Object.entries(script)) {
     checkPurpose(purpose)
     if (v === undefined) continue
-    queues.set(purpose, (Array.isArray(v) ? v : [v]).map((x) => (x instanceof Uint8Array ? x.slice() : x)))
+    queues.set(purpose, (Array.isArray(v) ? v : [v]).map((x) => (x instanceof Uint8Array ? new Uint8Array(x) : x)))
   }
   const next = (purpose: string): Uint8Array | string => {
     checkPurpose(purpose)
@@ -121,7 +129,7 @@ export function scriptedEntropy (script: EntropyScript): Entropy {
       checkLength(purpose, n)
       const v = next(purpose)
       if (!(v instanceof Uint8Array) || v.length !== n) throw new EntropyError('mismatch', purpose, `expected ${n} bytes`)
-      return v.slice()
+      return new Uint8Array(v)
     },
     id (purpose) {
       const v = next(purpose)

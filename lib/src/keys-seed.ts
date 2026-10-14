@@ -13,11 +13,14 @@
 // so a retired key is never revived from the cache. Derived keys are
 // cached in a Map outside the holder state (keys are not state, Identity
 // 9.3). The WebCrypto handle is the caller's or the global one, resolved
-// here, at construction — never at import.
+// here, at construction — never at import. Invalid input answers with
+// a status (`unknown`, `invalid`) or a TypeError; a derivation or WebCrypto
+// failure throws, so the engine reports it as InfraError('key-provider').
 import { base58, b64uOf, fromB64u } from './core.js'
 import { cat } from './crypto.js'
 import { canonicalLabel } from './identity.js'
 import { CARRIER_INFO_PREFIX, validCarrierIdentifier } from './carrier-identity.js'
+import { CryptoUnavailableError } from './results.js'
 import type { Agreement, CarrierKey, KeyProvider, KeyRelease } from './ports.js'
 
 const te = new TextEncoder()
@@ -28,11 +31,12 @@ export const X_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05
 interface LabelKeys { ed: CryptoKey, x: CryptoKey, anchor: string, keyAgreement: string }
 
 /** The default KeyProvider over a root seed (the identity's root IKM). */
-export function seedKeys (seed: Uint8Array, crypto: Pick<Crypto, 'subtle'> = globalThis.crypto): KeyProvider {
-  if (!(seed instanceof Uint8Array) || seed.length < 32) throw new Error('seedKeys: the root seed must be at least 32 bytes')
-  const S = crypto?.subtle
-  if (!S) throw new Error('seedKeys: no WebCrypto subtle in this runtime')
-  const ikm = seed.slice()
+export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): KeyProvider {
+  if (!(seed instanceof Uint8Array) || seed.length < 32) throw new TypeError('seedKeys: the root seed must be at least 32 bytes')
+  const S = (crypto ?? (globalThis.crypto as Pick<Crypto, 'subtle'> | undefined))?.subtle
+  if (!S) throw new CryptoUnavailableError(['subtle'])
+  // an allocating copy: Buffer.slice would alias the caller's memory
+  const ikm = new Uint8Array(seed)
 
   const hkdf = async (info: string): Promise<Uint8Array> => {
     const k = await S.importKey('raw', ikm, 'HKDF', false, ['deriveBits'])
@@ -79,16 +83,22 @@ export function seedKeys (seed: Uint8Array, crypto: Pick<Crypto, 'subtle'> = glo
       // the release first, every call: the cache never answers for it
       const rel = allowed(rkid)
       if (rel.status === 'retired') return { status: 'retired' }
-      if (rel.status !== 'live') return { status: 'unknown' }
-      let k: LabelKeys
-      try { k = await derive(rel.label) } catch { return { status: 'unknown' } }
+      if (rel.status !== 'live' || canonicalLabel(rel.label) === null) return { status: 'unknown' }
+      // from here a failure is the host's (derivation, WebCrypto) and throws
+      const k = await derive(rel.label)
       if (k.keyAgreement !== rkid) return { status: 'unknown' }
       if (!(epk instanceof Uint8Array) || epk.length !== 32) return { status: 'invalid' }
+      let pub: CryptoKey
+      try { pub = await S.importKey('raw', new Uint8Array(epk), { name: 'X25519' }, false, []) } catch (e) {
+        if ((e as { name?: string })?.name === 'DataError') return { status: 'invalid' }
+        throw e
+      }
       let shared: Uint8Array
-      try {
-        const pub = await S.importKey('raw', epk.slice(), { name: 'X25519' }, false, [])
-        shared = new Uint8Array(await S.deriveBits({ name: 'X25519', public: pub }, k.x, 256))
-      } catch { return { status: 'invalid' } }   // some runtimes refuse a low-order point themselves
+      try { shared = new Uint8Array(await S.deriveBits({ name: 'X25519', public: pub }, k.x, 256)) } catch (e) {
+        // WebCrypto refuses a low-order point with OperationError: the sender's fault
+        if ((e as { name?: string })?.name === 'OperationError') return { status: 'invalid' }
+        throw e
+      }
       if (shared.every((b) => b === 0)) return { status: 'invalid' }
       return { status: 'available', shared }
     },
@@ -96,7 +106,7 @@ export function seedKeys (seed: Uint8Array, crypto: Pick<Crypto, 'subtle'> = glo
     carrierPrincipal (nonce, carrier) {
       if (!validCarrierIdentifier(carrier)) return Promise.reject(new Error('invalid carrier identifier (7a.2)'))
       if (!(nonce instanceof Uint8Array) || nonce.length !== 32) return Promise.reject(new Error('carrier nonce must be 32 bytes (7a.3)'))
-      const n = nonce.slice()
+      const n = new Uint8Array(nonce)
       const key = carrier + '\u0000' + b64uOf(n)
       let p = carriers.get(key)
       if (!p) {

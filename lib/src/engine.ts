@@ -30,25 +30,41 @@
 //     production): a mutating module throws a TypeError, nothing commits
 //   - every act reads the store afresh; the engine caches no state
 //   - eventId is `<commitSeq>.<index>`: unique per holder, no entropy
-//   - a non-human act whose apply returns the identical state object and
-//     nothing else commits nothing (and so does not raise lastWhen);
-//     a human act always commits, because its journal entry is the result
+//   - the input is bound at the public call: a canonical, deep-frozen JSON
+//     copy (undefined object members dropped, anything else non-JSON
+//     refused); its hash, every preparation and every apply use that copy
+//   - a `when` above lastWhen is a state change and commits; a non-human
+//     act whose apply returns the identical state object and nothing else
+//     commits nothing only when lastWhen stays too. A human act always
+//     commits, because its journal entry is the result. Refusals and
+//     journal replays commit nothing, lastWhen included
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
-//     when + backoff(1); resume() re-emits only items that are due
-//   - retention of the act journal: max(P90D, retry.horizonMs), the
-//     key-retention of Delivery §7 that bounds effects and their acks
+//     when + ceil(backoff(1)); resume() re-emits only items that are due,
+//     skips items whose last step is awaiting-transport (the adapter holds
+//     them) and gives up only at the horizon, never by attempt count
+//   - the holder's give-up is failed(expired-by-adapter-policy); a later
+//     delivered report is late by that history, whatever the adapter says
+//   - replay of a human act returns the journaled events and the outbound
+//     of its documents that are not terminal (delivered, failed), at their
+//     current attempt. Idempotency is bounded by the journal's retention:
+//     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
+//     bounds effects and their acks; after it the same actId is a new act
+//   - KeyProvider, Log and Access rejections inside a preparation become
+//     InfraError('key-provider' | 'log' | 'access') with the cause
+//   - events are deep-frozen before listeners or callers see them; a
+//     listener's throw or rejection is dropped
 //   - the next state is validated by the codec before every commit; an
 //     invalid state is a programming error and throws
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
 import { emptyState } from './state.js'
 import type { Dec, Duty, HolderState, Millis, OutboxItem, OutboxStep } from './state.js'
-import type { Access, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, RetryPolicy, Store, StoreSnapshot } from './ports.js'
+import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, RetryPolicy, Store, StoreSnapshot } from './ports.js'
 import type { HolderEvent } from './events.js'
 import { CryptoUnavailableError, InfraError } from './results.js'
-import type { ActError, ActResult, ResumeResult } from './results.js'
+import type { ActError, ActResult, InfraErrorCode, ResumeResult } from './results.js'
 import { randomEntropy } from './entropy.js'
-import type { Entropy } from './entropy.js'
+import type { Entropy, PlatformRandom } from './entropy.js'
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
 
 // ── types ──────────────────────────────────────────────────────────────
@@ -60,8 +76,9 @@ export type EventDraft = DistributiveOmit<HolderEvent, 'eventId' | 'commitSeq' |
 /** A document as a module issues it; the engine sets attempt 1 and files it in the outbox. */
 export type OutboundDraft = Omit<Outbound, 'attempt'>
 
-/** What a WebCrypto handle must offer; resolved at construction. */
-export interface CryptoHandle { subtle: SubtleCrypto }
+/** What a WebCrypto handle must offer; resolved at construction. The
+ *  default entropy also needs getRandomValues and randomUUID from it. */
+export type CryptoHandle = { subtle: SubtleCrypto } & Partial<PlatformRandom>
 
 /** What a preparation sees. The snapshot is deep-frozen; `release` is the
  *  key release read from its `addresses` (note §3 KeyProvider). */
@@ -166,13 +183,16 @@ const DAY = 86_400_000
 export const ENGINE_DEFAULTS = Object.freeze({
   /** 30 s, doubling, at most 6 h */
   backoff: (attempt: number): number => Math.min(30_000 * 2 ** Math.max(0, attempt - 1), 6 * 3_600_000),
-  maxAttempts: 8,
-  /** P7D, inside Delivery's give-up range [P1D, P90D] */
+  /** P7D, inside Delivery's give-up range [P1D, P90D]; the only give-up */
   horizonMs: 7 * DAY,
   commitAttempts: 8,
   /** max(P90D, horizonMs) with the default horizon */
   retentionMs: 90 * DAY,
 })
+
+/** Delivery's give-up range for horizonMs: [P1D, P90D]. */
+const HORIZON_MIN = DAY
+const HORIZON_MAX = 90 * DAY
 
 const BUILTIN = ['tick', 'resume', 'report'] as const
 const TASK_URI = /^[a-z][a-z0-9+.-]*:\S+\/[0-9]+\.[0-9]+$/
@@ -217,6 +237,47 @@ const te = new TextEncoder()
 const digestOf = async (S: SubtleCrypto, x: unknown): Promise<string> =>
   'u' + b64uOf(concat(Uint8Array.from([0x12, 0x20]), new Uint8Array(await S.digest('SHA-256', te.encode(jcs(x))))))
 
+/** Drops undefined object members (as JSON does) without hiding what jcs refuses. */
+const dropUndefined = (x: unknown): unknown => {
+  if (x === null || typeof x !== 'object') return x
+  if (Object.getOwnPropertySymbols(x).length > 0) return x
+  if (Array.isArray(x)) {
+    if (Object.getOwnPropertyNames(x).length !== x.length + 1) return x
+    for (let i = 0; i < x.length; i++) if (!(i in x)) return x
+    return x.map(dropUndefined)
+  }
+  const proto = Object.getPrototypeOf(x)
+  if (proto !== null && proto !== Object.prototype) return x
+  if (Object.getOwnPropertyNames(x).length !== Object.keys(x).length) return x
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(x)) if (v !== undefined) out[k] = dropUndefined(v)
+  return out
+}
+
+/** The act input as bound at the call: canonical JSON, deep-frozen. */
+const bindInput = <T>(x: T): T => freezeDeep(JSON.parse(jcs(x === undefined ? null : dropUndefined(x))) as T)
+
+/** when + ceil(delay), clamped to safe integer milliseconds. */
+const dueAt = (when: Millis, delay: number): Millis => {
+  const d = Number.isNaN(delay) ? 0 : Math.max(0, Math.ceil(delay))
+  return Math.min(when + d, Number.MAX_SAFE_INTEGER)
+}
+
+/** A port whose rejections become InfraError(code); InfraError passes as is. */
+function guard<T extends object> (port: T, names: ReadonlyArray<keyof T & string>, code: InfraErrorCode, wrapResult?: (r: any) => unknown): T {
+  const out: Record<string, unknown> = {}
+  for (const n of names) {
+    out[n] = async (...args: unknown[]) => {
+      let r: unknown
+      try { r = await (port[n] as (...a: unknown[]) => Promise<unknown>).apply(port, args) } catch (e) {
+        throw e instanceof InfraError ? e : new InfraError(code, `${code}: ${n} failed`, { cause: e })
+      }
+      return wrapResult ? wrapResult(r) : r
+    }
+  }
+  return Object.freeze(out) as T
+}
+
 const inc = (d: Dec): Dec => (BigInt(d) + 1n).toString()
 
 const releaseOf = (state: Readonly<HolderState>): KeyRelease => (rkid) => {
@@ -256,7 +317,7 @@ interface InternalDef {
 
 type RunResult = { ok: true, outbound: Outbound[], events: HolderEvent[], nextDueAt?: Millis } | Refusal
 
-interface Policy { backoff: (attempt: number) => number, maxAttempts: number, horizonMs: number, commitAttempts: number, retentionMs: number }
+interface Policy { backoff: (attempt: number) => number, horizonMs: number, commitAttempts: number, retentionMs: number }
 
 // ── the engine ─────────────────────────────────────────────────────────
 
@@ -264,6 +325,10 @@ class HolderEngine implements Engine {
   readonly registry: Engine['registry']
   readonly #store: Store
   readonly #ports: EnginePorts
+  /** the ports a preparation sees, rejections typed (InfraError) */
+  readonly #keys: KeyProvider
+  readonly #log?: Log
+  readonly #access?: Access
   readonly #crypto: CryptoHandle
   readonly #entropy: Entropy
   readonly #policy: Policy
@@ -280,18 +345,27 @@ class HolderEngine implements Engine {
     this.#store = ports.store
     this.#ports = ports
     this.#crypto = crypto
-    this.#entropy = ports.entropy ?? randomEntropy()
+    this.#entropy = ports.entropy ?? randomEntropy(crypto)
     const r = ports.retry ?? {}
     const horizonMs = r.horizonMs ?? ENGINE_DEFAULTS.horizonMs
-    this.#policy = Object.freeze({
-      backoff: r.backoff ?? ENGINE_DEFAULTS.backoff,
-      maxAttempts: r.maxAttempts ?? ENGINE_DEFAULTS.maxAttempts,
-      horizonMs,
-      commitAttempts: r.commitAttempts ?? ENGINE_DEFAULTS.commitAttempts,
-      retentionMs: Math.max(ENGINE_DEFAULTS.retentionMs, horizonMs),
+    const backoff = r.backoff ?? ENGINE_DEFAULTS.backoff
+    const commitAttempts = r.commitAttempts ?? ENGINE_DEFAULTS.commitAttempts
+    if (!Number.isSafeInteger(horizonMs) || horizonMs < HORIZON_MIN || horizonMs > HORIZON_MAX) throw new RangeError(`retry.horizonMs must be integer ms within [P1D, P90D], got ${horizonMs}`)
+    if (typeof backoff !== 'function') throw new RangeError('retry.backoff must be a function')
+    for (let n = 1; n <= 3; n++) {
+      const d = backoff(n)
+      if (typeof d !== 'number' || !Number.isFinite(d) || d < 0) throw new RangeError(`retry.backoff(${n}) must be a finite non-negative number, got ${d}`)
+    }
+    if (!Number.isSafeInteger(commitAttempts) || commitAttempts < 1) throw new RangeError('retry.commitAttempts must be a positive integer')
+    this.#policy = Object.freeze({ backoff, horizonMs, commitAttempts, retentionMs: Math.max(ENGINE_DEFAULTS.retentionMs, horizonMs) })
+    const carrierKey = (k: CarrierKey): CarrierKey => Object.freeze({ principal: k.principal, sign: guard(k, ['sign'], 'key-provider').sign })
+    const base = guard(ports.keys, ['anchorOf', 'sign', 'agree'], 'key-provider')
+    this.#keys = Object.freeze({
+      anchorOf: base.anchorOf, sign: base.sign, agree: base.agree,
+      carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
     })
-    if (!Number.isSafeInteger(this.#policy.commitAttempts) || this.#policy.commitAttempts < 1) throw new RangeError('retry.commitAttempts must be a positive integer')
-    if (!Number.isSafeInteger(this.#policy.maxAttempts) || this.#policy.maxAttempts < 1) throw new RangeError('retry.maxAttempts must be a positive integer')
+    if (ports.log) this.#log = guard(ports.log, ['head', 'append'], 'log')
+    if (ports.access) this.#access = guard(ports.access, ['memberships', 'membership'], 'access')
 
     const commands = new Map<string, InternalDef>()
     const tasks = new Map<string, TaskHandler>()
@@ -372,15 +446,18 @@ class HolderEngine implements Engine {
 
   #announce (commitSeq: Dec, events: HolderEvent[]): void {
     for (const l of [...this.#listeners]) {
-      // a listener's failure neither undoes nor blocks the commit
-      try { l({ commitSeq, events }) } catch { /* dropped */ }
+      // a listener's failure (throw or rejection) neither undoes nor blocks the commit
+      try {
+        const r: unknown = l({ commitSeq, events })
+        if (r !== null && typeof r === 'object' && typeof (r as Promise<unknown>).then === 'function') (r as Promise<unknown>).then(undefined, () => undefined)
+      } catch { /* dropped */ }
     }
   }
 
   // ── the four steps ───────────────────────────────────────────────────
 
-  async #run (def: InternalDef, name: string, input: unknown, when: Millis, actId?: string): Promise<RunResult> {
-    const inputHash = def.human ? await digestOf(this.#crypto.subtle, { command: name, input }) : undefined
+  /** `input` is already bound (bindInput); `inputHash` its journal hash for human acts. */
+  async #run (def: InternalDef, input: unknown, when: Millis, actId?: string, inputHash?: string): Promise<RunResult> {
     for (let attempt = 1; attempt <= this.#policy.commitAttempts; attempt++) {
       // 1 — snapshot, when
       const { state, version } = await this.#read()
@@ -388,11 +465,13 @@ class HolderEngine implements Engine {
       if (def.human && Object.hasOwn(state.acts, actId!)) {
         const rec = state.acts[actId!]
         if (rec.inputHash !== inputHash) return { ok: false, code: 'actid-conflict' }
-        return { ok: true, outbound: rec.outboundDigests.map((d) => this.#outboundOf(state, d)), events: structuredClone(rec.events) as HolderEvent[] }
+        const live = rec.outboundDigests.filter((d) => { const t = triasOf(this.#itemOf(state, d)); return t !== 'delivered' && t !== 'failed' })
+        const events: HolderEvent[] = structuredClone(rec.events) as HolderEvent[]
+        return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events) }
       }
       // 2 — prepare, bound to this snapshot
       const ctx: PrepareCtx = Object.freeze({
-        snapshot: state, keys: this.#ports.keys, entropy: this.#entropy, access: this.#ports.access, log: this.#ports.log,
+        snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access, log: this.#log,
         crypto: this.#crypto, when: at, release: releaseOf(state),
       })
       const value = def.prepare ? await def.prepare(ctx, input) : undefined
@@ -404,18 +483,19 @@ class HolderEngine implements Engine {
       const eventDrafts = r.events ?? []
       const newDuties = r.duties ?? []
       const emit = r.emit ?? []
-      if (!def.human && r.state === state && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
+      if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
         return { ok: true, outbound: [], events: [], ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
       }
       const seq = inc(state.commitSeq)
-      const events = eventDrafts.map((e, i) => ({ ...e, eventId: `${seq}.${i}`, commitSeq: seq, ...(def.human ? { actId } : {}) }) as HolderEvent)
+      const events: HolderEvent[] = eventDrafts.map((e, i) => ({ ...e, eventId: `${seq}.${i}`, commitSeq: seq, ...(def.human ? { actId } : {}) }) as HolderEvent)
+      freezeDeep(events)
       const outbound: Outbound[] = drafts.map((o) => ({ digest: o.digest, envelope: o.envelope, type: o.type, threadId: o.threadId, recipient: o.recipient, attempt: 1 }))
       const outbox: Record<string, OutboxItem> = { ...r.state.outbox }
       for (const o of outbound) {
         if (Object.hasOwn(outbox, o.digest)) throw new Error(`engine: outbound ${o.digest} is already in the outbox`)
         outbox[o.digest] = {
           type: o.type, threadId: o.threadId, recipient: o.recipient, envelope: o.envelope, attempt: 1,
-          history: [{ status: 'submitted', at, attempt: 1 }], nextAttemptAt: at + this.#policy.backoff(1),
+          history: [{ status: 'submitted', at, attempt: 1 }], nextAttemptAt: dueAt(at, this.#policy.backoff(1)),
         }
       }
       const duties: Record<string, Duty> = { ...r.state.duties }
@@ -441,9 +521,13 @@ class HolderEngine implements Engine {
     throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`)
   }
 
-  #outboundOf (state: Readonly<HolderState>, digest: string): Outbound {
+  #itemOf (state: Readonly<HolderState>, digest: string): OutboxItem {
     if (!Object.hasOwn(state.outbox, digest)) throw new Error(`engine: journaled outbound ${digest} is missing from the outbox`)
-    const it = state.outbox[digest]
+    return state.outbox[digest]
+  }
+
+  #outboundOf (state: Readonly<HolderState>, digest: string): Outbound {
+    const it = this.#itemOf(state, digest)
     return structuredClone({ digest, envelope: it.envelope, type: it.type, threadId: it.threadId, recipient: it.recipient, attempt: it.attempt })
   }
 
@@ -463,7 +547,7 @@ class HolderEngine implements Engine {
         const [effects, e1] = keep(state.effects, (x) => x.expiresAt > when)
         const [prompts, e2] = keep(state.prompts, (x) => x.expiresAt === undefined || x.expiresAt > when)
         const [acts, e3] = keep(state.acts, (x) => x.at + policy().retentionMs > when)
-        if (!e1 && !e2 && !e3 && when <= state.lastWhen) return { state: state as HolderState }
+        if (!e1 && !e2 && !e3) return { state: state as HolderState }   // the engine still commits a raised lastWhen
         return { state: { ...state, effects, prompts, acts } }
       },
     }
@@ -486,16 +570,17 @@ class HolderEngine implements Engine {
         for (const digest of order) {
           const it = state.outbox[digest]
           if (triasOf(it) !== 'submitted') continue
+          if (it.history[it.history.length - 1]?.status === 'awaiting-transport') continue   // the adapter holds it until it reports again
           if (it.nextAttemptAt !== undefined && it.nextAttemptAt > when) { due(it.nextAttemptAt); continue }
           const first = it.history.length ? it.history[0].at : when
-          if (it.attempt >= p.maxAttempts || when - first >= p.horizonMs) {
+          if (when - first >= p.horizonMs) {
             const { nextAttemptAt: _, ...rest } = it
             outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'expired-by-adapter-policy' }] }
             events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' })
             continue
           }
           const attempt = it.attempt + 1
-          const nextAttemptAt = when + p.backoff(attempt)
+          const nextAttemptAt = dueAt(when, p.backoff(attempt))
           outbox[digest] = { ...it, attempt, nextAttemptAt, history: [...it.history, { status: 'submitted', at: when, attempt }] }
           emit.push(structuredClone({ digest, envelope: it.envelope, type: it.type, threadId: it.threadId, recipient: it.recipient, attempt }))
           due(nextAttemptAt)
@@ -530,8 +615,9 @@ class HolderEngine implements Engine {
             break
           case 'delivered':
             if (had('delivered')) return same
-            if (trias === 'failed' && report.late !== true) return same             // failed → delivered only as a late ack
-            step = { status: 'delivered', at: when, late: report.late }
+            // lateness is the holder's own history: delivered after failed
+            // (its own give-up or the adapter's) is late, whatever the flag says
+            step = { status: 'delivered', at: when, late: trias === 'failed' }
             break
           case 'failed':
             if (had('failed') || trias === 'delivered') return same
@@ -556,38 +642,52 @@ class HolderEngine implements Engine {
   // ── public surface ───────────────────────────────────────────────────
 
   act (command: string, input: unknown, when: Millis, opts: { actId?: string } = {}): Promise<ActResult> {
-    const def = this.#commands.get(command)
-    if (!def) throw new Error((BUILTIN as readonly string[]).includes(command) ? `${command} is built in: call engine.${command}()` : `unknown command ${command}`)
-    checkWhen(when)
-    const actId = def.human ? opts.actId : undefined
-    if (def.human && (typeof actId !== 'string' || actId === '')) return Promise.resolve({ ok: false, code: 'actid-missing' })
+    let def: InternalDef | undefined
+    let bound: unknown
+    let hash: Promise<string> | undefined
+    let actId: string | undefined
+    try {
+      def = this.#commands.get(command)
+      if (!def) throw new Error((BUILTIN as readonly string[]).includes(command) ? `${command} is built in: call engine.${command}()` : `unknown command ${command}`)
+      checkWhen(when)
+      actId = def.human ? opts.actId : undefined
+      if (def.human && (typeof actId !== 'string' || actId === '')) return Promise.resolve({ ok: false, code: 'actid-missing' })
+      // bound here, synchronously: later changes by the caller reach nothing
+      bound = bindInput(input)
+      if (def.human) {
+        hash = digestOf(this.#crypto.subtle, { command, input: bound })
+        hash.catch(() => undefined)   // awaited in the queue; no unhandled rejection meanwhile
+      }
+    } catch (e) { return Promise.reject(e) }
+    const d = def
     return this.#enqueue(async () => {
-      const r = await this.#run(def, command, input, when, actId)
+      const r = await this.#run(d, bound, when, actId, hash === undefined ? undefined : await hash)
       return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r
     })
   }
 
   tick (when: Millis): Promise<ActResult> {
-    checkWhen(when)
+    try { checkWhen(when) } catch (e) { return Promise.reject(e) }
     return this.#enqueue(async () => {
-      const r = await this.#run(this.#builtins.tick, 'tick', null, when)
+      const r = await this.#run(this.#builtins.tick, null, when)
       return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r
     })
   }
 
   resume (when: Millis): Promise<ResumeResult> {
-    checkWhen(when)
+    try { checkWhen(when) } catch (e) { return Promise.reject(e) }
     return this.#enqueue(async () => {
-      const r = await this.#run(this.#builtins.resume, 'resume', null, when)
+      const r = await this.#run(this.#builtins.resume, null, when)
       if (!r.ok) throw new Error(`engine: resume refused (${r.code})`)
       return { outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
     })
   }
 
   report (report: DeliveryReport, when: Millis): Promise<ActResult> {
-    checkWhen(when)
+    let bound: DeliveryReport
+    try { checkWhen(when); bound = bindInput(report) } catch (e) { return Promise.reject(e) }
     return this.#enqueue(async () => {
-      const r = await this.#run(this.#builtins.report, 'report', report, when)
+      const r = await this.#run(this.#builtins.report, bound, when)
       return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r
     })
   }

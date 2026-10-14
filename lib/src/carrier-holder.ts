@@ -16,8 +16,9 @@ import { carrierPrincipal } from './carrier-identity.js'
 import type { CarrierPrincipal } from './carrier-identity.js'
 import { PROOF_V } from './carrier.js'
 import type { CarrierProof, RegistrationVerdict } from './carrier.js'
+import { platformSubtle } from './crypto.js'
 
-const S = globalThis.crypto.subtle
+const S = platformSubtle
 const te = new TextEncoder()
 
 export interface HolderContext {
@@ -40,7 +41,7 @@ async function sign (ctx: HolderContext, fields: Record<string, Json>): Promise<
     carrier: ctx.carrier, principal: ctx.identity.principal, rkid: ctx.rkid,
     ...fields,
   }
-  const sig = new Uint8Array(await S.sign({ name: 'Ed25519' }, ctx.identity.key.priv, te.encode(jcs(p as unknown as Json))))
+  const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.identity.key.priv, te.encode(jcs(p as unknown as Json))))
   return { ...(p as unknown as CarrierProof), sig: 'z' + base58(sig) }
 }
 
