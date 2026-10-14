@@ -12,21 +12,39 @@
 
 /** What a random value is for. Star salts are counters, not entropy. */
 export type EntropyPurpose =
-  | 'seal.eph'        // ephemeral X25519 seed of an envelope (Delivery §5)
-  | 'seal.nonce'      // AES-GCM nonce of an envelope (Delivery §5)
-  | 'env.nonce'       // a nonce inside a document's own transport form
-  | 'doc.id'          // document id (uuid)
-  | 'thread.id'       // thread id (uuid)
-  | 'ack.id'          // delivery-ack document id (uuid)
-  | 'challenge'       // encounter challenge bytes
-  | 'group.seed'      // group-star sealing seed (5.2b)
-  | 'founding.nonce'  // relationship / group founding nonce (Identity §6.1, §7a.3)
-  | 'drop.nonce'      // nonce of a dropped (filler) form
-  | 'pad'             // padding bytes
+  | 'seal.eph'           // ephemeral X25519 seed of an envelope (Delivery §5)
+  | 'seal.nonce'         // AES-GCM nonce of an envelope (Delivery §5), every outer seal
+  | 'doc.id'             // document id (uuid)
+  | 'thread.id'          // thread id (uuid)
+  | 'ack.id'             // delivery-ack document id (uuid)
+  | 'challenge'          // encounter challenge bytes
+  | 'group.seed'         // group address seed at founding
+  | 'founding.nonce'     // relationship / group founding nonce (Identity §6.1, §7a.3)
+  | 'drop.nonce'         // AEAD nonce of an introduction drop
+  | 'rendezvous.secret'  // the introduction rendezvous secret (Trust §8)
+  | 'groupstar.nonce'    // AEAD nonce of a group-star `c` (5.2b)
+  | 'pad'                // padding and filler bytes
+
+// Where the probe's old `ent` fields go (23 inputs: 22 `ent.*` fields and
+// group-star's `rand`). Four are not entropy and leave the port: domain
+// decisions are act input or group state (note §3).
+//
+//   ent.ephSeed         seal.eph           ent.id, ent.docId   doc.id
+//   ent.sealNonce       seal.nonce         ent.threadId        thread.id
+//   ent.envNonce        seal.nonce         ent.ackId           ack.id
+//   ent.ch, .chA, .chB  challenge          ent.groupSeed       group.seed
+//   ent.nonce, .nonceA, .nonceB            founding.nonce (pair-context nonce)
+//   ent.foundingNonce   founding.nonce     ent.dropNonce       drop.nonce
+//   ent.secret          rendezvous.secret  ent.pad             pad
+//   group-star rand     groupstar.nonce (AEAD nonces), pad (filler d and c)
+//   ent.vouchThreshold  not entropy: group rule, group state
+//   ent.candidacy       not entropy: the human's choice, act input
+//   ent.cls             not entropy: act input
+//   ent.recipient       not entropy: act input
 
 export const ENTROPY_PURPOSES: readonly EntropyPurpose[] = Object.freeze([
-  'seal.eph', 'seal.nonce', 'env.nonce', 'doc.id', 'thread.id', 'ack.id',
-  'challenge', 'group.seed', 'founding.nonce', 'drop.nonce', 'pad',
+  'seal.eph', 'seal.nonce', 'doc.id', 'thread.id', 'ack.id', 'challenge',
+  'group.seed', 'founding.nonce', 'drop.nonce', 'rendezvous.secret', 'groupstar.nonce', 'pad',
 ])
 
 export interface Entropy {

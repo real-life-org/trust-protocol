@@ -8,6 +8,10 @@
 import type { HolderEvent } from './events.js'
 import type { Outbound } from './ports.js'
 
+/** What resume(when) hands out: retries and due duties, in the engine's
+ *  fixed order, and when to call again (absent: nothing is due). */
+export interface ResumeResult { outbound: Outbound[], events: HolderEvent[], nextDueAt?: number }
+
 /** Why an act was refused; `ref` on the result may name the rule. */
 export type ActError =
   | 'unknown-contact'

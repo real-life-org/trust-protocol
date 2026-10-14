@@ -21,8 +21,13 @@ export type CommitResult = { ok: true, version: string } | { ok: false, reason: 
  * Durable holder state with compare-and-swap. `commit(version, next)`
  * succeeds only if the store is still at `version` (null: still empty),
  * stores a copy atomically and returns the new version; otherwise it
- * writes nothing. Durability: visible to every later reader of the same
- * store instance; persistent adapters additionally across process loss.
+ * writes nothing. The version token serves CAS and nothing else: a store
+ * MUST NEVER reuse a token within its lifetime, reopening included, even
+ * when the content returns to an earlier value (no ABA). What the holder
+ * journals and announces is its own `commitSeq`, written inside `next`
+ * (state.ts), because the token is known only after the commit.
+ * Durability: visible to every later reader of the same store instance;
+ * persistent adapters additionally across process loss.
  * Stage 2 assumes ONE writer per holder; the adapter guarantees it.
  * A commit whose outcome is unknown surfaces as InfraError
  * 'unknown-commit-outcome' and is resolved by re-reading (act journal).
@@ -96,7 +101,9 @@ export interface Log {
 // ── Access (user: group star, membership) ──────────────────────────────
 
 /** The holder's materialized view of one group (Access), as the group
- *  star's reception needs it (Trust 5.2b). */
+ *  star's reception needs it (Trust 5.2b). `isMember` and `resolve` of
+ *  one GroupAccess MUST describe one and the same materialized snapshot
+ *  of the group, stable for as long as the object is used. */
 export interface GroupAccess {
   /** the group's genesis digest */
   group: string
@@ -119,21 +126,33 @@ export type ReceiverRefusalCode =
   | 'malformedRequest' | 'unsupportedType' | 'proofRequired'
   | 'proofInvalid' | 'wrongRecipient' | 'identityMismatch'
 
-/** Sender failure reasons, closed (Delivery §6.1). */
+/** Sender failure reasons, closed (Delivery §6.1). An adapter's or the
+ *  holder's own give-up is `expired-by-adapter-policy`. */
 export type DeliveryFailure = 'unroutable' | 'oversize' | 'expired-by-adapter-policy' | 'rejected-by-receiver'
+
+/** Why a submission still waits before the trias (Delivery §6.1). */
+export type PreTransportReason = 'offline' | 'transport-unreachable' | 'carrier-refused-retriable'
+
+/** A report about a submission the service has taken: the status trias. */
+export type TriasReport =
+  | { digest: string, status: 'accepted' }
+  | { digest: string, status: 'delivered', late: boolean }
+  | { digest: string, status: 'failed', reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> }
+  | { digest: string, status: 'failed', reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
+
+/** A report before the trias: an adapter condition, never a verdict and
+ *  never a fourth state; it ends when the submission enters the trias. */
+export interface PreTransportReport { digest: string, status: 'awaiting-transport', reason: PreTransportReason }
 
 /**
  * One adapter report about one submitted document, keyed by its digest
  * (Delivery §6.1). Idempotent per (digest, status); monotone except
  * failed → delivered on a late ack. `accepted` never arises from a
- * local commit.
+ * local commit. An adapter's `delivered` is its claim about transport:
+ * it never stands in for the receive core's verification of the
+ * delivery-ack, which alone completes a star salt (5660) or any effect.
  */
-export type DeliveryReport =
-  | { digest: string, status: 'accepted' }
-  | { digest: string, status: 'delivered', late: boolean }
-  | { digest: string, status: 'failed', reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> }
-  | { digest: string, status: 'failed', reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
-  | { digest: string, status: 'give-up' }
+export type DeliveryReport = TriasReport | PreTransportReport
 
 /** The adapter's mapping from its submission ids to document digests. */
 export interface SubmissionRef { submissionId: string, digest: string }

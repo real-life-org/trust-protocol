@@ -13,8 +13,8 @@ export interface EventBase {
   eventId: string
   /** the human act that caused it, if any (note §4.2) */
   actId?: string
-  /** the store version of the commit that caused it */
-  version: string
+  /** commitSeq of the commit that caused it (state.ts), never the store token */
+  commitSeq: Dec
 }
 
 export type HolderEvent = EventBase & (

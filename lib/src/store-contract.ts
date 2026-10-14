@@ -7,8 +7,10 @@
 //   import { storeContract } from '@real-life/trust-protocol/testing'
 //   storeContract(() => new MyStore(), { test, assert })
 //
-// `makeStore` must return a fresh, EMPTY store each call. Persistent
-// adapters additionally test durability across process loss themselves.
+// `makeStore` must return a fresh, EMPTY store each call. Version tokens
+// are for CAS only and are never reused within a store's lifetime (no
+// ABA). Persistent adapters additionally test durability and token
+// freshness across process loss and reopening themselves.
 import { jcs } from './core.js'
 import { CODEC, decodeState, StateCodecError } from './codec.js'
 import { emptyState } from './state.js'
@@ -72,10 +74,65 @@ export function storeContract (makeStore: () => Promise<Store> | Store, { test, 
     assert.equal(j(r.state), j(stateWith(x.ok ? 2 : 3)))
   })
 
-  test('store contract: CAS on an empty store — two creating commits, one wins', async () => {
+  test('store contract: CAS on an empty store — two creating commits, one wins, the loser writes nothing', async () => {
     const s = await fresh()
     const [x, y] = await Promise.all([s.commit(null, stateWith(2)), s.commit(null, stateWith(3))])
     assert.equal([x, y].filter((r) => r.ok).length, 1)
+    const loser = x.ok ? y : x
+    assert.equal(j(loser), j({ ok: false, reason: 'conflict' }))
+    const r = await s.read()
+    assert.equal(r.version, x.ok ? x.version : y.ok ? y.version : undefined)
+    assert.equal(j(r.state), j(stateWith(x.ok ? 2 : 3)))
+  })
+
+  test('store contract: every historical token is rejected after further commits', async () => {
+    const s = await fresh()
+    const tokens: string[] = []
+    let v: string | null = null
+    for (let i = 1; i <= 5; i++) {
+      const c = await s.commit(v, stateWith(i))
+      assert.ok(c.ok)
+      v = c.ok ? c.version : v
+      tokens.push(v as string)
+    }
+    assert.equal(new Set(tokens).size, tokens.length, 'no token repeats')
+    const before = await s.read()
+    for (const old of [null, ...tokens.slice(0, -1)]) {
+      const r = await s.commit(old, stateWith(99))
+      assert.equal(r.ok, false, `stale token ${old} rejected`)
+    }
+    const after = await s.read()
+    assert.equal(after.version, before.version)
+    assert.equal(j(after.state), j(stateWith(5)))
+  })
+
+  test('store contract: no ABA — a token stays spent when the content returns to an earlier value', async () => {
+    const s = await fresh()
+    const a = await s.commit(null, stateWith(1))
+    const b = await s.commit(a.ok ? a.version : null, stateWith(2))
+    const c = await s.commit(b.ok ? b.version : null, stateWith(1))
+    assert.ok(a.ok && b.ok && c.ok)
+    const now = await s.read()
+    assert.equal(j(now.state), j(stateWith(1)), 'content is back at its first value')
+    assert.ok(a.ok && c.ok && a.version !== c.version, 'but the token is new')
+    const stale = await s.commit(a.ok ? a.version : null, stateWith(7))
+    assert.equal(stale.ok, false, 'the first token is still spent')
+    assert.equal((await s.read()).version, now.version)
+  })
+
+  test('store contract: an older snapshot stays as it was and its token is rejected after later commits', async () => {
+    const s = await fresh()
+    const c0 = await s.commit(null, stateWith(1, 'pair/a'))
+    assert.ok(c0.ok)
+    const old = await s.read()
+    const oldText = j(old.state)
+    const c1 = await s.commit(old.version, stateWith(2, 'pair/b'))
+    const c2 = await s.commit(c1.ok ? c1.version : null, stateWith(3, 'pair/c'))
+    assert.ok(c1.ok && c2.ok)
+    assert.equal(j(old.state), oldText, 'later commits do not reach into an earlier snapshot')
+    const stale = await s.commit(old.version, stateWith(9))
+    assert.equal(stale.ok, false)
+    assert.equal(j((await s.read()).state), j(stateWith(3, 'pair/c')))
   })
 
   test('store contract: atomicity — a rejected commit leaves state and version unchanged', async () => {

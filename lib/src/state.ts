@@ -12,7 +12,7 @@
 import type { Json } from './core.js'
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
-import type { DeliveryFailure, ReceiverRefusalCode, Recipient } from './ports.js'
+import type { DeliveryFailure, LogHead, PreTransportReason, ReceiverRefusalCode, Recipient } from './ports.js'
 
 /** Canonical decimal integer: "0" or no leading zero, at most 18 digits (2.1). */
 export type Dec = string
@@ -24,6 +24,9 @@ export type Millis = number
 export interface HolderState {
   /** state format version (codec.ts) */
   codec: number
+  /** engine-owned commit sequence, +1 on every commit; journal and events
+   *  carry it. The store's version token is for CAS only (ports.ts). */
+  commitSeq: Dec
   /** highest `when` seen; a lower `when` is raised to it (note §4.7) */
   lastWhen: Millis
   register: Register
@@ -66,7 +69,13 @@ export interface Register {
   devices: { names: string[], revoked: string[] }
   /** the personal community: genesis digest and head generation (Identity §5.4) */
   community: { genesis: string, head: Dec } | null
+  /** every signed anchor-rotation@2 the holder produced, chain order;
+   *  the source of the lineage segments of 6420 */
+  lineage: AnchorRotation[]
 }
+
+/** A signed anchor-rotation@2 artifact (Trust §6.5). */
+export type AnchorRotation = { [field: string]: Json }
 
 export interface CarrierNonce { nonce: B64u, generation: Dec }
 
@@ -150,17 +159,20 @@ export interface Tuple {
   rkid: string
   /** the entry this tuple's verifications go to (2145) */
   entryId: string
-  /** active heads at creation, frozen (2300) */
-  priorCandidates: string[]
+  /** the active-head tuples of the holder's relationships when this
+   *  tuple was created, frozen (2300) */
+  priorCandidates: TupleRef[]
   starOut: StarOut
   starIn: StarIn
-  /** the group star's own domain (5730) */
-  groupStarOut: StarOut
-  groupStarIn: StarIn
+  /** the group star's own scope and domain (5730) */
+  groupStarOut: GroupStarOut
+  groupStarIn: GroupStarIn
   probeOut: { seq: Dec }
   probeIn: { hwm: Dec, lowerBound: Dec, assembly: Assembly | null }
-  /** 6a continuity; recordPrior frozen by 6290 */
-  continuity: { rev: Dec, body: Json | null, recordPrior: string | null, pending: boolean }
+  /** 6a.4: own continuity-mapping issuance (6300) and the open work on it */
+  continuityOut: ContinuityOut
+  /** 6a.4: verified continuity mapping; recordPrior frozen by 6290 */
+  continuityIn: { rev: Dec, body: Json | null, recordPrior: string | null }
   /** issued anchor mapping (6300) and the anchor it was issued under */
   mappingOut: { rev: Dec, body: Json | null, underAnchor: string | null }
   /** verified anchor mapping, its self and card */
@@ -170,28 +182,67 @@ export interface Tuple {
   deactivated: boolean
 }
 
-/** One reconciliation pair (member, anchor head of its entry) (5610). */
-export interface StarPair { member: string, head: string }
+/** A frozen reference to one tuple: its own pair label and the counterpart anchor. */
+export interface TupleRef { ownPairLabel: string, counterpartAnchor: string }
 
-/** Sender side of a star (5.4). */
-export interface StarOut {
-  /** next unissued salt of the scope (5690) */
-  nextSalt: Dec
+/** Continuity work the tuple still owes (today's contMappingDue): the
+ *  record side's choice (with the remaining alternatives), the non-record
+ *  side's match report, or the alignment re-issue. */
+export type ContinuityDue =
+  | { kind: 'choice', prior: string, alts: string[] }
+  | { kind: 'report', prior: string }
+  | { kind: 'align', prior: string }
+
+export interface ContinuityOut {
+  /** last issued revision and body (6300/6310) */
+  rev: Dec
+  body: Json | null
+  /** record side: the prior it chose, final once set (contChosen) */
+  chosen: string | null
+  /** non-record side: the match it reported (contReported) */
+  reported: string | null
+  /** an alignment re-issue was acknowledged (contAligned) */
+  aligned: boolean
+  due: ContinuityDue | null
+}
+
+/** Sender side of one reconciled sequence over view elements V (5.4):
+ *  the salt scope, the baseline automaton and what is in flight. */
+export interface SeqOut<V> {
+  /** last issued salt, "0" before the first (5690) */
+  lastSalt: Dec
+  /** the scope issued its maximum and issues nothing further (2600/2610) */
+  exhausted: boolean
   /** high-water mark H, highest completed salt (5630) */
   hwm: Dec
   /** snapshot S completed at H, or absent (5630) */
-  snapshot: StarPair[] | null
+  snapshot: V[] | null
   /** salt → the view sent under it and its chunks' digests (5660) */
-  inflight: Record<string, { view: StarPair[], digests: string[], acked: string[] }>
+  inflight: Record<string, { view: V[], digests: string[], acked: string[] }>
 }
 
-/** Receiver side of a star (5.2a). */
-export interface StarIn {
+/** Receiver side of one chunked sequence (5.2a): A is what an accepted
+ *  salt leaves behind. */
+export interface SeqIn<A> {
   hwm: Dec
   lowerBound: Dec
   assembly: Assembly | null
-  accepted: { salt: Dec, blinded: string[] } | null
+  accepted: A | null
 }
+
+/** One star reconciliation pair (member, anchor head of its entry) (5610). */
+export interface StarPair { member: string, head: string }
+export type StarOut = SeqOut<StarPair>
+export type StarIn = SeqIn<{ salt: Dec, blinded: string[] }>
+
+/** One group-star domain element (5730): member and memberOp present for
+ *  sealed entries only, and a change of either diverges (5770). */
+export type GroupStarItem =
+  | { group: string, mode: 'digest' }
+  | { group: string, mode: 'sealed', member: string, memberOp: string }
+export type GroupStarOut = SeqOut<GroupStarItem>
+/** Received group star: its entries {d, c} as accepted (5.2b). */
+export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }> }>
 
 /** A chunked document under assembly: chunk index → chunk. */
 export interface Assembly { salt: Dec, chunks: Record<string, Json> }
@@ -221,18 +272,23 @@ export interface Effect { ack: Json | null, expiresAt: Millis }
 
 export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'
 
+/** One step of an item's history. `awaiting-transport` is a pre-transport
+ *  report, not a trias state (Delivery §6.1). The holder's own give-up
+ *  (RetryPolicy) is recorded as failed(expired-by-adapter-policy). */
 export type OutboxStep =
   | { status: 'submitted', at: Millis, attempt: number }
+  | { status: 'awaiting-transport', at: Millis, reason: PreTransportReason }
   | { status: 'accepted', at: Millis }
   | { status: 'delivered', at: Millis, late: boolean }
-  | { status: 'failed', at: Millis, reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> | 'give-up' }
+  | { status: 'failed', at: Millis, reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> }
   | { status: 'failed', at: Millis, reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
 
 export interface OutboxItem {
   type: string
   threadId: string
   recipient: Recipient
-  /** the envelope as last sent; retries resend it */
+  /** the envelope as last sent; retries resend it. Its rkid is
+   *  recipient.keyAgreement, never the own recipient.rkid. */
   envelope: Envelope
   attempt: number
   /** history, oldest first (Delivery §6.1) */
@@ -252,7 +308,11 @@ export interface ProfileDuty { kind: 'profile', v: 1, id: string, contactId: str
 /** Continuity resend on a tuple (6830–6850). */
 export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, relId: string, tuple: string, step: 'probe' | 'mapping' }
 
-export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty
+/** The persisted continuation of a merge (2230): the verification has
+ *  committed; these entries merge in one later atomic step. */
+export interface MergeDuty { kind: 'merge', v: 1, id: string, entryIds: string[], relId: string }
+
+export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty
 /** A duty of a kind (or version) this library does not know: kept as is. */
 export interface UnknownDuty { kind: string, v: number, id: string, [field: string]: Json }
 /** Narrow with isKnownDuty (codec.ts) before switching on `kind`. */
@@ -260,8 +320,25 @@ export type Duty = KnownDuty | UnknownDuty
 
 // ── Rotations, prompts, acts, encounter ────────────────────────────────
 
-/** A running rotation; steps in order: register, then log, then duties. */
-export interface Rotation { id: string, from: Dec, to: Dec, step: 'register' | 'log' | 'duties', startedAt: Millis }
+/**
+ * A running rotation; steps in order: register, then log, then duties.
+ * The whole append closure is persisted before the append, so a restart
+ * repeats or recognizes exactly that append (Log.append idempotence).
+ */
+export interface Rotation {
+  id: string
+  from: Dec
+  to: Dec
+  step: 'register' | 'log' | 'duties'
+  startedAt: Millis
+  /** the anchor.rotate body, incl. the signed anchor-rotation@2 */
+  entry: Json
+  /** the log head the entry is appended over */
+  overHead: LogHead
+  /** relationship id → anchor head the re-issue waits for, null = due at
+   *  once; decided at the label commit (6596) */
+  awaitHead: Record<string, string | null>
+}
 
 export type PromptKind = 'encounter-confirm' | 'group-invite' | 'introduction'
 
@@ -279,8 +356,8 @@ export interface ActRecord {
   actId: string
   /** digest(JCS(name, input)) */
   inputHash: string
-  /** store version of the act's commit */
-  version: string
+  /** commitSeq of the act's commit */
+  commitSeq: Dec
   outboundDigests: string[]
   events: HolderEvent[]
   /** commit time, for retention like effects */
@@ -299,8 +376,9 @@ export interface EncounterState {
 export function emptyState (codec: number): HolderState {
   return {
     codec,
+    commitSeq: '0',
     lastWhen: 0,
-    register: { labels: [], pairNonces: {}, carriers: {}, devices: { names: [], revoked: [] }, community: null },
+    register: { labels: [], pairNonces: {}, carriers: {}, devices: { names: [], revoked: [] }, community: null, lineage: [] },
     addresses: { keys: {}, tombstones: [] },
     contacts: {},
     relationships: {},
