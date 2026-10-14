@@ -34,6 +34,15 @@
 //                     model, enactment record, 5.6 acceptance, both
 //                     paths of 5.8 (graduated from /probe on 05.09.2026)
 //
+// The Stage-2 holder contract (types and codec; the engine follows):
+//
+//   state             HolderState — the holder's whole state as JSON
+//   codec             decodeState / encodeState under the codec version
+//   ports             Store, KeyProvider, Log, Access, DeliveryReport, Outbound
+//   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
+//   entropy           the Entropy port by closed purpose
+//   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState
+//
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 
 export * from './core.js'
@@ -46,3 +55,14 @@ export * from './carrier.js'
 export * from './holder.js'
 export * as visibility from './visibility.js'
 export * as ceremony from './ceremony.js'
+export type * from './state.js'
+export { CODEC, MIGRATIONS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
+export type { StateCodecErrorCode } from './codec.js'
+export type * from './ports.js'
+export type * from './events.js'
+export { InfraError } from './results.js'
+export type { ActError, ActResult, ReceiveFailure, ReceiveStageNo, ReceiveResult, InfraErrorCode } from './results.js'
+export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js'
+export type { Entropy, EntropyPurpose, EntropyErrorCode } from './entropy.js'
+export { storeContract } from './store-contract.js'
+export type { ContractHarness } from './store-contract.js'
