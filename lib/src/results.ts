@@ -22,6 +22,8 @@ export type ActError =
   | 'scope-exhausted'
   | 'stale-issuance'
   | 'actid-conflict'
+  /** a human act came without the actId the app must mint (note §4.2) */
+  | 'actid-missing'
   | 'log-missing'
   | 'unknown-digest'
 
@@ -59,6 +61,8 @@ export type InfraErrorCode =
   | 'store-commit'
   /** the commit may or may not have landed; re-read and consult the act journal */
   | 'unknown-commit-outcome'
+  /** the store kept answering `conflict` past the retry bound (RetryPolicy.commitAttempts) */
+  | 'commit-conflict'
   | 'key-provider'
   | 'log'
   | 'access'
@@ -70,5 +74,17 @@ export class InfraError extends Error {
     super(message ?? code, options)
     this.name = 'InfraError'
     this.code = code
+  }
+}
+
+/** The WebCrypto handle lacks what the library needs; raised when a
+ *  holder is built, never at import (note §3 Crypto). */
+export class CryptoUnavailableError extends Error {
+  /** the algorithms (or 'subtle' itself) that are missing, in a fixed order */
+  readonly missing: readonly string[]
+  constructor (missing: readonly string[]) {
+    super(`WebCrypto lacks: ${missing.join(', ')} (needs Ed25519, X25519, HKDF, HMAC, AES-GCM, SHA-256)`)
+    this.name = 'CryptoUnavailableError'
+    this.missing = Object.freeze([...missing])
   }
 }

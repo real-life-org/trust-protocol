@@ -35,14 +35,20 @@
 //                     model, enactment record, 5.6 acceptance, both
 //                     paths of 5.8 (graduated from /probe on 05.09.2026)
 //
-// The Stage-2 holder contract (types and codec; the engine follows):
+// The Stage-2 holder (contract, engine core and facade):
 //
+//   holder-api        createHolder — the facade: act, tick, resume, report,
+//                     subscribe, snapshot (receive follows in PR 3)
+//   engine            the act in four steps over a CAS store, the act
+//                     journal, module registration (HolderModule types)
+//   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — the holder's whole state as JSON
 //   codec             decodeState / encodeState under the codec version
 //   ports             Store, KeyProvider, Log, Access, DeliveryReport, Outbound
 //   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
 //   entropy           the Entropy port by closed purpose
-//   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState
+//   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
+//                     freezeDeep
 //
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 
@@ -61,10 +67,13 @@ export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isK
 export type { StateCodecErrorCode, StateValidator } from './codec.js'
 export type * from './ports.js'
 export type * from './events.js'
-export { InfraError } from './results.js'
+export { InfraError, CryptoUnavailableError } from './results.js'
 export type { ActError, ActResult, ReceiveFailure, ReceiveStageNo, ReceiveResult, ResumeResult, InfraErrorCode } from './results.js'
 export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js'
 export type { Entropy, EntropyPurpose, EntropyErrorCode } from './entropy.js'
 export { storeContract } from './store-contract.js'
 export { seedKeys } from './keys-seed.js'
+export { createHolder } from './holder-api.js'
+export type { Holder, HolderOptions } from './holder-api.js'
+export type { HolderModule, CommandDef, PrepareCtx, Prepared, Applied, Refusal, TaskHandler, DutyHandler, EventDraft, OutboundDraft, EnginePorts, CommitListener, HolderSnapshot, CryptoHandle } from './engine.js'
 export type { ContractHarness } from './store-contract.js'

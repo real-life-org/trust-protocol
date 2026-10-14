@@ -185,6 +185,10 @@ export interface RetryPolicy {
   backoff (attempt: number): number
   /** give up after this many attempts */
   maxAttempts: number
-  /** or after this long since the first attempt, in ms */
+  /** or after this long since the first attempt, in ms; also sets the
+   *  retention of effects and the act journal, max(P90D, horizonMs) —
+   *  Delivery §7 key-retention */
   horizonMs: number
+  /** CAS attempts of one act before InfraError('commit-conflict'); default 8 */
+  commitAttempts?: number
 }
