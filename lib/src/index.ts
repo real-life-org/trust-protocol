@@ -40,7 +40,11 @@
 //   holder-api        createHolder — the facade: act, decide, receive, tick,
 //                     resume, report, subscribe, snapshot and the views:
 //                     contacts, contact, groups, profile, prompts,
-//                     deliveryStatus
+//                     deliveryStatus. Built in: the trust module (Trust
+//                     Layer 2a, 6.1–6.5, Section 2) — the human acts
+//                     trust.set, trust.setClass, trust.setGroupClass,
+//                     trust.pause, the anchor mapping's issuance and
+//                     reception, the entry commit
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters
@@ -51,10 +55,11 @@
 //   entropy           the Entropy port by closed purpose
 //   ./internal        the structural state, encodeState and the codec chain,
 //                     the engine's module types (HolderModule, DecisionHandler,
-//                     …), the pure view functions — for the library's modules
-//                     and tests, not an app contract
+//                     …), the pure view functions, the trust module's factory
+//                     and its pure reads — for the library's modules and
+//                     tests, not an app contract
 //   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
-//                     freezeDeep, sampleState, openPromptModule
+//                     stateBuilder, freezeDeep, sampleState, openPromptModule
 //
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 
