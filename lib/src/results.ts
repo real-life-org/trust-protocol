@@ -25,6 +25,8 @@ export type ActError =
   /** a human act came without the actId the app must mint (note §4.2) */
   | 'actid-missing'
   | 'log-missing'
+  /** the anchor mapping needs the holder's community anchor (register.community, Identity §5.4) */
+  | 'no-community'
   | 'unknown-digest'
   /** prompt.decide: no open prompt has this id */
   | 'unknown-prompt'

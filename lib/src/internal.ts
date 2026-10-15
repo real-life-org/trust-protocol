@@ -14,6 +14,10 @@
 //             receive's Arrival, ReceivedDocument, TaskRefusal, TaskFailure
 //   views     the pure projections state → view
 //   prompts   DECIDE, DecideInput
+//   trust     the trust module's factory (trustModule, for tests with another
+//             admission bound), its task type and command names, the pure
+//             reads of trust/state.ts (trusted, lags, classOn, …) and the
+//             2240 re-commit (recommitEntries)
 //   freeze    freezeDeep
 export type * from './state.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
@@ -25,3 +29,8 @@ export { contactsView, contactView, groupsView, profileView, promptsView, delive
 export { DECIDE } from './prompts.js'
 export type { DecideInput } from './prompts.js'
 export { freezeDeep } from './util-freeze.js'
+export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recommitEntries } from './trust/mapping.js'
+export type { TrustModuleOptions, TrustSetInput, TrustSetClassInput, TrustSetGroupClassInput, TrustPauseInput } from './trust/mapping.js'
+export { ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, entryRelationships, activeTuple, findContact } from './trust/state.js'
+export { promptsModule, collectDecisions } from './prompts.js'
+export { createEngine } from './engine.js'
