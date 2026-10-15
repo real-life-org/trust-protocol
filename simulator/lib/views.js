@@ -50,6 +50,7 @@
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
 import { triasOf } from './state.js';
+import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js';
 // ── helpers ────────────────────────────────────────────────────────────
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
@@ -63,18 +64,6 @@ const profileFields = (body) => {
         if (typeof body[k] === 'string')
             out[k] = body[k];
     return out;
-};
-const CLASSES = ['star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 'profile'];
-/** 2760: star and blinded group star go to every contact, the anchor
- *  mapping to none, sealed group star and profile to the trusted contacts. */
-const classOn = (cls, setting, trusted) => {
-    if (setting !== 'default')
-        return setting === 'on';
-    if (cls === 'star' || cls === 'groupStar')
-        return true;
-    if (cls === 'anchorMapping')
-        return false;
-    return trusted;
 };
 const entryIndex = (state) => {
     const ix = new Map();
@@ -105,15 +94,6 @@ const relationshipsOf = (state, c, ids, ix) => {
     }
     return { own, all };
 };
-const activeTuple = (r) => r.tuples.find((t) => t.ownPairLabel === r.activeHead);
-/** A relationship lags where its anchor head is held in its entry as
- *  superseded: the prev of a link one of the entry's relationships holds. */
-const lags = (r, rels) => r.heldCounterpartHead !== null && rels.some((o) => o.links.some((l) => l.prev === r.heldCounterpartHead));
-const findContact = (state, id) => {
-    if (Object.hasOwn(state.contacts, id))
-        return state.contacts[id];
-    return Object.values(state.contacts).find((c) => c.aliases.includes(id));
-};
 const project = (state, c, ix) => {
     const ids = new Set([c.id, ...c.aliases]);
     const { own, all: rels } = relationshipsOf(state, c, ids, ix);
@@ -122,7 +102,7 @@ const project = (state, c, ix) => {
     const origin = [...own].sort((a, b) => (a.provenance.at - b.provenance.at) || cmp(a.id, b.id))[0];
     const out = tuples.some((t) => t.mappingOut.body !== null);
     const inn = tuples.some((t) => t.mappingIn.body !== null);
-    const trusted = c.settings.anchorMapping === 'on';
+    const trusted = isTrusted(c);
     const classes = {};
     for (const cls of CLASSES)
         classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) };

@@ -3,8 +3,9 @@
 // holder-api — createHolder, the facade over the engine (lib Stage 2,
 // note §4.1, §4.5). Domain modules (identity, encounter, trust, continuity,
 // membership, profile) register with the engine as they graduate; today
-// the facade carries the engine's built-ins, the prompts module and the
-// modules given.
+// the facade carries the engine's built-ins, the prompts module, the trust
+// module (trust/mapping.ts: the Trust act, the class settings, the anchor
+// mapping's issuance and reception, the entry commit) and the modules given.
 //
 // Reading: the views (views.ts) over one snapshot each, carrying its
 // commitSeq. `subscribe` announces every commit with its commitSeq and
@@ -19,13 +20,14 @@
 import { createEngine } from './engine.js';
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js';
 import { toOpaque } from './state.js';
+import { trustModule } from './trust/mapping.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
-    const modules = [...(opts.modules ?? [])];
+    const modules = [trustModule(), ...(opts.modules ?? [])];
     const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules]);
     const read = async () => (await engine.snapshot()).state;
     return Object.freeze({

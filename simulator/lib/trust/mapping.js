@@ -1,0 +1,546 @@
+// GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
+// Source of truth: lib/src/*.ts. CI enforces freshness (--check).
+// trust/mapping — the Trust Layer's anchor mapping on the holder (lib
+// Stage 2, PR 4a): the trust act and the class settings (Section 2a), the
+// issuance of anchor-mapping@4 (6.1, 6300/6310, 6420), its verification
+// (6.3) and the entry commit of the deliverable set (Section 2). Graduated
+// from probe/trust.ts (setTrust, setTrustPaused, reissueTrust, makeMapping,
+// verifyMapping, promotionCommit's first branch, receiveTrustDoc's mapping
+// branch) onto HolderState and the engine; probe/trust.ts stays as it is
+// for the simulators until PR 7.
+//
+// Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
+//
+// What the module registers (createHolder builds it in):
+//   commands  trust.set {contactId, on}            the Trust button: the
+//               anchor mapping class `on` (2770) or `off` (2840); human
+//             trust.setClass {contactId, cls, setting}    2780/2810; human
+//             trust.setGroupClass {contactId, groupId, setting}  2830; human
+//             trust.pause {contactId, paused}       the pause of 5.4: star
+//               and blinded group star `off`, or back to `default`; human
+//             trust.recover {}                      2240: entries re-commit
+//               from verified mappings recovered without them; non-human
+//   task      anchor-mapping/0.3 (proof absent): conditions 1–7 in the
+//             preparation (stage 8), condition 8 and the transition in
+//             apply (stage 9): mappingIn on the arrival tuple, links and
+//             bindings at chain level (6610), the counterpart head, the
+//             entry commit (2060) or its update in place (2070)
+//   duties    class-on/1 (2850) and reissue-mapping/1 (6370, 6596): issue
+//             the current anchor-mapping@4 on one relationship
+//
+// Choices this file makes where note and spec leave them open:
+//   - a relationship maps to exactly one entry here: the contact its active
+//     tuple's entryId names (2145), else its contactId. Merge, split and
+//     chaining are PR 4c. An entry whose relationships hold incomparable
+//     anchor heads (a manual merge, 6640, before its split) keeps its
+//     anchor head where it is among the newest, else takes the verifying
+//     relationship's head
+//   - mappingIn.body and mappingOut.body hold the mapping's body (the
+//     artifact without its MACs): the revision rule compares bodies (6270),
+//     6310 compares the issued body
+//   - an equal revision with an identical body (6270 repeat, a resend under
+//     a new document id) is acknowledged and changes nothing, except that
+//     it re-commits an entry lost with state loss (2240); a lower revision,
+//     an equivocation and an unlinked change of self (6170) are
+//     failed(validation-failed) at stage 9 with the rule as ref
+//   - a document carrying ceremony.enactment is failed(validation-failed):
+//     a mapping has no material to recompute it against (Delivery §3)
+//   - trust.received is announced at the entry commit, contact.verified at
+//     every verification that changed the state
+//   - the admission bound is the constant 10¹⁸−1 (2050); trustModule takes
+//     another bound for tests only, as the probe's admissionBound did
+//   - the entry commit of 2240 runs on trust.recover and on any accepted
+//     mapping of the relationship, the repeat included
+//   - issuance needs a community anchor (register.community): without one
+//     the Trust act is refused as no-community, a duty stays refused
+//   - the community key agrees through the KeyProvider under a release the
+//     module derives from the register (the current generation's label),
+//     not from `addresses`: it is no delivery address (Delivery §5)
+//   - duties are keyed deterministically, `class-on:<cls>:<relId>`; one
+//     already open is not opened twice. Turning the class on opens one per
+//     live relationship of the contact that does not lag (6595); turning it
+//     off drops the open class-on and re-issue duties of the contact
+//     (6410). A class-on duty finding the class off, its relationship gone
+//     or lagging is fulfilled without sending; ceasing to lag opens a new
+//     one (2850). A re-issue duty sends whether or not the relationship
+//     lags now (6596) and is dropped while the class is off (6410)
+//   - every issuance on a relationship fulfils every open class-on duty of
+//     the anchor mapping and every re-issue owed on it (6596: one delivery
+//     meets every re-issue still owed)
+//   - in 4a only the anchor mapping class has a delivery here. The star and
+//     the blinded group star follow through reconciliation (5.4, PR 4b);
+//     the sealed group star (4b) and the profile (PR 6) open their class-on
+//     duties when their modules arrive. A class-on duty of another class is
+//     left waiting ('not-due') for its handler
+//   - trust.pause sets star and blinded group star `off`, unpausing back to
+//     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
+//   - setGroupClass to `default` removes the per-group entry; the sealed
+//     group star class `off` resets every per-group `on` (5450)
+import { jcs, iso, makeValidator, calOK } from '../core.js';
+import { digestDoc, xRawOfMk } from '../crypto.js';
+import { seal } from '../delivery.js';
+import { communityLabel } from '../identity.js';
+import { SCHEMAS } from '../schemas.js';
+import { LINEAGE_MAX, MAPPING_CONDITION_RULE, assembleAnchorMapping, bindingOf, classifyMapping, lineageLinks, mappingBindings, rawProofValue, verifyAnchorMappingWith, } from '../anchor.js';
+import { tupleByRkid } from '../receive.js';
+import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads, } from './state.js';
+const te = new TextEncoder();
+const V = makeValidator(SCHEMAS);
+const mappingSchemaOk = (m) => V.validate(m, SCHEMAS['visibility-anchor-mapping.schema.json'], SCHEMAS['visibility-anchor-mapping.schema.json']).length === 0;
+/** The registered task type that carries anchor-mapping@4 (Delivery §4.4). */
+export const ANCHOR_MAPPING_TYPE = 'https://real-life.org/trust-tasks/anchor-mapping/0.3';
+/** The trust module's command names. */
+export const TRUST_COMMANDS = Object.freeze({
+    set: 'trust.set', setClass: 'trust.setClass', setGroupClass: 'trust.setGroupClass', pause: 'trust.pause', recover: 'trust.recover',
+});
+const SETTINGS = ['default', 'on', 'off'];
+const inc = (d) => (BigInt(d) + 1n).toString();
+/** The current generation's label and the next one's (Identity §5.4). */
+function communityOf(state) {
+    const c = state.register.community;
+    if (c === null)
+        return null;
+    const gen = Number(c.head);
+    if (!Number.isSafeInteger(gen) || gen < 1 || gen + 1 > Number.MAX_SAFE_INTEGER)
+        throw new Error(`trust: community head ${c.head} outside [1, 2^53 − 2] (Identity §5.4)`);
+    return { genesis: c.genesis, gen, label: communityLabel(c.genesis, gen), nextLabel: communityLabel(c.genesis, gen + 1) };
+}
+/**
+ * The lineage a mapping on one relationship carries (6020, 6420): empty
+ * where nothing was issued there under an earlier anchor, otherwise the
+ * holder's lineage from the element that leaves the relationship's
+ * earliest anchor (2285) to `self`, at most the LINEAGE_MAX most recent.
+ */
+export function lineageSegment(lineage, earliest, self) {
+    if (earliest === null || earliest === self)
+        return [];
+    const at = lineage.findIndex((r) => r?.body?.prev === earliest);
+    if (at < 0)
+        throw new Error('trust: a relationship\'s earliest anchor is not in the register lineage (2285, 6420)');
+    const seg = lineage.slice(at);
+    if (seg[seg.length - 1].body.next !== self)
+        throw new Error('trust: the register lineage does not end at the current community anchor');
+    return structuredClone(seg.slice(-LINEAGE_MAX));
+}
+/** Whether the anchor mapping can go out on `relId` toward `contactId` now. */
+function issuable(state, contactId, relId, lagMatters) {
+    const contact = findContact(state, contactId);
+    const rel = Object.hasOwn(state.relationships, relId) ? state.relationships[relId] : undefined;
+    if (!contact || !rel || rel.chainedInto !== null || !contact.relIds.includes(rel.id))
+        return { ok: false, why: 'gone' };
+    if (!classOnToward(contact, 'anchorMapping'))
+        return { ok: false, why: 'off' }; // 6410
+    const tuple = activeTuple(rel);
+    if (!tuple || tuple.deactivated)
+        return { ok: false, why: 'deactivated' }; // 6240
+    if (lagMatters && lags(rel, entryRelationships(state, contact)))
+        return { ok: false, why: 'lagging' }; // 6595
+    if (state.register.community === null)
+        return { ok: false, why: 'no-community' };
+    if (BigInt(tuple.mappingOut.rev) + 1n > ADMISSION_BOUND)
+        return { ok: false, why: 'scope-exhausted' }; // 2.1
+    return { ok: true, contact, rel, tuple };
+}
+/** Build and seal the current anchor-mapping@4 for one relationship. */
+async function prepareIssue(ctx, contactId, relId, lagMatters) {
+    const st = ctx.snapshot;
+    const chk = issuable(st, contactId, relId, lagMatters);
+    if (!chk.ok)
+        return null;
+    const { contact, rel, tuple: t } = chk;
+    const S = ctx.crypto.subtle;
+    const com = communityOf(st);
+    const self = await ctx.keys.anchorOf(com.label);
+    const next = await ctx.keys.anchorOf(com.nextLabel);
+    const own = await ctx.keys.anchorOf(t.ownPairLabel);
+    // self-card@2 under the current generation, bound to the next (6.2)
+    const cardBody = { type: 'self-card@2', anchor: self.anchor, keyAgreement: self.keyAgreement, commit: await bindingOf(next.anchor, S) };
+    const card = { body: cardBody, proof: { proofValue: rawProofValue(await ctx.keys.sign(com.label, te.encode(jcs(cardBody)))) } };
+    const rev = inc(t.mappingOut.rev);
+    const body = {
+        type: 'anchor-mapping@4', pair: own.anchor, self: self.anchor, to: t.counterpartAnchor, card,
+        lineage: lineageSegment(st.register.lineage, rel.earliestAnchor, self.anchor), revision: rev, issuedAt: iso(ctx.when),
+    };
+    const theirX = xRawOfMk(t.counterpartKeyAgreement);
+    if (!theirX)
+        return null;
+    // mac1 under the tuple's own pair key, mac2 under the community key (6030)
+    const sh1 = await ctx.keys.agree(t.rkid, theirX, ctx.release);
+    const communityRelease = (rkid) => (rkid === self.keyAgreement ? { status: 'live', label: com.label } : { status: 'unknown' });
+    const sh2 = await ctx.keys.agree(self.keyAgreement, theirX, communityRelease);
+    if (sh1.status !== 'available' || sh2.status !== 'available')
+        return null;
+    const mapping = await assembleAnchorMapping(body, sh1.shared, sh2.shared, S);
+    const threadId = ctx.entropy.id('thread.id');
+    const doc = {
+        id: ctx.entropy.id('doc.id'), type: ANCHOR_MAPPING_TYPE, issuer: own.anchor, recipient: t.counterpartAnchor,
+        threadId, issuedAt: iso(ctx.when), payload: mapping,
+    };
+    const envelope = await seal(doc, t.counterpartKeyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S);
+    return {
+        relId: rel.id, tuple: t.ownPairLabel, baseRev: t.mappingOut.rev, rev, body, underAnchor: self.anchor,
+        outbound: {
+            digest: await digestDoc(doc, S), envelope, type: ANCHOR_MAPPING_TYPE, threadId,
+            recipient: { contactId: contact.id, rkid: t.rkid, keyAgreement: t.counterpartKeyAgreement },
+        },
+    };
+}
+/** Is this duty an anchor-mapping duty owed on `relId`? */
+const owedOn = (d, relId) => (d.kind === 'reissue-mapping' && d.relId === relId) ||
+    (d.kind === 'class-on' && d.cls === 'anchorMapping' && d.relId === relId);
+/** The issuance's commit: revision and body persisted in one step (6300),
+ *  the earliest anchor (2285), every duty the delivery meets (6596); null
+ *  where the scope moved since the preparation. */
+function commitIssue(state, p) {
+    const rel = state.relationships[p.relId];
+    const i = rel.tuples.findIndex((t) => t.ownPairLabel === p.tuple);
+    if (i < 0 || rel.tuples[i].mappingOut.rev !== p.baseRev)
+        return null;
+    const tuples = rel.tuples.map((t, j) => (j === i ? { ...t, mappingOut: { rev: p.rev, body: p.body, underAnchor: p.underAnchor } } : t));
+    const duties = {};
+    for (const [id, d] of Object.entries(state.duties))
+        if (!owedOn(d, p.relId))
+            duties[id] = d;
+    return {
+        state: {
+            ...state,
+            relationships: { ...state.relationships, [rel.id]: { ...rel, tuples, earliestAnchor: rel.earliestAnchor ?? p.underAnchor } },
+            duties,
+        },
+        outbound: [p.outbound],
+    };
+}
+// ── the entry commit (Section 2) ───────────────────────────────────────
+/** The entry a relationship's verifications go to (2145): its active
+ *  tuple's entryId, by id or alias, else its contact. */
+const entryOf = (state, rel) => {
+    const t = activeTuple(rel);
+    return (t && findContact(state, t.entryId)) ?? state.contacts[rel.contactId];
+};
+const liveRel = (r) => {
+    const t = activeTuple(r);
+    return r.chainedInto === null && t !== undefined && !t.deactivated;
+};
+/** A class-on duty of the anchor mapping on `rel`, unless one is open. */
+const classOnDuty = (state, contactId, relId, extra) => {
+    const id = `class-on:anchorMapping:${relId}`;
+    if (Object.hasOwn(state.duties, id) || extra.some((d) => d.id === id))
+        return [];
+    return [{ kind: 'class-on', v: 1, id, contactId, relId, cls: 'anchorMapping' }];
+};
+/**
+ * After a verified mapping on `relId` (or on recovery): the entry commit
+ * where the entry has none (2060: next position, admitted, or pending at
+ * the bound, 2250), the entry's anchor head (6560), and a class-on duty
+ * for every relationship of the entry that ceased to lag (2850, 6595).
+ */
+function commitEntry(before, state, relId, bound) {
+    const rel = state.relationships[relId];
+    const c0 = entryOf(state, rel);
+    let c = { ...c0 };
+    let entryOrder = state.entryOrder;
+    let committed = null;
+    if (c.pos === null) {
+        const admitted = BigInt(Object.values(state.contacts).filter((x) => x.status === 'admitted').length);
+        c = { ...c, pos: entryOrder.nextPos, status: admitted < bound ? 'admitted' : 'pending' };
+        entryOrder = { ...entryOrder, nextPos: inc(entryOrder.nextPos) };
+        committed = c;
+    }
+    const rels = entryRelationships(state, c);
+    const newest = newestHeads(rels);
+    const head = newest.length === 1 ? newest[0]
+        : c.anchorHead !== null && newest.includes(c.anchorHead) ? c.anchorHead
+            : rel.heldCounterpartHead;
+    c = { ...c, anchorHead: head };
+    const next = { ...state, contacts: { ...state.contacts, [c.id]: c }, entryOrder };
+    // 2850: a relationship that ceased to lag gets the classes on toward the contact
+    const duties = [];
+    if (classOnToward(c, 'anchorMapping')) {
+        const old = entryRelationships(before, c);
+        for (const r of rels) {
+            const was = old.find((o) => o.id === r.id);
+            if (was && lags(was, old) && !lags(r, rels) && liveRel(r))
+                duties.push(...classOnDuty(next, c.id, r.id, duties));
+        }
+    }
+    return { state: next, committed, contact: c, duties };
+}
+/** 2240: every relationship holding a verified mapping on a tuple whose
+ *  entry holds no position re-commits that entry, in the order of
+ *  entryOrder.heads (2180), then by relationship id. */
+export function recommitEntries(state, bound = ADMISSION_BOUND) {
+    const order = Object.keys(state.relationships).sort((a, b) => {
+        const ia = state.entryOrder.heads.indexOf(a), ib = state.entryOrder.heads.indexOf(b);
+        return ((ia < 0 ? Infinity : ia) - (ib < 0 ? Infinity : ib)) || (a < b ? -1 : a > b ? 1 : 0);
+    });
+    let cur = state;
+    for (const id of order) {
+        const rel = cur.relationships[id];
+        if (!rel.tuples.some((t) => t.mappingIn.body !== null) || entryOf(cur, rel).pos !== null)
+            continue;
+        cur = commitEntry(cur, cur, id, bound).state;
+    }
+    return { state: cur };
+}
+// ── reception (6.3, Section 2) ─────────────────────────────────────────
+const refuse = (reason, ref) => ({ ok: false, reason, ...(ref ? { ref } : {}) });
+/** The arrival tuple, if it is the active head of a live relationship (6190, 6240). */
+const arrivalTuple = (state, rkid) => {
+    const at = tupleByRkid(state, rkid);
+    if (!at || at.tuple.deactivated || at.rel.chainedInto !== null || at.rel.activeHead !== at.tuple.ownPairLabel)
+        return null;
+    return at;
+};
+function mappingTask(bound) {
+    return {
+        proof: 'absent',
+        // stage 7: the payload schema, calendar-valid issuedAt (6070)
+        decode(payload) {
+            if (!mappingSchemaOk(payload) || !calOK(payload.body.issuedAt))
+                return refuse('malformed', 'RLTP-TRU-6070');
+            return payload;
+        },
+        // stage 8: conditions 1–7 against the arrival tuple and the bindings
+        // its relationship holds (6118), then the bindings the mapping states
+        async prepare(ctx, doc, arrival) {
+            if (doc.ceremony?.enactment !== undefined)
+                return refuse('validation-failed');
+            const at = arrivalTuple(ctx.snapshot, arrival.rkid);
+            if (!at)
+                return refuse('validation-failed', 'RLTP-TRU-6240');
+            const S = ctx.crypto.subtle;
+            const own = await ctx.keys.anchorOf(at.tuple.ownPairLabel);
+            let infra = null;
+            const v = await verifyAnchorMappingWith(doc.payload, {
+                ownAnchor: own.anchor, pair: at.tuple.counterpartAnchor, pairKeyAgreement: at.tuple.counterpartKeyAgreement,
+                held: new Map(Object.entries(at.rel.bindings)),
+                agree: async (theirX) => {
+                    try {
+                        const a = await ctx.keys.agree(at.tuple.rkid, theirX, ctx.release);
+                        return a.status === 'available' ? a.shared : null;
+                    }
+                    catch (e) {
+                        infra = e;
+                        throw e;
+                    }
+                },
+            }, S);
+            if (infra !== null)
+                throw infra; // a provider failure is no verdict on the mapping
+            if (!v.ok)
+                return refuse('validation-failed', MAPPING_CONDITION_RULE[v.step]);
+            return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)) };
+        },
+        // stage 9: condition 8 (6150–6170) and the transition
+        apply(state, prepared, doc, arrival) {
+            const at = arrivalTuple(state, arrival.rkid);
+            if (!at)
+                return refuse('validation-failed', 'RLTP-TRU-6240');
+            const { rel, tuple: t } = at;
+            const b = doc.payload.body;
+            const rev = BigInt(b.revision);
+            const cur = BigInt(t.mappingIn.rev);
+            // the generic revision rule within the scope (pair, to) = this tuple (6270, 6280)
+            if (rev === cur) {
+                if (t.mappingIn.body === null || jcs(b) !== jcs(t.mappingIn.body))
+                    return refuse('validation-failed', 'RLTP-TRU-6270');
+                // a repeat: ignored, except an entry lost with state loss re-commits (2240)
+                return entryOf(state, rel).pos === null ? { state: commitEntry(state, state, rel.id, bound).state } : { state: state };
+            }
+            if (rev < cur)
+                return refuse('validation-failed', 'RLTP-TRU-6270');
+            // condition 8 against the self this relationship holds (6150), never the entry's head
+            if (classifyMapping(rel.heldCounterpartHead ?? undefined, b) === 'rejected')
+                return refuse('validation-failed', 'RLTP-TRU-6170');
+            const tuples = rel.tuples.map((x) => (x.ownPairLabel === t.ownPairLabel
+                ? { ...x, mappingIn: { rev: b.revision, body: b, self: b.self, card: b.card } }
+                : x));
+            // links and bindings accumulate at chain level (6610)
+            const links = [...rel.links];
+            for (const [prev, next] of lineageLinks(b.lineage))
+                if (!links.some((l) => l.prev === prev && l.next === next))
+                    links.push({ prev, next });
+            const nextRel = {
+                ...rel, tuples, links, bindings: { ...rel.bindings, ...prepared.value.bindings }, heldCounterpartHead: b.self,
+            };
+            const mid = { ...state, relationships: { ...state.relationships, [rel.id]: nextRel } };
+            const e = commitEntry(state, mid, rel.id, bound);
+            const events = [];
+            if (e.committed)
+                events.push({ type: 'trust.received', contactId: e.contact.id });
+            events.push({ type: 'contact.verified', contactId: e.contact.id, relationshipId: rel.id });
+            return { state: e.state, events, ...(e.duties.length ? { duties: e.duties } : {}) };
+        },
+    };
+}
+// ── settings (Section 2a) ──────────────────────────────────────────────
+const paused = (c) => c.settings.star === 'off' && c.settings.groupStar === 'off';
+/** One change of a contact's settings: 2840 and 5450 follow from it, the
+ *  anchor mapping duties of 2850 and 6410, the events. */
+function changeSettings(state, c, settings, groupSettings) {
+    // 5450: the sealed group star off resets every per-group on to default
+    let groups = groupSettings;
+    if (settings.sealedGroupStar === 'off')
+        groups = Object.fromEntries(Object.entries(groups).filter(([, s]) => s !== 'on'));
+    const next = { ...c, settings, groupSettings: groups };
+    const wasOn = classOnToward(c, 'anchorMapping');
+    const isOn = classOnToward(next, 'anchorMapping');
+    let duties = state.duties;
+    const add = [];
+    const events = [];
+    const s1 = { ...state, contacts: { ...state.contacts, [c.id]: next } };
+    if (!wasOn && isOn) {
+        // 2850: the current mapping on every live relationship that does not lag (6595)
+        const rels = entryRelationships(s1, next);
+        for (const r of rels)
+            if (liveRel(r) && !lags(r, rels))
+                add.push(...classOnDuty(s1, next.id, r.id, add));
+        events.push({ type: 'trust.given', contactId: next.id });
+    }
+    if (wasOn && !isOn) {
+        // 6410: nothing more while off, the owed re-issues included
+        duties = Object.fromEntries(Object.entries(duties).filter(([, d]) => !next.relIds.some((rid) => owedOn(d, rid))));
+    }
+    if (paused(c) !== paused(next))
+        events.push({ type: 'trust.paused', contactId: next.id, paused: paused(next) });
+    return { state: { ...s1, duties }, events, ...(add.length ? { duties: add } : {}) };
+}
+const needString = (x, what) => {
+    if (typeof x !== 'string' || x === '')
+        throw new TypeError(`${what} must be a non-empty string`);
+    return x;
+};
+const needSetting = (x) => {
+    if (!SETTINGS.includes(x))
+        throw new TypeError(`setting must be default, on or off, got ${String(x)}`);
+    return x;
+};
+const needInput = (x, name) => {
+    if (x === null || typeof x !== 'object' || Array.isArray(x))
+        throw new TypeError(`${name} needs an input object`);
+    return x;
+};
+/** A class setting through the one transition; `on` of the anchor mapping
+ *  needs a community anchor to issue under. */
+function setClass(state, contactId, cls, setting) {
+    const c = findContact(state, contactId);
+    if (!c)
+        return { ok: false, code: 'unknown-contact' };
+    const settings = { ...c.settings, [cls]: setting };
+    if (cls === 'anchorMapping' && setting === 'on' && state.register.community === null)
+        return { ok: false, code: 'no-community' };
+    return changeSettings(state, c, settings, c.groupSettings);
+}
+const commands = {
+    // the Trust button: on (2770), or withdrawn (2840)
+    [TRUST_COMMANDS.set]: {
+        human: true,
+        apply(state, _p, input) {
+            const i = needInput(input, TRUST_COMMANDS.set);
+            const contactId = needString(i.contactId, 'contactId');
+            if (typeof i.on !== 'boolean')
+                throw new TypeError('trust.set: on must be a boolean');
+            const c = findContact(state, contactId);
+            if (!c)
+                return { ok: false, code: 'unknown-contact' };
+            if (i.on && c.settings.anchorMapping === 'on')
+                return { ok: false, code: 'already-given' };
+            return setClass(state, contactId, 'anchorMapping', i.on ? 'on' : 'off');
+        },
+    },
+    [TRUST_COMMANDS.setClass]: {
+        human: true,
+        apply(state, _p, input) {
+            const i = needInput(input, TRUST_COMMANDS.setClass);
+            if (!CLASSES.includes(i.cls))
+                throw new TypeError(`trust.setClass: unknown class ${String(i.cls)}`);
+            return setClass(state, needString(i.contactId, 'contactId'), i.cls, needSetting(i.setting));
+        },
+    },
+    [TRUST_COMMANDS.setGroupClass]: {
+        human: true,
+        apply(state, _p, input) {
+            const i = needInput(input, TRUST_COMMANDS.setGroupClass);
+            const groupId = needString(i.groupId, 'groupId');
+            const setting = needSetting(i.setting);
+            const c = findContact(state, needString(i.contactId, 'contactId'));
+            if (!c)
+                return { ok: false, code: 'unknown-contact' };
+            const groups = { ...c.groupSettings };
+            if (setting === 'default')
+                delete groups[groupId];
+            else
+                groups[groupId] = setting;
+            return changeSettings(state, c, c.settings, groups);
+        },
+    },
+    // the pause of 5.4: star and blinded group star off (2780)
+    [TRUST_COMMANDS.pause]: {
+        human: true,
+        apply(state, _p, input) {
+            const i = needInput(input, TRUST_COMMANDS.pause);
+            if (typeof i.paused !== 'boolean')
+                throw new TypeError('trust.pause: paused must be a boolean');
+            const c = findContact(state, needString(i.contactId, 'contactId'));
+            if (!c)
+                return { ok: false, code: 'unknown-contact' };
+            const s = i.paused ? 'off' : 'default';
+            return changeSettings(state, c, { ...c.settings, star: s, groupStar: s }, c.groupSettings);
+        },
+    },
+};
+// ── duties ─────────────────────────────────────────────────────────────
+/** What a blocked issuance means for a duty: fulfilled without sending
+ *  (the class is off, the relationship gone or lagging), or kept. */
+const blocked = (state, why) => why === 'no-community' ? { ok: false, code: 'no-community' }
+    : why === 'scope-exhausted' ? { ok: false, code: 'scope-exhausted', ref: 'RLTP-TRU-6310' }
+        : { state: state };
+const issueDuty = (lagMatters) => ({
+    v: 1,
+    prepare: (ctx, duty) => {
+        const d = duty;
+        if (d.kind === 'class-on' && d.cls !== 'anchorMapping')
+            return Promise.resolve(null);
+        return prepareIssue(ctx, d.contactId, d.relId, lagMatters);
+    },
+    apply(state, duty, ctx) {
+        const d = duty;
+        if (d.kind === 'class-on' && d.cls !== 'anchorMapping')
+            return 'not-due'; // its class's module delivers it
+        const chk = issuable(state, d.contactId, d.relId, lagMatters);
+        if (!chk.ok)
+            return blocked(state, chk.why);
+        const p = ctx.prepared.value;
+        if (p === null)
+            return { ok: false, code: 'no-own-channel', ref: 'RLTP-TRU-6140' }; // no usable key agreement
+        return commitIssue(state, p) ?? 'not-due';
+    },
+});
+/** 6596: an owed re-issue waits until its relationship presents the
+ *  awaited head H as its anchor head, or a later anchor whose links carry
+ *  H as a prev. A relationship gone releases the duty, which then drops. */
+const reissueAwaits = (state, duty) => {
+    const d = duty;
+    if (!Object.hasOwn(state.relationships, d.relId))
+        return true;
+    const rel = state.relationships[d.relId];
+    return d.awaitHead === null || rel.heldCounterpartHead === d.awaitHead || rel.links.some((l) => l.prev === d.awaitHead);
+};
+/** The trust module createHolder builds in (see the header). */
+export function trustModule(opts = {}) {
+    const bound = opts.admissionBound ?? ADMISSION_BOUND;
+    if (typeof bound !== 'bigint' || bound < 0n || bound > ADMISSION_BOUND)
+        throw new RangeError('admissionBound must be a bigint within [0, 10^18 − 1]');
+    return Object.freeze({
+        name: 'trust',
+        commands: Object.freeze({
+            ...commands,
+            [TRUST_COMMANDS.recover]: { human: false, apply: (state) => recommitEntries(state, bound) },
+        }),
+        tasks: Object.freeze({ [ANCHOR_MAPPING_TYPE]: mappingTask(bound) }),
+        duties: Object.freeze({
+            'class-on': issueDuty(true),
+            'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
+        }),
+    });
+}

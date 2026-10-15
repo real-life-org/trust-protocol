@@ -6,5 +6,6 @@ export { InMemoryStore } from './store-memory.js';
 export { scriptedEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
 export { emptyState } from './state.js';
+export { stateBuilder, emptyTuple } from './state-builder.js';
 export { freezeDeep } from './util-freeze.js';
 export { sampleState, openPromptModule, OPEN_PROMPT } from './fixtures.js';
