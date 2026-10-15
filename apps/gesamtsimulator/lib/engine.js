@@ -109,13 +109,21 @@
 //     duties, in registration order, on the state the duties left; their
 //     preparations run against resume's snapshot beside the duties'. A
 //     piece whose inputs moved since is skipped and makes `when` the
-//     nextDueAt. Their new documents count into nextDueAt like the
+//     nextDueAt, as does sweep work that became pending during the resume
+//     itself (a give-up at the horizon, a duty's change) without having
+//     been prepared. Their new documents count into nextDueAt like the
 //     duties'. Every other committed operation whose state adds a key to
-//     a sweep's `pending` names `when` as its nextDueAt
+//     a sweep's `pending` names `when` as its nextDueAt; a sweep that
+//     declares the state parts it reads (`reads`) is skipped there when the
+//     operation left all of them untouched (by reference)
 //   - a verified delivery-ack runs the ack handler registered for the
 //     acknowledged item's type in its own transaction; a report never does
-//   - a task handler's TaskDiscard commits its state, nothing else: the
-//     disposition is failed at stage 9, no cache entry, no ack, no event
+//   - a task handler's refusal commits nothing; its TaskDiscarded (a
+//     resource-limit discard, Trust 5365) commits its state and nothing
+//     else: disposition `discarded`, no cache entry, no ack, no event
+//   - after its own retention, tick runs every module's `retain` hook on
+//     the result (the trust module prunes in-flight star deliveries that
+//     can no longer complete)
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -130,6 +138,7 @@ import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
 import { freezeDeep } from './util-freeze.js';
 import { ACK_TYPE } from './ack.js';
 import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
+import { isTaskDiscarded } from './receive.js';
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
 /** Defaults of the retry policy and the retention it implies. */
@@ -281,6 +290,7 @@ class HolderEngine {
     #duties;
     #sweeps;
     #acks;
+    #retain;
     #builtins;
     #listeners = new Set();
     #chain = Promise.resolve();
@@ -322,6 +332,7 @@ class HolderEngine {
         const duties = new Map();
         const sweeps = new Map();
         const acks = new Map();
+        const retain = [];
         const names = new Set();
         for (const m of modules) {
             if (!m || typeof m.name !== 'string' || !m.name)
@@ -378,12 +389,18 @@ class HolderEngine {
                     throw new TypeError(`ack handler ${uri} (module ${m.name}) must be a function`);
                 acks.set(uri, h);
             }
+            if (m.retain !== undefined) {
+                if (typeof m.retain !== 'function')
+                    throw new TypeError(`retain (module ${m.name}) must be a function`);
+                retain.push(m.retain);
+            }
         }
         this.#commands = commands;
         this.#tasks = tasks;
         this.#duties = duties;
         this.#sweeps = sweeps;
         this.#acks = acks;
+        this.#retain = Object.freeze(retain);
         this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
             commands: Object.freeze([...commands.keys()]),
@@ -542,6 +559,9 @@ class HolderEngine {
         if (d === when || before === after)
             return d;
         for (const sw of this.#sweeps.values()) {
+            // a sweep whose declared inputs are untouched (by reference) cannot have new pending keys
+            if (sw.reads && sw.reads.every((k) => before[k] === after[k]))
+                continue;
             const had = new Set(sw.pending(before, when));
             if (sw.pending(after, when).some((k) => !had.has(k)))
                 return when;
@@ -579,6 +599,7 @@ class HolderEngine {
     // ── built-ins ────────────────────────────────────────────────────────
     #tickDef() {
         const policy = () => this.#policy;
+        const retainers = () => this.#retain;
         return {
             human: false,
             apply(state, _p, _input, when) {
@@ -625,9 +646,15 @@ class HolderEngine {
                         tombstones.push(rkid);
                     return false;
                 });
-                if (!dropped)
-                    return { state: state }; // the engine still commits a raised lastWhen
-                return { state: { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } };
+                let next = dropped ? { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } : state;
+                // the modules' own retention, on what the engine's left
+                for (const r of retainers()) {
+                    const after = r(next, when);
+                    if (after.effects !== next.effects)
+                        throw new Error('engine: a module\'s retain wrote the effect cache');
+                    next = after;
+                }
+                return { state: next }; // unchanged: the engine still commits a raised lastWhen
             },
         };
     }
@@ -756,6 +783,18 @@ class HolderEngine {
                     duties.push(...(r.duties ?? []));
                     if (r.deferred)
                         due(when);
+                }
+                // work a sweep owes now but did not prepare: a divergence the outbox
+                // step (a give-up at the horizon) or a duty of this resume created —
+                // due at once, prepared by the next resume
+                if (cur !== state) {
+                    for (const sw of sweeps().values()) {
+                        const had = new Set(sw.pending(state, when));
+                        if (sw.pending(cur, when).some((k) => !had.has(k))) {
+                            due(when);
+                            break;
+                        }
+                    }
                 }
                 // the timer from the final duty set, new duties included: a future
                 // dueAt, or `when` for work runnable now that did not run (deferred,
@@ -911,16 +950,13 @@ class HolderEngine {
                     case 'task': {
                         const h = tasks().get(plan.type);
                         const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival);
-                        if (isTaskRefusal(r)) {
-                            const detail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
-                            const kept = r.state;
-                            if (kept === undefined)
-                                return { halt: true, detail };
-                            // a discard: its record commits, the document takes no effect,
-                            // is not cached and earns no ack
-                            if (kept.effects !== state.effects)
+                        if (isTaskRefusal(r))
+                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
+                        if (isTaskDiscarded(r)) {
+                            // a resource-limit discard: its state commits; no cache entry, no ack
+                            if (r.state.effects !== state.effects)
                                 throw new Error(`engine: the handler of ${plan.type} wrote the effect cache`);
-                            return { state: kept, detail };
+                            return { state: r.state, detail: { disposition: 'discarded', digest: plan.digest, type: plan.type, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
                         }
                         if (r.state.effects !== state.effects)
                             throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
@@ -1026,8 +1062,8 @@ class HolderEngine {
             if (!r.ok)
                 throw new Error('engine: receive does not refuse');
             const d = r.detail;
-            if (d.disposition === 'failed')
-                return d; // a discard: committed, refused
+            if (d.disposition === 'discarded')
+                return { disposition: 'discarded', digest: d.digest, type: d.type, ...(d.ref !== undefined ? { ref: d.ref } : {}) };
             return d.disposition === 'unique'
                 ? { disposition: 'unique', digest: d.digest, type: d.type, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
                 : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound };

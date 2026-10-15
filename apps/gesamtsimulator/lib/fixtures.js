@@ -23,7 +23,7 @@ const ALICE_ANCHOR = 'did:key:z6MkaliceAnchorAliceAnchorAliceAnchorAliceA';
 const BOB_ANCHOR_0 = 'did:key:z6MkbobAnchorZeroBobAnchorZeroBobAnchorZero';
 const BOB_ANCHOR_1 = 'did:key:z6MkbobAnchorOneBobAnchorOneBobAnchorOneBo';
 const OWN_ANCHOR = 'did:key:z6MkownAnchorOwnAnchorOwnAnchorOwnAnchorOw';
-const seqOut = () => ({ lastSalt: '0', exhausted: false, hwm: '0', snapshot: null, inflight: {} });
+const seqOut = () => ({ lastSalt: '0', exhausted: false, hwm: '0', snapshot: null, snapshotDigest: null, inflight: {} });
 const seqIn = () => ({ hwm: '0', lowerBound: '0', assembly: null, accepted: null });
 const tuple = (t) => ({
     ownPairLabel: t.label,
@@ -106,7 +106,7 @@ export function sampleState() {
     };
     s.entryOrder = { nextPos: '2', heads: ['r-alice', 'r-bob-1', 'r-bob-2'] };
     s.groups = {
-        'g-garden': { id: 'g-garden', memberLabel: 'group/g-garden', rules: { vouchThreshold: '2' }, listed: true, membership: null },
+        'g-garden': { id: 'g-garden', memberLabel: 'group/g-garden', rules: { vouchThreshold: '2' }, listed: true, membership: null, memberAnchor: 'did:key:z6MkGardenMemberSampleOnly', memberOp: 'oid:garden-admission-sample' },
     };
     s.profile = { body: { name: 'Me', text: 'about me' }, revision: '3' };
     s.outbox = {

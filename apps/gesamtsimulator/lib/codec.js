@@ -107,10 +107,20 @@ const trustClass = lit('star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 
 const recipient = obj({ contactId: str, rkid: str, keyAgreement: str });
 const envelope = obj({ rkid: str, epk: str, nonce: str, ciphertext: str });
 const assembly = obj({ salt: dec, chunks: rec(json) });
-const seqOut = (item) => obj({
-    lastSalt: dec, exhausted: bool, hwm: dec, snapshot: nullable(arr(item)),
-    inflight: rec(obj({ view: arr(item), digests: arr(str), acked: arr(str) })),
+const seqOutShape = (item) => obj({
+    lastSalt: dec, exhausted: bool, hwm: dec, snapshot: nullable(arr(item)), snapshotDigest: nullable(str),
+    inflight: rec(obj({ view: arr(item), viewDigest: str, digests: arr(str), acked: arr(str) })),
 });
+/** the snapshot and its digest are present together */
+const seqOut = (item) => {
+    const shape = seqOutShape(item);
+    return (x, p) => {
+        shape(x, p);
+        const o = x;
+        if ((o.snapshot === null) !== (o.snapshotDigest === null))
+            fail(`${p}.snapshotDigest`, 'null exactly when snapshot is');
+    };
+};
 const seqIn = (accepted) => obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly), accepted: nullable(accepted) });
 const starPair = obj({ member: str, head: str });
 const groupStarItem = (x, p) => {
@@ -235,6 +245,17 @@ const event = (x, p) => {
     const [req, opt = {}] = EVENT_FIELDS[t];
     obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
 };
+const groupShape = obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str });
+/** a listed group carries its member anchor and memberOp: the group star
+ *  seals them (Trust 5400, 5430), and their absence is no filler condition */
+const group = (x, p) => {
+    groupShape(x, p);
+    const g = x;
+    if (g.listed && g.memberAnchor === undefined)
+        fail(`${p}.memberAnchor`, 'missing on a listed group');
+    if (g.listed && g.memberOp === undefined)
+        fail(`${p}.memberOp`, 'missing on a listed group');
+};
 const codec0 = obj({
     codec: lit(0),
     commitSeq: dec,
@@ -250,7 +271,7 @@ const codec0 = obj({
     contacts: keyed(contact, 'id'),
     relationships: keyed(relationship, 'id'),
     entryOrder: obj({ nextPos: dec, heads: set(str) }),
-    groups: keyed(obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str }), 'id'),
+    groups: keyed(group, 'id'),
     profile: obj({ body: json, revision: dec }),
     effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
     outbox: rec(outboxItem),

@@ -28,7 +28,7 @@
 // snapshot, assigns lastSalt + 1, builds the chunks blinded under the
 // tuple's pair secret (KeyProvider.agree on the tuple's rkid), stamps one
 // fresh threadId on every chunk of the salt (entropy thread.id), and
-// commits `lastSalt`, `inflight[salt] = {view, digests, acked: []}` and
+// commits `lastSalt`, `inflight[salt] = {view, viewDigest, digests, acked: []}` and
 // the outbox items in one transition (5090, 5110); the outbound leaves
 // only after that commit. Chunk retries are the outbox's, byte-identical
 // down to the envelope and the threadId (Delivery 4.2). Completion: the
@@ -50,6 +50,11 @@
 //   - superseded salts are not withdrawn from the outbox: their retries
 //     run to the horizon like any item (no trias state says "superseded"),
 //     and the receiver refuses them (5150) or answers a cached duplicate
+//   - an in-flight entry that can no longer complete (a chunk unacked and
+//     failed, or gone from the outbox, where an ack could not find it) is
+//     pruned at the tuple's next production and by tick (retainInflight);
+//     a late ack after that completes nothing, and the divergence it
+//     carried is delivered again under a fresh salt
 //   - the star goes on every live relationship of the contact (2820), the
 //     active-head tuple of each, lagging ones included (6595); a contact
 //     with no entry yet is a recipient like any other (2760: every contact)
@@ -68,12 +73,15 @@
 // the salt's key (5080); then against the assembly: a higher salt
 // displaces it (5330); seq above the resource limit discards (5365);
 // another threadId (5280), a repeated seq of other bytes (5260), a second
-// last (5270), a seq beyond last (5290) reject the delivery; the same
+// last (5270), a seq beyond last (5290) reject the chunk; the same
 // digest again is a repeat, acked, no change (5250). On completion the
-// union must be strictly ascending (5300, 5310). A rejected or discarded
-// delivery commits as a TaskDiscard (receive.ts): the assembly is
-// dropped and its salt becomes the lower bound, so no later chunk of it
-// is acked (5366). Every other chunk before completion is acked on its
+// union must be strictly ascending (5300, 5310). A rejection is a plain
+// refusal, failed(validation-failed) with the rule as ref: nothing
+// commits, the open assembly stays as it was, the chunk is not acked, so
+// the delivery cannot complete with it. A resource-limit discard (5365)
+// is a state effect instead (receive.ts TaskDiscarded, disposition
+// `discarded`): the assembly is dropped and its salt becomes the lower
+// bound, so no later chunk of it is acked (5366). Every other chunk before completion is acked on its
 // own (Delivery: every chunk is acked); only the completing chunk
 // changes the accepted snapshot, advances hwm (5140, 5350) and announces
 // star.accepted, all in its ack's transaction.
@@ -82,20 +90,21 @@
 //   - the resource limit is a bound on seq: an open assembly holds at most
 //     ASSEMBLY_LIMIT.star = 1024 chunks (≤ 1 048 576 entries); a chunk
 //     with a higher seq discards the assembly (5365, 5366)
-//   - a rejected delivery (5260–5310) is handled like a discarded one: its
-//     salt becomes the lower bound, so the delivery cannot complete from
-//     retries of its other chunks
-//   - `accepted` keeps only what matched (6160): the blinded values equal
-//     to HMAC(k, a) for an anchor `a` held for one of the holder's other
-//     contacts (the entry's anchor head, every relationship's held head
-//     and both ends of every held lineage link, 6390), and those contacts'
-//     entry ids. Unmatched entries are not retained; a contact gained later
-//     is matched at the next completed star
+//   - `accepted` keeps the whole assembled union with its salt and the
+//     matches (6160): the entry ids of the holder's other contacts one of
+//     whose held anchors (the entry's anchor head, every relationship's
+//     held head and both ends of every held lineage link, 6390) blinds to
+//     a value in it. When the holder comes to hold new anchors for a
+//     contact (the anchor mapping's acceptance: entry commit, advanced
+//     head, new links), the mapping transition re-matches every accepted
+//     star against them (starBlinds in its preparation, rematchStars in
+//     its apply). Matches only grow: held anchors are never dropped
 import { iso, jcs } from '../core.js';
 import { digestDoc, xRawOfMk } from '../crypto.js';
 import { seal } from '../delivery.js';
 import { PLAINTEXT_MAX, blindAnchor, buildStarChunks, starChunkMacOk, starChunkOk, starKeyOf, strictlyAscending } from '../star.js';
 import { tupleByRkid } from '../receive.js';
+import { sha256Hex } from '../sha256.js';
 import { triasOf } from '../state.js';
 import { ADMISSION_BOUND, activeTuple, classOnToward, entryRelationships, findContact } from './state.js';
 /** The registered task type that carries star@2 (Delivery §4.4, 5640). */
@@ -126,16 +135,19 @@ export function recipients(state) {
 const canIssue = (o) => !o.exhausted && BigInt(o.lastSalt) < ADMISSION_BOUND;
 /** An in-flight salt above H carrying exactly this view, none of whose
  *  chunks has failed: the divergence is being delivered. */
-const inFlight = (state, o, viewText) => Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && jcs(f.view) === viewText &&
-    f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed')));
+const inFlight = (state, o, viewDigest) => Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && f.viewDigest === viewDigest && canComplete(state, f));
 /** A uniform view, once per contacts record (the record is replaced on
  *  every change of a contact, so the cache cannot go stale). */
 const uniformViews = new WeakMap();
-/** The view toward a recipient and its canonical text. */
+/** The digest of a view: SHA-256 over its JCS form. Views are compared by
+ *  it (the baseline's snapshotDigest, an inflight entry's viewDigest),
+ *  never re-serialized per comparison. */
+export const viewDigest = (view) => sha256Hex(jcs(view));
+/** The view toward a recipient and its digest. */
 function viewAt(art, state, r) {
     if (!art.uniform) {
         const view = art.view(state, r.contact, r.rel);
-        return { view, text: jcs(view) };
+        return { view, digest: viewDigest(view) };
     }
     let byKind = uniformViews.get(state.contacts);
     if (!byKind)
@@ -143,20 +155,50 @@ function viewAt(art, state, r) {
     let v = byKind.get(art.kind);
     if (!v) {
         const view = art.view(state, r.contact, r.rel);
-        byKind.set(art.kind, (v = { view, text: jcs(view) }));
+        byKind.set(art.kind, (v = { view, digest: viewDigest(view) }));
     }
     return v;
+}
+/** Whether an in-flight delivery can still complete: every chunk acked,
+ *  or still in the outbox and not failed (an ack refers to an outbox item). */
+const canComplete = (state, f) => f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed'));
+/** The in-flight deliveries that can still complete. */
+function livingInflight(state, o) {
+    const out = {};
+    for (const [s, f] of Object.entries(o.inflight))
+        if (canComplete(state, f))
+            out[s] = f;
+    return out;
+}
+/** Every tuple's in-flight deliveries of both artifacts pruned to those
+ *  that can still complete; tick's retention (the same state object where
+ *  nothing is pruned). */
+export function retainInflight(state) {
+    let relationships = null;
+    for (const rel of Object.values(state.relationships)) {
+        let changed = false;
+        const tuples = rel.tuples.map((t) => {
+            const so = livingInflight(state, t.starOut), go = livingInflight(state, t.groupStarOut);
+            if (Object.keys(so).length === Object.keys(t.starOut.inflight).length && Object.keys(go).length === Object.keys(t.groupStarOut.inflight).length)
+                return t;
+            changed = true;
+            return { ...t, starOut: { ...t.starOut, inflight: so }, groupStarOut: { ...t.groupStarOut, inflight: go } };
+        });
+        if (changed)
+            (relationships ??= { ...state.relationships })[rel.id] = { ...rel, tuples };
+    }
+    return relationships ? { ...state, relationships } : state;
 }
 /** Whether the artifact is owed now on this recipient (5690–5720, 5830):
  *  the class on, the scope able to issue, the view diverging from the
  *  baseline (absent: by definition) and not already in flight. */
-export function owed(art, state, r, viewText) {
+export function owed(art, state, r, digest) {
     const o = art.out(r.tuple);
     if (!classOnToward(r.contact, art.cls) || !canIssue(o))
         return false;
-    if (o.snapshot !== null && jcs(o.snapshot) === viewText)
+    if (o.snapshotDigest !== null && o.snapshotDigest === digest)
         return false;
-    return !inFlight(state, o, viewText);
+    return !inFlight(state, o, digest);
 }
 /** The sweep's pending keys: one per owed recipient and view. */
 export function pendingOf(art, state) {
@@ -164,9 +206,9 @@ export function pendingOf(art, state) {
     for (const r of recipients(state)) {
         if (!classOnToward(r.contact, art.cls))
             continue;
-        const { text } = viewAt(art, state, r);
-        if (owed(art, state, r, text))
-            keys.push(`${art.kind}|${r.rel.id}|${r.tuple.ownPairLabel}|${text}`);
+        const { digest } = viewAt(art, state, r);
+        if (owed(art, state, r, digest))
+            keys.push(`${art.kind}|${r.rel.id}|${r.tuple.ownPairLabel}|${digest}`);
     }
     return keys;
 }
@@ -192,14 +234,17 @@ async function chunkDocument(ctx, type, issuer, t, contactId, threadId, chunk) {
 export function sweepOf(art) {
     return {
         pending: (state) => pendingOf(art, state),
+        // contacts (views, settings), relationships (scopes), groups (the group
+        // star's view) and the outbox (whether a delivery can still complete)
+        reads: ['contacts', 'relationships', 'groups', 'outbox'],
         async prepare(ctx) {
             const st = ctx.snapshot;
             const out = [];
             for (const r of recipients(st)) {
                 if (!classOnToward(r.contact, art.cls))
                     continue;
-                const { view, text: viewText } = viewAt(art, st, r);
-                if (!owed(art, st, r, viewText))
+                const { view, digest } = viewAt(art, st, r);
+                if (!owed(art, st, r, digest))
                     continue;
                 const shared = await pairShared(ctx, r.tuple);
                 if (!shared)
@@ -215,7 +260,7 @@ export function sweepOf(art) {
                 const outbound = [];
                 for (const chunk of chunks)
                     outbound.push(await chunkDocument(ctx, art.type, own, r.tuple, r.contact.id, threadId, chunk));
-                out.push({ relId: r.rel.id, tuple: r.tuple.ownPairLabel, contactId: r.contact.id, baseSalt: o.lastSalt, salt, view, viewText, outbound });
+                out.push({ relId: r.rel.id, tuple: r.tuple.ownPairLabel, contactId: r.contact.id, baseSalt: o.lastSalt, salt, view, viewDigest: digest, outbound });
             }
             return out;
         },
@@ -230,18 +275,19 @@ export function sweepOf(art) {
                 if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id))
                     continue;
                 const r = { contact, rel, tuple };
-                const { text } = viewAt(art, cur, r);
+                const { digest } = viewAt(art, cur, r);
                 // 5110: the snapshot, the salt and the commit are one step — a
                 // production prepared on another view or salt is not committed
-                if (art.out(tuple).lastSalt !== p.baseSalt || text !== p.viewText || !owed(art, cur, r, text)) {
-                    if (owed(art, cur, r, text))
+                if (art.out(tuple).lastSalt !== p.baseSalt || digest !== p.viewDigest || !owed(art, cur, r, digest)) {
+                    if (owed(art, cur, r, digest))
                         deferred = true;
                     continue;
                 }
                 const o = art.out(tuple);
                 const next = {
                     ...o, lastSalt: p.salt, exhausted: BigInt(p.salt) >= ADMISSION_BOUND,
-                    inflight: { ...o.inflight, [p.salt]: { view: p.view, digests: p.outbound.map((d) => d.digest), acked: [] } },
+                    // what can no longer complete leaves with the next production
+                    inflight: { ...livingInflight(cur, o), [p.salt]: { view: p.view, viewDigest: p.viewDigest, digests: p.outbound.map((d) => d.digest), acked: [] } },
                 };
                 const tuples = rel.tuples.map((t) => (t.ownPairLabel === p.tuple ? art.withOut(t, next) : t));
                 cur = { ...cur, relationships: { ...cur.relationships, [rel.id]: { ...rel, tuples } } };
@@ -273,7 +319,7 @@ export function ackOf(art) {
             for (const [s, x] of Object.entries(o.inflight))
                 if (s !== salt && BigInt(s) > BigInt(hwm))
                     inflight[s] = x;
-            next = { ...o, hwm, snapshot: advance ? f.view : o.snapshot, inflight };
+            next = { ...o, hwm, snapshot: advance ? f.view : o.snapshot, snapshotDigest: advance ? f.viewDigest : o.snapshotDigest, inflight };
         }
         else
             next = { ...o, inflight: { ...o.inflight, [salt]: { ...f, acked } } };
@@ -321,12 +367,13 @@ export function taskOf(art, limit) {
             if (!(await art.macOk(ctx, { shared, from: t.counterpartAnchor, own, salt: body.salt, chunk: doc.payload })))
                 return refuse('validation-failed', 'RLTP-TRU-5080');
             const ids = { relId: rel.id, tuple: t.ownPairLabel };
-            const reject = (ref) => ({ kind: 'reject', ...ids, salt: body.salt, ref });
+            // a rejection refuses the chunk and commits nothing (5260–5310)
+            const reject = (ref) => refuse('validation-failed', ref);
             // a higher salt displaces the open assembly (5330)
             const base = inn.assembly && inn.assembly.salt === body.salt ? inn.assembly : { salt: body.salt, chunks: {} };
             const seq = BigInt(body.seq);
             if (seq > BigInt(limit))
-                return reject('RLTP-TRU-5365');
+                return { kind: 'discard', ...ids, salt: body.salt }; // 5365
             const held = Object.values(base.chunks);
             const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] : undefined;
             if (same && same.digest === arrival.digest)
@@ -375,9 +422,9 @@ export function taskOf(art, limit) {
             });
             switch (p.kind) {
                 case 'hold': return { state: put({ ...inn, assembly: p.assembly }) };
-                case 'reject':
-                    // the delivery cannot complete: discarded, its salt the lower bound (5365, 5366)
-                    return { ...refuse('validation-failed', p.ref), state: put({ ...inn, assembly: null, lowerBound: maxDec(inn.lowerBound, p.salt) }) };
+                case 'discard':
+                    // the resource limit: the assembly dropped, its salt the lower bound (5365, 5366)
+                    return { discarded: true, ref: 'RLTP-TRU-5365', state: put({ ...inn, assembly: null, lowerBound: maxDec(inn.lowerBound, p.salt) }) };
                 case 'complete': {
                     const events = [{ type: art.kind === 'star' ? 'star.accepted' : 'groupStar.accepted', contactId: p.contactId, relationshipId: rel.id, salt: p.salt }];
                     return { state: put({ ...inn, hwm: p.salt, assembly: null, accepted: p.accepted }, p.memory ? { ...rel.memory, ...p.memory } : undefined), events };
@@ -402,6 +449,53 @@ export function starView(state) {
         .filter((c) => c.status === 'admitted' && c.anchorHead !== null)
         .map((c) => ({ member: c.id, head: c.anchorHead }))
         .sort((a, b) => cmp(a.member, b.member));
+}
+/** The entry a tuple's documents come from (2145): the star's sender. */
+const senderOf = (state, rel, t) => findContact(state, t.entryId)?.id ?? rel.contactId;
+export async function starBlinds(ctx, anchors) {
+    const out = {};
+    if (!anchors.length)
+        return out;
+    const S = ctx.crypto.subtle;
+    for (const rel of Object.values(ctx.snapshot.relationships)) {
+        for (const t of rel.tuples) {
+            const acc = t.starIn.accepted;
+            if (acc === null)
+                continue;
+            const shared = await pairShared(ctx, t);
+            if (!shared)
+                continue;
+            const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor;
+            const k = await starKeyOf(shared, t.counterpartAnchor, own, acc.salt, S);
+            out[`${rel.id}|${t.ownPairLabel}`] = { salt: acc.salt, blinds: await Promise.all(anchors.map((a) => blindAnchor(k, a, S))) };
+        }
+    }
+    return out;
+}
+/**
+ * The sync half (6160, 6390): `contactId` now holds the anchors `blinds`
+ * were prepared for; every accepted star (other than the contact's own)
+ * whose stored union carries one of them lists the contact among its
+ * matches. Run in the transition that makes the holder hold them (the
+ * anchor mapping's acceptance: a new entry, an advanced head, a new link).
+ */
+export function rematchStars(state, contactId, blinds) {
+    let relationships = null;
+    for (const [key, b] of Object.entries(blinds)) {
+        const [relId, label] = [key.slice(0, key.indexOf('|')), key.slice(key.indexOf('|') + 1)];
+        const rel = (relationships ?? state.relationships)[relId];
+        const t = rel?.tuples.find((x) => x.ownPairLabel === label);
+        const acc = t?.starIn.accepted;
+        if (!rel || !t || !acc || acc.salt !== b.salt || acc.matches.includes(contactId) || senderOf(state, rel, t) === contactId)
+            continue;
+        const union = new Set(acc.blinded);
+        if (!b.blinds.some((x) => union.has(x)))
+            continue;
+        const matches = [...acc.matches, contactId].sort(cmp);
+        relationships ??= { ...state.relationships };
+        relationships[relId] = { ...rel, tuples: rel.tuples.map((x) => (x === t ? { ...x, starIn: { ...x.starIn, accepted: { ...acc, matches } } } : x)) };
+    }
+    return relationships ? { ...state, relationships } : state;
 }
 /** Every anchor the holder holds for a contact (6160, 6390): the entry's
  *  head, each relationship's held head, both ends of every held link. */
@@ -449,23 +543,19 @@ export const STAR = {
         const S = ctx.crypto.subtle;
         const k = await starKeyOf(p.shared, p.from, p.own, p.salt, S);
         const inStar = new Set(union);
-        const sender = findContact(ctx.snapshot, p.tuple.entryId)?.id ?? p.rel.contactId;
-        const blinded = new Set();
+        const sender = senderOf(ctx.snapshot, p.rel, p.tuple);
         const matches = [];
         for (const c of Object.values(ctx.snapshot.contacts).sort((a, b) => cmp(a.id, b.id))) {
             if (c.id === sender)
                 continue;
-            let hit = false;
             for (const a of heldAnchors(ctx.snapshot, c)) {
-                const b = await blindAnchor(k, a, S);
-                if (inStar.has(b)) {
-                    hit = true;
-                    blinded.add(b);
+                if (inStar.has(await blindAnchor(k, a, S))) {
+                    matches.push(c.id);
+                    break;
                 }
             }
-            if (hit)
-                matches.push(c.id);
         }
-        return { ok: true, accepted: { salt: p.salt, blinded: [...blinded].sort(), matches } };
+        // the whole union is kept: anchors learned later are tested against it (rematchStars)
+        return { ok: true, accepted: { salt: p.salt, blinded: union, matches } };
     },
 };

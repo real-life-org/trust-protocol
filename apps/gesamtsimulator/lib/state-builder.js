@@ -30,7 +30,7 @@
 //     .build()
 import { CODEC, encodeState } from './codec.js';
 import { emptyState } from './state.js';
-const seqOut = () => ({ lastSalt: '0', exhausted: false, hwm: '0', snapshot: null, inflight: {} });
+const seqOut = () => ({ lastSalt: '0', exhausted: false, hwm: '0', snapshot: null, snapshotDigest: null, inflight: {} });
 const seqIn = () => ({ hwm: '0', lowerBound: '0', assembly: null, accepted: null });
 /** A tuple with every per-tuple scope empty (6250: nothing migrates into it). */
 export const emptyTuple = (spec) => ({

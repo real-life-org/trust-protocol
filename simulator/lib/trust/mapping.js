@@ -99,7 +99,7 @@ import { SCHEMAS } from '../schemas.js';
 import { LINEAGE_MAX, MAPPING_CONDITION_RULE, assembleAnchorMapping, bindingOf, classifyMapping, lineageLinks, mappingBindings, rawProofValue, verifyAnchorMappingWith, } from '../anchor.js';
 import { tupleByRkid } from '../receive.js';
 import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads, } from './state.js';
-import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, sweepOf, taskOf } from './star.js';
+import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js';
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js';
 const te = new TextEncoder();
 const V = makeValidator(SCHEMAS);
@@ -367,7 +367,10 @@ function mappingTask(bound) {
                 throw infra; // a provider failure is no verdict on the mapping
             if (!v.ok)
                 return refuse('validation-failed', v.rule ?? MAPPING_CONDITION_RULE[v.step]);
-            return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)) };
+            // the anchors this mapping makes held (self, both ends of its links),
+            // blinded under every accepted star for the re-match of 6160
+            const anchors = [...new Set([doc.payload.body.self, ...lineageLinks(doc.payload.body.lineage).flat()])];
+            return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)), stars: await starBlinds(ctx, anchors) };
         },
         // stage 9: condition 8 (6150–6170) and the transition
         apply(state, prepared, doc, arrival) {
@@ -407,7 +410,8 @@ function mappingTask(bound) {
             if (e.committed)
                 events.push({ type: 'trust.received', contactId: e.contact.id });
             events.push({ type: 'contact.verified', contactId: e.contact.id, relationshipId: rel.id });
-            return { state: e.state, events, ...(e.duties.length ? { duties: e.duties } : {}) };
+            // 6160: stars already accepted are tested against the anchors now held
+            return { state: rematchStars(e.state, e.contact.id, prepared.value.stars), events, ...(e.duties.length ? { duties: e.duties } : {}) };
         },
     };
 }
@@ -597,5 +601,7 @@ export function trustModule(opts = {}) {
         // 5.4: the star first, then the group star, each its own scope (5730)
         sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
         acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
+        // in-flight deliveries that can no longer complete leave on tick
+        retain: (state) => retainInflight(state),
     });
 }

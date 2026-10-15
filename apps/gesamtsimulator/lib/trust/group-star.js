@@ -16,9 +16,13 @@ export function sealedOn(c, group) {
 /** The group-star view toward contact c on relationship r (5730). */
 export function groupStarView(state, c, rel) {
     const lagging = lags(rel, entryRelationships(state, c));
-    return Object.values(state.groups).filter((g) => g.listed).sort((a, b) => cmp(a.id, b.id)).map((g) => !lagging && g.memberAnchor !== undefined && g.memberOp !== undefined && sealedOn(c, g.id)
-        ? { group: g.id, mode: 'sealed', member: g.memberAnchor, memberOp: g.memberOp }
-        : { group: g.id, mode: 'digest' });
+    return Object.values(state.groups).filter((g) => g.listed).sort((a, b) => cmp(a.id, b.id)).map((g) => {
+        if (lagging || !sealedOn(c, g.id))
+            return { group: g.id, mode: 'digest' };
+        if (g.memberAnchor === undefined || g.memberOp === undefined)
+            throw new Error(`trust: listed group ${g.id} lacks memberAnchor or memberOp (5400)`);
+        return { group: g.id, mode: 'sealed', member: g.memberAnchor, memberOp: g.memberOp };
+    });
 }
 class Skip extends Error {
 }
