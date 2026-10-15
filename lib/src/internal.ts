@@ -23,7 +23,8 @@
 //             ASSEMBLY_LIMIT and discardAssemblies (5360); the entries
 //             (trust/entries.ts: merge, split, departure, the identity
 //             rewrite) and continuity (trust/continuity.ts: openTuple,
-//             chainTuple, the task types)
+//             chainTuple, the task types); the class duties (trust/duties.ts:
+//             onFor, the follow rule, the move at a chaining, the handlers)
 //   freeze    freezeDeep
 export type * from './state.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
@@ -49,5 +50,9 @@ export {
   ENTRY_COMMANDS, mergeEntries, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending,
 } from './trust/entries.js'
 export type { TrustMergeInput, TrustDepartInput } from './trust/entries.js'
+export {
+  DUTY_CLASSES, RECONCILED, classOnId, profileDutyId, classOfDuty, owedOn, onFor, onRelationships, classOnDuty, dropOff, followClasses, moveDuties, afterChain,
+  classOnHandler, profileDuty,
+} from './trust/duties.js'
 export { promptsModule, collectDecisions } from './prompts.js'
 export { createEngine } from './engine.js'

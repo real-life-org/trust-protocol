@@ -115,12 +115,17 @@
 //     different community anchors (6985); its lineage starts at the
 //     chain's earliest anchor (2285). The duty respects lagging (6595):
 //     a lagging relationship gets it when it ceases to lag (2850)
-//   - at a chaining, the class-on and re-issue duties owed on the chain and
-//     on the appended relationship move to the chain under the entry that
-//     takes its verifications (2146); several re-issues become one, the
-//     most urgent awaited head kept (relocateDuties)
-//   - 6465 (the profile on the new head after a chaining) is profile@1's,
-//     PR 6: the hook is afterChain below
+//   - at a chaining, the class duties owed on the chain and on the
+//     appended relationship (class-on, re-issue, profile) move to the
+//     chain under the entry that takes its verifications (2146); several
+//     re-issues become one, the most urgent awaited head kept; a class off
+//     toward that entry drops its duties (trust/duties.ts moveDuties, the
+//     follow rule)
+//   - 6465 (the profile on the new head after a chaining): the chaining
+//     opens the profile's class-on duty on the chain (trust/duties.ts
+//     afterChain); delivering it is profile@1's, PR 6
+//   - the class duties of both relationships move to the chain and the
+//     follow rule runs over the chaining (trust/duties.ts)
 import { iso, jcs } from '../core.js'
 import type { Json } from '../core.js'
 import { digestDoc } from '../crypto.js'
@@ -139,7 +144,8 @@ import type { ClassOnDuty, Contact, ContinuityDuty, ContinuityOut, Dec, Duty, Ho
 import { emptyTuple } from '../state-builder.js'
 import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, liveRel, tupleByLabel, unionBindings } from './state.js'
 import { assembledBodies, assemblyStep, canComplete, chunkDocument, discardAssemblies, pairShared } from './star.js'
-import { classOnDuty, mergeDutiesAfter, mergeInto } from './entries.js'
+import { mergeDutiesAfter, mergeInto } from './entries.js'
+import { afterChain, classOfDuty, classOnDuty, followClasses, moveDuties } from './duties.js'
 
 /** The registered task types of 6a (Delivery §4.4, 6810). */
 export const CONTINUITY_PROBE_TYPE = 'https://real-life.org/trust-tasks/continuity-probe/0.1'
@@ -313,41 +319,6 @@ const earlierAnchor = (state: Readonly<HolderState>, a: string | null, b: string
 const issuedUnder = (r: Readonly<Relationship>): string[] =>
   [r.earliestAnchor, ...r.tuples.map((t) => t.mappingOut.underAnchor)].filter((a): a is string => a !== null)
 
-/**
- * The class and re-issue duties owed on the chain and the appended
- * relationship, after a chaining: on the chain, under the entry that takes
- * its verifications (2146), none dropped. Several re-issues are one (6596:
- * one delivery meets every re-issue owed), the most urgent awaited head
- * kept (null, due at once, wins; else the chain's); several class-on
- * duties of one class are one.
- */
-function relocateDuties (state: HolderState, from: readonly string[], relId: string, contactId: string): HolderState {
-  const owed = Object.values(state.duties)
-    .filter((d) => (d.kind === 'class-on' || d.kind === 'reissue-mapping') && from.includes((d as { relId: string }).relId))
-    .sort((a, b) => from.indexOf((a as { relId: string }).relId) - from.indexOf((b as { relId: string }).relId))
-  if (!owed.length) return state
-  const duties = { ...state.duties }
-  for (const d of owed) delete duties[d.id]
-  const reissues = owed.filter((d): d is ReissueMappingDuty => d.kind === 'reissue-mapping')
-  if (reissues.length) {
-    const base = reissues[0]
-    const awaitHead = reissues.some((d) => d.awaitHead === null) ? null : base.awaitHead
-    duties[base.id] = { ...base, contactId, relId, awaitHead }
-  }
-  for (const d of owed.filter((x): x is ClassOnDuty => x.kind === 'class-on')) {
-    const id = `class-on:${d.cls}:${relId}`
-    if (!Object.hasOwn(duties, id)) duties[id] = { ...d, id, contactId, relId }
-  }
-  return { ...state, duties }
-}
-
-/**
- * 6465: after a chaining toward whose contact the profile class is on,
- * the current profile SHOULD go out on the new head. profile@1 arrives in
- * PR 6; until then this hook opens nothing.
- */
-const afterChain = (_state: Readonly<HolderState>, _relId: string): Duty[] => []
-
 export type Chained = { state: HolderState, events: EventDraft[], duties: Duty[], renames: IdentityRename[] }
 
 /**
@@ -396,7 +367,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     const relId = (d as { relId?: unknown }).relId
     if (relId !== Rn.id || d.kind === 'merge') { duties[id] = d; continue }
     if (d.kind === 'continuity') duties[id] = { ...d, relId: R0.id } as Duty
-    else if (d.kind === 'class-on' || d.kind === 'reissue-mapping') duties[id] = d
+    else if (classOfDuty(d) !== null) duties[id] = d                    // moved below (moveDuties)
   }
   const rotations: HolderState['rotations'] = {}
   for (const [id, r] of Object.entries(state.rotations)) {
@@ -433,20 +404,23 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     entryId = m.survivor
   }
   next = withTuple(next, label, (x) => ({ ...x, entryId }))
-  next = relocateDuties(next, [R0.id, Rn.id], R0.id, entryId)
+  next = moveDuties(next, [R0.id, Rn.id], R0.id, entryId)
   // 6980, 6985: the anchor mapping on the new head, from the chain's earliest anchor (2285)
   const entry = next.contacts[entryId]
   if (classOnToward(entry, 'anchorMapping')) {
     const anchors = new Set([...issuedUnder(R0), ...issuedUnder(Rn)])
     const differ = issuedUnder(R0).length > 0 && issuedUnder(Rn).length > 0 && anchors.size > 1
-    if (t.mappingOut.body === null || differ) out.push(...classOnDuty(next, entryId, R0.id, out))
+    if (t.mappingOut.body === null || differ) out.push(...classOnDuty(next, entryId, R0.id, 'anchorMapping', out))
   }
-  out.push(...afterChain(next, R0.id))
+  // 6465: the profile on the new head (trust/duties.ts)
+  out.push(...afterChain(next, R0.id, out))
   // 2145: a merge the two entries admit runs after this commit (2230)
   const md = mergeDutiesAfter(state, next, R0.id, { net: false })
-  next = md.state
   out.push(...md.duties)
-  return { state: next, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: out, renames }
+  // the follow rule over the whole chaining: the drop of a class off toward
+  // the entry now, a class on for the chain that was not before (2850)
+  const f = followClasses(state, md.state, out)
+  return { state: f.state, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: f.duties, renames }
 }
 
 // ── issuing a continuity mapping (6880, 6300) ──────────────────────────

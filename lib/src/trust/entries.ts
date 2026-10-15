@@ -79,6 +79,7 @@ import {
   CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn,
 } from './state.js'
 import { viewDigest } from './star.js'
+import { dropOff, followClasses } from './duties.js'
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 const cmpDec = (a: Dec, b: Dec): number => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0 }
@@ -90,38 +91,6 @@ export const ENTRY_COMMANDS = Object.freeze({ merge: 'trust.merge', depart: 'tru
 
 export interface TrustMergeInput { contactIds: string[] }
 export interface TrustDepartInput { contactId: string, relationshipId?: string }
-
-// ── the anchor mapping's duties ────────────────────────────────────────
-
-/** Is this duty an anchor-mapping duty owed on `relId`? */
-export const owedOn = (d: Duty, relId: string): boolean =>
-  (d.kind === 'reissue-mapping' && (d as ReissueMappingDuty).relId === relId) ||
-  (d.kind === 'class-on' && (d as ClassOnDuty).cls === 'anchorMapping' && (d as ClassOnDuty).relId === relId)
-
-/** A class-on duty of the anchor mapping on `rel`, unless one is open. */
-export const classOnDuty = (state: Readonly<HolderState>, contactId: string, relId: string, extra: readonly Duty[]): ClassOnDuty[] => {
-  const id = `class-on:anchorMapping:${relId}`
-  if (Object.hasOwn(state.duties, id) || extra.some((d) => d.id === id)) return []
-  return [{ kind: 'class-on', v: 1, id, contactId, relId, cls: 'anchorMapping' }]
-}
-
-/**
- * The anchor mapping after a merge or a split changed an entry's settings
- * (2160, 2115): where the class turned on for a relationship, its current
- * mapping is owed there (2850), unless it lags (6595); where it is off
- * toward the entry now, nothing more goes out, the owed re-issues
- * included (6410). `wasOn` names the relationships it was on for.
- */
-function settingsFollow (state: HolderState, c: Readonly<Contact>, wasOn: ReadonlySet<string>): { state: HolderState, duties: Duty[] } {
-  const rels = entryRelationships(state, c)
-  if (!classOnToward(c, 'anchorMapping')) {
-    const kept = Object.entries(state.duties).filter(([, d]) => !rels.some((r) => owedOn(d, r.id)))
-    return { state: kept.length === Object.keys(state.duties).length ? state : { ...state, duties: Object.fromEntries(kept) }, duties: [] }
-  }
-  const duties: Duty[] = []
-  for (const r of rels) if (!wasOn.has(r.id) && liveRel(r) && entryOf(state, r)?.id === c.id && !lags(r, rels)) duties.push(...classOnDuty(state, c.id, r.id, duties))
-  return { state, duties }
-}
 
 // ── the anchor head and admission ──────────────────────────────────────
 
@@ -350,14 +319,13 @@ export function mergeInto (state: Readonly<HolderState>, survivor: Readonly<Cont
     anchorHead: survivor.anchorHead ?? positioned.find((c) => c.anchorHead !== null)?.anchorHead ?? null,
     settings, groupSettings,
   }
-  // per relationship, from the entry it sent under before (2146): a chain
-  // behind two entries was on only where the entry it fed had the class on
-  const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => feeding(state, c).map((r) => r.id)))
   const renames: IdentityRename[] = []
   let next: HolderState = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames })
   next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } }
-  const f = settingsFollow(next, next.contacts[id], wasOn)
-  next = admitPending(f.state, bound)
+  // the class duties of the merged settings (2160, 2850, 6410): per
+  // relationship against the entry it sent under before (2146)
+  const f = followClasses(state, admitPending(next, bound))
+  next = f.state
   return {
     state: next, events: [{ type: 'contact.merged', contactId: id, merged: [...merged].sort(cmp) }],
     ...(f.duties.length ? { duties: f.duties } : {}), renames, survivor: id,
@@ -549,8 +517,8 @@ export function splitOff (state: Readonly<HolderState>, relId: string): { state:
   // the remaining entry's keys that resolved through the old identity (2100)
   if (eId !== E.id) next = rename(next, E.id, eId, (id) => id !== relId, renames)
   next = { ...next, contacts: { ...next.contacts, [eId]: settleHead(next, next.contacts[eId]) } }
-  // the leaver's anchor mapping class starts at default, off (2115, 6410)
-  next = settingsFollow(next, next.contacts[identity], new Set(classOnToward(E, 'anchorMapping') ? [relId] : [])).state
+  // the leaver's classes start at default (2115): the trusted contacts' classes off with the anchor mapping (6410)
+  next = dropOff(next).state
   return { state: next, event: { type: 'contact.split', contactId: eId, leaver: identity, relationshipId: relId }, renames }
 }
 
@@ -621,8 +589,11 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
     const s = settleHead(next, x)
     if (s !== x) next = { ...next, contacts: { ...next.contacts, [x.id]: s } }
   }
-  next = admitPending(next, bound)
+  // 2850: a relationship that ceased to lag with the departure gets the classes on for it
+  const f = followClasses(state, admitPending(next, bound))
+  next = f.state
   return {
+    ...(f.duties.length ? { duties: f.duties } : {}),
     state: next, events: [{ type: 'contact.departed', contactId: c.id, relationshipIds: relIds.filter((id) => Object.hasOwn(state.relationships, id)).sort(cmp), removed }],
     ...(renames.length ? { renames } : {}),
   }
