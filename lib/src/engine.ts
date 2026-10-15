@@ -103,6 +103,17 @@
 //     dueAt among those; absent where it opened none. It is the app's cue to
 //     call resume (or set a timer), as resume's own nextDueAt is. A journal
 //     replay of a human act carries none: its duties were announced then
+//   - sweeps (Trust 5.4 reconciliation, PR 4b) run in resume after the
+//     duties, in registration order, on the state the duties left; their
+//     preparations run against resume's snapshot beside the duties'. A
+//     piece whose inputs moved since is skipped and makes `when` the
+//     nextDueAt. Their new documents count into nextDueAt like the
+//     duties'. Every other committed operation whose state adds a key to
+//     a sweep's `pending` names `when` as its nextDueAt
+//   - a verified delivery-ack runs the ack handler registered for the
+//     acknowledged item's type in its own transaction; a report never does
+//   - a task handler's TaskDiscard commits its state, nothing else: the
+//     disposition is failed at stage 9, no cache entry, no ack, no event
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -122,8 +133,8 @@ import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
 import { freezeDeep } from './util-freeze.js'
 import { ACK_TYPE } from './ack.js'
 import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js'
-import type { Arrival, ReceivePlan, ReceivedDocument, TaskRefusal } from './receive.js'
-export type { Arrival, ReceivedDocument, TaskFailure, TaskRefusal } from './receive.js'
+import type { Arrival, ReceivePlan, ReceivedDocument, TaskDiscard, TaskRefusal } from './receive.js'
+export type { Arrival, ReceivedDocument, TaskDiscard, TaskFailure, TaskRefusal } from './receive.js'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -197,7 +208,10 @@ export interface TaskHandler<T = any, P = any> {
   proof: 'absent' | 'required'
   decode: (payload: unknown) => T | TaskRefusal
   prepare?: (ctx: PrepareCtx, doc: ReceivedDocument<T>, arrival: Arrival) => Promise<P | TaskRefusal>
-  apply: (state: Readonly<HolderState>, prepared: Prepared<P>, doc: ReceivedDocument<T>, arrival: Arrival) => Applied | TaskRefusal
+  /** a TaskDiscard refuses the document like a TaskRefusal but commits
+   *  its `state` (no effect-cache entry, no ack): the receiver's record
+   *  of a rejected delivery (5.2a: the discarded assembly, its lower bound) */
+  apply: (state: Readonly<HolderState>, prepared: Prepared<P>, doc: ReceivedDocument<T>, arrival: Arrival) => Applied | TaskRefusal | TaskDiscard
 }
 
 /** What a duty's apply sees beside the state: its preparation. */
@@ -220,6 +234,31 @@ export interface DutyHandler<P = any> {
 }
 
 /**
+ * A module's reconciliation sweep (Trust 5.4), run by resume(when) after
+ * the duties, on the state they left. `prepare` runs against resume's
+ * snapshot (before the duties); `apply` re-checks every prepared piece
+ * against the state it gets and skips one whose inputs moved, reporting
+ * `deferred` (resume then names `when` as nextDueAt). `pending` is the
+ * pure answer to "would the sweep issue now?", as keys: an operation
+ * other than resume whose commit adds a key names `when` as its
+ * nextDueAt, the app's cue to call resume (engine.ts header).
+ */
+export interface SweepHandler<P = any> {
+  pending: (state: Readonly<HolderState>, when: Millis) => string[]
+  prepare: (ctx: PrepareCtx) => Promise<P>
+  apply: (state: Readonly<HolderState>, prepared: Prepared<P>, when: Millis) => Applied & { deferred?: boolean }
+}
+
+/**
+ * What a verified delivery-ack does for the module whose task type the
+ * acknowledged outbox item carries (receive.ts, the common ack path):
+ * synchronous and pure, inside the ack's transaction, after the item is
+ * marked delivered. Adapter reports never reach it: only a verified ack
+ * completes (ports.ts DeliveryReport, 5660).
+ */
+export type AckHandler = (state: Readonly<HolderState>, ref: string, when: Millis) => Applied
+
+/**
  * What a human's choice on a prompt of one kind does in its domain
  * (prompts.ts): synchronous and pure like apply, run inside the decision's
  * own transition, so the domain effect and the closing commit together.
@@ -234,6 +273,11 @@ export interface HolderModule {
   commands: Record<string, CommandDef>
   tasks?: Record<string, TaskHandler>
   duties?: Record<string, DutyHandler>
+  /** reconciliation sweeps, run by resume after the duties, by name */
+  sweeps?: Record<string, SweepHandler>
+  /** ack handlers by the full task type URI of the acknowledged document;
+   *  at most one per type across all modules */
+  acks?: Record<string, AckHandler>
   /** at most one handler per prompt kind across all modules; collected by
    *  createHolder for the prompts module (prompts.ts) */
   decisions?: Partial<Record<PromptKind, DecisionHandler>>
@@ -258,7 +302,7 @@ export interface EngineSnapshot { state: Readonly<HolderState>, commitSeq: Dec }
 
 export interface Engine {
   /** the names registered at construction, frozen */
-  readonly registry: Readonly<{ commands: readonly string[], tasks: readonly string[], duties: readonly string[] }>
+  readonly registry: Readonly<{ commands: readonly string[], tasks: readonly string[], duties: readonly string[], sweeps: readonly string[] }>
   act (command: string, input: unknown, when: Millis, opts?: { actId?: string }): Promise<ActResult>
   /** expiry and retention: effects, prompts, the act journal, terminal
    *  outbox items, address keys to tombstones; raises lastWhen */
@@ -449,6 +493,8 @@ class HolderEngine implements Engine {
   readonly #commands: ReadonlyMap<string, InternalDef>
   readonly #tasks: ReadonlyMap<string, TaskHandler>
   readonly #duties: ReadonlyMap<string, DutyHandler>
+  readonly #sweeps: ReadonlyMap<string, SweepHandler>
+  readonly #acks: ReadonlyMap<string, AckHandler>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #listeners = new Set<CommitListener>()
   #chain: Promise<unknown> = Promise.resolve()
@@ -484,6 +530,8 @@ class HolderEngine implements Engine {
     const commands = new Map<string, InternalDef>()
     const tasks = new Map<string, TaskHandler>()
     const duties = new Map<string, DutyHandler>()
+    const sweeps = new Map<string, SweepHandler>()
+    const acks = new Map<string, AckHandler>()
     const names = new Set<string>()
     for (const m of modules) {
       if (!m || typeof m.name !== 'string' || !m.name) throw new TypeError('a module needs a name')
@@ -510,15 +558,29 @@ class HolderEngine implements Engine {
         if (h.awaitHolds !== undefined && typeof h.awaitHolds !== 'function') throw new TypeError(`duty ${kind} (module ${m.name}): awaitHolds must be a function`)
         duties.set(kind, Object.freeze({ ...h }))
       }
+      for (const [name, h] of Object.entries(m.sweeps ?? {})) {
+        if (sweeps.has(name)) throw new Error(`duplicate sweep ${name} (module ${m.name})`)
+        if (typeof h?.apply !== 'function' || typeof h.prepare !== 'function' || typeof h.pending !== 'function') throw new TypeError(`sweep ${name} (module ${m.name}) needs pending, prepare and apply`)
+        sweeps.set(name, Object.freeze({ ...h }))
+      }
+      for (const [uri, h] of Object.entries(m.acks ?? {})) {
+        if (!TASK_URI.test(uri)) throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`)
+        if (acks.has(uri)) throw new Error(`duplicate ack handler ${uri} (module ${m.name})`)
+        if (typeof h !== 'function') throw new TypeError(`ack handler ${uri} (module ${m.name}) must be a function`)
+        acks.set(uri, h)
+      }
     }
     this.#commands = commands
     this.#tasks = tasks
     this.#duties = duties
+    this.#sweeps = sweeps
+    this.#acks = acks
     this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() })
     this.registry = Object.freeze({
       commands: Object.freeze([...commands.keys()]),
       tasks: Object.freeze([...tasks.keys()]),
       duties: Object.freeze([...duties.keys()]),
+      sweeps: Object.freeze([...sweeps.keys()]),
     })
   }
 
@@ -606,7 +668,7 @@ class HolderEngine implements Engine {
       const release = r.release ?? []
       // resume computes its own timer; every other operation names the duty
       // work it opened or unblocked, the app's cue to call resume
-      const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#dutyWake(state, r.state, newDuties, at))
+      const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#wake(state, r.state, newDuties, at))
       const extra = { ...(wake !== undefined ? { nextDueAt: wake } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) }
       if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
         return { ok: true, outbound: [...release], events: [], ...extra }
@@ -644,6 +706,18 @@ class HolderEngine implements Engine {
       return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...extra }
     }
     throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`)
+  }
+
+  /** The work an operation opened or unblocked: its duty work (#dutyWake),
+   *  or `when` where a sweep's pending keys gained one. */
+  #wake (before: Readonly<HolderState>, after: Readonly<HolderState>, added: readonly Duty[], when: Millis): Millis | undefined {
+    const d = this.#dutyWake(before, after, added, when)
+    if (d === when || before === after) return d
+    for (const sw of this.#sweeps.values()) {
+      const had = new Set(sw.pending(before, when))
+      if (sw.pending(after, when).some((k) => !had.has(k))) return when
+    }
+    return d
   }
 
   /** The duty work an operation opened or unblocked: over the duties that
@@ -739,13 +813,16 @@ class HolderEngine implements Engine {
     const policy = (): Policy => this.#policy
     const plan = (state: Readonly<HolderState>, when: Millis) => this.#dutyPlan(state, when)
     const handlers = (): ReadonlyMap<string, DutyHandler> => this.#duties
+    const sweeps = (): ReadonlyMap<string, SweepHandler> => this.#sweeps
     return {
       human: false,
-      // the due duties' preparations, against the snapshot apply will see
+      // the due duties' and the sweeps' preparations, against the snapshot apply will see
       async prepare (ctx) {
         const values: Record<string, unknown> = {}
         for (const { duty, h } of plan(ctx.snapshot, ctx.when).run) if (h.prepare) values[duty.id] = await h.prepare(ctx, duty)
-        return values
+        const swept: Record<string, unknown> = {}
+        for (const [name, sw] of sweeps()) swept[name] = await sw.prepare(ctx)
+        return { duties: values, sweeps: swept }
       },
       apply (state, prepared, _input, when) {
         const p = policy()
@@ -794,7 +871,7 @@ class HolderEngine implements Engine {
         const duties: Duty[] = []
         // ran and stayed (not-due, refused): id → its record as it ran
         const kept = new Map<string, string>()
-        const values = prepared.value as Record<string, unknown>
+        const { duties: values, sweeps: swept } = prepared.value as { duties: Record<string, unknown>, sweeps: Record<string, unknown> }
         for (const { duty, h } of run) {
           if (!Object.hasOwn(cur.duties, duty.id)) continue                 // fulfilled or dropped meanwhile
           const now = cur.duties[duty.id]
@@ -809,6 +886,17 @@ class HolderEngine implements Engine {
           drafts.push(...(r.outbound ?? []))
           events.push(...(r.events ?? []))
           duties.push(...(r.duties ?? []))
+        }
+        // 2b — the sweeps, on the state the duties left; a prepared piece
+        // whose inputs moved is skipped and due again at once
+        for (const [name, sw] of sweeps()) {
+          const r = sw.apply(cur, Object.freeze({ value: swept[name], version: prepared.version, commitSeq: prepared.commitSeq }), when)
+          if (r.state.effects !== cur.effects) throw new Error(`engine: the sweep ${name} wrote the effect cache`)
+          cur = r.state
+          drafts.push(...(r.outbound ?? []))
+          events.push(...(r.events ?? []))
+          duties.push(...(r.duties ?? []))
+          if (r.deferred) due(when)
         }
         // the timer from the final duty set, new duties included: a future
         // dueAt, or `when` for work runnable now that did not run (deferred,
@@ -912,6 +1000,7 @@ class HolderEngine implements Engine {
 
   #receiveDef (): InternalDef {
     const tasks = (): ReadonlyMap<string, TaskHandler> => this.#tasks
+    const acks = (): ReadonlyMap<string, AckHandler> => this.#acks
     const policy = (): Policy => this.#policy
     return {
       human: false,
@@ -928,18 +1017,36 @@ class HolderEngine implements Engine {
             return { state: state as HolderState, release: a ? [ackOutbound(a, a.attempt + 1)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } }
           }
           case 'ack': {
-            // terminal: the sender-status update and its cache entry, no ack
+            // terminal: the sender-status update and its cache entry, no ack;
+            // the issuing module's ack handler runs in the same transaction
             const m = markDelivered(state, plan.ref, when)
+            let next: HolderState = { ...state, outbox: m.outbox }
+            const events: EventDraft[] = m.event ? [m.event] : []
+            const h = acks().get(state.outbox[plan.ref].type)
+            if (h) {
+              const r = h(next, plan.ref, when)
+              if (r.state.effects !== next.effects) throw new Error(`engine: the ack handler of ${state.outbox[plan.ref].type} wrote the effect cache`)
+              next = r.state
+              events.push(...(r.events ?? []))
+            }
             return {
-              state: { ...state, outbox: m.outbox, effects: { ...state.effects, [plan.digest]: cached(null) } },
-              events: m.event ? [m.event] : [],
+              state: { ...next, effects: { ...next.effects, [plan.digest]: cached(null) } },
+              events,
               detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE },
             }
           }
           case 'task': {
             const h = tasks().get(plan.type)!
             const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival)
-            if (isTaskRefusal(r)) return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } }
+            if (isTaskRefusal(r)) {
+              const detail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) }
+              const kept = (r as Partial<TaskDiscard>).state
+              if (kept === undefined) return { halt: true, detail }
+              // a discard: its record commits, the document takes no effect,
+              // is not cached and earns no ack
+              if (kept.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache`)
+              return { state: kept, detail }
+            }
             if (r.state.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`)
             return {
               state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
@@ -1014,7 +1121,8 @@ class HolderEngine implements Engine {
       const r = await this.#run(this.#builtins.receive, bound, when)
       if (isHalt(r)) return r.detail as ReceiveResult
       if (!r.ok) throw new Error('engine: receive does not refuse')
-      const d = r.detail as { disposition: 'unique' | 'duplicate-known', digest: string, type?: string }
+      const d = r.detail as { disposition: 'unique' | 'duplicate-known' | 'failed', digest: string, type?: string }
+      if (d.disposition === 'failed') return d as unknown as ReceiveResult   // a discard: committed, refused
       return d.disposition === 'unique'
         ? { disposition: 'unique', digest: d.digest, type: d.type!, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
         : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound }

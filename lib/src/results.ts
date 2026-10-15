@@ -59,7 +59,9 @@ export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
  * delivery-ack itself is terminal and earns none), then the documents
  * the effect issued. `duplicate-known`: the stored ack is re-sent
  * byte-identical (none for a terminal document); nothing commits beyond
- * a raised lastWhen. `failed`: nothing took effect and nothing commits.
+ * a raised lastWhen. `failed`: nothing took effect and nothing commits,
+ * except a handler's discard record (receive.ts TaskDiscard: a rejected
+ * chunked delivery's assembly and lower bound, Trust 5.2a).
  */
 export type ReceiveResult =
   | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[], /** as on ActResult */ nextDueAt?: number }
