@@ -423,7 +423,7 @@ function mappingTask (bound: bigint) {
       // the net (6520–6605) and 2145: a merge this verification admits runs
       // after its commit, as a persisted continuation (2230)
       const duties: Duty[] = [...e.duties, ...mergeDutiesAfter(state, after, rel.id, { net: true })]
-      return { state: after, events, ...(duties.length ? { duties } : {}) }
+      return { state: after, events, ...(duties.length ? { duties } : {}), ...(split?.renames.length ? { renames: split.renames } : {}) }
     },
   }
 }

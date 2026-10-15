@@ -127,6 +127,10 @@
 //     assembly discarded at a resource limit or rejected, Trust 5365/5366)
 //     commits its state and nothing else: disposition `discarded` with the
 //     reason, no cache entry, no ack, no event
+//   - a transition's `renames` (Applied) are followed in the effect cache by
+//     the engine after the transition: each stored ack's recipient.contactId
+//     that a rename names moves to its new id; the envelope, sealed to the
+//     key agreement, is untouched (an ack re-sent is byte-identical)
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -188,13 +192,21 @@ export interface Prepared<P = unknown> {
   readonly commitSeq: Dec
 }
 
+/** A holder-local identity rename (2100, 2140): stored acks whose
+ *  recipient.contactId is one of `from` (for an own rkid in `rkids`, or
+ *  any where null) now name `to`. */
+export interface IdentityRename { from: string[], to: string, rkids: string[] | null }
+
 /** A transition's outcome: the next state (a new object; the input is
- *  frozen) and what it issues. */
+ *  frozen) and what it issues. `renames`: identities the transition
+ *  rewrote; the engine follows them in the stored acks (only the core
+ *  writes the effect cache; the sealed envelopes stay untouched). */
 export interface Applied {
   state: HolderState
   outbound?: OutboundDraft[]
   events?: EventDraft[]
   duties?: Duty[]
+  renames?: IdentityRename[]
 }
 
 /** A refused act: nothing commits. */
@@ -465,6 +477,20 @@ const releaseOf = (state: Readonly<HolderState>): KeyRelease => (rkid) => {
 
 const isRefusal = (r: unknown): r is Refusal => (r as Refusal)?.ok === false
 
+/** The effect cache with the stored acks' recipients renamed. */
+function renameAcks (effects: HolderState['effects'], renames: readonly IdentityRename[]): HolderState['effects'] {
+  let out: HolderState['effects'] | null = null
+  for (const [d, e] of Object.entries(effects)) {
+    let a = e.ack
+    if (!a) continue
+    for (const r of renames) {
+      if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.rkid))) a = { ...a, recipient: { ...a.recipient, contactId: r.to } }
+    }
+    if (a !== e.ack) (out ??= { ...effects })[d] = { ...e, ack: a }
+  }
+  return out ?? effects
+}
+
 const checkWhen = (when: unknown): void => {
   if (!Number.isSafeInteger(when) || (when as number) < 0) throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`)
 }
@@ -720,7 +746,7 @@ class HolderEngine implements Engine {
       // work it opened or unblocked, the app's cue to call resume
       const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#wake(state, r.state, newDuties, at))
       const extra = { ...(wake !== undefined ? { nextDueAt: wake } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) }
-      if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
+      if (!def.human && r.state === state && !r.renames?.length && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
         return { ok: true, outbound: [...release], events: [], ...extra }
       }
       const seq = inc(state.commitSeq)
@@ -743,7 +769,8 @@ class HolderEngine implements Engine {
       const acts = def.human
         ? { ...r.state.acts, [actId!]: { actId: actId!, inputHash: inputHash!, commitSeq: seq, outboundDigests: outbound.map((o) => o.digest), events, at } }
         : r.state.acts
-      const next: HolderState = { ...r.state, commitSeq: seq, lastWhen: at, outbox, duties, acts }
+      const effects = r.renames?.length ? renameAcks(r.state.effects, r.renames) : r.state.effects
+      const next: HolderState = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts }
       const text = encodeState(next)   // validates; an invalid next state is a programming error
       let res
       try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {
@@ -955,6 +982,7 @@ class HolderEngine implements Engine {
         if (gaveUp.length) { const f = failed(cur, gaveUp, when); cur = f.state; events.push(...f.events) }
         const drafts: OutboundDraft[] = []
         const duties: Duty[] = []
+        const renames: IdentityRename[] = []
         // ran and stayed (not-due, refused): id → its record as it ran
         const kept = new Map<string, string>()
         const { duties: values, sweeps: swept } = prepared.value as { duties: Record<string, unknown>, sweeps: Record<string, unknown> }
@@ -972,6 +1000,7 @@ class HolderEngine implements Engine {
           drafts.push(...(r.outbound ?? []))
           events.push(...(r.events ?? []))
           duties.push(...(r.duties ?? []))
+          renames.push(...(r.renames ?? []))
         }
         // 2b — the sweeps, on the state the duties left; a prepared piece
         // whose inputs moved is skipped and due again at once
@@ -1032,6 +1061,7 @@ class HolderEngine implements Engine {
         if (effects && jcs(effects) !== jcs(cur.effects)) cur = { ...cur, effects }
         return {
           state: cur, emit, events, outbound: drafts, duties, release,
+          ...(renames.length ? { renames } : {}),
           ...(nextDueAt !== undefined ? { nextDueAt } : {}),
         }
       },
@@ -1150,6 +1180,7 @@ class HolderEngine implements Engine {
               ...(r.outbound ? { outbound: r.outbound } : {}),
               ...(r.events ? { events: r.events } : {}),
               ...(r.duties ? { duties: r.duties } : {}),
+              ...(r.renames ? { renames: r.renames } : {}),
               release: [ackOutbound(plan.ack, 1)],
               detail: { disposition: 'unique', digest: plan.digest, type: plan.type },
             }

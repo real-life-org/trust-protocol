@@ -113,7 +113,7 @@ import type { ContinuityMapping, ContinuityMappingBody, ProbeChunk } from '../co
 import { strictlyAscending } from '../star.js'
 import { tupleByRkid } from '../receive.js'
 import type { Arrival, ReceivedDocument, TaskDiscarded, TaskRefusal } from '../receive.js'
-import type { AckHandler, Applied, CommandDef, DutyHandler, EventDraft, FailureHandler, HolderModule, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
+import type { AckHandler, Applied, CommandDef, DutyHandler, EventDraft, FailureHandler, HolderModule, IdentityRename, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
 import { triasOf } from '../state.js'
 import type { Contact, ContinuityDuty, ContinuityOut, Dec, Duty, HolderState, Millis, Relationship, Tuple, TupleRef } from '../state.js'
 import { emptyTuple } from '../state-builder.js'
@@ -273,7 +273,7 @@ const issuedUnder = (r: Readonly<Relationship>): string[] =>
  */
 const afterChain = (_state: Readonly<HolderState>, _relId: string): Duty[] => []
 
-export type Chained = { state: HolderState, events: EventDraft[], duties: Duty[] }
+export type Chained = { state: HolderState, events: EventDraft[], duties: Duty[], renames: IdentityRename[] }
 
 /**
  * The chain append (6220): the fresh tuple `label` becomes the active head
@@ -334,6 +334,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
   const swap = (c: Contact): Contact => ({ ...c, relIds: [...new Set(c.relIds.map((id) => (id === Rn.id ? R0.id : id)))] })
   let entryId: string
   const out: Duty[] = []
+  const renames: IdentityRename[] = []
   if (!Eo || !En || Eo.id === En.id) {
     const e = (Eo ?? En)!
     entryId = e.id
@@ -350,6 +351,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     const m = mergeInto(next, next.contacts[survivor.id], survivor.id, [next.contacts[gone.id]], bound)
     next = m.state
     out.push(...(m.duties ?? []))
+    renames.push(...(m.renames ?? []))
     entryId = m.survivor
   }
   next = withTuple(next, label, (x) => ({ ...x, entryId }))
@@ -363,7 +365,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
   out.push(...afterChain(next, R0.id))
   // 2145: a merge the two entries admit runs after this commit (2230)
   out.push(...mergeDutiesAfter(state, next, R0.id, { net: false }))
-  return { state: next, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: out }
+  return { state: next, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: out, renames }
 }
 
 // ── issuing a continuity mapping (6880, 6300) ──────────────────────────
@@ -447,7 +449,7 @@ function choose (state: HolderState, label: string, matches: readonly string[], 
     if (typeof c === 'string') continue
     const i = commitIssue(c.state, p, () => ({ chosen: p.prior }))
     if (!i) continue
-    return { state: dropDuty(i.state, mappingDutyId(label)), outbound: [i.outbound], events: c.events, duties: c.duties }
+    return { state: dropDuty(i.state, mappingDutyId(label)), outbound: [i.outbound], events: c.events, duties: c.duties, renames: c.renames }
   }
   const viable = matches.filter((m) => chainable(state, label, m))
   // every candidate gone: an owed choice dies, honestly unchained (6990)
@@ -471,6 +473,7 @@ const merge = (a: Applied, b: Applied): Applied => ({
   outbound: [...(a.outbound ?? []), ...(b.outbound ?? [])],
   events: [...(a.events ?? []), ...(b.events ?? [])],
   duties: [...(a.duties ?? []), ...(b.duties ?? [])],
+  renames: [...(a.renames ?? []), ...(b.renames ?? [])],
 })
 
 // ── the probe sender (6a.2, 6830) ──────────────────────────────────────
@@ -793,7 +796,7 @@ function mappingTask (bound: bigint): TaskHandler<ContinuityMapping, MappingPlan
         const c = chainTuple(next, p.label, p.prior, bound)
         if (c === 'taken') return refuse('validation-failed', 'RLTP-TRU-6900')
         let out: Applied = { state: next }
-        if (c !== 'already') out = { state: c.state, events: c.events, duties: c.duties }
+        if (c !== 'already') out = { state: c.state, events: c.events, duties: c.duties, renames: c.renames }
         next = out.state
         // 6850: the report duty ends; the alignment arises in its place (6930)
         const x = tupleByLabel(next, p.label)!.tuple

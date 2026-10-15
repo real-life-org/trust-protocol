@@ -49,9 +49,7 @@
 //   - the split (2080) applies to the first verified mapping on a
 //     relationship of an entry whose other relationships hold an anchor:
 //     a relationship without a mapping can share an entry with others only
-//     by the manual merge (6640). An entry whose other relationships hold
-//     no anchor yet (a manual merge before any mapping) has nothing the
-//     mapping could contradict and keeps the relationship
+//     by the manual merge (6640); see the split exception below
 //   - "oldest remaining relationship in entry-commit order" (2100): by
 //     firstVerified (the commitSeq of its first verification, 2190), never
 //     verified ones after, then by the creation of their active heads
@@ -60,8 +58,14 @@
 //     open duties go; its outbox items run to their horizon
 //   - a merge rewrites every holder-local key of the merged ids to the
 //     survivor's; a rename (2100) rewrites the remaining entry's keys and
-//     the star baselines' members, so a rename alone diverges nothing
-import type { CommandDef, DutyHandler, EventDraft, Refusal, Applied } from '../engine.js'
+//     the star baselines' members, so a rename alone diverges nothing; the
+//     introducer a relationship names (provenance.via) follows both; the
+//     stored acks follow through the engine (Applied.renames)
+//   - the split exception: 2080 read literally would split every manual
+//     merge of unmapped relationships at the first mapping; open point for
+//     Trust 0.32. A relationship whose entry's other relationships hold no
+//     anchor yet stays
+import type { CommandDef, DutyHandler, EventDraft, IdentityRename, Refusal, Applied } from '../engine.js'
 import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
 import {
   CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn,
@@ -161,6 +165,9 @@ interface RewriteOpts {
   /** also the members of the star baselines and in-flight views (a
    *  rename: nothing diverges by it) */
   baselines?: boolean
+  /** collects the rename for the engine, which follows it in the stored
+   *  acks (engine.ts Applied.renames) */
+  renames?: IdentityRename[]
 }
 
 /** Rename members of one star scope's views, re-sorted and re-digested. */
@@ -187,14 +194,18 @@ function renameBaselines (t: Tuple, from: (id: string) => boolean, to: string): 
 }
 
 /**
- * Every holder-local key that resolved through an identity `from` now
- * resolves through `to` (2100, 2140), within `opts`. Contacts are the
- * caller's: their ids and aliases are what the rewrite follows. Stored
- * acks keep the recipient they were sealed for: they are re-sent byte
- * for byte (Delivery 4.2), and only the receive core writes the effect
- * cache. Parts without a change keep their identity.
+ * Every holder-local key that resolved through an identity in `ids` now
+ * resolves through `to` (2100, 2140), within `opts`: tuples' entryId,
+ * duties, the recipients of issued documents, and with `global` the
+ * introducers of relationships (provenance.via), the matches of accepted
+ * stars, prompts and merge duties. Contacts are the caller's: their ids
+ * and aliases are what the rewrite follows. The stored acks follow
+ * through the engine (opts.renames): only the core writes the effect
+ * cache, and their sealed envelopes stay as they are. Parts without a
+ * change keep their identity.
  */
-export function rewriteIdentity (state: Readonly<HolderState>, from: (id: string) => boolean, to: string, opts: RewriteOpts = {}): HolderState {
+export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly string[], to: string, opts: RewriteOpts = {}): HolderState {
+  const from = (x: string): boolean => ids.includes(x)
   const inRel = opts.rels ?? (() => true)
   const rkids = new Set<string>()
   let relationships: HolderState['relationships'] | null = null
@@ -213,8 +224,11 @@ export function rewriteIdentity (state: Readonly<HolderState>, from: (id: string
       if (x !== t) changed = true
       return x
     })
-    if (changed) (relationships ??= { ...state.relationships })[id] = { ...r, tuples }
+    const via = r.provenance.via
+    const provenance = opts.global && via !== undefined && from(via) ? { ...r.provenance, via: to } : r.provenance
+    if (changed || provenance !== r.provenance) (relationships ??= { ...state.relationships })[id] = { ...r, tuples, provenance }
   }
+  opts.renames?.push({ from: [...ids], to, rkids: opts.rels ? [...rkids].sort() : null })
   let duties: HolderState['duties'] | null = null
   for (const [id, d] of Object.entries(state.duties)) {
     const x = d as unknown as Record<string, unknown>
@@ -323,15 +337,15 @@ export function mergeInto (state: Readonly<HolderState>, survivor: Readonly<Cont
     anchorHead: survivor.anchorHead ?? positioned.find((c) => c.anchorHead !== null)?.anchorHead ?? null,
     settings, groupSettings,
   }
-  const was = new Set(merged)
   const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => c.relIds))
-  let next: HolderState = rewriteIdentity({ ...state, contacts }, (x) => was.has(x), id, { global: true })
+  const renames: IdentityRename[] = []
+  let next: HolderState = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames })
   next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } }
   const f = settingsFollow(next, next.contacts[id], wasOn)
   next = admitPending(f.state, bound)
   return {
     state: next, events: [{ type: 'contact.merged', contactId: id, merged: [...merged].sort(cmp) }],
-    ...(f.duties.length ? { duties: f.duties } : {}), survivor: id,
+    ...(f.duties.length ? { duties: f.duties } : {}), renames, survivor: id,
   }
 }
 
@@ -387,7 +401,7 @@ export const mergeDuty = (bound: bigint): DutyHandler => ({
     // the state moved since the commit that opened it: nothing (left) to merge
     if (cs.length < 2 || cs.some((c) => c.pos === null) || !mergeable(state, cs)) return { state: state as HolderState }
     const r = mergeEntries(state, cs, bound)
-    return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}) }
+    return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}), ...(r.renames ? { renames: r.renames } : {}) }
   },
 })
 
@@ -426,8 +440,8 @@ function oldestIdentity (state: Readonly<HolderState>, c: Readonly<Contact>, rem
 }
 
 /** The keys of the entry's relationships resolve through its new id (2100). */
-const rename = (state: HolderState, oldId: string, id: string, rels: (relId: string) => boolean): HolderState =>
-  rewriteIdentity(state, (x) => x === oldId, id, { rels, global: true, baselines: true })
+const rename = (state: HolderState, oldId: string, id: string, rels: (relId: string) => boolean, renames: IdentityRename[]): HolderState =>
+  rewriteIdentity(state, [oldId], id, { rels, global: true, baselines: true, renames })
 
 /**
  * 2080: the first verified mapping on `relId`, already in `mid`, leaves it
@@ -438,13 +452,16 @@ const rename = (state: HolderState, oldId: string, id: string, rels: (relId: str
  * takes its identity, its chain aliases and the settings of 2115, and
  * holds no position until the caller's entry commit (2090).
  */
-export function splitIfUnlinked (before: Readonly<HolderState>, mid: Readonly<HolderState>, relId: string): { state: HolderState, event: EventDraft } | null {
+export function splitIfUnlinked (before: Readonly<HolderState>, mid: Readonly<HolderState>, relId: string): { state: HolderState, event: EventDraft, renames: IdentityRename[] } | null {
   if (before.relationships[relId]?.heldCounterpartHead !== null) return null
   const rel = mid.relationships[relId]
   const E = entryOf(mid, rel)
   if (!E) return null
   const others = entryRelationships(mid, E).filter((r) => r.id !== relId)
   const holding = others.filter((r) => r.heldCounterpartHead !== null)
+  // 2080 read literally would split every manual merge of unmapped
+  // relationships at the first mapping; open point for Trust 0.32. Here
+  // the relationship stays where the others hold no anchor to contradict
   if (!holding.length) return null
   const mine = anchorSet(rel)
   const shares = holding.some((o) => [...anchorSet(o)].some((a) => mine.has(a)))
@@ -453,7 +470,7 @@ export function splitIfUnlinked (before: Readonly<HolderState>, mid: Readonly<Ho
 }
 
 /** The split of `relId` from its entry (2080–2115). */
-export function splitOff (state: Readonly<HolderState>, relId: string): { state: HolderState, event: EventDraft } {
+export function splitOff (state: Readonly<HolderState>, relId: string): { state: HolderState, event: EventDraft, renames: IdentityRename[] } {
   const rel = state.relationships[relId]
   const E = entryOf(state, rel)!
   const identity = rel.contactId
@@ -466,7 +483,6 @@ export function splitOff (state: Readonly<HolderState>, relId: string): { state:
   for (const cls of CLASSES) settings[cls] = E.settings[cls] === 'off' ? 'off' : 'default'
   const groupSettings: Record<string, Setting> = {}
   for (const [g, s] of Object.entries(E.groupSettings)) if (s === 'off') groupSettings[g] = 'off'
-  const resolvesToE = (x: string): boolean => x === E.id || E.aliases.includes(x)
   const contacts = { ...state.contacts }
   delete contacts[E.id]
   contacts[eId] = { ...E, id: eId, relIds: remaining, aliases: E.aliases.filter((a) => !leaverIds.has(a) && a !== eId) }
@@ -474,13 +490,14 @@ export function splitOff (state: Readonly<HolderState>, relId: string): { state:
     id: identity, pos: null, status: 'none', aliases: chain.filter((a) => a !== identity), relIds: [relId], anchorHead: null, settings, groupSettings,
   }
   // the leaver's keys go to its own entry (2145 entryId, its duties and recipients)
-  let next = rewriteIdentity({ ...state, contacts }, resolvesToE, identity, { rels: (id) => id === relId })
+  const renames: IdentityRename[] = []
+  let next = rewriteIdentity({ ...state, contacts }, [E.id, ...E.aliases], identity, { rels: (id) => id === relId, renames })
   // the remaining entry's keys that resolved through the old identity (2100)
-  if (eId !== E.id) next = rename(next, E.id, eId, (id) => id !== relId)
+  if (eId !== E.id) next = rename(next, E.id, eId, (id) => id !== relId, renames)
   next = { ...next, contacts: { ...next.contacts, [eId]: settleHead(next, next.contacts[eId]) } }
   // the leaver's anchor mapping class starts at default, off (2115, 6410)
   next = settingsFollow(next, next.contacts[identity], new Set(classOnToward(E, 'anchorMapping') ? [relId] : [])).state
-  return { state: next, event: { type: 'contact.split', contactId: eId, leaver: identity, relationshipId: relId } }
+  return { state: next, event: { type: 'contact.split', contactId: eId, leaver: identity, relationshipId: relId }, renames }
 }
 
 // ── departure (2210, 2250, 2260, 5860) ─────────────────────────────────
@@ -544,13 +561,17 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
     ...state, relationships, contacts, duties, rotations,
     entryOrder: { ...state.entryOrder, heads: state.entryOrder.heads.filter((id) => !leaving.has(id)) },
   }
-  for (const r of renamed) next = rename(next, r.from, r.to, (id) => r.rels.includes(id))
+  const renames: IdentityRename[] = []
+  for (const r of renamed) next = rename(next, r.from, r.to, (id) => r.rels.includes(id), renames)
   for (const x of Object.values(next.contacts)) {
     const s = settleHead(next, x)
     if (s !== x) next = { ...next, contacts: { ...next.contacts, [x.id]: s } }
   }
   next = admitPending(next, bound)
-  return { state: next, events: [{ type: 'contact.departed', contactId: c.id, relationshipIds: relIds.filter((id) => Object.hasOwn(state.relationships, id)).sort(cmp), removed }] }
+  return {
+    state: next, events: [{ type: 'contact.departed', contactId: c.id, relationshipIds: relIds.filter((id) => Object.hasOwn(state.relationships, id)).sort(cmp), removed }],
+    ...(renames.length ? { renames } : {}),
+  }
 }
 
 // ── the commands ───────────────────────────────────────────────────────
@@ -573,7 +594,7 @@ export function entryCommands (bound: bigint): Record<string, CommandDef> {
         if (cs.filter((c) => c.pos !== null).length > 1) return { ok: false, code: 'not-mergeable', ref: 'RLTP-TRU-6640' }
         if (!mergeable(state, cs)) return { ok: false, code: 'not-mergeable', ref: 'RLTP-TRU-6605' }
         const r = mergeEntries(state, cs, bound)
-        return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}) }
+        return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}), ...(r.renames ? { renames: r.renames } : {}) }
       },
     } satisfies CommandDef<TrustMergeInput>,
     [ENTRY_COMMANDS.depart]: {
