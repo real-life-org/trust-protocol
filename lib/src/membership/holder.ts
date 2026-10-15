@@ -69,7 +69,8 @@
 //     refused as in-flight (the inviter cannot learn of a silent decline),
 //     after its validUntil + skew the answer replaces it; evidence leaves
 //     past its invite's validUntil + skew or once its subject is on the
-//     roster; an outgoing prelude after an invite's life; an answered
+//     roster; an outgoing prelude past an invite's life and the horizon
+//     (its answer may travel that long); an answered
 //     prelude, an accepted or joined invitation past the invite's
 //     answerable life + skew + P90D, and with the prelude its member key
 //     leaves keepKeys (tick then tombstones it)
@@ -751,7 +752,7 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
     const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, i]) => i.validUntil + MEMBERSHIP_SKEW + HORIZON_MAX >= when))
     const evidence = Object.fromEntries(Object.entries(g.evidence).filter(([, e]) =>
       untilOf(e.invite) + MEMBERSHIP_SKEW >= when && !Object.hasOwn(g.roster, (e.accept as Doc).payload.accept.subject)))
-    const preludes = Object.fromEntries(Object.entries(g.preludes).filter(([, p]) => p.at + INVITE_LIFE + MEMBERSHIP_SKEW >= when))
+    const preludes = Object.fromEntries(Object.entries(g.preludes).filter(([, p]) => p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= when))
     const same = Object.keys(invitations).length === Object.keys(g.invitations).length && Object.keys(evidence).length === Object.keys(g.evidence).length &&
       Object.keys(preludes).length === Object.keys(g.preludes).length
     groups[id] = same ? g : { ...g, invitations, evidence, preludes }
