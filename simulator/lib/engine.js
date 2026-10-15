@@ -98,6 +98,13 @@
 //     that run. A duty whose kind changed since the plan is not run by the
 //     planned handler; the next resume dispatches it. New documents of
 //     duties count in too
+//   - every committed operation but resume names the duty work it opened or
+//     unblocked as nextDueAt on its result (ActResult, ReceiveResult
+//     unique): `when` where a duty that is new, changed, or newly runnable
+//     (its awaited head now holding) can run now, else the earliest future
+//     dueAt among those; absent where it opened none. It is the app's cue to
+//     call resume (or set a timer), as resume's own nextDueAt is. A journal
+//     replay of a human act carries none: its duties were announced then
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -244,7 +251,7 @@ const isHalt = (r) => r?.halt === true;
 const actResult = (r) => {
     if (isHalt(r))
         throw new Error('engine: an act does not halt');
-    return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r;
+    return r.ok ? { ok: true, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) } : r;
 };
 // ── the engine ─────────────────────────────────────────────────────────
 class HolderEngine {
@@ -447,7 +454,10 @@ class HolderEngine {
             const newDuties = r.duties ?? [];
             const emit = r.emit ?? [];
             const release = r.release ?? [];
-            const extra = { ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
+            // resume computes its own timer; every other operation names the duty
+            // work it opened or unblocked, the app's cue to call resume
+            const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#dutyWake(state, r.state, newDuties, at));
+            const extra = { ...(wake !== undefined ? { nextDueAt: wake } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
             if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
                 return { ok: true, outbound: [...release], events: [], ...extra };
             }
@@ -490,6 +500,25 @@ class HolderEngine {
             return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...extra };
         }
         throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`);
+    }
+    /** The duty work an operation opened or unblocked: over the duties that
+     *  are new, changed, or runnable now but not before, `when` where one
+     *  is runnable now, else the earliest future dueAt; undefined where none. */
+    #dutyWake(before, after, added, when) {
+        let wake;
+        for (const d of [...Object.values(after.duties), ...added]) {
+            const h = this.#duties.get(d.kind);
+            if (!h || d.v !== h.v)
+                continue;
+            const prev = Object.hasOwn(before.duties, d.id) ? before.duties[d.id] : undefined;
+            const runnable = dutyRunnable(d, h, after, when);
+            if (prev !== undefined && jcs(prev) === jcs(d) && (!runnable || dutyRunnable(prev, h, before, when)))
+                continue;
+            const t = runnable ? when : dutyDue(d) > when ? dutyDue(d) : undefined;
+            if (t !== undefined)
+                wake = wake === undefined ? t : Math.min(wake, t);
+        }
+        return wake;
     }
     #itemOf(state, digest) {
         if (!Object.hasOwn(state.outbox, digest))
@@ -807,7 +836,7 @@ class HolderEngine {
                         const h = tasks().get(plan.type);
                         const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival);
                         if (isTaskRefusal(r))
-                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest } };
+                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
                         if (r.state.effects !== state.effects)
                             throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
                         return {
@@ -913,7 +942,7 @@ class HolderEngine {
                 throw new Error('engine: receive does not refuse');
             const d = r.detail;
             return d.disposition === 'unique'
-                ? { disposition: 'unique', digest: d.digest, type: d.type, outbound: r.outbound, events: r.events }
+                ? { disposition: 'unique', digest: d.digest, type: d.type, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
                 : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound };
         });
     }

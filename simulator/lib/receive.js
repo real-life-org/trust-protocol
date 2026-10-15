@@ -153,14 +153,14 @@ export async function prepareReceive(ctx, env, tasks) {
     // 7–8 — decode, the closed acceptance binding, the handler's preparation
     const payload = h.decode(doc.payload);
     if (isTaskRefusal(payload))
-        return failed(payload.reason, payload.reason === 'malformed' ? 7 : 8, { digest });
+        return failed(payload.reason, payload.reason === 'malformed' ? 7 : 8, { digest, ...(payload.ref !== undefined ? { ref: payload.ref } : {}) });
     if (!at || doc.issuer !== at.tuple.counterpartAnchor)
         return failed('validation-failed', 8, { digest });
     const rdoc = Object.freeze({ ...doc, payload });
     const arrival = Object.freeze({ rkid, threadId: doc.threadId, digest, when: ctx.when });
     const value = h.prepare ? await h.prepare(ctx, rdoc, arrival) : undefined;
     if (isTaskRefusal(value))
-        return failed(value.reason, 8, { digest });
+        return failed(value.reason, 8, { digest, ...(value.ref !== undefined ? { ref: value.ref } : {}) });
     // the ack, sealed before the transaction (4.2: created inside the
     // effect's transaction — it commits with the cache entry or not at all)
     const key = await ackKey(ctx, at.tuple, own.anchor, at.tuple.counterpartAnchor);

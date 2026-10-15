@@ -45,10 +45,17 @@
 //     failed(validation-failed) at stage 9 with the rule as ref
 //   - a document carrying ceremony.enactment is failed(validation-failed):
 //     a mapping has no material to recompute it against (Delivery §3)
-//   - trust.received is announced at the entry commit, contact.verified at
-//     every verification that changed the state
+//   - trust.received is announced at the entry commit of a verification,
+//     contact.verified at every verification that changed the state; the
+//     re-commit of trust.recover (no verification) announces nothing
 //   - the admission bound is the constant 10¹⁸−1 (2050); trustModule takes
 //     another bound for tests only, as the probe's admissionBound did
+//   - 2250/2260 in part: an entry committed at a full set is
+//     deliverable-pending, and trust.recover admits pending entries in
+//     position order while the set has room. Admission when a departure or
+//     a merge frees a slot, and the removal of a pending entry with its
+//     relationship's departure (2260), arrive with departure and merge in
+//     PR 4c (TODO(4c) in recommitEntries); this module claims neither
 //   - the entry commit of 2240 runs on trust.recover and on any accepted
 //     mapping of the relationship, the repeat included
 //   - issuance needs a community anchor (register.community): without one
@@ -74,8 +81,10 @@
 //     left waiting ('not-due') for its handler
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
 //     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
-//   - setGroupClass to `default` removes the per-group entry; the sealed
-//     group star class `off` resets every per-group `on` (5450)
+//   - setGroupClass to `default` removes the per-group entry; turning the
+//     sealed group star class `off` resets every per-group `on` (5450), on
+//     that transition only: a group set `on` afterwards stays, and setting
+//     `off` while it is off resets nothing
 import { jcs, iso, makeValidator, calOK } from '../core.js';
 import { digestDoc, xRawOfMk } from '../crypto.js';
 import { seal } from '../delivery.js';
@@ -265,21 +274,40 @@ function commitEntry(before, state, relId, bound) {
     }
     return { state: next, committed, contact: c, duties };
 }
+/** 2250: pending entries join the set in position order while it has room. */
+function admitPending(state, bound) {
+    let admitted = BigInt(Object.values(state.contacts).filter((x) => x.status === 'admitted').length);
+    const pending = Object.values(state.contacts).filter((x) => x.status === 'pending' && x.pos !== null)
+        .sort((a, b) => { const x = BigInt(a.pos), y = BigInt(b.pos); return x < y ? -1 : x > y ? 1 : 0; });
+    let contacts = null;
+    for (const c of pending) {
+        if (admitted >= bound)
+            break;
+        contacts ??= { ...state.contacts };
+        contacts[c.id] = { ...c, status: 'admitted' };
+        admitted += 1n;
+    }
+    return contacts ? { ...state, contacts } : state;
+}
 /** 2240: every relationship holding a verified mapping on a tuple whose
  *  entry holds no position re-commits that entry, in the order of
- *  entryOrder.heads (2180), then by relationship id. */
+ *  entryOrder.heads (2180), then by relationship id; then pending entries
+ *  are admitted in position order while the set has room (2250). */
 export function recommitEntries(state, bound = ADMISSION_BOUND) {
     const order = Object.keys(state.relationships).sort((a, b) => {
         const ia = state.entryOrder.heads.indexOf(a), ib = state.entryOrder.heads.indexOf(b);
         return ((ia < 0 ? Infinity : ia) - (ib < 0 ? Infinity : ib)) || (a < b ? -1 : a > b ? 1 : 0);
     });
-    let cur = state;
+    let cur = admitPending(state, bound);
     for (const id of order) {
         const rel = cur.relationships[id];
         if (!rel.tuples.some((t) => t.mappingIn.body !== null) || entryOf(cur, rel).pos !== null)
             continue;
         cur = commitEntry(cur, cur, id, bound).state;
     }
+    // TODO(4c): the same admission step runs atomically with every departure
+    // and merge that frees a slot (2150, 2250, 5860), and a pending entry
+    // leaves with its relationship's departure (2260)
     return { state: cur };
 }
 // ── reception (6.3, Section 2) ─────────────────────────────────────────
@@ -328,7 +356,7 @@ function mappingTask(bound) {
             if (infra !== null)
                 throw infra; // a provider failure is no verdict on the mapping
             if (!v.ok)
-                return refuse('validation-failed', MAPPING_CONDITION_RULE[v.step]);
+                return refuse('validation-failed', v.rule ?? MAPPING_CONDITION_RULE[v.step]);
             return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)) };
         },
         // stage 9: condition 8 (6150–6170) and the transition
@@ -378,9 +406,10 @@ const paused = (c) => c.settings.star === 'off' && c.settings.groupStar === 'off
 /** One change of a contact's settings: 2840 and 5450 follow from it, the
  *  anchor mapping duties of 2850 and 6410, the events. */
 function changeSettings(state, c, settings, groupSettings) {
-    // 5450: the sealed group star off resets every per-group on to default
+    // 5450: turning the sealed group star off resets every per-group on to
+    // default — on the transition only, so a group set on afterwards stays (2830)
     let groups = groupSettings;
-    if (settings.sealedGroupStar === 'off')
+    if (c.settings.sealedGroupStar !== 'off' && settings.sealedGroupStar === 'off')
         groups = Object.fromEntries(Object.entries(groups).filter(([, s]) => s !== 'on'));
     const next = { ...c, settings, groupSettings: groups };
     const wasOn = classOnToward(c, 'anchorMapping');
