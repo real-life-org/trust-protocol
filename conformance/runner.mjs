@@ -970,6 +970,44 @@ section('carrier-proof.json — Delivery §5a.3 signature input, §4.4 rate mach
 
 }
 
+// ── suite 1b: device keys (Identity 0.54 §5.5, §15.5) ─────────────────────
+section('identity-device-keys.json — every device key recomputes')
+{
+  const DK = J('vectors/identity-device-keys.json')
+  const ikm = Buffer.from(DK.inputs.rootIkm, 'hex')
+  check(DK.inputs.rootIkm === ID.rootIkm && DK.inputs.genesisDigestSample === ID.genesisDigestSample, 'device keys: the inputs are those of identity-derivation.json')
+  const mh = (b) => 'u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(b)]).toString('base64url')
+  const recompute = (d) => {
+    const c = mh(Buffer.from(d.context, 'utf8'))
+    const label = `device/${d.deviceName.normalize('NFC')}/${c}`
+    const ed = hkdf(ikm, 'rltp/anchor/ed/' + label), x = hkdf(ikm, 'rltp/anchor/x/' + label)
+    return { c, label, ed: ed.toString('hex'), x: x.toString('hex'), device: didOf(ed), keyAgreement: mkOf(x) }
+  }
+  for (const d of DK.devices) {
+    const r = recompute(d)
+    check(r.c === d.contextDigest && r.c.length === 47 && r.label === d.label, `${d.label}: c = multihash of the UTF-8 context label, 47 characters`)
+    check(d.edInfo === 'rltp/anchor/ed/' + d.label && d.xInfo === 'rltp/anchor/x/' + d.label, `${d.label}: info strings`)
+    check(r.ed === d.edSeed && r.x === d.xSeed, `${d.label}: seeds`)
+    check(r.device === d.device && r.keyAgreement === d.keyAgreement, `${d.label}: device key + keyAgreement`)
+  }
+  const a = recompute({ deviceName: DK.afterStateLoss.deviceName, context: DK.afterStateLoss.context })
+  check(a.label === DK.afterStateLoss.expect && a.device === DK.afterStateLoss.device && a.keyAgreement === DK.afterStateLoss.keyAgreement, 'device keys: the same name and context re-derive the same key after state loss')
+  check(new Set(DK.contextRule.devices).size === 2 && DK.contextRule.labels.every((l, i) => DK.devices.find((d) => d.label === l)?.device === DK.contextRule.devices[i]), 'device keys: one device under two contexts has two unrelated keys (the context rule)')
+  const [n1, n2] = DK.nfc.inputs
+  check(n1 !== n2 && n1.normalize('NFC') === n2.normalize('NFC') && DK.nfc.inputs.every((n) => { const r = recompute({ deviceName: n, context: 'group/' + ID.genesisDigestSample }); return r.label === DK.nfc.label && r.device === DK.nfc.device }), 'device keys: the NFC pair of one name derives one label and one key')
+  check(DK.devices.every((d) => !ID.vectors.some((v) => v.anchor === d.device)), 'device keys: no device key is an anchor of the identity vector')
+  // the device row's grammar (6.1, 6.2), checked structurally: exactly two
+  // components, a non-empty name without '/', a canonical 47-character digest
+  const deviceRow = (l) => {
+    const m = /^device\/([^/]+)\/(u[A-Za-z0-9_-]{45}[AQgw])$/.exec(l)
+    if (!m) return false
+    const n = m[1]
+    return n === n.normalize('NFC') && !/^\s|\s$/u.test(n) && !/[\p{Cc}\p{Cf}]/u.test(n)
+  }
+  for (const r of DK.rejects) check(!deviceRow(r.label), `device row rejects ${JSON.stringify(r.label)}: ${r.reason}`)
+  check(DK.devices.every((d) => deviceRow(d.label)), 'device row: every derived label has exactly the two components of its row')
+}
+
 // ── suite 2: seal vector reproduces byte-for-byte ────────────────────────
 section('seal.json — Delivery §5 construction reproduces')
 {

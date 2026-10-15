@@ -1,0 +1,119 @@
+{
+ "description": "Device keys (Identity 0.54 §5.5, §15.5): for a device name n (6.2) and an anchor context with canonical label A (a group/…, persona/… or pair/… label of 6.1), the device label is device/<n>/<c>, c = \"u\" || base64url(0x12 0x20 || SHA-256(UTF-8 of A)) (47 characters); edSeed = HKDF-SHA-256(root IKM, salt empty, info \"rltp/anchor/ed/\" || label, 32 bytes), xSeed likewise under \"rltp/anchor/x/\" || label; the device key is the Ed25519 did:key of edSeed, its key agreement key the X25519 multikey of xSeed (5.1, 5.2). Regenerate: node scripts/gen-identity-device-keys-vector.mjs (deterministic, from lib/dist); re-derived by conformance/runner.mjs.",
+ "inputs": {
+  "source": "root IKM = rootIkm of vectors/identity-derivation.json (the BIP-39 test mnemonic); the sample group is group/<genesisDigestSample> of that file",
+  "rootIkm": "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4",
+  "genesisDigestSample": "uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA"
+ },
+ "devices": [
+  {
+   "deviceName": "Laptop",
+   "context": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA",
+   "contextDigest": "uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "label": "device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "edInfo": "rltp/anchor/ed/device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "xInfo": "rltp/anchor/x/device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "edSeed": "e5871b3f0607360764e1a48a4f1a656576c75e80ada8138392e8dd5578f1a63f",
+   "xSeed": "d1c98cbe4867af769cdb9e94dac31050b741fd32aa0d50a447346537a03fa2d0",
+   "device": "did:key:z6MkkTHroDYQL4Vvw9mrKJ8eReH5x7KDc2GtN9HThqG4nJyG",
+   "keyAgreement": "z6LScTVDvwjzCPqEidZu7xeoeEunMzp3dV4jnotDR3padTq2"
+  },
+  {
+   "deviceName": "Laptop",
+   "context": "persona/Anna",
+   "contextDigest": "uEiCLXvALgjurNWY3mEfYi5BSsSQYp1PwwEBv8g7kcxwTJg",
+   "label": "device/Laptop/uEiCLXvALgjurNWY3mEfYi5BSsSQYp1PwwEBv8g7kcxwTJg",
+   "edInfo": "rltp/anchor/ed/device/Laptop/uEiCLXvALgjurNWY3mEfYi5BSsSQYp1PwwEBv8g7kcxwTJg",
+   "xInfo": "rltp/anchor/x/device/Laptop/uEiCLXvALgjurNWY3mEfYi5BSsSQYp1PwwEBv8g7kcxwTJg",
+   "edSeed": "09185a7e18459ea8c117679175a236aba8a25c6c8cae451f401299a1b23e6c8c",
+   "xSeed": "11a530ba78c379b6a342ed9db302963668cbf0c6c73b5919e9be5ca1949838f9",
+   "device": "did:key:z6MkrZVNvDpav7TkF97qzAcTrJQsXoNWpPccmxoyqohT6XPK",
+   "keyAgreement": "z6LSeKaSbBPuqr8xTcXfcEHzsio7ED9iEyMVNWomUiuR7Ukj"
+  },
+  {
+   "deviceName": "Phone",
+   "context": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA",
+   "contextDigest": "uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "label": "device/Phone/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "edInfo": "rltp/anchor/ed/device/Phone/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "xInfo": "rltp/anchor/x/device/Phone/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "edSeed": "5ad1ce798d843f6e1c14310277a3a0ddab3001a2b662df3103bb19fb461e150f",
+   "xSeed": "262adb499f089f6d3dc3bbe20d351b9668b03b7938eec0eaa220456ba4780a07",
+   "device": "did:key:z6MkkaU6TSW1347yVdbsi1MDAEf2z8sgg4oupDU9ytTc5CSx",
+   "keyAgreement": "z6LScU3GV5bu3ao6wCDnmDBMKdLN9cAniryG2Yix4sAJkDrG"
+  }
+ ],
+ "afterStateLoss": {
+  "note": "the device lost its local state, recovered the synchronized state (9.3) and was told its name (3.3): the same name under the same context re-derives the same label, seeds and keys — it is the same device, its device cards stay valid (5.5)",
+  "deviceName": "Laptop",
+  "context": "group/uEiDYLnFbXqm2cwuJWuk9yNzRmlzWDpCTH6yA_4aP_1z_RA",
+  "expect": "device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+  "device": "did:key:z6MkkTHroDYQL4Vvw9mrKJ8eReH5x7KDc2GtN9HThqG4nJyG",
+  "keyAgreement": "z6LScTVDvwjzCPqEidZu7xeoeEunMzp3dV4jnotDR3padTq2"
+ },
+ "contextRule": {
+  "note": "one device, two anchor contexts: the context is part of the label, so the two device keys are unrelated — a device key shared across contexts would link the anchors it appears under (5.5, Section 14)",
+  "labels": [
+   "device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "device/Laptop/uEiCLXvALgjurNWY3mEfYi5BSsSQYp1PwwEBv8g7kcxwTJg"
+  ],
+  "devices": [
+   "did:key:z6MkkTHroDYQL4Vvw9mrKJ8eReH5x7KDc2GtN9HThqG4nJyG",
+   "did:key:z6MkrZVNvDpav7TkF97qzAcTrJQsXoNWpPccmxoyqohT6XPK"
+  ]
+ },
+ "nfc": {
+  "note": "the device name follows 6.2: NFC is applied, so the composed and the decomposed spelling of one name give one label and one key",
+  "inputs": [
+   "Café",
+   "Café"
+  ],
+  "label": "device/Café/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+  "device": "did:key:z6MkvLkvE4p5ccNEf4VxaR1kGqi5BftdckBgGe11dT9EYGww",
+  "keyAgreement": "z6LSssaHj5NJdGt9szvtwukmNKAbNMfZMag2zfdAiXfYdu99"
+ },
+ "rejects": [
+  {
+   "label": "device/x",
+   "reason": "no context component (5.5, the Identity §16 reject)"
+  },
+  {
+   "label": "device/Laptop",
+   "reason": "no context component"
+  },
+  {
+   "label": "device//uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "reason": "empty device name (6.2: 1 to 64 code points)"
+  },
+  {
+   "label": "device/Lap/top/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "reason": "a slash in the device name (6.2): the label has more than its two components"
+  },
+  {
+   "label": "device/ Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "reason": "leading White_Space in the device name (6.2)"
+  },
+  {
+   "label": "device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-R",
+   "reason": "non-canonical context digest (trailing bits not zero)"
+  },
+  {
+   "label": "device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w/2",
+   "reason": "a third component"
+  },
+  {
+   "label": "device/Lap\u0000top/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "reason": "a Cc code point in the device name (6.2)"
+  }
+ ],
+ "contextRejects": [
+  {
+   "context": "device/Laptop/uEiBhUZmutEMNNJNqStfQF6sUgs9GhDKHmJ_v8Qbv5-3z-w",
+   "reason": "a device label is no anchor context (5.5, 6.1: never of a device/… label)"
+  },
+  {
+   "context": "self",
+   "reason": "not a label (5.3)"
+  }
+ ]
+}
