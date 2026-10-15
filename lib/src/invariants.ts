@@ -56,7 +56,18 @@
 //   salts       per tuple label: lastSalt, probe seq and the issued
 //               revisions never fall, exhausted is sticky, a new in-flight
 //               salt is above the old lastSalt (a salt is never issued
-//               twice, 5110); hwm and lowerBound never fall (5140, 5366)
+//               twice, 5110) with the digest of its view; what a salt or
+//               probe committed (view, viewDigest, digests) never changes,
+//               only acked grows within its digests (5130; a rename may
+//               rewrite the star's members, 2100); an entry leaves only
+//               completed at or below hwm, or with no document left in the
+//               outbox; hwm and lowerBound never fall (5140, 5366)
+//   baseline    hwm, snapshot and snapshotDigest change only together,
+//               upward, by the delivery-ack that completes the in-flight
+//               entry of the new hwm, to that entry's view (5660, 5670,
+//               5680; star and group star); a rename rewrites the star
+//               baseline's members only. The probe's done is sticky and
+//               set only by the ack completing a probe (6830)
 //   bindings    a second binding for one anchor arises only where a
 //               chaining appended a tuple in this commit (6610, the union of
 //               4c); a relationship's held anchor head moves only along the
@@ -107,6 +118,7 @@ import type { Contact, Duty, HolderState, Relationship, SeqIn, SeqOut, Tuple } f
 import { ADMISSION_BOUND, classOnToward, entryOf, entryRelationships, feeding, findContact, liveRel, newestHeads, newestOf } from './trust/state.js'
 import { classOfDuty, classOnId, hasArtifact, onFor, owedOn } from './trust/duties.js'
 import { CONTINUITY_MAPPING_TYPE, CONTINUITY_PROBE_TYPE } from './trust/continuity.js'
+import { viewDigest } from './trust/star.js'
 import { isKnownDuty } from './codec.js'
 
 /** What a commit was: the operation that produced it. */
@@ -311,12 +323,84 @@ export function dutyDrops (before: Readonly<HolderState>, after: Readonly<Holder
   return false
 }
 
-function seqOutTransition (v: Violation[], where: string, b: Readonly<SeqOut<unknown>>, a: Readonly<SeqOut<unknown>>): void {
+/** A star view renamed only (2100, 2140): the same anchor heads, members renamed. */
+const renamedOnly = (a: readonly unknown[], b: readonly unknown[]): boolean => {
+  const heads = (x: readonly unknown[]): string => jcs(x.map((y) => (y as { head?: unknown }).head ?? null).sort())
+  return a.length === b.length && a.every((y) => (y as { head?: unknown }).head !== undefined) && heads(a) === heads(b)
+}
+
+/**
+ * One reconciled sequence's sender side over a commit (5110, 5130, 5660,
+ * 5670, 5680): lastSalt, hwm and exhausted never fall back; a salt is
+ * issued once, with a view whose digest is its viewDigest; what was
+ * committed under a salt (view, viewDigest, digests) stays — only `acked`
+ * grows, within the digests — except that a rename rewrites the members
+ * of the star's views (`renames`); an entry leaves only once completed at
+ * or below hwm or once none of its documents is in the outbox; the
+ * baseline (hwm, snapshot, snapshotDigest) changes only together, upward,
+ * by the ack (`ack`) that completes the in-flight entry of the new hwm,
+ * to that entry's view.
+ */
+function seqOutTransition (v: Violation[], where: string, b: Readonly<SeqOut<unknown>>, a: Readonly<SeqOut<unknown>>, after: Readonly<HolderState>, ack: string | undefined, renames: boolean): void {
   if (big(a.lastSalt) < big(b.lastSalt)) v.push({ invariant: 'salts', detail: `${where}: lastSalt fell ${b.lastSalt} → ${a.lastSalt}` })
   if (b.exhausted && !a.exhausted) v.push({ invariant: 'salts', detail: `${where}: exhausted is sticky` })
   if (big(a.hwm) < big(b.hwm)) v.push({ invariant: 'salts', detail: `${where}: hwm fell ${b.hwm} → ${a.hwm}` })
-  for (const s of Object.keys(a.inflight)) {
-    if (!Object.hasOwn(b.inflight, s) && big(s) <= big(b.lastSalt)) v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued again (lastSalt was ${b.lastSalt})` })
+  for (const [s, e] of Object.entries(a.inflight)) {
+    const was = Object.hasOwn(b.inflight, s) ? b.inflight[s] : undefined
+    if (!was) {
+      if (big(s) <= big(b.lastSalt)) v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued again (lastSalt was ${b.lastSalt})` })
+      if (e.viewDigest !== viewDigest(e.view)) v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued with a viewDigest not of its view` })
+      if (e.acked.length) v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued already acked` })
+      continue
+    }
+    if (jcs(e.digests) !== jcs(was.digests)) v.push({ invariant: 'salts', detail: `${where}: the documents of salt ${s} changed` })
+    if (jcs(e.view) !== jcs(was.view) || e.viewDigest !== was.viewDigest) {
+      if (!(renames && renamedOnly(e.view, was.view) && e.viewDigest === viewDigest(e.view))) v.push({ invariant: 'salts', detail: `${where}: the view of salt ${s} changed` })
+    }
+    if (was.acked.some((x) => !e.acked.includes(x)) || e.acked.some((x) => !e.digests.includes(x))) v.push({ invariant: 'salts', detail: `${where}: acked of salt ${s} shrank or left its digests` })
+  }
+  for (const [s, e] of Object.entries(b.inflight)) {
+    if (Object.hasOwn(a.inflight, s)) continue
+    if (big(s) > big(a.hwm) && e.digests.some((x) => Object.hasOwn(after.outbox, x))) v.push({ invariant: 'salts', detail: `${where}: salt ${s} left in flight above hwm ${a.hwm} with documents still in the outbox` })
+  }
+  const baseline = a.hwm !== b.hwm || jcs(a.snapshot) !== jcs(b.snapshot) || a.snapshotDigest !== b.snapshotDigest
+  if (!baseline) return
+  if (a.hwm === b.hwm) {
+    // only a rename rewrites the baseline's members, never its heads (2100)
+    if (!(renames && a.snapshot !== null && b.snapshot !== null && renamedOnly(a.snapshot, b.snapshot) && a.snapshotDigest === viewDigest(a.snapshot))) {
+      v.push({ invariant: 'baseline', detail: `${where}: the baseline changed at hwm ${a.hwm} without a completion (5670, 5680)` })
+    }
+    return
+  }
+  const e = Object.hasOwn(b.inflight, a.hwm) ? b.inflight[a.hwm] : undefined
+  if (!e || ack === undefined || !e.digests.includes(ack) || e.digests.some((x) => x !== ack && !e.acked.includes(x))) {
+    v.push({ invariant: 'baseline', detail: `${where}: hwm ${b.hwm} → ${a.hwm} without the ack that completes salt ${a.hwm} (5660)` })
+  } else if (jcs(a.snapshot) !== jcs(e.view) || a.snapshotDigest !== e.viewDigest) {
+    v.push({ invariant: 'baseline', detail: `${where}: the baseline at hwm ${a.hwm} is not the view sent under it (5670)` })
+  }
+}
+
+/** The probe's sender side over a commit (6680, 6830): seq never falls; a
+ *  probe's documents stay, `acked` grows within them; `done` is sticky and
+ *  set only by the ack completing an in-flight probe, which empties the
+ *  in-flight set; otherwise an entry leaves only with its documents gone
+ *  from the outbox. */
+function probeTransition (v: Violation[], where: string, b: Readonly<Tuple['probeOut']>, a: Readonly<Tuple['probeOut']>, after: Readonly<HolderState>, ack: string | undefined): void {
+  if (big(a.seq) < big(b.seq)) v.push({ invariant: 'salts', detail: `${where}: probe seq fell` })
+  if (b.done && !a.done) v.push({ invariant: 'baseline', detail: `${where}: probe done is sticky` })
+  const completed = !b.done && a.done
+  if (completed && !Object.values(b.inflight).some((e) => ack !== undefined && e.digests.includes(ack) && e.digests.every((x) => x === ack || e.acked.includes(x)))) {
+    v.push({ invariant: 'baseline', detail: `${where}: probe done without the ack completing one (6830)` })
+  }
+  for (const [s, e] of Object.entries(a.inflight)) {
+    const was = Object.hasOwn(b.inflight, s) ? b.inflight[s] : undefined
+    if (!was) { if (big(s) <= big(b.seq)) v.push({ invariant: 'salts', detail: `${where}: probe ${s} issued again` }); continue }
+    if (jcs(e.digests) !== jcs(was.digests)) v.push({ invariant: 'salts', detail: `${where}: the documents of probe ${s} changed` })
+    if (was.acked.some((x) => !e.acked.includes(x)) || e.acked.some((x) => !e.digests.includes(x))) v.push({ invariant: 'salts', detail: `${where}: acked of probe ${s} shrank or left its digests` })
+  }
+  if (completed) return
+  for (const [s, e] of Object.entries(b.inflight)) {
+    if (!Object.hasOwn(a.inflight, s) && e.digests.some((x) => Object.hasOwn(after.outbox, x))) v.push({ invariant: 'salts', detail: `${where}: probe ${s} left in flight with documents still in the outbox` })
   }
 }
 
@@ -347,17 +431,20 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
   for (const k of Object.keys(before.addresses.keys)) {
     if (!Object.hasOwn(after.addresses.keys, k) && !after.addresses.tombstones.includes(k)) v.push({ invariant: 'addresses', detail: `${k} left without a tombstone` })
   }
-  // salts and revisions, per tuple label
+  // salts, baselines and revisions, per tuple label; the acked document
+  // of a delivery-ack, and whether the operation may rename (2100, 2140)
+  const ack = op.kind === 'receive' ? op.ref : undefined
+  const renames = op.kind === 'receive' || op.kind === 'resume' || (op.kind === 'act' && (op.command === 'trust.merge' || op.command === 'trust.depart'))
   const tb = tuplesByLabel(before)
   for (const [label, a] of tuplesByLabel(after)) {
     const b = tb.get(label)
     if (!b) continue
-    seqOutTransition(v, `${label} starOut`, b.starOut, a.starOut)
-    seqOutTransition(v, `${label} groupStarOut`, b.groupStarOut, a.groupStarOut)
+    seqOutTransition(v, `${label} starOut`, b.starOut, a.starOut, after, ack, renames)
+    seqOutTransition(v, `${label} groupStarOut`, b.groupStarOut, a.groupStarOut, after, ack, false)
+    probeTransition(v, `${label} probeOut`, b.probeOut, a.probeOut, after, ack)
     seqInTransition(v, `${label} starIn`, b.starIn, a.starIn)
     seqInTransition(v, `${label} groupStarIn`, b.groupStarIn, a.groupStarIn)
     seqInTransition(v, `${label} probeIn`, b.probeIn, a.probeIn)
-    if (big(a.probeOut.seq) < big(b.probeOut.seq)) v.push({ invariant: 'salts', detail: `${label}: probe seq fell` })
     if (big(a.mappingOut.rev) < big(b.mappingOut.rev)) v.push({ invariant: 'salts', detail: `${label}: mapping revision fell` })
     if (big(a.continuityOut.rev) < big(b.continuityOut.rev)) v.push({ invariant: 'salts', detail: `${label}: continuity revision fell` })
   }
