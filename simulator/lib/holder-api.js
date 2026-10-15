@@ -110,7 +110,7 @@ export async function createHolder(ports, opts = {}) {
         foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),
         invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
         vouchFor: (groupId, member, o) => human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
-        introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, { requesterId, targetId }, o),
+        introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
         addDevice: (name, o) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
         revokeDevice: (name, o) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
         deviceKey: async (name, contextLabel) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

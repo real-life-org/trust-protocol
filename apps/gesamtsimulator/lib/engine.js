@@ -128,6 +128,11 @@
 //     failures of one resume cannot open one duty twice) and count into
 //     nextDueAt like any new duty. A late delivered after failed runs the
 //     ack handler as usual, never the failure handler again
+//   - the Encounter latch exception (receive.ts TaskRefusal, Refusal):
+//     a refusal carrying `latch` commits exactly that state (checked to
+//     shrink encounter.challenges and touch nothing else) and the raised
+//     lastWhen, with no journal entry, cache entry, ack, outbound or event;
+//     the result stays the refusal (receive: failed at stage 9)
 //   - a task handler's refusal commits nothing; its TaskDiscarded (an
 //     assembly discarded at a resource limit or rejected, Trust 5365/5366)
 //     commits its state and nothing else: disposition `discarded` with the
@@ -168,6 +173,24 @@ import { freezeDeep } from './util-freeze.js';
 import { ACK_TYPE } from './ack.js';
 import { ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
 import { isTaskDiscarded } from './receive.js';
+/** The Encounter latch exception (receive.ts TaskRefusal): a latch state
+ *  differs from its base in encounter.challenges alone, which it only shrinks. */
+function checkLatch(base, latch) {
+    for (const k of Object.keys(base)) {
+        if (k === 'encounter')
+            continue;
+        if (base[k] !== latch[k])
+            throw new Error(`engine: an aging latch changed ${k}`);
+    }
+    const e = base.encounter, l = latch.encounter;
+    for (const k of Object.keys(e)) {
+        if (k !== 'challenges' && e[k] !== l[k])
+            throw new Error(`engine: an aging latch changed encounter.${k}`);
+    }
+    for (const v of Object.keys(l.challenges))
+        if (!Object.hasOwn(e.challenges, v))
+            throw new Error('engine: an aging latch added a challenge');
+}
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
 /** Defaults of the retry policy and the retention it implies. */
@@ -579,8 +602,30 @@ class HolderEngine {
             const r = def.apply(state, prepared, input, at);
             if (isHalt(r))
                 return r;
-            if (isRefusal(r))
-                return { ok: false, code: r.code, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+            if (isRefusal(r)) {
+                const refusal = { ok: false, code: r.code, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+                if (!r.latch)
+                    return refusal;
+                // the Encounter latch exception: the latch and lastWhen commit, nothing else
+                checkLatch(state, r.latch);
+                const seq = inc(state.commitSeq);
+                const next = { ...r.latch, commitSeq: seq, lastWhen: at };
+                const text = encodeState(next);
+                if (this.#check)
+                    this.#check(state, next, op.kind === 'act' ? { ...op, events: [] } : op);
+                let res;
+                try {
+                    res = await this.#store.commit(version, toOpaque(next));
+                }
+                catch (e) {
+                    this.#unsettled = { text, commitSeq: seq, events: [] };
+                    throw new InfraError('unknown-commit-outcome', undefined, { cause: e });
+                }
+                if (!res.ok)
+                    continue;
+                this.#announce(seq, []);
+                return refusal;
+            }
             const drafts = r.outbound ?? [];
             const eventDrafts = r.events ?? [];
             const newDuties = r.duties ?? [];
@@ -1104,8 +1149,14 @@ class HolderEngine {
                     case 'task': {
                         const h = tasks().get(plan.type);
                         const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival);
-                        if (isTaskRefusal(r))
-                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
+                        if (isTaskRefusal(r)) {
+                            const failedDetail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+                            if (!r.latch)
+                                return { halt: true, detail: failedDetail };
+                            // the Encounter latch exception (receive.ts): only the latch commits
+                            checkLatch(state, r.latch);
+                            return { state: r.latch, detail: failedDetail };
+                        }
                         if (isTaskDiscarded(r)) {
                             // a resource-limit discard: its state commits; no cache entry, no ack
                             if (r.state.effects !== state.effects)
@@ -1216,6 +1267,8 @@ class HolderEngine {
                 return r.detail;
             if (!r.ok)
                 throw new Error('engine: receive does not refuse');
+            if (r.detail?.disposition === 'failed')
+                return r.detail; // a latch committed
             const d = r.detail;
             if (d.disposition === 'discarded')
                 return { disposition: 'discarded', digest: d.digest, type: d.type, reason: d.reason, ...(d.ref !== undefined ? { ref: d.ref } : {}) };
