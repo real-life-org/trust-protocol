@@ -67,18 +67,28 @@
 //               document's digest; entries leave only by tick (Delivery
 //               4.2)
 //   duties      a duty disappears only where a rule lets it (dutyDrops):
-//                 resume        any (fulfilment, a merge duty that no
-//                               longer holds, a continuity flow's end)
-//                 receive       continuity (the flow's end by its ack)
-//                 any commit    a class duty whose relationship left or is
-//                               a husk now (departure, the move at a
-//                               chaining), that merged into another of its
-//                               kind on the same relationship (the move:
-//                               several re-issues are one, 6596), or whose
-//                               class is off toward the entry it is owed
-//                               under (6410, 2790); a continuity duty whose
-//                               relationship left
-//               a duty of a kind the library does not know never leaves
+//               (a) fulfilment: resume ran its handler and the handler
+//                   returned Applied in this commit (CommitOp.fulfilled)
+//               (b) the drop rules: a class duty whose class is off toward
+//                   the entry its relationship's verifications go to (6410,
+//                   2790; a split's 2115 included), any known duty whose
+//                   relationship departed or became a husk (2260, the move
+//                   at a chaining)
+//               (c) the merge into one of its kind owed on the same
+//                   relationship with its urgency kept: a re-issue into one
+//                   no later and not waiting where it was due (awaitHead
+//                   null wins, 6596), a profile duty into one of no lower
+//                   revision
+//               (d) the same delivery: an anchor mapping issued on the
+//                   relationship in this commit meets every class-on and
+//                   re-issue of the anchor mapping owed there (6596)
+//               (e) a received document that ends a continuity flow: the
+//                   ack of a probe or continuity mapping sent on the
+//                   duty's tuple, or a continuity mapping arriving on it
+//                   (6830, 6850)
+//               expiry: no duty kind expires yet. A duty of a kind (or
+//               version) the library does not know leaves only by (a), a
+//               module's handler: never where none is registered
 //   journal     act records leave only by tick (retention)
 //
 // Choices where the brief and the note leave them open (PR 5):
@@ -96,14 +106,19 @@ import { triasOf } from './state.js'
 import type { Contact, Duty, HolderState, Relationship, SeqIn, SeqOut, Tuple } from './state.js'
 import { ADMISSION_BOUND, classOnToward, entryOf, entryRelationships, feeding, findContact, liveRel, newestHeads, newestOf } from './trust/state.js'
 import { classOfDuty, classOnId, hasArtifact, onFor, owedOn } from './trust/duties.js'
+import { CONTINUITY_MAPPING_TYPE, CONTINUITY_PROBE_TYPE } from './trust/continuity.js'
+import { isKnownDuty } from './codec.js'
 
 /** What a commit was: the operation that produced it. */
 export type CommitOp =
   | { kind: 'act', command: string }
   | { kind: 'tick' }
-  | { kind: 'resume' }
+  /** fulfilled: the duties whose handler returned Applied in this commit */
+  | { kind: 'resume', fulfilled?: readonly string[] }
   | { kind: 'report', status?: string }
-  | { kind: 'receive', disposition?: string, digest?: string }
+  /** type: the received document's; ref: the acknowledged outbox digest of
+   *  a delivery-ack; rkid: the own key the document arrived on */
+  | { kind: 'receive', disposition?: string, digest?: string, type?: string, ref?: string, rkid?: string }
 
 /** One broken invariant: its name (as in the header) and what broke it. */
 export interface Violation { invariant: string, detail: string }
@@ -254,21 +269,46 @@ const tuplesByLabel = (state: Readonly<HolderState>): Map<string, Tuple> => {
   return m
 }
 
+const dueOf = (d: Readonly<Duty>): number => (Number.isSafeInteger(d.dueAt) ? d.dueAt as number : 0)
+
 /** Whether a rule lets duty `d` of `before` be gone after the commit `op` (see the header). */
 export function dutyDrops (before: Readonly<HolderState>, after: Readonly<HolderState>, d: Readonly<Duty>, op: CommitOp): boolean {
-  if (op.kind === 'resume') return true
-  const relId = (d as { relId?: unknown }).relId
-  const relGone = typeof relId === 'string' && (!Object.hasOwn(after.relationships, relId) || isHusk(after.relationships[relId]))
-  if (d.kind === 'continuity') return relGone || op.kind === 'receive'
+  // (a) a registered handler ran it (only a kind the engine registers runs)
+  if (op.kind === 'resume' && (op.fulfilled ?? []).includes(d.id)) return true
+  if (!isKnownDuty(d as Duty)) return false                                    // otherwise never, on any operation
+  const relId = (d as { relId?: unknown }).relId as string
+  const relGone = !Object.hasOwn(after.relationships, relId) || isHusk(after.relationships[relId])
+  if (d.kind === 'merge') return false
+  if (relGone) return true                                                      // (b) departed, moved
+  if (d.kind === 'continuity') {
+    if (op.kind !== 'receive') return false
+    const label = (d as { tuple: string }).tuple
+    const t = before.relationships[relId]?.tuples.find((x) => x.ownPairLabel === label) ??
+      Object.values(before.relationships).flatMap((r) => r.tuples).find((x) => x.ownPairLabel === label)
+    if (!t) return false
+    const acked = op.ref !== undefined && Object.hasOwn(before.outbox, op.ref) ? before.outbox[op.ref] : undefined
+    if (acked && acked.recipient.rkid === t.rkid && (acked.type === CONTINUITY_PROBE_TYPE || acked.type === CONTINUITY_MAPPING_TYPE)) return true
+    return op.type === CONTINUITY_MAPPING_TYPE && op.rkid === t.rkid             // (e)
+  }
   const cls = classOfDuty(d as Duty)
   if (cls === null) return false
-  if (relGone) return true
-  // merged into one of its kind owed on the same relationship (the move at a
-  // chaining: several re-issues are one, 6596; one class-on per class; the
-  // highest profile revision)
-  if (Object.values(after.duties).some((x) => x.kind === d.kind && owedOn(x, relId as string, cls))) return true
-  const e = entryOf(after, after.relationships[relId as string])
-  return e !== undefined && !classOnToward(e, cls)
+  const e = entryOf(after, after.relationships[relId])
+  if (e !== undefined && !classOnToward(e, cls)) return true                    // (b) 6410
+  // (c) merged into one of its kind on the same relationship, urgency kept
+  const same = Object.values(after.duties).filter((x) => x.kind === d.kind && owedOn(x, relId, cls))
+  if (d.kind === 'reissue-mapping') {
+    const waits = (d as { awaitHead: string | null }).awaitHead
+    if (same.some((x) => dueOf(x) <= dueOf(d) && (waits !== null || (x as { awaitHead: string | null }).awaitHead === null))) return true
+  }
+  if (d.kind === 'profile' && same.some((x) => BigInt((x as { rev: string }).rev) >= BigInt((d as { rev: string }).rev))) return true
+  // (d) the anchor mapping went out on the relationship in this commit
+  if (cls === 'anchorMapping') {
+    const was = before.relationships[relId], now = after.relationships[relId]
+    const head = now.tuples.find((x) => x.ownPairLabel === now.activeHead)
+    const prior = was?.tuples.find((x) => x.ownPairLabel === now.activeHead)
+    if (head && prior && big(head.mappingOut.rev) > big(prior.mappingOut.rev)) return true
+  }
+  return false
 }
 
 function seqOutTransition (v: Violation[], where: string, b: Readonly<SeqOut<unknown>>, a: Readonly<SeqOut<unknown>>): void {

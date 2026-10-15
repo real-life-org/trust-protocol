@@ -145,7 +145,8 @@ import { emptyTuple } from '../state-builder.js'
 import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, liveRel, tupleByLabel, unionBindings } from './state.js'
 import { assembledBodies, assemblyStep, canComplete, chunkDocument, discardAssemblies, pairShared } from './star.js'
 import { mergeDutiesAfter, mergeInto } from './entries.js'
-import { afterChain, classOfDuty, classOnDuty, followClasses, moveDuties } from './duties.js'
+import { afterChain, classOnDuty, followClasses, moveDuties } from './duties.js'
+import { isKnownDuty } from '../codec.js'
 
 /** The registered task types of 6a (Delivery §4.4, 6810). */
 export const CONTINUITY_PROBE_TYPE = 'https://real-life.org/trust-tasks/continuity-probe/0.1'
@@ -366,8 +367,8 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
   for (const [id, d] of Object.entries(state.duties)) {
     const relId = (d as { relId?: unknown }).relId
     if (relId !== Rn.id || d.kind === 'merge') { duties[id] = d; continue }
-    if (d.kind === 'continuity') duties[id] = { ...d, relId: R0.id } as Duty
-    else if (classOfDuty(d) !== null) duties[id] = d                    // moved below (moveDuties)
+    if (d.kind === 'continuity' && isKnownDuty(d)) duties[id] = { ...d, relId: R0.id } as Duty
+    else duties[id] = d   // class duties move below (moveDuties); unknown kinds stay as they are
   }
   const rotations: HolderState['rotations'] = {}
   for (const [id, r] of Object.entries(state.rotations)) {

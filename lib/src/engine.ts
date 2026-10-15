@@ -828,8 +828,12 @@ class HolderEngine implements Engine {
       const next: HolderState = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts }
       const text = encodeState(next)   // validates; an invalid next state is a programming error
       if (this.#check) {
-        const d = r.detail as { disposition?: string, digest?: string } | undefined
-        this.#check(state, next, op.kind === 'receive' ? { kind: 'receive', ...(d?.disposition !== undefined ? { disposition: d.disposition } : {}), ...(d?.digest !== undefined ? { digest: d.digest } : {}) } : op)
+        const d = (r.detail ?? {}) as { disposition?: string, digest?: string, type?: string, ref?: string, rkid?: string, fulfilled?: string[] }
+        const pick = <K extends keyof typeof d>(k: K) => (d[k] !== undefined ? { [k]: d[k] } : {})
+        this.#check(state, next,
+          op.kind === 'receive' ? { kind: 'receive', ...pick('disposition'), ...pick('digest'), ...pick('type'), ...pick('ref'), ...pick('rkid') }
+            : op.kind === 'resume' ? { kind: 'resume', fulfilled: d.fulfilled ?? [] }
+              : op)
       }
       let res
       try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {
@@ -1134,7 +1138,7 @@ class HolderEngine implements Engine {
         }
         if (effects && jcs(effects) !== jcs(cur.effects)) cur = { ...cur, effects }
         return {
-          state: cur, emit, events, outbound: drafts, release,
+          state: cur, emit, events, outbound: drafts, release, detail: { fulfilled },
           ...(renames.length ? { renames } : {}),
           ...(nextDueAt !== undefined ? { nextDueAt } : {}),
         }
@@ -1236,7 +1240,7 @@ class HolderEngine implements Engine {
             return {
               state: { ...next, effects: { ...next.effects, [plan.digest]: cached(null) } },
               events,
-              detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE },
+              detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE, ref: plan.ref },
             }
           }
           case 'task': {
@@ -1256,7 +1260,7 @@ class HolderEngine implements Engine {
               ...(r.duties ? { duties: r.duties } : {}),
               ...(r.renames ? { renames: r.renames } : {}),
               release: [ackOutbound(plan.ack, 1)],
-              detail: { disposition: 'unique', digest: plan.digest, type: plan.type },
+              detail: { disposition: 'unique', digest: plan.digest, type: plan.type, rkid: plan.arrival.rkid },
             }
           }
         }

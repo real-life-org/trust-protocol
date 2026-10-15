@@ -84,6 +84,7 @@ import {
 } from './state.js'
 import { viewDigest } from './star.js'
 import { dropOff, followClasses } from './duties.js'
+import { isKnownDuty } from '../codec.js'
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 const cmpDec = (a: Dec, b: Dec): number => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0 }
@@ -590,7 +591,8 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
   const duties: HolderState['duties'] = {}
   for (const [id, d] of Object.entries(state.duties)) {
     const relOf = (d as { relId?: unknown }).relId
-    if (typeof relOf === 'string' && leaving.has(relOf) && d.kind !== 'merge') continue
+    // a duty of a kind (or version) this library does not know is kept as it is
+    if (typeof relOf === 'string' && leaving.has(relOf) && d.kind !== 'merge' && isKnownDuty(d)) continue
     duties[id] = d
   }
   const rotations: HolderState['rotations'] = {}
