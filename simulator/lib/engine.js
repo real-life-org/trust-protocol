@@ -94,7 +94,10 @@
 //     (note §4.2 step 3). nextDueAt comes from the final duty set, the
 //     duties created in this resume included: a future dueAt, or `when` for
 //     duty work runnable now that did not run; a duty that ran and stayed
-//     (not-due, refused) sets no timer. New documents of duties count in too
+//     (not-due, refused) sets no timer while its record is unchanged since
+//     that run. A duty whose kind changed since the plan is not run by the
+//     planned handler; the next resume dispatches it. New documents of
+//     duties count in too
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -637,19 +640,21 @@ class HolderEngine {
                 let cur = !emit.length && !events.length ? state : { ...state, outbox };
                 const drafts = [];
                 const duties = [];
-                const kept = new Set(); // ran and stayed: not-due or refused
+                // ran and stayed (not-due, refused): id → its record as it ran
+                const kept = new Map();
                 const values = prepared.value;
                 for (const { duty, h } of run) {
                     if (!Object.hasOwn(cur.duties, duty.id))
                         continue; // fulfilled or dropped meanwhile
                     const now = cur.duties[duty.id];
-                    if (now.v !== h.v || !dutyRunnable(now, h, cur, when))
+                    // another kind or version since the plan: the next resume dispatches it
+                    if (now.kind !== duty.kind || now.id !== duty.id || now.v !== h.v || !dutyRunnable(now, h, cur, when))
                         continue; // the final pass sets its timer
                     if (h.prepare && jcs(now) !== jcs(duty))
                         continue; // prepared on other data
                     const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when);
                     if (r === 'not-due' || isRefusal(r)) {
-                        kept.add(duty.id);
+                        kept.set(duty.id, jcs(now));
                         continue;
                     }
                     const left = { ...r.state.duties };
@@ -662,10 +667,11 @@ class HolderEngine {
                 // the timer from the final duty set, new duties included: a future
                 // dueAt, or `when` for work runnable now that did not run (deferred,
                 // newly created, newly unblocked); a duty that ran and stayed
-                // (not-due, refused) sets none
+                // (not-due, refused) sets none while its record is unchanged since
+                // its run — changed by a later duty, it counts like any other
                 for (const d of [...Object.values(cur.duties), ...duties]) {
                     const h = handlers().get(d.kind);
-                    if (!h || d.v !== h.v || kept.has(d.id))
+                    if (!h || d.v !== h.v || kept.get(d.id) === jcs(d))
                         continue;
                     if (dutyDue(d) > when)
                         due(dutyDue(d));
