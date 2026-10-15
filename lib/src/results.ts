@@ -42,7 +42,7 @@ export type ReceiveFailure =
   | 'decryption-failed'    // stage 3
   | 'wrong-recipient'      // stage 5
   | 'unknown-type'         // stage 6
-  | 'validation-failed'    // stages 8, 9
+  | 'validation-failed'    // stages 6 (the entry's proof declaration), 8, 9
   | 'stale-issuance'       // stage 8
   | 'gate-future'          // stage 9
   | 'consumed-challenge'   // stage 9

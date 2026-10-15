@@ -170,6 +170,10 @@ export interface CommandDef<I = any, P = any> {
  * state touches `effects` is a programming error and throws.
  */
 export interface TaskHandler<T = any, P = any> {
+  /** the registry entry's proof declaration (Delivery 4.4): whether the
+   *  document itself carries a `proof` (its artifacts' own MACs and
+   *  signatures are the payload's business); checked at stage 6 */
+  proof: 'absent' | 'required'
   decode: (payload: unknown) => T | TaskRefusal
   prepare?: (ctx: PrepareCtx, doc: ReceivedDocument<T>, arrival: Arrival) => Promise<P | TaskRefusal>
   apply: (state: Readonly<HolderState>, prepared: Prepared<P>, doc: ReceivedDocument<T>, arrival: Arrival) => Applied | TaskRefusal
@@ -465,6 +469,7 @@ class HolderEngine implements Engine {
         if (SIGNATURE_CLASS.has(uri)) throw new Error(`${uri} is signature-class: its signed ack is not built yet (module ${m.name})`)
         if (tasks.has(uri)) throw new Error(`duplicate task ${uri} (module ${m.name})`)
         if (typeof h?.apply !== 'function' || typeof h.decode !== 'function') throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`)
+        if (h.proof !== 'absent' && h.proof !== 'required') throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`)
         tasks.set(uri, Object.freeze({ ...h }))
       }
       for (const [kind, h] of Object.entries(m.duties ?? {})) {

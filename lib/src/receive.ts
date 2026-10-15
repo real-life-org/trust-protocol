@@ -11,7 +11,14 @@
 //        recipient = the own anchor of the label the arrival rkid derives
 //        under (addresses)
 //   6    dispatch by the full type URI with version: the built-in
-//        delivery-ack path, else the task register, else unknown-type
+//        delivery-ack path, else the task register, else unknown-type;
+//        then the entry's proof declaration. Delivery §3 wants `proof`
+//        absent on every type but delivery-ack and registry-declaration,
+//        and §4.4 puts the declaration into the registry entry; the
+//        profile schema can name only the types it knows, so for
+//        companion types the rule is enforced here, the earliest stage at
+//        which the receiver holds the entry: a mismatch is
+//        failed(validation-failed)
 //   7–8  the handler's decode (malformed at 7, any other refusal at 8),
 //        the core's closed acceptance binding (Delivery 4.4: the arrival
 //        tuple is selected by rkid, the document's issuer is its
@@ -114,6 +121,7 @@ export type ReceivePlan =
 
 /** The handler surface the core needs (engine.ts TaskHandler). */
 export interface TaskEntry {
+  proof: 'absent' | 'required'
   decode (payload: unknown): unknown
   prepare? (ctx: PrepareCtx, doc: ReceivedDocument, arrival: Arrival): Promise<unknown>
 }
@@ -186,6 +194,7 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   // 6 — the task register, by the full type URI (no prefix, no fallback)
   const h = tasks.get(doc.type as string)
   if (!h) return failed('unknown-type', 6, { digest })
+  if ((h.proof === 'absent') !== (doc.proof === undefined)) return failed('validation-failed', 6, { digest })
   // 7–8 — decode, the closed acceptance binding, the handler's preparation
   const payload = h.decode(doc.payload)
   if (isTaskRefusal(payload)) return failed(payload.reason, payload.reason === 'malformed' ? 7 : 8, { digest })
