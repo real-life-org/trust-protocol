@@ -51,6 +51,8 @@
 //     (highest verifiedSeq); displayName is that profile's name
 //   - deliveryStatus(x) lists the outbox items whose digest or threadId is
 //     x, by first submission, then digest; an unknown x lists none
+//   - relationships: the entry's own (relIds), in that order; chainedFrom
+//     the husks chained into each (chainedInto), by id
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
 import { triasOf } from './state.js';
@@ -136,6 +138,10 @@ const project = (state, c, ix) => {
         commitSeq: state.commitSeq,
         id: c.id,
         aliases: [...c.aliases],
+        relationships: own.map((r) => ({
+            id: r.id, tuples: r.tuples.length,
+            chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
+        })),
         ...(profile?.name !== undefined ? { displayName: profile.name } : {}),
         provenance: origin.provenance.kind,
         ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),

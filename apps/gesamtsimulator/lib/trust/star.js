@@ -109,23 +109,25 @@ import { PLAINTEXT_MAX, blindAnchor, buildStarChunks, starChunkMacOk, starChunkO
 import { tupleByRkid } from '../receive.js';
 import { sha256Hex } from '../sha256.js';
 import { triasOf } from '../state.js';
-import { ADMISSION_BOUND, activeTuple, classOnToward, entryRelationships, findContact } from './state.js';
+import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, entryRelationships, findContact } from './state.js';
 /** The registered task type that carries star@2 (Delivery §4.4, 5640). */
 export const STAR_TYPE = 'https://real-life.org/trust-tasks/star/0.2';
 /** The receiver's resource limit (5365): the highest seq an open assembly
  *  takes, per artifact. */
-export const ASSEMBLY_LIMIT = Object.freeze({ star: 1024, groupStar: 64 });
+export const ASSEMBLY_LIMIT = Object.freeze({ star: 1024, groupStar: 64, probe: 64 });
 const te = new TextEncoder();
 const inc = (d) => (BigInt(d) + 1n).toString();
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const refuse = (reason, ref) => ({ ok: false, reason, ...(ref ? { ref } : {}) });
 const bodyOf = (chunk) => chunk.body;
-/** Every contact's live relationships, by contact id, then relationship order. */
+/** Every contact's live relationships, by contact id, then relationship
+ *  order; a relationship behind two entries under the one its
+ *  verifications go to (2146), once. */
 export function recipients(state) {
     const out = [];
     for (const contact of Object.values(state.contacts).sort((a, b) => cmp(a.id, b.id))) {
         for (const rel of entryRelationships(state, contact)) {
-            if (rel.chainedInto !== null)
+            if (rel.chainedInto !== null || entryOf(state, rel)?.id !== contact.id)
                 continue;
             const tuple = activeTuple(rel);
             if (tuple && !tuple.deactivated)
@@ -164,7 +166,7 @@ function viewAt(art, state, r) {
 }
 /** Whether an in-flight delivery can still complete: every chunk acked,
  *  or still in the outbox and not failed (an ack refers to an outbox item). */
-const canComplete = (state, f) => f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed'));
+export const canComplete = (state, f) => f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed'));
 /** The in-flight deliveries whose completion data is still needed: any
  *  of their outbox items exists, failed ones included — an ack can still
  *  arrive late for it (Delivery §6.1 failed → delivered) and complete the
@@ -219,7 +221,7 @@ export function pendingOf(art, state) {
     return keys;
 }
 /** A key agreement on the tuple's own rkid with the counterpart key, or null. */
-async function pairShared(ctx, t, peerKeyAgreement = t.counterpartKeyAgreement) {
+export async function pairShared(ctx, t, peerKeyAgreement = t.counterpartKeyAgreement) {
     const x = xRawOfMk(peerKeyAgreement);
     if (!x)
         return null;
@@ -227,7 +229,7 @@ async function pairShared(ctx, t, peerKeyAgreement = t.counterpartKeyAgreement) 
     return a.status === 'available' ? a.shared : null;
 }
 /** Seal one chunk as its own document of the salt's thread (Delivery §4.4). */
-async function chunkDocument(ctx, type, issuer, t, contactId, threadId, chunk) {
+export async function chunkDocument(ctx, type, issuer, t, contactId, threadId, chunk) {
     const S = ctx.crypto.subtle;
     const doc = { id: ctx.entropy.id('doc.id'), type, issuer, recipient: t.counterpartAnchor, threadId, issuedAt: iso(ctx.when), payload: chunk };
     // 5190: within the Delivery Contract's plaintext limit, by construction
@@ -278,7 +280,7 @@ export function sweepOf(art) {
                 const rel = Object.hasOwn(cur.relationships, p.relId) ? cur.relationships[p.relId] : undefined;
                 const contact = findContact(cur, p.contactId);
                 const tuple = rel && activeTuple(rel);
-                if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id))
+                if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id) || entryOf(cur, rel)?.id !== contact.id)
                     continue;
                 const r = { contact, rel, tuple };
                 const { digest } = viewAt(art, cur, r);
@@ -333,6 +335,48 @@ export function ackOf(art) {
         return { state: { ...state, relationships: { ...state.relationships, [at.rel.id]: { ...at.rel, tuples } } } };
     };
 }
+/**
+ * The assembly rules after the salt checks and the MAC (5250–5290, 5330,
+ * 5365): a higher salt displaces the open assembly; a seq above `limit`
+ * is the resource limit; the same digest again a repeat; another thread,
+ * a repeated seq of other bytes, a second last or a seq beyond last
+ * reject the delivery; otherwise the chunk is held, or completes the
+ * assembly with every seq up to last present.
+ */
+export function assemblyStep(open, salt, body, threadId, digest, limit) {
+    const base = open && open.salt === salt ? open : { salt, chunks: {} };
+    const seq = BigInt(body.seq);
+    if (seq > BigInt(limit))
+        return { kind: 'limit' };
+    const held = Object.values(base.chunks);
+    const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] : undefined;
+    if (same && same.digest === digest)
+        return { kind: 'repeat' }; // 5250
+    if (held.some((h) => h.threadId !== threadId))
+        return { kind: 'reject', ref: 'RLTP-TRU-5280' };
+    if (same)
+        return { kind: 'reject', ref: 'RLTP-TRU-5260' };
+    const heldLast = held.find((h) => h.body.last);
+    if (body.last && heldLast)
+        return { kind: 'reject', ref: 'RLTP-TRU-5270' };
+    const last = body.last ? seq : heldLast ? BigInt(heldLast.body.seq) : null;
+    if (last !== null && (seq > last || held.some((h) => BigInt(h.body.seq) > last)))
+        return { kind: 'reject', ref: 'RLTP-TRU-5290' };
+    const chunks = { ...base.chunks, [body.seq]: { digest, threadId, body } };
+    if (last === null)
+        return { kind: 'hold', assembly: { salt, chunks } };
+    for (let i = 1n; i <= last; i++)
+        if (!Object.hasOwn(chunks, String(i)))
+            return { kind: 'hold', assembly: { salt, chunks } };
+    return { kind: 'complete', chunks, last };
+}
+/** The held bodies of a complete assembly, in seq order. */
+export const assembledBodies = (chunks, last) => {
+    const out = [];
+    for (let i = 1n; i <= last; i++)
+        out.push(chunks[String(i)].body);
+    return out;
+};
 /** The arrival tuple, if it is the active head of a live relationship (6.4, 5360). */
 function arrivalTuple(state, rkid) {
     const at = tupleByRkid(state, rkid);
@@ -375,40 +419,21 @@ export function taskOf(art, limit) {
             const ids = { relId: rel.id, tuple: t.ownPairLabel };
             // the chunk is authenticated: a violation rejects the whole delivery (5260–5310)
             const reject = (ref) => ({ kind: 'discard', ...ids, salt: body.salt, reason: 'rejected', ref });
-            // a higher salt displaces the open assembly (5330)
-            const base = inn.assembly && inn.assembly.salt === body.salt ? inn.assembly : { salt: body.salt, chunks: {} };
-            const seq = BigInt(body.seq);
-            if (seq > BigInt(limit))
+            const step = assemblyStep(inn.assembly, body.salt, body, doc.threadId, arrival.digest, limit);
+            if (step.kind === 'limit')
                 return { kind: 'discard', ...ids, salt: body.salt, reason: 'resource-limit', ref: 'RLTP-TRU-5365' };
-            const held = Object.values(base.chunks);
-            const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] : undefined;
-            if (same && same.digest === arrival.digest)
-                return { kind: 'repeat' }; // 5250
-            if (held.some((h) => h.threadId !== doc.threadId))
-                return reject('RLTP-TRU-5280');
-            if (same)
-                return reject('RLTP-TRU-5260');
-            const heldLast = held.find((h) => h.body.last);
-            if (body.last && heldLast)
-                return reject('RLTP-TRU-5270');
-            const last = body.last ? seq : heldLast ? BigInt(heldLast.body.seq) : null;
-            if (last !== null && (seq > last || held.some((h) => BigInt(h.body.seq) > last)))
-                return reject('RLTP-TRU-5290');
-            const chunks = { ...base.chunks, [body.seq]: { digest: arrival.digest, threadId: doc.threadId, body } };
-            let complete = last !== null;
-            for (let i = 1n; complete && i <= last; i++)
-                if (!Object.hasOwn(chunks, String(i)))
-                    complete = false;
-            if (!complete)
-                return { kind: 'hold', ...ids, assembly: { salt: body.salt, chunks } };
+            if (step.kind === 'repeat')
+                return { kind: 'repeat' };
+            if (step.kind === 'reject')
+                return reject(step.ref);
+            if (step.kind === 'hold')
+                return { kind: 'hold', ...ids, assembly: step.assembly };
             // the completing chunk: the union in seq order, validated, evaluated
-            const union = [];
-            for (let i = 1n; i <= last; i++)
-                union.push(...art.entries(chunks[String(i)].body));
+            const union = assembledBodies(step.chunks, step.last).flatMap((b) => art.entries(b));
             const done = await art.complete(ctx, { shared, from: t.counterpartAnchor, own, salt: body.salt, union, rel, tuple: t });
             if (!done.ok)
                 return reject(done.ref);
-            const contactId = (findContact(ctx.snapshot, t.entryId) ?? ctx.snapshot.contacts[rel.contactId])?.id ?? rel.contactId;
+            const contactId = entryOf(ctx.snapshot, rel)?.id ?? rel.contactId;
             return { kind: 'complete', ...ids, salt: body.salt, accepted: done.accepted, ...(done.memory ? { memory: done.memory } : {}), contactId };
         },
         // stage 9: the decision lands on the same snapshot
@@ -458,7 +483,7 @@ export function starView(state) {
         .sort((a, b) => cmp(a.member, b.member));
 }
 /** The entry a tuple's documents come from (2145): the star's sender. */
-const senderOf = (state, rel, t) => findContact(state, t.entryId)?.id ?? rel.contactId;
+const senderOf = (state, rel, t) => findContact(state, t.entryId)?.id ?? findContact(state, rel.contactId)?.id ?? rel.contactId;
 export async function starBlinds(ctx, anchors) {
     const out = {};
     if (!anchors.length)

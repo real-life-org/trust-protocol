@@ -36,9 +36,9 @@ const tuple = (t) => ({
     starIn: seqIn(),
     groupStarOut: seqOut(),
     groupStarIn: seqIn(),
-    probeOut: { seq: '0' },
+    probeOut: { seq: '0', inflight: {}, done: false },
     probeIn: { hwm: '0', lowerBound: '0', assembly: null },
-    continuityOut: { rev: '0', body: null, chosen: null, reported: null, aligned: false, due: null },
+    continuityOut: { rev: '0', body: null, proof: null, sent: [], chosen: null, reported: null, aligned: false, due: null },
     continuityIn: { rev: '0', body: null, recordPrior: null },
     mappingOut: t.issued
         ? { rev: '1', body: { type: 'anchor-mapping@4', placeholder: true }, underAnchor: OWN_ANCHOR }
@@ -83,7 +83,7 @@ export function sampleState() {
     };
     const rel = (id, contactId, tuples, extra = {}) => ({
         id, contactId, tuples, activeHead: tuples[tuples.length - 1].ownPairLabel, earliestAnchor: OWN_ANCHOR,
-        links: [], bindings: {}, heldCounterpartHead: null, memory: {}, provenance: { kind: 'ceremony', at: T }, chainedInto: null,
+        links: [], bindings: {}, heldCounterpartHead: null, memory: {}, provenance: { kind: 'ceremony', at: T }, chainedInto: null, firstVerified: null,
         ...extra,
     });
     s.relationships = {
