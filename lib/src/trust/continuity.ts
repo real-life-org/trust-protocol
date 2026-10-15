@@ -200,13 +200,18 @@ const flowOpen = (t: Readonly<Tuple>): boolean =>
  *  and issue it, so tick keeps them (engine keepKeys). */
 export function continuityKeys (state: Readonly<HolderState>): string[] {
   const out = new Set<string>()
+  let byLabel: Map<string, Tuple> | null = null       // every tuple by its own label, once per call
   for (const rel of Object.values(state.relationships)) {
     if (!liveRel(rel)) continue
     const t = activeTuple(rel)!
     if (!t.priorCandidates.length || !flowOpen(t)) continue
+    if (!byLabel) {
+      byLabel = new Map()
+      for (const r of Object.values(state.relationships)) for (const x of r.tuples) byLabel.set(x.ownPairLabel, x)
+    }
     for (const pc of t.priorCandidates) {
-      const at = tupleByLabel(state, pc.ownPairLabel)
-      if (at && at.tuple.deactivated) out.add(at.tuple.rkid)
+      const p = byLabel.get(pc.ownPairLabel)
+      if (p && p.deactivated) out.add(p.rkid)
     }
   }
   return [...out]
