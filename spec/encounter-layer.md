@@ -45,7 +45,9 @@ witnessed succession, specified separately in *RLTP Succession*
 
 This is an Editor's Draft with no standing beyond its own argument.
 Its rules and wire forms are stable enough to implement against and
-are implemented in the reference library (Appendix A). The credential
+are implemented in the reference library's holder (Appendix A), both
+paths of 5.8 included; a ceremony across several devices of one person
+is not, as one writer per holder stands in for them. The credential
 follows DTG Credentials Working Draft 0.6.0. The next expected change
 is the wire step to the DTG context of the DTG Implementer's Draft
 and the fields it defines, leaving the ceremony as it is. Open
@@ -1991,16 +1993,16 @@ carry them; it describes the library as it is.
 | Anchor and Multikey decoding, `eddsa-jcs-2022` proofs (2.3) | `crypto` | `anchorOfEd`, `edRawOfAnchor`, `mkOfX`, `xRawOfMk`, `diSign`, `diVerify`, `digestDoc` (emits `u`) |
 | Pair anchor derivation (4.4) | `identity` | `pairContext`, `labeledContext`, `canonicalLabel` |
 | Wire strings, challenges, cards, binding, credentials (5.3, 5.4, 6, 7) | `encounter` | `CEREMONY`, `CARD_VERSION`, `CRED_FORMAT`, `CRED_CONTEXT`, `DTG_CONTEXT`, `challengeOf` (17 random bytes → 22 characters), `cardBody` (the sent profile carries `sentTo` and `boundTo` together), `signCard`, `binding`, `issueCredential` |
-| Time parameters (9) | `ceremony` | `CHALLENGE_MAX_AGE`, `ISSUANCE_WINDOW`, `SKEW_TOLERANCE` |
-| Own-challenge state model and aging latch (5.3) | `ceremony` | `resolve` |
-| Common trunk, counter-step, resumption (5.8) | `ceremony` | `show`, `scan`, `counter`, `resumeEncounter`, `flushEncounter` |
-| Optical leg (5.8), record gate outcomes `gate-future`, `gate-expired` (5.5) | `ceremony` | `captureSentCard` |
-| Connected path, staged evaluation, acceptance steps 1–8 with their error codes (5.6, 5.8) | `ceremony` | `receiveEncounter` |
+| Time parameters (9) | `encounter` | `CHALLENGE_MAX_AGE`, `ISSUANCE_WINDOW`, `SKEW_TOLERANCE` |
+| Own-challenge state model and aging latch (5.3) | `encounter/ceremony` (holder) | the latch in the holder's state; `resolveChallenge` (`./internal`) |
+| Common trunk, counter-step, resumption (5.8) | `encounter/ceremony` (holder) | `createHolder`: `show`, `scan`, `decide` on the `encounter-confirm` prompt (the counter-step), `counter`, `resume` |
+| Optical leg (5.8), record gate outcomes `gate-future`, `gate-expired` (5.5) | `encounter/ceremony` (holder) | `captureSentCard` |
+| Connected path, staged evaluation, acceptance steps 1–8 with their error codes (5.6, 5.8) | `encounter/ceremony`, `receive` (holder) | `receive`, with the pure checks of `encounter` (`acceptTail`, `bundleForm`, `deliveryForm`) |
 | Known credential formats and their schemas (12) | `encounter` | `CRED_FORMATS`, `credentialSchemaOf` |
 | Normative schemas, embedded for offline validation (15) | `schemas`, `wire` | the three schemas of 15 and their generated types |
 
-The library's `ceremony` module operates on a host-owned world; the
-host carries storage and transport. The simulators under `simulator/`
+The holder keeps its state behind the Store port; the app carries
+storage and transport. The simulators under `simulator/`
 and `apps/gesamtsimulator/` run against the frozen build of the
 library.
 

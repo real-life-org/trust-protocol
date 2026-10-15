@@ -72,23 +72,17 @@ visible to anyone who lacks the seed.
 
 ## Status of This Document
 
-This is an Editor's Draft with no standing beyond its own argument. Its
-derivation of labeled contexts, the community anchor's generations among
-them, and of the carrier-relationship identity is implemented in the
-reference library; so is the pre-rotation binding (5.4), in the
-library's `visibility` module: it computes the binding, carries it in
-the self card and in every rotation, and discards a successor that does
-not meet the binding held for its predecessor (`rltp-trust` §6.3,
-condition 4b). The recovery context, the service identities and the
-device keys (5.5) are specified here and not implemented there, and
-neither is the rule that a device rotates only over the log it holds
-(5.4): the library's rotation writes no log entry. The layer defines no
-wire artifact; its conformance vectors are derivation vectors (Section
-16). The next expected changes are the implementation of the recovery
-context, the service identities, the device keys and the rotation over
-the log in the reference library, and the storage contract that Section
-6.3 names as a prerequisite. Open questions are listed in Section 15,
-and feedback is welcome via the issues of the publication repository
+This is an Editor's Draft with no standing beyond its own argument. The
+reference library implements the derivation of labeled contexts, the
+device keys (5.5) and the carrier-relationship identity, and on its
+holder the label register (Section 2) and the community anchor's
+rotation over the log with the pre-rotation binding (5.4); the recovery
+context and the service identities are not implemented, and one writer
+per holder stands in for the coordination of several devices. The layer
+defines no wire artifact; its conformance vectors are derivation vectors
+(Section 16). The next expected changes are the recovery context, the
+service identities and the coordination of a holder's devices. Open
+questions are listed in Section 15, and feedback is welcome via the issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 
 ## 1. Introduction (informative)
