@@ -210,6 +210,7 @@ const KNOWN_DUTIES: Record<KnownDuty['kind'], { v: number, shape: V }> = {
   continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural, lastAt: millis }) },
   merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str, witness: obj({ heads: rec(str), superseded: rec(set(str)) }) }, DUE) },
   rotation: { v: 1, shape: obj({ kind: str, v: positive, id: str, rotationId: str }, { ...DUE, attempt: natural, lastAt: millis }) },
+  'intro-ack': { v: 1, shape: obj({ kind: str, v: positive, id: str, act: str }, DUE) },
 }
 
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
@@ -283,6 +284,15 @@ const enactmentRecord = obj({
   thread: nullable(str), bundleDigest: nullable(str), threads: rec(str), sentCard: nullable(anyObj), counterPending: bool,
 })
 
+const introAct = obj({
+  key: str, act: str, role: lit('requester', 'mediator', 'target'),
+  status: lit('sent', 'acked', 'completed', 'failed', 'received', 'forwarded', 'consented', 'refused'),
+  issuedAt: millis, request: anyObj, requestCard: anyObj, reply: nullable(anyObj), replyCard: nullable(anyObj),
+  pins: obj({}, { requester: str, target: str, mediator: str }), threads: obj({ request: str }, { forward: str }),
+  at: millis, ackDelayMs: natural, ownLabel: nullable(str), ack: nullable(anyObj), replyForwarded: bool, vouchersSent: bool,
+  pendingVoucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
+}, { peerName: str })
+
 const codec0 = obj({
   codec: lit(0),
   commitSeq: dec,
@@ -312,7 +322,10 @@ const codec0 = obj({
   encounter: obj({
     challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
     records: keyed(enactmentRecord, 'own'),
-    introductions: rec(json),
+    introductions: keyed(introAct, 'key'),
+    offers: keyed(obj({ id: str, mediatorContactId: str, pin: str, target: str, provenance: lit('met', 'introduced'), at: millis }, { name: str }), 'id'),
+    designators: rec(str),
+    declarations: rec(obj({ issuer: str, role: str, revision: dec, constants: rec(str), at: millis })),
   }),
   joining: obj({
     preludes: rec(obj({ contactId: str, memberLabel: str, at: millis })),

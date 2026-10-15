@@ -506,6 +506,9 @@ export interface MergeDuty {
   witness: { heads: Record<string, string>, superseded: Record<string, string[]> }
 }
 
+/** The mediator's one ack of an act, at t_received + ack-delay (Trust 8640). */
+export interface IntroAckDuty { kind: 'intro-ack', v: 1, id: string, dueAt?: Millis, act: string }
+
 /** Step 2 of a running rotation (identity-state.ts): its log append, on
  *  resume, until the log holds the entry; after a failure due again after
  *  the retry backoff (attempt, lastAt). */
@@ -514,7 +517,7 @@ export interface RotationDuty { kind: 'rotation', v: 1, id: string, dueAt?: Mill
 // Every duty may carry `dueAt`: resume runs it only from then on and
 // counts it into nextDueAt (engine.ts).
 
-export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty | RotationDuty
+export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty | RotationDuty | IntroAckDuty
 /** A duty of a kind (or version) this library does not know: kept as is. */
 export interface UnknownDuty { kind: string, v: number, id: string, [field: string]: Json }
 /** Narrow with isKnownDuty (codec.ts) before switching on `kind`. */
@@ -579,9 +582,77 @@ export interface EncounterState {
   /** enactment records (5.5), by the own challenge value: the consumed-
    *  challenge history, kept for the life of the relation (5360) */
   records: Record<string, EnactmentRecord>
-  /** introduction acts (Trust §8), opaque until introduction graduates */
-  introductions: Record<string, Json>
+  /** introduction acts (Trust §8), by `<role>:<act id>`: per role (8320) */
+  introductions: Record<string, IntroAct>
+  /** introductions offered to this holder by a mediator, by prompt id */
+  offers: Record<string, IntroOffer>
+  /** the mediator's target designators (8610): designator → contact id */
+  designators: Record<string, string>
+  /** registry declarations held (Delivery §4.4), by `<issuer> <role>` */
+  declarations: Record<string, HeldDeclaration>
 }
+
+/** The roles of an introduction act (Trust §8). */
+export type IntroRole = 'requester' | 'mediator' | 'target'
+
+/** One role's view of one introduction act (8.1): its own lifecycle,
+ *  its pins and what 8200 retains, until the absolute lifetime (8310). */
+export interface IntroAct {
+  /** `<role>:<act>` */
+  key: string
+  act: string
+  role: IntroRole
+  /** requester: sent, acked, completed, failed; mediator: received,
+   *  forwarded, completed; target: received, consented, refused (8330–8380) */
+  status: 'sent' | 'acked' | 'completed' | 'failed' | 'received' | 'forwarded' | 'consented' | 'refused'
+  /** the request's issuedAt: the act's lifetime datum (8090) */
+  issuedAt: Millis
+  /** the request artifact and its card; the reply and its card (8200) */
+  request: Json
+  requestCard: Json
+  reply: Json | null
+  replyCard: Json | null
+  /** the pinned tuples, by own pair label (8270): the requester's and the
+   *  target's toward the mediator, the mediator's toward each side */
+  pins: { requester?: string, target?: string, mediator?: string }
+  /** the threads: the request's (requester ↔ mediator) and the forward's (mediator ↔ target) */
+  threads: { request: string, forward?: string }
+  /** requester: its send (t_sent); mediator: entering received; target: the forward's arrival */
+  at: Millis
+  /** the ack-delay the role computes with (8.4, Delivery §4.4) */
+  ackDelayMs: number
+  /** the own fresh pair label of the act (requester, target) */
+  ownLabel: string | null
+  /** mediator: the one ack value produced (8640) */
+  ack: Json | null
+  /** mediator: the reply forwarded and the vouchers sent (8360) */
+  replyForwarded: boolean
+  vouchersSent: boolean
+  /** requester, target: a voucher held pending its reply (8770), or accepted */
+  pendingVoucher: Json | null
+  vouched: boolean
+  /** target: the prompt asking for consent */
+  promptId: string | null
+  /** requester: the target's name as the offer carried it */
+  peerName?: string
+}
+
+/** An introduction offered by a mediator (this library's offer form). */
+export interface IntroOffer {
+  /** the prompt's id */
+  id: string
+  mediatorContactId: string
+  /** the own pair label toward the mediator, pinned at send (8270) */
+  pin: string
+  /** the mediator's opaque designator of the target (8610) */
+  target: string
+  name?: string
+  provenance: 'met' | 'introduced'
+  at: Millis
+}
+
+/** A registry declaration held for an (issuer, role) (Delivery §4.4). */
+export interface HeldDeclaration { issuer: string, role: string, revision: Dec, constants: Record<string, string>, at: Millis }
 
 /** An own challenge value issued on a displayed card (5.3). */
 export interface OwnChallenge {
@@ -664,7 +735,7 @@ export function emptyState (codec: number): HolderState {
     rotations: {},
     prompts: {},
     acts: {},
-    encounter: { challenges: {}, records: {}, introductions: {} },
+    encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
     joining: { preludes: {}, invites: {} },
   }
 }

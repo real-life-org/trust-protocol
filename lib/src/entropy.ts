@@ -21,7 +21,9 @@ export type EntropyPurpose =
   | 'group.seed'         // group address seed at founding
   | 'founding.nonce'     // relationship / group founding nonce (Identity §6.1, §7a.3)
   | 'drop.nonce'         // AEAD nonce of an introduction drop
-  | 'rendezvous.secret'  // the introduction rendezvous secret (Trust §8)
+  | 'rendezvous.secret'  // the introduction rendezvous secret (the probe's drop model)
+  | 'intro.act'          // an introduction act id, 32 bytes (Trust 8070)
+  | 'intro.target'       // a mediator's target designator, 32 bytes (Trust 8610)
   | 'groupstar.nonce'    // AEAD nonce of a group-star `c` (5.2b)
   | 'pad'                // padding and filler bytes
 
@@ -44,7 +46,7 @@ export type EntropyPurpose =
 
 export const ENTROPY_PURPOSES: readonly EntropyPurpose[] = Object.freeze([
   'seal.eph', 'seal.nonce', 'doc.id', 'thread.id', 'ack.id', 'challenge',
-  'group.seed', 'founding.nonce', 'drop.nonce', 'rendezvous.secret', 'groupstar.nonce', 'pad',
+  'group.seed', 'founding.nonce', 'drop.nonce', 'rendezvous.secret', 'intro.act', 'intro.target', 'groupstar.nonce', 'pad',
 ])
 
 export interface Entropy {

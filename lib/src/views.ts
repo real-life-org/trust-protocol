@@ -241,7 +241,8 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
   const out = records.length ? records.some((r) => r.out !== null) : tuples.some((t) => t.mappingOut.body !== null)
   const inn = records.length ? records.some((r) => r.in !== null) : tuples.some((t) => t.mappingIn.body !== null)
   const newest = [...records].sort((a, b) => b.at - a.at)[0]
-  const cardName = typeof (newest?.card as { name?: unknown } | undefined)?.name === 'string' ? (newest.card as { name: string }).name : undefined
+  const introduced = own.map((r) => r.memory.introducedName).find((n): n is string => typeof n === 'string')
+  const cardName = typeof (newest?.card as { name?: unknown } | undefined)?.name === 'string' ? (newest.card as { name: string }).name : introduced
   const trusted = isTrusted(c)
   const classes = {} as Record<TrustClass, ClassView>
   for (const cls of CLASSES) classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) }

@@ -67,3 +67,5 @@ export { encounterModule, ENCOUNTER_COMMANDS, resolve as resolveChallenge, idsOf
 export type { ShowInput, ScanInput, CaptureInput, CounterInput } from './encounter/ceremony.js'
 export { membershipModule, localAccess, MEMBERSHIP_COMMANDS, PRELUDE_REQUEST_TYPE, PRELUDE_REPLY_TYPE, WELCOME_TYPE } from './membership/holder.js'
 export type { FoundInput, InviteInput, VouchInput } from './membership/holder.js'
+export { introductionModule, INTRODUCTION_COMMANDS, OFFER_TYPE, ACK_DELAY } from './introduction/holder.js'
+export type { IntroduceInput } from './introduction/holder.js'

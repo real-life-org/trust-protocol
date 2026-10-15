@@ -7,7 +7,8 @@
 // module (membership/holder.ts: founding, the prelude and invite, the
 // accept on a group-invite prompt, admission and welcome, evidence and
 // vouches; and the in-library Access over the holder's groups where no
-// Access port is given), the identity module (identity-state.ts: device names, the rotation), the trust
+// Access port is given), the introduction module (introduction/holder.ts:
+// the three roles of Trust §8 and the mediator's start), the identity module (identity-state.ts: device names, the rotation), the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
 // trust/group-star.ts: the star and the group star, reconciled on resume
@@ -40,6 +41,7 @@
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
+//   introduce(requesterId, targetId, opts)    introduction.introduce    human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -75,6 +77,7 @@ import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js'
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js'
+import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js'
 import type { Json } from './core.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
 import type { ContactView, DeliveryStatusView, GroupView, ProfileView, PromptView } from './views.js'
@@ -151,6 +154,11 @@ export interface Holder {
    *  answer (Membership 1.2, 3.1); the contact decides on a group-invite
    *  prompt; human */
   invite (groupId: string, contactId: string, opts: HumanActOptions): Promise<ActResult>
+  /** the mediator's act (Trust §8, this library's start of it): the
+   *  requester gets an offer naming the target by an opaque designator,
+   *  with the mediator's ack-delay declaration; the requester decides on an
+   *  `introduction` prompt, the target on another; human */
+  introduce (requesterId: string, targetId: string, opts: HumanActOptions): Promise<ActResult>
   /** a vouch@2 for a member anchor whose consent pair this holder holds
    *  (Access 5.3, Membership 3.4); human */
   vouchFor (groupId: string, member: string, opts: HumanActOptions & { provenance?: 'met' | 'introduced' }): Promise<ActResult>
@@ -181,7 +189,7 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), ...(opts.modules ?? [])]
+  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), ...(opts.modules ?? [])]
   const check = opts.invariants === true
     ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
         const v = commitViolations(before, after, op)
@@ -216,6 +224,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
     vouchFor: (groupId: string, member: string, o: HumanActOptions & { provenance?: 'met' | 'introduced' }) =>
       human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
+    introduce: (requesterId: string, targetId: string, o: HumanActOptions) => human(INTRODUCTION_COMMANDS.introduce, { requesterId, targetId }, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

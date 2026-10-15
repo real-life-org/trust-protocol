@@ -421,6 +421,7 @@ export function dutyDrops (before: Readonly<HolderState>, after: Readonly<Holder
   // (a) a registered handler ran it (only a kind the engine registers runs)
   if (op.kind === 'resume' && (op.fulfilled ?? []).includes(d.id)) return true
   if (!isKnownDuty(d as Duty)) return false                                    // otherwise never, on any operation
+  if (d.kind === 'intro-ack') return false                                       // only its handler's run ends it
   // (f) the rotation's step 2 completed in this commit (the act's own path)
   if (d.kind === 'rotation') {
     const id = (d as { rotationId: string }).rotationId
