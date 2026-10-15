@@ -4,7 +4,7 @@
 // contacts it shows in common, deniability, the pause of 5.4, and vouch@2
 // over the channel. Integration of encounter → introduction → trust →
 // membership on createHolder.
-import { createPerson, createNetwork, meet, at, decideAll, editState, eventOf, contactNamed, labeledContext, seal, iso, TYPES, forgeMapping } from './holder.mjs'
+import { createPerson, createNetwork, meet, at, decideAll, editState, eventOf, contactNamed, labeledContext, pairContext, diSign, digestDoc, seal, unseal, iso, TYPES, forgeMapping } from './holder.mjs'
 
 let pass = 0, fail = 0
 const check = (c, m) => { if (c) { pass++; console.log(`  ok    ${m}`) } else { fail++; console.error(`  FAIL  ${m}`) } }
@@ -156,6 +156,20 @@ const dora = net.add(await createPerson('Dora', { when: T0 }))
   check(v.ok && eventOf(v, 'group.vouched'), 'Anton vouches: vouch@2, bound to Carla\'s accept, travels back as evidence')
   const again = await anton.h.vouchFor(groupId, pend.member, at(t + 7 * MIN + 1))
   check(!again.ok && again.code === 'already-given', 'a second vouch is refused at the voucher')
+  // negatives at the receiving member, before the real vouch travels
+  const ownB = await labeledContext(berta.seed, berta.view.state.groups[groupId].memberLabel)
+  const evidence = (await unseal(v.outbound[0].envelope, ownB.x.priv)).document
+  const vouch = evidence.payload.evidence.vouches[0]
+  const ctxA = await labeledContext(anton.seed, anton.view.state.groups[groupId].memberLabel)
+  const { proof: _vp, ...vouchBody } = vouch
+  const foreign = await diSign(ctxA, { ...vouchBody, credentialSubject: { ...vouch.credentialSubject, endorsement: { ...vouch.credentialSubject.endorsement, accept: await digestDoc({ x: 'another accept' }) } } }, vouch.proof.created)
+  const rForeign = await berta.h.receive(await seal({ ...evidence, id: crypto.randomUUID(), payload: { evidence: { ...evidence.payload.evidence, vouches: [foreign] } } }, ownB.keyAgreement), t + 7 * MIN + 2)
+  check(rForeign.disposition === 'failed' && rForeign.ref === 'RLTP-MT-3810', 'a vouch coherently signed over a foreign accept digest dies at the accept binding (3810)')
+  const outsider = await pairContext(anton.seed, new Uint8Array(32).fill(0x77))
+  const rOut = await berta.h.receive(await seal({ ...evidence, id: crypto.randomUUID(), issuer: outsider.anchor }, ownB.keyAgreement), t + 7 * MIN + 3)
+  check(rOut.disposition === 'failed' && rOut.ref === 'RLTP-MT-3750', 'evidence from an anchor not on the roster, over a valid channel key, dies at the roster check (3750)')
+  await berta.refresh()
+  check(berta.view.groups[0].pending[0]?.vouches === 0 && berta.view.groups[0].members.length === 2, 'neither counted: still no admission')
   await net.send(anton, v.outbound, t + 8 * MIN)
   await net.settle(t + 9 * MIN)
   check(berta.view.groups[0].members.length === 3 && berta.view.groups[0].pending.length === 0, 'the rule of two is met: Carla admitted')
