@@ -392,7 +392,7 @@ function mappingTask (bound: bigint) {
         },
       }, S)
       if (infra !== null) throw infra   // a provider failure is no verdict on the mapping
-      if (!v.ok) return refuse('validation-failed', MAPPING_CONDITION_RULE[v.step])
+      if (!v.ok) return refuse('validation-failed', v.rule ?? MAPPING_CONDITION_RULE[v.step])
       return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)) }
     },
     // stage 9: condition 8 (6150–6170) and the transition

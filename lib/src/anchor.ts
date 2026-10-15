@@ -177,16 +177,16 @@ export async function verifyLineage (lineage: any[], self: string, subtle?: Subt
  * next that meets it, and a card whose anchor is that anchor carries it
  * as commit.
  */
-export async function verifyBindings (body: { lineage: any[], card: any }, held?: Map<string, string>, subtle?: SubtleCrypto): Promise<{ ok: true } | { ok: false, reason: string }> {
+export async function verifyBindings (body: { lineage: any[], card: any }, held?: Map<string, string>, subtle?: SubtleCrypto): Promise<{ ok: true } | { ok: false, reason: string, rule: 'RLTP-TRU-6115' | 'RLTP-TRU-6117' | 'RLTP-TRU-6118' }> {
   const L = body.lineage
   for (const [i, r] of L.entries()) {
-    if (i > 0 && !(await meetsBinding(r.body.next, L[i - 1].body.commit, subtle))) return { ok: false, reason: `element ${i}: next does not meet the commit of the element before it` }
+    if (i > 0 && !(await meetsBinding(r.body.next, L[i - 1].body.commit, subtle))) return { ok: false, reason: `element ${i}: next does not meet the commit of the element before it`, rule: 'RLTP-TRU-6115' }
     const h = held?.get(r.body.prev)
-    if (h !== undefined && !(await meetsBinding(r.body.next, h, subtle))) return { ok: false, reason: `element ${i}: next does not meet the binding held for its prev` }
+    if (h !== undefined && !(await meetsBinding(r.body.next, h, subtle))) return { ok: false, reason: `element ${i}: next does not meet the binding held for its prev`, rule: 'RLTP-TRU-6118' }
   }
-  if (L.length && body.card.body.commit !== L[L.length - 1].body.commit) return { ok: false, reason: 'card.commit is not the commit of the last element' }
+  if (L.length && body.card.body.commit !== L[L.length - 1].body.commit) return { ok: false, reason: 'card.commit is not the commit of the last element', rule: 'RLTP-TRU-6117' }
   const hc = held?.get(body.card.body.anchor)
-  if (hc !== undefined && body.card.body.commit !== hc) return { ok: false, reason: 'the card states another binding than the one held for its anchor' }
+  if (hc !== undefined && body.card.body.commit !== hc) return { ok: false, reason: 'the card states another binding than the one held for its anchor', rule: 'RLTP-TRU-6118' }
   return { ok: true }
 }
 /** Every anchor a lineage names, in chain order: the first prev, then each next. */
@@ -269,7 +269,9 @@ export async function buildAnchorMapping (i: MappingInput, subtle?: SubtleCrypto
   if (!theirX) throw new Error('addressee key agreement is not a multikey')
   return assembleAnchorMapping(body, await ecdh(i.pair.x.priv, theirX, subtle), await ecdh(i.self.x.priv, theirX, subtle), subtle)
 }
-/** §6.3 conditions 1–7 as numbered by verifyAnchorMapping, with the rule each one is. */
+/** §6.3 conditions 1–7 as numbered by verifyAnchorMapping, with the rule
+ *  each one is; for 4b the result's `rule` names the one of 6115, 6117,
+ *  6118 that failed. */
 export const MAPPING_CONDITION_RULE: Readonly<Record<string, string>> = Object.freeze({
   1: 'RLTP-TRU-6070', 2: 'RLTP-TRU-6080', 3: 'RLTP-TRU-6090', 4: 'RLTP-TRU-6100', '4a': 'RLTP-TRU-6110',
   '4b': 'RLTP-TRU-6118', 5: 'RLTP-TRU-6120', 6: 'RLTP-TRU-6130', 7: 'RLTP-TRU-6140',
@@ -290,7 +292,7 @@ export async function verifyAnchorMappingWith (
   m: any,
   at: { ownAnchor: string, pair: string, pairKeyAgreement: string, held?: Map<string, string>, agree: (theirX: Uint8Array) => Promise<Uint8Array | null> },
   subtle?: SubtleCrypto,
-): Promise<{ ok: true } | { ok: false, step: string }> {
+): Promise<{ ok: true } | { ok: false, step: string, rule?: string }> {
   try {
     if (!schemaOk('visibility-anchor-mapping.schema.json', m)) return { ok: false, step: '1' }
     const b = m.body
@@ -299,7 +301,8 @@ export async function verifyAnchorMappingWith (
     if (b.pair !== at.pair) return { ok: false, step: '3' }
     if (!(await verifyRaw(b.card.body.anchor, b.card.body, b.card.proof.proofValue, subtle))) return { ok: false, step: '4' }
     if (!(await verifyLineage(b.lineage, b.self, subtle)).ok) return { ok: false, step: '4a' }
-    if (!(await verifyBindings(b, at.held, subtle)).ok) return { ok: false, step: '4b' }
+    const vb = await verifyBindings(b, at.held, subtle)
+    if (!vb.ok) return { ok: false, step: '4b', rule: vb.rule }
     if (b.card.body.anchor !== b.self) return { ok: false, step: '5' }
     const cardX = xRawOfMk(b.card.body.keyAgreement)
     const pairX = xRawOfMk(at.pairKeyAgreement)
@@ -314,10 +317,12 @@ export async function verifyAnchorMappingWith (
     return { ok: true }
   } catch { return { ok: false, step: '1' } }
 }
-/** verifyAnchorMappingWith over the addressee's own pair Context. */
+/** verifyAnchorMappingWith over the addressee's own pair Context; the
+ *  probe-world form, which names the failed condition by its step only. */
 export async function verifyAnchorMapping (m: any, at: { own: Context, pair: string, pairKeyAgreement: string, held?: Map<string, string> }, subtle?: SubtleCrypto): Promise<{ ok: true } | { ok: false, step: string }> {
-  return verifyAnchorMappingWith(m, {
+  const v = await verifyAnchorMappingWith(m, {
     ownAnchor: at.own?.anchor, pair: at.pair, pairKeyAgreement: at.pairKeyAgreement, held: at.held,
     agree: (theirX) => ecdh(at.own.x.priv, theirX, subtle),
   }, subtle)
+  return v.ok ? v : { ok: false, step: v.step }
 }

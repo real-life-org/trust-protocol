@@ -912,7 +912,7 @@ class HolderEngine implements Engine {
           case 'task': {
             const h = tasks().get(plan.type)!
             const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival)
-            if (isTaskRefusal(r)) return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest } }
+            if (isTaskRefusal(r)) return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } }
             if (r.state.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`)
             return {
               state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },

@@ -133,7 +133,7 @@ const profileOk = (doc: unknown): boolean =>
   V.validate(doc, SCHEMAS['rltp-delivery-document.schema.json'], SCHEMAS['rltp-delivery-document.schema.json']).length === 0 &&
   calOK((doc as { issuedAt?: unknown }).issuedAt)
 
-const failed = (reason: ReceiveFailure, stage: ReceiveStageNo, extra: { digest?: string, key?: 'unknown' | 'retired' } = {}): ReceivePlan =>
+const failed = (reason: ReceiveFailure, stage: ReceiveStageNo, extra: { digest?: string, key?: 'unknown' | 'retired', ref?: string } = {}): ReceivePlan =>
   ({ kind: 'failed', result: { disposition: 'failed', reason, stage, ...extra } })
 
 /** The tuple whose own rkid is `rkid`, with its relationship. */
@@ -199,12 +199,12 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   if ((h.proof === 'absent') !== (doc.proof === undefined)) return failed('validation-failed', 6, { digest })
   // 7–8 — decode, the closed acceptance binding, the handler's preparation
   const payload = h.decode(doc.payload)
-  if (isTaskRefusal(payload)) return failed(payload.reason, payload.reason === 'malformed' ? 7 : 8, { digest })
+  if (isTaskRefusal(payload)) return failed(payload.reason, payload.reason === 'malformed' ? 7 : 8, { digest, ...(payload.ref !== undefined ? { ref: payload.ref } : {}) })
   if (!at || doc.issuer !== at.tuple.counterpartAnchor) return failed('validation-failed', 8, { digest })
   const rdoc = Object.freeze({ ...doc, payload }) as ReceivedDocument
   const arrival: Arrival = Object.freeze({ rkid, threadId: doc.threadId as string, digest, when: ctx.when })
   const value = h.prepare ? await h.prepare(ctx, rdoc, arrival) : undefined
-  if (isTaskRefusal(value)) return failed(value.reason, 8, { digest })
+  if (isTaskRefusal(value)) return failed(value.reason, 8, { digest, ...(value.ref !== undefined ? { ref: value.ref } : {}) })
   // the ack, sealed before the transaction (4.2: created inside the
   // effect's transaction — it commits with the cache entry or not at all)
   const key = await ackKey(ctx, at.tuple, own.anchor, at.tuple.counterpartAnchor)

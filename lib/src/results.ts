@@ -69,6 +69,9 @@ export type ReceiveResult =
      *  failed(malformed) at stage 2; 'retired' — a tombstone (or a key
      *  marked retired), failed(decryption-failed) at stage 3 */
     key?: 'unknown' | 'retired'
+    /** the rule the document failed, where its task handler names one
+     *  (TaskRefusal.ref), e.g. RLTP-TRU-6118 */
+    ref?: string
   }
 
 export type InfraErrorCode =
