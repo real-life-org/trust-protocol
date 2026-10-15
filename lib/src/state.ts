@@ -246,7 +246,10 @@ export interface SeqIn<A> {
 /** One star reconciliation pair (member, anchor head of its entry) (5610). */
 export interface StarPair { member: string, head: string }
 export type StarOut = SeqOut<StarPair>
-export type StarIn = SeqIn<{ salt: Dec, blinded: string[] }>
+/** A completed star as the receiver keeps it (trust/star.ts): its salt,
+ *  the blinded values that matched an anchor held for one of the holder's
+ *  contacts (6160), and those contacts' entry ids, both sorted. */
+export type StarIn = SeqIn<{ salt: Dec, blinded: string[], matches: string[] }>
 
 /** One group-star domain element (5730): member and memberOp present for
  *  sealed entries only, and a change of either diverges (5770). */
@@ -254,8 +257,10 @@ export type GroupStarItem =
   | { group: string, mode: 'digest' }
   | { group: string, mode: 'sealed', member: string, memberOp: string }
 export type GroupStarOut = SeqOut<GroupStarItem>
-/** Received group star: its entries {d, c} as accepted (5.2b). */
-export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }> }>
+/** A completed group star as the receiver keeps it (trust/group-star.ts):
+ *  its salt, the entries {d, c} whose d hit one of the holder's own
+ *  groups (5520), and those groups, sorted. */
+export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }>, groups: string[] }>
 
 /** A chunked document under assembly: chunk index → chunk. */
 export interface Assembly { salt: Dec, chunks: Record<string, Json> }
@@ -271,6 +276,12 @@ export interface Group {
   rules: { vouchThreshold: Dec }
   /** listed in the blinded group star (5.2b per-group switch) */
   listed: boolean
+  /** the own member anchor in G (the anchor of memberLabel) and the oid
+   *  naming its canonical admission, or the genesis where the holder
+   *  founded G (5400). Set where membership has materialized them; a
+   *  group without both is listed digest-only, never sealed. */
+  memberAnchor?: string
+  memberOp?: string
   /** the holder's Access view of the group, until membership graduates */
   membership: Json | null
 }

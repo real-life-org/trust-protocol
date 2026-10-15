@@ -101,6 +101,8 @@ import type { ClassOnDuty, Contact, Dec, Duty, HolderState, ReissueMappingDuty, 
 import {
   ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads,
 } from './state.js'
+import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, sweepOf, taskOf } from './star.js'
+import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js'
 
 const te = new TextEncoder()
 const V = makeValidator(SCHEMAS)
@@ -547,6 +549,9 @@ const blocked = (state: Readonly<HolderState>, why: Blocked): Applied | Refusal 
     : why === 'scope-exhausted' ? { ok: false, code: 'scope-exhausted', ref: 'RLTP-TRU-6310' }
       : { state: state as HolderState }
 
+/** The classes whose class-on (2850) the reconciliation of 5.4 discharges. */
+const RECONCILED: readonly TrustClass[] = ['star', 'groupStar', 'sealedGroupStar']
+
 const issueDuty = (lagMatters: boolean): DutyHandler<Issue | null> => ({
   v: 1,
   prepare: (ctx, duty) => {
@@ -556,7 +561,10 @@ const issueDuty = (lagMatters: boolean): DutyHandler<Issue | null> => ({
   },
   apply (state, duty, ctx) {
     const d = duty as ClassOnDuty | ReissueMappingDuty
-    if (d.kind === 'class-on' && d.cls !== 'anchorMapping') return 'not-due'   // its class's module delivers it
+    // 2850: the star and the group star go out through the reconciliation
+    // of 5.4, whose sweep runs in this same resume after the duties (5850)
+    if (d.kind === 'class-on' && RECONCILED.includes(d.cls)) return { state: state as HolderState }
+    if (d.kind === 'class-on' && d.cls !== 'anchorMapping') return 'not-due'   // its class's module delivers it (profile, PR 6)
     const chk = issuable(state, d.contactId, d.relId, lagMatters)
     if (!chk.ok) return blocked(state, chk.why)
     const p = ctx.prepared.value
@@ -580,23 +588,36 @@ const reissueAwaits = (state: Readonly<HolderState>, duty: Duty): boolean => {
 export interface TrustModuleOptions {
   /** the deliverable set's bound (2050); another value is for tests only */
   admissionBound?: bigint
+  /** the receiver's resource limit of 5365 (highest seq of an open
+   *  assembly) for star and group star; default ASSEMBLY_LIMIT, another
+   *  value is for tests only */
+  assemblyLimit?: number
 }
 
 /** The trust module createHolder builds in (see the header). */
 export function trustModule (opts: TrustModuleOptions = {}): HolderModule {
   const bound = opts.admissionBound ?? ADMISSION_BOUND
   if (typeof bound !== 'bigint' || bound < 0n || bound > ADMISSION_BOUND) throw new RangeError('admissionBound must be a bigint within [0, 10^18 − 1]')
+  const limit = opts.assemblyLimit
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) throw new RangeError('assemblyLimit must be a positive integer')
   return Object.freeze({
     name: 'trust',
     commands: Object.freeze({
       ...commands,
       [TRUST_COMMANDS.recover]: { human: false, apply: (state: Readonly<HolderState>) => recommitEntries(state, bound) } satisfies CommandDef<unknown>,
     }),
-    tasks: Object.freeze({ [ANCHOR_MAPPING_TYPE]: mappingTask(bound) }),
+    tasks: Object.freeze({
+      [ANCHOR_MAPPING_TYPE]: mappingTask(bound),
+      [STAR_TYPE]: taskOf(STAR, limit ?? ASSEMBLY_LIMIT.star),
+      [GROUP_STAR_TYPE]: taskOf(GROUP_STAR, limit ?? ASSEMBLY_LIMIT.groupStar),
+    }),
     duties: Object.freeze({
       'class-on': issueDuty(true),
       'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
     }),
+    // 5.4: the star first, then the group star, each its own scope (5730)
+    sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
+    acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
   })
 }
 

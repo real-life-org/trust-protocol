@@ -40,6 +40,10 @@ export type HolderEvent = EventBase & (
   /** resume found a duty of a registered kind at a version no handler
    *  knows: kept untouched, announced once per resume (engine.ts) */
   | { type: 'duty.unsupported', dutyId: string, kind: string, v: number }
+  /** a star (5.2a) completed on a relationship: its accepted snapshot changed */
+  | { type: 'star.accepted', contactId: string, relationshipId: string, salt: Dec }
+  /** a group star (5.2b) completed on a relationship; sharedGroups may have changed */
+  | { type: 'groupStar.accepted', contactId: string, relationshipId: string, salt: Dec }
 )
 
 export type HolderEventType = HolderEvent['type']
