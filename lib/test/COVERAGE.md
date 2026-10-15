@@ -95,7 +95,7 @@ obsolete as a whole (encounter review 9, the anchor head after a split).
 | one relationship: an unlinked change refused, a rotation stays (791) | trust-mapping "condition 8 …", identity "rotation: happy path …" |
 | review 4: the three-step copy attack (807) | ported |
 | review 4: two heads, a superseded head does not merge (828) | ported |
-| review 4: the other direction merges (848) | ported with the current expectation: no merge in the 6580 direction under 6540 read literally; the incoming direction reads 6590, an open point for Trust 0.32 |
+| review 4: the other direction merges (848) | ported with today's behaviour pinned (no merge in the 6580 direction); open point for Trust 0.32: 6540/6580/6590 in the rotation direction, not justified normatively |
 | review 4: a higher revision with an unchanged self (864) | ported |
 | two successors, r1 then r2 (903) | ported; changed: the forged A → X is refused on its relationship (6118, the binding held since its first mapping, 6610) instead of splitting off |
 | two successors, r2 then r1 (903) | ported, as above |

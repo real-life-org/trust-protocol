@@ -74,6 +74,15 @@
 //     merge of unmapped relationships at the first mapping; open point for
 //     Trust 0.32. A relationship whose entry's other relationships hold no
 //     anchor yet stays
+//
+// Open point for Trust 0.32: 6540/6580/6590 in the rotation direction;
+// today's behaviour is pinned, not justified normatively. The incoming
+// relationship is joined against the links its entry held before the
+// verification (the 6590 rationale, mergeDutiesAfter), the 6580 direction
+// (an entry's anchor head changed) against the other entry's current
+// links; so a relationship rotating up to a head another entry's lineage
+// extends opens no merge, while the same relationships arriving the other
+// way round can (test/trust-ported.test.mjs, "the other direction").
 import type { CommandDef, DutyHandler, EventDraft, IdentityRename, Refusal, Applied } from '../engine.js'
 import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
 import {
