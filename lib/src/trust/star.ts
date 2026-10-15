@@ -131,6 +131,9 @@ export interface Artifact<V, A> {
   withIn (t: Readonly<Tuple>, i: SeqIn<A>): Tuple
   /** the reconciliation view toward contact `c` on relationship `rel` (sync) */
   view (state: Readonly<HolderState>, c: Readonly<Contact>, rel: Readonly<Relationship>): V[]
+  /** the view depends on state.contacts alone, the same toward every
+   *  recipient: computed once per contacts record */
+  uniform: boolean
   /** the chunks of one production */
   build (ctx: PrepareCtx, p: { shared: Uint8Array, own: string, tuple: Readonly<Tuple>, salt: Dec, view: V[] }): Promise<Json[] | null>
   chunkOk (chunk: unknown): boolean
@@ -173,6 +176,20 @@ const inFlight = (state: Readonly<HolderState>, o: Readonly<SeqOut<unknown>>, vi
   Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && jcs(f.view) === viewText &&
     f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed')))
 
+/** A uniform view, once per contacts record (the record is replaced on
+ *  every change of a contact, so the cache cannot go stale). */
+const uniformViews = new WeakMap<object, Map<string, { view: unknown[], text: string }>>()
+
+/** The view toward a recipient and its canonical text. */
+function viewAt<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Recipient): { view: V[], text: string } {
+  if (!art.uniform) { const view = art.view(state, r.contact, r.rel); return { view, text: jcs(view) } }
+  let byKind = uniformViews.get(state.contacts)
+  if (!byKind) uniformViews.set(state.contacts, (byKind = new Map()))
+  let v = byKind.get(art.kind)
+  if (!v) { const view = art.view(state, r.contact, r.rel); byKind.set(art.kind, (v = { view, text: jcs(view) })) }
+  return v as { view: V[], text: string }
+}
+
 /** Whether the artifact is owed now on this recipient (5690–5720, 5830):
  *  the class on, the scope able to issue, the view diverging from the
  *  baseline (absent: by definition) and not already in flight. */
@@ -188,7 +205,7 @@ export function pendingOf<V, A> (art: Artifact<V, A>, state: Readonly<HolderStat
   const keys: string[] = []
   for (const r of recipients(state)) {
     if (!classOnToward(r.contact, art.cls)) continue
-    const text = jcs(art.view(state, r.contact, r.rel))
+    const { text } = viewAt(art, state, r)
     if (owed(art, state, r, text)) keys.push(`${art.kind}|${r.rel.id}|${r.tuple.ownPairLabel}|${text}`)
   }
   return keys
@@ -233,8 +250,7 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
       const out: Production<V>[] = []
       for (const r of recipients(st)) {
         if (!classOnToward(r.contact, art.cls)) continue
-        const view = art.view(st, r.contact, r.rel)
-        const viewText = jcs(view)
+        const { view, text: viewText } = viewAt(art, st, r)
         if (!owed(art, st, r, viewText)) continue
         const shared = await pairShared(ctx, r.tuple)
         if (!shared) continue
@@ -261,7 +277,7 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
         const tuple = rel && activeTuple(rel)
         if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id)) continue
         const r: Recipient = { contact, rel, tuple }
-        const text = jcs(art.view(cur, contact, rel))
+        const { text } = viewAt(art, cur, r)
         // 5110: the snapshot, the salt and the commit are one step — a
         // production prepared on another view or salt is not committed
         if (art.out(tuple).lastSalt !== p.baseSalt || text !== p.viewText || !owed(art, cur, r, text)) {
@@ -452,6 +468,7 @@ export const STAR: Artifact<StarPair, StarAccepted> = {
   inn: (t) => t.starIn,
   withIn: (t, i) => ({ ...t, starIn: i }),
   view: (state) => starView(state),
+  uniform: true,
   async build (ctx, p) {
     const S = ctx.crypto.subtle
     const k = await starKeyOf(p.shared, p.own, p.tuple.counterpartAnchor, p.salt, S)

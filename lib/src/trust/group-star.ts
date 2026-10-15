@@ -92,6 +92,7 @@ export const GROUP_STAR: Artifact<GroupStarItem, GroupAccepted> = {
   inn: (t) => t.groupStarIn,
   withIn: (t, i) => ({ ...t, groupStarIn: i }),
   view: groupStarView,
+  uniform: false,
   async build (ctx, p) {
     const groups: Record<string, Group> = ctx.snapshot.groups
     const theirX = xRawOfMk(p.tuple.counterpartKeyAgreement)
