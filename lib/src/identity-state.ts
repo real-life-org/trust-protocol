@@ -49,7 +49,8 @@
 //     card travels only inside anchor-mapping@4 here (6.1 card), so the
 //     re-issue of 6370 carries it; no duty of its own until the encounter
 //     (PR 7) carries a card elsewhere
-//   Without a Log port the rotation is refused (log-missing); at the last
+//   A throw of the Log port's head() at step 1 is InfraError('log'):
+//   nothing commits. Without a Log port the rotation is refused (log-missing); at the last
 //   generation 2^53 − 2 it is refused (scope-exhausted, Identity §5.4)
 //
 // Pure register helpers for the modules that open contexts (the encounter
