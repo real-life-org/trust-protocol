@@ -72,7 +72,7 @@
 //     requester's voucher travel on the request's thread, the target's on
 //     the forward's
 //   - an artifact outside its window is refused at stage 8 from its own
-//     bytes (8110); a refusal by a role's lifecycle (a late reply of a
+//     bytes (8110), the offer by its document's issuedAt; a refusal by a role's lifecycle (a late reply of a
 //     failed act, 8350; a reply after the cutoff, 8180) commits only the
 //     document's acknowledgement: the act is unchanged
 //   - the requester's profile in the request is its display name (the own
@@ -285,7 +285,12 @@ const offerTask: TaskHandler<Doc, null> = {
       (x.label !== undefined && (typeof x.label !== 'string' || !x.label.length || [...x.label].length > 64)) || Object.keys(x).some((k) => !['target', 'label'].includes(k))) return refuse('malformed')
     return x as Doc
   },
-  async prepare (ctx, doc) { return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed') },
+  async prepare (ctx, doc) {
+    // the act window, like the request's and the forward's (8110): a replay
+    // after the effect cache let the offer go opens no prompt again
+    if (!actWindowHolds(doc.issuedAt, ctx.when)) return refuse('validation-failed', 'RLTP-TRU-8110')
+    return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed')
+  },
   apply (state, _p, doc, arr) {
     const a = arrival(state, arr.rkid)!
     const o: IntroOffer = {
