@@ -17,11 +17,17 @@
 // rejection is not an effect and stays repeatable); a cached digest
 // answers 'duplicate-known' forever after, and a second delivery never
 // produces a second effect. receive() honors such a cache when given one.
+//
+// Two ways to name the receiver's key: receive() takes a resolver to the
+// private CryptoKey (the probe world's contexts); receiveByAgreement()
+// takes an asynchronous key agreement that answers with the shared secret
+// or why not (the holder's KeyProvider, which never hands out a key).
+// Both run the same stages. Every function here takes an optional
+// SubtleCrypto; without one it uses the platform's at call time.
 import { jcs, b64uOf, fromB64u } from './core.js';
 import { hkdf, xFromSeed, xRawOfMk, ecdh, digestDoc, rand } from './crypto.js';
 import { platformSubtle } from './crypto.js';
 const te = new TextEncoder();
-const S = platformSubtle;
 // canonical base64url or nothing — a second spelling of the same bytes
 // is a different string, and dedup digests are computed over strings
 const canonicalB64u = (s) => {
@@ -39,50 +45,43 @@ const canonicalB64u = (s) => {
 // ── sealed envelope (Delivery §5) ───────────────────────────────────────
 // X25519 ephemeral → HKDF('rltp/v1/seal') → AES-256-GCM (12-byte nonce,
 // 16-byte tag appended). Entropy is caller-suppliable for replay.
-const aesKey = async (shared, usage) => {
+const aesKey = async (shared, usage, S) => {
     if (shared.every((b) => b === 0))
         throw new Error('all-zero shared secret');
-    return S().importKey('raw', await hkdf(shared, 'rltp/v1/seal'), { name: 'AES-GCM' }, false, [usage]);
+    return S.importKey('raw', await hkdf(shared, 'rltp/v1/seal', 32, S), { name: 'AES-GCM' }, false, [usage]);
 };
-export async function seal(document, recipientKeyAgreement, { ephSeed, nonce } = {}) {
+export async function seal(document, recipientKeyAgreement, { ephSeed, nonce } = {}, subtle) {
     // a producer API never emits what the contract rejects (B-3): the only
     // envelope nonce is 96 bits, the only ephemeral seed 32 bytes
     if (ephSeed !== undefined && !(ephSeed instanceof Uint8Array && ephSeed.length === 32))
         throw new Error('ephSeed must be exactly 32 bytes');
     if (nonce !== undefined && !(nonce instanceof Uint8Array && nonce.length === 12))
         throw new Error('envelope nonce must be exactly 12 bytes (Delivery §5)');
-    const eph = await xFromSeed(ephSeed ?? rand(32));
+    const S = subtle ?? platformSubtle();
+    const eph = await xFromSeed(ephSeed ?? rand(32), S);
     const theirRaw = xRawOfMk(recipientKeyAgreement);
     if (!theirRaw)
         throw new Error('malformed recipient keyAgreement');
-    const key = await aesKey(await ecdh(eph.priv, theirRaw), 'encrypt');
+    const key = await aesKey(await ecdh(eph.priv, theirRaw, S), 'encrypt', S);
     const n = nonce ?? rand(12);
     const plaintext = te.encode(jcs(document));
     if (plaintext.length > 65536)
         throw new Error('oversize');
-    const ct = new Uint8Array(await S().encrypt({ name: 'AES-GCM', iv: n }, key, plaintext));
+    const ct = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: n }, key, plaintext));
     return { rkid: recipientKeyAgreement, epk: b64uOf(eph.pubRaw), nonce: b64uOf(n), ciphertext: b64uOf(ct) };
 }
-export async function unseal(env, xPriv) {
-    // total over ARBITRARY input (B-4): a foreign envelope with invalid or
-    // non-canonical base64url is 'malformed', never an exception
-    const nonce = canonicalB64u(env?.nonce), epkRaw = canonicalB64u(env?.epk), raw = canonicalB64u(env?.ciphertext);
-    if (!nonce || !epkRaw || !raw)
-        return { error: 'malformed' };
-    if (nonce.length !== 12 || epkRaw.length !== 32 || raw.length < 16)
-        return { error: 'malformed' };
-    if (raw.length - 16 > 65536)
-        return { error: 'oversize' }; // size bound BEFORE decryption
+/** Decrypt and parse under an agreed shared secret; never throws. */
+async function openShared(nonce, raw, shared, S) {
     let key;
     try {
-        key = await aesKey(await ecdh(xPriv, epkRaw), 'decrypt');
+        key = await aesKey(shared, 'decrypt', S);
     }
     catch {
         return { error: 'decryption-failed' };
     }
     let bytes;
     try {
-        bytes = await S().decrypt({ name: 'AES-GCM', iv: nonce }, key, raw);
+        bytes = await S.decrypt({ name: 'AES-GCM', iv: nonce }, key, raw);
     }
     catch {
         return { error: 'decryption-failed' };
@@ -104,6 +103,26 @@ export async function unseal(env, xPriv) {
         return { error: 'malformed' };
     }
 }
+export async function unseal(env, xPriv, subtle) {
+    // total over ARBITRARY input (B-4): a foreign envelope with invalid or
+    // non-canonical base64url is 'malformed', never an exception
+    const nonce = canonicalB64u(env?.nonce), epkRaw = canonicalB64u(env?.epk), raw = canonicalB64u(env?.ciphertext);
+    if (!nonce || !epkRaw || !raw)
+        return { error: 'malformed' };
+    if (nonce.length !== 12 || epkRaw.length !== 32 || raw.length < 16)
+        return { error: 'malformed' };
+    if (raw.length - 16 > 65536)
+        return { error: 'oversize' }; // size bound BEFORE decryption
+    const S = subtle ?? platformSubtle();
+    let shared;
+    try {
+        shared = await ecdh(xPriv, epkRaw, S);
+    }
+    catch {
+        return { error: 'decryption-failed' };
+    }
+    return openShared(nonce, raw, shared, S);
+}
 /**
  * The generic stages every delivery passes before its layer sees it.
  * World-neutral: keys come from the caller's resolver, the
@@ -117,7 +136,30 @@ export async function unseal(env, xPriv) {
  * as decryption-failed, indistinguishable from any other undecryptable
  * envelope); undefined means "unknown rkid" and fails stage 2.
  */
-export async function receive(env, keyForRkid, completedEffects) {
+export async function receive(env, keyForRkid, completedEffects, subtle) {
+    const resolve = async (rkid, epk) => {
+        const key = keyForRkid(rkid);
+        if (key === undefined)
+            return { status: 'unknown' };
+        if (key === null)
+            return { status: 'retired' };
+        try {
+            return { status: 'available', shared: await ecdh(key, epk, subtle ?? platformSubtle()) };
+        }
+        catch {
+            return { status: 'invalid' };
+        }
+    };
+    return receiveByAgreement(env, resolve, completedEffects ? (d) => completedEffects.has(d) : undefined, subtle);
+}
+/**
+ * The same stages over a key agreement: `agree(rkid, epk)` is asked once,
+ * after the envelope's closed form passed, and its answer decides stage 2
+ * (unknown) and feeds stage 3. `completed(digest)` is the completed-effect
+ * cache, read only.
+ */
+export async function receiveByAgreement(env, agree, completed, subtle) {
+    const S = subtle ?? platformSubtle();
     const stages = [];
     const step = (stage, label, ok) => { stages.push({ stage, label, ok }); return ok; };
     const e = env;
@@ -130,20 +172,24 @@ export async function receive(env, keyForRkid, completedEffects) {
     //     canonical; the rkid a decodable multikey the resolver knows
     const isObj = e !== null && typeof e === 'object' && !Array.isArray(e);
     const ctBytes = isObj ? canonicalB64u(e.ciphertext) : null;
+    const epkRaw = isObj ? canonicalB64u(e.epk) : null;
+    const nonce = isObj ? canonicalB64u(e.nonce) : null;
     const closedForm = isObj && Object.keys(e).length === 4
-        && canonicalB64u(e.epk)?.length === 32 && canonicalB64u(e.nonce)?.length === 12
+        && epkRaw?.length === 32 && nonce?.length === 12
         && ctBytes !== null && ctBytes.length >= 17 // tag + at least one byte (schema lower bound)
         && typeof e.rkid === 'string' && xRawOfMk(e.rkid) !== null;
-    const key = closedForm ? keyForRkid(e.rkid) : undefined;
-    if (!step(2, 'envelope: closed form · base64url canonical · epk 32 B · nonce 12 B · rkid known', closedForm && key !== undefined))
-        return { stages, disposition: 'failed(malformed)' };
+    const answer = closedForm ? await agree(e.rkid, new Uint8Array(epkRaw)) : { status: 'unknown' };
+    if (!step(2, 'envelope: closed form · base64url canonical · epk 32 B · nonce 12 B · rkid known', closedForm && answer.status !== 'unknown')) {
+        return { stages, disposition: 'failed(malformed)', ...(closedForm ? { key: 'unknown' } : {}) };
+    }
     // 3 — decryption: X25519 + HKDF(rltp/v1/seal) + the AES-256-GCM tag.
-    //     A tombstoned rkid (key === null) dies HERE, not at stage 2.
-    const opened = key === null ? { error: 'decryption-failed' } : await unseal(e, key);
+    //     A tombstoned rkid dies HERE, not at stage 2.
+    const opened = answer.status === 'available' ? await openShared(nonce, ctBytes, answer.shared, S) : { error: 'decryption-failed' };
     // only CRYPTO failures belong to stage 3; an authenticated plaintext
     // that defeats UTF-8 or JSON is a stage-4 malformed (review 3, M-2)
-    if (!step(3, 'decryption: X25519 + HKDF(rltp/v1/seal) + AES-256-GCM tag', opened.error !== 'decryption-failed' && opened.error !== 'oversize'))
-        return { stages, disposition: `failed(${opened.error})` };
+    if (!step(3, 'decryption: X25519 + HKDF(rltp/v1/seal) + AES-256-GCM tag', opened.error !== 'decryption-failed' && opened.error !== 'oversize')) {
+        return { stages, disposition: `failed(${opened.error})`, ...(answer.status === 'retired' ? { key: 'retired' } : {}) };
+    }
     if (opened.error === 'malformed') {
         step(4, 'parse — invalid UTF-8 or not JSON', false);
         return { stages, disposition: 'failed(malformed)' };
@@ -159,14 +205,14 @@ export async function receive(env, keyForRkid, completedEffects) {
     }
     let digest;
     try {
-        digest = await digestDoc(doc);
+        digest = await digestDoc(doc, S);
     }
     catch {
         step(4, 'parse — no canonical form (non-finite number)', false);
         return { stages, disposition: 'failed(malformed)' };
     }
     step(4, `parse + digest ${digest.slice(0, 14)}… · completed-effect cache`, true);
-    if (completedEffects?.has(digest))
+    if (completed?.(digest))
         return { stages, disposition: 'duplicate-known', document: doc, digest };
     return { stages, disposition: 'unique', document: doc, digest };
 }

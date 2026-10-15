@@ -182,12 +182,20 @@ const outboxItem = (x, p) => {
     if (o.envelope.rkid !== o.recipient.keyAgreement)
         fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
 };
+const DUE = { dueAt: millis };
+/** a retained ack: sealed to the counterpart key, like an outbox item */
+const storedAck = (x, p) => {
+    obj({ digest: str, envelope, threadId: str, recipient, sent: bool })(x, p);
+    const a = x;
+    if (a.envelope.rkid !== a.recipient.keyAgreement)
+        fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
+};
 const KNOWN_DUTIES = {
-    'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }) },
-    'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }) },
-    profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }) },
-    continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }) },
-    merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str }) },
+    'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
+    'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }, DUE) },
+    profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }, DUE) },
+    continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, DUE) },
+    merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str }, DUE) },
 };
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
 export const isKnownDuty = (d) => Object.hasOwn(KNOWN_DUTIES, d.kind) && KNOWN_DUTIES[d.kind].v === d.v;
@@ -214,6 +222,7 @@ const EVENT_FIELDS = {
     'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
     'profile.updated': [{ contactId: nullable(str) }],
     'anchor.rotated': [{ generation: dec }],
+    'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
 };
 const event = (x, p) => {
     if (!isObj(x))
@@ -241,7 +250,7 @@ const codec0 = obj({
     entryOrder: obj({ nextPos: dec, heads: set(str) }),
     groups: keyed(obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }), 'id'),
     profile: obj({ body: json, revision: dec }),
-    effects: rec(obj({ ack: json, expiresAt: millis })),
+    effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
     outbox: rec(outboxItem),
     duties: keyed(duty, 'id'),
     rotations: keyed(obj({

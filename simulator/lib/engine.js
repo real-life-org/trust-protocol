@@ -64,6 +64,31 @@
 //     listener's throw or rejection is dropped
 //   - the next state is validated by the codec before every commit; an
 //     invalid state is a programming error and throws
+//   - receive (receive.ts) is a built-in like tick: a failed disposition
+//     commits nothing, lastWhen included (like a refusal); duplicate-known
+//     commits only a raised lastWhen; a CAS conflict re-reads and runs the
+//     stages again, which re-checks the effect cache at stage 4
+//   - an ack is stored sealed (StoredAck: envelope, digest, recipient) in
+//     its effect, so every re-send is byte-identical down to the envelope.
+//     Its outbound carries attempt 1 when first emitted and 2 on every
+//     re-send (acks keep no counter). It stays `sent: false` until any
+//     report on its digest; resume re-emits every unsent ack on every call
+//     and never schedules them (nextDueAt ignores acks)
+//   - outbound of one commit, in order: outbox re-emissions, released
+//     acks, new documents
+//   - resume runs duties after the outbox, ordered by dueAt (absent: due
+//     always, counted as 0), then id. An Applied fulfils the duty and the
+//     engine removes it in the same commit; 'not-due' and a refusal keep it
+//     without a trace. A duty of a registered kind at another version is
+//     announced as duty.unsupported on every resume (a commit of its own);
+//     a kind no module registers is kept silently. A duty with awaitHead
+//     runs only when its handler's awaitHolds says so (none: never). A
+//     future dueAt and the new documents of duties count into nextDueAt
+//   - tick retains with the key-retention max(P90D, horizonMs): effects
+//     with their acks at expiresAt; terminal outbox items once the
+//     retention has passed since their last step, unless a kept journal
+//     entry names them; an address key not shown for the retention and
+//     the own rkid of no tuple that is not deactivated becomes a tombstone
 import { jcs, b64uOf } from './core.js';
 import { CODEC, decodeState, encodeState } from './codec.js';
 import { emptyState, toOpaque, triasOf } from './state.js';
@@ -71,6 +96,8 @@ import { CryptoUnavailableError, InfraError } from './results.js';
 import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
 import { freezeDeep } from './util-freeze.js';
+import { ACK_TYPE } from './ack.js';
+import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
 /** Defaults of the retry policy and the retention it implies. */
@@ -86,7 +113,7 @@ export const ENGINE_DEFAULTS = Object.freeze({
 /** Delivery's give-up range for horizonMs: [P1D, P90D]. */
 const HORIZON_MIN = DAY;
 const HORIZON_MAX = 90 * DAY;
-const BUILTIN = ['tick', 'resume', 'report'];
+const BUILTIN = ['tick', 'resume', 'report', 'receive'];
 const TASK_URI = /^[a-z][a-z0-9+.-]*:\S+\/[0-9]+\.[0-9]+$/;
 // ── helpers ────────────────────────────────────────────────────────────
 const ALGORITHMS = ['Ed25519', 'X25519', 'HKDF', 'HMAC', 'AES-GCM', 'SHA-256'];
@@ -190,6 +217,12 @@ const checkWhen = (when) => {
     if (!Number.isSafeInteger(when) || when < 0)
         throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`);
 };
+const isHalt = (r) => r?.halt === true;
+const actResult = (r) => {
+    if (isHalt(r))
+        throw new Error('engine: an act does not halt');
+    return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r;
+};
 // ── the engine ─────────────────────────────────────────────────────────
 class HolderEngine {
     registry;
@@ -261,10 +294,14 @@ class HolderEngine {
             for (const [uri, h] of Object.entries(m.tasks ?? {})) {
                 if (!TASK_URI.test(uri))
                     throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`);
+                if (uri === ACK_TYPE)
+                    throw new Error(`${uri} is built in: acks take the common path (module ${m.name})`);
+                if (SIGNATURE_CLASS.has(uri))
+                    throw new Error(`${uri} is signature-class: its signed ack is not built yet (module ${m.name})`);
                 if (tasks.has(uri))
                     throw new Error(`duplicate task ${uri} (module ${m.name})`);
-                if (typeof h?.apply !== 'function')
-                    throw new TypeError(`task ${uri} (module ${m.name}) needs apply`);
+                if (typeof h?.apply !== 'function' || typeof h.decode !== 'function')
+                    throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`);
                 tasks.set(uri, Object.freeze({ ...h }));
             }
             for (const [kind, h] of Object.entries(m.duties ?? {})) {
@@ -272,13 +309,17 @@ class HolderEngine {
                     throw new Error(`duplicate duty ${kind} (module ${m.name})`);
                 if (typeof h?.apply !== 'function')
                     throw new TypeError(`duty ${kind} (module ${m.name}) needs apply`);
+                if (!Number.isSafeInteger(h.v) || h.v < 1)
+                    throw new TypeError(`duty ${kind} (module ${m.name}) needs its version v, a positive integer`);
+                if (h.awaitHolds !== undefined && typeof h.awaitHolds !== 'function')
+                    throw new TypeError(`duty ${kind} (module ${m.name}): awaitHolds must be a function`);
                 duties.set(kind, Object.freeze({ ...h }));
             }
         }
         this.#commands = commands;
         this.#tasks = tasks;
         this.#duties = duties;
-        this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef() });
+        this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
             commands: Object.freeze([...commands.keys()]),
             tasks: Object.freeze([...tasks.keys()]),
@@ -372,14 +413,18 @@ class HolderEngine {
             const prepared = Object.freeze({ value, version, commitSeq: state.commitSeq });
             // 3 — apply, assemble, CAS
             const r = def.apply(state, prepared, input, at);
+            if (isHalt(r))
+                return r;
             if (isRefusal(r))
                 return { ok: false, code: r.code, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
             const drafts = r.outbound ?? [];
             const eventDrafts = r.events ?? [];
             const newDuties = r.duties ?? [];
             const emit = r.emit ?? [];
+            const release = r.release ?? [];
+            const extra = { ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
             if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
-                return { ok: true, outbound: [], events: [], ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) };
+                return { ok: true, outbound: [...release], events: [], ...extra };
             }
             const seq = inc(state.commitSeq);
             const events = eventDrafts.map((e, i) => ({ ...e, eventId: `${seq}.${i}`, commitSeq: seq, ...(def.human ? { actId } : {}) }));
@@ -417,7 +462,7 @@ class HolderEngine {
                 continue;
             // 4 — release
             this.#announce(seq, events);
-            return { ok: true, outbound: [...outbound, ...emit], events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) };
+            return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...extra };
         }
         throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`);
     }
@@ -436,38 +481,103 @@ class HolderEngine {
         return {
             human: false,
             apply(state, _p, _input, when) {
+                const retention = policy().retentionMs;
+                let dropped = false;
                 const keep = (rec, live) => {
                     const out = {};
-                    let dropped = false;
                     for (const [k, v] of Object.entries(rec)) {
-                        if (live(v))
+                        if (live(v, k))
                             out[k] = v;
                         else
                             dropped = true;
                     }
-                    return [out, dropped];
+                    return out;
                 };
-                const [effects, e1] = keep(state.effects, (x) => x.expiresAt > when);
-                const [prompts, e2] = keep(state.prompts, (x) => x.expiresAt === undefined || x.expiresAt > when);
-                const [acts, e3] = keep(state.acts, (x) => x.at + policy().retentionMs > when);
-                if (!e1 && !e2 && !e3)
+                // effects leave with their acks (Delivery 4.2); prompts at expiry; the
+                // act journal after the retention
+                const effects = keep(state.effects, (x) => x.expiresAt > when);
+                const prompts = keep(state.prompts, (x) => x.expiresAt === undefined || x.expiresAt > when);
+                const acts = keep(state.acts, (x) => x.at + retention > when);
+                // terminal outbox items, the retention after their last step, unless a
+                // kept journal entry still answers with them (replay needs the item)
+                const journaled = new Set(Object.values(acts).flatMap((a) => a.outboundDigests));
+                const outbox = keep(state.outbox, (it, digest) => {
+                    const t = triasOf(it);
+                    if (t !== 'delivered' && t !== 'failed')
+                        return true;
+                    const last = it.history.length ? it.history[it.history.length - 1].at : 0;
+                    return last + retention > when || journaled.has(digest);
+                });
+                // addresses (Delivery §5): a key not shown for the retention, and the
+                // own rkid of no live tuple, becomes a tombstone — its id alone, kept
+                // forever; tombstones never shrink
+                const live = new Set();
+                for (const r of Object.values(state.relationships))
+                    for (const t of r.tuples)
+                        if (!t.deactivated)
+                            live.add(t.rkid);
+                const tombstones = [...state.addresses.tombstones];
+                const keys = keep(state.addresses.keys, (k, rkid) => {
+                    if (k.lastShown + retention > when || live.has(rkid))
+                        return true;
+                    if (!tombstones.includes(rkid))
+                        tombstones.push(rkid);
+                    return false;
+                });
+                if (!dropped)
                     return { state: state }; // the engine still commits a raised lastWhen
-                return { state: { ...state, effects, prompts, acts } };
+                return { state: { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } };
             },
         };
     }
+    /** The duties resume runs now, in fixed order (dueAt, then id), the
+     *  registered kinds met at an unknown version, and the earliest future dueAt. */
+    #dutyPlan(state, when) {
+        const at = (d) => (Number.isSafeInteger(d.dueAt) ? d.dueAt : 0);
+        const order = Object.values(state.duties).sort((a, b) => (at(a) - at(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        const run = [];
+        const unsupported = [];
+        let nextDue;
+        for (const duty of order) {
+            const h = this.#duties.get(duty.kind);
+            if (!h)
+                continue; // a kind no module here registers: kept, silent
+            if (duty.v !== h.v) {
+                unsupported.push(duty);
+                continue;
+            }
+            if (at(duty) > when) {
+                nextDue = nextDue === undefined ? at(duty) : Math.min(nextDue, at(duty));
+                continue;
+            }
+            const awaits = duty.awaitHead;
+            if (typeof awaits === 'string' && !(h.awaitHolds?.(state, duty) ?? false))
+                continue;
+            run.push({ duty, h });
+        }
+        return { run, unsupported, ...(nextDue !== undefined ? { nextDue } : {}) };
+    }
     #resumeDef() {
         const policy = () => this.#policy;
+        const plan = (state, when) => this.#dutyPlan(state, when);
         return {
             human: false,
-            apply(state, _p, _input, when) {
+            // the due duties' preparations, against the snapshot apply will see
+            async prepare(ctx) {
+                const values = {};
+                for (const { duty, h } of plan(ctx.snapshot, ctx.when).run)
+                    if (h.prepare)
+                        values[duty.id] = await h.prepare(ctx, duty);
+                return values;
+            },
+            apply(state, prepared, _input, when) {
                 const p = policy();
                 const outbox = { ...state.outbox };
                 const emit = [];
                 const events = [];
                 let nextDueAt;
                 const due = (t) => { nextDueAt = nextDueAt === undefined ? t : Math.min(nextDueAt, t); };
-                // fixed order: by due time, then digest
+                // 1 — the outbox, by due time, then digest
                 const order = Object.keys(state.outbox).sort((a, b) => ((state.outbox[a].nextAttemptAt ?? 0) - (state.outbox[b].nextAttemptAt ?? 0)) || (a < b ? -1 : a > b ? 1 : 0));
                 for (const digest of order) {
                     const it = state.outbox[digest];
@@ -498,9 +608,41 @@ class HolderEngine {
                     emit.push(structuredClone({ digest, envelope: it.envelope, type: it.type, threadId: it.threadId, recipient: it.recipient, attempt }));
                     due(nextAttemptAt);
                 }
-                if (!emit.length && !events.length)
-                    return { state: state, ...(nextDueAt !== undefined ? { nextDueAt } : {}) };
-                return { state: { ...state, outbox }, emit, events, ...(nextDueAt !== undefined ? { nextDueAt } : {}) };
+                // 2 — duties, in the plan's order, each on the state the one before left
+                const { run, unsupported, nextDue } = plan(state, when);
+                if (nextDue !== undefined)
+                    due(nextDue);
+                for (const d of unsupported)
+                    events.push({ type: 'duty.unsupported', dutyId: d.id, kind: d.kind, v: d.v });
+                // the outbox changed only by a re-emission or a give-up (an event so far)
+                let cur = !emit.length && !events.length ? state : { ...state, outbox };
+                const drafts = [];
+                const duties = [];
+                const values = prepared.value;
+                for (const { duty, h } of run) {
+                    if (!Object.hasOwn(cur.duties, duty.id))
+                        continue; // fulfilled by an earlier handler
+                    const r = h.apply(cur, duty, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when);
+                    if (r === 'not-due' || isRefusal(r))
+                        continue;
+                    const left = { ...r.state.duties };
+                    delete left[duty.id];
+                    cur = { ...r.state, duties: left };
+                    drafts.push(...(r.outbound ?? []));
+                    events.push(...(r.events ?? []));
+                    duties.push(...(r.duties ?? []));
+                }
+                // the duties' new documents enter the outbox in #run, due at backoff(1)
+                if (drafts.length)
+                    due(dueAt(when, p.backoff(1)));
+                // 3 — acks still unsent (a restart between the receive commit and the
+                // send, or no report yet): re-emitted byte-identical, by effect digest
+                const release = Object.keys(state.effects).sort()
+                    .flatMap((d) => { const a = state.effects[d].ack; return a && !a.sent ? [ackOutbound(a, 2)] : []; });
+                return {
+                    state: cur, emit, events, outbound: drafts, duties, release,
+                    ...(nextDueAt !== undefined ? { nextDueAt } : {}),
+                };
             },
         };
     }
@@ -508,8 +650,16 @@ class HolderEngine {
         return {
             human: false,
             apply(state, _p, report, when) {
-                if (!Object.hasOwn(state.outbox, report.digest))
-                    return { ok: false, code: 'unknown-digest' };
+                if (!Object.hasOwn(state.outbox, report.digest)) {
+                    // an ack (outbox-less): any report says the app handed it over
+                    const eff = Object.keys(state.effects).find((d) => state.effects[d].ack?.digest === report.digest);
+                    if (eff === undefined)
+                        return { ok: false, code: 'unknown-digest' };
+                    const e = state.effects[eff];
+                    if (e.ack.sent)
+                        return { state: state };
+                    return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack: { ...e.ack, sent: true } } } } };
+                }
                 const it = state.outbox[report.digest];
                 const trias = triasOf(it);
                 const had = (s) => it.history.some((x) => x.status === s);
@@ -530,13 +680,12 @@ class HolderEngine {
                             return same;
                         step = { status: 'accepted', at: when };
                         break;
-                    case 'delivered':
-                        if (had('delivered'))
-                            return same;
+                    case 'delivered': {
                         // lateness is the holder's own history: delivered after failed
                         // (its own give-up or the adapter's) is late, whatever the flag says
-                        step = { status: 'delivered', at: when, late: trias === 'failed' };
-                        break;
+                        const m = markDelivered(state, report.digest, when);
+                        return m.event ? { state: { ...state, outbox: m.outbox }, events: [m.event] } : same;
+                    }
                     case 'failed':
                         if (had('failed') || trias === 'delivered')
                             return same;
@@ -551,9 +700,53 @@ class HolderEngine {
                 const outbox = { ...state.outbox, [report.digest]: { ...base, history: [...it.history, step] } };
                 const events = step.status === 'awaiting-transport' ? [] : [{
                         type: 'delivery.status', digest: report.digest, threadId: it.threadId, status: step.status,
-                        ...(step.status === 'delivered' ? { late: step.late } : {}),
                     }];
                 return { state: { ...state, outbox }, events };
+            },
+        };
+    }
+    #receiveDef() {
+        const tasks = () => this.#tasks;
+        const policy = () => this.#policy;
+        return {
+            human: false,
+            prepare: (ctx, env) => prepareReceive(ctx, env, tasks()),
+            apply(state, prepared, _env, when) {
+                const plan = prepared.value;
+                const cached = (ack) => ({ ack, expiresAt: Math.min(when + policy().retentionMs, Number.MAX_SAFE_INTEGER) });
+                switch (plan.kind) {
+                    case 'failed': return { halt: true, detail: plan.result };
+                    case 'duplicate': {
+                        // the stored ack, byte-identical; a terminal document has none
+                        const a = state.effects[plan.digest].ack;
+                        return { state: state, release: a ? [ackOutbound(a, 2)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } };
+                    }
+                    case 'ack': {
+                        // terminal: the sender-status update and its cache entry, no ack
+                        const m = markDelivered(state, plan.ref, when);
+                        return {
+                            state: { ...state, outbox: m.outbox, effects: { ...state.effects, [plan.digest]: cached(null) } },
+                            events: m.event ? [m.event] : [],
+                            detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE },
+                        };
+                    }
+                    case 'task': {
+                        const h = tasks().get(plan.type);
+                        const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival);
+                        if (isTaskRefusal(r))
+                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest } };
+                        if (r.state.effects !== state.effects)
+                            throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
+                        return {
+                            state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached(plan.ack) } },
+                            ...(r.outbound ? { outbound: r.outbound } : {}),
+                            ...(r.events ? { events: r.events } : {}),
+                            ...(r.duties ? { duties: r.duties } : {}),
+                            release: [ackOutbound(plan.ack, 1)],
+                            detail: { disposition: 'unique', digest: plan.digest, type: plan.type },
+                        };
+                    }
+                }
             },
         };
     }
@@ -583,8 +776,7 @@ class HolderEngine {
         }
         const d = def;
         return this.#enqueue(async () => {
-            const r = await this.#run(d, bound, when, actId, hash === undefined ? undefined : await hash);
-            return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r;
+            return actResult(await this.#run(d, bound, when, actId, hash === undefined ? undefined : await hash));
         });
     }
     tick(when) {
@@ -595,8 +787,7 @@ class HolderEngine {
             return Promise.reject(e);
         }
         return this.#enqueue(async () => {
-            const r = await this.#run(this.#builtins.tick, null, when);
-            return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r;
+            return actResult(await this.#run(this.#builtins.tick, null, when));
         });
     }
     resume(when) {
@@ -608,8 +799,8 @@ class HolderEngine {
         }
         return this.#enqueue(async () => {
             const r = await this.#run(this.#builtins.resume, null, when);
-            if (!r.ok)
-                throw new Error(`engine: resume refused (${r.code})`);
+            if (isHalt(r) || !r.ok)
+                throw new Error('engine: resume does not refuse');
             return { outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) };
         });
     }
@@ -623,8 +814,34 @@ class HolderEngine {
             return Promise.reject(e);
         }
         return this.#enqueue(async () => {
-            const r = await this.#run(this.#builtins.report, bound, when);
-            return r.ok ? { ok: true, outbound: r.outbound, events: r.events } : r;
+            return actResult(await this.#run(this.#builtins.report, bound, when));
+        });
+    }
+    receive(env, when) {
+        try {
+            checkWhen(when);
+        }
+        catch (e) {
+            return Promise.reject(e);
+        }
+        // bound at the call like any input; what is not JSON is no envelope
+        let bound;
+        try {
+            bound = bindInput(env);
+        }
+        catch {
+            bound = null;
+        }
+        return this.#enqueue(async () => {
+            const r = await this.#run(this.#builtins.receive, bound, when);
+            if (isHalt(r))
+                return r.detail;
+            if (!r.ok)
+                throw new Error('engine: receive does not refuse');
+            const d = r.detail;
+            return d.disposition === 'unique'
+                ? { disposition: 'unique', digest: d.digest, type: d.type, outbound: r.outbound, events: r.events }
+                : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound };
         });
     }
     subscribe(listener) {

@@ -39,10 +39,10 @@
 //
 // The Stage-2 holder (contract, engine core and facade):
 //
-//   holder-api        createHolder — the facade: act, decide, tick, resume,
-//                     report, subscribe, snapshot and the views: contacts,
-//                     contact, groups, profile, prompts, deliveryStatus
-//                     (receive follows in PR 3)
+//   holder-api        createHolder — the facade: act, decide, receive, tick,
+//                     resume, report, subscribe, snapshot and the views:
+//                     contacts, contact, groups, profile, prompts,
+//                     deliveryStatus
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters

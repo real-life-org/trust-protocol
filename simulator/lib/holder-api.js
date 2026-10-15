@@ -11,9 +11,11 @@
 // events; the app re-reads the views it shows, and a view read after the
 // announcement is at that commitSeq or later.
 //
-// `receive(env, when)` is deliberately absent: it arrives in PR 3 with
-// the Delivery stages 1–4 in the core and the task register's dispatch.
-// No stub stands in for it.
+// Delivery: `receive(env, when)` runs Delivery §6.2 in the core and
+// dispatches through the task register (receive.ts); `report` takes the
+// adapter's reports (on an ack's digest it marks the ack sent); `resume`
+// re-emits, runs due duties and re-emits unsent acks; `tick` expires and
+// retains (engine.ts).
 import { createEngine } from './engine.js';
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js';
 import { toOpaque } from './state.js';
@@ -32,6 +34,7 @@ export async function createHolder(ports, opts = {}) {
         tick: (when) => engine.tick(when),
         resume: (when) => engine.resume(when),
         report: (report, when) => engine.report(report, when),
+        receive: (env, when) => engine.receive(env, when),
         subscribe: (listener) => engine.subscribe(listener),
         snapshot: async () => {
             const s = await engine.snapshot();
