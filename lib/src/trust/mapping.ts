@@ -107,7 +107,8 @@ import type { ClassOnDuty, Contact, Dec, Duty, HolderState, ReissueMappingDuty, 
 import {
   ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads,
 } from './state.js'
-import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, sweepOf, taskOf } from './star.js'
+import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, starBlinds, sweepOf, taskOf } from './star.js'
+import type { StarBlinds } from './star.js'
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js'
 
 const te = new TextEncoder()
@@ -384,7 +385,7 @@ function mappingTask (bound: bigint) {
     },
     // stage 8: conditions 1–7 against the arrival tuple and the bindings
     // its relationship holds (6118), then the bindings the mapping states
-    async prepare (ctx: PrepareCtx, doc: ReceivedDocument<AnchorMapping>, arrival: Arrival): Promise<{ bindings: Record<string, string> } | TaskRefusal> {
+    async prepare (ctx: PrepareCtx, doc: ReceivedDocument<AnchorMapping>, arrival: Arrival): Promise<{ bindings: Record<string, string>, stars: StarBlinds } | TaskRefusal> {
       if ((doc.ceremony as { enactment?: unknown } | undefined)?.enactment !== undefined) return refuse('validation-failed')
       const at = arrivalTuple(ctx.snapshot, arrival.rkid)
       if (!at) return refuse('validation-failed', 'RLTP-TRU-6240')
@@ -403,10 +404,13 @@ function mappingTask (bound: bigint) {
       }, S)
       if (infra !== null) throw infra   // a provider failure is no verdict on the mapping
       if (!v.ok) return refuse('validation-failed', v.rule ?? MAPPING_CONDITION_RULE[v.step])
-      return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)) }
+      // the anchors this mapping makes held (self, both ends of its links),
+      // blinded under every accepted star for the re-match of 6160
+      const anchors = [...new Set([doc.payload.body.self, ...lineageLinks(doc.payload.body.lineage).flat()])]
+      return { bindings: Object.fromEntries(await mappingBindings(doc.payload.body, S)), stars: await starBlinds(ctx, anchors) }
     },
     // stage 9: condition 8 (6150–6170) and the transition
-    apply (state: Readonly<HolderState>, prepared: { value: { bindings: Record<string, string> } }, doc: ReceivedDocument<AnchorMapping>, arrival: Arrival): Applied | TaskRefusal {
+    apply (state: Readonly<HolderState>, prepared: { value: { bindings: Record<string, string>, stars: StarBlinds } }, doc: ReceivedDocument<AnchorMapping>, arrival: Arrival): Applied | TaskRefusal {
       const at = arrivalTuple(state, arrival.rkid)
       if (!at) return refuse('validation-failed', 'RLTP-TRU-6240')
       const { rel, tuple: t } = at
@@ -436,7 +440,8 @@ function mappingTask (bound: bigint) {
       const events: EventDraft[] = []
       if (e.committed) events.push({ type: 'trust.received', contactId: e.contact.id })
       events.push({ type: 'contact.verified', contactId: e.contact.id, relationshipId: rel.id })
-      return { state: e.state, events, ...(e.duties.length ? { duties: e.duties } : {}) }
+      // 6160: stars already accepted are tested against the anchors now held
+      return { state: rematchStars(e.state, e.contact.id, prepared.value.stars), events, ...(e.duties.length ? { duties: e.duties } : {}) }
     },
   }
 }

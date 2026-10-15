@@ -247,8 +247,9 @@ export interface SeqIn<A> {
 export interface StarPair { member: string, head: string }
 export type StarOut = SeqOut<StarPair>
 /** A completed star as the receiver keeps it (trust/star.ts): its salt,
- *  the blinded values that matched an anchor held for one of the holder's
- *  contacts (6160), and those contacts' entry ids, both sorted. */
+ *  the whole assembled union of blinded values (sorted), and the entry ids
+ *  of the holder's contacts one of whose held anchors it carries (6160),
+ *  re-matched whenever the holder comes to hold new anchors. */
 export type StarIn = SeqIn<{ salt: Dec, blinded: string[], matches: string[] }>
 
 /** One group-star domain element (5730): member and memberOp present for

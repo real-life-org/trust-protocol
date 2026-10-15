@@ -83,12 +83,15 @@
 //   - the resource limit is a bound on seq: an open assembly holds at most
 //     ASSEMBLY_LIMIT.star = 1024 chunks (≤ 1 048 576 entries); a chunk
 //     with a higher seq discards the assembly (5365, 5366)
-//   - `accepted` keeps only what matched (6160): the blinded values equal
-//     to HMAC(k, a) for an anchor `a` held for one of the holder's other
-//     contacts (the entry's anchor head, every relationship's held head
-//     and both ends of every held lineage link, 6390), and those contacts'
-//     entry ids. Unmatched entries are not retained; a contact gained later
-//     is matched at the next completed star
+//   - `accepted` keeps the whole assembled union with its salt and the
+//     matches (6160): the entry ids of the holder's other contacts one of
+//     whose held anchors (the entry's anchor head, every relationship's
+//     held head and both ends of every held lineage link, 6390) blinds to
+//     a value in it. When the holder comes to hold new anchors for a
+//     contact (the anchor mapping's acceptance: entry commit, advanced
+//     head, new links), the mapping transition re-matches every accepted
+//     star against them (starBlinds in its preparation, rematchStars in
+//     its apply). Matches only grow: held anchors are never dropped
 import { iso, jcs } from '../core.js'
 import type { Json } from '../core.js'
 import { digestDoc, xRawOfMk } from '../crypto.js'
@@ -444,6 +447,57 @@ export function starView (state: Readonly<HolderState>): StarPair[] {
     .sort((a, b) => cmp(a.member, b.member))
 }
 
+/** The entry a tuple's documents come from (2145): the star's sender. */
+const senderOf = (state: Readonly<HolderState>, rel: Readonly<Relationship>, t: Readonly<Tuple>): string =>
+  findContact(state, t.entryId)?.id ?? rel.contactId
+
+/** Blinded values of `anchors` under the key of every accepted star, by
+ *  `<relId>|<tuple>`, with the salt they were blinded for: the async half
+ *  of a re-match (6160), prepared where anchors are about to be held. */
+export type StarBlinds = Record<string, { salt: Dec, blinds: string[] }>
+
+export async function starBlinds (ctx: PrepareCtx, anchors: readonly string[]): Promise<StarBlinds> {
+  const out: StarBlinds = {}
+  if (!anchors.length) return out
+  const S = ctx.crypto.subtle
+  for (const rel of Object.values(ctx.snapshot.relationships)) {
+    for (const t of rel.tuples) {
+      const acc = t.starIn.accepted
+      if (acc === null) continue
+      const shared = await pairShared(ctx, t)
+      if (!shared) continue
+      const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor
+      const k = await starKeyOf(shared, t.counterpartAnchor, own, acc.salt, S)
+      out[`${rel.id}|${t.ownPairLabel}`] = { salt: acc.salt, blinds: await Promise.all(anchors.map((a) => blindAnchor(k, a, S))) }
+    }
+  }
+  return out
+}
+
+/**
+ * The sync half (6160, 6390): `contactId` now holds the anchors `blinds`
+ * were prepared for; every accepted star (other than the contact's own)
+ * whose stored union carries one of them lists the contact among its
+ * matches. Run in the transition that makes the holder hold them (the
+ * anchor mapping's acceptance: a new entry, an advanced head, a new link).
+ */
+export function rematchStars (state: Readonly<HolderState>, contactId: string, blinds: StarBlinds): HolderState {
+  let relationships: HolderState['relationships'] | null = null
+  for (const [key, b] of Object.entries(blinds)) {
+    const [relId, label] = [key.slice(0, key.indexOf('|')), key.slice(key.indexOf('|') + 1)]
+    const rel = (relationships ?? state.relationships)[relId]
+    const t = rel?.tuples.find((x) => x.ownPairLabel === label)
+    const acc = t?.starIn.accepted
+    if (!rel || !t || !acc || acc.salt !== b.salt || acc.matches.includes(contactId) || senderOf(state, rel, t) === contactId) continue
+    const union = new Set(acc.blinded)
+    if (!b.blinds.some((x) => union.has(x))) continue
+    const matches = [...acc.matches, contactId].sort(cmp)
+    relationships ??= { ...state.relationships }
+    relationships[relId] = { ...rel, tuples: rel.tuples.map((x) => (x === t ? { ...x, starIn: { ...x.starIn, accepted: { ...acc, matches } } } : x)) }
+  }
+  return relationships ? { ...state, relationships } : state as HolderState
+}
+
 /** Every anchor the holder holds for a contact (6160, 6390): the entry's
  *  head, each relationship's held head, both ends of every held link. */
 export function heldAnchors (state: Readonly<HolderState>, c: Readonly<Contact>): string[] {
@@ -487,18 +541,15 @@ export const STAR: Artifact<StarPair, StarAccepted> = {
     const S = ctx.crypto.subtle
     const k = await starKeyOf(p.shared, p.from, p.own, p.salt, S)
     const inStar = new Set(union)
-    const sender = findContact(ctx.snapshot, p.tuple.entryId)?.id ?? p.rel.contactId
-    const blinded = new Set<string>()
+    const sender = senderOf(ctx.snapshot, p.rel, p.tuple)
     const matches: string[] = []
     for (const c of Object.values(ctx.snapshot.contacts).sort((a, b) => cmp(a.id, b.id))) {
       if (c.id === sender) continue
-      let hit = false
       for (const a of heldAnchors(ctx.snapshot, c)) {
-        const b = await blindAnchor(k, a, S)
-        if (inStar.has(b)) { hit = true; blinded.add(b) }
+        if (inStar.has(await blindAnchor(k, a, S))) { matches.push(c.id); break }
       }
-      if (hit) matches.push(c.id)
     }
-    return { ok: true, accepted: { salt: p.salt, blinded: [...blinded].sort(), matches } }
+    // the whole union is kept: anchors learned later are tested against it (rematchStars)
+    return { ok: true, accepted: { salt: p.salt, blinded: union, matches } }
   },
 }
