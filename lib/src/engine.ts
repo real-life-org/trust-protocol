@@ -134,7 +134,11 @@
 //   - a module's ownRetries are task types it re-issues itself: resume
 //     never re-emits their outbox items (the horizon still gives them up);
 //     its keepKeys name own rkids tick must not tombstone though no live
-//     tuple carries them
+//     tuple carries them. Both trust the registered modules: no ownership
+//     of a type or a key is checked (modules are the library's own, not
+//     app plug-ins)
+//   - a failure handler gets the retry backoff, so a failure can make work
+//     due no earlier than its schedule allows
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -305,7 +309,7 @@ export type AckHandler = (state: Readonly<HolderState>, ref: string, when: Milli
  * is marked failed. Its duties are folded into the state (an id already
  * open is kept as it is); it must not write the effect cache.
  */
-export type FailureHandler = (state: Readonly<HolderState>, ref: string, when: Millis) => Applied
+export type FailureHandler = (state: Readonly<HolderState>, ref: string, when: Millis, ctx: { readonly backoff: (attempt: number) => number }) => Applied
 
 /**
  * What a human's choice on a prompt of one kind does in its domain
@@ -332,10 +336,13 @@ export interface HolderModule {
   failures?: Record<string, FailureHandler>
   /** task types whose documents the module re-issues itself (a fresh
    *  document, never a reproduction): the outbox never re-emits their
-   *  items and gives them up only at the horizon */
+   *  items and gives them up only at the horizon. Trusted as registered:
+   *  the engine checks no ownership of the types named, since modules are
+   *  part of the library, not app plug-ins */
   ownRetries?: readonly string[]
   /** own rkids the module still needs although no live tuple carries
-   *  them: tick does not tombstone them */
+   *  them: tick does not tombstone them. Trusted as registered, like
+   *  ownRetries: no check that the module has any claim to the keys */
   keepKeys?: (state: Readonly<HolderState>) => Iterable<string>
   /** the module's own retention, run by tick after the engine's: pure and
    *  synchronous, returning the same state object where nothing goes */
@@ -854,7 +861,7 @@ class HolderEngine implements Engine {
     for (const digest of digests) {
       const h = this.#failures.get(cur.outbox[digest].type)
       if (!h) continue
-      const r = h(cur, digest, when)
+      const r = h(cur, digest, when, { backoff: this.#policy.backoff })
       if (r.state.effects !== cur.effects) throw new Error(`engine: the failure handler of ${cur.outbox[digest].type} wrote the effect cache`)
       if (r.outbound?.length) throw new Error(`engine: the failure handler of ${cur.outbox[digest].type} issued documents; it opens duties`)
       cur = r.state

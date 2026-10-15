@@ -235,8 +235,13 @@ export interface ContinuityOut {
   /** the MACs of the last issued body: a resend (6840) re-seals the same
    *  artifact without the prior tuple's key */
   proof: Json | null
-  /** digests of the documents that carried the last issued body */
+  /** digests of the documents that carried the last issued body: this
+   *  issuance's alone, reset by the next (an ack of an earlier issuance
+   *  completes nothing of a later one) */
   sent: string[]
+  /** the last issuance is the non-record side's alignment: issued after
+   *  the record side's mapping was verified (6930) */
+  align: boolean
   /** record side: the prior it chose, final once set (contChosen) */
   chosen: string | null
   /** non-record side: the match it reported (contReported) */
@@ -394,8 +399,11 @@ export interface ProfileDuty { kind: 'profile', v: 1, id: string, dueAt?: Millis
 /** Continuity resend on a tuple (6830–6850). */
 export interface ContinuityDuty {
   kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping'
-  /** sends so far under this standing duty; the next waits backoff(attempt + 1) */
+  /** sends so far under this standing duty (the issuance counts) */
   attempt?: number
+  /** when the last of them was sent: the next is due no earlier than
+   *  lastAt + backoff(attempt), a failure included */
+  lastAt?: Millis
 }
 
 /** The persisted continuation of a merge (2230): the verification has
