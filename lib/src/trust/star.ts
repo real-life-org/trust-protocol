@@ -48,6 +48,11 @@
 //   - superseded salts are not withdrawn from the outbox: their retries
 //     run to the horizon like any item (no trias state says "superseded"),
 //     and the receiver refuses them (5150) or answers a cached duplicate
+//   - an in-flight entry that can no longer complete (a chunk unacked and
+//     failed, or gone from the outbox, where an ack could not find it) is
+//     pruned at the tuple's next production and by tick (retainInflight);
+//     a late ack after that completes nothing, and the divergence it
+//     carried is delivered again under a fresh salt
 //   - the star goes on every live relationship of the contact (2820), the
 //     active-head tuple of each, lagging ones included (6595); a contact
 //     with no entry yet is a recipient like any other (2760: every contact)
@@ -176,8 +181,7 @@ const canIssue = (o: Readonly<SeqOut<unknown>>): boolean => !o.exhausted && BigI
 /** An in-flight salt above H carrying exactly this view, none of whose
  *  chunks has failed: the divergence is being delivered. */
 const inFlight = (state: Readonly<HolderState>, o: Readonly<SeqOut<unknown>>, viewText: string): boolean =>
-  Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && jcs(f.view) === viewText &&
-    f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed')))
+  Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && jcs(f.view) === viewText && canComplete(state, f))
 
 /** A uniform view, once per contacts record (the record is replaced on
  *  every change of a contact, so the cache cannot go stale). */
@@ -191,6 +195,36 @@ function viewAt<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Rec
   let v = byKind.get(art.kind)
   if (!v) { const view = art.view(state, r.contact, r.rel); byKind.set(art.kind, (v = { view, text: jcs(view) })) }
   return v as { view: V[], text: string }
+}
+
+/** Whether an in-flight delivery can still complete: every chunk acked,
+ *  or still in the outbox and not failed (an ack refers to an outbox item). */
+const canComplete = (state: Readonly<HolderState>, f: Readonly<{ digests: string[], acked: string[] }>): boolean =>
+  f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed'))
+
+/** The in-flight deliveries that can still complete. */
+function livingInflight<V> (state: Readonly<HolderState>, o: Readonly<SeqOut<V>>): SeqOut<V>['inflight'] {
+  const out: SeqOut<V>['inflight'] = {}
+  for (const [s, f] of Object.entries(o.inflight)) if (canComplete(state, f)) out[s] = f
+  return out
+}
+
+/** Every tuple's in-flight deliveries of both artifacts pruned to those
+ *  that can still complete; tick's retention (the same state object where
+ *  nothing is pruned). */
+export function retainInflight (state: Readonly<HolderState>): HolderState {
+  let relationships: HolderState['relationships'] | null = null
+  for (const rel of Object.values(state.relationships)) {
+    let changed = false
+    const tuples = rel.tuples.map((t) => {
+      const so = livingInflight(state, t.starOut), go = livingInflight(state, t.groupStarOut)
+      if (Object.keys(so).length === Object.keys(t.starOut.inflight).length && Object.keys(go).length === Object.keys(t.groupStarOut.inflight).length) return t
+      changed = true
+      return { ...t, starOut: { ...t.starOut, inflight: so }, groupStarOut: { ...t.groupStarOut, inflight: go } }
+    })
+    if (changed) (relationships ??= { ...state.relationships })[rel.id] = { ...rel, tuples }
+  }
+  return relationships ? { ...state, relationships } : state as HolderState
 }
 
 /** Whether the artifact is owed now on this recipient (5690–5720, 5830):
@@ -290,7 +324,8 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
         const o = art.out(tuple)
         const next: SeqOut<V> = {
           ...o, lastSalt: p.salt, exhausted: BigInt(p.salt) >= ADMISSION_BOUND,
-          inflight: { ...o.inflight, [p.salt]: { view: p.view, digests: p.outbound.map((d) => d.digest), acked: [] } },
+          // what can no longer complete leaves with the next production
+          inflight: { ...livingInflight(cur, o), [p.salt]: { view: p.view, digests: p.outbound.map((d) => d.digest), acked: [] } },
         }
         const tuples = rel.tuples.map((t) => (t.ownPairLabel === p.tuple ? art.withOut(t, next) : t))
         cur = { ...cur, relationships: { ...cur.relationships, [rel.id]: { ...rel, tuples } } }

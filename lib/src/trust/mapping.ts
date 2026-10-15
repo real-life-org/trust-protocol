@@ -107,7 +107,7 @@ import type { ClassOnDuty, Contact, Dec, Duty, HolderState, ReissueMappingDuty, 
 import {
   ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads,
 } from './state.js'
-import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, starBlinds, sweepOf, taskOf } from './star.js'
+import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js'
 import type { StarBlinds } from './star.js'
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js'
 
@@ -629,6 +629,8 @@ export function trustModule (opts: TrustModuleOptions = {}): HolderModule {
     // 5.4: the star first, then the group star, each its own scope (5730)
     sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
     acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
+    // in-flight deliveries that can no longer complete leave on tick
+    retain: (state: Readonly<HolderState>) => retainInflight(state),
   })
 }
 

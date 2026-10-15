@@ -117,6 +117,9 @@
 //   - a task handler's refusal commits nothing; its TaskDiscarded (a
 //     resource-limit discard, Trust 5365) commits its state and nothing
 //     else: disposition `discarded`, no cache entry, no ack, no event
+//   - after its own retention, tick runs every module's `retain` hook on
+//     the result (the trust module prunes in-flight star deliveries that
+//     can no longer complete)
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -281,6 +284,9 @@ export interface HolderModule {
   /** ack handlers by the full task type URI of the acknowledged document;
    *  at most one per type across all modules */
   acks?: Record<string, AckHandler>
+  /** the module's own retention, run by tick after the engine's: pure and
+   *  synchronous, returning the same state object where nothing goes */
+  retain?: (state: Readonly<HolderState>, when: Millis) => HolderState
   /** at most one handler per prompt kind across all modules; collected by
    *  createHolder for the prompts module (prompts.ts) */
   decisions?: Partial<Record<PromptKind, DecisionHandler>>
@@ -498,6 +504,7 @@ class HolderEngine implements Engine {
   readonly #duties: ReadonlyMap<string, DutyHandler>
   readonly #sweeps: ReadonlyMap<string, SweepHandler>
   readonly #acks: ReadonlyMap<string, AckHandler>
+  readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #listeners = new Set<CommitListener>()
   #chain: Promise<unknown> = Promise.resolve()
@@ -535,6 +542,7 @@ class HolderEngine implements Engine {
     const duties = new Map<string, DutyHandler>()
     const sweeps = new Map<string, SweepHandler>()
     const acks = new Map<string, AckHandler>()
+    const retain: Array<(state: Readonly<HolderState>, when: Millis) => HolderState> = []
     const names = new Set<string>()
     for (const m of modules) {
       if (!m || typeof m.name !== 'string' || !m.name) throw new TypeError('a module needs a name')
@@ -572,12 +580,17 @@ class HolderEngine implements Engine {
         if (typeof h !== 'function') throw new TypeError(`ack handler ${uri} (module ${m.name}) must be a function`)
         acks.set(uri, h)
       }
+      if (m.retain !== undefined) {
+        if (typeof m.retain !== 'function') throw new TypeError(`retain (module ${m.name}) must be a function`)
+        retain.push(m.retain)
+      }
     }
     this.#commands = commands
     this.#tasks = tasks
     this.#duties = duties
     this.#sweeps = sweeps
     this.#acks = acks
+    this.#retain = Object.freeze(retain)
     this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() })
     this.registry = Object.freeze({
       commands: Object.freeze([...commands.keys()]),
@@ -754,6 +767,7 @@ class HolderEngine implements Engine {
 
   #tickDef (): InternalDef {
     const policy = (): Policy => this.#policy
+    const retainers = () => this.#retain
     return {
       human: false,
       apply (state, _p, _input, when) {
@@ -789,8 +803,14 @@ class HolderEngine implements Engine {
           if (!tombstones.includes(rkid)) tombstones.push(rkid)
           return false
         })
-        if (!dropped) return { state: state as HolderState }   // the engine still commits a raised lastWhen
-        return { state: { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } }
+        let next: HolderState = dropped ? { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } : state as HolderState
+        // the modules' own retention, on what the engine's left
+        for (const r of retainers()) {
+          const after = r(next, when)
+          if (after.effects !== next.effects) throw new Error('engine: a module\'s retain wrote the effect cache')
+          next = after
+        }
+        return { state: next }   // unchanged: the engine still commits a raised lastWhen
       },
     }
   }
