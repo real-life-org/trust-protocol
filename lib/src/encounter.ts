@@ -106,12 +106,10 @@ export async function issueCredential (
 
 
 // ── the ceremony's pure checks (Encounter 0.31 §5–§7, Delivery 4.1/4.3) ──
-// Graduated from probe/encounter.ts (which imports them from here): the
-// task types, the §9 constants, the whole-second time rules, the card
+// The task types, the §9 constants, the whole-second time rules, the card
 // check, the 5.6 credential checks in their normative order, and the
 // outer/inner forms of the two carriers. State-free: what needs the
-// own-challenge state or the records is the holder's (encounter/ceremony.ts)
-// or the probe's.
+// own-challenge state or the records is the holder's (encounter/ceremony.ts).
 const TT = 'https://real-life.org/trust-tasks/'
 /** The scanner's sent card and step credential (Delivery 4.1). */
 export const BUNDLE_TYPE = TT + 'encounter-bundle/0.1'

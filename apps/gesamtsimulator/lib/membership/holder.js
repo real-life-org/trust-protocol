@@ -1,11 +1,10 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // membership/holder — groups on the holder (lib Stage 2, PR 7a; Membership
-// Tasks 0.19 on Access 0.57, Delivery 0.81). Graduated from
-// probe/membership.ts (foundGroup, preludeRequest, buildInvite,
-// acceptInvite, vouchFor, receiveDoc, welcome) onto HolderState and the
-// engine; the probe stays for the simulators until PR 7b. The pure forms
-// and checks are the root module's (membership.ts).
+// Tasks 0.19 on Access 0.57, Delivery 0.81): founding, the prelude and
+// the invite, the accept, admission and welcome, evidence and vouches, on
+// HolderState and the engine. The pure forms and checks are the root
+// module's (membership.ts).
 //
 // What it registers (membershipModule):
 //   human acts  membership.found   a group founded under a fresh pair
@@ -31,8 +30,7 @@
 // Choices this file makes where spec and note leave them open:
 //   - the prelude is application-level (Membership 1.2): this library
 //     carries it over the relationship tuple as two experimental, signed
-//     documents; the invitee's holder answers on its own (as the probe
-//     did), registering its member label and key first (Identity 6.1),
+//     documents; the invitee's holder answers on its own, registering its member label and key first (Identity 6.1),
 //     with a displayed member card (2.6) whose key the invite is sealed
 //     to. An answer is taken only on a thread whose request this holder
 //     sent (the outbox holds it)

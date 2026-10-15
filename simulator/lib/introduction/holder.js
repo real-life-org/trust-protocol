@@ -2,10 +2,8 @@
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // introduction/holder — the Introduction Act on the holder (lib Stage 2,
 // PR 7a; Trust Layer 0.31 §8 on Delivery 0.81 §4.4). The pure forms are
-// the root module's (introduction.ts). probe/introduce.ts (the drop model:
-// mediator-initiated offers, a rendezvous drop) stays as it is for the
-// simulators until PR 7b; it is not this act — Trust 0.31 §8 relays the
-// act through the mediator, so no drop is needed or built here.
+// the root module's (introduction.ts). Trust 0.31 §8 relays the act
+// through the mediator; no rendezvous drop is needed or built.
 //
 // The three roles, each its own lifecycle (8320), in
 // state.encounter.introductions under `<role>:<act>`:
@@ -44,7 +42,7 @@
 //     the mediator's designator (8.3), but says nothing of how the
 //     requester learns that designator. This library has the mediator's
 //     act `introduce(requester, target, {label?})` (the human who knows
-//     both, as the probe's model had it) send the requester an
+//     both) send the requester an
 //     experimental, signed x-introduction-offer/0.1 with the designator and
 //     at most a label the mediator's human typed in that act — never a
 //     name read from the target's profile (audience: the mediator alone,

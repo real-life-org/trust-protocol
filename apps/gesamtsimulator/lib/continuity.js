@@ -4,10 +4,9 @@
 // 0.31 §6a, tasks continuity-probe/0.1 and continuity-mapping/0.1): the
 // pure wire constructions over raw X25519 shared secrets (lib Stage 2,
 // PR 4c). The holder's trust module (trust/continuity.ts) builds and
-// verifies through these with secrets from its KeyProvider;
-// probe/continuity.ts keeps its Person-based flow for the simulators until
-// PR 7 and re-exports these names. Byte-compatible with the continuity
-// cases of vectors/visibility.json (test/trust-continuity.test.mjs).
+// verifies through these with secrets from its KeyProvider. Byte-compatible
+// with the continuity cases of vectors/visibility.json
+// (test/trust-continuity.test.mjs).
 //
 //   k_p   = HKDF(X25519(newPairX_sender, newPairX_recipient),
 //                "rltp/visibility/blind/probe/" || senderNewPair || "/" || recipientNewPair)       (6720)

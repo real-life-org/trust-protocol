@@ -1,9 +1,8 @@
 // trust/group-star — the group star on the holder (lib Stage 2, PR 4b):
 // group-star@1 as the registered task group-star/0.1 (5.2b), reconciled
 // per recipient over its own domain, baseline and salt sequence (5730,
-// 5740), on the machinery of trust/star.ts. Graduated from
-// probe/group-star.ts (whose pure parts moved to the root group-star.ts);
-// probe/* stays as it is for the simulators until PR 7.
+// 5740), on the machinery of trust/star.ts; the pure forms are the root
+// module's (group-star.ts).
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //

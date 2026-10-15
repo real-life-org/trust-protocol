@@ -1,10 +1,7 @@
 // trust/entries — the entries of the deliverable set on the holder (lib
 // Stage 2, PR 4c; Trust Section 2, 6a.1): merge, split, departure, the
 // pending admission that goes with them, and the identity rewrite they
-// need. Graduated from probe/trust.ts (mergeEntries, admitPending,
-// departMember, reidentify, converge and promotionCommit's split,
-// chainAdmission) onto HolderState; probe/trust.ts stays as it is for the
-// simulators until PR 7.
+// need, on HolderState.
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //

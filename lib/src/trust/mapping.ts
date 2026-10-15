@@ -1,11 +1,8 @@
 // trust/mapping — the Trust Layer's anchor mapping on the holder (lib
 // Stage 2, PR 4a): the trust act and the class settings (Section 2a), the
 // issuance of anchor-mapping@4 (6.1, 6300/6310, 6420), its verification
-// (6.3) and the entry commit of the deliverable set (Section 2). Graduated
-// from probe/trust.ts (setTrust, setTrustPaused, reissueTrust, makeMapping,
-// verifyMapping, promotionCommit's first branch, receiveTrustDoc's mapping
-// branch) onto HolderState and the engine; probe/trust.ts stays as it is
-// for the simulators until PR 7.
+// (6.3) and the entry commit of the deliverable set (Section 2), on
+// HolderState and the engine.
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //
@@ -93,7 +90,7 @@
 //     duties. The profile's class-on and revision duties issue profile@1
 //     (trust/profile.ts)
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
-//     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
+//     `default`; it needs no trust (2780)
 //   - setGroupClass to `default` removes the per-group entry; turning the
 //     sealed group star class `off` resets every per-group `on` (5450), on
 //     that transition only: a group set `on` afterwards stays, and setting

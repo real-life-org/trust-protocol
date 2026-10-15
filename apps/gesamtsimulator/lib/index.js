@@ -1,22 +1,16 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
-// @real-life/trust-protocol — the cryptographic core of RLTP.
+// @real-life/trust-protocol — the reference library of RLTP.
 //
-// What this entry point IS: the wire-level primitives of the converged
-// layers, reproducing the shipped test vectors byte for byte — the
-// canonical form, the derivation of identity contexts under the closed
-// label registry, the encounter wire builders, the sealed envelope and
-// the generic receive chain.
+// The holder: createHolder({store, keys, entropy?, log?, access?, retry?,
+// crypto?}) — one person's device state behind the human acts, receive,
+// report, resume and tick, and the views an app reads. The ports (Store,
+// KeyProvider, Entropy, Log, Access, DeliveryReport, Outbound) are the
+// app's; seedKeys is the default KeyProvider. Beside it, the pure wire
+// builders and verifiers of every layer, byte-compatible with the shipped
+// vectors.
 //
-// What it is NOT (yet): the layers' full state machines. Identity's
-// recovery derivation, Encounter's ceremony record and acceptance
-// machinery, Delivery's type-specific stages and residual bookkeeping
-// live in the specification and its conformance fixtures, not here. A
-// conformant implementation builds ON this module; importing it is not
-// yet conformance. The README states per module which casting's wire
-// forms it implements.
-//
-//   core              the form every artifact obeys
+//   core              the form every artifact obeys (JCS, digests, schemas)
 //   crypto            the primitives, and the Data Integrity proof
 //   identity          context derivation under the closed registry (§6.1/§6.2),
 //                     device labels device/<n>/<c> (§5.5)
@@ -33,49 +27,25 @@
 //   carrier           the carrier side of the port (Delivery §4.4 + §5a)
 //   carrier-holder    the holder side of the carrier port: proofs, verdicts,
 //                     recovery (§5a, §9.3)
-//   visibility        Trust Layer 0.31 on Delivery 0.81 — the trust
-//                     act, the blinded star, the group star, the community
-//                     anchor's rotation with pre-rotation (Identity 0.54
-//                     §5.4), §6a continuity, the deniable ack
-//                     (namespaced: `visibility.trust`, `.continuity`,
-//                     `.acks`; graduated from /probe on 04.09.2026)
-//   ceremony          Encounter 0.31's registered ceremony on Delivery
-//                     0.79 — encounter-bundle, encounter-credential-
-//                     delivery, the signed ack; own-challenge state
-//                     model, enactment record, 5.6 acceptance, both
-//                     paths of 5.8 (graduated from /probe on 05.09.2026)
+//   visibility        the Trust Layer's wire forms, pure: anchor (self-card@2,
+//                     anchor-rotation@2, anchor-mapping@4), star@2,
+//                     group-star@1, continuity-probe@1 and
+//                     continuity-mapping@1, delivery-ack/0.1
+//   ceremony          the encounter's, the group's and the introduction's
+//                     wire forms, pure (the same as the root's encounter,
+//                     membership and introduction modules, under one name)
 //
-// The Stage-2 holder (contract, engine core and facade):
+// The holder (holder-api.ts): the typed human acts (trust, untrust,
+// pauseTrust, setClass, setGroupClass, merge, depart, decide, rotateAnchor,
+// setProfile, addDevice, revokeDevice, show, scan, captureSentCard,
+// counter, foundGroup, invite, vouchFor, introduce; {when, actId}), recover,
+// act, receive, tick, resume, report, subscribe, snapshot, deviceKey and the
+// views contacts, contact, groups, profile, prompts, deliveryStatus;
+// `invariants: true` checks invariants.ts on every commit (testing mode).
+// Its modules: identity (Identity §2, §5.4, §5.5), trust (Trust 2, 2a,
+// 5.2–5.4, 6.1–6.5, 6a, 6b), encounter (Encounter 0.31 §5–§7), membership
+// (Membership 0.19 with an in-library Access) and introduction (Trust §8).
 //
-//   holder-api        createHolder — the facade: the typed human acts
-//                     (trust, untrust, pauseTrust, setClass, setGroupClass,
-//                     merge, depart, decide, rotateAnchor, setProfile,
-//                     addDevice, revokeDevice; {when, actId}), recover, act,
-//                     receive, tick, resume, report, subscribe, snapshot and
-//                     the views: contacts, contact, groups, profile,
-//                     prompts, deliveryStatus; `invariants: true` checks
-//                     invariants.ts on every commit (testing mode). Built
-//                     in: the identity module (Identity §2, §5.4, §5.5: the
-//                     register's device names, deviceKey, the community
-//                     anchor's rotation over the Log port), the trust module (Trust
-//                     Layer 2a, 6.1–6.5, Section 2) — the human acts
-//                     trust.set, trust.setClass, trust.setGroupClass,
-//                     trust.pause, trust.merge, trust.depart, the anchor
-//                     mapping's issuance and reception, the entry commit,
-//                     merge and split (Section 2, 6a.1), the star and the
-//                     group star (5.2–5.4) reconciled on resume and
-//                     received, continuity (§6a: probe, continuity
-//                     mapping, chaining), profile@1 (§6b: setProfile,
-//                     delivery on the class gates, reception); the
-//                     encounter module (Encounter 0.31 §5–§7: show, scan,
-//                     captureSentCard, counter, the bundle and the
-//                     credential delivery with signed acks, the confirm
-//                     prompt), the membership module (Membership 0.19:
-//                     foundGroup, invite with its prelude, the accept on a
-//                     group-invite prompt, admission and welcome, vouchFor,
-//                     the in-library Access) and the introduction module
-//                     (Trust §8: introduce, the three roles, the uniform
-//                     ack, the vouchers)
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters
@@ -84,13 +54,18 @@
 //   ports             Store, KeyProvider, Log, Access, DeliveryReport, Outbound
 //   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
 //   entropy           the Entropy port by closed purpose
+//   store-contract    storeContract — the test suite a Store adapter passes
+//
+// Other entry points:
+//   ./testing         InMemoryStore, memoryLog, scriptedEntropy, storeContract,
+//                     emptyState, stateBuilder, freezeDeep, sampleState,
+//                     openPromptModule, the invariants, forgeMapping, SCHEMAS
+//                     and the generated wire types
 //   ./internal        the structural state, encodeState and the codec chain,
-//                     the engine's module types (HolderModule, DecisionHandler,
-//                     …), the pure view functions, the trust module's factory
-//                     and its pure reads — for the library's modules and
-//                     tests, not an app contract
-//   ./testing         InMemoryStore, memoryLog, scriptedEntropy, storeContract, emptyState,
-//                     stateBuilder, freezeDeep, sampleState, openPromptModule
+//                     the engine's module types, the pure view functions, the
+//                     modules' factories and pure reads — for the library's
+//                     modules and tests, not an app contract
+//   ./adapters/vti-mediator   the VTI mediator's reports as DeliveryReport
 //
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 export * from './core.js';
@@ -103,13 +78,8 @@ export * from './delivery.js';
 export * from './carrier-identity.js';
 export * from './carrier.js';
 export * from './carrier-holder.js';
-/** @deprecated The probe-world Trust Layer API; apps use createHolder.
- *  Kept until its consumers (the gesamtsimulator) move in PR 7; nothing
- *  new is added to it. */
 export { PROFILE_TYPE, PROFILE_LIMITS, profileSchemaOk, imageDimensions, imageWithinBounds, profileProblem, profileInfo, profileKey, assembleProfile, profileMacOk, } from './profile.js';
 export * as visibility from './visibility.js';
-/** @deprecated The probe-world ceremony API; apps use createHolder.
- *  Kept until its consumers move in PR 7; nothing new is added to it. */
 export * as ceremony from './ceremony.js';
 import { decodeState as decodeStructural } from './codec.js';
 export { CODEC, StateCodecError } from './codec.js';

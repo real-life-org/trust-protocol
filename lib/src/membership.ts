@@ -1,9 +1,8 @@
 // membership — the pure forms and checks of Membership Tasks 0.19 (the
 // invite, the accept, the evidence relay) and of the vouch@2 credential
-// (Access 0.57 5.3), shared by the holder's membership module
-// (membership/holder.ts) and the probe (probe/membership.ts imports its
-// constants from here). State-free: which invitation a holder sent, which
-// group it is in, are the module's.
+// (Access 0.57 5.3), used by the holder's membership module
+// (membership/holder.ts). State-free: which invitation a holder sent,
+// which group it is in, are the module's.
 import { b64uOf, calOK, fromB64u, jcs, makeValidator, sameDigest, toU, tsec } from './core.js'
 import { diVerify } from './crypto.js'
 import { SCHEMAS } from './schemas.js'

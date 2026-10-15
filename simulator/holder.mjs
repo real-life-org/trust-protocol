@@ -10,12 +10,11 @@
 // The library is the frozen copy under ./lib (lib/dist, refreshed by
 // scripts/build-simulator-lib.mjs, checked in CI); never edit it here.
 import * as L from './lib/index.js'
-import { InMemoryStore, memoryLog, scriptedEntropy, stateBuilder } from './lib/testing.js'
+import { InMemoryStore, memoryLog, scriptedEntropy, stateBuilder, forgeMapping } from './lib/testing.js'
 import { createChannel, deliver as channelDeliver, drainHeld, drainTransit } from './delivery.mjs'
-import { assembleAnchorMapping } from './lib/anchor.js'
 
 export * from './lib/index.js'
-export { InMemoryStore, memoryLog, scriptedEntropy, stateBuilder }
+export { InMemoryStore, memoryLog, scriptedEntropy, stateBuilder, forgeMapping }
 
 const TT = 'https://real-life.org/trust-tasks/'
 /** The task types by short name. */
@@ -263,14 +262,6 @@ export async function decideAll (net, p, kind, choice, when) {
     if (d.ok) await net.send(p, d.outbound, when)
   }
   return out
-}
-
-/** Deniability (Trust 6.1): the addressee of an anchor mapping builds, from
- *  its own pair context and a self card it holds, a mapping that verifies
- *  exactly like one its contact issued. */
-export async function forgeMapping ({ own, pair, pairKeyAgreement, card, revision = '1', issuedAt, lineage = [] }) {
-  const body = { type: 'anchor-mapping@4', pair, self: card.body.anchor, to: own.anchor, card, lineage, revision, issuedAt }
-  return assembleAnchorMapping(body, await L.ecdh(own.x.priv, L.xRawOfMk(pairKeyAgreement)), await L.ecdh(own.x.priv, L.xRawOfMk(card.body.keyAgreement)))
 }
 
 /** A state edit outside the library's acts (a policy change the library

@@ -3,12 +3,11 @@
 // pre-rotation binding, the lineage, anchor-mapping@4 and what a changed
 // `self` means.
 //
-// Pure constructions: no Person, no state, no transport. The probe's
-// trust act (probe/trust.ts) builds and verifies its mappings here over
-// identity Contexts; the holder's trust module (trust/mapping.ts) over its
-// KeyProvider, through the agreement-based forms (assembleAnchorMapping,
-// verifyAnchorMappingWith). Moved from probe/anchor.ts in lib Stage 2
-// (PR 4a); probe/anchor.ts re-exports its original names unchanged.
+// Pure constructions: no state, no transport. The holder's trust module
+// (trust/mapping.ts) builds and verifies over its KeyProvider, through the
+// agreement-based forms (assembleAnchorMapping, verifyAnchorMappingWith);
+// the Context-based forms (buildAnchorMapping, verifyAnchorMapping) serve
+// vectors, generators and tests.
 // Every function takes an optional SubtleCrypto (the holder's resolved
 // handle); without one it uses the platform's at call time.
 //
@@ -317,8 +316,8 @@ export async function verifyAnchorMappingWith (
     return { ok: true }
   } catch { return { ok: false, step: '1' } }
 }
-/** verifyAnchorMappingWith over the addressee's own pair Context; the
- *  probe-world form, which names the failed condition by its step only. */
+/** verifyAnchorMappingWith over the addressee's own pair Context; names
+ *  the failed condition by its step only. */
 export async function verifyAnchorMapping (m: any, at: { own: Context, pair: string, pairKeyAgreement: string, held?: Map<string, string> }, subtle?: SubtleCrypto): Promise<{ ok: true } | { ok: false, step: string }> {
   const v = await verifyAnchorMappingWith(m, {
     ownAnchor: at.own?.anchor, pair: at.pair, pairKeyAgreement: at.pairKeyAgreement, held: at.held,
