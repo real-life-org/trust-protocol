@@ -145,9 +145,9 @@ const tuple = obj({
   ownPairLabel: str, counterpartAnchor: str, counterpartKeyAgreement: str, rkid: str, entryId: str,
   priorCandidates: arr(obj({ ownPairLabel: str, counterpartAnchor: str })),
   starOut, starIn, groupStarOut, groupStarIn,
-  probeOut: obj({ seq: dec }),
+  probeOut: obj({ seq: dec, inflight: rec(obj({ digests: arr(str), acked: arr(str) })), done: bool }),
   probeIn: obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly) }),
-  continuityOut: obj({ rev: dec, body: json, chosen: nullable(str), reported: nullable(str), aligned: bool, due: nullable(continuityDue) }),
+  continuityOut: obj({ rev: dec, body: json, proof: json, sent: arr(str), chosen: nullable(str), reported: nullable(str), aligned: bool, due: nullable(continuityDue) }),
   continuityIn: obj({ rev: dec, body: json, recordPrior: nullable(str) }),
   mappingOut: obj({ rev: dec, body: json, underAnchor: nullable(str) }),
   mappingIn: obj({ rev: dec, body: json, self: nullable(str), card: json }),
@@ -159,7 +159,7 @@ const relationship = obj({
   id: str, contactId: str, tuples: arr(tuple), activeHead: str, earliestAnchor: nullable(str),
   links: arr(obj({ prev: str, next: str })), bindings: rec(str), heldCounterpartHead: nullable(str),
   memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str }),
-  chainedInto: nullable(str),
+  chainedInto: nullable(str), firstVerified: nullable(dec),
 })
 
 const contact = obj({
@@ -224,7 +224,10 @@ const duty: V = (x, p) => {
 const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V>?]> = {
   'contact.added': [{ contactId: str }],
   'contact.verified': [{ contactId: str, relationshipId: str }],
-  'contact.chained': [{ contactId: str, relationshipId: str }],
+  'contact.chained': [{ contactId: str, from: str, into: str }],
+  'contact.merged': [{ contactId: str, merged: arr(str) }],
+  'contact.split': [{ contactId: str, leaver: str, relationshipId: str }],
+  'contact.departed': [{ contactId: str, relationshipIds: arr(str), removed: bool }],
   'trust.given': [{ contactId: str }],
   'trust.received': [{ contactId: str }],
   'trust.paused': [{ contactId: str, paused: bool }],

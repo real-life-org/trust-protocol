@@ -21,8 +21,17 @@ export type HolderEvent = EventBase & (
   | { type: 'contact.added', contactId: string }
   /** a mapping verified on a relationship (6.3) */
   | { type: 'contact.verified', contactId: string, relationshipId: string }
-  /** a fresh tuple appended to a chain (6a.4) */
-  | { type: 'contact.chained', contactId: string, relationshipId: string }
+  /** a fresh tuple appended to a chain (6a.4, 6220): the fresh
+   *  relationship `from` went into the chain `into`; contactId is the entry
+   *  the chain's verifications go to after it */
+  | { type: 'contact.chained', contactId: string, from: string, into: string }
+  /** entries merged into one (2140): the survivor and the merged ids, now its aliases */
+  | { type: 'contact.merged', contactId: string, merged: string[] }
+  /** a relationship left a merged entry (2080): the remaining entry's id
+   *  (renamed where 2100 says), the leaver's new entry id, the relationship */
+  | { type: 'contact.split', contactId: string, leaver: string, relationshipId: string }
+  /** relationships departed (2260): removed says the entry went with them */
+  | { type: 'contact.departed', contactId: string, relationshipIds: string[], removed: boolean }
   /** the Trust act: anchor-mapping class on (2770) */
   | { type: 'trust.given', contactId: string }
   | { type: 'trust.received', contactId: string }

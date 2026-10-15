@@ -32,6 +32,9 @@ export type ActError =
   | 'unknown-prompt'
   /** prompt.decide: the prompt's expiresAt is not after when; tick removes it */
   | 'prompt-expired'
+  /** trust.merge: the manual merge joins at most one entry (6640), and
+   *  never relationships the binding rule keeps apart (6605) */
+  | 'not-mergeable'
 
 export type ActResult =
   /** nextDueAt: duty work this act opened or unblocked is due then (`when`:

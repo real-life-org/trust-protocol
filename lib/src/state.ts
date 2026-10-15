@@ -157,8 +157,15 @@ export interface Relationship {
   /** contact memory and evidence (2280) */
   memory: Record<string, Json>
   provenance: { kind: 'ceremony' | 'introduced', via?: string, at: Millis }
-  /** set when this chain was appended into another (6a.4) */
+  /** set when this chain was appended into another (6a.4): the fresh
+   *  relationship whose tuple a chaining appended to `chainedInto` stays as
+   *  a husk without tuples, its id resolving to the chain and its contactId
+   *  a chain alias of it (2090) */
   chainedInto: string | null
+  /** commitSeq of the first verification commit on this relationship
+   *  (2190): its place in entry-commit order among the relationships of
+   *  one entry (2100); null before any */
+  firstVerified: Dec | null
 }
 
 /** One pair context toward one counterpart: per-tuple state (2280). */
@@ -180,7 +187,9 @@ export interface Tuple {
   /** the group star's own scope and domain (5730) */
   groupStarOut: GroupStarOut
   groupStarIn: GroupStarIn
-  probeOut: { seq: Dec }
+  /** 6a.2: the own probe sequence of this tuple direction (6680), the
+   *  probes in flight and whether one completed (its delivery acked) */
+  probeOut: ProbeOut
   probeIn: { hwm: Dec, lowerBound: Dec, assembly: Assembly | null }
   /** 6a.4: own continuity-mapping issuance (6300) and the open work on it */
   continuityOut: ContinuityOut
@@ -206,10 +215,25 @@ export type ContinuityDue =
   | { kind: 'report', prior: string }
   | { kind: 'align', prior: string }
 
+/** A probe's sender state (6680, 6830). */
+export interface ProbeOut {
+  /** last assigned probe sequence, "0" before the first */
+  seq: Dec
+  /** probe → its chunks' digests and those acked */
+  inflight: Record<string, { digests: string[], acked: string[] }>
+  /** a probe completed: the standing probe duty ends (6830) */
+  done: boolean
+}
+
 export interface ContinuityOut {
   /** last issued revision and body (6300/6310) */
   rev: Dec
   body: Json | null
+  /** the MACs of the last issued body: a resend (6840) re-seals the same
+   *  artifact without the prior tuple's key */
+  proof: Json | null
+  /** digests of the documents that carried the last issued body */
+  sent: string[]
   /** record side: the prior it chose, final once set (contChosen) */
   chosen: string | null
   /** non-record side: the match it reported (contReported) */
