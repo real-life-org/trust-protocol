@@ -19,10 +19,16 @@ python3 -m http.server 8199    # any static server works
 # → http://localhost:8199/
 ```
 
-**Single source of truth:** the protocol modules here are one-line
-shims onto `lib/` — the committed, buildless freeze of the library's
-compiled output (`lib/dist`). Never edit `simulator/lib/` or the shims;
-change `lib/src/*.ts`, then refresh the freeze:
+**Single source of truth:** the protocol comes from `lib/`, the committed,
+buildless freeze of the library's compiled output (`lib/dist`). The network
+simulator (`network.html`) and the Node suites reach it through one module,
+`holder.mjs`: persons as `createHolder` over an in-memory store, `seedKeys`,
+a `memoryLog` and the platform's or a scripted entropy, and a network that
+carries every outbound envelope over the observable channel
+(`delivery.mjs`) into one `receive` of the device holding its key, reports
+the relay's acceptance and resumes the holders. `rltp-core.mjs` and
+`rltp-schemas.mjs` re-export the form layer and the schema bundle. Never
+edit `simulator/lib/`; change `lib/src/*.ts`, then refresh the freeze:
 
 ```sh
 cd lib && npm ci && npm run build && cd ..
@@ -80,6 +86,10 @@ credential, foreign ceremony label, held envelopes.
 
 ## Tests
 
+- **On the library (Node):** `introduce-test.mjs` (the Jonathan/Anton/Emil
+  introduction, the mediator offline), `trust-test.mjs`, `groups-test.mjs`,
+  `continuity-test.mjs`, `delivery-test.mjs`, `rltp-crypto-test.mjs`, plus
+  `clock-test.mjs` and `graph-web-test.mjs`; `npm test` runs `test/`.
 - **Engine (Node):** `node scenario.mjs` and `node adversarial.mjs`.
 - **Browser (Playwright + Chrome ≥137 for Ed25519 WebCrypto):** serve
   the directory (`python3 -m http.server 8199`), then, with

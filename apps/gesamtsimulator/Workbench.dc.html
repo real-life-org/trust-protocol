@@ -278,8 +278,11 @@
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;maxDevices&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Devices&quot;,&quot;unit&quot;:&quot;open at once&quot;},&quot;startLayout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;],&quot;default&quot;:&quot;free&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Start state&quot;},&quot;startOpen&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1,&quot;min&quot;:0,&quot;max&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Start state&quot;}}">
 
-// ── the world is REAL: @real-life/trust-protocol 0.3.0 (frozen ESM under ./lib),
-// one `Person` per device, every act a real sealed document over the channel.
+// ── the world is REAL: @real-life/trust-protocol (frozen ESM under ./lib), one
+// holder per device (createHolder over an in-memory store), every act a human
+// act on that holder, every document a sealed envelope over the channel into
+// ONE receive of the device that holds its key; each device's resume runs on
+// the clock. What the devices show is read from their views.
 // The demo world below is SEEDED through the same acts at load time.
 const T0 = Date.parse('2026-08-21T10:00:00Z');
 const NS = 'http://www.w3.org/2000/svg';
@@ -316,6 +319,10 @@ const GROUP_SPOTS = { chor: [820, 120], garten: [140, 120], rat: [830, 470], sch
 
 // the ONE registered ceremony — what varies is the carrier, never the ceremony
 const CEREMONY = 'encounter-scan@0.25';
+const TT = 'https://real-life.org/trust-tasks/';
+const BUNDLE = TT + 'encounter-bundle/0.1';
+// a task type's short name: its last two path segments
+const shortType = (type) => String(type || '').split('/').slice(-2).join('/');
 
 // Delivery Contract 6.2 — the receiver's stages, in mandatory order
 const STAGES = [
@@ -327,7 +334,7 @@ const STAGES = [
   'stage 6 · type known',
   'stage 7 · payload schema',
   'stage 8 · type consistency · pre-lock checks',
-  'stage 9 · effect committed under the lock set',
+  'stage 9 · effect committed',
 ];
 
 const FAULTS = [
@@ -409,37 +416,85 @@ class Component extends DCLogic {
   world = null;
   tNow = T0;          // the authoritative simulated clock (state.t mirrors it for display)
   seq = 0;            // delivery numbering
-  enc = {};           // per device: the running encounter { peer, sentCard, threadId, acked }
+  acts = 0;           // actIds minted by this app, one per human act
+  enc = {};           // per device: the running encounter { peer, peerAnchor, sentCard, digest, acked }
 
   async loadLib() {
     if (this.lib) return this.lib;
     const base = new URL('./lib/', document.baseURI).href;
-    const [root, probe] = await Promise.all([import(base + 'index.js'), import(base + 'probe.js')]);
-    this.lib = { root, probe, E: root.ceremony, T: root.visibility.trust, CN: root.visibility.continuity, I: probe.introduce, G: probe.membership };
+    const [L, testing] = await Promise.all([import(base + 'index.js'), import(base + 'testing.js')]);
+    this.lib = { L, testing };
     return this.lib;
   }
-  newWorld() { return { P: new Map(), held: [], groupSpot: new Map() }; }
+  // anchors: own anchor → device id; rkids: own key-agreement id → device id
+  newWorld() { return { P: new Map(), held: [], groupSpot: new Map(), anchors: new Map(), rkids: new Map() }; }
   person(id) { return this.world && this.world.P.get(id); }
-  ensurePerson(id, name) {
+  // the options of a human act on a device: its clock and an app-minted actId
+  act(id, extra) { return { when: this.now(id), actId: 'wb-' + (++this.acts), ...(extra || {}) }; }
+  // a device: a holder over its own in-memory store and seed, with a personal
+  // community (so it can give trust) and its name as its profile
+  async ensurePerson(id, name) {
     if (this.world.P.has(id)) return this.world.P.get(id);
-    const p = this.lib.I.createPerson(name);
+    const { L, testing } = this.lib;
+    const te = new TextEncoder();
+    const half = async (x) => new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(x)));
+    const seed = new Uint8Array([...(await half('workbench/seed/' + name)), ...(await half('workbench/seed2/' + name))]);
+    const genesis = await L.digestBytes(te.encode('workbench/community/' + name));
+    const store = new testing.InMemoryStore();
+    await store.commit(null, testing.stateBuilder({ at: this.now(id) }).community(genesis, '1').build());
+    const keys = L.seedKeys(seed);
+    const h = await L.createHolder({ store, keys, log: testing.memoryLog(genesis) });
+    const p = { id, name, h, keys, log: [], labels: new Set(), decided: new Set(), dirty: true, v: { contacts: [], groups: [], prompts: [], state: null } };
+    // every commit marks the device for re-reading (subscribe: the cue to re-read the views)
+    h.subscribe(() => { p.dirty = true; });
     this.world.P.set(id, p);
+    await h.setProfile({ name }, this.act(id));
+    await this.refresh(id);
     return p;
   }
-  ownerOf(anchor) {
-    if (!this.world || !anchor) return null;
-    for (const [id, p] of this.world.P) if (p.contexts.has(anchor)) return id;
+  // re-read one device after a commit: its views, its own anchors and addresses
+  async refresh(id) {
+    const p = this.person(id);
+    if (!p || !p.dirty) return;
+    p.dirty = false;
+    const state = (await p.h.snapshot()).state;
+    for (const label of state.register.labels) {
+      if (p.labels.has(label)) continue;
+      p.labels.add(label);
+      this.world.anchors.set((await p.keys.anchorOf(label)).anchor, id);
+    }
+    for (const rkid of Object.keys(state.addresses.keys)) this.world.rkids.set(rkid, id);
+    p.v = { contacts: await p.h.contacts(), groups: await p.h.groups(), prompts: await p.h.prompts(), state };
+  }
+  ownerOf(anchor) { return (this.world && anchor && this.world.anchors.get(anchor)) || null; }
+  // the counterpart anchors a contact's relationships carry, each active head first
+  peerAnchors(id, c) {
+    const s = this.person(id) && this.person(id).v.state;
+    const out = [];
+    if (!s || !c) return out;
+    for (const r of c.relationships) {
+      const rel = s.relationships[r.id];
+      if (!rel) continue;
+      const head = rel.tuples.find((t) => t.ownPairLabel === rel.activeHead);
+      if (head) out.push(head.counterpartAnchor);
+      for (const t of rel.tuples) if (t !== head) out.push(t.counterpartAnchor);
+    }
+    return out;
+  }
+  // the device behind a contact: god's eye only (the device itself never knows)
+  peerOf(id, c) {
+    for (const a of this.peerAnchors(id, c)) { const o = this.ownerOf(a); if (o) return o; }
     return null;
   }
-  // the counterpart anchor under which `from` holds `to` (a ceremony tuple first)
-  anchorOf(fromId, toId) {
+  // the contact under which `fromId` holds `toId` (a met one first)
+  contactOf(fromId, toId) {
     const p = this.person(fromId);
     if (!p) return null;
     let fallback = null;
-    for (const [anchor, c] of p.contacts) {
-      if (c.deactivated || this.ownerOf(anchor) !== toId) continue;
-      if (c.provenance === 'ceremony') return anchor;
-      fallback = fallback || anchor;
+    for (const c of p.v.contacts) {
+      if (this.peerOf(fromId, c) !== toId) continue;
+      if (c.provenance === 'ceremony') return c;
+      fallback = fallback || c;
     }
     return fallback;
   }
@@ -460,6 +515,7 @@ class Component extends DCLogic {
     this.enc = {};
     this.tNow = T0;
     this.seq = 0;
+    this.resuming = false;
     this.world = this.newWorld();
     this.setState({
       view: 'omniscient',
@@ -485,6 +541,13 @@ class Component extends DCLogic {
     this.timer = setInterval(() => {
       if (this.state.rate > 0) { this.tNow += this.state.rate * 300; this.setState({ t: this.tNow }); }
     }, 300);
+    // each device's resume (and tick) on the clock: retries, due duties, the
+    // star and continuity work — one call per holder, nothing swept by hand
+    this.resumeTimer = setInterval(() => {
+      if (!this.state.ready || this.resuming) return;
+      this.resuming = true;
+      this.guard(this.resumeAll({}).finally(() => { this.resuming = false; }));
+    }, 1500);
     this.waitForD3();
     this.world = this.newWorld();
     this.loadLib()
@@ -496,7 +559,7 @@ class Component extends DCLogic {
   // the demo world through REAL acts, silently (nothing on the wire list)
   async seedWorld() {
     const o = { silent: true };
-    for (const p of PEOPLE0) this.ensurePerson(p.id, p.name);
+    for (const p of PEOPLE0) await this.ensurePerson(p.id, p.name);
     for (const e of EDGES0) {
       await this.godVerify(e.a, e.b, o);
       if (e.trust === 2) { await this.giveTrust(e.a, e.b, o); await this.giveTrust(e.b, e.a, o); }
@@ -506,7 +569,7 @@ class Component extends DCLogic {
       const gid = await this.foundGroup(g.members[0], g.label, o);
       if (gid) { this.world.groupSpot.set(gid, g.id); for (const m of g.members.slice(1)) await this.joinGroup(m, gid, o); }
     }
-    await this.sweepAll(o);
+    await this.settle(o);
     this.setState({ ready: true, seedNote: '' });
     this.bump();
   }
@@ -548,6 +611,7 @@ class Component extends DCLogic {
 
   componentWillUnmount() {
     clearInterval(this.timer);
+    clearInterval(this.resumeTimer);
     clearTimeout(this.d3Timer);
     clearInterval(this.pkTimer);
     if (this.ro) this.ro.disconnect();
@@ -781,59 +845,68 @@ class Component extends DCLogic {
   groupList() {
     const m = new Map();
     if (!this.world) return [];
-    for (const [pid, p] of this.world.P) for (const [gid, g] of p.groups) {
-      let e = m.get(gid);
-      if (!e) { e = { id: gid, label: g.label, members: [], founder: null, genesis: g.genesis }; m.set(gid, e); }
+    for (const [pid, p] of this.world.P) for (const g of p.v.groups) {
+      let e = m.get(g.id);
+      if (!e) { e = { id: g.id, label: g.name, members: [], founder: null }; m.set(g.id, e); }
       if (!e.members.includes(pid)) e.members.push(pid);
-      if (g.role === 'founder') e.founder = pid;
+      if (this.founded(pid, g.id)) e.founder = pid;
     }
     return [...m.values()];
   }
+  // the device founded the group: its own admission is the genesis (5400)
+  founded(id, gid) {
+    const s = this.person(id) && this.person(id).v.state;
+    const g = s && s.groups[gid];
+    return !!(g && g.memberOp === this.lib.L.oidOf(gid));
+  }
   // what ONE device holds: its own groups, each with the roster it was
   // handed (member anchors) and the anchors it can map to a person — its
-  // own, and the members it admitted itself (the admission records the
-  // relationship it ran over). Every other entry stays an anonymous anchor.
+  // own, and the members it knows as contacts. Every other entry stays an
+  // anonymous anchor.
   localGroupsOf(id) {
     const p = this.person(id);
     if (!p) return [];
-    return [...p.groups.values()].map((g) => {
-      const owners = new Map([[g.myMemberCtx.anchor, id]]);
-      for (const [anchor, m] of g.roster) {
-        const who = m.contactAnchor && this.ownerOf(m.contactAnchor);
-        if (who) owners.set(anchor, who);
+    return p.v.groups.map((g) => {
+      const owners = new Map();
+      for (const m of g.members) {
+        if (m.self) { owners.set(m.anchor, id); continue; }
+        const c = m.contactId && p.v.contacts.find((x) => x.id === m.contactId || x.aliases.includes(m.contactId));
+        const who = c && this.peerOf(id, c);
+        if (who) owners.set(m.anchor, who);
       }
-      return { id: g.genesisDigest, label: g.label, genesis: g.genesis, founder: g.role === 'founder' ? id : null, roster: [...g.roster.keys()], owners };
+      const self = g.members.find((m) => m.self);
+      return { id: g.id, label: g.name, founder: this.founded(id, g.id) ? id : null, roster: g.members.map((m) => m.anchor), owners, myAnchor: self ? self.anchor : null };
     });
   }
-  // groups a device knows it shares with a person: the relationship carries
-  // them (the inviter knows who joined, the invitee who invited them)
+  // groups a device knows it shares with a person: the group stars it
+  // received from them hit its own groups (5520)
   sharedWith(id, other) {
     const p = this.person(id);
     if (!p) return 0;
+    const own = new Set(p.v.groups.map((g) => g.id));
     const shared = new Set();
-    for (const [anchor, c] of p.contacts) {
-      if (c.deactivated || this.ownerOf(anchor) !== other) continue;
-      for (const gd of c.sharedGroups || []) if (p.groups.has(gd)) shared.add(gd);
+    for (const c of p.v.contacts) {
+      if (this.peerOf(id, c) !== other) continue;
+      for (const gd of c.sharedGroups || []) if (own.has(gd)) shared.add(gd);
     }
     return shared.size;
   }
-  // edges are what the devices hold: a ceremony tuple on either side is an
-  // encounter edge; the trust act (trustGiven) gives the direction(s); an
+  // edges are what the devices hold: a met contact on either side is an
+  // encounter edge; the trust act (trust.given) gives the direction(s); an
   // introduced-only relationship is the amber via-line
   edges() {
     const out = [];
     if (!this.world) return out;
-    for (const [aid, a] of this.world.P) for (const [anchor, c] of a.contacts) {
-      if (c.deactivated) continue;
-      const bid = this.ownerOf(anchor);
+    for (const [aid, a] of this.world.P) for (const c of a.v.contacts) {
+      const bid = this.peerOf(aid, c);
       if (!bid || bid === aid) continue;
       const key = [aid, bid].sort().join('|');
       let e = out.find((x) => x.key === key);
       if (!e) { e = { key, a: aid, b: bid, trust: 0, verified: false, via: null, dirs: [], anchors: {} }; out.push(e); }
-      e.anchors[bid] = anchor;                       // the pair anchor of bid in this relationship
+      e.anchors[bid] = this.peerAnchors(aid, c)[0];   // the pair anchor of bid in this relationship
       if (c.provenance === 'ceremony') e.verified = true;
-      else if (!e.via) e.via = c.via || c.mediator || 'introduced';
-      if (c.trustGiven && !e.dirs.includes(aid)) e.dirs.push(aid);
+      else if (!e.via) e.via = this.viaName(aid, c) || 'introduced';
+      if (c.trust.given && !e.dirs.includes(aid)) e.dirs.push(aid);
     }
     for (const e of out) {
       if (e.dirs.length === 2) e.trust = 2;
@@ -841,6 +914,13 @@ class Component extends DCLogic {
       if (e.verified) delete e.via;
     }
     return out;
+  }
+  // the mediator of an introduced contact, by the device's own contact for it
+  viaName(id, c) {
+    const p = this.person(id);
+    const m = c.via && p && p.v.contacts.find((x) => x.id === c.via || x.aliases.includes(c.via));
+    const who = m && this.peerOf(id, m);
+    return who ? this.P(who).name : (m && m.displayName) || null;
   }
   spot(gid) {
     const key = this.world && this.world.groupSpot.get(gid);
@@ -888,8 +968,8 @@ class Component extends DCLogic {
       groups.forEach((g) => {
         nodes.push(hub(g));
         g.members.forEach((m) => {
-          const gp = this.person(m) && this.person(m).groups.get(g.id);
-          nodes.push({ id: 'a:' + g.id + ':' + m, r: 6, color: null, sub: abbr(gp && gp.myMemberCtx ? gp.myMemberCtx.anchor : m), at: this.spot(g.id) });
+          const gp = this.localGroupsOf(m).find((x) => x.id === g.id);
+          nodes.push({ id: 'a:' + g.id + ':' + m, r: 6, color: null, sub: abbr(gp && gp.myAnchor ? gp.myAnchor : m), at: this.spot(g.id) });
           out.push({ id: 'm:' + g.id + ':' + m, a: 'g:' + g.id, b: 'a:' + g.id + ':' + m, member: true, orbit: true });
         });
       });
@@ -1442,14 +1522,16 @@ class Component extends DCLogic {
   }
 
   // fresh-always: every showing derives a fresh pair anchor and challenge
-  // (ceremony.show) — the QR carries the signed contact card itself
+  // (the holder's show) — the QR carries the signed contact card itself
   async showCode(id) {
     if (!this.lib) return;
     const P = this.person(id);
-    const sh = await this.lib.E.show(P, this.now(id));
-    if (sh.error) return;
+    const sh = await P.h.show(this.act(id, { name: P.name }));
+    if (!sh.ok) { this.log(id, 'show refused: ' + sh.code); return; }
+    const card = sh.events.find((e) => e.type === 'encounter.shown').card;
+    await this.refresh(id);
     this.setState((s) => ({
-      shows: { ...s.shows, [id]: { ctx: sh.ctx, ch: sh.ch, card: sh.card, qr: this.qrOf(sh.card) } },
+      shows: { ...s.shows, [id]: { card, ch: card.challenge.value, qr: this.qrOf(card) } },
       appView: { ...s.appView, [id]: 'ready' },
       focus: id,
     }));
@@ -1582,16 +1664,17 @@ class Component extends DCLogic {
     if (!show) { this.returnFlight(); this.closeVerify(id); return; }
     if (show.fallback) {
       const P = this.person(id);
-      const r = await this.lib.E.captureSentCard(P, show.card, this.now(id));
+      const r = await P.h.captureSentCard(show.card, this.act(id));
+      if (!r.ok) this.log(id, 'sent card not usable: ' + r.code);
       this.returnFlight();
       this.setState((s) => {
         const scanx = { ...s.scan }; delete scanx[id];
         return { scan: scanx, appView: { ...s.appView, [id]: 'list' } };
       });
-      if (r.recorded) {
-        // the counter-step: issued now, its document waits for the bundle thread (4.3)
-        await this.lib.E.counter(P, show.card.anchor, this.now(id));
-      }
+      await this.refresh(id);
+      // the confirm prompt: the counter-step is issued now, its document
+      // waits for the bundle thread (4.3)
+      await this.autoDecide(id, {});
       this.bump();
       return;
     }
@@ -1611,24 +1694,27 @@ class Component extends DCLogic {
     });
   }
 
-  // the deliberate confirmation: ceremony.scan records the enactment and
+  // the deliberate confirmation: the holder's scan records the enactment and
   // ISSUES the step credential; the encounter-bundle travels the channel;
   // the other device decides for itself and answers with its counter-step
   async confirmVerify(id) {
     const scan = this.state.scan[id];
     if (!scan || !scan.card || !this.lib) return;
     const P = this.person(id);
-    const r = await this.lib.E.scan(P, scan.card, this.now(id));
-    if (r.error) {
+    const r = await P.h.scan(scan.card, this.act(id, { name: P.name }));
+    if (!r.ok) {
       this.setState((s) => ({ appView: { ...s.appView, [id]: 'ready' }, scanMiss: { ...s.scanMiss, [id]: true } }));
-      this.log(id, 'scan refused: ' + r.error);
+      this.log(id, 'scan refused: ' + r.code);
       setTimeout(() => this.setState((s) => ({ scanMiss: { ...s.scanMiss, [id]: false } })), 3200);
       return;
     }
-    this.enc[id] = { peer: scan.peer, peerAnchor: scan.card.anchor, sentCard: r.sentCard, threadId: r.threadId, acked: false };
+    const sent = r.events.find((e) => e.type === 'encounter.scanned');
+    const bundle = r.outbound.find((o) => o.type === BUNDLE);
+    this.enc[id] = { peer: scan.peer, peerAnchor: scan.card.anchor, sentCard: sent && sent.card, digest: bundle && bundle.digest, acked: false };
+    await this.refresh(id);
     this.setState((s) => ({ appView: { ...s.appView, [id]: 'waiting' } }));
     this.bump();
-    this.guard(this.deliver(id, scan.peer, 'encounter-bundle/0.1', r.env));
+    this.guard(this.send(id, r.outbound, {}));
     // ack-wait (Delivery §7): the RECOMMENDED automatic switch to the optical leg
     setTimeout(() => this.switchOptical(id), 2600);
   }
@@ -1637,7 +1723,7 @@ class Component extends DCLogic {
   // ceremony switch. Only while still waiting and no valid ack arrived.
   switchOptical(id) {
     const e = this.enc[id];
-    if (!e || e.acked || this.state.appView[id] !== 'waiting') return;
+    if (!e || e.acked || !e.sentCard || this.state.appView[id] !== 'waiting') return;
     this.setState((s) => ({
       appView: { ...s.appView, [id]: 'fallback' },
       shows: { ...s.shows, [id]: { fallback: true, card: e.sentCard, qr: this.qrOf(e.sentCard) } },
@@ -1647,54 +1733,58 @@ class Component extends DCLogic {
   log(id, msg) { const p = this.person(id); if (p) p.log.push(msg); }
   guard(pr) { return Promise.resolve(pr).catch((e) => { console.error('[workbench] act failed:', e); }); }
 
-  // ── standing duties (Visibility §6a continuity, 5.4 producer sweep) ────
-  // after a fresh enactment each device probes its new tuple so a
-  // re-encounter is CHAINED into the existing relationship instead of
-  // showing up twice; mapping/star duties flush the same way. Debounced
-  // after visible acts, run once silently after the seed.
-  // debounced until the act's burst has settled; the sweep's own deliveries
-  // never schedule another sweep — otherwise stars are re-issued while the
-  // previous ones are still in flight (16 deliveries for one trust act
-  // instead of the protocol's 9)
-  // A sweep may owe a follow-up (a probe's mapping comes back and wants its
-  // flush): rounds are spaced like the reference host's ticks and bounded.
-  scheduleSweep(round = 0) {
-    clearTimeout(this.sweepTimer);
-    this.sweepTimer = setTimeout(() => this.guard(this.sweepAll({ fromSweep: true }).then((sent) => { if (sent > 0 && round < 3) this.scheduleSweep(round + 1); })), 1800);
-  }
-  async sweepAll(o = {}) {
-    if (!this.world) return 0;
-    let sent = 0;
-    for (const id of [...this.world.P.keys()]) sent += await this.sweep(id, o);
-    if (!o.silent) this.bump();
-    return sent;
-  }
-  async sweep(id, o = {}) {
-    const { CN, T } = this.lib;
+  // ── each device's own work (Delivery §6.1 retries, the duties: the
+  // anchor mapping, the star and the group star, the continuity probe and
+  // mapping, the introduction's ack): one tick and one resume per device,
+  // whatever comes out goes over the channel. The clock calls it; seeding
+  // runs it until nothing moves.
+  async resumeOne(id, o = {}) {
     const p = this.person(id);
     if (!p) return 0;
+    await p.h.tick(this.now(id));
+    const r = await p.h.resume(this.now(id));
+    await this.refresh(id);
+    if (r.outbound.length) await this.send(id, r.outbound, o);
+    return r.outbound.length;
+  }
+  async resumeAll(o = {}) {
+    if (!this.world) return 0;
     let sent = 0;
-    const toIdOf = (tuple) => this.ownerOf(tuple && tuple.card && tuple.card.anchor);
-    for (const [k, c] of [...p.contacts]) {
-      if (!c.channel || !c.channel.own || c.deactivated) continue;
-      if (!c.probeSent) {
-        try {
-          const outs = await CN.buildProbe(p, k, this.now(id));
-          if (outs) { c.probeSent = true; for (const out of outs) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-probe/0.1', out.env, o); } } }
-        } catch (err) {
-          if (String(err && err.message || err).includes('scope exhausted')) c.probeSent = true;
-          this.log(id, 'probe to ' + c.name + ' suspended: ' + (err && err.message || err));
-        }
-        // the probe just left; its ack travels back asynchronously. A flush
-        // in the same breath would see it unacked, retire it and issue a
-        // second fresh probe — the flush is the NEXT round's business
-        continue;
-      }
-      const fl = await CN.flushContinuity(p, k, this.now(id));
-      for (const out of (fl && fl.outbound) || []) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'continuity-mapping/0.1', out.env, o); } }
-    }
-    for (const out of await T.starRefreshAll(p, this.now(id))) { const back = toIdOf(out.to); if (back) { sent++; await this.deliver(id, back, out.kind || 'star/0.2', out.env, o); } }
+    for (const id of [...this.world.P.keys()]) sent += await this.resumeOne(id, o);
+    if (sent && !o.silent) this.bump();
     return sent;
+  }
+  async settle(o = {}, rounds = 12) {
+    for (let i = 0; i < rounds; i++) if (!(await this.resumeAll(o))) break;
+  }
+
+  // the workbench's devices decide their prompts after a beat (an app would
+  // show them): they confirm an encounter, accept an invitation, take up an
+  // introduction (policy, not protocol)
+  async autoDecide(id, o = {}) {
+    const p = this.person(id);
+    if (!p) return;
+    for (const pr of p.v.prompts) {
+      if (p.decided.has(pr.id)) continue;
+      p.decided.add(pr.id);
+      const go = async () => {
+        const d = await p.h.decide(pr.id, 'accept', this.act(id));
+        await this.refresh(id);
+        if (!d.ok) { this.log(id, pr.kind + ' not taken: ' + d.code); return; }
+        this.onEvents(id, d.events);
+        await this.send(id, d.outbound, o);
+        if (!o.silent) this.bump();
+      };
+      if (o.silent) await go(); else setTimeout(() => this.guard(go()), 900);
+    }
+  }
+
+  // what a commit announced that the workbench's screens follow
+  onEvents(id, events) {
+    for (const e of events || []) {
+      if (e.type === 'encounter.accepted' && e.mutual) this.onMutual(id, e.contactId);
+      if (e.type === 'delivery.status' && e.status === 'delivered' && this.enc[id] && this.enc[id].digest === e.digest) this.enc[id].acked = true;
+    }
   }
 
   startWireDrag(ev) {
@@ -1723,7 +1813,7 @@ class Component extends DCLogic {
     const clean = (name || '').trim();
     if (!clean || this.state.people.some((p) => p.id === clean) || !this.lib) return;
     const color = COLORS[clean] ?? EXTRA[this.state.people.length % EXTRA.length];
-    this.ensurePerson(clean, clean);
+    this.guard(this.ensurePerson(clean, clean).then(() => this.bump()));
     this.setState((s) => ({ people: [...s.people, { id: clean, name: clean, color }] }));
   }
 
@@ -1736,120 +1826,93 @@ class Component extends DCLogic {
   async foundGroup(founderId, label, o = {}) {
     const P = this.person(founderId);
     if (!P) return null;
-    const g = await this.lib.G.foundGroup(P, label, this.now(founderId));
+    const r = await P.h.foundGroup({ name: label }, this.act(founderId));
+    if (!r.ok) { this.log(founderId, 'founding refused: ' + r.code); return null; }
+    await this.refresh(founderId);
     if (!o.silent) this.bump();
-    return g.genesisDigest;
+    return r.events.find((e) => e.type === 'group.founded').groupId;
   }
 
   // joining runs the real membership flow: a member who HOLDS the person
-  // sponsors a prelude request → prelude reply → invite → the invitee's
-  // device accepts → admission + welcome. Without a relationship there is
-  // no channel: the sponsor first verifies the person (god mode).
+  // invites (the prelude, then the invitation) → the invitee's device
+  // accepts → admission + welcome. Without a relationship there is no
+  // channel: the sponsor first verifies the person (god mode).
   async joinGroup(personId, gid, o = {}) {
     const g = this.G(gid);
     if (!g || !personId || g.members.includes(personId)) return;
-    let sponsor = g.members.find((m) => this.anchorOf(m, personId));
+    let sponsor = g.members.find((m) => this.contactOf(m, personId));
     if (!sponsor) {
       sponsor = g.founder || g.members[0];
       if (!sponsor) return;
       await this.godVerify(sponsor, personId, o);
     }
     const S = this.person(sponsor);
-    const anchor = this.anchorOf(sponsor, personId);
-    if (!anchor) return;
-    const pkt = await this.lib.G.preludeRequest(S, anchor, gid, this.now(sponsor));
-    await this.deliver(sponsor, personId, 'membership-prelude-request@probe', pkt.env, o);
+    const c = this.contactOf(sponsor, personId);
+    if (!c) return;
+    const r = await S.h.invite(gid, c.id, this.act(sponsor));
+    if (!r.ok) { this.log(sponsor, 'invite refused: ' + r.code); return; }
+    await this.refresh(sponsor);
+    await this.send(sponsor, r.outbound, o);
   }
 
   runAct(kind, from, to) {
     if (!from || !to || from === to || !this.lib) return;
     if (kind === 'verify') this.guard(this.godVerify(from, to, {}));
+    else if (kind === 'introduce') this.guard(this.introduce(from, to, {}));
     else this.guard(this.giveTrust(from, to, {}));
   }
 
   // god mode "verify": the same ceremony the app runs — `to` shows a code,
-  // `from` scans it; bundle and counter-step travel the channel
+  // `from` scans it; the bundle and the counter-step travel the channel
   async godVerify(a, b, o = {}) {
     const A = this.person(a), B = this.person(b);
     if (!A || !B) return false;
-    const sh = await this.lib.E.show(B, this.now(b));
-    const bu = await this.lib.E.scan(A, sh.card, this.now(a));
-    if (bu.error) { this.log(a, 'scan refused: ' + bu.error); return false; }
-    await this.deliver(a, b, 'encounter-bundle/0.1', bu.env, o);
+    const sh = await B.h.show(this.act(b, { name: B.name }));
+    if (!sh.ok) return false;
+    await this.refresh(b);
+    const card = sh.events.find((e) => e.type === 'encounter.shown').card;
+    const bu = await A.h.scan(card, this.act(a, { name: A.name }));
+    if (!bu.ok) { this.log(a, 'scan refused: ' + bu.code); return false; }
+    await this.refresh(a);
+    await this.send(a, bu.outbound, o);
     return true;
   }
 
-  // the trust act: anchor-mapping@4 (designated verifier), then the
-  // blinded star follows through the 5.4 reconciliation
+  // the trust act: the anchor mapping (designated verifier) goes out on the
+  // device's resume; the blinded star follows through the 5.4 reconciliation
   async giveTrust(from, to, o = {}) {
     const P = this.person(from);
-    // the row names its tuple; god mode picks the active ceremony tuple that has no trust yet
-    let anchor = o.anchor || null;
-    if (!anchor && P) for (const [k, c] of P.contacts) if (!c.deactivated && c.provenance === 'ceremony' && !c.trustGiven && this.ownerOf(k) === to) { anchor = k; break; }
-    if (!anchor) anchor = this.anchorOf(from, to);
-    if (!P || !anchor) return false;
-    const T = this.lib.T;
-    const pkt = await T.setTrust(P, anchor, this.now(from));
-    if (pkt && pkt.error) { this.log(from, 'trust act refused: ' + pkt.error); if (!o.silent) this.bump(); return false; }
-    for (const out of (pkt && pkt.outbound) || []) await this.deliver(from, to, out.kind || 'anchor-mapping/0.3', out.env, o);
-    for (const out of await T.starRefreshAll(P, this.now(from))) {
-      const toId = this.ownerOf(out.to && out.to.card && out.to.card.anchor);
-      if (toId) await this.deliver(from, toId, out.kind || 'star/0.2', out.env, o);
-    }
+    if (!P) return false;
+    // the row names its contact; god mode picks a met contact without trust yet
+    let c = o.contactId ? P.v.contacts.find((x) => x.id === o.contactId) : null;
+    if (!c) c = P.v.contacts.find((x) => x.provenance === 'ceremony' && !x.trust.given && this.peerOf(from, x) === to) || this.contactOf(from, to);
+    if (!c) return false;
+    const r = await P.h.trust(c.id, this.act(from));
+    if (!r.ok) { this.log(from, 'trust act refused: ' + r.code); if (!o.silent) this.bump(); return false; }
+    await this.resumeOne(from, o);
     if (!o.silent) this.bump();
     return true;
   }
 
-  // ── the receiver: the library's type-specific chain, in the reference
-  // host's order; acks travel back at once; acceptance is awaited separately
-  async dispatch(toId, env, o = {}) {
-    const { G, T, CN, E, I, root } = this.lib;
-    const P = this.person(toId);
-    const now = this.now(toId);
-    const toIdOf = (tuple) => this.ownerOf(tuple && tuple.card && tuple.card.anchor);
-    let r = await G.receiveDoc(P, env, now);
-    if (!r.handled) r = await T.receiveTrustDoc(P, env, now);
-    if (!r.handled) r = await CN.receiveContinuity(P, env, now);
-    if (!r.handled) r = await E.receiveEncounter(P, env, now);
-    if (r.ack) { const back = toIdOf(r.ack.to); if (back) this.deliver(toId, back, r.ack.kind || 'delivery-ack/0.1', r.ack.env, { ...o, replay: true }); }
-    if (r.acceptance) Object.assign(r, await r.acceptance);
-    if (!r.handled) {
-      const off = await I.receiveOffer(P, env);
-      if (!off.error) r = { handled: true, offer: true };
-      else {
-        // nothing took it: classify at the envelope level for the wire view
-        const d = await root.receive(env, (rkid) => { const c = P.contexts.get(rkid); return c ? c.x.priv : undefined; }, new Set());
-        r = { handled: false, transport: d.disposition === 'unique' ? 'unknown-type' : d.disposition };
-      }
-    }
-    // encounter moments
-    if (r.recorded && r.prompt) {
-      // arrival is not acceptance: this device decides — the workbench's
-      // devices confirm after a beat (the app would show the prompt)
-      const peerAnchor = r.prompt.peerAnchor;
-      const counter = async () => {
-        const c = await E.counter(P, peerAnchor, this.now(toId));
-        if (c && c.env) { const back = this.ownerOf(peerAnchor); if (back) await this.deliver(toId, back, 'encounter-credential-delivery/0.1', c.env, o); }
-      };
-      if (o.silent) await counter(); else setTimeout(counter, 900);
-    }
-    if (r.counterOut && r.counterOut.env) { const back = toIdOf(r.counterOut.to); if (back) await this.deliver(toId, back, 'encounter-credential-delivery/0.1', r.counterOut.env, o); }
-    if (r.accepted && r.mutual) this.onMutual(toId, r.peerAnchor);
-    if (r.acked === 'encounter-bundle') { const e = this.enc[toId]; if (e && e.peerAnchor === r.peerAnchor) e.acked = true; }
-    // membership: an invitation waits in the inbox — the workbench's devices accept
-    if (r.prompt && r.prompt.kind === 'invite' && !r.prompt.decided) {
-      const pkt = await G.acceptInvite(P, r.prompt, this.now(toId), { candidacy: false });
-      const back = toIdOf(pkt.to);
-      if (back) await this.deliver(toId, back, 'membership-accept/0.2', pkt.env, o);
-    }
-    for (const out of r.outbound || []) { const back = toIdOf(out.to); if (back) await this.deliver(toId, back, out.kind || 'membership document', out.env, o); }
-    if (!o.silent) { this.bump(); if (!o.fromSweep) this.scheduleSweep(); }
-    return r;
+  // god mode "introduce": a device that holds both runs the Introduction Act
+  // (Trust §8): the offer to the requester, its request, the forward to the
+  // target, the consent, the reply relayed, the vouchers
+  async introduce(requester, target, o = {}) {
+    const m = [...this.world.P.keys()].find((x) => x !== requester && x !== target && this.contactOf(x, requester) && this.contactOf(x, target));
+    if (!m) { this.log(requester, 'no one holds both ' + requester + ' and ' + target + ' — no introduction'); return false; }
+    const M = this.person(m);
+    const r = await M.h.introduce(this.contactOf(m, requester).id, this.contactOf(m, target).id, this.act(m, { label: this.P(target).name }));
+    if (!r.ok) { this.log(m, 'introduction refused: ' + r.code); return false; }
+    await this.refresh(m);
+    await this.send(m, r.outbound, o);
+    return true;
   }
 
   // the counter credential landed: both devices hold each other's credential
-  onMutual(id, peerAnchor) {
-    const peer = this.ownerOf(peerAnchor);
+  onMutual(id, contactId) {
+    const p = this.person(id);
+    const c = p && p.v.contacts.find((x) => x.id === contactId || x.aliases.includes(contactId));
+    const peer = c ? this.peerOf(id, c) : null;
     this.setState((s) => {
       const shows = { ...s.shows }, scanx = { ...s.scan }, appView = { ...s.appView };
       for (const x of [id, peer]) { if (!x) continue; delete shows[x]; delete scanx[x]; if (['waiting', 'fallback', 'confirm', 'ready'].includes(appView[x])) appView[x] = 'list'; }
@@ -1868,39 +1931,62 @@ class Component extends DCLogic {
     return { ...env, ciphertext: c.slice(0, i) + ch + c.slice(i + 1) };
   }
 
+  // the receiver's disposition as stage rows: every stage passed up to the
+  // one named in the library's ReceiveResult
   stagesOf(r) {
     const ok = (k) => STAGES.slice(0, k).map((l) => ({ label: l, ok: true }));
-    const failAt = (idx, disp) => ({ disp, bad: true, stages: [...ok(idx - 1), { label: STAGES[idx - 1], ok: false }] });
-    if (r.transport) {
-      const idx = ({ oversize: 1, malformed: 2, 'decryption-failed': 3, 'unknown-type': 6 })[r.transport] || 4;
-      return failAt(idx, 'failed(' + r.transport + ')');
-    }
-    if (r.duplicate) return { disp: 'duplicate-known · prior outcome applies', bad: false, stages: ok(4) };
-    if (r.error) {
-      const e = String(r.error);
-      const idx = /malformed document|wrong-recipient/.test(e) ? 5 : /unknown-type/.test(e) ? 6 : /^malformed/.test(e) ? 7
-        : /consumed-challenge|gate-future|challenge unknown/.test(e) ? 9 : 8;
-      return failAt(idx, 'failed(' + e + ')');
-    }
-    return { disp: 'unique', bad: false, stages: ok(9) };
+    if (r.disposition === 'unique') return { disp: 'unique', bad: false, stages: ok(9) };
+    if (r.disposition === 'duplicate-known') return { disp: 'duplicate-known · prior outcome applies', bad: false, stages: ok(4) };
+    if (r.disposition === 'discarded') return { disp: 'discarded(' + r.reason + ')', bad: true, stages: [...ok(8), { label: STAGES[8], ok: false }] };
+    const k = r.stage || 1;
+    return { disp: 'failed(' + r.reason + ')' + (r.ref ? ' · ' + r.ref : ''), bad: true, stages: [...ok(k - 1), { label: STAGES[k - 1], ok: false }] };
   }
 
-  async deliver(from, to, kind, env, o = {}) {
+  // a device's outbound, each to the device whose addresses hold its rkid
+  async send(from, outbound, o = {}) {
+    for (const ob of outbound || []) {
+      const to = this.world.rkids.get(ob.envelope.rkid);
+      if (to) await this.deliver(from, to, ob, o);
+    }
+  }
+
+  // ONE receive per envelope: the receiving holder runs Delivery §6.2 and its
+  // task register; its answers (the ack first) go back over the channel
+  async dispatch(from, toId, ob, env, o = {}) {
+    const P = this.person(toId);
+    const r = await P.h.receive(env, this.now(toId));
+    // the channel took it: the relay's report to the sender (Delivery §6.1)
+    if (!o.replay && from && this.person(from) && ob.digest) {
+      try { await this.person(from).h.report({ digest: ob.digest, status: 'accepted' }, this.now(from)); } catch (e) { /* a report never blocks the channel */ }
+    }
+    await this.refresh(toId);
+    if (r.disposition === 'unique' || r.disposition === 'duplicate-known') {
+      this.onEvents(toId, r.events);
+      await this.send(toId, r.outbound, { ...o, replay: false });
+      await this.autoDecide(toId, o);
+    }
+    if (!o.silent) this.bump();
+    return r;
+  }
+
+  async deliver(from, to, ob, o = {}) {
+    const env = ob && ob.envelope;
     if (!env || !this.person(to)) return { arrived: false };
     const f = this.state.faults;
     const silent = !!o.silent;
+    const kind = shortType(ob.type) + (ob.attempt > 1 ? ' · attempt ' + ob.attempt : '') + (o.suffix || '');
     const n = silent ? 0 : ++this.seq;   // one running number per VISIBLE delivery, even for concurrent ones
     const at = new Date(this.tNow).toISOString().slice(11, 19);
     const base = { n, from: this.P(from).name, to: this.P(to).name, kind, at, payload: JSON.stringify(env, null, 1), open: false };
 
     if (!silent && f.lose && !o.replay) {
-      this.push({ ...base, disp: 'lost (fault)', stages: [], bad: true }, n);
+      this.push({ ...base, disp: 'lost (fault) — the sender re-offers it after its backoff', stages: [], bad: true }, n);
       this.fly(from, to, RED, 1.1);
       return { arrived: false };
     }
     if (!silent && f.hold && !o.replay) {
       this.push({ ...base, disp: 'held (fault) — parked on the channel', stages: [], bad: true }, n);
-      this.world.held.push({ from, to, kind, env });
+      this.world.held.push({ from, to, ob });
       this.setState((s) => ({ held: [...s.held, { from, to, kind }] }));
       return { arrived: false, held: true };
     }
@@ -1910,14 +1996,14 @@ class Component extends DCLogic {
       this.fly(from, to, f.tamper && !o.replay ? RED : GREEN, 1.4);
       await sleep(1400);
     }
-    const r = await this.dispatch(to, sendEnv, o);
+    const r = await this.dispatch(from, to, ob, sendEnv, o);
     const st = this.stagesOf(r);
     if (!silent) this.push({ ...base, ...st }, n);
     if (!silent && f.dup && !o.replay && !st.bad) {
       setTimeout(async () => {
         const n2 = ++this.seq;
         this.fly(from, to, AMBER, 1.4);
-        const r2 = await this.dispatch(to, sendEnv, { ...o, replay: true });
+        const r2 = await this.dispatch(from, to, ob, sendEnv, { ...o, replay: true });
         const st2 = this.stagesOf(r2);
         this.push({ ...base, n: n2, at: new Date(this.tNow).toISOString().slice(11, 19), kind: kind + ' — DUPLICATE (fault)', ...st2 }, n2);
       }, 700);
@@ -1937,43 +2023,41 @@ class Component extends DCLogic {
         const held = this.world.held;
         this.world.held = [];
         this.setState({ held: [] });
-        held.forEach((h, i) => setTimeout(() => this.deliver(h.from, h.to, h.kind + ' — released from hold', h.env, { replay: true }), i * 350));
+        held.forEach((h, i) => setTimeout(() => this.guard(this.deliver(h.from, h.to, h.ob, { replay: true, suffix: ' — released from hold' })), i * 350));
       }
     });
   }
 
-  // ── device data — read off the Person, never invented ─────────────────
-  edgeStateOf(c) { return c.state || (c.credential && c.credentialIn ? '✓' : c.credential ? '→' : c.credentialIn ? '←' : '◇'); }
-
+  // ── device data — read off the device's views and state, never invented ──
   contactsOf(id) {
     const p = this.person(id);
     if (!p) return [];
     const out = [];
-    for (const [anchor, c] of p.contacts) {
-      if (c.deactivated) continue;
-      const other = this.ownerOf(anchor);
-      const o = other ? this.P(other) : { id: anchor, name: c.name || '?', color: MUTED };
-      const st = this.edgeStateOf(c);
+    for (const c of p.v.contacts) {
+      const other = this.peerOf(id, c);
+      const o = other ? this.P(other) : { id: c.id, name: c.displayName || '?', color: MUTED };
       const isCeremony = c.provenance === 'ceremony';
+      const v = c.verification;
       let verBadge = null, verBg = 'oklch(93% 0.05 264)', verFg = 'oklch(45% 0.16 264)';
-      if (isCeremony) verBadge = st === '✓' ? '⇄ verified' : st === '→' ? '→ verified' : st === '←' ? '← verified you' : '◇ met';
+      if (isCeremony) verBadge = v === 'mutual' ? '⇄ verified' : v === 'outgoing' ? '→ verified' : v === 'incoming' ? '← verified you' : '◇ met';
       else { verBadge = '⇄ introduced'; verBg = 'oklch(96% 0.06 85)'; verFg = 'oklch(50% 0.12 70)'; }
       const shared = other ? this.sharedWith(id, other) : 0;
-      let trustBadge = null, trustBg = '', trustFg = '', meta = isCeremony ? 'met in person' : ('introduced' + (c.via ? ' via ' + c.via : ''));
-      const gave = !!c.trustGiven, got = !!c.selfAnchor;
+      const via = isCeremony ? null : this.viaName(id, c);
+      let trustBadge = null, trustBg = '', trustFg = '', meta = isCeremony ? 'met in person' : ('introduced' + (via ? ' via ' + via : ''));
+      const gave = c.trust.given, got = c.trust.received;
       if (gave && got) { trustBadge = '⇄ trust'; trustBg = 'oklch(94% 0.06 142)'; trustFg = 'oklch(42% 0.14 142)'; meta = 'they hold your stable ID, you hold theirs'; }
       else if (gave) { trustBadge = '→ you trust'; trustBg = 'oklch(96% 0.06 85)'; trustFg = 'oklch(50% 0.12 70)'; meta = 'they hold your stable ID forever'; }
       else if (got) { trustBadge = '← trusts you'; trustBg = 'oklch(96% 0.06 85)'; trustFg = 'oklch(50% 0.12 70)'; meta = 'they trusted you — you have not'; }
-      if (st === '→' && isCeremony && !gave && !got) meta = 'verified by you — their confirmation is pending';
-      if (st === '←' && isCeremony && !gave && !got) meta = 'they verified you — your confirmation is pending';
-      if (st === '◇' && isCeremony) meta = 'met — code captured; the confirmations follow over the network';
+      if (v === 'outgoing' && isCeremony && !gave && !got) meta = 'verified by you — their confirmation is pending';
+      if (v === 'incoming' && isCeremony && !gave && !got) meta = 'they verified you — your confirmation is pending';
+      if (v === 'met' && isCeremony) meta = 'met — code captured; the confirmations follow over the network';
       if (shared) meta = shared + (shared === 1 ? ' mutual group' : ' mutual groups') + ' · ' + meta;
       out.push({
-        id: other || anchor, anchor, name: o.name, initials: initials(o.name), color: o.color, tint: tint(o.color),
+        id: other || c.id, anchor: this.peerAnchors(id, c)[0], name: o.name, initials: initials(o.name), color: o.color, tint: tint(o.color),
         verBadge, verBg, verFg, hasVer: !!verBadge,
         hasTrust: !!trustBadge, trustBadge, trustBg, trustFg, meta,
         canShare: isCeremony && !gave,
-        onShare: () => this.guard(this.giveTrust(id, other, { anchor })),
+        onShare: () => this.guard(this.giveTrust(id, other, { contactId: c.id })),
       });
     }
     return out;
@@ -1982,32 +2066,36 @@ class Component extends DCLogic {
   introducedOf(id) {
     const p = this.person(id);
     if (!p) return [];
-    const out = [];
-    for (const [anchor, c] of p.contacts) {
-      if (c.deactivated || c.provenance === 'ceremony') continue;
-      const other = this.ownerOf(anchor);
-      const name = other ? this.P(other).name : (c.name || '?');
-      out.push({ id: other || anchor, name, initials: initials(name), meta: 'introduced' + (c.via ? ' via ' + c.via : '') });
-    }
-    return out;
+    return p.v.contacts.filter((c) => c.provenance === 'introduced').map((c) => {
+      const other = this.peerOf(id, c);
+      const name = other ? this.P(other).name : (c.displayName || '?');
+      const via = this.viaName(id, c);
+      return { id: other || c.id, name, initials: initials(name), meta: 'introduced' + (via ? ' via ' + via : '') };
+    });
   }
 
   // the artifacts a device actually holds, as real JSON
   holdsRaw(id) {
     const p = this.person(id);
-    if (!p) return [];
+    const s = p && p.v.state;
+    if (!s) return [];
     const cats = [];
-    const active = [...p.contacts.values()].filter((c) => !c.deactivated);
-    const issued = active.filter((c) => c.credential).map((c) => c.credential);
-    const received = active.filter((c) => c.credentialIn).map((c) => c.credentialIn);
-    const cards = active.filter((c) => c.card).map((c) => c.card);
-    const disclosed = active.filter((c) => c.selfAnchor).map((c) => ({ counterpart: c.card && c.card.anchor, selfAnchor: c.selfAnchor, name: c.name }));
-    const groups = [...p.groups.values()];
+    const records = Object.values(s.encounter.records);
+    const issued = records.filter((r) => r.out).map((r) => r.out.credential);
+    const received = records.filter((r) => r.in).map((r) => r.in.credential);
+    const cards = records.map((r) => r.card);
+    const tuples = Object.values(s.relationships).flatMap((r) => r.tuples);
+    const disclosed = tuples.filter((t) => t.mappingIn.body).map((t) => t.mappingIn.body);
+    const stars = tuples.filter((t) => t.starIn.accepted).map((t) => t.starIn.accepted);
+    const intros = Object.values(s.encounter.introductions);
+    const groups = Object.values(s.groups);
     if (issued.length) cats.push(['encounter-credential/0.26 · issued', 'your step credentials, one per enactment', issued]);
     if (received.length) cats.push(['encounter-credential/0.26 · received', 'their step credentials, accepted under 5.6', received]);
     if (cards.length) cats.push(['contact-card/0.25', 'their cards as received, bound to the record', cards]);
     if (disclosed.length) cats.push(['anchor-mapping@4 · received', 'stable identities disclosed to you (designated verifier)', disclosed]);
-    if (groups.length) cats.push(['membership', 'genesis + roster · member anchors, never names on the wire', groups.map((g) => ({ label: g.label, genesisDigest: g.genesisDigest, role: g.role, myMemberAnchor: g.myMemberCtx && g.myMemberCtx.anchor, roster: [...g.roster.entries()].map(([anchor, m]) => ({ anchor, name: m.name, addedAt: m.addedAt, founder: !!m.founder })) }))]);
+    if (stars.length) cats.push(['star@2 · received', 'contact updates: blinded anchors, the ones you also hold matched', stars]);
+    if (intros.length) cats.push(['introduction', 'the Introduction Act in its roles: request, reply, ack, voucher', intros]);
+    if (groups.length) cats.push(['membership', 'genesis + roster · member anchors, never names on the wire', groups.map((g) => ({ name: g.name, genesisDigest: g.id, founded: this.founded(id, g.id), memberAnchor: g.memberAnchor, genesis: g.genesis, roster: Object.values(g.roster) }))]);
     return cats;
   }
   holdCount(id) { return this.holdsRaw(id).reduce((n, c) => n + c[2].length, 0) + (this.person(id) ? 1 : 0); }
@@ -2051,6 +2139,7 @@ class Component extends DCLogic {
     else if (s.dlg === 'verification') this.runAct('verify', s.dlgFrom, s.dlgTo);
     else if (s.dlg === 'trust') this.runAct('trust', s.dlgFrom, s.dlgTo);
     else if (s.dlg === 'membership') this.joinGroup(s.dlgFrom, s.dlgGroup, {}).then(() => this.bump());
+    else if (s.dlg === 'introduction') this.runAct('introduce', s.dlgFrom, s.dlgTo);
     this.setState({ dlg: null });
   }
 
@@ -2186,6 +2275,7 @@ class Component extends DCLogic {
       verification: { title: 'New verification', ok: 'Run', from: true, to: true, fromLabel: 'Issuer', toLabel: 'Counterpart', note: 'A real encounter: both sides issue credentials. The delivery runs through the channel and shows its receiving stages.' },
       trust: { title: 'Trust', ok: 'Run', from: true, to: true, fromLabel: 'Trusts', toLabel: 'Receives the stable ID', note: 'A deliberate disclosure, with direction. One way is amber; once both have disclosed, the edge turns green. Irreversible — they hold it forever.' },
       membership: { title: 'New membership', ok: 'Run', from: true, group: true, fromLabel: 'Person', note: 'An existing member sponsors the invite. The roster carries an anchor, never a name.' },
+      introduction: { title: 'Introduction', ok: 'Run', from: true, to: true, fromLabel: 'Requester', toLabel: 'Target', note: 'Someone who holds both introduces them (Trust §8): an offer to the requester, its request, the forward to the target, the consent, the reply relayed back, the vouchers. Both end with a new relationship under fresh anchors the mediator never holds.' },
     };
     const d = DLG[s.dlg] || {};
 
@@ -2246,6 +2336,7 @@ class Component extends DCLogic {
         { label: '＋ Group', on: () => this.openDlg('group') },
         { label: '＋ Verification', on: () => this.openDlg('verification') },
         { label: '＋ Membership', on: () => this.openDlg('membership') },
+        { label: '＋ Introduction', on: () => this.openDlg('introduction') },
         { label: '★ Trust', on: () => this.openDlg('trust') },
       ],
 

@@ -104,27 +104,34 @@
   .rbtn { font: inherit; font-size: .64rem; font-family: ui-monospace, monospace; padding: .2rem .45rem;
     border: 1px solid var(--line); border-radius: .4rem; background: transparent; color: var(--muted); cursor: pointer; }
   .rbtn.on { border-color: var(--primary); color: var(--primary); }
+  .wire .ack summary { opacity: .55; }
+  .wire .disp { color: var(--muted); }
+  .wire .att { color: var(--amber); }
+  .devlog { font-family: ui-monospace, monospace; font-size: .6rem; color: var(--muted); width: 100%; min-height: 1.1rem; line-height: 1.4; }
 </style>
 </head>
 <body>
 <header>
   <h1>Network Simulator · The App</h1>
-  <div class="sub">The same app on three devices (rltp-core + rltp-crypto, DTG WD 0.6.0) · verify, introduce, trust, groups · rendezvous drop — the introducer is never needed again after their one act</div>
+  <div class="sub">The same app on three devices (the RLTP library's holder API: one holder per device, every document a sealed delivery) · verify, introduce, trust, groups · an introduction is relayed by the introducer — while he is offline, the act waits for him</div>
   <div class="clockbar" id="clockbar"></div>
 </header>
 <main>
-  <div class="dev" id="dev-J"></div>
+  <div class="dev" id="dev-J"><div class="note">setting up the devices…</div></div>
   <div class="dev" id="dev-A"></div>
   <div class="dev" id="dev-E"></div>
   <aside>
     <div class="panel"><h2>Fault injection · delivery channel</h2><div class="note" id="faults"></div></div>
-    <div class="panel"><h2>On the wire · rendezvous drop</h2><div class="wire" id="wire"></div></div>
+    <div class="panel"><h2>On the wire · sealed deliveries</h2><div class="wire" id="wire"></div></div>
     <div class="panel"><h2>Scenario</h2><div class="note">
       Jonathan and Emil are both part of the same org but have never met.
-      Anton knows both from real ceremonies (✓).<br><br>
-      <b>Try:</b> On Anton's phone → tap Emil → "Introduce…" → pick Jonathan.
-      Then flip Anton to airplane mode — and watch Jonathan and Emil find each other
-      anyway. The wire shows: after Anton's one act, not a single access comes from him.
+      Anton knows both from real ceremonies (⇄ verified).<br><br>
+      <b>Try:</b> On Anton's phone → tap Emil → "Introduce…" → pick Jonathan. Jonathan gets
+      Anton's offer; his request goes to Anton, Anton's device forwards it to Emil, Emil
+      decides, and the reply and the vouchers come back the same way. Flip Anton to
+      airplane mode before Jonathan connects — the request waits at the relay until Anton
+      is back, and only then reaches Emil (after ack-delay + act-skew without Anton, the act
+      fails). Neither side ever sees an anchor Anton holds: both mint fresh cards.
       Or verify someone yourself: the connect button opens your code and the scanner —
       including the offline two-way scan.
     </div></div>
@@ -132,382 +139,304 @@
 </main>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script type="module">
-import * as I from './introduce.mjs'
-import * as C from './rltp-crypto.mjs'
-import * as G from './groups.mjs'
-import * as T from './trust.mjs'
-import * as CN from './continuity.mjs'
-import * as E from './encounter.mjs'
-import * as DV from './delivery.mjs'
+import * as H from './holder.mjs'
 import * as K from './clock.mjs'
 import * as PH from './rltp-phone.mjs'
 PH.injectPhoneCss()
+const { createPerson, createNetwork, meet, at, eventOf, TYPES, counterpartAnchors } = H
 
+// ── the world: three holders, one network, one clock ────────────────────
 const T0 = Date.parse('2026-08-25T15:00:00Z')
 const clock = K.start(K.createClock({ start: T0 }))
-Object.defineProperty(globalThis, 'now', { get: () => K.now(clock) })
-K.subscribe(clock, () => { if (world.ready && clock.rate > 0) render() })
+const now = () => K.now(clock)
+const tnow = (id) => K.deviceNow(clock, id)          // the time this device reads (its drift included)
+const IDS = ['J', 'A', 'E']
+const NAMES = { J: 'Jonathan', A: 'Anton', E: 'Emil' }
 const COLORS = { Jonathan: '#3b82f6', Anton: '#ef4444', Emil: '#84cc16' }
-const world = {
-  J: I.createPerson('Jonathan'), A: I.createPerson('Anton'), E: I.createPerson('Emil'),
-  drop: I.createDrop(), wire: [], channel: DV.createChannel(), // Baustein 7: Stufen, Faults, Transit
-  shows: {}, // der optische Kanal: id -> gezeigter Code ({ctx,ch,card} oder Fallback-Bundle)
-  ui: { J: { view: 'list', tab: 'home', wdir: 'all', wopen: {} }, A: { view: 'list', tab: 'home', wdir: 'all', wopen: {} }, E: { view: 'list', tab: 'home', wdir: 'all', wopen: {} } },
-  ready: false,
+const people = {}
+for (const id of IDS) people[id] = await createPerson(NAMES[id], { when: T0 })
+const net = createNetwork(IDS.map((id) => people[id]))
+// the starting point: Anton knows both from real ceremonies (each scans Anton's code)
+await meet(net, people.J, people.A, T0)
+await meet(net, people.E, people.A, T0 + 10_000)
+K.jump(clock, K.MINUTE)
+for (const id of IDS) {
+  const p = people[id]
+  p.id = id
+  p.log = []
+  await p.refresh()
+  // the community anchor (Identity §5.4): what a trust act discloses
+  p.community = (await p.keys.anchorOf('group/' + p.view.state.register.community.genesis)).anchor
 }
-// jedes Paket, das den Draht berührt — mit echter Fracht (aufklappbar)
-const packet = (kind, from, to, payload, cls = 'env') => {
-  const w = { n: world.wire.length, kind, from, to, payload, cls }
-  world.wire.push(w)
-  return w
-}
-// Drop-Zugriffe ebenfalls als Pakete zeigen (put mit Blob, get mit Treffer)
-const _put = world.drop.put.bind(world.drop), _get = world.drop.get.bind(world.drop)
-world.drop.put = (topic, blob, by) => { packet('drop.put ' + topic.slice(0, 14) + '…', by, 'Drop', { topic, blobB64u: blob.slice(0, 120) + '… (' + blob.length + ' Zeichen, AES-GCM unter Akt-Schlüssel)' }, 'put'); return _put(topic, blob, by) }
-world.drop.get = (topic, by) => { const r = _get(topic, by); packet('drop.get ' + topic.slice(0, 14) + '… ' + (r ? '→ Treffer' : '→ leer'), by, 'Drop', { topic, hit: !!r }, 'get'); return r }
-window.__probe = world
-const byName = (n) => world[n === 'Jonathan' ? 'J' : n === 'Anton' ? 'A' : 'E']
-const idOf = (p) => p.name === 'Jonathan' ? 'J' : p.name === 'Anton' ? 'A' : 'E'
+const ui = Object.fromEntries(IDS.map((id) => [id, { view: 'list', tab: 'home', wdir: 'all', wopen: {}, sheet: null, toast: null, enc: null, scan: null, promptId: null, optical: new Set() }]))
+const shows = {}       // id -> { card } the displayed code, or { fallback: true, card: sentCard, name } (the optical leg)
+const evq = Object.fromEntries(IDS.map((id) => [id, []]))
+for (const id of IDS) people[id].h.subscribe(({ events }) => { evq[id].push(...events) })
+const state = { ready: false }
+window.__net = { net, people, shows, ui, state, clock }
+const byName = (n) => IDS.map((id) => people[id]).find((p) => p.name === n)
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 
-// Ausgangslage: Anton kennt beide (echte Zeremonien, fresh-always)
-world.cJ = await I.ceremony(world.A, world.J, T0)
-world.cE = await I.ceremony(world.A, world.E, T0 + 1000)
-for (const id of ['J', 'A', 'E']) for (const c of world[id].contacts.values()) c.probeSent = true // Vorgeschichte: leere Probes nicht nachspielen
-world.ready = true
+// ── steps: every act and every sync round runs alone, then the views are
+// re-read and the UI reacts to the events of what committed ─────────────
+let chain = Promise.resolve()
+let lastSig = ''
+const sig = () => IDS.map((id) => people[id].view.state.commitSeq).join() + '|' + net.wire.length + '|' + net.wire.filter((w) => w.disp).length
+function run (fn, { quiet = false } = {}) {
+  chain = chain.then(async () => {
+    let moved = (await fn()) === true    // a step may say it changed the UI by itself
+    for (const id of IDS) await people[id].refresh()
+    for (const id of IDS) moved = (await react(id)) || moved
+    const s = sig()
+    if (!quiet || moved || s !== lastSig) render()
+    lastSig = s
+  }).catch((e) => { console.error(e); setTimeout(() => { throw e }) })
+  return chain
+}
+const step = () => K.jump(clock, 5 * K.SECOND)     // an act moves the clock by 5 s
+const say = (id, line) => { people[id].log.push(line) }
+async function send (p, r) {
+  if (r?.ok && r.outbound?.length) await net.send(p, r.outbound, tnow(p.id))
+}
+const settle = () => net.settle(now())
 
-// ── Transport: gesiegelte Zustellung mit Offline-Puffer (Relay-Semantik).
-// membership-Dokumente dispatcht groups.receiveDoc; Antworten (outbound)
-// reisen sofort weiter — jede an ihren Empfänger, transit bei offline ──
-// die typ-spezifische Kette (Stufen „6–9" wohnen bei den Handlern)
-async function dispatchDoc (toPerson, env) {
-  let r = await G.receiveDoc(toPerson, env, now)
-  if (!r.handled) r = await T.receiveTrustDoc(toPerson, env, now)
-  if (!r.handled) r = await CN.receiveContinuity(toPerson, env, now)
-  if (!r.handled) r = await E.receiveEncounter(toPerson, env, now)
-  // Delivery 4.2: der Ack reist zurueck ueber den Kanal (signiert fuer die
-  // Encounter-Formen, deniabel-MAC fuer die DV-Formen der Visibility)
-  if (r.ack) { packet(r.ack.kind, toPerson.name, r.ack.to.name, r.ack.env); await deliver(byName(r.ack.to.name), r.ack.env) }
-  if (r.acceptance) Object.assign(r, await r.acceptance)   // 4.3: der Ack ging beim Puffern — die Encounter-Akzeptanz läuft getrennt, ihr Ausgang bleibt lokal
-  if (!r.handled) { const o = await I.receiveOffer(toPerson, env); return { handled: !o.error, error: o.error } }
-  logPkt(toPerson, r)
-  const tid = idOf(toPerson)
-  // Encounter-Momente der App
-  if (r.recorded && r.prompt) {   // Bundle angekommen: Vollbild-Prompt „verify back?" — Ankunft ≠ Annahme
-    toPerson.contacts.get(r.prompt.peerAnchor).probeSent = true
-    toPerson.inbox.push({ kind: 'verifyback', from: r.prompt.from, peerAnchor: r.prompt.peerAnchor, decided: false })
-    if (world.ui[tid].view === 'verify') delete world.shows[tid]
-    Object.assign(world.ui[tid], { view: 'prompt', promptAnchor: r.prompt.peerAnchor, sheet: null })
-  }
-  if (r.accepted && r.mutual) {   // das Gegen-Credential: beidseitig ✓ — der Feier-Moment
-    const t = toPerson.contacts.get(r.peerAnchor)
-    if (t) t.probeSent = false   // Tupel lebt beidseitig → §6a-Probe im Tick
-    world.ui[tid].sheet = { type: 'verified', of: r.peerAnchor }
-    // nur die AKTIVE Begegnung (gleicher Gegenanker) verlässt waiting/fallback — ein spätes Credential einer anderen Begegnung nicht
-    if (['waiting', 'delivered', 'fallback'].includes(world.ui[tid].view) && world.ui[tid].enc?.peerAnchor === r.peerAnchor) { world.ui[tid].view = 'list'; delete world.shows[tid] }
-  }
-  if (r.counterOut?.env && toPerson.online) {   // der auf den Bundle-Thread wartende Gegenschritt: jetzt ausgestellt → zustellen
-    packet('encounter-credential-delivery/0.1 — Gegenschritt (versiegelt)', toPerson.name, r.counterOut.to.name, r.counterOut.env)
-    await deliver(byName(r.counterOut.to.name), r.counterOut.env)
-  }
-  if (r.acked === 'encounter-bundle') {   // Delivery 6.1: delivered = gültiger Ack; auch ein später (nach Fallback)
-    const u = world.ui[tid]
-    // Korrelation: nur der Ack DIESER Begegnung (Gegenanker + Bundle-Thread) flippt die Ansicht
-    const mine = u.enc?.peerAnchor === r.peerAnchor && (u.enc?.threadId === undefined || u.enc.threadId === r.threadId)
-    if (mine && ['waiting', 'fallback'].includes(u.view)) { u.view = 'delivered'; delete world.shows[tid]; u.ackTicks = 0 }
-  }
-  if (r.disclosed) toast(tid, `${r.fromName ?? 'A contact'} trusts you now — they shared their stable identity`)
-  if (r.chained && r.name && world.ui[tid].sheet?.type !== 'verified') toast(tid, `${r.name}: recognized an existing relationship — merged into one contact`)
-  if (r.fulfilled) toast(tid, 'Your candidacy is fulfilled — a member vouched for you')
-  for (const out of r.outbound ?? []) {
-    packet(pktKind(out), toPerson.name, out.to.name, out.env)
-    await deliver(byName(out.to.name), out.env)
-  }
-  return r
+// ── reading the views (all synchronous, from the last refresh) ──────────
+const cv = (p, id) => id ? p.view.contacts.find((c) => c.id === id || c.aliases.includes(id)) : undefined
+const nm = (c) => c?.displayName ?? 'someone'
+const relIdsOf = (c) => c.relationships.flatMap((r) => [r.id, ...r.chainedFrom])
+const recordsOf = (p, c) => { const ids = new Set(relIdsOf(c)); return Object.values(p.view.state.encounter.records).filter((r) => ids.has(r.relId)) }
+const tuplesOf = (p, c) => {
+  const seen = new Map()
+  for (const rid of relIdsOf(c)) for (const t of p.view.state.relationships[rid]?.tuples ?? []) seen.set(t.ownPairLabel, t)
+  return [...seen.values()]
 }
-async function deliver (toPerson, env) {
-  const w = world.wire.findLast((x) => x.payload === env)
-  const res = await DV.deliver(world.channel, toPerson, env, (e) => dispatchDoc(toPerson, e))
-  if (w) { w.stages = res.stages; w.disp = res.disp }
-  // dup-Fault: dieselbe Zustellung ein zweites Mal — der completed-effect-
-  // Cache muss sie als duplicate-known abfangen (kein zweiter Effekt)
-  if (world.channel.faults.dup && res.arrived && res.disp === 'unique') {
-    const w2 = packet((w?.kind ?? 'delivery') + ' — DUPLICATE (fault)', w?.from ?? '?', toPerson.name, env, 'put')
-    const res2 = await DV.deliver(world.channel, toPerson, env, (e) => dispatchDoc(toPerson, e), { replay: true })
-    w2.stages = res2.stages; w2.disp = res2.disp
+const headTuples = (p, c) => tuplesOf(p, c).filter((t) => !t.deactivated)
+// a contact met in a ceremony (its own, or a chained one): verification counts
+const ceremonial = (p, c) => c.provenance === 'ceremony' || recordsOf(p, c).length > 0
+const contactByLabel = (p, label) => {
+  for (const r of Object.values(p.view.state.relationships)) {
+    const t = r.tuples.find((x) => x.ownPairLabel === label)
+    if (t) return cv(p, t.entryId) ?? cv(p, r.contactId)
   }
-  return res.arrived
 }
-const pktKind = (out) => out.kind ?? 'Dokument (versiegelt, Kanal)'
-const logPkt = () => {}
-async function flushTransit (p) {
-  for (const env of DV.drainTransit(world.channel, p.name)) await deliver(p, env)
+const sinceOf = (p, c) => Math.max(...recordsOf(p, c).map((r) => r.at), ...relIdsOf(c).map((rid) => p.view.state.relationships[rid]?.provenance.at ?? 0))
+// the blinded star the contact sent (5.2a): its count and the entries this
+// holder matched with anchors it holds legitimately
+function starOf (p, c) {
+  let any = false, count = 0
+  const known = new Set()
+  for (const t of headTuples(p, c)) {
+    const a = t.starIn.accepted
+    if (!a) continue
+    any = true
+    count = Math.max(count, a.blinded?.length ?? 0)
+    for (const m of a.matches ?? []) { const k = cv(p, m); if (k && k.id !== c.id) known.add(nm(k)) }
+  }
+  return any ? { count, known: [...known] } : null
 }
+const sharedOf = (p, c) => (c.sharedGroups ?? []).map((gid) => p.view.groups.find((g) => g.id === gid)).filter(Boolean)
+const introActs = (p) => Object.values(p.view.state.encounter.introductions)
+const voucherOf = (p, c) => { const labels = new Set(tuplesOf(p, c).map((t) => t.ownPairLabel)); return introActs(p).find((a) => a.ownLabel && labels.has(a.ownLabel) && a.voucher) }
+const groupState = (p, gid) => p.view.state.groups[gid]
+const isFounder = (p, gid, anchor) => groupState(p, gid)?.genesis?.founder === anchor
 
-// ── Aktionen (App-UI → introduce.mjs) ───────────────────────────────────
-async function doIntroduce (mediator, anchorA, anchorB) {
-  K.jump(clock, 5 * K.SECOND)
-  const A = mediator.contacts.get(anchorA), B = mediator.contacts.get(anchorB)
-  const r = await I.introduce(mediator, anchorA, anchorB, now)
-  packet('introduction-offer@2 (versiegelt)', mediator.name, A.name, r.offers[0].env)
-  packet('introduction-offer@2 (versiegelt)', mediator.name, B.name, r.offers[1].env)
-  await deliver(byName(A.name), r.offers[0].env)
-  await deliver(byName(B.name), r.offers[1].env)
-  render()
-}
-window.__decide = async (id, i, yes) => {
-  const p = world[id], e = p.inbox.filter((x) => !x.decided)[i]
-  if (!e) return
-  K.jump(clock, 5 * K.SECOND)
-  if (!yes) { e.decided = true; e.ignored = true; p.log.push('ignoriert — nichts hat das Gerät verlassen (die Karte der Gegenseite kann trotzdem eintreffen)'); render(); return }
-  await I.consent(p, e, world.drop, now)
-  render()
-  // KEIN Cross-Device-Update: jedes Gerät holt selbst, im eigenen Sync-Tick
-}
-window.__net = async (id) => {
-  const p = world[id]
-  if (p.online) { await I.setOnline(p, false, world.drop) }
-  else {
-    await flushTransit(p)
-    await I.setOnline(p, true, world.drop)   // führt Queue aus + checkDrop
-  }
-  render()
-}
-// 🗂 Wallet-Kategorien — dieselbe Struktur wie renderWallet() im
-// Graph-Simulator (Titel/Sub/JSON pro Artefakt; dir für Sent/Received)
-const short = (s) => s.slice(0, 14) + '…'
-const J = (o) => JSON.stringify(o, null, 1)
-function walletCats (p) {
-  const peerOfCtx = (ctx) => {
-    for (const c of p.contacts.values()) if (c.channel?.own?.anchor === ctx.anchor) return c.name
-    for (const e of p.inbox) if (!e.kind && e.ownCtx?.anchor === ctx.anchor) return e.offer.peer.name
-    return null
-  }
-  const groupOfLabel = (label) => [...p.groups.values()].find((g) => label === 'group/' + g.genesisDigest)
-  const ctxs = [...new Map([...p.contexts.values()].map((c) => [c.label, c])).values()]
-  const cats = []
-  cats.push({ key: 'id', title: 'Identity · anchors', fpp: 'one identity per context, all derived from one seed',
-    items: ctxs.map((ctx) => ({
-      title: ctx.label.startsWith('group/')
-        ? `membership anchor · ${groupOfLabel(ctx.label)?.label ?? short(ctx.anchor)}`
-        : `relationship anchor · ${peerOfCtx(ctx) ?? short(ctx.anchor)}`,
-      sub: short(ctx.anchor),
-      json: J({ label: ctx.label, anchor: ctx.anchor, derivation: `HKDF-SHA256(root, 'rltp/anchor/ed/${ctx.label}')`, backup: 'root seed only (12 words) — anchors are re-derivable' }),
-    })) })
-  const rel = []
-  for (const c of p.contacts.values()) if (c.provenance === 'ceremony' && c.credential) {
-    rel.push({ dir: 'out', title: `issued · about ${c.name}`, sub: `pairwise anchors (ceremony) · binding ${c.credential.credentialSubject.enactmentBinding.slice(0, 14)}… · 📤 presentable`, json: J(c.credential) })
-    rel.push({ dir: 'in', title: `card · from ${c.name}`, sub: 'contact card, key-agreement key for the sealed channel', json: J(c.card) })
-  }
-  cats.push({ key: 'rel', title: 'Relationship credentials', fpp: 'signed evidence of every verification', items: rel })
-  const intro = []
-  for (const e of p.inbox) {
-    if (e.kind) continue // Membership-Einträge gehören in die Membership-Kategorie
-    intro.push({ dir: 'in', title: `offer · from ${e.mediator} (${e.offer.peer.name})`, sub: `introduction-offer@2 · act ${e.offer.act.slice(0, 14)}… · ${e.ignored ? 'ignored' : e.released ? 'released' : 'open'}`, json: J(e.offer) })
-    if (e.ownCard) intro.push({ dir: 'out', title: `released card · for ${e.offer.peer.name}`, sub: 'deposited at the drop (AES-GCM under the act secret)', json: J(e.ownCard) })
-  }
-  for (const c of p.contacts.values()) if (c.voucher) {
-    intro.push({ dir: 'in', title: `card · from ${c.name}`, sub: `${c.state} ${c.provenance} · fetched from the drop`, json: J(c.card) })
-    intro.push({ dir: 'in', title: `voucher · about ${c.name}`, sub: 'introduction-voucher@2 · act-bound, under MY introducer\'s channel anchor', json: J(c.voucher) })
-  }
-  cats.push({ key: 'intro', title: 'Introductions', fpp: 'offers, released cards, act-bound vouchers', items: intro })
-  const tr = []
-  for (const c of p.contacts.values()) {
-    if (c.sentMapping) tr.push({ dir: 'out', title: `anchor-mapping · to ${c.name}`, sub: `anchor-mapping@4 (DV, double MAC) · one-way door ${c.trustPaused ? '· updates paused' : ''}`, json: J(c.sentMapping) })
-    if (c.mapping) tr.push({ dir: 'in', title: `anchor-mapping · from ${c.name}`, sub: 'verified with own secrets — worthless to third parties (deniable)', json: J(c.mapping) })
-    if (c.sentStar) tr.push({ dir: 'out', title: `contact update · to ${c.name}`, sub: `blinded snapshot · ${c.sentStar.count} anchors as HMACs, salt ${c.sentStar.salt}`, json: J(c.sentStar) })
-    if (c.starReceived) tr.push({ dir: 'in', title: `contact update · from ${c.name}`, sub: `${c.starReceived.count} contacts (blinded) · you know ${c.starInfo?.knownNames?.length ?? 0}`, json: J(c.starReceived) })
-  }
-  cats.push({ key: 'trust', title: 'Trust', fpp: 'disclosed anchors, blinded snapshots — the one-way doors', items: tr })
-  const mem = []
-  for (const g of p.groups.values()) {
-    if (g.role === 'founder') mem.push({ dir: 'out', title: `genesis · ${g.label}`, sub: `group-genesis@probe · digest ${g.genesisDigest.slice(0, 16)}… (the group's identity)`, json: J(g.genesis) })
-    for (const [anchor, th] of g.threads) mem.push({ dir: 'out', title: `invite (offen) · ${g.label}`, sub: 'membership-invite/0.2 · InvitationCredential, one carrier', json: J(th.invite) })
-  }
-  for (const e of p.inbox) if (e.kind === 'invite') mem.push({ dir: 'in', title: `invite · "${e.invite.credentialSubject.name}" from ${e.from}`, sub: `membership-invite/0.2 · prelude check passed · ${e.accepted ? 'joined' : e.ignored ? 'ignored' : 'open'}`, json: J(e.invite) })
-  cats.push({ key: 'mem', title: 'Membership', fpp: 'genesis, invitations, the group identity', items: mem })
-  return cats
-}
-window.__wdir = (id, dir) => { world.ui[id].wdir = dir; render() }
-window.__wcat = (id, key) => { world.ui[id].wopen[key] = !world.ui[id].wopen[key]; render() }
-const walletOf = (id, p) => PH.walletHtml({ cats: walletCats(p), dir: world.ui[id].wdir, open: world.ui[id].wopen,
-  onDir: (k) => `__wdir('${id}','${k}')`, onCat: (k) => `__wcat('${id}','${k}')` })
-// jedes ONLINE-Gerät synct periodisch selbst: Transit abholen + Drop prüfen —
-// die UI ist danach reine Funktion der Gerätedaten
-setInterval(async () => {
-  if (!world.ready) return
-  let changed = false
-  for (const id of ['J', 'A', 'E']) {
-    const p = world[id]
-    // Ack-Wartezeit (Delivery §7 ack-wait) läuft NETZUNABHÄNGIG — sie ist nur
-    // der EMPFOHLENE automatische Auslöser des Path-Switch (Encounter 5.8:
-    // „presentation is never gated on a timer"); der manuelle Switch steht
-    // in der waiting-Ansicht jederzeit bereit (__switchOptical)
-    if (world.ui[id].view === 'waiting' && (world.ui[id].ackTicks = (world.ui[id].ackTicks ?? 0) + 1) > 2) { switchOptical(id, 'Ack-Wartezeit verstrichen · automatischer Wechsel'); changed = true }
-    if (!p.online) continue
-    const before = p.log.length + p.contacts.size
-    await flushTransit(p)
-    for (const e of p.inbox) if (!e.kind) await I.checkDrop(p, e, world.drop)
-    // gezeigter Code älter als PT5M → von selbst neu prägen (Anzeige
-    // rotiert, Retention bleibt: das Show-Log hält jede Challenge auflösbar)
-    const sh = world.shows[id]
-    if (sh && !sh.fallback && K.agedOut(clock, id, sh.card.challenge.issuedAt, 5 * K.MINUTE)) {
-      const fresh = await E.show(p, now)   // Encounter 5.3: frische Challenge tritt als OPEN ein, Retention in der Bibliothek
-      world.shows[id] = { ctx: fresh.ctx, ch: fresh.ch, card: fresh.card }
-      p.log.push('displayed code reached max age PT5M · rotated by itself — fresh pair anchor, retention unchanged')
-      changed = true
+// ── the UI reacts to what committed (events are notifications, note §4.4) ─
+async function react (id) {
+  const p = people[id], u = ui[id]
+  const events = evq[id].splice(0)
+  let moved = events.length > 0
+  for (const e of events) {
+    if (e.type === 'prompt.opened' && e.kind === 'encounter-confirm') {
+      // arrival is not acceptance: the full-screen prompt asks this device
+      if (u.view === 'verify') delete shows[id]
+      if (!['scanner', 'confirm', 'waiting', 'fallback'].includes(u.view)) Object.assign(u, { view: 'prompt', promptId: e.promptId, sheet: null })
     }
-    // Delivery 4.2: unquittierte Encounter-Dokumente byte-identisch erneut
-    // (Host-Policy: jeden zweiten Tick) — „delivered" entsteht nur per Ack
-    if (p.online && ((p.encTick = (p.encTick ?? 0) + 1) % 2 === 0)) {
-      // geschuldete Ausstellung nachholen (Record steht, Dokument fehlte) — dann byte-identische Redelivery
-      const resumed = await E.resumeEncounter(p, now)
-      // nachgeholte Sent-Card in die aktive Begegnung zurückspielen — der optische Fallback bleibt möglich (5.8)
-      for (const out of resumed.outbound) { const u = world.ui[id]; if (out.sentCard && u.enc && !u.enc.sentCard && u.enc.peerAnchor === out.peerAnchor) { u.enc.sentCard = out.sentCard; u.enc.threadId ??= out.threadId } }
-      for (const out of [...resumed.outbound, ...E.flushEncounter(p).outbound]) {
-        packet(out.kind, p.name, out.to.name, out.env)
-        await deliver(byName(out.to.name), out.env)
-        changed = true
+    if (e.type === 'encounter.accepted' && e.mutual) {
+      u.sheet = { type: 'verified', of: e.contactId }
+      if (['waiting', 'delivered', 'fallback'].includes(u.view) && u.enc && cv(p, u.enc.contactId)?.id === cv(p, e.contactId)?.id) { u.view = 'list'; if (shows[id]?.fallback) delete shows[id] }
+    }
+    if (e.type === 'trust.received') toast(id, `${nm(cv(p, e.contactId))} trusts you now — they shared their stable identity`)
+    if (e.type === 'contact.chained' && u.sheet?.type !== 'verified') toast(id, `${nm(cv(p, e.contactId))}: recognized an existing relationship — merged into one contact`)
+    if (e.type === 'group.joined') toast(id, `You joined "${p.view.groups.find((g) => g.id === e.groupId)?.name ?? 'the group'}"`)
+  }
+  // Delivery 6.1: "delivered" only by the ack, never by arrival
+  if (u.enc?.bundleDigest && ['waiting', 'fallback'].includes(u.view)) {
+    const st = (await p.h.deliveryStatus(u.enc.bundleDigest)).items[0]?.status
+    if (st === 'delivered') { u.view = 'delivered'; if (shows[id]?.fallback) delete shows[id]; moved = true }
+  }
+  return moved
+}
+
+// ── the periodic sync: every ONLINE device ticks and resumes (retries,
+// acks, duties: probes, mappings, stars, the mediator's ack) — the app's
+// timer. The UI is a function of the device data afterwards ────────────
+let tickQueued = false
+setInterval(() => {
+  if (!state.ready || tickQueued) return
+  tickQueued = true
+  run(async () => {
+    tickQueued = false
+    let changed = false
+    for (const id of IDS) {
+      const u = ui[id], p = people[id]
+      // ack-wait (Delivery §7) is only the RECOMMENDED trigger of the path
+      // switch (Encounter 5.8, 5690); the manual switch is always there
+      if (u.view === 'waiting' && (u.ackTicks = (u.ackTicks ?? 0) + 1) > 2) { switchOptical(id, 'ack-wait elapsed · automatic switch'); changed = true }
+      // a displayed code older than PT5M is shown afresh (rotation changes
+      // what is displayed, never what is retained)
+      const sh = shows[id]
+      if (sh && !sh.fallback && K.agedOut(clock, id, sh.card.challenge.issuedAt, 5 * K.MINUTE)) {
+        const r = await p.h.show(at(tnow(id), { name: p.name }))
+        if (r.ok) { shows[id] = { card: eventOf(r, 'encounter.shown').card }; say(id, 'displayed code reached PT5M · rotated by itself — fresh pair anchor, the old challenge stays retained'); changed = true }
       }
     }
-    for (const [k, c] of p.contacts) {
-      if (!c.channel?.own || c.deactivated) continue
-      // 6a.3 stehende Pflichten: pending Probe senden; unbeantwortete
-      // Situation (weder gekettet noch als neu erkannt) mit FRISCHER
-      // Sequenz wiederholen; Mapping-Pflichten/Retries via flush
-      const unanswered = c.probeSent && !c.chainedInto && !c.chain?.length && !c.contChosen && !c.contReported && c.probeSeqIn === undefined
-      if (!c.probeSent || (unanswered && (c.probeRetryTick = (c.probeRetryTick ?? 0) + 1) % 8 === 0)) {
-        // probeSent erst NACH erfolgreichem Bau (Review 24, B-1): ein
-        // Bau-Fehler lässt die Pflicht stehen (nächster Tick versucht
-        // erneut); NUR Erschöpfung suspendiert den Scope endgültig
-        // (2.1) — und nie den Sweep der übrigen Kontakte (Review 19)
-        try {
-          const outs = await CN.buildProbe(p, k, now)
-          if (outs) {
-            c.probeSent = true
-            for (const out of outs) {
-              packet(out.kind ?? 'continuity-probe/0.1 (geblendet, gepolstert, versiegelt)', p.name, out.to.name, out.env)
-              await deliver(byName(out.to.name), out.env)
-            }
-          }
-        } catch (err) {
-          if (String(err?.message ?? err).includes('scope exhausted')) c.probeSent = true   // endgültig suspendiert
-          p.log.push(`Probe an ${c.name} suspendiert: ${err?.message ?? err}`)
-        }
-        changed = true
-      }
-      const fl = await CN.flushContinuity(p, k, now)
-      for (const out of fl.outbound ?? []) { packet(out.kind, p.name, out.to.name, out.env); await deliver(byName(out.to.name), out.env); changed = true }
-    }
-    // 5.4 Producer-Sweep: stehende Divergenzen + V2-Pflichten jedes
-    // verfügbaren Delivery-Kontakts (Rekonziliation ist idempotent)
-    for (const out of await T.starRefreshAll(p, now)) {
-      packet(out.kind + ' (versiegelt)', p.name, out.to.name, out.env)
-      await deliver(byName(out.to.name), out.env)
-      changed = true
-    }
-    if (p.log.length + p.contacts.size !== before) changed = true
-  }
-  if (changed) render()
+    await settle()
+    return changed
+  }, { quiet: true })
 }, 900)
-window.__nav = (id, view, anchor) => { Object.assign(world.ui[id], { view, anchor, sheet: null }); render() }
-window.__tab = (id, tab) => { Object.assign(world.ui[id], { tab, view: 'list', anchor: null, sheet: null }); render() }
+
+// ── acts (App-UI → holder) ───────────────────────────────────────────────
+window.__nav = (id, view, cid) => { Object.assign(ui[id], { view, cid, sheet: null }); render() }
+window.__tab = (id, tab) => { Object.assign(ui[id], { tab, view: 'list', cid: null, sheet: null }); render() }
+window.__group = (id, gid) => { Object.assign(ui[id], { tab: 'groups', view: 'group', gid, sheet: null }); render() }
 window.__rr = () => render()
-window.world = world
-window.__sheet = (id, sheet) => { world.ui[id].sheet = sheet; render() }
-window.__foundGroup = async (id) => {
-  const p = world[id]
+window.__sheet = (id, sheet) => { ui[id].sheet = sheet; render() }
+window.__online = (id) => run(async () => {
+  const p = people[id]
+  await net.setOnline(p, !p.online, now())
+  say(id, p.online ? 'back online — transit and the kept outbound flow' : 'airplane mode — the device keeps its outbound, the relay holds what comes in')
+  if (p.online) await settle()
+})
+window.__decide = (id, promptId, choice) => run(async () => {
+  const p = people[id], u = ui[id]
+  const pr = p.view.prompts.find((x) => x.id === promptId)
+  if (!pr) return
+  step()
+  const r = await p.h.decide(promptId, choice, at(tnow(id)))
+  if (!r.ok) { toast(id, `not possible: ${r.code}`); return }
+  if (u.view === 'prompt' && u.promptId === promptId) Object.assign(u, { view: 'list', promptId: null })
+  if (u.sheet?.promptId === promptId) u.sheet = null
+  if (pr.kind === 'introduction' && choice === 'decline') say(id, 'ignored — nothing left this device (refusal and silence look alike)')
+  await send(p, r)
+  await settle()
+  if (pr.kind === 'encounter-confirm' && choice === 'accept') {
+    await p.refresh()
+    const c = cv(p, pr.contactId)
+    if (c?.verification === 'mutual') u.sheet = { type: 'verified', of: c.id }
+    else say(id, 'counter-credential issued — its delivery waits for the bundle\'s thread (4.3 step counter)')
+  }
+})
+window.__promptLater = (id) => { Object.assign(ui[id], { view: 'list', tab: 'home', promptId: null }); render() }
+window.__foundGroup = (id) => {
   const name = document.getElementById('gname-' + id)?.value?.trim()
-  world.ui[id].sheet = null
+  ui[id].sheet = null
   if (!name) { render(); return }
-  K.jump(clock, 5 * K.SECOND)
-  await G.foundGroup(p, name, now)
-  render()
+  return run(async () => {
+    const p = people[id]
+    step()
+    const r = await p.h.foundGroup({ name }, at(tnow(id)))
+    if (!r.ok) toast(id, `not possible: ${r.code}`)
+    await settle()
+  })
 }
-window.__inviteToGroup = async (id, gid, contactAnchor) => {
-  const p = world[id]
-  world.ui[id].sheet = null
-  K.jump(clock, 5 * K.SECOND)
-  const pkt = await G.preludeRequest(p, contactAnchor, gid, now)
-  packet('membership-prelude-request@probe (versiegelt)', p.name, pkt.to.name, pkt.env)
-  await deliver(byName(pkt.to.name), pkt.env)
-  render()
-}
-window.__decideInvite = async (id, act, yes) => {
-  const p = world[id]
-  const e = p.inbox.find((x) => x.kind === 'invite' && !x.decided && x.invite.taskContext === act)
-  if (!e) return
-  K.jump(clock, 5 * K.SECOND)
-  if (!yes) { e.decided = true; e.ignored = true; p.log.push('Einladung ignoriert — verfällt still mit validUntil'); render(); return }
-}
-window.__joinConfirm = async (id, act) => {
-  const p = world[id]
-  const e = p.inbox.find((x) => x.kind === 'invite' && !x.decided && x.invite.taskContext === act)
-  const candidacy = !!document.getElementById('cand-' + id)?.checked // vor dem Sprung lesen: der Re-Render nimmt das Sheet mit
-  world.ui[id].sheet = null
-  if (!e) { render(); return }
-  K.jump(clock, 5 * K.SECOND)
-  const pkt = await G.acceptInvite(p, e, now, { candidacy })
-  packet('membership-accept/0.2 (versiegelt, Task-Proof, candidacy=' + candidacy + ')', p.name, pkt.to.name, pkt.env)
-  await deliver(byName(pkt.to.name), pkt.env)
-  render()
-}
-// ── der WoT-App-Flow (wie Zeremonie-Sim/Demo-App): FAB → Code zeigen ODER
-// scannen → Scanner fliegt übers zeigende Phone → Person bestätigen →
-// Credential reist übers NETZ → Gegenseite bestätigt zurück; ohne Netz
-// wechselt die App automatisch auf den Two-Way-Scan (optische Fortsetzung
-// DERSELBEN Begegnung — Adapter-Wechsel, kein Zeremonie-Wechsel).
-window.__openVerify = async (id) => {
-  const p = world[id], ui = world.ui[id]
-  ui.sheet = null
-  if (world.shows[id]?.fallback) { ui.view = 'fallback'; render(); return } // laufende Begegnung geht vor
-  const sh = await E.show(p, now)
-  world.shows[id] = { ctx: sh.ctx, ch: sh.ch, card: sh.card }
-  ui.view = 'verify'
-  p.log.push('Code gezeigt — frisches Anker-Paar geprägt (verrät nichts)')
-  render()
-}
+window.__inviteToGroup = (id, gid, cid) => run(async () => {
+  const p = people[id]
+  ui[id].sheet = null
+  step()
+  // the prelude goes first; the invitation follows on its answer by itself
+  const r = await p.h.invite(gid, cid, at(tnow(id)))
+  if (!r.ok) { toast(id, `not possible: ${r.code}`); return }
+  await send(p, r)
+  await settle()
+})
+window.__trustGive = (id, cid) => run(async () => {
+  const p = people[id]
+  ui[id].sheet = null
+  step()
+  const r = await p.h.trust(cid, at(tnow(id)))
+  if (!r.ok) { toast(id, `not possible: ${r.code}`); return }
+  await send(p, r)
+  await settle()      // the mapping goes out on resume, the star follows by reconciliation (5.4)
+})
+window.__trustPause = (id, cid) => run(async () => {
+  const p = people[id]
+  const c = cv(p, cid)
+  step()
+  const r = await p.h.pauseTrust(cid, !c?.trust.paused, at(tnow(id)))
+  if (!r.ok) toast(id, `not possible: ${r.code}`)
+  await settle()
+})
+window.__vouch = (id, gid, member) => run(async () => {
+  const p = people[id]
+  const g = p.view.groups.find((x) => x.id === gid)
+  const m = g?.members.find((x) => x.anchor === member)
+  const c = cv(p, m?.contactId)
+  step()
+  const r = await p.h.vouchFor(gid, member, at(tnow(id), { provenance: c && ceremonial(p, c) ? 'met' : 'introduced' }))
+  if (!r.ok) { toast(id, `not possible: ${r.code}`); return }
+  await send(p, r)
+  await settle()
+})
+window.__confirmIntroduce = (id) => run(async () => {
+  const p = people[id], u = ui[id]
+  const s = u.sheet
+  Object.assign(u, { sheet: null, view: 'list', cid: null })
+  step()
+  // the mediator's ONE act (Trust §8): the offer to the requester, naming
+  // the target by an opaque designator and the label typed here
+  const r = await p.h.introduce(s.req, s.tgt, at(tnow(id), { label: nm(cv(p, s.tgt)) }))
+  if (!r.ok) { toast(id, `not possible: ${r.code}`); return }
+  await send(p, r)
+})
+
+// ── the WoT app flow: FAB → show code OR scan → the scanner flies over
+// the showing phone → confirm the person → the bundle travels the NETWORK
+// → the other side confirms back; without a connection the same encounter
+// continues optically (the sent card as QR: an adapter switch, not a
+// second ceremony) ──────────────────────────────────────────────────────
+window.__openVerify = (id) => run(async () => {
+  const p = people[id], u = ui[id]
+  u.sheet = null
+  if (shows[id]?.fallback) { u.view = 'fallback'; return }    // a running encounter goes first
+  step()
+  const r = await p.h.show(at(tnow(id), { name: p.name }))
+  if (!r.ok) { toast(id, `not possible: ${r.code}`); return }
+  shows[id] = { card: eventOf(r, 'encounter.shown').card }
+  u.view = 'verify'
+  say(id, 'code shown — a fresh pair anchor and a fresh challenge (reveals nothing)')
+})
 function toast (id, text) {
-  world.ui[id].toast = text
+  ui[id].toast = text
   render()
-  clearTimeout(world.ui[id].toastT)
-  world.ui[id].toastT = setTimeout(() => { world.ui[id].toast = null; render() }, 3200)
+  clearTimeout(ui[id].toastT)
+  ui[id].toastT = setTimeout(() => { ui[id].toast = null; render() }, 3200)
 }
-window.__promptLater = (id) => {
-  // parkt den Akt: er bleibt im Home-Posteingang und im Kontakt-Detail —
-  // „Not now" merkt sich nichts vor und entscheidet nichts
-  Object.assign(world.ui[id], { view: 'list', tab: 'home', promptAnchor: null })
-  render()
-}
-// Path-Switch (Encounter 5.8 offline path): die eigene SENT CARD wird zum QR —
-// dieselbe Begegnung, anderer Träger; lokal, ohne Netz, zu jedem Zeitpunkt
 function switchOptical (id, why) {
-  const ui = world.ui[id], p = world[id]
-  if (ui.view !== 'waiting' || !ui.enc?.sentCard) return
-  ui.view = 'fallback'
-  world.shows[id] = { fallback: true, card: ui.enc.sentCard, name: ui.enc.peerName }
-  p.log.push(`${why} · dieselbe Begegnung geht optisch weiter: die gesendete Karte wird zum QR (Adapter-Wechsel, kein Zeremonie-Wechsel)`)
+  const u = ui[id]
+  if (u.view !== 'waiting' || !u.enc?.sentCard) return
+  u.view = 'fallback'
+  shows[id] = { fallback: true, card: u.enc.sentCard, name: u.enc.peerName }
+  say(id, `${why} · the same encounter continues optically: the sent card becomes the QR`)
 }
-window.__switchOptical = (id) => { switchOptical(id, 'manueller Wechsel'); render() }
+window.__switchOptical = (id) => { switchOptical(id, 'manual switch'); render() }
 window.__closeVerify = (id) => {
-  if (!world.shows[id]?.fallback) delete world.shows[id]
-  Object.assign(world.ui[id], { view: 'list', scan: null })
+  if (!shows[id]?.fallback) delete shows[id]
+  Object.assign(ui[id], { view: 'list', scan: null })
   render()
 }
 window.__startScan = (id) => {
-  const ui = world.ui[id]
-  const target = ['J', 'A', 'E'].find((o) => o !== id && world.shows[o])
-  if (!target) { ui.sheet = { type: 'scanmiss' }; render(); return }
-  ui.view = 'scanner'; ui.scanTarget = target
+  const u = ui[id]
+  const target = IDS.find((o) => o !== id && shows[o])
+  if (!target) { u.sheet = { type: 'scanmiss' }; render(); return }
+  u.view = 'scanner'; u.scanTarget = target
   render()
   animScan(id, target)
-  clearTimeout(ui.autoCapture)
-  ui.autoCapture = setTimeout(() => captureNow(id), 2600) // die Kamera erkennt selbst
+  clearTimeout(u.autoCapture)
+  u.autoCapture = setTimeout(() => captureNow(id), 2600)   // the camera recognizes by itself
 }
-// die Scan-Choreografie (Port aus dem Zeremonie-Sim): beide Phones fliegen
-// auf EINEM Bogen zur Bildschirmmitte und neigen sich in die Kurve; das
-// scannende liegt eine Ebene über dem zeigenden und bekommt ein ECHTES
-// Durchguck-Loch (CSS-Maske) an der Sucher-Stelle — sein Bogen endet mit
-// dem Loch exakt über dem Code. Bei Erkennung kehrt alles zurück.
+// the scan choreography: both phones fly on ONE arc to the screen centre
+// and lean into the curve; the scanning one lies above the showing one
+// with a REAL see-through hole (CSS mask) at the viewfinder
 let scanAnim = null
 function animScan (scanId, showId) {
   const shellS = document.querySelector('#dev-' + scanId + ' .phone-shell')
@@ -522,8 +451,6 @@ function animScan (scanId, showId) {
   const rot = (v, a) => ({ x: v.x * Math.cos(rad(a)) - v.y * Math.sin(rad(a)), y: v.x * Math.sin(rad(a)) + v.y * Math.cos(rad(a)) })
   const ctr = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
   const pc = ctr(rp), sc = ctr(rs), qc = ctr(rq), hc = ctr(rh)
-  // beide neigen sich 45° zur Mitte und HALTEN die Neigung durch den Scan:
-  // Loch und Code sind Quadrate — bei 90° Relativdrehung passt der Code
   const ptilt = pc.x < sc.x ? 45 : -45
   const stilt = -ptilt
   const pd = { x: cx - pc.x, y: cy - pc.y }
@@ -534,12 +461,11 @@ function animScan (scanId, showId) {
     const c = { x: d.x / 2, y: d.y / 2 - lift }
     const fr = []
     for (let i = 0; i <= n; i++) {
-      const t = i / n, u = 1 - t
-      fr.push({ offset: t, transform: 'translate(' + (2 * u * t * c.x + t * t * d.x) + 'px,' + (2 * u * t * c.y + t * t * d.y) + 'px) rotate(' + tiltAt(t) + 'deg)' })
+      const t = i / n, v = 1 - t
+      fr.push({ offset: t, transform: 'translate(' + (2 * v * t * c.x + t * t * d.x) + 'px,' + (2 * v * t * c.y + t * t * d.y) + 'px) rotate(' + tiltAt(t) + 'deg)' })
     }
     return fr
   }
-  // Durchguck-Loch: das Sucher-Rechteck aus dem ganzen Phone-Stapel ausstanzen
   const mx = rh.left - rs.left + 6, my = rh.top - rs.top + 6, mw = rh.width - 12, mh = rh.height - 12
   shellP.style.zIndex = 100
   Object.assign(shellS.style, { zIndex: 110,
@@ -552,9 +478,8 @@ function animScan (scanId, showId) {
     shellS.animate(arc(sd, 140, (t) => t * stilt, 8), { duration: 2150, easing: ease, fill: 'forwards' }),
   ] }
 }
-// Erkennung/Abbruch: aktuelle Positionen EINFRIEREN, Flug beenden —
-// der Rückflug läuft danach auf den FRISCH gerenderten Elementen
-// (render() ersetzt das DOM; auf dem alten Element würde er verpuffen)
+// recognition/cancel: freeze the current positions, end the flight — the
+// return flight runs on the FRESHLY rendered elements
 function snapshotScanAnim () {
   if (!scanAnim) return null
   const snap = {}
@@ -576,237 +501,231 @@ function returnFlights (snap) {
   }
 }
 async function captureNow (id) {
-  const ui = world.ui[id]
-  clearTimeout(ui.autoCapture)
-  const snap = snapshotScanAnim() // Erkennung: Positionen einfrieren
-  if (ui.view !== 'scanner') { returnFlights(snap); return }
-  const target = ui.scanTarget, show = world.shows[target]
-  if (!show) { ui.view = 'verify'; render(); returnFlights(snap); return }
-  if (show.fallback) { await captureBundle(id, target, show.card); returnFlights(snap); return }
-  ui.scan = { peer: target, card: show.card }
-  ui.view = 'confirm'
-  render()
-  returnFlights(snap) // beide gleiten animiert an ihre Plätze zurück
-}
-window.__scanCancel = (id) => {
-  const ui = world.ui[id]
-  clearTimeout(ui.autoCapture)
+  const u = ui[id]
+  clearTimeout(u.autoCapture)
   const snap = snapshotScanAnim()
-  Object.assign(ui, { view: 'verify', scan: null })
+  if (u.view !== 'scanner') { returnFlights(snap); return }
+  const target = u.scanTarget, show = shows[target]
+  if (!show) { u.view = 'verify'; render(); returnFlights(snap); return }
+  if (show.fallback) { await run(() => captureSent(id, show.card)); returnFlights(snap); return }
+  u.scan = { peer: target, card: show.card }
+  u.view = 'confirm'
   render()
   returnFlights(snap)
 }
-// die bewusste Bestätigung der scannenden Seite: Credential wird AUSGESTELLT
-// und übers Netz GESCHICKT — die Gegenseite entscheidet danach selbst
-window.__verifyConfirm = async (id) => {
-  const p = world[id], ui = world.ui[id]
-  const scan = ui.scan, own = world.shows[id]
-  if (!scan || !own) return
-  // Reentranz-Latch SYNCHRON vor dem ersten await: eine Bestätigung = ein
-  // Enactment (Encounter 5.8: „neither path ever starts a second enactment")
-  if (ui.confirmInFlight) return
-  ui.confirmInFlight = true
-  K.jump(clock, 5 * K.SECOND)
-  // Encounter 5.8 Schritt 2–3: frisches c_A + frischer Pair-Kontext, Record,
-  // Step-Credential, Sent-Card → encounter-bundle/0.1 (Delivery 4.1)
-  let r
-  try { r = await E.scan(p, scan.card, now) } catch (err) {
-    // Record steht, Ausstellung geschuldet (bundlePending): die Begegnung
-    // läuft weiter — resumeEncounter holt das Bundle im Tick nach
-    const t = p.contacts.get(scan.card.anchor)
-    if (t?.bundlePending) { r = { partial: true, sentCard: t.sentCard, threadId: t.bundleThread }; p.log.push(`Bundle-Ausstellung unterbrochen (${err?.message ?? err}) — Record steht, wird nachgeholt`) } else { r = { error: String(err?.message ?? err) } }
-  } finally { ui.confirmInFlight = false }
-  if (r.error) { p.log.push(`Scan verweigert: ${r.error}`); Object.assign(ui, { scan: null, view: 'verify' }); render(); return }
-  delete world.shows[id]
-  Object.assign(ui, { scan: null, enc: { sentCard: r.sentCard, peer: scan.peer, peerName: scan.card.name, peerAnchor: scan.card.anchor, threadId: r.threadId } })
-  const q = world[scan.peer]
-  ui.view = 'waiting'   // Delivery 6.1: „delivered" NUR auf den gültigen Ack — nie auf die Ankunft
-  ui.ackTicks = 0
-  if (r.env) packet('encounter-bundle/0.1 — Sent-Card + Credential (versiegelt)', p.name, q.name, r.env)
-  // Connected Path braucht Netz auf BEIDEN Seiten (Encounter 5.8): offline bleibt das Bundle in der Outbox — Fallback und Flush übernehmen
-  if (p.online && r.env) await deliver(q, r.env)   // der Ack kann synchron zurückreisen — der Dispatch flippt dann auf delivered
-  else p.log.push('offline — Bundle wartet in der Outbox (Ack-Wartezeit läuft, Two-Way-Scan steht bereit)')
-  if (p.contacts.get(scan.card.anchor)?.bundleAcked && ui.view === 'waiting') ui.view = 'delivered'
+window.__scanCancel = (id) => {
+  const u = ui[id]
+  clearTimeout(u.autoCapture)
+  const snap = snapshotScanAnim()
+  Object.assign(u, { view: 'verify', scan: null })
   render()
+  returnFlights(snap)
 }
-// optische Fortsetzung: das Fallback-Bundle der Gegenseite gescannt
-async function captureBundle (id, target, card) {
-  const p = world[id], ui = world.ui[id]
-  // Encounter 5.8 optischer Leg: die SENT CARD als Zeremonie-Input — boundTo
-  // wird aufgelöst (open → Record · recorded → 5.5-Taxonomie · unknown → gate-expired)
-  const r = await E.captureSentCard(p, card, now)
-  if (r.error) {
-    p.log.push(r.error === 'gate-expired' ? 'gesendete Karte: boundTo löst nicht mehr auf — gate-expired (gealtert oder nicht dieses Gerät)' : `gesendete Karte nicht verwendbar (${r.error})`)
-    ui.view = 'verify'; render(); return
-  }
-  if (r.idempotent) { p.log.push(`${card.name}s Karte optisch: Record stand bereits — nichts zu tun, das Credential folgt übers Netz`); Object.assign(ui, { view: 'list' }); render(); return }
-  p.contacts.get(card.anchor).probeSent = true
-  p.inbox.push({ kind: 'verifyback', from: card.name, peerAnchor: card.anchor, decided: false, optical: true })
-  Object.assign(ui, { view: 'prompt', promptAnchor: card.anchor, sheet: null })
-  render()
+// the scanner's deliberate confirmation (Encounter 5.8 trunk 2–3): the
+// record, the step credential and the sent card → encounter-bundle/0.1
+window.__verifyConfirm = (id) => {
+  const u = ui[id]
+  if (!u.scan || u.confirmInFlight) return       // one confirmation = one enactment
+  u.confirmInFlight = true
+  return run(async () => {
+    const p = people[id], scan = u.scan
+    try {
+      step()
+      const r = await p.h.scan(scan.card, at(tnow(id), { name: p.name }))
+      if (!r.ok) { say(id, `scan refused: ${r.code}`); Object.assign(u, { scan: null, view: 'verify' }); return }
+      delete shows[id]
+      const bundle = r.outbound.find((o) => o.type === TYPES.bundle)
+      Object.assign(u, { scan: null, view: 'waiting', ackTicks: 0, enc: { sentCard: eventOf(r, 'encounter.scanned').card, contactId: eventOf(r, 'encounter.scanned').contactId, peerName: scan.card.name, bundleDigest: bundle?.digest } })
+      // offline the bundle stays on this device (awaiting-transport); the ack-wait and the two-way scan take over
+      if (!p.online) say(id, 'offline — the bundle waits on this device (ack-wait runs, the two-way scan is ready)')
+      await send(p, r)
+    } finally { u.confirmInFlight = false }
+  })
 }
-// die Rück-Bestätigung (Gegenseite): eigenes Credential ausstellen
-window.__verifyBack = async (id, peerAnchor, yes) => {
-  const p = world[id]
-  const e = p.inbox.find((x) => x.kind === 'verifyback' && !x.decided && x.peerAnchor === peerAnchor)
-  if (!e) return
-  if (!yes) { e.later = true; p.log.push('verify-back parked — the received confirmation stays (arrival ≠ acceptance), the act lives in the contact detail'); render(); return }
-  e.decided = true
-  if (world.ui[id].view === 'prompt') Object.assign(world.ui[id], { view: 'list', promptAnchor: null })
-  const reopen = () => { e.decided = false }   // ein Fehler gibt die Entscheidung zurück — nichts geht verloren
-  K.jump(clock, 5 * K.SECOND)
-  // Encounter 5.8 Schritt 4: Gegenschritt als encounter-credential-delivery/0.1
-  // im Bundle-Thread (step "counter", Delivery 4.3). Kein optischer Träger
-  // für den Gegenschritt (5.3: eine Display-Challenge wird nie zur Sent
-  // Card) — kam der Record über den optischen Leg, wartet das Zustell-
-  // dokument auf den Bundle-Thread; das Credential ist sofort ausgestellt.
-  let r
-  try { r = await E.counter(p, peerAnchor, now) } catch (err) { reopen(); p.log.push(`Gegenschritt: ${err?.message ?? err} — erneut versuchen`); render(); return }
-  if (r.error) { reopen(); p.log.push(`Gegenschritt: ${r.error}`); render(); return }
-  const c = p.contacts.get(peerAnchor)
-  if (c.state === '✓') { c.probeSent = false; world.ui[id].sheet = { type: 'verified', of: peerAnchor } }
-  const q = ['J', 'A', 'E'].map((k) => world[k]).find((x) => x !== p && x.contexts.get(peerAnchor))
-  if (r.deferred) { p.log.push(`Gegen-Credential ausgestellt — das Zustelldokument folgt, sobald ${q.name}s Bundle da ist (Bundle-Thread)`); render(); return }
-  packet('encounter-credential-delivery/0.1 — Gegenschritt (versiegelt)', p.name, q.name, r.env)
-  if (!p.online) p.log.push('offline — Gegen-Credential wartet in der Outbox auf Netz (byte-identische Redelivery, 4.2)')
-  else await deliver(q, r.env)
-  render()
-}
-window.__trustGive = async (id, anchor) => {
-  const p = world[id]
-  world.ui[id].sheet = null
-  K.jump(clock, 5 * K.SECOND)
-  const pkt = await T.setTrust(p, anchor, now)
-  for (const o of pkt.outbound ?? []) {
-    packet(o.kind + ' (versiegelt)', p.name, pkt.to.name, o.env)
-    await deliver(byName(pkt.to.name), o.env)
-  }
-  // der Stern folgt ueber die 5.4-Rekonziliation (Producer-Sweep)
-  for (const o of await T.starRefreshAll(p, now)) {
-    packet(o.kind + ' (versiegelt)', p.name, o.to.name, o.env)
-    await deliver(byName(o.to.name), o.env)
-  }
-  render()
-}
-window.__trustPause = (id, anchor) => {
-  const p = world[id]
-  T.setTrustPaused(p, anchor, !p.contacts.get(anchor)?.trustPaused)
-  render()
-}
-window.__vouch = async (id, gid, candidate) => {
-  const p = world[id]
-  K.jump(clock, 5 * K.SECOND)
-  const m = p.groups.get(gid)?.roster.get(candidate)
-  const contact = m?.contactAnchor ? p.contacts.get(m.contactAnchor) : null
-  const prov = contact?.provenance === 'ceremony' ? 'met' : 'introduced'
-  const pkt = await G.vouchFor(p, gid, candidate, prov, now)
-  if (pkt.env) {
-    packet(`membership-vouch/0.1 (AdmissionVouch, ${prov}, versiegelt)`, p.name, pkt.to.name, pkt.env)
-    await deliver(byName(pkt.to.name), pkt.env)
-  }
-  render()
-}
-window.__confirmIntroduce = async (id) => {
-  const p = world[id], ui = world.ui[id]
-  const s = ui.sheet
-  ui.sheet = null; ui.view = 'list'; ui.anchor = null
-  await doIntroduce(p, s.a, s.b)
+// the optical leg (Encounter 5.8, 5710): the other side's SENT CARD scanned
+async function captureSent (id, card) {
+  const p = people[id], u = ui[id]
+  step()
+  const before = new Set(p.view.prompts.map((x) => x.id))
+  const r = await p.h.captureSentCard(card, at(tnow(id)))
+  if (!r.ok) { say(id, r.code === 'gate-expired' ? 'sent card: its challenge no longer resolves — gate-expired' : `sent card not usable (${r.code})`); u.view = 'verify'; return }
+  const opened = eventOf(r, 'prompt.opened')
+  if (!opened) { say(id, `${card.name}'s card optically: the record stood already — nothing to do`); u.view = 'list'; return }
+  if (!before.has(opened.promptId)) u.optical.add(opened.promptId)
+  Object.assign(u, { view: 'prompt', promptId: opened.promptId, sheet: null })
+  await send(p, r)
 }
 
-// ── Rendering: die App ──────────────────────────────────────────────────
-// gekettete (deaktivierte) Tupel sind Beziehungsgeschichte, keine Kontakte
-const activeContacts = (p) => [...p.contacts.entries()].filter(([, c]) => !c.deactivated)
-// die Kennung unter dem Namen: der zuletzt geprägte eigene Anker —
-// sichtbar wechselnd, weil fresh-always genau das tut
-const ownAnchorOf = (p) => {
-  const a = [...p.contexts.values()].at(-1)?.anchor
-  return a ? a.slice(0, 22) + '…' + a.slice(-6) : 'no anchor yet'
-}
-const colorOf = (name) => COLORS[name] ?? '#64748b'
-const av = (name, cls = 'pavatar-xs') => cls === 'pavatar' ? `<span class="pavatar" style="background:${colorOf(name)}">${name[0]}</span>` : PH.avatarXs(name, colorOf(name))
-// Badge-Grammatik (geteilte Klassen aus rltp-phone):
-// BLAU mutual = Verifikation · GRÜN trustb = Trust · AMBER byme = einseitig/unverifiziert
-const trustBadge = (c) => c.trustGiven && c.trustReceived ? PH.badge('trustb', '⇆ trust')
-  : c.trustGiven ? PH.badge('trustb', '→ you trust')
-  : c.trustReceived ? PH.badge('trustb', '← trusts you') : ''
-const badgesOf = (c) => (c.provenance === 'ceremony'
-  ? c.state === '→' ? PH.badge('mutual', '→ verified')
-    : c.state === '←' ? PH.badge('mutual', '← verified you')
-    : PH.badge('mutual', '⇄ verified')
-  : c.state === '⇄' ? PH.badge('byme', '⇄ introduced')
-  : PH.badge('byme', '◇ introduced')) + trustBadge(c)
-// metaLine (Design Kap. 0): First-Match über der Evidenz, genau EIN Satz.
-// Ränge ohne Logik-Unterbau (Stern, Vertrauen) greifen schlicht nie.
-function metaLine (p, c, ctx = 'contacts') {
-  const fresh = c.since && (now - Date.parse(c.since)) < 7 * 24 * 3600 * 1000
-  const rel = (iso) => { const d = Math.floor((now - Date.parse(iso)) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `on ${iso.slice(5, 10)}` }
-  // rank 2: state explanation (origin ≠ ceremony)
-  if (c.provenance !== 'ceremony') {
-    return c.state === '⇄' ? `${c.provenance} — not yet verified; the first real meeting makes ✓`
-      : `${c.provenance} · one-sided — you released nothing`
+// ── 🗂 the wallet: what the state holds, by category (real JSON only) ────
+const short = (s) => String(s).slice(0, 14) + '…'
+const J = (o) => JSON.stringify(o, null, 1)
+function walletCats (p) {
+  const s = p.view.state
+  const nameOfLabel = (label) => {
+    if (label.startsWith('group/')) {
+      if (label === 'group/' + s.register.community.genesis) return 'community anchor · your stable identity (what a trust act discloses)'
+      return `membership anchor · ${s.groups[label.slice(6)]?.name ?? short(label)}`
+    }
+    const g = Object.values(s.groups).find((x) => x.memberLabel === label)
+    if (g) return `founding member anchor · ${g.name}`
+    const c = contactByLabel(p, label)
+    if (c) return `relationship anchor · ${nm(c)}`
+    const a = introActs(p).find((x) => x.ownLabel === label)
+    if (a) return `relationship anchor · introduction (${a.role})`
+    return 'pair anchor · a displayed code, not scanned'
   }
-  // rank 2b: one-sided verification — explain the direction
-  if (c.state === '→') return `verified by you — ${c.name} still decides about the way back`
-  if (c.state === '←') return `verified you — your confirmation is pending`
-  if (c.state === '◇' && c.ownChallenge) return `met — code captured; the confirmations follow over the network`
-  // rank 3: fresh ceremony (the credential carries no place — only time)
-  if (fresh) return `verified ${rel(c.since)}`
-  // rank 4: visible shared group (suppressed inside that group's roster)
-  const shared = (c.sharedGroups ?? []).filter((gid) => ctx !== 'roster:' + gid && p.groups.has(gid))
-  if (shared.length) { const g = p.groups.get(shared[0]); return `Together in "${g.label}"` + (shared.length > 1 ? ` and ${shared.length - 1} more` : '') }
-  // rank 5: mutual contacts (blinded star, only legitimately held anchors)
-  const known = c.starInfo?.knownNames ?? []
-  if (known.length) return `You both know ${known[0]}` + (known.length > 1 ? ` and ${known.length - 1} more` : '')
-  // rank 6: the honest count from the contact update
-  if (c.starInfo) return `${c.starInfo.count} contact${c.starInfo.count === '1' ? '' : 's'}`
-  // rank 7: fallback
-  return c.since ? `Verified ${rel(c.since)}` : 'verified (ceremony)'
+  const cats = []
+  const anchors = [[p.community, 'group/' + s.register.community.genesis], ...p.anchors.entries()]
+  cats.push({ key: 'id', title: 'Identity · anchors', fpp: 'one identity per context, all derived from one seed',
+    items: anchors.map(([anchor, label]) => ({ title: nameOfLabel(label), sub: short(anchor), json: J({ label, anchor, derivedFrom: 'the root seed, under this label (seedKeys)', relationshipNonce: s.register.pairNonces[label] }) })) })
+  const rel = []
+  for (const r of Object.values(s.encounter.records)) {
+    const who = r.card?.name ?? short(r.peer ?? '')
+    if (r.out) rel.push({ dir: 'out', title: `issued · about ${who}`, sub: `step credential (${r.role}) · ${new Date(r.at).toISOString().slice(0, 16)}Z · 📤 presentable`, json: J(r.out) })
+    if (r.in) rel.push({ dir: 'in', title: `received · from ${who}`, sub: `${who}'s step credential, accepted (5.6)`, json: J(r.in) })
+    if (r.card) rel.push({ dir: 'in', title: `card · from ${who}`, sub: 'contact card, key-agreement key for the sealed channel', json: J(r.card) })
+    if (r.sentCard) rel.push({ dir: 'out', title: `sent card · to ${who}`, sub: 'the optical payload of the scanner\'s step', json: J(r.sentCard) })
+  }
+  cats.push({ key: 'rel', title: 'Relationship credentials', fpp: 'signed evidence of every verification', items: rel })
+  const intro = []
+  for (const o of Object.values(s.encounter.offers)) intro.push({ dir: 'in', title: `offer · from ${nm(cv(p, o.mediatorContactId))} (${o.label ?? 'unnamed'})`, sub: `introduction offer · target designator ${short(o.target)}`, json: J(o) })
+  for (const a of introActs(p)) {
+    const peer = a.role === 'requester' ? a.peerName : a.request?.body?.profile?.displayName
+    const sub = `${a.role} · act ${short(a.act)} · ${a.status}${a.vouched ? ' · vouched' : ''}`
+    if (a.role === 'requester') {
+      intro.push({ dir: 'out', title: `request · for ${peer}`, sub, json: J({ request: a.request, card: a.requestCard }) })
+      if (a.reply) intro.push({ dir: 'in', title: `reply · from ${peer}`, sub, json: J({ reply: a.reply, card: a.replyCard }) })
+    } else if (a.role === 'target') {
+      intro.push({ dir: 'in', title: `request · from ${peer}`, sub, json: J({ request: a.request, card: a.requestCard }) })
+      if (a.reply) intro.push({ dir: 'out', title: `reply · to ${peer}`, sub, json: J({ reply: a.reply, card: a.replyCard }) })
+    } else {
+      intro.push({ dir: 'in', title: `relayed · ${peer} → ${nm(contactByLabel(p, a.pins.target))}`, sub, json: J({ request: a.request, reply: a.reply, ack: a.ack }) })
+    }
+    if (a.voucher) intro.push({ dir: 'in', title: `voucher · about ${peer}`, sub: 'introduction-voucher · act-bound, from the mediator', json: J(a.voucher) })
+  }
+  cats.push({ key: 'intro', title: 'Introductions', fpp: 'offers, requests, replies, act-bound vouchers', items: intro })
+  const tr = []
+  for (const c of p.view.contacts) {
+    for (const t of headTuples(p, c)) {
+      if (t.mappingOut.body) tr.push({ dir: 'out', title: `anchor-mapping · to ${nm(c)}`, sub: `rev ${t.mappingOut.rev} · deniable, designated verifier${c.trust.paused ? ' · updates paused' : ''}`, json: J(t.mappingOut.body) })
+      if (t.mappingIn.body) tr.push({ dir: 'in', title: `anchor-mapping · from ${nm(c)}`, sub: 'verified with own secrets — worthless to third parties', json: J({ body: t.mappingIn.body, self: t.mappingIn.self, card: t.mappingIn.card }) })
+      if (t.starOut.snapshot?.length) tr.push({ dir: 'out', title: `contact update · to ${nm(c)}`, sub: `snapshot · ${t.starOut.snapshot.length} anchors, sent blinded under salt ${t.starOut.lastSalt}`, json: J({ snapshot: t.starOut.snapshot, snapshotDigest: t.starOut.snapshotDigest, hwm: t.starOut.hwm, lastSalt: t.starOut.lastSalt }) })
+      if (t.starIn.accepted?.blinded?.length) tr.push({ dir: 'in', title: `contact update · from ${nm(c)}`, sub: `${t.starIn.accepted.blinded.length} contacts (blinded) · you know ${t.starIn.accepted.matches?.length ?? 0}`, json: J(t.starIn.accepted) })
+    }
+  }
+  cats.push({ key: 'trust', title: 'Trust', fpp: 'disclosed anchors, blinded snapshots — the one-way doors', items: tr })
+  const mem = []
+  for (const g of Object.values(s.groups)) {
+    if (g.genesis) mem.push({ dir: g.memberAnchor === g.genesis.founder ? 'out' : 'in', title: `genesis · ${g.name}`, sub: `digest ${g.id.slice(0, 16)}… (the group's identity)`, json: J(g.genesis) })
+    mem.push({ dir: 'in', title: `roster · ${g.name}`, sub: `${Object.keys(g.roster).length} members as this device knows them`, json: J(g.roster) })
+    for (const i of Object.values(g.invitations)) mem.push({ dir: 'out', title: `invite (open) · ${g.name} → ${nm(cv(p, i.contactId))}`, sub: 'membership-invite/0.2 · InvitationCredential', json: J(i.invite) })
+  }
+  for (const i of Object.values(s.joining.invites)) mem.push({ dir: 'in', title: `invite · "${i.name}" from ${nm(cv(p, i.contactId))}`, sub: `membership-invite/0.2 · prelude check passed · ${i.status}`, json: J(i.invite) })
+  cats.push({ key: 'mem', title: 'Membership', fpp: 'genesis, roster, invitations', items: mem })
+  return cats
 }
-const stateBadge = (c) => c.state === '✓' ? '<span class="pstate v">✓</span>' : c.state === '⇄' ? '<span class="pstate m">⇄</span>' : '<span class="pstate d">◇</span>'
+window.__wdir = (id, dir) => { ui[id].wdir = dir; render() }
+window.__wcat = (id, key) => { ui[id].wopen[key] = !ui[id].wopen[key]; render() }
+const walletOf = (id, p) => PH.walletHtml({ cats: walletCats(p), dir: ui[id].wdir, open: ui[id].wopen,
+  onDir: (k) => `__wdir('${id}','${k}')`, onCat: (k) => `__wcat('${id}','${k}')` })
+
+// ── rendering: the app ──────────────────────────────────────────────────
+const ownAnchorOf = (p) => { const a = [...p.anchors.keys()].at(-1); return a ? a.slice(0, 22) + '…' + a.slice(-6) : 'no anchor yet' }
+const colorOf = (name) => COLORS[name] ?? '#64748b'
+// badge grammar: BLUE mutual = verification · GREEN trustb = trust · AMBER byme = one-sided/unverified
+const trustBadge = (c) => c.trust.given && c.trust.received ? PH.badge('trustb', '⇆ trust')
+  : c.trust.given ? PH.badge('trustb', '→ you trust')
+  : c.trust.received ? PH.badge('trustb', '← trusts you') : ''
+const badgesOf = (p, c) => (ceremonial(p, c)
+  ? c.verification === 'mutual' ? PH.badge('mutual', '⇄ verified')
+    : c.verification === 'outgoing' ? PH.badge('mutual', '→ verified')
+    : c.verification === 'incoming' ? PH.badge('mutual', '← verified you')
+    : PH.badge('byme', '◇ met')
+  : PH.badge('byme', '⇄ introduced')) + trustBadge(c)
+// metaLine: the first match over the evidence, exactly ONE sentence
+function metaLine (p, c, ctx = 'contacts') {
+  const since = sinceOf(p, c)
+  const rel = () => { const d = Math.floor((now() - since) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `on ${new Date(since).toISOString().slice(5, 10)}` }
+  if (!ceremonial(p, c)) return `introduced via ${nm(cv(p, c.via))} — not yet verified; the first real meeting makes ✓`
+  if (c.verification === 'outgoing') return `verified by you — ${nm(c)} still decides about the way back`
+  if (c.verification === 'incoming') return 'verified you — your confirmation is pending'
+  if (c.verification === 'met') return 'met — the confirmations follow over the network'
+  if (now() - since < 7 * 86400000) return `verified ${rel()}`
+  const shared = sharedOf(p, c).filter((g) => ctx !== 'roster:' + g.id)
+  if (shared.length) return `Together in "${shared[0].name}"` + (shared.length > 1 ? ` and ${shared.length - 1} more` : '')
+  const st = starOf(p, c)
+  if (st?.known.length) return `You both know ${st.known[0]}` + (st.known.length > 1 ? ` and ${st.known.length - 1} more` : '')
+  if (st?.count) return `${st.count} contact${st.count === 1 ? '' : 's'}`
+  return `Verified ${rel()}`
+}
 
 function promptCards (id, p) {
-  const vb = p.inbox.filter((e) => e.kind === 'verifyback' && !e.decided).map((e) => `
-    <div class="incoming">
-      <div class="iq">${e.from} verified you${e.optical ? ' (optical, two-way scan)' : ''}</div>
-      <div class="ih">Arrival, not acceptance — you decide. Confirming makes the connection mutual${e.optical ? '; the confirmations follow over the network' : ''}.</div>
-      <div class="ibtns"><button class="yes" onclick="__verifyBack('${id}','${e.peerAnchor}',true)">Verify back</button><button class="no" onclick="__verifyBack('${id}','${e.peerAnchor}',false)">Later</button></div>
-    </div>`).join('')
-  const invites = p.inbox.filter((e) => e.kind === 'invite' && !e.decided)
-  const inv = invites.map((e) => `
-    <div class="incoming">
-      <div class="iq">${e.from} invites you to "${e.invite.credentialSubject.name}"</div>
-      <div class="ih">Invitation verified (credential proof; prelude check: it names YOUR OWN derivation) · valid until ${e.invite.validUntil.slice(0, 10)}.</div>
-      <div class="ibtns"><button class="yes" onclick='__sheet("${id}",{type:"join",act:"${e.invite.taskContext}"})'>Join…</button><button class="no" onclick="__decideInvite('${id}','${e.invite.taskContext}',false)">Ignore</button></div>
-    </div>`).join('')
-  const offers = p.inbox.filter((e) => !e.kind && !e.decided)
-  const off = offers.map((e, i) => `
-    <div class="incoming">
-      <div class="iq">${e.mediator} wants to connect you with ${e.offer.peer.name}</div>
-      <div class="ih">"${e.offer.peer.name}" — that is what ${e.mediator} calls them.${e.offer.peer.provenance === 'introduced' ? ` <b>${e.mediator} was themselves only introduced to ${e.offer.peer.name}.</b>` : ''} Connecting releases your fresh card; the other side decides independently.</div>
-      <div class="ibtns"><button class="yes" onclick="__decide('${id}',${i},true)">Connect</button><button class="no" onclick="__decide('${id}',${i},false)">Ignore</button></div>
-    </div>`).join('')
-  return vb + inv + off
+  return p.view.prompts.map((pr) => {
+    const c = cv(p, pr.contactId)
+    if (pr.kind === 'encounter-confirm') {
+      const optical = ui[id].optical.has(pr.id)
+      return `<div class="incoming">
+        <div class="iq">${esc(nm(c))} verified you${optical ? ' (optical, two-way scan)' : ''}</div>
+        <div class="ih">Arrival, not acceptance — you decide. Confirming makes the connection mutual.</div>
+        <div class="ibtns"><button class="yes" onclick="__decide('${id}','${pr.id}','accept')">Verify back</button><button class="no" onclick="__decide('${id}','${pr.id}','decline')">Decline</button></div></div>`
+    }
+    if (pr.kind === 'group-invite') {
+      const inv = Object.values(p.view.state.joining.invites).find((i) => i.promptId === pr.id)
+      return `<div class="incoming">
+        <div class="iq">${esc(nm(c))} invites you to "${esc(inv?.name ?? 'a group')}"</div>
+        <div class="ih">Invitation verified (credential proof; prelude check: it names YOUR OWN derivation)${inv ? ' · valid until ' + new Date(inv.validUntil).toISOString().slice(0, 16) + 'Z' : ''}.</div>
+        <div class="ibtns"><button class="yes" onclick='__sheet("${id}",{type:"join",promptId:"${pr.id}"})'>Join…</button><button class="no" onclick="__decide('${id}','${pr.id}','decline')">Ignore</button></div></div>`
+    }
+    if (pr.kind === 'introduction') {
+      const offer = p.view.state.encounter.offers[pr.id]
+      if (offer) {
+        const label = offer.label ?? 'someone'
+        return `<div class="incoming">
+          <div class="iq">${esc(nm(c))} wants to connect you with ${esc(label)}</div>
+          <div class="ih">"${esc(label)}" — that is what ${esc(nm(c))} calls them. Connecting sends your request with a fresh card to ${esc(nm(c))}, who relays it; the other side decides independently.</div>
+          <div class="ibtns"><button class="yes" onclick="__decide('${id}','${pr.id}','accept')">Connect</button><button class="no" onclick="__decide('${id}','${pr.id}','decline')">Ignore</button></div></div>`
+      }
+      const a = introActs(p).find((x) => x.promptId === pr.id)
+      const who = a?.request?.body?.profile?.displayName ?? 'someone'
+      return `<div class="incoming">
+        <div class="iq">${esc(nm(c))} relays a request: ${esc(who)} wants to connect with you</div>
+        <div class="ih">"${esc(who)}" is the name ${esc(who)} gives. Connecting sends your fresh card back the same way; ignoring sends nothing — refusal and silence look alike.</div>
+        <div class="ibtns"><button class="yes" onclick="__decide('${id}','${pr.id}','accept')">Connect</button><button class="no" onclick="__decide('${id}','${pr.id}','decline')">Ignore</button></div></div>`
+    }
+    return ''
+  }).join('')
 }
-function openCount (p) { return p.inbox.filter((e) => !e.decided).length }
+// direction honesty: "Waiting for them" = named waiting states on the other side
+function waitingRows (p) {
+  const rows = []
+  for (const a of introActs(p)) {
+    const med = nm(contactByLabel(p, a.pins.mediator))
+    if (a.role === 'requester' && !a.replyCard && (a.status === 'sent' || a.status === 'acked')) rows.push(`◇ ${a.peerName ?? 'someone'} — request sent via ${med}; waiting for ${med} to relay and ${a.peerName ?? 'them'} to decide`)
+    if (a.role === 'requester' && a.status === 'failed') rows.push(`✕ ${a.peerName ?? 'someone'} — the introduction failed (no answer within its window)`)
+    if (a.role === 'mediator' && a.status !== 'completed') rows.push(`⇠⇢ relaying ${a.request?.body?.profile?.displayName ?? 'a request'} → ${nm(contactByLabel(p, a.pins.target))} (${a.status})`)
+  }
+  for (const g of Object.values(p.view.state.groups)) {
+    for (const x of Object.values(g.preludes)) rows.push(`✉ asking ${nm(cv(p, x.contactId))} for a member anchor ("${g.name}")`)
+    for (const i of Object.values(g.invitations)) rows.push(`✉ invitation to ${nm(cv(p, i.contactId))} open ("${g.name}")`)
+  }
+  return rows.map((r) => `<div class="sentrow">${esc(r)}</div>`).join('')
+}
 
 function screenHome (id, p) {
   const prompts = promptCards(id, p)
-  // Richtungs-Ehrlichkeit: „Waiting for you" = Akte, die DEINE Entscheidung
-  // brauchen · „Waiting for them" = benannte Wartezustände auf die Gegenseite
-  const waiting = p.inbox.filter((e) => !e.kind && e.decided && !e.done && !e.ignored)
-    .map((e) => `<div class="sentrow">◇ ${e.offer.peer.name} — card released, waiting for the other side</div>`).join('')
+  const waiting = waitingRows(p)
+  const open = p.view.prompts.length
   return `${PH.appHead(p.name, colorOf(p.name))}
     <div class="kpi">
-      <div class="k"><div class="n">${activeContacts(p).length}</div><div class="l">Contacts</div></div>
-      <div class="k"><div class="n">${p.groups.size}</div><div class="l">Groups</div></div>
-      <div class="k"><div class="n" ${openCount(p) ? 'style="color:oklch(50% 0.12 70)"' : ''}>${openCount(p)}</div><div class="l">Open</div></div>
+      <div class="k"><div class="n">${p.view.contacts.length}</div><div class="l">Contacts</div></div>
+      <div class="k"><div class="n">${p.view.groups.length}</div><div class="l">Groups</div></div>
+      <div class="k"><div class="n" ${open ? 'style="color:oklch(50% 0.12 70)"' : ''}>${open}</div><div class="l">Open</div></div>
     </div>
     ${prompts ? `<div class="sect">Waiting for you</div>${prompts}` : ''}
     ${waiting ? `<div class="sect">Waiting for them</div>${waiting}` : ''}`
 }
 
-// ECHTE QR-Codes mit den ECHTEN Daten (qrcode-generator, wie im
-// Zeremonie-Sim): der Code trägt die signierte Karte als JSON
+// REAL QR codes carrying the REAL data (the signed card as JSON)
 function qrImg (data, size = 150) {
   try {
     const q = window.qrcode(0, 'L')
@@ -814,24 +733,29 @@ function qrImg (data, size = 150) {
     q.make()
     return `<img class="qrimg" src="${q.createDataURL(4, 6)}" alt="QR" style="width:${size}px;height:${size}px;display:block;margin:0 auto;image-rendering:pixelated">`
   } catch (e) {
-    return `<div class="pempty">QR-Encoder nicht geladen (${e.message})</div>`
+    return `<div class="pempty">QR encoder not loaded (${esc(e.message)})</div>`
   }
 }
+const FLOW = ['verify', 'scanner', 'confirm', 'waiting', 'delivered', 'fallback', 'prompt']
+const BTN_NO = 'flex:1;font:inherit;font-size:12.5px;font-weight:700;padding:10px;border-radius:11px;border:1.5px solid oklch(88% 0.005 265);background:transparent;color:oklch(40% 0.008 265);cursor:pointer'
+const BTN_YES = 'flex:1;font:inherit;font-size:12.5px;font-weight:700;padding:10px;border-radius:11px;border:none;background:oklch(52% 0.14 150);color:#fff;cursor:pointer'
+const bigAvatar = (name) => `<div style="align-self:center;width:64px;height:64px;border-radius:50%;background:${colorOf(name)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700">${esc(name[0])}</div>`
 function screenFlow (id, p) {
-  const ui = world.ui[id]
-  if (ui.view === 'verify') {
-    const sh = world.shows[id]
-    if (!sh) { ui.view = 'list'; return screenList(id, p) }
+  const u = ui[id]
+  if (u.view === 'verify') {
+    const sh = shows[id]
+    if (!sh || sh.fallback) { u.view = 'list'; return screenList(id, p) }
     return `<div style="display:flex;flex-direction:column;align-items:stretch;text-align:center;padding:4px 4px 0">
       <div style="font-size:21px;font-weight:800;letter-spacing:-.01em;margin-top:8px">Connect</div>
       <div style="font-size:12px;line-height:1.5;color:oklch(46% 0.008 265);max-width:225px;margin:4px auto 0;text-wrap:balance">Show your code or scan the other person's code.</div>
       <div style="background:#fff;border:1px solid oklch(92% 0.005 265);border-radius:16px;padding:11px;margin:14px auto 0;box-shadow:0 1px 3px rgba(0,0,0,.05)">${qrImg(sh.card, 172)}</div>
       <div style="display:flex;align-items:center;gap:12px;margin:14px 6px 8px"><div style="flex:1;height:1px;background:oklch(90% 0.008 265)"></div><span style="font-size:11px;color:oklch(55% 0.008 265)">or</span><div style="flex:1;height:1px;background:oklch(90% 0.008 265)"></div></div>
       <button style="font:inherit;font-size:13px;font-weight:700;color:#fff;background:oklch(55% 0.21 264);border:none;border-radius:12px;cursor:pointer;padding:12px 30px;margin:4px auto 0;display:flex;align-items:center;justify-content:center;gap:8px" onclick="__startScan('${id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Scan code</button>
+      <div class="profact" style="margin-top:8px"><button onclick="__closeVerify('${id}')">Close</button></div>
     </div>`
   }
-  if (ui.view === 'scanner') {
-    const show = world.shows[ui.scanTarget]
+  if (u.view === 'scanner') {
+    const show = shows[u.scanTarget]
     return `<div style="text-align:center;margin:8px 0"><div style="font-size:15px;font-weight:800">Point at the code</div></div>
       <div style="position:relative;height:230px;border-radius:14px;background:oklch(28% 0.01 265);display:flex;align-items:center;justify-content:center;overflow:hidden">
         <div id="vf-${id}" style="width:150px;height:150px;border:2px dashed oklch(78% 0.12 264);border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center">
@@ -840,191 +764,180 @@ function screenFlow (id, p) {
       </div>
       <div class="profact" style="margin-top:10px"><button onclick="__scanCancel('${id}')">Cancel</button></div>`
   }
-  if (ui.view === 'confirm') {
-    const c = ui.scan?.card
-    if (!c) { ui.view = 'list'; return screenList(id, p) }
+  if (u.view === 'confirm') {
+    const c = u.scan?.card
+    if (!c) { u.view = 'list'; return screenList(id, p) }
     return `<div style="text-align:center;display:flex;flex-direction:column;gap:10px;margin-top:14px">
       <div style="font-size:16px;font-weight:800;text-wrap:balance">Are you standing in front of this person?</div>
-      <div style="align-self:center;width:64px;height:64px;border-radius:50%;background:${colorOf(c.name)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700">${c.name[0]}</div>
-      <div style="font-size:17px;font-weight:700">${c.name}</div>
+      ${bigAvatar(c.name)}
+      <div style="font-size:17px;font-weight:700">${esc(c.name)}</div>
       <div class="pmeta" style="max-width:230px;align-self:center">Only confirm if you know this person personally and they are standing in front of you.</div>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button style="flex:1;font:inherit;font-size:12.5px;font-weight:700;padding:10px;border-radius:11px;border:1.5px solid oklch(88% 0.005 265);background:transparent;color:oklch(40% 0.008 265);cursor:pointer" onclick="__scanCancel('${id}')">Cancel</button>
-        <button style="flex:1;font:inherit;font-size:12.5px;font-weight:700;padding:10px;border-radius:11px;border:none;background:oklch(52% 0.14 150);color:#fff;cursor:pointer" onclick="__verifyConfirm('${id}')">Confirm</button>
+        <button style="${BTN_NO}" onclick="__scanCancel('${id}')">Cancel</button>
+        <button style="${BTN_YES}" onclick="__verifyConfirm('${id}')">Confirm</button>
       </div></div>`
   }
-  if (ui.view === 'waiting') {
+  if (u.view === 'waiting') {
     return `<div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:11px;padding-top:56px">
       <div style="width:40px;height:40px;border-radius:50%;border:3px solid oklch(90% 0.008 265);border-top-color:oklch(55% 0.21 264);animation:pspin .9s linear infinite"></div>
-      <div style="font-size:16px;font-weight:800">Sent to ${ui.enc?.peerName ?? '…'}</div>
+      <div style="font-size:16px;font-weight:800">Sent to ${esc(u.enc?.peerName ?? '…')}</div>
       <div class="pmeta" style="max-width:230px">Your confirmation is on its way. Without a connection, the same encounter simply continues by camera in a moment.</div>
       <div class="profact" style="margin-top:6px"><button onclick="__switchOptical('${id}')">Show my card instead</button></div></div>`
   }
-  if (ui.view === 'delivered') {
+  if (u.view === 'delivered') {
     return `<div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:11px;padding-top:48px">
       <div style="width:56px;height:56px;border-radius:50%;background:oklch(94% 0.06 142);color:oklch(48% 0.16 142);display:flex;align-items:center;justify-content:center;font-size:26px">✓</div>
-      <div style="font-size:16px;font-weight:800">Delivered — ${ui.enc?.peerName ?? '…'}'s device acknowledged</div>
-      <div class="pmeta" style="max-width:240px">Acknowledged arrival, not acceptance — ${ui.enc?.peerName ?? 'they'} decides for themselves whether to verify you back.</div>
+      <div style="font-size:16px;font-weight:800">Delivered — ${esc(u.enc?.peerName ?? '…')}'s device acknowledged</div>
+      <div class="pmeta" style="max-width:240px">Acknowledged arrival, not acceptance — ${esc(u.enc?.peerName ?? 'they')} decides for themselves whether to verify you back.</div>
       <div class="profact" style="width:100%"><button onclick="__closeVerify('${id}')">Back</button></div></div>`
   }
-  if (ui.view === 'fallback') {
-    const sh = world.shows[id]
-    if (!sh?.fallback) { ui.view = 'list'; return screenList(id, p) }
-    return `<div style="text-align:center;margin:2px 0 8px"><div style="font-size:15px;font-weight:800">Show this code to ${sh.name}</div>
+  if (u.view === 'fallback') {
+    const sh = shows[id]
+    if (!sh?.fallback) { u.view = 'list'; return screenList(id, p) }
+    return `<div style="text-align:center;margin:2px 0 8px"><div style="font-size:15px;font-weight:800">Show this code to ${esc(sh.name)}</div>
       <div class="pmeta">No connection right now — the same encounter simply continues by camera.</div></div>
       <div class="card" style="padding:12px;text-align:center">
         ${qrImg(sh.card, 158)}
-        <div class="pmeta" style="margin-top:8px">Carries your card for exactly this encounter.<br>Your confirmation follows over the network once there is a connection.</div>
+        <div class="pmeta" style="margin-top:8px">Carries your sent card for exactly this encounter.<br>Your confirmation follows over the network once there is a connection.</div>
       </div>
       <div class="profact" style="margin-top:10px"><button onclick="__closeVerify('${id}')">Keep waiting for the network instead</button></div>`
   }
-  if (ui.view === 'prompt') {
-    const e = p.inbox.find((x) => x.kind === 'verifyback' && x.peerAnchor === ui.promptAnchor && !x.decided)
-    if (!e) { ui.view = 'list'; return screenList(id, p) }
+  if (u.view === 'prompt') {
+    const pr = p.view.prompts.find((x) => x.id === u.promptId)
+    if (!pr) { u.view = 'list'; return screenList(id, p) }
+    const who = nm(cv(p, pr.contactId)), optical = u.optical.has(pr.id)
     return `<div style="text-align:center;display:flex;flex-direction:column;gap:10px;margin-top:12px">
-      <div style="font-size:11.5px;font-weight:700;color:oklch(48% 0.16 142)">${e.from} verified you${e.optical ? ' · two-way scan' : ''}</div>
-      <div style="font-size:17px;font-weight:800">Verify ${e.from} back?</div>
-      <div style="align-self:center;width:64px;height:64px;border-radius:50%;background:${colorOf(e.from)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700">${e.from[0]}</div>
-      <div class="pmeta" style="max-width:240px;align-self:center">Arrival is not acceptance — you decide. Confirming makes the connection mutual${e.optical ? '; the confirmations follow over the network' : ''}.</div>
+      <div style="font-size:11.5px;font-weight:700;color:oklch(48% 0.16 142)">${esc(who)} verified you${optical ? ' · two-way scan' : ''}</div>
+      <div style="font-size:17px;font-weight:800">Verify ${esc(who)} back?</div>
+      ${bigAvatar(who)}
+      <div class="pmeta" style="max-width:240px;align-self:center">Arrival is not acceptance — you decide. Confirming makes the connection mutual${optical ? '; the confirmations follow over the network' : ''}.</div>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button style="flex:1;font:inherit;font-size:12.5px;font-weight:700;padding:10px;border-radius:11px;border:1.5px solid oklch(88% 0.005 265);background:transparent;color:oklch(40% 0.008 265);cursor:pointer" onclick="__promptLater('${id}')">Not now</button>
-        <button style="flex:1;font:inherit;font-size:12.5px;font-weight:700;padding:10px;border-radius:11px;border:none;background:oklch(52% 0.14 150);color:#fff;cursor:pointer" onclick="__verifyBack('${id}','${e.peerAnchor}',true)">Confirm</button>
+        <button style="${BTN_NO}" onclick="__promptLater('${id}')">Not now</button>
+        <button style="${BTN_YES}" onclick="__decide('${id}','${pr.id}','accept')">Confirm</button>
       </div></div>`
   }
   return screenList(id, p)
 }
 function screenList (id, p) {
-  const rows = activeContacts(p).map(([anchor, c]) =>
-    PH.contactRow({ name: c.name, color: colorOf(c.name), badges: badgesOf(c), meta: metaLine(p, c), onclick: `__nav('${id}','profile','${anchor}')` })).join('')
+  const rows = p.view.contacts.map((c) =>
+    PH.contactRow({ name: nm(c), color: colorOf(nm(c)), badges: badgesOf(p, c), meta: metaLine(p, c), onclick: `__nav('${id}','profile','${c.id}')` })).join('')
   return `${PH.appHead(p.name, colorOf(p.name))}
     <div class="plist">${rows || '<div class="pempty">— no contacts yet —</div>'}</div>
     ${rows ? '<div class="pfoot">Blue = you really met (ceremony). Amber = via an introducer or one-sided — the first real meeting upgrades it through continuity.</div>' : ''}`
 }
 
-// Groups-Tab: die echten Gruppen aus den Gerätedaten (Stage C)
+// Groups tab: the holder's groups (GroupView) and their state
 function screenGroups (id, p) {
-  const ui = world.ui[id]
-  if (ui.view === 'group' && p.groups.has(ui.gid)) return screenGroupDetail(id, p, p.groups.get(ui.gid))
-  const rows = [...p.groups.values()].map((g) => `
-    <button class="prow" onclick="__nav('${id}','group'); world.ui['${id}'].gid='${g.genesisDigest}'; window.__rr()">${PH.avatarS(g.label, '#8b5cf6')}
-      <span class="plabel"><span class="pnamerow"><span class="pname2">${g.label}</span>${g.role === 'founder' ? PH.badge('trustb', 'founder') : ''}</span>
-      <span class="pmeta">${g.roster.size} member${g.roster.size === 1 ? '' : 's'} · ${g.genesisDigest.slice(0, 14)}…</span></span></button>`).join('')
+  const u = ui[id]
+  const g0 = u.view === 'group' && p.view.groups.find((g) => g.id === u.gid)
+  if (g0) return screenGroupDetail(id, p, g0)
+  const rows = p.view.groups.map((g) => `
+    <button class="prow" onclick="__group('${id}','${g.id}')">${PH.avatarS(g.name, '#8b5cf6')}
+      <span class="plabel"><span class="pnamerow"><span class="pname2">${esc(g.name)}</span>${isFounder(p, g.id, groupState(p, g.id)?.memberAnchor) ? PH.badge('trustb', 'founder') : ''}</span>
+      <span class="pmeta">${g.members.length} member${g.members.length === 1 ? '' : 's'} · ${g.id.slice(0, 14)}…</span></span></button>`).join('')
   return `${PH.appHead(p.name, colorOf(p.name))}
     <div class="plist">${rows || '<div class="pempty">— no groups yet —</div>'}</div>
     <div class="profact"><button class="primary" onclick='__sheet("${id}",{type:"found"})'>＋&nbsp; Found a group…</button></div>`
 }
 function screenGroupDetail (id, p, g) {
-  const invitable = activeContacts(p).filter(([, c]) => c.state === '✓' || c.state === '⇄')
-  const rows = [...g.roster.entries()].map(([anchor, m]) => `
-    <div class="prow">${PH.avatarS(m.name, colorOf(m.name))}
-      <span class="plabel"><span class="pnamerow"><span class="pname2">${m.name}${anchor === g.myMemberCtx.anchor ? ' (du)' : ''}</span>${m.founder ? PH.badge('trustb', 'founder') : ''}${m.candidacy ? PH.badge('byme', '⏳ candidacy') : ''}</span>
-      <span class="pmeta">member anchor ${anchor.slice(8, 24)}… · since ${m.addedAt.slice(0, 10)}</span></span></div>`).join('')
-  const open = [...g.threads.entries()].map(([a]) => `<div class="sentrow">◇ invitation open — waiting for the answer</div>`).join('')
-  // Bürgschafts-Sektion (Design Kap. 6): nur bei sichtbaren Kandidaturen
-  const need = g.vouchThreshold ?? 1
-  const cand = [...g.roster.entries()].filter(([, m]) => m.candidacy)
-  const candRows = cand.map(([anchor, m]) => {
-    if (anchor === g.myMemberCtx.anchor) {
-      const n = g.vouchesReceived?.size ?? 0
-      return `<div class="prow" style="cursor:default">${PH.avatarS(m.name, colorOf(m.name))}
-        <span class="plabel"><span class="pnamerow"><span class="pname2">${m.name} (du)</span></span>
-        <span class="pmeta">${need > 1 ? `vouches ${n}/${need}` : n ? `${n} vouch received` : 'waiting for a vouch'}</span></span></div>`
-    }
-    if (!g.roster.has(g.myMemberCtx.anchor)) return ''
-    if (g.myVouches?.has(anchor)) return `<div class="sentrow">✓ you vouched for ${m.name} (${g.myVouches.get(anchor).credentialSubject.endorsement.provenance})</div>`
-    const contact = m.contactAnchor ? p.contacts.get(m.contactAnchor) : null
-    if (!contact) return `<div class="sentrow">${m.name} asks for vouches — vouching needs a channel: meet ${m.name}, or get introduced.</div>`
-    const prov = contact.provenance === 'ceremony' ? ['met', 'met in person'] : ['introduced', 'introduced to you']
-    return `<div class="prow" style="cursor:default">${PH.avatarS(m.name, colorOf(m.name))}
-      <span class="plabel"><span class="pnamerow"><span class="pname2">${m.name}</span></span>
-      <span class="pmeta">asks for vouches · your basis: ${prov[1]}</span></span>
-      <button class="yes" style="font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:5px 12px;border-radius:8px;border:none;background:oklch(52% 0.14 150);color:#fff" onclick="__vouch('${id}','${g.genesisDigest}','${anchor}')">Vouch</button></div>`
+  const gs = groupState(p, g.id)
+  const rows = g.members.map((m) => `
+    <div class="prow">${PH.avatarS(m.name ?? '?', colorOf(m.name))}
+      <span class="plabel"><span class="pnamerow"><span class="pname2">${esc(m.name ?? short(m.anchor))}${m.self ? ' (you)' : ''}</span>${isFounder(p, g.id, m.anchor) ? PH.badge('trustb', 'founder') : ''}</span>
+      <span class="pmeta">member anchor ${m.anchor.slice(8, 24)}… · since ${new Date(gs.roster[m.anchor]?.addedAt ?? 0).toISOString().slice(0, 10)}</span></span></div>`).join('')
+  const open = [...Object.values(gs.preludes), ...Object.values(gs.invitations)].map((x) => `<div class="sentrow">◇ invitation to ${esc(nm(cv(p, x.contactId)))} open — waiting for the answer</div>`).join('')
+  // consent pairs held toward an admission (Membership 3.4): the vouch section
+  const need = Number(g.vouchThreshold)
+  const candRows = g.pending.map((x) => {
+    const c = cv(p, g.members.find((m) => m.anchor === x.member)?.contactId)
+    return `<div class="prow" style="cursor:default">${PH.avatarS(x.name ?? '?', colorOf(x.name))}
+      <span class="plabel"><span class="pnamerow"><span class="pname2">${esc(x.name ?? short(x.member))}</span></span>
+      <span class="pmeta">vouches ${x.vouches}/${need}${c ? ` · your basis: ${ceremonial(p, c) ? 'met in person' : 'introduced to you'}` : ''}</span></span>
+      <button class="yes" style="font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:5px 12px;border-radius:8px;border:none;background:oklch(52% 0.14 150);color:#fff" onclick="__vouch('${id}','${g.id}','${x.member}')">Vouch</button></div>`
   }).join('')
+  const founded = isFounder(p, g.id, gs.memberAnchor)
   return `${PH.backHead('Groups', `__nav('${id}','list')`, p.name)}
-    ${PH.profHead({ name: g.label, color: '#8b5cf6', sub: `${g.role === 'founder' ? 'founded by you' : 'member'} · genesis ${g.genesisDigest.slice(0, 16)}…` })}
+    ${PH.profHead({ name: g.name, color: '#8b5cf6', sub: `${founded ? 'founded by you' : 'member'} · genesis ${g.id.slice(0, 16)}…` })}
     <div class="plist">${rows}</div>${open}
-    ${cand.length ? `<div class="sect">Candidacies${need > 1 ? ` · threshold ${need}` : ''}</div><div class="plist">${candRows}</div>` : ''}
-    <div class="profact"><button class="primary" ${invitable.length ? '' : 'disabled'} onclick='__sheet("${id}",{type:"invitepick",gid:"${g.genesisDigest}"})'>✉&nbsp; Invite a member…</button></div>
+    ${g.pending.length ? `<div class="sect">Waiting for admission · threshold ${need}</div><div class="plist">${candRows}</div>` : ''}
+    <div class="profact"><button class="primary" ${p.view.contacts.length ? '' : 'disabled'} onclick='__sheet("${id}",{type:"invitepick",gid:"${g.id}"})'>✉&nbsp; Invite a member…</button></div>
     <div class="sentrow">The invitation travels the relationship channel: prelude (member anchor) → InvitationCredential → accept → admission → welcome.</div>`
 }
 
-// Profile-Tab: die eigene Identität, komplett aus den Gerätedaten
+// Profile tab: the own identity, from the device data
 function screenOwnProfile (id, p) {
-  const ctxs = [...new Map([...p.contexts.values()].map((c) => [c.label, c])).values()]
+  const anchors = [[p.community, 'group/' + p.view.state.register.community.genesis], ...p.anchors.entries()]
   return `${PH.appHead(p.name, colorOf(p.name))}
-    ${PH.profHead({ name: p.name, color: colorOf(p.name), sub: `${p.online ? 'online' : '✈ offline'} · ${ctxs.length} relationship anchors, all derived from ONE seed` })}
-    <div class="plist">${ctxs.map((ctx) => `
-      <div class="prow" style="cursor:default"><span class="plabel">${ctx.label.slice(0, 22)}…<span class="psub">anchor ${ctx.anchor.slice(8, 26)}…</span></span></div>`).join('') || '<div class="pempty">— no anchors yet —</div>'}</div>
+    ${PH.profHead({ name: p.view.profile.name ?? p.name, color: colorOf(p.name), sub: `${p.online ? 'online' : '✈ offline'} · ${anchors.length} anchors, all derived from ONE seed · profile rev ${p.view.profile.revision}` })}
+    <div class="plist">${anchors.map(([anchor, label]) => `
+      <div class="prow" style="cursor:default"><span class="plabel">${esc(label.slice(0, 22))}…<span class="psub">anchor ${anchor.slice(8, 26)}…</span></span></div>`).join('')}</div>
     <div class="sentrow">Backup: only the root seed (12 words) — every anchor is re-derivable.</div>`
 }
 
-function screenProfile (id, p, anchor) {
-  const c = p.contacts.get(anchor)
-  if (!c) { world.ui[id] = { ...world.ui[id], view: 'list' }; return screenList(id, p) }
-  const others = activeContacts(p).filter(([a, o]) => a !== anchor && o.channel?.own)
-  const canIntroduce = !!c.channel?.own && others.length > 0
-  const shared = (c.sharedGroups ?? []).filter((gid) => p.groups.has(gid))
-  const sharedRows = shared.map((gid) => { const g = p.groups.get(gid); return `
-    <button class="prow" onclick="__nav('${id}','group'); world.ui['${id}'].tab='groups'; world.ui['${id}'].gid='${gid}'; window.__rr()">${PH.avatarS(g.label, '#8b5cf6')}
-      <span class="plabel"><span class="pnamerow"><span class="pname2">${g.label}</span></span>
-      <span class="pmeta">you are both members</span></span></button>` }).join('')
-  const known = c.starInfo?.knownNames ?? []
-  const knownRows = known.map((n) => `
-    <div class="prow" style="cursor:default">${PH.avatarS(n, colorOf(n))}
-      <span class="plabel"><span class="pnamerow"><span class="pname2">${n}</span></span>
-      <span class="pmeta">you both hold the disclosed anchor</span></span></div>`).join('')
-  const starSect = known.length
-    ? `<div class="sect">Mutual contacts · ${c.starInfo.count} contact${c.starInfo.count === '1' ? '' : 's'}, you know ${known.length}</div>
-       <div class="plist">${knownRows}</div>`
+function screenProfile (id, p, cid) {
+  const c = cv(p, cid)
+  if (!c) { ui[id].view = 'list'; return screenList(id, p) }
+  const others = p.view.contacts.filter((o) => o.id !== c.id)
+  const shared = sharedOf(p, c)
+  const sharedRows = shared.map((g) => `
+    <button class="prow" onclick="__group('${id}','${g.id}')">${PH.avatarS(g.name, '#8b5cf6')}
+      <span class="plabel"><span class="pnamerow"><span class="pname2">${esc(g.name)}</span></span>
+      <span class="pmeta">you are both members</span></span></button>`).join('')
+  const st = starOf(p, c)
+  const starSect = st?.known.length
+    ? `<div class="sect">Mutual contacts · ${st.count} contact${st.count === 1 ? '' : 's'}, you know ${st.known.length}</div>
+       <div class="plist">${st.known.map((n) => `
+        <div class="prow" style="cursor:default">${PH.avatarS(n, colorOf(n))}
+          <span class="plabel"><span class="pnamerow"><span class="pname2">${esc(n)}</span></span>
+          <span class="pmeta">you both hold their disclosed anchor</span></span></div>`).join('')}</div>`
     : ''
-  const trustAct = c.channel?.own && !c.trustGiven
-    ? `<button class="trust" onclick='__sheet("${id}",{type:"trust",of:"${anchor}"})'>🤝&nbsp; Trust…</button>` : ''
-  const trustSub = c.trustGiven ? `
-    <div class="prow" style="cursor:default"><span class="plabel"><span class="pnamerow"><span class="pname2">Contact updates to ${c.name}</span></span>
-      <span class="pmeta">${c.trustPaused ? 'paused — what was delivered stays' : 'active — your circle travels blinded'}</span></span>
-      <button class="toggle ${c.trustPaused ? '' : 'on'}" onclick="__trustPause('${id}','${anchor}')" aria-label="Updates ${c.name}"></button></div>` : ''
+  const confirm = p.view.prompts.find((x) => x.kind === 'encounter-confirm' && cv(p, x.contactId)?.id === c.id)
+  const verifyAct = confirm ? `<button class="primary blue" onclick="__decide('${id}','${confirm.id}','accept')">Verify ${esc(nm(c))} back</button>`
+    : !ceremonial(p, c) || c.verification !== 'mutual' ? `<button class="primary blue" onclick="__openVerify('${id}')">Verify — when you meet…</button>` : ''
+  const trustAct = !c.trust.given ? `<button class="trust" onclick='__sheet("${id}",{type:"trust",of:"${c.id}"})'>🤝&nbsp; Trust…</button>` : ''
+  const trustSub = c.trust.given ? `
+    <div class="prow" style="cursor:default"><span class="plabel"><span class="pnamerow"><span class="pname2">Contact updates to ${esc(nm(c))}</span></span>
+      <span class="pmeta">${c.trust.paused ? 'paused — what was delivered stays' : c.trust.pending ? 'on the way — the mapping goes out on the next sync' : 'active — your circle travels blinded'}</span></span>
+      <button class="toggle ${c.trust.paused ? '' : 'on'}" onclick="__trustPause('${id}','${c.id}')" aria-label="Updates ${esc(nm(c))}"></button></div>` : ''
+  const head = headTuples(p, c).at(-1)
+  const v = voucherOf(p, c)
+  const enactments = c.relationships.reduce((n, r) => n + r.tuples, 0)
   return `${PH.backHead('Contacts', `__nav('${id}','list')`, p.name)}
-    <div class="card"><div class="prow" style="padding:10px">${PH.avatarS(c.name, colorOf(c.name))}
-      <span class="plabel"><span class="pnamerow"><span class="pname2" style="font-size:15px">${c.name}</span>${badgesOf(c)}</span>
-      <span class="pmeta">${metaLine(p, c, 'detail')}</span></span></div></div>
+    <div class="card"><div class="prow" style="padding:10px">${PH.avatarS(nm(c), colorOf(nm(c)))}
+      <span class="plabel"><span class="pnamerow"><span class="pname2" style="font-size:15px">${esc(nm(c))}</span>${badgesOf(p, c)}</span>
+      <span class="pmeta">${esc(metaLine(p, c, 'detail'))}</span></span></div></div>
     ${shared.length ? `<div class="sect">Shared groups · the ones you show each other</div><div class="plist">${sharedRows}</div>` : ''}
     ${starSect}
     <div class="sect">Actions</div>
     <div class="profact">
-      ${(c.state === '←' || (c.state === '◇' && c.ownChallenge && !c.credential)) ? `<button class="primary blue" onclick="__verifyBack('${id}','${anchor}',true)">Verify ${c.name} back</button>`
-        : c.provenance !== 'ceremony' || c.state !== '✓' ? `<button class="primary blue" onclick="__openVerify('${id}')">Verify — when you meet…</button>` : ''}
+      ${verifyAct}
       ${trustAct}
-      <button class="primary" ${canIntroduce ? '' : 'disabled'} onclick='__sheet("${id}",{type:"pick",of:"${anchor}"})'>⇠⇢&nbsp; Introduce…</button>
-      <button onclick='__sheet("${id}",{type:"invitegroup",of:"${anchor}"})'>✉&nbsp; Invite to group…</button>
+      <button class="primary" ${others.length ? '' : 'disabled'} onclick='__sheet("${id}",{type:"pick",of:"${c.id}"})'>⇠⇢&nbsp; Introduce…</button>
+      <button onclick='__sheet("${id}",{type:"invitegroup",of:"${c.id}"})'>✉&nbsp; Invite to group…</button>
     </div>
     ${trustSub ? `<div class="sect">Settings</div><div class="plist">${trustSub}</div>` : ''}
-    <div class="profmeta">anchor ${c.card.anchor.slice(0, 34)}…<br>keyAgreement ${c.card.keyAgreement.slice(0, 30)}…${c.voucher ? '<br>voucher: introduction-voucher@2 · Akt ' + c.voucher.act.slice(0, 16) + '…' : ''}${c.chain?.length ? `<br>continuity: ${c.chain.length + 1} enactments — recognized via the §6a probe, evidence accumulates` : ''}</div>`
+    <div class="profmeta">anchor ${esc((head?.counterpartAnchor ?? counterpartAnchors(p.view.state, c)[0] ?? '').slice(0, 34))}…<br>keyAgreement ${esc((head?.counterpartKeyAgreement ?? '').slice(0, 30))}…${v ? '<br>voucher: introduction-voucher · act ' + esc(v.act.slice(0, 16)) + '…' : ''}${enactments > 1 ? `<br>continuity: ${enactments} enactments — recognized via the §6a probe, evidence accumulates` : ''}</div>`
 }
 
 function sheet (id, p) {
-  const s = world.ui[id].sheet
+  const s = ui[id].sheet
   if (!s) return ''
   if (s.type === 'found') {
     return PH.bottomSheet(`<h4>Found a new group</h4>
-      <p>The genesis is signed under a fresh founding pair anchor; your member anchor is
-      derived from the genesis digest. The digest IS the group's identity — forever.</p>
+      <p>The genesis is signed under a fresh founding pair anchor — your member anchor in
+      the group. The genesis digest IS the group's identity — forever.</p>
       <input id="gname-${id}" placeholder="Group name" />
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button>
       <button class="primary blue" onclick="__foundGroup('${id}')">Found</button></div>`)
   }
   if (s.type === 'join') {
-    const e = p.inbox.find((x) => x.kind === 'invite' && !x.decided && x.invite.taskContext === s.act)
-    if (!e) return ''
-    const inv = e.invite
-    return PH.bottomSheet(`<h4>Join "${inv.credentialSubject.name}"?</h4>
-      <p>Invited by <b>${e.from}</b> · invitation verified (it names your own derivation).</p>
+    const inv = Object.values(p.view.state.joining.invites).find((i) => i.promptId === s.promptId)
+    if (!inv || !p.view.prompts.some((x) => x.id === s.promptId)) return ''
+    return PH.bottomSheet(`<h4>Join "${esc(inv.name)}"?</h4>
+      <p>Invited by <b>${esc(nm(cv(p, inv.contactId)))}</b> · invitation verified (it names your own derivation).</p>
       <p><b>Joining means:</b> the group sees you under your group anchor. Your joining becomes part of the group's history — permanently.</p>
-      <div class="prow" style="border:1px solid oklch(92% 0.005 265);border-radius:10px;margin-bottom:8px">
-        <span class="plabel" style="white-space:normal"><span style="font-weight:700;font-size:11.5px">Show candidacy</span><br>
-        <span style="font-size:10.5px;color:oklch(48% 0.008 265)">Members see that you want to join and can vouch for you. This too stays visible permanently.</span></span>
-        <input type="checkbox" id="cand-${id}" checked style="width:16px;height:16px"></div>
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button>
-      <button class="primary blue" onclick="__joinConfirm('${id}','${s.act}')">Join</button></div>`)
+      <button class="primary blue" onclick="__decide('${id}','${s.promptId}','accept')">Join</button></div>`)
   }
   if (s.type === 'scanmiss') {
     return PH.bottomSheet(`<h4>No code in view</h4>
@@ -1033,146 +946,171 @@ function sheet (id, p) {
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Ok</button></div>`)
   }
   if (s.type === 'verified') {
-    // der Feier-Moment: MITTIGER Dialog (Meilenstein) — Einweg-Türen bleiben Sheets
-    const c = p.contacts.get(s.of)
+    // the celebration: a CENTRED dialog (milestone) — one-way doors stay sheets
+    const c = cv(p, s.of)
     if (!c) return ''
-    const chained = c.chain?.length
+    const n = c.relationships.reduce((k, r) => k + r.tuples, 0)
     return `<div class="cdlg"><div class="cdlg-card">
-      <div class="avpair"><span class="av" style="background:${colorOf(p.name)}">${p.name[0]}</span><span class="av" style="background:${colorOf(c.name)}">${c.name[0]}</span></div>
+      <div class="avpair"><span class="av" style="background:${colorOf(p.name)}">${esc(p.name[0])}</span><span class="av" style="background:${colorOf(nm(c))}">${esc(nm(c)[0])}</span></div>
       <h4>🎉 Verified!</h4>
-      <p><b>You and ${c.name} have now verified each other.</b></p>
-      ${chained ? `<p>You recognized each other — one contact, ${c.chain.length + 1} encounters.</p>` : ''}
-      ${!c.trustGiven ? `<p>Trusting shares your stable identity with ${c.name} — a separate act, never automatic.</p>
+      <p><b>You and ${esc(nm(c))} have now verified each other.</b></p>
+      ${n > 1 ? `<p>You recognized each other — one contact, ${n} encounters.</p>` : ''}
+      ${!c.trust.given ? `<p>Trusting shares your stable identity with ${esc(nm(c))} — a separate act, never automatic.</p>
       <div class="bs"><button onclick="__sheet('${id}',null)">Later</button>
-      <button class="grn" onclick='__sheet("${id}",{type:"trust",of:"${s.of}"})'>🤝 Trust…</button></div>`
+      <button class="grn" onclick='__sheet("${id}",{type:"trust",of:"${c.id}"})'>🤝 Trust…</button></div>`
       : `<div class="bs"><button onclick="__sheet('${id}',null)">Done</button></div>`}
     </div></div>`
   }
   if (s.type === 'trust') {
-    const c = p.contacts.get(s.of)
-    return PH.bottomSheet(`<h4>Trust ${c.name} permanently?</h4>
-      <p>You give ${c.name} your <b>stable identity</b> — the bridge between your
-      relationship anchors. Only ${c.name} can verify the link; to everyone else it is
+    const c = cv(p, s.of)
+    if (!c) return ''
+    return PH.bottomSheet(`<h4>Trust ${esc(nm(c))} permanently?</h4>
+      <p>You give ${esc(nm(c))} your <b>stable identity</b> — the bridge between your
+      relationship anchors. Only ${esc(nm(c))} can verify the link; to everyone else it is
       worthless (deniable, designated verifier). Who you know travels along only blinded —
       checkable, never as a list.</p>
-      ${c.provenance !== 'ceremony' ? `<p><b>Not yet verified:</b> ${c.provenance} — you are relying
+      ${!ceremonial(p, c) ? `<p><b>Not yet verified:</b> introduced via ${esc(nm(cv(p, c.via)))} — you are relying
       on the introduction here, not on a meeting of your own. The first real meeting makes ✓.</p>` : ''}
       <p><b>This door only opens one way:</b> once shared is shared for good. Pausing later
       only stops future contact updates — never what was already delivered.</p>
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button>
-      <button class="primary blue" style="background:oklch(52% 0.14 150)" onclick="__trustGive('${id}','${s.of}')">Trust</button></div>`)
+      <button class="primary blue" style="background:oklch(52% 0.14 150)" onclick="__trustGive('${id}','${c.id}')">Trust</button></div>`)
   }
   if (s.type === 'invitegroup') {
-    const c = p.contacts.get(s.of)
-    const groups = [...p.groups.values()].filter((g) => g.roster.has(g.myMemberCtx.anchor))
-    const rows = groups.map((g) => `
-      <button class="prow" onclick="__inviteToGroup('${id}','${g.genesisDigest}','${s.of}')">${PH.avatarS(g.label, '#8b5cf6')}
-        <span class="plabel"><span class="pnamerow"><span class="pname2">${g.label}</span></span>
-        <span class="pmeta">${g.roster.size} member${g.roster.size === 1 ? '' : 's'}</span></span></button>`).join('')
-    return PH.bottomSheet(`<h4>Invite ${c.name} — to which group?</h4>
-      <p>Your device asks for ${c.name}'s group anchor automatically (prelude); the invitation follows.</p>
+    const c = cv(p, s.of)
+    const rows = p.view.groups.map((g) => `
+      <button class="prow" onclick="__inviteToGroup('${id}','${g.id}','${c.id}')">${PH.avatarS(g.name, '#8b5cf6')}
+        <span class="plabel"><span class="pnamerow"><span class="pname2">${esc(g.name)}</span></span>
+        <span class="pmeta">${g.members.length} member${g.members.length === 1 ? '' : 's'}</span></span></button>`).join('')
+    return PH.bottomSheet(`<h4>Invite ${esc(nm(c))} — to which group?</h4>
+      <p>Your device asks for ${esc(nm(c))}'s group anchor automatically (prelude); the invitation follows.</p>
       <div class="plist">${rows || '<div class="pempty">— you are in no group —</div>'}</div>
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button></div>`)
   }
   if (s.type === 'invitepick') {
-    const rows = activeContacts(p).filter(([, c]) => c.state === '✓' || c.state === '⇄').map(([a, c]) =>
-      PH.contactRow({ name: c.name, color: colorOf(c.name), badges: badgesOf(c), onclick: `__inviteToGroup('${id}','${s.gid}','${a}')` })).join('')
+    const g = p.view.groups.find((x) => x.id === s.gid)
+    const inside = new Set((g?.members ?? []).map((m) => m.contactId).filter(Boolean))
+    const rows = p.view.contacts.filter((c) => !inside.has(c.id)).map((c) =>
+      PH.contactRow({ name: nm(c), color: colorOf(nm(c)), badges: badgesOf(p, c), onclick: `__inviteToGroup('${id}','${s.gid}','${c.id}')` })).join('')
     return PH.bottomSheet(`<h4>Invite whom?</h4>
       <p>The invitation needs the person's member anchor — your device asks for it via the
       prelude over your channel; the invitation follows automatically.</p>
-      <div class="plist">${rows}</div>
+      <div class="plist">${rows || '<div class="pempty">— everyone is in already —</div>'}</div>
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button></div>`)
   }
   if (s.type === 'pick') {
-    const of = p.contacts.get(s.of)
-    const rows = activeContacts(p).filter(([a, o]) => a !== s.of && o.channel?.own).map(([a, c]) =>
-      PH.contactRow({ name: c.name, color: colorOf(c.name), badges: badgesOf(c), onclick: `__sheet(&quot;${id}&quot;,{type:&quot;confirm&quot;,a:&quot;${s.of}&quot;,b:&quot;${a}&quot;})` })).join('')
-    return PH.bottomSheet(`<h4>Introduce ${of.name} — to whom?</h4>
+    const of = cv(p, s.of)
+    const rows = p.view.contacts.filter((o) => o.id !== s.of).map((c) =>
+      PH.contactRow({ name: nm(c), color: colorOf(nm(c)), badges: badgesOf(p, c), onclick: `__sheet(&quot;${id}&quot;,{type:&quot;confirm&quot;,req:&quot;${c.id}&quot;,tgt:&quot;${s.of}&quot;})` })).join('')
+    return PH.bottomSheet(`<h4>Introduce ${esc(nm(of))} — to whom?</h4>
       <div class="plist">${rows}</div>
       <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button></div>`)
   }
-  const A = p.contacts.get(s.a), B = p.contacts.get(s.b)
-  return PH.bottomSheet(`<h4>Introduce ${A.name} and ${B.name} to each other?</h4>
-    <p>Both receive an offer and decide independently. You pass on <b>no</b> anchors —
-    each side mints a fresh card on consent. After this, your device is never needed again.</p>
-    <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button>
-    <button class="primary blue" onclick="__confirmIntroduce('${id}')">Introduce</button></div>`)
+  if (s.type === 'confirm') {
+    const R = nm(cv(p, s.req)), T = nm(cv(p, s.tgt))
+    return PH.bottomSheet(`<h4>Introduce ${esc(R)} and ${esc(T)} to each other?</h4>
+      <p>${esc(R)} gets your offer and decides. If ${esc(R)} asks, your device relays the request
+      to ${esc(T)}, who decides independently, and relays the answer back. You pass on
+      <b>no</b> anchors — each side mints a fresh card. Your device carries the act: while
+      you are offline, it waits for you.</p>
+      <div class="phdlg-btns"><button onclick="__sheet('${id}',null)">Cancel</button>
+      <button class="primary blue" onclick="__confirmIntroduce('${id}')">Introduce</button></div>`)
+  }
+  return ''
 }
 
 function phone (id) {
-  const p = world[id], ui = world.ui[id]
-  const inFlow = ['verify', 'scanner', 'confirm', 'waiting', 'delivered', 'fallback', 'prompt'].includes(ui.view)
+  const p = people[id], u = ui[id]
+  const inFlow = FLOW.includes(u.view)
   const body = inFlow ? screenFlow(id, p)
-    : ui.tab === 'home' ? screenHome(id, p)
-    : ui.tab === 'groups' ? screenGroups(id, p)
-    : ui.tab === 'profile' ? screenOwnProfile(id, p)
-    : ui.view === 'profile' ? screenProfile(id, p, ui.anchor) : screenList(id, p)
+    : u.tab === 'home' ? screenHome(id, p)
+    : u.tab === 'groups' ? screenGroups(id, p)
+    : u.tab === 'profile' ? screenOwnProfile(id, p)
+    : u.view === 'profile' ? screenProfile(id, p, u.cid) : screenList(id, p)
+  const skew = K.skewOf(clock, id)
   document.getElementById('dev-' + id).innerHTML = PH.phoneShell({
-    owner: p.name, color: colorOf(p.name), clock: new Date(K.deviceNow(clock, id)).toISOString().slice(11, 16), online: p.online,
+    owner: p.name, color: colorOf(p.name), clock: new Date(tnow(id)).toISOString().slice(11, 16), online: p.online,
     body,
-    tabs: PH.tabBar([['home', 'Home'], ['contacts', 'Contacts'], ['groups', 'Groups'], ['profile', 'Profile']], ui.tab, (k) => `__tab('${id}','${k}')`),
-    sheet: (ui.toast ? `<div class="toast">${ui.toast}</div>` : '') + sheet(id, p) + (['verify', 'scanner', 'confirm', 'waiting', 'delivered', 'fallback', 'prompt'].includes(ui.view) || ui.sheet
-      ? '' : `<button class="fab" onclick="__openVerify('${id}')" aria-label="Verifizieren ${p.name}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg></button>`),
+    tabs: PH.tabBar([['home', 'Home'], ['contacts', 'Contacts'], ['groups', 'Groups'], ['profile', 'Profile']], u.tab, (k) => `__tab('${id}','${k}')`),
+    sheet: (u.toast ? `<div class="toast">${esc(u.toast)}</div>` : '') + sheet(id, p) + (FLOW.includes(u.view) || u.sheet
+      ? '' : `<button class="fab" onclick="__openVerify('${id}')" aria-label="Verify ${p.name}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg></button>`),
     header: PH.deviceHeader({
       name: p.name,
       sub: ownAnchorOf(p),
       controls: [
-        PH.devBtn({ label: p.online ? 'online' : 'offline', onclick: `__net('${id}')`, on: p.online,
+        PH.devBtn({ label: p.online ? 'online' : 'offline', onclick: `__online('${id}')`, on: p.online,
           title: 'network — offline means the delivery time is unbounded, never that it failed' }),
-        PH.devBtn({ label: `clock ${K.skewOf(clock, id) === 0 ? '±0' : (K.skewOf(clock, id) > 0 ? '+' : '') + Math.round(K.skewOf(clock, id) / 60000) + 'm'}`,
-          onclick: `__skewCycle('${id}')`, warn: K.skewOf(clock, id) !== 0,
+        PH.devBtn({ label: `clock ${skew === 0 ? '±0' : (skew > 0 ? '+' : '') + Math.round(skew / 60000) + 'm'}`,
+          onclick: `__skewCycle('${id}')`, warn: skew !== 0,
           title: 'clock offset — widens the tolerance window, never rejects' }),
       ],
     }),
-  }) + `<div class="stored">${walletOf(id, p)}</div>`
+  }) + `<div class="devlog">${esc(p.log.at(-1) ?? '')}</div><div class="stored">${walletOf(id, p)}</div>`
 }
 
 const FAULTS = [
   ['hold', 'Hold the channel', 'deliveries park; releasing flushes them — delivery time is unbounded'],
   ['dup', 'Deliver everything twice', 'completed-effect cache answers duplicate-known, never a second effect'],
   ['tamper', 'Flip one ciphertext bit', 'stage 3: the AES-GCM tag catches it — failed(decryption-failed)'],
-  ['lose', 'Lose deliveries', 'the channel gives no sign; only the missing ack tells (→ two-way scan)'],
+  ['lose', 'Lose deliveries', 'the channel gives no sign; the sender\'s resume re-offers after its backoff (attempt 2) — let the clock run'],
 ]
 window.__rate = (r) => { K.setRate(clock, r); render() }
 window.__skewCycle = (id) => {
   const cur = K.skewOf(clock, id)
   const next = cur === 0 ? 4 * K.MINUTE : cur > 0 ? -4 * K.MINUTE : 0
   K.setSkew(clock, id, next)
-  world[id].log.push(`clock offset ${Math.round(next / 60000)} min · within the PT5M skew tolerance — widens the window, never rejects`)
+  say(id, `clock offset ${Math.round(next / 60000)} min · within the PT5M skew tolerance — widens the window, never rejects`)
   render()
 }
-window.__fault = async (k) => {
-  const f = world.channel.faults
+window.__fault = (k) => run(async () => {
+  const f = net.channel.faults
   f[k] = !f[k]
-  if (k === 'hold' && !f.hold) {
-    for (const h of DV.drainHeld(world.channel)) {
-      const w = packet((h.kind ?? 'delivery') + ' — released from hold', '·', h.toName, h.env, 'put')
-      const res = await DV.deliver(world.channel, byName(h.toName), h.env, (e) => dispatchDoc(byName(h.toName), e), { replay: true })
-      w.stages = res.stages; w.disp = res.disp
-    }
-  }
-  render()
+  if (k === 'hold' && !f.hold) await net.releaseHeld(now())
+})
+// the wire: every delivery with its disposition and the receiver's stages;
+// the sealed envelope JSON is filled in when a row is opened
+window.__wt = (el) => {
+  if (!el.open) return
+  const pre = el.querySelector('pre')
+  const w = net.wire.find((x) => String(x.n) === el.dataset.n)
+  if (pre && w && !pre.textContent) pre.textContent = JSON.stringify(w.env, null, 1)
+}
+const okDisp = (d) => d === 'unique' || d === 'duplicate-known'
+const badDisp = (d) => /^(failed|lost|discarded|unroutable)/.test(d ?? '')
+let wireSig = ''
+function renderWire () {
+  const el = document.getElementById('wire')
+  const s = net.wire.length + ':' + net.wire.filter((w) => w.disp).length
+  if (s === wireSig) return
+  wireSig = s
+  const open = new Set([...el.querySelectorAll('details[open]')].map((d) => d.dataset.n))
+  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
+  el.innerHTML = net.wire.map((w) => `
+    <details class="${/^delivery-ack/.test(w.kind) ? 'ack' : ''}" data-n="${w.n}" ${open.has(String(w.n)) ? 'open' : ''} ontoggle="__wt(this)">
+      <summary><span class="n">${w.n}</span> ${esc(w.from)} ⇒ ${esc(w.to)} · ${esc(w.kind)}${w.attempt > 1 ? ` <span class="att">· attempt ${w.attempt}</span>` : ''}</summary>
+      ${w.disp ? `<div class="disp ${okDisp(w.disp) ? 'ok' : badDisp(w.disp) ? 'bad' : ''}">→ ${esc(w.disp)}</div>` : ''}
+      ${(w.stages ?? []).map((s) => `<div class="stg ${s.ok ? '' : 'bad'}">${s.ok ? '✓' : '✕'} ${esc(s.label)}</div>`).join('')}
+      <pre>${open.has(String(w.n)) ? esc(JSON.stringify(w.env, null, 1)) : ''}</pre>
+    </details>`).join('') || '<div class="n">— nothing on the wire yet —</div>'
+  if (atBottom) el.scrollTop = el.scrollHeight
 }
 function render () {
-  const open = new Set([...document.querySelectorAll('.wire details[open]')].map((d) => d.dataset.n))
-  for (const id of ['J', 'A', 'E']) phone(id)
+  if (!state.ready) return
+  for (const id of IDS) phone(id)
   const RATES = [[0, 'paused'], [1, '1×'], [60, '60×'], [600, '600×']]
   document.getElementById('clockbar').innerHTML = `
-    <span class="clocknow">${new Date(K.now(clock)).toISOString().replace('T', ' ').slice(0, 19)}Z</span>
+    <span class="clocknow">${new Date(now()).toISOString().replace('T', ' ').slice(0, 19)}Z</span>
     ${RATES.map(([r, l]) => `<button class="rbtn ${clock.rate === r ? 'on' : ''}" onclick="__rate(${r})">${l}</button>`).join('')}
-    <span class="clockhint">acts jump the clock by 5 s · let it run and things age: a displayed code rotates at PT5M · each device carries its own drift (the clock button above it)</span>`
+    <span class="clockhint">acts jump the clock by 5 s · let it run and things age: a displayed code rotates at PT5M, lost deliveries are retried, the introducer's ack goes out after its declared delay · each device carries its own drift (the clock button above it)</span>`
   document.getElementById('faults').innerHTML = FAULTS.map(([k, label, effect]) => `
-    <button class="fbtn ${world.channel.faults[k] ? 'on' : ''}" onclick="__fault('${k}')">
-      <span class="fm">${world.channel.faults[k] ? '■' : '□'}</span>
+    <button class="fbtn ${net.channel.faults[k] ? 'on' : ''}" onclick="__fault('${k}')">
+      <span class="fm">${net.channel.faults[k] ? '■' : '□'}</span>
       <span>${label}<span class="fe">${effect}</span></span></button>`).join('')
-  document.getElementById('wire').innerHTML = world.wire.map((w) => `
-    <details class="${w.cls}" data-n="${w.n}" ${open.has(String(w.n)) ? 'open' : ''}>
-      <summary><span class="n">${w.n}</span> ${w.from} ⇒ ${w.to} · ${w.kind}</summary>
-      ${w.disp ? `<div class="disp ${w.disp === 'unique' || w.disp === 'duplicate-known' ? 'ok' : 'bad'}">→ ${w.disp}</div>` : ''}
-      ${(w.stages ?? []).map((s) => `<div class="stg ${s.ok ? '' : 'bad'}">${s.ok ? '✓' : '✕'} ${s.label}</div>`).join('')}
-      <pre>${JSON.stringify(w.payload, null, 1).replace(/</g, '&lt;')}</pre>
-    </details>`).join('') || '<div class="n">— nothing on the wire yet —</div>'
+  renderWire()
 }
+K.subscribe(clock, () => { if (state.ready && clock.rate > 0) render() })
+state.ready = true
+lastSig = sig()
 render()
 </script>
 </body>
