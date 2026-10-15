@@ -11,19 +11,35 @@
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //
+// Spec follow-up 14 (Trust 0.32): 6900 has the record side chain
+// "atomically with issuing its choice", and 6910 lets it choose on the
+// first match. A probe hit is no evidence of the prior relationship: it
+// proves knowledge of the prior's counterpart anchor (a photographed card,
+// a mediator who saw it in the clear) and of the fresh tuple's k_p, never
+// possession of the prior relationship key, which only mac1 proves (6970).
+// Chaining on a hit lets anyone who knows a pair anchor take over that
+// relationship. This library therefore chains only on a verified mapping
+// of the counterpart, mac1 under the prior key: the record side issues its
+// choice on a hit and holds it as a candidate (the standing mapping duty,
+// 6840); it chains when the counterpart's report or alignment naming the
+// chosen prior verifies (6970). The non-record side already chains only on
+// the record side's verified mapping (6900). 6900/6910 need the evidence
+// wording against 6970.
+//
 // What it registers (through trustModule, trust/mapping.ts):
 //   tasks   continuity-probe/0.1 (proof absent): the assembly per tuple
 //           (6790, the 5.2a rules with `probe` as the salt), the highest
 //           completed probe (6690, 6700), the matches against the own
 //           prior-candidate set (6800) and what they trigger: the record
-//           side's choice, chained atomically with its issuance (6900),
-//           or the non-record side's match report
+//           side's choice, issued but not chained (spec follow-up 14), or
+//           the non-record side's match report
 //           continuity-mapping/0.1 (proof absent): steps 1–6 of 6940 (to,
 //           next, prior in the frozen prior-candidate set, both MACs, the
 //           revision rule with the record freeze, 6270, 6290); a record
 //           side's mapping chains (6900) and raises the alignment (6850,
-//           6930); a match report may inform the record side's choice
-//           (6910) and answers it where it names the chosen relationship
+//           6930); the non-record side's report or alignment informs the
+//           record side's choice (6910) and, verified under the prior key,
+//           chains it where it names the chosen relationship (follow-up 14)
 //   duty    continuity/1: step `probe` sends the pending probe (6830),
 //           step `mapping` produces an owed choice, report or alignment, or
 //           resends the last issuance under its revision (6840)
@@ -53,10 +69,11 @@
 //     backoff(attempt)), never earlier; a superseded probe's failure
 //     touches nothing
 //   - the record side chooses the first match, in prior-candidate order,
-//     whose tuple is still the active head of a live relationship; the
-//     non-record side reports the first such match. A match report that
-//     reaches a record side without a choice is chosen from where its
-//     prior is still chainable (6910)
+//     whose tuple is still the active head of a live relationship, and
+//     chains on nothing yet; the non-record side reports the first such
+//     match. A match report that reaches a record side without a choice is
+//     chosen from where its prior is still chainable (6910), and chained
+//     with that issuance: the report is the evidence
 //   - a choice, a report or an alignment whose preparation fails (a key
 //     not available) leaves `continuityOut.due` and a mapping duty; the
 //     receive still commits (its ack, the assembly, the revision)
@@ -98,7 +115,8 @@
 //     opens, and no mapping touching that anchor verifies on the chain
 //     (6118); the chaining itself happens (6900), the earliest anchor as the earlier of the two
 //     by generation of the own register lineage (2285), contact memory
-//     (the chain's wins), the relationship's anchor head (the appended
+//     (the chain's wins key by key, the group-star pairs merged per group
+//     with the appended head's winning: chainMemory), the relationship's anchor head (the appended
 //     tuple's verified self, else the chain's), firstVerified the earlier;
 //     provenance stays the chain's. Tuple state does not migrate (6250):
 //     the prior tuple is deactivated with its open assemblies discarded
@@ -135,17 +153,19 @@
 // 50; reproduced in test/trust-continuity.test.mjs "one-sided chaining"):
 // concurrent re-encounters of one pair race for one prior and leave the
 // two holders with different chains. Exact sequence, two fresh pairs x
-// and y of A and C, created before either chained, A the record side of
-// x, C of y (isRecordSide per fresh pair):
-//   1. the probes cross; A, record side of x, matches C's probe on x and
+// and y of A and C, created before either chained, C the record side of
+// x, A of y (isRecordSide per fresh pair):
+//   1. the probes cross; C, record side of x, matches A's probe on x and
 //      chooses its prior (the original tuple, the first match still an
-//      active head, 6910), chains x atomically with issuing (6900, 6220);
-//      C, record side of y, does the same for y onto its original tuple
-//   2. A's record mapping on x reaches C: its prior is in C's frozen
-//      prior-candidate set of x (6960 passes on the snapshot), but C's
-//      original tuple is no longer an active head: y took it. Nothing in
-//      6.4 or 6a.4 says onto what C appends; this library refuses it
-//      (validation-failed, ref 6900), symmetrically at A for y
+//      active head, 6910), issuing its choice without chaining (follow-up
+//      14); A, record side of y, does the same for y. The two choices
+//      cross: A chains x on verifying C's (6900, 6220), C chains y on A's
+//   2. the reports and alignments follow: A's alignment on y reaches C,
+//      the record side of y, naming the prior it chose; its prior is in
+//      C's frozen prior-candidate set of y (6960 passes on the snapshot),
+//      but C's original tuple is no longer an active head: x took it.
+//      Nothing in 6.4 or 6a.4 says onto what C appends; this library
+//      refuses it (validation-failed, ref 6900), symmetrically at A for x
 //   3. end state: A's chain is original→x, C's is original→y; C keeps x,
 //      A keeps y, as relationships of their own. x's standing mapping duty
 //      never ends (6840): 6990's "chained to the record-chosen relationship,
@@ -345,6 +365,18 @@ function generationOf(state, anchor) {
 const earlierAnchor = (state, a, b) => a === null ? b : b === null ? a : generationOf(state, b) < generationOf(state, a) ? b : a;
 /** The anchors the holder issued its anchor mapping under on these tuples and relationship. */
 const issuedUnder = (r) => [r.earliestAnchor, ...r.tuples.map((t) => t.mappingOut.underAnchor)].filter((a) => a !== null);
+const mapOf = (x) => (x !== null && typeof x === 'object' && !Array.isArray(x) ? x : {});
+/** Contact memory at a chaining (2280): the chain's wins key by key
+ *  (introducedName, vouchedBy: what the earlier relationship established),
+ *  except the class-V group-star pairs (5580), merged per group with the
+ *  appended relationship's winning, since it is the active head whose
+ *  stars are the newer (5770). */
+function chainMemory(r0, rn) {
+    const m = { ...rn, ...r0 };
+    if (Object.hasOwn(r0, 'groupMembers') || Object.hasOwn(rn, 'groupMembers'))
+        m.groupMembers = { ...mapOf(r0.groupMembers), ...mapOf(rn.groupMembers) };
+    return m;
+}
 /**
  * The chain append (6220): the fresh tuple `label` becomes the active head
  * of the chain whose active head `prior` is, atomically with that prior's
@@ -381,7 +413,7 @@ export function chainTuple(state, label, prior, bound) {
         links,
         bindings: unionBindings(R0.bindings, Rn.bindings),
         heldCounterpartHead: Rn.heldCounterpartHead ?? R0.heldCounterpartHead,
-        memory: { ...Rn.memory, ...R0.memory },
+        memory: chainMemory(R0.memory, Rn.memory),
         firstVerified,
     };
     const husk = {
@@ -548,22 +580,29 @@ const dropDuty = (state, id) => {
     return { ...state, duties };
 };
 /**
- * The record side's choice (6900): the first prepared prior still
- * chainable is chained atomically with its issuance; where none was
- * prepared but some match is still chainable, the choice is owed (due).
+ * The record side's choice (6900, 6910): the first prepared prior still
+ * chainable is issued; where none was prepared but some match is still
+ * chainable, the choice is owed (due). It chains with the issuance only on
+ * `evidence`: a verified mapping of the counterpart under the prior
+ * relationship's key (mac1, 6970), its match report naming that prior. A
+ * probe hit alone proves only that the counterpart knows the prior's
+ * anchor and shares the fresh tuple's key, never that it holds the prior
+ * relationship (spec follow-up 14, header): on a hit the choice is issued
+ * and stands as a candidate until that mapping arrives (mappingTask).
  */
-function choose(state, label, matches, issues, bound, when) {
+function choose(state, label, matches, issues, bound, when, evidence) {
     for (const p of issues) {
         if (!chainable(state, label, p.prior))
             continue;
-        const c = chainTuple(state, label, p.prior, bound);
+        const c = evidence ? chainTuple(state, label, p.prior, bound) : null;
         if (typeof c === 'string')
             continue;
-        const i = commitIssue(c.state, p, () => ({ chosen: p.prior }));
+        const i = commitIssue(c ? c.state : state, p, () => ({ chosen: p.prior }));
         if (!i)
             continue;
         const after = tupleByLabel(i.state, label);
-        return { state: openMapping(i.state, label, after.rel.id, when), outbound: [i.outbound], events: c.events, duties: c.duties, renames: c.renames };
+        const opened = openMapping(i.state, label, after.rel.id, when);
+        return c ? { state: opened, outbound: [i.outbound], events: c.events, duties: c.duties, renames: c.renames } : { state: opened, outbound: [i.outbound] };
     }
     const viable = matches.filter((m) => chainable(state, label, m));
     // every candidate gone: an owed choice dies, honestly unchained (6990)
@@ -704,7 +743,7 @@ function continuityDuty(bound) {
             if (w.kind === 'choice') {
                 if (o.chosen !== null || o.due?.kind !== 'choice')
                     return { state: withTuple(state, d.tuple, (x) => ({ ...x, continuityOut: { ...x.continuityOut, due: null } })) };
-                const r = choose(state, d.tuple, [o.due.prior, ...o.due.alts], w.issues, bound, when);
+                const r = choose(state, d.tuple, [o.due.prior, ...o.due.alts], w.issues, bound, when, false);
                 if (r.outbound?.length)
                     return { ...r, duties: [...(r.duties ?? []), again(1)] };
                 // still owed (no key for any candidate): the duty stays; else every candidate is gone
@@ -886,7 +925,7 @@ function probeTask(bound, limit) {
             if (p.record) {
                 if (t.continuityOut.chosen !== null)
                     return { state: next };
-                return choose(next, p.label, p.matches, p.issues, bound, arrival.when);
+                return choose(next, p.label, p.matches, p.issues, bound, arrival.when, false);
             }
             if (t.continuityOut.reported !== null || t.continuityIn.recordPrior !== null)
                 return { state: next };
@@ -977,16 +1016,22 @@ function mappingTask(bound) {
                     return { ...out, state: next };
                 return merge(out, issueOrOwe(next, p.label, p.prior, p.issue, 'align', arrival.when));
             }
-            // a match report (6910, 6920): it informs the choice, never chains by itself
+            // the non-record side's report or alignment, verified with mac1 under the
+            // prior relationship's key (6970): the evidence the record side chains on
             const x = tupleByLabel(next, p.label).tuple;
             if (x.continuityOut.chosen === null)
-                return choose(next, p.label, [p.prior], p.issue ? [p.issue] : [], bound, arrival.when);
+                return choose(next, p.label, [p.prior], p.issue ? [p.issue] : [], bound, arrival.when, true);
+            if (x.continuityOut.chosen !== p.prior)
+                return { state: next };
+            // the choice made on a hit: chained now (6900), once
+            const c = chainTuple(next, p.label, p.prior, bound);
+            if (c === 'taken')
+                return refuse('validation-failed', 'RLTP-TRU-6900');
+            const out = c === 'already' ? { state: next } : { state: c.state, events: c.events, duties: c.duties, renames: c.renames };
             // the counterpart's mapping on the chosen relationship, verified under a
             // higher revision than any it held, answers the choice (6840); the
             // report a choice was made from is not its answer
-            if (x.continuityOut.chosen === p.prior)
-                next = answered(next, p.label);
-            return { state: next };
+            return { ...out, state: answered(out.state, p.label) };
         },
     };
 }

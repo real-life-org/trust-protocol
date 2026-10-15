@@ -104,5 +104,8 @@ export async function continuityMacsOk(m, sharedPrior, sharedNew, subtle) {
 /** Step 1 of 6940: the schema and a calendar-valid issuedAt. */
 export const continuityMappingOk = (m) => schemaOk('visibility-continuity-mapping.schema.json', m) && calOK(m.body.issuedAt);
 /** 2290: the record side of a fresh tuple is the party whose new pair
- *  anchor is the smaller by byte order (did:key strings are ASCII). */
+ *  anchor is the smaller by byte order (did:key strings are ASCII). Either
+ *  party can grind its anchor to take either side, so being the record
+ *  side grants nothing: neither side chains without the counterpart's
+ *  mapping verified under the prior key (trust/continuity.ts, follow-up 14). */
 export const isRecordSide = (ownNew, counterpartNew) => ownNew < counterpartNew;

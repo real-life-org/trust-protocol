@@ -469,6 +469,8 @@ class HolderEngine {
                     throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`);
                 if (h.channel !== undefined && typeof h.channel !== 'function')
                     throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`);
+                if (h.pinned !== undefined && (h.pinned !== true || h.channel !== undefined))
+                    throw new TypeError(`task ${uri} (module ${m.name}): pinned is true or absent, and only under the tuple binding`);
                 tasks.set(uri, Object.freeze({ ...h }));
             }
             for (const [kind, h] of Object.entries(m.duties ?? {})) {

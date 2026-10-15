@@ -585,6 +585,11 @@ const errRef = (e) => ({
 }[e]);
 const deliveryTask = {
     proof: 'absent',
+    // bound to the enactment record on its tuple (below): a late counter
+    // credential is taken against the record even where a chaining has
+    // deactivated that tuple since (4.2; encounter review 2/14); no new
+    // issuance goes out on it
+    pinned: true,
     decode: (payload) => (schemaOk('payload-encounter-credential-delivery.schema.json', payload) ? payload : refuse('malformed')),
     async prepare(ctx, doc, arrival) {
         const f = deliveryForm(doc);

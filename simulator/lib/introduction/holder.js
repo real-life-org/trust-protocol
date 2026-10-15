@@ -32,10 +32,16 @@
 //               (signature class: signed acks), -ack/0.1, -voucher/0.1 (DV
 //               class: MAC acks), registry-declaration/0.1 (proof
 //               required) and x-introduction-offer/0.1 (this library's
-//               form, proof required); every one on the tuple binding
+//               form, proof required); every one on the tuple binding,
+//               the active head of a live relationship (receive.ts, 6240),
+//               except the reply, ack and voucher: `pinned`, on the tuple
+//               the act pinned, deactivated or not (8270)
 //   duty        intro-ack/1: the mediator's one ack at t_received + ack-delay
 //   retain      time-driven transitions (8140: the first whole second after
 //               the bound) and the discard at the absolute lifetime (8310)
+//   keepKeys    the own rkids of every pinned tuple of a held act: a
+//               chaining mid-act deactivates it, tick keeps its key (8270,
+//               8290)
 //
 // Choices this file makes where spec and note leave them open:
 //   - who starts: §8 has the requester mint the act and name the target by
@@ -68,7 +74,7 @@
 //     requester's voucher travel on the request's thread, the target's on
 //     the forward's
 //   - an artifact outside its window is refused at stage 8 from its own
-//     bytes (8110); a refusal by a role's lifecycle (a late reply of a
+//     bytes (8110), the offer by its document's issuedAt; a refusal by a role's lifecycle (a late reply of a
 //     failed act, 8350; a reply after the cutoff, 8180) commits only the
 //     document's acknowledgement: the act is unchanged
 //   - the requester's profile in the request is its display name (the own
@@ -255,7 +261,13 @@ const offerTask = {
             return refuse('malformed');
         return x;
     },
-    async prepare(ctx, doc) { return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed'); },
+    async prepare(ctx, doc) {
+        // the act window, like the request's and the forward's (8110): a replay
+        // after the effect cache let the offer go opens no prompt again
+        if (!actWindowHolds(doc.issuedAt, ctx.when))
+            return refuse('validation-failed', 'RLTP-TRU-8110');
+        return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed');
+    },
     apply(state, _p, doc, arr) {
         const a = arrival(state, arr.rkid);
         const o = {
@@ -500,6 +512,8 @@ const replyChecks = async (ctx, a, payload) => {
 };
 const replyTask = {
     proof: 'absent',
+    // on the tuple the act pinned, even one a chaining deactivated since (8270)
+    pinned: true,
     decode: (p) => (introSchemaOk('visibility-payload-introduction-reply.schema.json', p) ? p : refuse('malformed')),
     async prepare(ctx, doc, arr) {
         const s = ctx.snapshot;
@@ -593,6 +607,8 @@ function rkidOf(state, label) {
 // ── the ack at the requester (8680) ────────────────────────────────────
 const ackTask = {
     proof: 'absent',
+    // on the tuple the act pinned, even one a chaining deactivated since (8270)
+    pinned: true,
     decode: (p) => (introSchemaOk('visibility-payload-introduction-ack.schema.json', p) ? p : refuse('malformed')),
     async prepare(ctx, doc, arr) {
         const q = held(ctx.snapshot, 'requester', doc.payload.introduction.body.act);
@@ -632,6 +648,8 @@ function markVouched(state, a) {
 }
 const voucherTask = {
     proof: 'absent',
+    // on the tuple the act pinned, even one a chaining deactivated since (8270)
+    pinned: true,
     decode: (p) => (introSchemaOk('visibility-payload-introduction-voucher.schema.json', p) ? p : refuse('malformed')),
     async prepare(ctx, doc, arr) {
         const act = doc.payload.voucher.body.act;
@@ -699,6 +717,21 @@ function actDeadlines(state) {
     }
     return out;
 }
+/** The own rkids of every tuple a held act pinned (8270): a chaining
+ *  during the act deactivates such a tuple, but the act's artifacts stay
+ *  on it and verify under its key until the absolute lifetime (8290), when
+ *  retainActs discards the act and with it this claim. */
+function pinnedKeys(state) {
+    const out = new Set();
+    for (const a of Object.values(state.encounter.introductions)) {
+        for (const label of [a.pins.requester, a.pins.target, a.pins.mediator]) {
+            const at = label === undefined ? null : tupleByLabel(state, label);
+            if (at)
+                out.add(at.tuple.rkid);
+        }
+    }
+    return [...out];
+}
 /** The introduction module createHolder registers. */
 export function introductionModule() {
     return Object.freeze({
@@ -717,5 +750,6 @@ export function introductionModule() {
         decisions: Object.freeze({ introduction: introductionDecision }),
         retain: retainActs,
         deadlines: actDeadlines,
+        keepKeys: pinnedKeys,
     });
 }

@@ -102,7 +102,7 @@ import { receiveByAgreement, seal } from './delivery.js';
 import { ACK_TYPE, ackDocument, ackKeyOf, ackProofForm, macAck, macAckForm, macAckValid, signedAckForm } from './ack.js';
 import { SCHEMAS } from './schemas.js';
 import { triasOf } from './state.js';
-import { entryOf } from './trust/state.js';
+import { entryOf, liveRel } from './trust/state.js';
 import { InfraError } from './results.js';
 export const isTaskDiscarded = (x) => x !== null && typeof x === 'object' && x.discarded === true;
 /** A sealed ack as the outbound the app sends, at the given attempt. */
@@ -246,6 +246,11 @@ export async function prepareReceive(ctx, env, tasks) {
     else {
         if (!at || doc.issuer !== at.tuple.counterpartAnchor)
             return failed('validation-failed', 8, { digest });
+        // a deactivated tuple takes nothing new (6190, 6240): the arrival tuple is
+        // the active head of a live relationship, unless the handler binds its
+        // artifacts to the tuples an act pinned before a chaining (8270)
+        if (!h.pinned && (!liveRel(at.rel) || at.rel.activeHead !== at.tuple.ownPairLabel))
+            return failed('validation-failed', 8, { digest, ref: 'RLTP-TRU-6240' });
         // the entry the arrival's relationship sends under (2146), by its current id
         peer = { keyAgreement: at.tuple.counterpartKeyAgreement, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId };
     }
