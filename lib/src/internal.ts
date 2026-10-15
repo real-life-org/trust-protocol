@@ -20,7 +20,10 @@
 //             names, the pure reads of trust/state.ts (trusted, lags,
 //             classOn, …), the 2240 re-commit (recommitEntries), the views
 //             of 5.4 (starView, groupStarView, sealedOn), heldAnchors,
-//             ASSEMBLY_LIMIT and discardAssemblies (5360, for PR 4c)
+//             ASSEMBLY_LIMIT and discardAssemblies (5360); the entries
+//             (trust/entries.ts: merge, split, departure, the identity
+//             rewrite) and continuity (trust/continuity.ts: openTuple,
+//             chainTuple, the task types)
 //   freeze    freezeDeep
 export type * from './state.js'
 export { emptyState, triasOf, toOpaque } from './state.js'

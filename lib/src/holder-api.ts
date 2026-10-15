@@ -5,7 +5,9 @@
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
 // trust/group-star.ts: the star and the group star, reconciled on resume
-// and received with their assemblies) and the modules given.
+// and received with their assemblies; trust/entries.ts: merge, split and
+// departure; trust/continuity.ts: the probe, the continuity mapping and
+// the chaining) and the modules given.
 //
 // Reading: the views (views.ts) over one snapshot each, carrying its
 // commitSeq. `subscribe` announces every commit with its commitSeq and

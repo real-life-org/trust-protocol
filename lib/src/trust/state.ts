@@ -1,7 +1,8 @@
 // trust/state — pure reads of the Trust Layer over HolderState (lib Stage 2,
-// PR 4a): the class resolution of Section 2a, the trusted set (2020), the
-// entry's relationships and anchor head (2145, 6560) and lagging (6595).
-// No crypto, no engine; views.ts and the trust module read through here,
+// PR 4a, 4c): the class resolution of Section 2a, the trusted set (2020),
+// the entry's relationships and anchor head (2145, 6560), lagging (6595),
+// the entry a relationship's verifications go to (2145, 2146) and the
+// head rule and binding rule of the net (6530–6605). No crypto, no engine; views.ts and the trust module read through here,
 // so the two cannot disagree.
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
