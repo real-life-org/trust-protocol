@@ -11,6 +11,23 @@
 // departure; trust/continuity.ts: the probe, the continuity mapping and
 // the chaining) and the modules given.
 //
+// The human acts (note §4.2) are typed methods with an options object
+// `{when, actId}`; actId is required, minted by the app when the human
+// acts, and journaled with the act's result (a repeat with the same actId
+// replays it, another input under it is actid-conflict). They wrap `act`
+// with the trust module's command names, which stays for modules and
+// tests:
+//   trust(contactId, opts)                    trust.set {on: true}      human
+//   untrust(contactId, opts)                  trust.set {on: false}     human
+//   pauseTrust(contactId, paused, opts)       trust.pause               human
+//   setClass(contactId, cls, setting, opts)   trust.setClass            human
+//   setGroupClass(contactId, groupId, setting, opts)  trust.setGroupClass human
+//   merge(contactIds, opts)                   trust.merge               human
+//   depart(contactId, opts{relationshipId?})  trust.depart              human
+//   decide(promptId, choice, opts)            prompt.decide             human
+//   recover({when})                           trust.recover          not human
+// A missing actId is refused at runtime as actid-missing.
+//
 // Reading: the views (views.ts) over one snapshot each, carrying its
 // commitSeq. `subscribe` announces every commit with its commitSeq and
 // events; the app re-reads the views it shows, and a view read after the
@@ -23,8 +40,12 @@
 // retains (engine.ts).
 import { createEngine } from './engine.js';
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js';
+import { InfraError } from './results.js';
+import { commitViolations } from './invariants.js';
 import { toOpaque } from './state.js';
 import { trustModule } from './trust/mapping.js';
+import { TRUST_COMMANDS } from './trust/mapping.js';
+import { ENTRY_COMMANDS } from './trust/entries.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
@@ -32,11 +53,28 @@ import { contactView, contactsView, deliveryStatusView, groupsView, profileView,
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
     const modules = [trustModule(), ...(opts.modules ?? [])];
-    const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules]);
+    const check = opts.invariants === true
+        ? (before, after, op) => {
+            const v = commitViolations(before, after, op);
+            if (v.length)
+                throw new InfraError('invariant-violated', `invariants broken by ${op.kind}: ${v.map((x) => `[${x.invariant}] ${x.detail}`).join('; ')}`, { cause: v });
+        }
+        : undefined;
+    const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules], check ? { check } : {});
     const read = async () => (await engine.snapshot()).state;
+    /** a human act: `when` and actId from the options, a missing actId refused by the engine */
+    const human = (command, input, o) => engine.act(command, input, o?.when, o?.actId === undefined ? {} : { actId: o.actId });
     return Object.freeze({
         act: (command, input, when, o) => engine.act(command, input, when, o),
-        decide: (promptId, choice, o) => engine.act(DECIDE, { promptId, choice }, o?.when, o?.actId === undefined ? {} : { actId: o.actId }),
+        decide: (promptId, choice, o) => human(DECIDE, { promptId, choice }, o),
+        trust: (contactId, o) => human(TRUST_COMMANDS.set, { contactId, on: true }, o),
+        untrust: (contactId, o) => human(TRUST_COMMANDS.set, { contactId, on: false }, o),
+        pauseTrust: (contactId, paused, o) => human(TRUST_COMMANDS.pause, { contactId, paused }, o),
+        setClass: (contactId, cls, setting, o) => human(TRUST_COMMANDS.setClass, { contactId, cls, setting }, o),
+        setGroupClass: (contactId, groupId, setting, o) => human(TRUST_COMMANDS.setGroupClass, { contactId, groupId, setting }, o),
+        merge: (contactIds, o) => human(ENTRY_COMMANDS.merge, { contactIds }, o),
+        depart: (contactId, o) => human(ENTRY_COMMANDS.depart, o?.relationshipId === undefined ? { contactId } : { contactId, relationshipId: o.relationshipId }, o),
+        recover: (o) => engine.act(TRUST_COMMANDS.recover, {}, o?.when),
         tick: (when) => engine.tick(when),
         resume: (when) => engine.resume(when),
         report: (report, when) => engine.report(report, when),

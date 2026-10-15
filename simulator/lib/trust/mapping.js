@@ -27,7 +27,9 @@
 //             entry commit (2060) or its update in place (2070)
 //   duties    class-on/1 (2850) and reissue-mapping/1 (6370, 6596): issue
 //             the current anchor-mapping@4 on one relationship; class-on of
-//             the star classes is discharged by the reconciliation (5.4)
+//             the star classes is discharged by the reconciliation (5.4);
+//             class-on of the profile and profile/1 (6455) wait for PR 6
+//             (trust/duties.ts)
 //   and, from trust/star.ts and trust/group-star.ts (PR 4b): the tasks
 //             star/0.2 and group-star/0.1, the sweeps trust.star and
 //             trust.groupStar run by resume, and their ack handlers
@@ -73,11 +75,10 @@
 //   - the community key agrees through the KeyProvider under a release the
 //     module derives from the register (the current generation's label),
 //     not from `addresses`: it is no delivery address (Delivery §5)
-//   - duties are keyed deterministically, `class-on:<cls>:<relId>`; one
-//     already open is not opened twice. Turning the class on opens one per
-//     live relationship of the contact that does not lag (6595); turning it
-//     off drops the open class-on and re-issue duties of the contact
-//     (6410). A class-on duty finding the class off, its relationship gone
+//   - the class duties (2850, 6410, 6595, 6596) open, drop and move by the
+//     one follow rule of trust/duties.ts, run after every settings change,
+//     verification, merge, split, departure and chaining. A class-on duty
+//     of the anchor mapping finding the class off, its relationship gone
 //     or lagging is fulfilled without sending; ceasing to lag opens a new
 //     one (2850). A re-issue duty sends whether or not the relationship
 //     lags now (6596) and is dropped while the class is off (6410)
@@ -89,8 +90,8 @@
 //     change through its view, so changing their settings opens no class-on
 //     duty; a class-on duty of one of them (from elsewhere) is fulfilled
 //     without sending, since the sweep runs in the same resume after the
-//     duties. A class-on duty of the profile is left waiting ('not-due')
-//     for its module (PR 6)
+//     duties. The profile's class-on and revision duties wait ('not-due')
+//     for profile@1 (PR 6)
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
 //     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
 //   - setGroupClass to `default` removes the per-group entry; turning the
@@ -105,7 +106,8 @@ import { SCHEMAS } from '../schemas.js';
 import { LINEAGE_MAX, MAPPING_CONDITION_RULE, assembleAnchorMapping, bindingOf, classifyMapping, lineageLinks, mappingBindings, rawProofValue, verifyAnchorMappingWith, } from '../anchor.js';
 import { tupleByRkid } from '../receive.js';
 import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel, unionBindings, } from './state.js';
-import { admitPending, classOnDuty, owedOn, entryCommands, mergeDutiesAfter, mergeDuty, settleHead, splitIfUnlinked } from './entries.js';
+import { admitPending, entryCommands, mergeDutiesAfter, mergeDuty, settleHead, splitIfUnlinked } from './entries.js';
+import { classOnHandler, followClasses, owedOn, profileDuty } from './duties.js';
 import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js';
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js';
 import { continuityParts } from './continuity.js';
@@ -223,7 +225,7 @@ function commitIssue(state, p) {
     const tuples = rel.tuples.map((t, j) => (j === i ? { ...t, mappingOut: { rev: p.rev, body: p.body, underAnchor: p.underAnchor } } : t));
     const duties = {};
     for (const [id, d] of Object.entries(state.duties))
-        if (!owedOn(d, p.relId))
+        if (!owedOn(d, p.relId, 'anchorMapping'))
             duties[id] = d;
     return {
         state: {
@@ -238,10 +240,11 @@ function commitIssue(state, p) {
 /**
  * After a verified mapping on `relId` (or on recovery): the entry commit
  * where the entry has none (2060: next position, admitted, or pending at
- * the bound, 2250), the entry's anchor head (6560), and a class-on duty
- * for every relationship of the entry that ceased to lag (2850, 6595).
+ * the bound, 2250) and the entry's anchor head (6560). The class duties
+ * that follow (a relationship that ceased to lag, 2850) are the caller's,
+ * by the follow rule (trust/duties.ts).
  */
-function commitEntry(before, state, relId, bound) {
+function commitEntry(state, relId, bound) {
     const rel = state.relationships[relId];
     const c0 = entryOf(state, rel);
     if (!c0)
@@ -255,21 +258,9 @@ function commitEntry(before, state, relId, bound) {
         entryOrder = { ...entryOrder, nextPos: inc(entryOrder.nextPos) };
         committed = c;
     }
-    const rels = entryRelationships(state, c);
     const s1 = { ...state, contacts: { ...state.contacts, [c.id]: c }, entryOrder };
     c = settleHead(s1, c, rel.heldCounterpartHead);
-    const next = { ...s1, contacts: { ...s1.contacts, [c.id]: c } };
-    // 2850: a relationship that ceased to lag gets the classes on toward the contact
-    const duties = [];
-    if (classOnToward(c, 'anchorMapping')) {
-        const old = entryRelationships(before, c);
-        for (const r of rels) {
-            const was = old.find((o) => o.id === r.id);
-            if (was && lags(was, old) && !lags(r, rels) && liveRel(r))
-                duties.push(...classOnDuty(next, c.id, r.id, duties));
-        }
-    }
-    return { state: next, committed, contact: c, duties };
+    return { state: { ...s1, contacts: { ...s1.contacts, [c.id]: c } }, committed, contact: c };
 }
 /** First, pending entries are admitted in position order while the set
  *  has room (2250): they hold earlier positions than any re-commit. Then
@@ -287,9 +278,10 @@ export function recommitEntries(state, bound = ADMISSION_BOUND) {
         const rel = cur.relationships[id];
         if (!rel.tuples.some((t) => t.mappingIn.body !== null) || entryOf(cur, rel)?.pos !== null)
             continue;
-        cur = commitEntry(cur, cur, id, bound).state;
+        cur = commitEntry(cur, id, bound).state;
     }
-    return { state: cur };
+    const f = followClasses(state, cur);
+    return { state: f.state, ...(f.duties.length ? { duties: f.duties } : {}) };
 }
 // ── reception (6.3, Section 2) ─────────────────────────────────────────
 const refuse = (reason, ref) => ({ ok: false, reason, ...(ref ? { ref } : {}) });
@@ -364,7 +356,7 @@ function mappingTask(bound) {
                 if (t.mappingIn.body === null || jcs(b) !== jcs(t.mappingIn.body))
                     return refuse('validation-failed', 'RLTP-TRU-6270');
                 // a repeat: ignored, except an entry lost with state loss re-commits (2240)
-                return entryOf(state, rel)?.pos === null ? { state: commitEntry(state, state, rel.id, bound).state } : { state: state };
+                return entryOf(state, rel)?.pos === null ? { state: commitEntry(state, rel.id, bound).state } : { state: state };
             }
             if (rev < cur)
                 return refuse('validation-failed', 'RLTP-TRU-6270');
@@ -392,7 +384,7 @@ function mappingTask(bound) {
                 mid = split.state;
                 events.push(split.event);
             }
-            const e = commitEntry(state, mid, rel.id, bound);
+            const e = commitEntry(mid, rel.id, bound);
             if (e.committed)
                 events.push({ type: 'trust.received', contactId: e.contact.id });
             events.push({ type: 'contact.verified', contactId: e.contact.id, relationshipId: rel.id });
@@ -400,8 +392,11 @@ function mappingTask(bound) {
             // the net (6520–6605) and 2145: a merge this verification admits runs
             // after its commit, as a persisted continuation (2230)
             const m = mergeDutiesAfter(state, rematchStars(e.state, e.contact.id, prepared.value.stars), rel.id, { net: true });
-            const after = m.state;
-            const duties = [...e.duties, ...m.duties];
+            // the class duties that follow (2850: a relationship that ceased to
+            // lag, a split's drop of 2115) — trust/duties.ts
+            const f = followClasses(state, m.state, m.duties);
+            const after = f.state;
+            const duties = f.duties;
             return { state: after, events, ...(duties.length ? { duties } : {}), ...(split?.renames.length ? { renames: split.renames } : {}) };
         },
     };
@@ -409,7 +404,8 @@ function mappingTask(bound) {
 // ── settings (Section 2a) ──────────────────────────────────────────────
 const paused = (c) => c.settings.star === 'off' && c.settings.groupStar === 'off';
 /** One change of a contact's settings: 2840 and 5450 follow from it, the
- *  anchor mapping duties of 2850 and 6410, the events. */
+ *  class duties of 2850 and 6410 by the follow rule (trust/duties.ts), the
+ *  events. */
 function changeSettings(state, c, settings, groupSettings) {
     // 5450: turning the sealed group star off resets every per-group on to
     // default — on the transition only, so a group set on afterwards stays (2830)
@@ -417,27 +413,13 @@ function changeSettings(state, c, settings, groupSettings) {
     if (c.settings.sealedGroupStar !== 'off' && settings.sealedGroupStar === 'off')
         groups = Object.fromEntries(Object.entries(groups).filter(([, s]) => s !== 'on'));
     const next = { ...c, settings, groupSettings: groups };
-    const wasOn = classOnToward(c, 'anchorMapping');
-    const isOn = classOnToward(next, 'anchorMapping');
-    let duties = state.duties;
-    const add = [];
     const events = [];
-    const s1 = { ...state, contacts: { ...state.contacts, [c.id]: next } };
-    if (!wasOn && isOn) {
-        // 2850: the current mapping on every live relationship that does not lag (6595)
-        const rels = entryRelationships(s1, next);
-        for (const r of rels)
-            if (liveRel(r) && !lags(r, rels))
-                add.push(...classOnDuty(s1, next.id, r.id, add));
+    if (!classOnToward(c, 'anchorMapping') && classOnToward(next, 'anchorMapping'))
         events.push({ type: 'trust.given', contactId: next.id });
-    }
-    if (wasOn && !isOn) {
-        // 6410: nothing more while off, the owed re-issues included
-        duties = Object.fromEntries(Object.entries(duties).filter(([, d]) => !next.relIds.some((rid) => owedOn(d, rid))));
-    }
     if (paused(c) !== paused(next))
         events.push({ type: 'trust.paused', contactId: next.id, paused: paused(next) });
-    return { state: { ...s1, duties }, events, ...(add.length ? { duties: add } : {}) };
+    const f = followClasses(state, { ...state, contacts: { ...state.contacts, [c.id]: next } });
+    return { state: f.state, events, ...(f.duties.length ? { duties: f.duties } : {}) };
 }
 const needString = (x, what) => {
     if (typeof x !== 'string' || x === '')
@@ -529,24 +511,16 @@ const commands = {
 const blocked = (state, why) => why === 'no-community' ? { ok: false, code: 'no-community' }
     : why === 'scope-exhausted' ? { ok: false, code: 'scope-exhausted', ref: 'RLTP-TRU-6310' }
         : { state: state };
-/** The classes whose class-on (2850) the reconciliation of 5.4 discharges. */
-const RECONCILED = ['star', 'groupStar', 'sealedGroupStar'];
+/** Issue the anchor mapping on a duty's relationship: class-on/1 of the
+ *  anchor mapping (through classOnHandler) and reissue-mapping/1. */
 const issueDuty = (lagMatters) => ({
     v: 1,
     prepare: (ctx, duty) => {
         const d = duty;
-        if (d.kind === 'class-on' && d.cls !== 'anchorMapping')
-            return Promise.resolve(null);
         return prepareIssue(ctx, d.contactId, d.relId, lagMatters);
     },
     apply(state, duty, ctx) {
         const d = duty;
-        // 2850: the star and the group star go out through the reconciliation
-        // of 5.4, whose sweep runs in this same resume after the duties (5850)
-        if (d.kind === 'class-on' && RECONCILED.includes(d.cls))
-            return { state: state };
-        if (d.kind === 'class-on' && d.cls !== 'anchorMapping')
-            return 'not-due'; // its class's module delivers it (profile, PR 6)
         const chk = issuable(state, d.contactId, d.relId, lagMatters);
         if (!chk.ok)
             return blocked(state, chk.why);
@@ -589,8 +563,11 @@ export function trustModule(opts = {}) {
             ...cont.tasks,
         }),
         duties: Object.freeze({
-            'class-on': issueDuty(true),
+            // 2850: per class — the anchor mapping issues, the reconciled classes
+            // go by their sweep, the profile waits for PR 6 (trust/duties.ts)
+            'class-on': classOnHandler({ anchorMapping: issueDuty(true) }),
             'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
+            profile: profileDuty,
             merge: mergeDuty(bound),
             ...cont.duties,
         }),

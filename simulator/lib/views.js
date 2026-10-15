@@ -39,8 +39,11 @@
 //     anchor mapping is open. Delivery of the documents is not part of
 //     it; deliveryStatus answers that
 //   - classes give the setting and whether the class is on toward the
-//     contact (2760, 2840); per-group settings of the sealed group star
-//     (2830) are not projected yet
+//     contact (2760, 2840); the sealed group star also per group (2830):
+//     every group of the holder and every group the contact holds a
+//     per-group setting for, by id, with the setting (`default` where none
+//     is held) and whether it is on for (group, contact) — the per-group
+//     setting first, else the class (trust/group-star.ts sealedOn)
 //   - sharedGroups: the union of the groups the last accepted group star
 //     on each of the entry's heads hit (5520, trust/group-star.ts), lagging
 //     heads included (the group star travels on them, 6595); undefined
@@ -57,6 +60,7 @@
 import { freezeDeep } from './util-freeze.js';
 import { triasOf } from './state.js';
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js';
+import { sealedOn } from './trust/group-star.js';
 // ── helpers ────────────────────────────────────────────────────────────
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
@@ -112,6 +116,10 @@ const project = (state, c, ix) => {
     const classes = {};
     for (const cls of CLASSES)
         classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) };
+    const groups = {};
+    for (const g of [...new Set([...Object.keys(state.groups), ...Object.keys(c.groupSettings)])].sort(cmp)) {
+        groups[g] = { setting: Object.hasOwn(c.groupSettings, g) ? c.groupSettings[g] : 'default', on: sealedOn(c, g) };
+    }
     const heads = [];
     for (const r of rels) {
         if (r.chainedInto !== null)
@@ -152,7 +160,7 @@ const project = (state, c, ix) => {
             paused: c.settings.star === 'off' && c.settings.groupStar === 'off',
             pending,
         },
-        classes,
+        classes: { ...classes, sealedGroupStar: { ...classes.sealedGroupStar, groups } },
         ...(sharedGroups ? { sharedGroups } : {}),
         ...(profile ? { profile } : {}),
     };

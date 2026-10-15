@@ -12,3 +12,4 @@ export { stateBuilder, emptyTuple } from './state-builder.js';
 export { freezeDeep } from './util-freeze.js';
 export { sampleState, openPromptModule, OPEN_PROMPT } from './fixtures.js';
 export { continuityTestModule, NEW_TUPLE } from './trust/continuity.js';
+export { stateViolations, transitionViolations, commitViolations } from './invariants.js';
