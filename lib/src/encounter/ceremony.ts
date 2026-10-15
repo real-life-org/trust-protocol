@@ -149,6 +149,11 @@ function latchOf (state: Readonly<HolderState>, value: string, when: Millis): Ho
   return { ...state, encounter: { ...state.encounter, challenges } }
 }
 
+/** 5170: a challenge value consumed or held — on either side of any
+ *  record, or among the own open challenges — enters no new enactment. */
+const challengeUsed = (state: Readonly<HolderState>, value: string): boolean =>
+  Object.hasOwn(state.encounter.challenges, value) || Object.values(state.encounter.records).some((r) => r.own === value || r.peer === value)
+
 const facts = (r: Readonly<EnactmentRecord>): RecordFacts => ({ counterpart: r.counterpart, ceremony: r.ceremony, tCh: r.tCh, bind: r.bind })
 
 /** Is the thread used: by a record (its bundle's or a later one) or the outbox? (Delivery 3, 4.1) */
@@ -279,7 +284,7 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
     const peerValue = p.peer.challenge.value as string
     // 5.3 single use from the scanner's side: a displayed value already in
     // one of the own records never enters a second enactment (5170)
-    if (Object.values(state.encounter.records).some((r) => r.peer === peerValue && r.counterpart === p.peer.anchor)) return no('already-scanned', 'RLTP-ENC-5170')
+    if (challengeUsed(state, peerValue)) return no('already-scanned', 'RLTP-ENC-5170')
     if (state.register.labels.includes(p.label) || tupleByLabel(state, p.label)) throw new Error(`encounter.scan: the pair label ${p.label} is not fresh`)
     if (resolve(state, p.own, when) !== 'unknown') throw new Error('encounter.scan: the own challenge is not fresh')
     if (threadInUse(state, p.threadId)) throw new Error('encounter.scan: the thread is not fresh')
@@ -346,6 +351,7 @@ const captureDef: CommandDef<CaptureInput, CapturePrep> = {
       return { state: state as HolderState }
     }
     const ch = state.encounter.challenges[card.boundTo]
+    if (challengeUsed(state, card.challenge.value)) return no('consumed-challenge', 'RLTP-ENC-5170')
     if (!futureOk(ch.tCh, when)) return no('gate-future', 'RLTP-ENC-5390')
     return recordCreating(state, { label: ch.label, own: ch.value, tCh: ch.tCh, card, bind: p.bind, rkid: rkidOf(state, ch.label), when, in: null, thread: null, digest: null })
   },
@@ -484,7 +490,20 @@ const confirmDecision: DecisionDef<CounterPrep | null> = {
 // ── encounter-bundle/0.1 (Delivery 4.1) ────────────────────────────────
 
 interface BundlePayload { card: Card, credential: Card }
-interface BundlePrep { bind: string, credDigest: string, counter: CounterDoc | null }
+interface BundlePrep { bind: string, credDigest: string, counter: CounterDoc | null, st: 'open' | 'recorded' | 'unknown' }
+
+/** Delivery 4.1 checks 5–6 under a resolution that found the value held:
+ *  the ceremony (5520), the enacting anchor (4100), the enactment binding
+ *  (5560), the issuance window (5530); null when they pass. */
+function checks56 (state: Readonly<HolderState>, credential: Record<string, any>, own: string, st: 'open' | 'recorded', bind: string, rkid: string): TaskRefusal | null {
+  const held = st === 'open' ? state.encounter.challenges[own] : state.encounter.records[own]
+  if (credential.credentialSubject.ceremony !== CEREMONY) return refuse('validation-failed', 'RLTP-ENC-5520')
+  // the enacting anchor is the one that displayed the bound challenge (4.4)
+  if (held.label !== state.addresses.keys[rkid]?.label) return refuse('validation-failed', 'RLTP-ENC-4100')
+  if (!sameDigest(credential.credentialSubject.enactmentBinding, bind)) return refuse('validation-failed', 'RLTP-ENC-5560')
+  if (!windowOk(credential, held.tCh)) return refuse('stale-issuance', 'RLTP-ENC-5530')
+  return null
+}
 
 const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
   proof: 'absent',
@@ -504,8 +523,10 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
     if (!k || !k.label.startsWith('pair/')) return refuse('validation-failed')
     return { keyAgreement: doc.payload.card.keyAgreement, contactId: idsOf(k.label).contactId }
   },
-  // checks 2–4: card proof, credential proof, addressee (no state touched)
-  async prepare (ctx, doc) {
+  // checks 2–4: card proof, credential proof, addressee (no state touched);
+  // then check 5 the provisional resolution and, where it found the value
+  // held, checks 5–6 at stage 8 (an unknown value goes to stage 9)
+  async prepare (ctx, doc, arrival) {
     const { card, credential } = doc.payload
     if (!(await diVerify(card, card.anchor))) return refuse('validation-failed', 'RLTP-ENC-6020')
     const h = await credHead(credential, doc.recipient, false)
@@ -516,13 +537,16 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
     // a counter-step issued on the optical leg waited for this thread (5780)
     const counter = r && r.counterPending && r.out && r.counterpart === card.anchor
       ? await counterDoc(ctx, r, doc.recipient, r.out.credential, r.thread ?? doc.threadId) : null
-    return {
-      bind: await digestDoc({ ceremony: CEREMONY, challenges: [own, card.challenge.value].sort() }, S),
-      credDigest: await digestDoc(credential, S),
-      counter,
+    const bind = await digestDoc({ ceremony: CEREMONY, challenges: [own, card.challenge.value].sort() }, S)
+    const st = resolve(ctx.snapshot, own, ctx.when)
+    if (st !== 'unknown') {
+      const bad = checks56(ctx.snapshot, credential, own, st, bind, arrival.rkid)
+      if (bad) return bad
     }
+    return { bind, credDigest: await digestDoc(credential, S), counter, st }
   },
-  // check 5–6 under the resolution, then the branch it selects (4.1)
+  // the authoritative resolution and the branch it selects (4.1); checks
+  // 5–6 again only where it differs from the provisional one
   apply (state, prepared, doc, arrival) {
     const p = prepared.value
     const { card, credential } = doc.payload
@@ -534,13 +558,13 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
       return { ...refuse('validation-failed', 'RLTP-ENC-5240'), ...(latch ? { latch } : {}) }
     }
     const held = st === 'open' ? state.encounter.challenges[own] : state.encounter.records[own]
-    if (credential.credentialSubject.ceremony !== CEREMONY) return refuse('validation-failed', 'RLTP-ENC-5520')
-    // the enacting anchor is the one that displayed the bound challenge (4.4)
-    if (held.label !== state.addresses.keys[arrival.rkid]?.label) return refuse('validation-failed', 'RLTP-ENC-4100')
-    if (!sameDigest(credential.credentialSubject.enactmentBinding, p.bind)) return refuse('validation-failed', 'RLTP-ENC-5560')
-    if (!windowOk(credential, held.tCh)) return refuse('stale-issuance', 'RLTP-ENC-5530')
+    if (st !== p.st) {
+      const bad = checks56(state, credential, own, st, p.bind, arrival.rkid)
+      if (bad) return bad
+    }
     if (threadInUse(state, doc.threadId) && !sameOpeningBundle(state, card.anchor, doc.threadId, arrival.digest)) return refuse('validation-failed')
     if (st === 'open') {
+      if (challengeUsed(state, card.challenge.value)) return refuse('validation-failed', 'RLTP-ENC-5170')
       if (!futureOk(held.tCh, when)) return refuse('gate-future', 'RLTP-ENC-5390')
       return recordCreating(state, {
         label: held.label, own, tCh: held.tCh, card, bind: p.bind, rkid: arrival.rkid, when,
