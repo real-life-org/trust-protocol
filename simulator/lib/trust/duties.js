@@ -101,9 +101,10 @@ export function followClasses(before, after, extra = []) {
  * The move at a chaining (6a.4, 2146): the class duties owed on `from`
  * (the chain, then the appended relationship) go to `relId` under
  * `contactId`, none dropped. Several re-issues are one (6596: one delivery
- * meets every re-issue owed), the most urgent awaited head kept (null, due
- * at once, wins; else the first's); several class-on duties of one class
- * are one; several profile duties are one, at the highest revision.
+ * meets every re-issue owed), its urgency kept: the earliest dueAt (absent:
+ * at once) and the most urgent awaited head (null, due at once, wins; else
+ * the first's); several class-on duties of one class are one; several
+ * profile duties are one, at the highest revision.
  */
 export function moveDuties(state, from, relId, contactId) {
     const owed = Object.values(state.duties)
@@ -116,9 +117,13 @@ export function moveDuties(state, from, relId, contactId) {
         delete duties[d.id];
     const reissues = owed.filter((d) => d.kind === 'reissue-mapping');
     if (reissues.length) {
-        const base = reissues[0];
+        // urgency kept: due at the earliest of them (absent: at once), not
+        // waiting where any was due without a wait
+        const { dueAt: _, ...base } = reissues[0];
         const awaitHead = reissues.some((d) => d.awaitHead === null) ? null : base.awaitHead;
-        duties[base.id] = { ...base, contactId, relId, awaitHead };
+        const dues = reissues.map((d) => d.dueAt);
+        const dueAt = dues.some((x) => x === undefined) ? undefined : Math.min(...dues);
+        duties[base.id] = { ...base, contactId, relId, awaitHead, ...(dueAt !== undefined ? { dueAt } : {}) };
     }
     for (const d of owed.filter((x) => x.kind === 'class-on')) {
         const id = classOnId(d.cls, relId);

@@ -58,7 +58,28 @@
 //   salts       per tuple label: lastSalt, probe seq and the issued
 //               revisions never fall, exhausted is sticky, a new in-flight
 //               salt is above the old lastSalt (a salt is never issued
-//               twice, 5110); hwm and lowerBound never fall (5140, 5366)
+//               twice, 5110) with the digest of its view; what a salt or
+//               probe committed (view, viewDigest, digests) never changes,
+//               only acked grows within its digests (5130; a rename may
+//               rewrite the star's members, 2100); an entry leaves only
+//               completed at or below hwm, or with no document left in the
+//               outbox; hwm and lowerBound never fall (5140, 5366)
+//   baseline    hwm, snapshot and snapshotDigest change only together,
+//               upward, by the delivery-ack that completes the in-flight
+//               entry of the new hwm, to that entry's view (5660, 5670,
+//               5680; star and group star); a rename rewrites the star
+//               baseline's members only. The probe's done is sticky and
+//               set only by the ack completing a probe (6830)
+//   tuples      a tuple new in this commit carries fresh per-tuple state:
+//               every salt, revision and sequence at 0, no baseline,
+//               assembly, in-flight entry or verified artifact (6250)
+//   positions   a position once assigned stays with its entry (2120,
+//               2190; after a split with what remains of it, 2080, 2100):
+//               it leaves only with the entry, merged into one at an
+//               earlier position or departed, and is never assigned again;
+//               nextPos never falls; entryOrder.heads only appends, a
+//               departed relationship leaving it and a chaining moving the
+//               chain into the appended relationship's place (2180)
 //   bindings    a second binding for one anchor arises only where a
 //               chaining appended a tuple in this commit (6610, the union of
 //               4c); a relationship's held anchor head moves only along the
@@ -69,18 +90,28 @@
 //               document's digest; entries leave only by tick (Delivery
 //               4.2)
 //   duties      a duty disappears only where a rule lets it (dutyDrops):
-//                 resume        any (fulfilment, a merge duty that no
-//                               longer holds, a continuity flow's end)
-//                 receive       continuity (the flow's end by its ack)
-//                 any commit    a class duty whose relationship left or is
-//                               a husk now (departure, the move at a
-//                               chaining), that merged into another of its
-//                               kind on the same relationship (the move:
-//                               several re-issues are one, 6596), or whose
-//                               class is off toward the entry it is owed
-//                               under (6410, 2790); a continuity duty whose
-//                               relationship left
-//               a duty of a kind the library does not know never leaves
+//               (a) fulfilment: resume ran its handler and the handler
+//                   returned Applied in this commit (CommitOp.fulfilled)
+//               (b) the drop rules: a class duty whose class is off toward
+//                   the entry its relationship's verifications go to (6410,
+//                   2790; a split's 2115 included), any known duty whose
+//                   relationship departed or became a husk (2260, the move
+//                   at a chaining)
+//               (c) the merge into one of its kind owed on the same
+//                   relationship with its urgency kept: a re-issue into one
+//                   no later and not waiting where it was due (awaitHead
+//                   null wins, 6596), a profile duty into one of no lower
+//                   revision
+//               (d) the same delivery: an anchor mapping issued on the
+//                   relationship in this commit meets every class-on and
+//                   re-issue of the anchor mapping owed there (6596)
+//               (e) a received document that ends a continuity flow: the
+//                   ack of a probe or continuity mapping sent on the
+//                   duty's tuple, or a continuity mapping arriving on it
+//                   (6830, 6850)
+//               expiry: no duty kind expires yet. A duty of a kind (or
+//               version) the library does not know leaves only by (a), a
+//               module's handler: never where none is registered
 //   journal     act records leave only by tick (retention)
 //
 // Choices where the brief and the note leave them open (PR 5):
@@ -97,6 +128,9 @@ import { jcs } from './core.js';
 import { triasOf } from './state.js';
 import { ADMISSION_BOUND, classOnToward, entryOf, entryRelationships, feeding, findContact, liveRel, newestHeads, newestOf } from './trust/state.js';
 import { classOfDuty, classOnId, hasArtifact, onFor, owedOn } from './trust/duties.js';
+import { CONTINUITY_MAPPING_TYPE, CONTINUITY_PROBE_TYPE } from './trust/continuity.js';
+import { viewDigest } from './trust/star.js';
+import { isKnownDuty } from './codec.js';
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const big = (d) => BigInt(d);
 const isHusk = (r) => r.chainedInto !== null;
@@ -179,6 +213,10 @@ export function stateViolations(state) {
         }
         headViolations(v, state, c);
     }
+    const holdersOf = new Map();
+    for (const c of contacts)
+        for (const id of c.relIds)
+            holdersOf.set(id, [...(holdersOf.get(id) ?? []), c.id]);
     const names = new Map();
     for (const c of contacts) {
         if ((c.pos === null) !== (c.status === 'none'))
@@ -193,7 +231,7 @@ export function stateViolations(state) {
         if (!findContact(state, r.contactId))
             v.push({ invariant: 'entries', detail: `${r.id}: contactId ${r.contactId} resolves to no contact` });
         if (!isHusk(r)) {
-            const holders = contacts.filter((c) => c.relIds.includes(r.id)).map((c) => c.id);
+            const holders = holdersOf.get(r.id) ?? [];
             const own = findContact(state, r.contactId)?.id;
             const fed = entryOf(state, r)?.id;
             const ok = own !== undefined && holders.includes(own) && holders.every((h) => h === own || h === fed) && (fed === undefined || holders.includes(fed));
@@ -224,8 +262,9 @@ export function stateViolations(state) {
     for (const id of heads)
         if (!Object.hasOwn(state.relationships, id) || isHusk(state.relationships[id]))
             v.push({ invariant: 'entries', detail: `entryOrder.heads names ${id}, gone or a husk` });
+    const headSet = new Set(heads);
     for (const r of Object.values(state.relationships))
-        if (liveRel(r) && !heads.includes(r.id))
+        if (liveRel(r) && !headSet.has(r.id))
             v.push({ invariant: 'entries', detail: `${r.id} is live but not in entryOrder.heads` });
     for (const d of Object.values(state.duties))
         dutyViolations(v, state, d);
@@ -268,37 +307,242 @@ const tuplesByLabel = (state) => {
             m.set(t.ownPairLabel, t);
     return m;
 };
+const dueOf = (d) => (Number.isSafeInteger(d.dueAt) ? d.dueAt : 0);
+/** What a tuple new in this commit carries beyond fresh state (6250). */
+function freshViolations(t) {
+    const out = [];
+    const seqOutFresh = (o) => o.lastSalt === '0' && o.hwm === '0' && !o.exhausted && o.snapshot === null && Object.keys(o.inflight).length === 0;
+    const seqInFresh = (i) => i.hwm === '0' && i.lowerBound === '0' && i.assembly === null && (i.accepted ?? null) === null;
+    if (!seqOutFresh(t.starOut))
+        out.push('starOut');
+    if (!seqOutFresh(t.groupStarOut))
+        out.push('groupStarOut');
+    if (!seqInFresh(t.starIn))
+        out.push('starIn');
+    if (!seqInFresh(t.groupStarIn))
+        out.push('groupStarIn');
+    if (!seqInFresh(t.probeIn))
+        out.push('probeIn');
+    if (t.probeOut.seq !== '0' || Object.keys(t.probeOut.inflight).length || t.probeOut.done)
+        out.push('probeOut');
+    if (t.mappingOut.rev !== '0' || t.mappingOut.body !== null)
+        out.push('mappingOut');
+    if (t.mappingIn.rev !== '0' || t.mappingIn.body !== null)
+        out.push('mappingIn');
+    if (t.continuityOut.rev !== '0' || t.continuityOut.body !== null)
+        out.push('continuityOut');
+    if (t.continuityIn.rev !== '0' || t.continuityIn.body !== null)
+        out.push('continuityIn');
+    if (t.profileIn.rev !== '0' || t.profileIn.body !== null)
+        out.push('profileIn');
+    if (t.deactivated)
+        out.push('deactivated');
+    return out;
+}
+/**
+ * 2120, 2190: a position once assigned stays with its entry. Every
+ * position held before is held after, unless its entry merged into one at
+ * an earlier position or left the state; a position new in this commit
+ * lies at or above the old nextPos (never reused); nextPos never falls.
+ */
+function positionViolations(v, before, after) {
+    if (big(after.entryOrder.nextPos) < big(before.entryOrder.nextPos))
+        v.push({ invariant: 'positions', detail: `nextPos fell ${before.entryOrder.nextPos} → ${after.entryOrder.nextPos}` });
+    const holder = new Map(Object.values(after.contacts).filter((c) => c.pos !== null).map((c) => [c.pos, c]));
+    const had = new Set(Object.values(before.contacts).map((c) => c.pos).filter((p) => p !== null));
+    for (const c of Object.values(before.contacts)) {
+        if (c.pos === null)
+            continue;
+        const x = findContact(after, c.id);
+        const y = holder.get(c.pos);
+        if (y !== undefined) {
+            // held by the same entry: the one c.id resolves to, or what remains of
+            // c's entry under another identity (2100: a rename; 2080: a split whose
+            // leaver took c.id, the remaining relationships keeping the position)
+            if (x !== undefined && x !== y && !y.relIds.every((id) => c.relIds.includes(id)))
+                v.push({ invariant: 'positions', detail: `${c.id}: position ${c.pos} moved to ${y.id}` });
+            continue;
+        }
+        if (x !== undefined && !(x.pos !== null && big(x.pos) < big(c.pos) && !Object.hasOwn(after.contacts, c.id))) {
+            v.push({ invariant: 'positions', detail: `${c.id}: position ${c.pos} changed to ${x.pos}` });
+        }
+    }
+    const held = holder.keys();
+    for (const p of held)
+        if (!had.has(p) && big(p) < big(before.entryOrder.nextPos))
+            v.push({ invariant: 'positions', detail: `position ${p} assigned again (nextPos was ${before.entryOrder.nextPos})` });
+}
+/**
+ * 2180: entryOrder.heads only appends, except that a departed relationship
+ * leaves it and a chaining puts the chain in the appended relationship's
+ * place (the chain's own place leaves).
+ */
+function headsViolations(v, before, after) {
+    const into = new Map();
+    for (const r of Object.values(after.relationships)) {
+        if (r.chainedInto !== null && Object.hasOwn(before.relationships, r.id) && before.relationships[r.id].chainedInto === null)
+            into.set(r.id, r.chainedInto);
+    }
+    const chains = new Set(into.values());
+    const inAfter = new Set(after.entryOrder.heads);
+    const inBefore = new Set(before.entryOrder.heads);
+    const kept = before.entryOrder.heads.filter((id) => !chains.has(id)).map((id) => into.get(id) ?? id).filter((id) => inAfter.has(id));
+    const a = after.entryOrder.heads;
+    const added = a.slice(kept.length);
+    if (jcs(a.slice(0, kept.length)) !== jcs(kept) || added.some((id) => inBefore.has(id) && !chains.has(id))) {
+        v.push({ invariant: 'positions', detail: `entryOrder.heads ${jcs(before.entryOrder.heads)} → ${jcs(a)} is no append (2180)` });
+    }
+}
 /** Whether a rule lets duty `d` of `before` be gone after the commit `op` (see the header). */
 export function dutyDrops(before, after, d, op) {
-    if (op.kind === 'resume')
+    // (a) a registered handler ran it (only a kind the engine registers runs)
+    if (op.kind === 'resume' && (op.fulfilled ?? []).includes(d.id))
         return true;
+    if (!isKnownDuty(d))
+        return false; // otherwise never, on any operation
     const relId = d.relId;
-    const relGone = typeof relId === 'string' && (!Object.hasOwn(after.relationships, relId) || isHusk(after.relationships[relId]));
-    if (d.kind === 'continuity')
-        return relGone || op.kind === 'receive';
+    const relGone = !Object.hasOwn(after.relationships, relId) || isHusk(after.relationships[relId]);
+    if (d.kind === 'merge')
+        return false;
+    if (relGone)
+        return true; // (b) departed, moved
+    if (d.kind === 'continuity') {
+        if (op.kind !== 'receive')
+            return false;
+        const label = d.tuple;
+        const t = before.relationships[relId]?.tuples.find((x) => x.ownPairLabel === label) ??
+            Object.values(before.relationships).flatMap((r) => r.tuples).find((x) => x.ownPairLabel === label);
+        if (!t)
+            return false;
+        const acked = op.ref !== undefined && Object.hasOwn(before.outbox, op.ref) ? before.outbox[op.ref] : undefined;
+        if (acked && acked.recipient.rkid === t.rkid && (acked.type === CONTINUITY_PROBE_TYPE || acked.type === CONTINUITY_MAPPING_TYPE))
+            return true;
+        return op.type === CONTINUITY_MAPPING_TYPE && op.rkid === t.rkid; // (e)
+    }
     const cls = classOfDuty(d);
     if (cls === null)
         return false;
-    if (relGone)
-        return true;
-    // merged into one of its kind owed on the same relationship (the move at a
-    // chaining: several re-issues are one, 6596; one class-on per class; the
-    // highest profile revision)
-    if (Object.values(after.duties).some((x) => x.kind === d.kind && owedOn(x, relId, cls)))
-        return true;
     const e = entryOf(after, after.relationships[relId]);
-    return e !== undefined && !classOnToward(e, cls);
+    if (e !== undefined && !classOnToward(e, cls))
+        return true; // (b) 6410
+    // (c) merged into one of its kind on the same relationship, urgency kept
+    const same = Object.values(after.duties).filter((x) => x.kind === d.kind && owedOn(x, relId, cls));
+    if (d.kind === 'reissue-mapping') {
+        const waits = d.awaitHead;
+        if (same.some((x) => dueOf(x) <= dueOf(d) && (waits !== null || x.awaitHead === null)))
+            return true;
+    }
+    if (d.kind === 'profile' && same.some((x) => BigInt(x.rev) >= BigInt(d.rev)))
+        return true;
+    // (d) the anchor mapping went out on the relationship in this commit
+    if (cls === 'anchorMapping') {
+        const was = before.relationships[relId], now = after.relationships[relId];
+        const head = now.tuples.find((x) => x.ownPairLabel === now.activeHead);
+        const prior = was?.tuples.find((x) => x.ownPairLabel === now.activeHead);
+        if (head && prior && big(head.mappingOut.rev) > big(prior.mappingOut.rev))
+            return true;
+    }
+    return false;
 }
-function seqOutTransition(v, where, b, a) {
+/** A star view renamed only (2100, 2140): the same anchor heads, members renamed. */
+const renamedOnly = (a, b) => {
+    const heads = (x) => jcs(x.map((y) => y.head ?? null).sort());
+    return a.length === b.length && a.every((y) => y.head !== undefined) && heads(a) === heads(b);
+};
+/**
+ * One reconciled sequence's sender side over a commit (5110, 5130, 5660,
+ * 5670, 5680): lastSalt, hwm and exhausted never fall back; a salt is
+ * issued once, with a view whose digest is its viewDigest; what was
+ * committed under a salt (view, viewDigest, digests) stays — only `acked`
+ * grows, within the digests — except that a rename rewrites the members
+ * of the star's views (`renames`); an entry leaves only once completed at
+ * or below hwm or once none of its documents is in the outbox; the
+ * baseline (hwm, snapshot, snapshotDigest) changes only together, upward,
+ * by the ack (`ack`) that completes the in-flight entry of the new hwm,
+ * to that entry's view.
+ */
+function seqOutTransition(v, where, b, a, after, ack, renames) {
     if (big(a.lastSalt) < big(b.lastSalt))
         v.push({ invariant: 'salts', detail: `${where}: lastSalt fell ${b.lastSalt} → ${a.lastSalt}` });
     if (b.exhausted && !a.exhausted)
         v.push({ invariant: 'salts', detail: `${where}: exhausted is sticky` });
     if (big(a.hwm) < big(b.hwm))
         v.push({ invariant: 'salts', detail: `${where}: hwm fell ${b.hwm} → ${a.hwm}` });
-    for (const s of Object.keys(a.inflight)) {
-        if (!Object.hasOwn(b.inflight, s) && big(s) <= big(b.lastSalt))
-            v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued again (lastSalt was ${b.lastSalt})` });
+    for (const [s, e] of Object.entries(a.inflight)) {
+        const was = Object.hasOwn(b.inflight, s) ? b.inflight[s] : undefined;
+        if (!was) {
+            if (big(s) <= big(b.lastSalt))
+                v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued again (lastSalt was ${b.lastSalt})` });
+            if (e.viewDigest !== viewDigest(e.view))
+                v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued with a viewDigest not of its view` });
+            if (e.acked.length)
+                v.push({ invariant: 'salts', detail: `${where}: salt ${s} issued already acked` });
+            continue;
+        }
+        if (jcs(e.digests) !== jcs(was.digests))
+            v.push({ invariant: 'salts', detail: `${where}: the documents of salt ${s} changed` });
+        if (jcs(e.view) !== jcs(was.view) || e.viewDigest !== was.viewDigest) {
+            if (!(renames && renamedOnly(e.view, was.view) && e.viewDigest === viewDigest(e.view)))
+                v.push({ invariant: 'salts', detail: `${where}: the view of salt ${s} changed` });
+        }
+        if (was.acked.some((x) => !e.acked.includes(x)) || e.acked.some((x) => !e.digests.includes(x)))
+            v.push({ invariant: 'salts', detail: `${where}: acked of salt ${s} shrank or left its digests` });
+    }
+    for (const [s, e] of Object.entries(b.inflight)) {
+        if (Object.hasOwn(a.inflight, s))
+            continue;
+        if (big(s) > big(a.hwm) && e.digests.some((x) => Object.hasOwn(after.outbox, x)))
+            v.push({ invariant: 'salts', detail: `${where}: salt ${s} left in flight above hwm ${a.hwm} with documents still in the outbox` });
+    }
+    const baseline = a.hwm !== b.hwm || jcs(a.snapshot) !== jcs(b.snapshot) || a.snapshotDigest !== b.snapshotDigest;
+    if (!baseline)
+        return;
+    if (a.hwm === b.hwm) {
+        // only a rename rewrites the baseline's members, never its heads (2100)
+        if (!(renames && a.snapshot !== null && b.snapshot !== null && renamedOnly(a.snapshot, b.snapshot) && a.snapshotDigest === viewDigest(a.snapshot))) {
+            v.push({ invariant: 'baseline', detail: `${where}: the baseline changed at hwm ${a.hwm} without a completion (5670, 5680)` });
+        }
+        return;
+    }
+    const e = Object.hasOwn(b.inflight, a.hwm) ? b.inflight[a.hwm] : undefined;
+    if (!e || ack === undefined || !e.digests.includes(ack) || e.digests.some((x) => x !== ack && !e.acked.includes(x))) {
+        v.push({ invariant: 'baseline', detail: `${where}: hwm ${b.hwm} → ${a.hwm} without the ack that completes salt ${a.hwm} (5660)` });
+    }
+    else if (jcs(a.snapshot) !== jcs(e.view) || a.snapshotDigest !== e.viewDigest) {
+        v.push({ invariant: 'baseline', detail: `${where}: the baseline at hwm ${a.hwm} is not the view sent under it (5670)` });
+    }
+}
+/** The probe's sender side over a commit (6680, 6830): seq never falls; a
+ *  probe's documents stay, `acked` grows within them; `done` is sticky and
+ *  set only by the ack completing an in-flight probe, which empties the
+ *  in-flight set; otherwise an entry leaves only with its documents gone
+ *  from the outbox. */
+function probeTransition(v, where, b, a, after, ack) {
+    if (big(a.seq) < big(b.seq))
+        v.push({ invariant: 'salts', detail: `${where}: probe seq fell` });
+    if (b.done && !a.done)
+        v.push({ invariant: 'baseline', detail: `${where}: probe done is sticky` });
+    const completed = !b.done && a.done;
+    if (completed && !Object.values(b.inflight).some((e) => ack !== undefined && e.digests.includes(ack) && e.digests.every((x) => x === ack || e.acked.includes(x)))) {
+        v.push({ invariant: 'baseline', detail: `${where}: probe done without the ack completing one (6830)` });
+    }
+    for (const [s, e] of Object.entries(a.inflight)) {
+        const was = Object.hasOwn(b.inflight, s) ? b.inflight[s] : undefined;
+        if (!was) {
+            if (big(s) <= big(b.seq))
+                v.push({ invariant: 'salts', detail: `${where}: probe ${s} issued again` });
+            continue;
+        }
+        if (jcs(e.digests) !== jcs(was.digests))
+            v.push({ invariant: 'salts', detail: `${where}: the documents of probe ${s} changed` });
+        if (was.acked.some((x) => !e.acked.includes(x)) || e.acked.some((x) => !e.digests.includes(x)))
+            v.push({ invariant: 'salts', detail: `${where}: acked of probe ${s} shrank or left its digests` });
+    }
+    if (completed)
+        return;
+    for (const [s, e] of Object.entries(b.inflight)) {
+        if (!Object.hasOwn(a.inflight, s) && e.digests.some((x) => Object.hasOwn(after.outbox, x)))
+            v.push({ invariant: 'salts', detail: `${where}: probe ${s} left in flight with documents still in the outbox` });
     }
 }
 function seqInTransition(v, where, b, a) {
@@ -335,24 +579,39 @@ export function transitionViolations(before, after, op) {
         if (!Object.hasOwn(after.addresses.keys, k) && !after.addresses.tombstones.includes(k))
             v.push({ invariant: 'addresses', detail: `${k} left without a tombstone` });
     }
-    // salts and revisions, per tuple label
+    // salts, baselines and revisions, per tuple label; the acked document
+    // of a delivery-ack, and whether the operation may rename (2100, 2140)
+    const ack = op.kind === 'receive' ? op.ref : undefined;
+    const renames = op.kind === 'receive' || op.kind === 'resume' || (op.kind === 'act' && (op.command === 'trust.merge' || op.command === 'trust.depart'));
     const tb = tuplesByLabel(before);
     for (const [label, a] of tuplesByLabel(after)) {
         const b = tb.get(label);
         if (!b)
             continue;
-        seqOutTransition(v, `${label} starOut`, b.starOut, a.starOut);
-        seqOutTransition(v, `${label} groupStarOut`, b.groupStarOut, a.groupStarOut);
+        seqOutTransition(v, `${label} starOut`, b.starOut, a.starOut, after, ack, renames);
+        seqOutTransition(v, `${label} groupStarOut`, b.groupStarOut, a.groupStarOut, after, ack, false);
+        probeTransition(v, `${label} probeOut`, b.probeOut, a.probeOut, after, ack);
         seqInTransition(v, `${label} starIn`, b.starIn, a.starIn);
         seqInTransition(v, `${label} groupStarIn`, b.groupStarIn, a.groupStarIn);
         seqInTransition(v, `${label} probeIn`, b.probeIn, a.probeIn);
-        if (big(a.probeOut.seq) < big(b.probeOut.seq))
-            v.push({ invariant: 'salts', detail: `${label}: probe seq fell` });
         if (big(a.mappingOut.rev) < big(b.mappingOut.rev))
             v.push({ invariant: 'salts', detail: `${label}: mapping revision fell` });
         if (big(a.continuityOut.rev) < big(b.continuityOut.rev))
             v.push({ invariant: 'salts', detail: `${label}: continuity revision fell` });
     }
+    // a new tuple starts with fresh per-tuple state (6250): nothing migrates into it
+    for (const r of Object.values(after.relationships)) {
+        for (const t of r.tuples) {
+            if (tb.has(t.ownPairLabel))
+                continue;
+            const stale = freshViolations(t);
+            if (stale.length)
+                v.push({ invariant: 'tuples', detail: `${t.ownPairLabel}: a new tuple carries ${stale.join(', ')} (6250)` });
+        }
+    }
+    // entry positions (2120, 2190) and the creation order of active heads (2180)
+    positionViolations(v, before, after);
+    headsViolations(v, before, after);
     // bindings and held heads, per relationship (6610, 6150)
     for (const [id, a] of Object.entries(after.relationships)) {
         if (!Object.hasOwn(before.relationships, id) || isHusk(a))

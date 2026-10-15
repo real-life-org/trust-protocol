@@ -97,7 +97,10 @@
 //     (not-due, refused) sets no timer while its record is unchanged since
 //     that run. A duty whose kind changed since the plan is not run by the
 //     planned handler; the next resume dispatches it. New documents of
-//     duties count in too
+//     duties count in too. The duties a handler opens are folded into the
+//     state before the next handler runs (an id already open is kept), so
+//     later handlers' drop rules and dedupe see them; they run on the next
+//     resume (the plan is fixed at the snapshot)
 //   - every committed operation but resume names the duty work it opened or
 //     unblocked as nextDueAt on its result (ActResult, ReceiveResult
 //     unique): `when` where a duty that is new, changed, or newly runnable
@@ -609,8 +612,11 @@ class HolderEngine {
             const next = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts };
             const text = encodeState(next); // validates; an invalid next state is a programming error
             if (this.#check) {
-                const d = r.detail;
-                this.#check(state, next, op.kind === 'receive' ? { kind: 'receive', ...(d?.disposition !== undefined ? { disposition: d.disposition } : {}), ...(d?.digest !== undefined ? { digest: d.digest } : {}) } : op);
+                const d = (r.detail ?? {});
+                const pick = (k) => (d[k] !== undefined ? { [k]: d[k] } : {});
+                this.#check(state, next, op.kind === 'receive' ? { kind: 'receive', ...pick('disposition'), ...pick('digest'), ...pick('type'), ...pick('ref'), ...pick('rkid') }
+                    : op.kind === 'resume' ? { kind: 'resume', fulfilled: d.fulfilled ?? [] }
+                        : op);
             }
             let res;
             try {
@@ -866,8 +872,9 @@ class HolderEngine {
                     events.push(...f.events);
                 }
                 const drafts = [];
-                const duties = [];
                 const renames = [];
+                // the duties whose handler returned Applied (invariants.ts: fulfilment)
+                const fulfilled = [];
                 // ran and stayed (not-due, refused): id → its record as it ran
                 const kept = new Map();
                 const { duties: values, sweeps: swept } = prepared.value;
@@ -885,12 +892,18 @@ class HolderEngine {
                         kept.set(duty.id, jcs(now));
                         continue;
                     }
+                    // fulfilled: the duty leaves; what its handler opened is folded into
+                    // the state at once (an id already open is kept), so the duties
+                    // after it see it — their drop rules and their dedupe included
                     const left = { ...r.state.duties };
                     delete left[duty.id];
+                    for (const d of r.duties ?? [])
+                        if (!Object.hasOwn(left, d.id))
+                            left[d.id] = d;
                     cur = { ...r.state, duties: left };
+                    fulfilled.push(duty.id);
                     drafts.push(...(r.outbound ?? []));
                     events.push(...(r.events ?? []));
-                    duties.push(...(r.duties ?? []));
                     renames.push(...(r.renames ?? []));
                 }
                 // 2b — the sweeps, on the state the duties left; a prepared piece
@@ -900,9 +913,15 @@ class HolderEngine {
                     if (r.state.effects !== cur.effects)
                         throw new Error(`engine: the sweep ${name} wrote the effect cache`);
                     cur = r.state;
+                    if (r.duties?.length) {
+                        const all = { ...cur.duties };
+                        for (const d of r.duties)
+                            if (!Object.hasOwn(all, d.id))
+                                all[d.id] = d;
+                        cur = { ...cur, duties: all };
+                    }
                     drafts.push(...(r.outbound ?? []));
                     events.push(...(r.events ?? []));
-                    duties.push(...(r.duties ?? []));
                     if (r.deferred)
                         due(when);
                 }
@@ -923,7 +942,7 @@ class HolderEngine {
                 // newly created, newly unblocked); a duty that ran and stayed
                 // (not-due, refused) sets none while its record is unchanged since
                 // its run — changed by a later duty, it counts like any other
-                for (const d of [...Object.values(cur.duties), ...duties]) {
+                for (const d of Object.values(cur.duties)) {
                     const h = handlers().get(d.kind);
                     if (!h || d.v !== h.v || kept.get(d.id) === jcs(d))
                         continue;
@@ -965,7 +984,7 @@ class HolderEngine {
                 if (effects && jcs(effects) !== jcs(cur.effects))
                     cur = { ...cur, effects };
                 return {
-                    state: cur, emit, events, outbound: drafts, duties, release,
+                    state: cur, emit, events, outbound: drafts, release, detail: { fulfilled },
                     ...(renames.length ? { renames } : {}),
                     ...(nextDueAt !== undefined ? { nextDueAt } : {}),
                 };
@@ -1072,7 +1091,7 @@ class HolderEngine {
                         return {
                             state: { ...next, effects: { ...next.effects, [plan.digest]: cached(null) } },
                             events,
-                            detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE },
+                            detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE, ref: plan.ref },
                         };
                     }
                     case 'task': {
@@ -1095,7 +1114,7 @@ class HolderEngine {
                             ...(r.duties ? { duties: r.duties } : {}),
                             ...(r.renames ? { renames: r.renames } : {}),
                             release: [ackOutbound(plan.ack, 1)],
-                            detail: { disposition: 'unique', digest: plan.digest, type: plan.type },
+                            detail: { disposition: 'unique', digest: plan.digest, type: plan.type, rkid: plan.arrival.rkid },
                         };
                     }
                 }

@@ -3,6 +3,7 @@
 import { CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn, } from './state.js';
 import { viewDigest } from './star.js';
 import { dropOff, followClasses } from './duties.js';
+import { isKnownDuty } from '../codec.js';
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
 const byPos = (a, b) => cmpDec(a.pos, b.pos) || cmp(a.id, b.id);
@@ -542,7 +543,8 @@ export function depart(state, input, bound) {
     const duties = {};
     for (const [id, d] of Object.entries(state.duties)) {
         const relOf = d.relId;
-        if (typeof relOf === 'string' && leaving.has(relOf) && d.kind !== 'merge')
+        // a duty of a kind (or version) this library does not know is kept as it is
+        if (typeof relOf === 'string' && leaving.has(relOf) && d.kind !== 'merge' && isKnownDuty(d))
             continue;
         duties[id] = d;
     }
