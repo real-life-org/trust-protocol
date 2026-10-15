@@ -41,6 +41,10 @@ import type { CommitListener, EnginePorts, HolderModule } from './engine.js'
 import type { DeliveryReport } from './ports.js'
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js'
 import type { ActResult, ReceiveResult, ResumeResult } from './results.js'
+import { InfraError } from './results.js'
+import { commitViolations } from './invariants.js'
+import type { CommitOp } from './invariants.js'
+import type { HolderState } from './state.js'
 import { toOpaque } from './state.js'
 import { trustModule } from './trust/mapping.js'
 import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass } from './state.js'
@@ -56,6 +60,10 @@ export interface HolderSnapshot { commitSeq: Dec, state: OpaqueHolderState }
 export interface HolderOptions {
   /** domain modules to register beside the built-ins, the prompts and the trust module */
   modules?: readonly HolderModule[]
+  /** testing mode: check the invariants of invariants.ts on every commit,
+   *  before the store's CAS; a violation throws InfraError
+   *  'invariant-violated' (cause: the violations) and nothing commits */
+  invariants?: boolean
 }
 
 /** The options of a human act (note §4.2): its time and the actId the app
@@ -110,7 +118,13 @@ export interface Holder {
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
   const modules = [trustModule(), ...(opts.modules ?? [])]
-  const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules])
+  const check = opts.invariants === true
+    ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
+        const v = commitViolations(before, after, op)
+        if (v.length) throw new InfraError('invariant-violated', `invariants broken by ${op.kind}: ${v.map((x) => `[${x.invariant}] ${x.detail}`).join('; ')}`, { cause: v })
+      }
+    : undefined
+  const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules], check ? { check } : {})
   const read = async () => (await engine.snapshot()).state
   /** a human act: `when` and actId from the options, a missing actId refused by the engine */
   const human = (command: string, input: unknown, o: HumanActOptions | undefined) =>

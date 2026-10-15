@@ -26,6 +26,7 @@
 //             chainTuple, the task types); the class duties (trust/duties.ts:
 //             onFor, the follow rule, the move at a chaining, the handlers)
 //   freeze    freezeDeep
+//   invariants  the predicates of invariants.ts over a state and a commit
 export type * from './state.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
@@ -55,4 +56,6 @@ export {
   classOnHandler, profileDuty,
 } from './trust/duties.js'
 export { promptsModule, collectDecisions } from './prompts.js'
+export { stateViolations, transitionViolations, commitViolations, dutyDrops } from './invariants.js'
+export type { CommitOp, Violation } from './invariants.js'
 export { createEngine } from './engine.js'

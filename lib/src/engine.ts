@@ -142,6 +142,9 @@
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
+//   - EngineOptions.check (createHolder's `invariants: true`) runs on every
+//     commit after the codec's validation and before the CAS; its throw
+//     aborts the operation, nothing commits
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -163,6 +166,7 @@ import { ACK_TYPE } from './ack.js'
 import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js'
 import { isTaskDiscarded } from './receive.js'
 import type { Arrival, ReceivePlan, ReceivedDocument, TaskDiscarded, TaskRefusal } from './receive.js'
+import type { CommitOp } from './invariants.js'
 export type { Arrival, ReceivedDocument, TaskDiscarded, TaskFailure, TaskRefusal } from './receive.js'
 
 // ── types ──────────────────────────────────────────────────────────────
@@ -361,6 +365,14 @@ export interface EnginePorts {
   access?: Access
   retry?: Partial<RetryPolicy>
   crypto?: CryptoHandle
+}
+
+/** Engine options beside the ports. `check` runs on every commit before
+ *  the store's CAS, on the state read and the state about to be written,
+ *  with the operation; a throw aborts the operation and nothing commits
+ *  (createHolder's `invariants: true`, invariants.ts). */
+export interface EngineOptions {
+  check?: (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => void
 }
 
 /** Announced after every commit of this engine, with its commitSeq. */
@@ -583,12 +595,15 @@ class HolderEngine implements Engine {
   readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<string>>
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
+  readonly #check?: EngineOptions['check']
   readonly #listeners = new Set<CommitListener>()
   #chain: Promise<unknown> = Promise.resolve()
   /** a commit whose outcome is unknown, settled before the next operation */
   #unsettled: { text: string, actId?: string, commitSeq: Dec, events: HolderEvent[] } | null = null
 
-  constructor (ports: EnginePorts, crypto: CryptoHandle, modules: readonly HolderModule[]) {
+  constructor (ports: EnginePorts, crypto: CryptoHandle, modules: readonly HolderModule[], opts: EngineOptions = {}) {
+    if (opts.check !== undefined && typeof opts.check !== 'function') throw new TypeError('check must be a function')
+    this.#check = opts.check
     this.#store = ports.store
     this.#ports = ports
     this.#crypto = crypto
@@ -751,7 +766,7 @@ class HolderEngine implements Engine {
   // ── the four steps ───────────────────────────────────────────────────
 
   /** `input` is already bound (bindInput); `inputHash` its journal hash for human acts. */
-  async #run (def: InternalDef, input: unknown, when: Millis, actId?: string, inputHash?: string): Promise<RunResult> {
+  async #run (def: InternalDef, op: CommitOp, input: unknown, when: Millis, actId?: string, inputHash?: string): Promise<RunResult> {
     for (let attempt = 1; attempt <= this.#policy.commitAttempts; attempt++) {
       // 1 — snapshot, when
       const { state, version } = await this.#read()
@@ -809,6 +824,10 @@ class HolderEngine implements Engine {
       const effects = r.renames?.length ? renameAcks(r.state.effects, r.renames) : r.state.effects
       const next: HolderState = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts }
       const text = encodeState(next)   // validates; an invalid next state is a programming error
+      if (this.#check) {
+        const d = r.detail as { disposition?: string, digest?: string } | undefined
+        this.#check(state, next, op.kind === 'receive' ? { kind: 'receive', ...(d?.disposition !== undefined ? { disposition: d.disposition } : {}), ...(d?.digest !== undefined ? { digest: d.digest } : {}) } : op)
+      }
       let res
       try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {
         this.#unsettled = { text, commitSeq: seq, events, ...(def.human ? { actId } : {}) }
@@ -1255,21 +1274,21 @@ class HolderEngine implements Engine {
     } catch (e) { return Promise.reject(e) }
     const d = def
     return this.#enqueue(async () => {
-      return actResult(await this.#run(d, bound, when, actId, hash === undefined ? undefined : await hash))
+      return actResult(await this.#run(d, { kind: 'act', command }, bound, when, actId, hash === undefined ? undefined : await hash))
     })
   }
 
   tick (when: Millis): Promise<ActResult> {
     try { checkWhen(when) } catch (e) { return Promise.reject(e) }
     return this.#enqueue(async () => {
-      return actResult(await this.#run(this.#builtins.tick, null, when))
+      return actResult(await this.#run(this.#builtins.tick, { kind: 'tick' }, null, when))
     })
   }
 
   resume (when: Millis): Promise<ResumeResult> {
     try { checkWhen(when) } catch (e) { return Promise.reject(e) }
     return this.#enqueue(async () => {
-      const r = await this.#run(this.#builtins.resume, null, when)
+      const r = await this.#run(this.#builtins.resume, { kind: 'resume' }, null, when)
       if (isHalt(r) || !r.ok) throw new Error('engine: resume does not refuse')
       return { outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
     })
@@ -1279,7 +1298,7 @@ class HolderEngine implements Engine {
     let bound: DeliveryReport
     try { checkWhen(when); bound = bindInput(report) } catch (e) { return Promise.reject(e) }
     return this.#enqueue(async () => {
-      return actResult(await this.#run(this.#builtins.report, bound, when))
+      return actResult(await this.#run(this.#builtins.report, { kind: 'report', status: bound.status }, bound, when))
     })
   }
 
@@ -1289,7 +1308,7 @@ class HolderEngine implements Engine {
     let bound: unknown
     try { bound = bindInput(env) } catch { bound = null }
     return this.#enqueue(async () => {
-      const r = await this.#run(this.#builtins.receive, bound, when)
+      const r = await this.#run(this.#builtins.receive, { kind: 'receive' }, bound, when)
       if (isHalt(r)) return r.detail as ReceiveResult
       if (!r.ok) throw new Error('engine: receive does not refuse')
       const d = r.detail as { disposition: 'unique' | 'duplicate-known' | 'discarded', digest: string, type?: string, reason?: 'resource-limit' | 'rejected', ref?: string }
@@ -1320,10 +1339,10 @@ class HolderEngine implements Engine {
  * or duty kinds throw), and initialises an empty store with the empty
  * state at the current codec.
  */
-export async function createEngine (ports: EnginePorts, modules: readonly HolderModule[]): Promise<Engine> {
+export async function createEngine (ports: EnginePorts, modules: readonly HolderModule[], opts: EngineOptions = {}): Promise<Engine> {
   if (!ports?.store || !ports.keys) throw new TypeError('createEngine needs a store and keys')
   const crypto = await resolveCrypto(ports.crypto)
-  const engine = new HolderEngine(ports, crypto, modules)
+  const engine = new HolderEngine(ports, crypto, modules, opts)
   await engine.load()
   return engine
 }
