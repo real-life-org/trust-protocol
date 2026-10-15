@@ -94,7 +94,7 @@
 // counterpart's key agreement the ack is sealed to and the contact it is
 // filed under, or refuses (stage 7 for malformed, else 8). Every other
 // handler keeps the tuple binding of Delivery 4.4.
-import { calOK, iso, makeValidator } from './core.js'
+import { calOK, iso, makeValidator, toU } from './core.js'
 import type { Json } from './core.js'
 import { diSignWith, diVerify, digestDoc, xRawOfMk } from './crypto.js'
 import { receiveByAgreement, seal } from './delivery.js'
@@ -277,7 +277,9 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
     // that thread, sent from the arrival rkid, of the class the proof form
     // claims; the issuer its recipient (the tuple's counterpart, or the
     // anchor it went to where no tuple carried it)
-    const item: OutboxItem | undefined = Object.hasOwn(state.outbox, f.ref) ? state.outbox[f.ref] : undefined
+    // the ref in either rendering (u or z, 4.2) names the outbox item by its digest bytes
+    const ref = toU(f.ref) ?? f.ref
+    const item: OutboxItem | undefined = Object.hasOwn(state.outbox, ref) ? state.outbox[ref] : undefined
     if (!item || item.threadId !== f.threadId || item.recipient.rkid !== rkid || SIGNATURE_CLASS.has(item.type) !== signed) return failed('validation-failed', 8, { digest })
     const expected = at ? at.tuple.counterpartAnchor : item.recipient.anchor
     if (expected === undefined || doc.issuer !== expected) return failed('validation-failed', 8, { digest })
@@ -287,7 +289,7 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
       const key = await ackKey(ctx, rkid, item.recipient.keyAgreement, doc.issuer as string, doc.recipient as string)
       if (!key || !(await macAckValid(doc, key, S))) return failed('validation-failed', 8, { digest })
     }
-    return { kind: 'ack', digest, ref: f.ref }
+    return { kind: 'ack', digest, ref }
   }
   // 6 — the task register, by the full type URI (no prefix, no fallback)
   const h = tasks.get(doc.type as string)
