@@ -113,7 +113,8 @@
 //     opens, and no mapping touching that anchor verifies on the chain
 //     (6118); the chaining itself happens (6900), the earliest anchor as the earlier of the two
 //     by generation of the own register lineage (2285), contact memory
-//     (the chain's wins), the relationship's anchor head (the appended
+//     (the chain's wins key by key, the group-star pairs merged per group
+//     with the appended head's winning: chainMemory), the relationship's anchor head (the appended
 //     tuple's verified self, else the chain's), firstVerified the earlier;
 //     provenance stays the chain's. Tuple state does not migrate (6250):
 //     the prior tuple is deactivated with its open assemblies discarded
@@ -393,6 +394,20 @@ const issuedUnder = (r: Readonly<Relationship>): string[] =>
 
 export type Chained = { state: HolderState, events: EventDraft[], duties: Duty[], renames: IdentityRename[] }
 
+const mapOf = (x: Json | undefined): Record<string, Json> =>
+  (x !== null && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, Json> : {})
+
+/** Contact memory at a chaining (2280): the chain's wins key by key
+ *  (introducedName, vouchedBy: what the earlier relationship established),
+ *  except the class-V group-star pairs (5580), merged per group with the
+ *  appended relationship's winning, since it is the active head whose
+ *  stars are the newer (5770). */
+function chainMemory (r0: Readonly<Record<string, Json>>, rn: Readonly<Record<string, Json>>): Record<string, Json> {
+  const m: Record<string, Json> = { ...rn, ...r0 }
+  if (Object.hasOwn(r0, 'groupMembers') || Object.hasOwn(rn, 'groupMembers')) m.groupMembers = { ...mapOf(r0.groupMembers), ...mapOf(rn.groupMembers) }
+  return m
+}
+
 /**
  * The chain append (6220): the fresh tuple `label` becomes the active head
  * of the chain whose active head `prior` is, atomically with that prior's
@@ -423,7 +438,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     links,
     bindings: unionBindings(R0.bindings, Rn.bindings),
     heldCounterpartHead: Rn.heldCounterpartHead ?? R0.heldCounterpartHead,
-    memory: { ...Rn.memory, ...R0.memory },
+    memory: chainMemory(R0.memory, Rn.memory),
     firstVerified,
   }
   const husk: Relationship = {
