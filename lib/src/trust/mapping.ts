@@ -43,10 +43,17 @@
 //     failed(validation-failed) at stage 9 with the rule as ref
 //   - a document carrying ceremony.enactment is failed(validation-failed):
 //     a mapping has no material to recompute it against (Delivery §3)
-//   - trust.received is announced at the entry commit, contact.verified at
-//     every verification that changed the state
+//   - trust.received is announced at the entry commit of a verification,
+//     contact.verified at every verification that changed the state; the
+//     re-commit of trust.recover (no verification) announces nothing
 //   - the admission bound is the constant 10¹⁸−1 (2050); trustModule takes
 //     another bound for tests only, as the probe's admissionBound did
+//   - 2250/2260 in part: an entry committed at a full set is
+//     deliverable-pending, and trust.recover admits pending entries in
+//     position order while the set has room. Admission when a departure or
+//     a merge frees a slot, and the removal of a pending entry with its
+//     relationship's departure (2260), arrive with departure and merge in
+//     PR 4c (TODO(4c) in recommitEntries); this module claims neither
 //   - the entry commit of 2240 runs on trust.recover and on any accepted
 //     mapping of the relationship, the repeat included
 //   - issuance needs a community anchor (register.community): without one
@@ -310,20 +317,39 @@ function commitEntry (before: Readonly<HolderState>, state: Readonly<HolderState
   return { state: next, committed, contact: c, duties }
 }
 
+/** 2250: pending entries join the set in position order while it has room. */
+function admitPending (state: Readonly<HolderState>, bound: bigint): HolderState {
+  let admitted = BigInt(Object.values(state.contacts).filter((x) => x.status === 'admitted').length)
+  const pending = Object.values(state.contacts).filter((x) => x.status === 'pending' && x.pos !== null)
+    .sort((a, b) => { const x = BigInt(a.pos!), y = BigInt(b.pos!); return x < y ? -1 : x > y ? 1 : 0 })
+  let contacts: HolderState['contacts'] | null = null
+  for (const c of pending) {
+    if (admitted >= bound) break
+    contacts ??= { ...state.contacts }
+    contacts[c.id] = { ...c, status: 'admitted' }
+    admitted += 1n
+  }
+  return contacts ? { ...state, contacts } : state as HolderState
+}
+
 /** 2240: every relationship holding a verified mapping on a tuple whose
  *  entry holds no position re-commits that entry, in the order of
- *  entryOrder.heads (2180), then by relationship id. */
+ *  entryOrder.heads (2180), then by relationship id; then pending entries
+ *  are admitted in position order while the set has room (2250). */
 export function recommitEntries (state: Readonly<HolderState>, bound: bigint = ADMISSION_BOUND): Applied {
   const order = Object.keys(state.relationships).sort((a, b) => {
     const ia = state.entryOrder.heads.indexOf(a), ib = state.entryOrder.heads.indexOf(b)
     return ((ia < 0 ? Infinity : ia) - (ib < 0 ? Infinity : ib)) || (a < b ? -1 : a > b ? 1 : 0)
   })
-  let cur = state as HolderState
+  let cur = admitPending(state, bound)
   for (const id of order) {
     const rel = cur.relationships[id]
     if (!rel.tuples.some((t) => t.mappingIn.body !== null) || entryOf(cur, rel).pos !== null) continue
     cur = commitEntry(cur, cur, id, bound).state
   }
+  // TODO(4c): the same admission step runs atomically with every departure
+  // and merge that frees a slot (2150, 2250, 5860), and a pending entry
+  // leaves with its relationship's departure (2260)
   return { state: cur }
 }
 
