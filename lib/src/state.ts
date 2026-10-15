@@ -628,8 +628,11 @@ export interface IntroAct {
   /** mediator: the reply forwarded and the vouchers sent (8360) */
   replyForwarded: boolean
   vouchersSent: boolean
-  /** requester, target: a voucher held pending its reply (8770), or accepted */
+  /** requester, target: a voucher held pending its reply (8770) */
   pendingVoucher: Json | null
+  /** requester, target: the accepted voucher, retained until the absolute
+   *  lifetime for the duplicate rule (8200, 8260) */
+  voucher: Json | null
   vouched: boolean
   /** target: the prompt asking for consent */
   promptId: string | null
@@ -646,8 +649,8 @@ export interface IntroOffer {
   pin: string
   /** the mediator's opaque designator of the target (8610) */
   target: string
-  name?: string
-  provenance: 'met' | 'introduced'
+  /** a label the mediator's human typed in the introduce act */
+  label?: string
   at: Millis
 }
 

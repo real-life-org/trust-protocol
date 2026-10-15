@@ -290,7 +290,7 @@ const introAct = obj({
   issuedAt: millis, request: anyObj, requestCard: anyObj, reply: nullable(anyObj), replyCard: nullable(anyObj),
   pins: obj({}, { requester: str, target: str, mediator: str }), threads: obj({ request: str }, { forward: str }),
   at: millis, ackDelayMs: natural, ownLabel: nullable(str), ack: nullable(anyObj), replyForwarded: bool, vouchersSent: bool,
-  pendingVoucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
+  pendingVoucher: nullable(anyObj), voucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
 }, { peerName: str })
 
 const codec0 = obj({
@@ -323,7 +323,7 @@ const codec0 = obj({
     challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
     records: keyed(enactmentRecord, 'own'),
     introductions: keyed(introAct, 'key'),
-    offers: keyed(obj({ id: str, mediatorContactId: str, pin: str, target: str, provenance: lit('met', 'introduced'), at: millis }, { name: str }), 'id'),
+    offers: keyed(obj({ id: str, mediatorContactId: str, pin: str, target: str, at: millis }, { label: str }), 'id'),
     designators: rec(str),
     declarations: rec(obj({ issuer: str, role: str, revision: dec, constants: rec(str), at: millis })),
   }),

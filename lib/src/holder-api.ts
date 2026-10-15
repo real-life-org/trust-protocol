@@ -155,10 +155,11 @@ export interface Holder {
    *  prompt; human */
   invite (groupId: string, contactId: string, opts: HumanActOptions): Promise<ActResult>
   /** the mediator's act (Trust §8, this library's start of it): the
-   *  requester gets an offer naming the target by an opaque designator,
-   *  with the mediator's ack-delay declaration; the requester decides on an
+   *  requester gets an offer naming the target by an opaque designator and
+   *  at most the `label` the human types here, with the mediator's
+   *  ack-delay declaration; the requester decides on an
    *  `introduction` prompt, the target on another; human */
-  introduce (requesterId: string, targetId: string, opts: HumanActOptions): Promise<ActResult>
+  introduce (requesterId: string, targetId: string, opts: HumanActOptions & { label?: string }): Promise<ActResult>
   /** a vouch@2 for a member anchor whose consent pair this holder holds
    *  (Access 5.3, Membership 3.4); human */
   vouchFor (groupId: string, member: string, opts: HumanActOptions & { provenance?: 'met' | 'introduced' }): Promise<ActResult>
@@ -224,7 +225,8 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
     vouchFor: (groupId: string, member: string, o: HumanActOptions & { provenance?: 'met' | 'introduced' }) =>
       human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
-    introduce: (requesterId: string, targetId: string, o: HumanActOptions) => human(INTRODUCTION_COMMANDS.introduce, { requesterId, targetId }, o),
+    introduce: (requesterId: string, targetId: string, o: HumanActOptions & { label?: string }) =>
+      human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

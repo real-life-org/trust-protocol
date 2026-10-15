@@ -41,14 +41,19 @@
 //   - who starts: §8 has the requester mint the act and name the target by
 //     the mediator's designator (8.3), but says nothing of how the
 //     requester learns that designator. This library has the mediator's
-//     act `introduce(requester, target)` (the human who knows both, as the
-//     probe's model had it) send the requester an experimental, signed
-//     x-introduction-offer/0.1 with the designator, the target's name as
-//     the mediator knows it and its provenance (met | introduced), and the
-//     mediator's registry declaration of ack-delay (Delivery §4.4: a
-//     requester never sends without holding it). The requester's human
-//     accepts on an `introduction` prompt, which sends the request. A gap
-//     for Trust 0.32: the designator's way to the requester
+//     act `introduce(requester, target, {label?})` (the human who knows
+//     both, as the probe's model had it) send the requester an
+//     experimental, signed x-introduction-offer/0.1 with the designator and
+//     at most a label the mediator's human typed in that act — never a
+//     name read from the target's profile (audience: the mediator alone,
+//     6b) or card, and no provenance of the mediator↔target relationship —
+//     with the mediator's registry declaration of ack-delay (Delivery §4.4:
+//     a requester never sends without holding it). The requester's human
+//     accepts on an `introduction` prompt, which sends the request. Gaps
+//     for Trust 0.32: the designator's way to the requester (§8.3), and
+//     the residue that the offer, signed, is transferable: the requester
+//     can show a third party that the mediator offered it this designator
+//     and label
 //   - the designator: 32 fresh bytes, u-base64url, minted once per target
 //     contact and kept (stable per (mediator, target), 8610); the target
 //     verifies "designates itself" by the channel the forward arrives on,
@@ -69,7 +74,7 @@
 //   - the requester's profile in the request is its display name (the own
 //     profile's, at most 64 characters, 8450); the cards carry no name
 //   - the name of an introduced contact: at the target the request's
-//     displayName, at the requester the name the offer carried; kept in the
+//     displayName, at the requester the offer's label; kept in the
 //     relationship's memory as `introducedName`, which the views read until
 //     a profile arrives (self-declared, Encounter 6120)
 import { iso, jcs } from '../core.js'
@@ -104,7 +109,7 @@ export const ACK_DELAY = 'PT30S'
 export const ACK_DELAY_MS = 30_000
 
 export const INTRODUCTION_COMMANDS = Object.freeze({ introduce: 'introduction.introduce' })
-export interface IntroduceInput { requesterId: string, targetId: string }
+export interface IntroduceInput { requesterId: string, targetId: string, label?: string }
 
 const refuse = (reason: TaskRefusal['reason'], ref?: string): TaskRefusal => ({ ok: false, reason, ...(ref ? { ref } : {}) })
 const no = (code: Refusal['code'], ref?: string): Refusal => ({ ok: false, code, ...(ref ? { ref } : {}) })
@@ -223,12 +228,12 @@ const introduceDef: CommandDef<IntroduceInput, IntroducePrep> = {
     if (r.contact.id === t.contact.id) return no('unknown-contact')
     const held = Object.entries(s.encounter.designators).find(([, c]) => c === t.contact.id)?.[0]
     const designator = held ?? designatorOf(ctx.entropy.bytes('intro.target', 32))
-    const name = (t.rel.memory.introducedName as string | undefined) ?? nameOfContact(s, t.contact.id)
-    const provenance = t.rel.provenance.kind === 'ceremony' ? 'met' : 'introduced'
+    const label = input.label
+    if (label !== undefined && (typeof label !== 'string' || !label.length || [...label].length > 64)) throw new TypeError('introduction.introduce: label is 1 to 64 characters')
     const declaration = await onTuple(ctx, r.tuple.ownPairLabel, DECLARATION_TYPE,
       { declaration: { role: MEDIATOR_ROLE, revision: '1', constants: { 'ack-delay': ACK_DELAY } } }, ctx.entropy.id('thread.id'), true)
     const offer = await onTuple(ctx, r.tuple.ownPairLabel, OFFER_TYPE,
-      { target: designator, provenance, ...(name !== undefined ? { name } : {}) }, ctx.entropy.id('thread.id'), true)
+      { target: designator, ...(label !== undefined ? { label } : {}) }, ctx.entropy.id('thread.id'), true)
     return { designator, minted: held === undefined, offer, declaration }
   },
   apply (state, prepared, input) {
@@ -237,21 +242,6 @@ const introduceDef: CommandDef<IntroduceInput, IntroducePrep> = {
     const designators = p.minted ? { ...state.encounter.designators, [p.designator]: findContact(state, input.targetId)!.id } : state.encounter.designators
     return { state: { ...state, encounter: { ...state.encounter, designators } }, outbound: [draft(p.declaration), draft(p.offer)] }
   },
-}
-
-/** The name the holder knows a contact by: its profile, else a card name. */
-function nameOfContact (state: Readonly<HolderState>, contactId: string): string | undefined {
-  const c = findContact(state, contactId)
-  if (!c) return undefined
-  for (const id of c.relIds) {
-    const t = activeTuple(state.relationships[id])
-    const n = (t?.profileIn.body as { name?: unknown } | null)?.name
-    if (typeof n === 'string') return n.slice(0, 64)
-    const rec = Object.values(state.encounter.records).find((x) => x.label === t?.ownPairLabel)
-    const cn = (rec?.card as { name?: unknown } | undefined)?.name
-    if (typeof cn === 'string') return cn.slice(0, 64)
-  }
-  return undefined
 }
 
 // ── the registry declaration (Delivery §4.4) ───────────────────────────
@@ -287,8 +277,8 @@ const offerTask: TaskHandler<Doc, null> = {
   proof: 'required',
   decode (p) {
     const x = p as Record<string, unknown>
-    if (x === null || typeof x !== 'object' || !designatorOk(x.target) || (x.provenance !== 'met' && x.provenance !== 'introduced') ||
-      (x.name !== undefined && (typeof x.name !== 'string' || x.name.length > 64)) || Object.keys(x).some((k) => !['target', 'provenance', 'name'].includes(k))) return refuse('malformed')
+    if (x === null || typeof x !== 'object' || !designatorOk(x.target) ||
+      (x.label !== undefined && (typeof x.label !== 'string' || !x.label.length || [...x.label].length > 64)) || Object.keys(x).some((k) => !['target', 'label'].includes(k))) return refuse('malformed')
     return x as Doc
   },
   async prepare (_ctx, doc) { return (await diVerify(doc, doc.issuer)) ? null : refuse('validation-failed') },
@@ -296,7 +286,7 @@ const offerTask: TaskHandler<Doc, null> = {
     const a = arrival(state, arr.rkid)!
     const o: IntroOffer = {
       id: offerPromptId(arr.digest), mediatorContactId: a.contactId, pin: a.label, target: doc.payload.target,
-      provenance: doc.payload.provenance, ...(doc.payload.name !== undefined ? { name: doc.payload.name } : {}), at: arr.when,
+      ...(doc.payload.label !== undefined ? { label: doc.payload.label } : {}), at: arr.when,
     }
     const prompt: Prompt = { id: o.id, kind: 'introduction', contactId: a.contactId, openedAt: arr.when, expiresAt: arr.when + ACT_EXPIRY }
     return {
@@ -336,7 +326,7 @@ function applyRequest (state: Readonly<HolderState>, o: Readonly<IntroOffer>, p:
     key: keyOf('requester', p.act), act: p.act, role: 'requester', status: 'sent', issuedAt: tsec(when), request: p.request as unknown as Json,
     requestCard: p.fresh.card as Json, reply: null, replyCard: null, pins: { mediator: o.pin }, threads: { request: p.doc.threadId },
     at: when, ackDelayMs: p.ackDelayMs, ownLabel: p.fresh.label, ack: null, replyForwarded: false, vouchersSent: false,
-    pendingVoucher: null, vouched: false, promptId: null, ...(o.name !== undefined ? { peerName: o.name } : {}),
+    pendingVoucher: null, voucher: null, vouched: false, promptId: null, ...(o.label !== undefined ? { peerName: o.label } : {}),
   }
   const offers = { ...state.encounter.offers }
   delete offers[o.id]
@@ -370,7 +360,7 @@ const requestTask: TaskHandler<RequestPayload, MediatorPrep> = {
     if (!actWindowHolds(body.issuedAt, ctx.when) || !requestCutoffHolds(body.issuedAt, ctx.when, ACK_DELAY_MS)) return refuse('validation-failed', 'RLTP-TRU-8160')
     const h = held(s, 'mediator', body.act)
     if (h) {
-      if (jcs(h.request) !== jcs(doc.payload.introduction)) return refuse('validation-failed', 'RLTP-TRU-8240')
+      if (jcs((h.request as Doc).body) !== jcs(doc.payload.introduction.body)) return refuse('validation-failed', 'RLTP-TRU-8240')
       // a byte-identical repeat: the one ack value, once produced (8220, 8230)
       const ack = h.ack ? await onTuple(ctx, a.label, INTRODUCTION_TYPES.ack, { introduction: h.ack }, h.threads.request) : null
       return { dup: 'same', forward: null, target: null, ack }
@@ -394,7 +384,7 @@ const requestTask: TaskHandler<RequestPayload, MediatorPrep> = {
       issuedAt: Date.parse(body.issuedAt), request: doc.payload.introduction as unknown as Json, requestCard: doc.payload.card as Json,
       reply: null, replyCard: null, pins: { requester: a.label, ...(p.target ? { target: p.target } : {}) },
       threads: { request: doc.threadId, ...(p.forward ? { forward: p.forward.threadId } : {}) }, at: arr.when, ackDelayMs: ACK_DELAY_MS,
-      ownLabel: null, ack: null, replyForwarded: false, vouchersSent: false, pendingVoucher: null, vouched: false, promptId: null,
+      ownLabel: null, ack: null, replyForwarded: false, vouchersSent: false, pendingVoucher: null, voucher: null, vouched: false, promptId: null,
     }
     const duty: IntroAckDuty = { kind: 'intro-ack', v: 1, id: 'intro-ack:' + body.act, dueAt: arr.when + ACK_DELAY_MS, act: body.act }
     return { state: withAct(state as HolderState, act), duties: [duty], outbound: p.forward ? [draft(p.forward)] : [] }
@@ -432,7 +422,7 @@ const forwardTask: TaskHandler<RequestPayload, { known: boolean }> = {
     const body = doc.payload.introduction.body
     if (!actWindowHolds(body.issuedAt, ctx.when)) return refuse('validation-failed', 'RLTP-TRU-8110')
     const h = held(ctx.snapshot, 'target', body.act)
-    if (h) return jcs(h.request) === jcs(doc.payload.introduction) ? { known: true } : refuse('validation-failed', 'RLTP-TRU-8260')
+    if (h) return jcs((h.request as Doc).body) === jcs(doc.payload.introduction.body) ? { known: true } : refuse('validation-failed', 'RLTP-TRU-8260')
     // the request signature under the card's anchor, cardDigest, the card (8050)
     if (!(await requestFormOk(doc.payload, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8050')
     if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor))) return refuse('validation-failed', 'RLTP-TRU-8050')
@@ -449,7 +439,7 @@ const forwardTask: TaskHandler<RequestPayload, { known: boolean }> = {
       key: keyOf('target', body.act), act: body.act, role: 'target', status: 'received', issuedAt: Date.parse(body.issuedAt),
       request: doc.payload.introduction as unknown as Json, requestCard: doc.payload.card as Json, reply: null, replyCard: null,
       pins: { mediator: a.label }, threads: { request: '', forward: doc.threadId }, at: arr.when, ackDelayMs: 0, ownLabel: null, ack: null,
-      replyForwarded: false, vouchersSent: false, pendingVoucher: null, vouched: false, promptId,
+      replyForwarded: false, vouchersSent: false, pendingVoucher: null, voucher: null, vouched: false, promptId,
     }
     const prompt: Prompt = { id: promptId, kind: 'introduction', contactId: a.contactId, openedAt: arr.when, expiresAt: actFiresAt(act.issuedAt + ACT_EXPIRY + ACT_SKEW) }
     return {
@@ -545,12 +535,13 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     if (m && m.pins.target === at.label) {
       // step 2: on the pinned mediator↔target tuple; step 3: forwarded, window and cutoff
       if (m.status !== 'forwarded' && m.status !== 'completed') return refuse('validation-failed', 'RLTP-TRU-8490')
-      const issuedAt = (m.request as Doc).body.issuedAt as string
-      if (!actWindowHolds(issuedAt, ctx.when) || !replyCutoffHolds(issuedAt, ctx.when)) return { repeat: true, toRequester: null, vouchers: [] }   // 8180: dropped silently
+      // a held reply first: a differing one is rejected at any time (8250)
       if (m.reply) {
-        if (jcs(m.reply) !== jcs(doc.payload.introduction)) return refuse('validation-failed', 'RLTP-TRU-8250')
+        if (jcs((m.reply as Doc).body) !== jcs(doc.payload.introduction.body)) return refuse('validation-failed', 'RLTP-TRU-8250')
         return { repeat: true, toRequester: null, vouchers: [] }
       }
+      const issuedAt = (m.request as Doc).body.issuedAt as string
+      if (!actWindowHolds(issuedAt, ctx.when) || !replyCutoffHolds(issuedAt, ctx.when)) return { repeat: true, toRequester: null, vouchers: [] }   // 8180: dropped silently
       const bad = await replyChecks(ctx, m, doc.payload)
       if (bad) return refuse('validation-failed', bad)
       // forward unchanged (8060) and both vouchers (8740)
@@ -567,7 +558,7 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     const q = held(s, 'requester', r.act)
     if (!q || q.pins.mediator !== at.label) return refuse('validation-failed', 'RLTP-TRU-8550')
     if (!actWindowHolds((q.request as Doc).body.issuedAt, ctx.when)) return refuse('validation-failed', 'RLTP-TRU-8550')
-    if (q.reply) return jcs(q.reply) === jcs(doc.payload.introduction) ? { ignore: true } : refuse('validation-failed', 'RLTP-TRU-8260')
+    if (q.reply) return jcs((q.reply as Doc).body) === jcs(doc.payload.introduction.body) ? { ignore: true } : refuse('validation-failed', 'RLTP-TRU-8260')
     // a late reply of a failed act is ignored (8350)
     if (requesterStatus(q, ctx.when) === 'failed') return { ignore: true }
     const bad = await replyChecks(ctx, q, doc.payload)
@@ -589,9 +580,12 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     let next: IntroAct = { ...q, status: 'completed', reply: doc.payload.introduction as unknown as Json, replyCard: doc.payload.card as Json }
     // the pending voucher, re-evaluated (8600, 8770)
     let st = opened.state
-    if (q.pendingVoucher && voucherMatches(next, q.pendingVoucher as Doc)) {
-      next = { ...next, pendingVoucher: null, vouched: true }
-      st = markVouched(st, next)
+    if (q.pendingVoucher) {
+      // matched it is accepted and retained; unmatched it vouches for nothing and goes
+      next = voucherMatches(next, q.pendingVoucher as Doc)
+        ? { ...next, pendingVoucher: null, voucher: q.pendingVoucher, vouched: true }
+        : { ...next, pendingVoucher: null }
+      if (next.vouched) st = markVouched(st, next)
     }
     return { state: withAct(st, next), events: opened.events, duties: opened.duties }
   },
@@ -612,6 +606,8 @@ const ackTask: TaskHandler<{ introduction: Artifact<AckBody> }, { ok: boolean }>
     const q = held(ctx.snapshot, 'requester', doc.payload.introduction.body.act)
     const at = arrival(ctx.snapshot, arr.rkid)!
     if (!q || q.pins.mediator !== at.label) return refuse('validation-failed', 'RLTP-TRU-8680')
+    // after the absolute lifetime, whether or not tick ran (8300)
+    if (lifetimeOver(q, ctx.when)) return refuse('validation-failed', 'RLTP-TRU-8300')
     const key = await pinKey(ctx, q.pins.mediator, MAC_ACK_INFO)
     if (!key || !(await introMacOk(doc.payload.introduction, key, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8680')
     return { ok: true }
@@ -654,16 +650,17 @@ const voucherTask: TaskHandler<{ voucher: Artifact<VoucherBody> }, { role: 'requ
     if (!key || !(await introMacOk(doc.payload.voucher, key, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8730')
     return { role: a.role as 'requester' | 'target' }
   },
+  // 8260: a repeat is byte-identical in JCS(body) (8210) and ignored, a
+  // differing one rejected — against the accepted voucher, retained until
+  // the lifetime (8200), and against a pending one alike
   apply (state, prepared, doc) {
     const v = doc.payload.voucher as unknown as Doc
     const a = held(state, prepared.value.role, v.body.act)!
-    if (a.vouched || a.pendingVoucher) {
-      const same = jcs(a.vouched ? v : a.pendingVoucher) === jcs(v)
-      return same || a.vouched ? { state: state as HolderState } : refuse('validation-failed', 'RLTP-TRU-8260')
-    }
+    const kept = (a.voucher ?? a.pendingVoucher) as Doc | null
+    if (kept) return jcs(kept.body) === jcs(v.body) ? { state: state as HolderState } : refuse('validation-failed', 'RLTP-TRU-8260')
     if (a.reply === null) return { state: withAct(state as HolderState, { ...a, pendingVoucher: v as Json }) }   // 8770
     if (!voucherMatches(a, v)) return refuse('validation-failed', 'RLTP-TRU-8760')
-    const next = { ...a, vouched: true }
+    const next = { ...a, voucher: v as Json, vouched: true }
     return { state: withAct(markVouched(state as HolderState, next), next) }
   },
 }

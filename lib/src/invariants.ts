@@ -288,6 +288,7 @@ function socialViolations (v: Violation[], state: Readonly<HolderState>): void {
   }
   for (const a of Object.values(e.introductions)) {
     if (a.role === 'mediator' && a.status === 'completed' && !(a.ack !== null && a.replyForwarded && a.vouchersSent)) v.push({ invariant: 'introductions', detail: `${a.key}: completed without its three duties (8360)` })
+    if (a.vouched !== (a.voucher !== null)) v.push({ invariant: 'introductions', detail: `${a.key}: vouched without its retained voucher, or the reverse (8200)` })
     if ((a.status === 'completed' && a.role === 'requester') || a.status === 'consented' || a.vouched) {
       if (a.reply === null) v.push({ invariant: 'introductions', detail: `${a.key}: ${a.status}${a.vouched ? ', vouched' : ''} without a reply` })
     }
