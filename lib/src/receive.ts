@@ -102,7 +102,7 @@ import type { KeyAnswer } from './delivery.js'
 import { ACK_TYPE, ackDocument, ackKeyOf, ackProofForm, macAck, macAckForm, macAckValid, signedAckForm } from './ack.js'
 import { SCHEMAS } from './schemas.js'
 import { triasOf } from './state.js'
-import { entryOf } from './trust/state.js'
+import { entryOf, liveRel } from './trust/state.js'
 import type { HolderState, Millis, OutboxItem, Relationship, StoredAck, Tuple } from './state.js'
 
 /** An ack as sealed in the preparation; the engine adds its schedule. */
@@ -212,6 +212,8 @@ export interface TaskEntry {
   proof: 'absent' | 'required'
   decode (payload: unknown): unknown
   channel? (state: Readonly<HolderState>, doc: ReceivedDocument, rkid: string): Channel | TaskRefusal
+  /** may arrive on a deactivated tuple an act pinned (engine TaskHandler) */
+  pinned?: true
   prepare? (ctx: PrepareCtx, doc: ReceivedDocument, arrival: Arrival): Promise<unknown>
 }
 
@@ -309,6 +311,10 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
     peer = c
   } else {
     if (!at || doc.issuer !== at.tuple.counterpartAnchor) return failed('validation-failed', 8, { digest })
+    // a deactivated tuple takes nothing new (6190, 6240): the arrival tuple is
+    // the active head of a live relationship, unless the handler binds its
+    // artifacts to the tuples an act pinned before a chaining (8270)
+    if (!h.pinned && (!liveRel(at.rel) || at.rel.activeHead !== at.tuple.ownPairLabel)) return failed('validation-failed', 8, { digest, ref: 'RLTP-TRU-6240' })
     // the entry the arrival's relationship sends under (2146), by its current id
     peer = { keyAgreement: at.tuple.counterpartKeyAgreement, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId }
   }

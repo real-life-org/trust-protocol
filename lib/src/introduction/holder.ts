@@ -30,7 +30,10 @@
 //               (signature class: signed acks), -ack/0.1, -voucher/0.1 (DV
 //               class: MAC acks), registry-declaration/0.1 (proof
 //               required) and x-introduction-offer/0.1 (this library's
-//               form, proof required); every one on the tuple binding
+//               form, proof required); every one on the tuple binding,
+//               the active head of a live relationship (receive.ts, 6240),
+//               except the reply, ack and voucher: `pinned`, on the tuple
+//               the act pinned, deactivated or not (8270)
 //   duty        intro-ack/1: the mediator's one ack at t_received + ack-delay
 //   retain      time-driven transitions (8140: the first whole second after
 //               the bound) and the discard at the absolute lifetime (8310)
@@ -527,6 +530,8 @@ const replyChecks = async (ctx: PrepareCtx, a: Readonly<IntroAct>, payload: Repl
 
 const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPrep> = {
   proof: 'absent',
+  // on the tuple the act pinned, even one a chaining deactivated since (8270)
+  pinned: true,
   decode: (p) => (introSchemaOk('visibility-payload-introduction-reply.schema.json', p) ? p as ReplyPayload : refuse('malformed')),
   async prepare (ctx, doc, arr) {
     const s = ctx.snapshot
@@ -607,6 +612,8 @@ function rkidOf (state: Readonly<HolderState>, label: string): string {
 
 const ackTask: TaskHandler<{ introduction: Artifact<AckBody> }, { ok: boolean }> = {
   proof: 'absent',
+  // on the tuple the act pinned, even one a chaining deactivated since (8270)
+  pinned: true,
   decode: (p) => (introSchemaOk('visibility-payload-introduction-ack.schema.json', p) ? p as { introduction: Artifact<AckBody> } : refuse('malformed')),
   async prepare (ctx, doc, arr) {
     const q = held(ctx.snapshot, 'requester', doc.payload.introduction.body.act)
@@ -645,6 +652,8 @@ function markVouched (state: HolderState, a: Readonly<IntroAct>): HolderState {
 
 const voucherTask: TaskHandler<{ voucher: Artifact<VoucherBody> }, { role: 'requester' | 'target' }> = {
   proof: 'absent',
+  // on the tuple the act pinned, even one a chaining deactivated since (8270)
+  pinned: true,
   decode: (p) => (introSchemaOk('visibility-payload-introduction-voucher.schema.json', p) ? p as { voucher: Artifact<VoucherBody> } : refuse('malformed')),
   async prepare (ctx, doc, arr) {
     const act = doc.payload.voucher.body.act

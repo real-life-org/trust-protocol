@@ -304,6 +304,11 @@ export interface TaskHandler<T = any, P = any> {
    *  contact, from the document itself, or a refusal; absent: the arrival
    *  tuple's binding (Delivery 4.4) */
   channel?: (state: Readonly<HolderState>, doc: ReceivedDocument<T>, rkid: string) => Channel | TaskRefusal
+  /** under the arrival tuple's binding: the document may arrive on a tuple
+   *  a chaining deactivated, because the handler binds it to the tuples an
+   *  act pinned and checks that pin itself (Trust 8270); absent: the arrival
+   *  tuple must be the active head of a live relationship (6190, 6240) */
+  pinned?: true
   prepare?: (ctx: PrepareCtx, doc: ReceivedDocument<T>, arrival: Arrival) => Promise<P | TaskRefusal>
   /** a TaskDiscarded commits its `state` as the disposition `discarded`
    *  (no effect-cache entry, no ack): a resource-limit discard (Trust 5365) */
@@ -736,6 +741,7 @@ class HolderEngine implements Engine {
         if (typeof h?.apply !== 'function' || typeof h.decode !== 'function') throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`)
         if (h.proof !== 'absent' && h.proof !== 'required') throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`)
         if (h.channel !== undefined && typeof h.channel !== 'function') throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`)
+        if (h.pinned !== undefined && (h.pinned !== true || h.channel !== undefined)) throw new TypeError(`task ${uri} (module ${m.name}): pinned is true or absent, and only under the tuple binding`)
         tasks.set(uri, Object.freeze({ ...h }))
       }
       for (const [kind, h] of Object.entries(m.duties ?? {})) {
