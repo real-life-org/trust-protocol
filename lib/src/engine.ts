@@ -95,7 +95,10 @@
 //     (not-due, refused) sets no timer while its record is unchanged since
 //     that run. A duty whose kind changed since the plan is not run by the
 //     planned handler; the next resume dispatches it. New documents of
-//     duties count in too
+//     duties count in too. The duties a handler opens are folded into the
+//     state before the next handler runs (an id already open is kept), so
+//     later handlers' drop rules and dedupe see them; they run on the next
+//     resume (the plan is fixed at the snapshot)
 //   - every committed operation but resume names the duty work it opened or
 //     unblocked as nextDueAt on its result (ActResult, ReceiveResult
 //     unique): `when` where a duty that is new, changed, or newly runnable
@@ -1043,8 +1046,9 @@ class HolderEngine implements Engine {
         // the failure handlers of the items given up, in the give-up's transaction
         if (gaveUp.length) { const f = failed(cur, gaveUp, when); cur = f.state; events.push(...f.events) }
         const drafts: OutboundDraft[] = []
-        const duties: Duty[] = []
         const renames: IdentityRename[] = []
+        // the duties whose handler returned Applied (invariants.ts: fulfilment)
+        const fulfilled: string[] = []
         // ran and stayed (not-due, refused): id → its record as it ran
         const kept = new Map<string, string>()
         const { duties: values, sweeps: swept } = prepared.value as { duties: Record<string, unknown>, sweeps: Record<string, unknown> }
@@ -1056,12 +1060,16 @@ class HolderEngine implements Engine {
           if (h.prepare && jcs(now) !== jcs(duty)) continue                 // prepared on other data
           const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }), backoff: p.backoff }), when)
           if (r === 'not-due' || isRefusal(r)) { kept.set(duty.id, jcs(now)); continue }
+          // fulfilled: the duty leaves; what its handler opened is folded into
+          // the state at once (an id already open is kept), so the duties
+          // after it see it — their drop rules and their dedupe included
           const left = { ...r.state.duties }
           delete left[duty.id]
+          for (const d of r.duties ?? []) if (!Object.hasOwn(left, d.id)) left[d.id] = d
           cur = { ...r.state, duties: left }
+          fulfilled.push(duty.id)
           drafts.push(...(r.outbound ?? []))
           events.push(...(r.events ?? []))
-          duties.push(...(r.duties ?? []))
           renames.push(...(r.renames ?? []))
         }
         // 2b — the sweeps, on the state the duties left; a prepared piece
@@ -1070,9 +1078,13 @@ class HolderEngine implements Engine {
           const r = sw.apply(cur, Object.freeze({ value: swept[name], version: prepared.version, commitSeq: prepared.commitSeq }), when)
           if (r.state.effects !== cur.effects) throw new Error(`engine: the sweep ${name} wrote the effect cache`)
           cur = r.state
+          if (r.duties?.length) {
+            const all = { ...cur.duties }
+            for (const d of r.duties) if (!Object.hasOwn(all, d.id)) all[d.id] = d
+            cur = { ...cur, duties: all }
+          }
           drafts.push(...(r.outbound ?? []))
           events.push(...(r.events ?? []))
-          duties.push(...(r.duties ?? []))
           if (r.deferred) due(when)
         }
         // work a sweep owes now but did not prepare: a divergence the outbox
@@ -1089,7 +1101,7 @@ class HolderEngine implements Engine {
         // newly created, newly unblocked); a duty that ran and stayed
         // (not-due, refused) sets none while its record is unchanged since
         // its run — changed by a later duty, it counts like any other
-        for (const d of [...Object.values(cur.duties), ...duties]) {
+        for (const d of Object.values(cur.duties)) {
           const h = handlers().get(d.kind)
           if (!h || d.v !== h.v || kept.get(d.id) === jcs(d)) continue
           if (dutyDue(d) > when) due(dutyDue(d))
@@ -1122,7 +1134,7 @@ class HolderEngine implements Engine {
         }
         if (effects && jcs(effects) !== jcs(cur.effects)) cur = { ...cur, effects }
         return {
-          state: cur, emit, events, outbound: drafts, duties, release,
+          state: cur, emit, events, outbound: drafts, release,
           ...(renames.length ? { renames } : {}),
           ...(nextDueAt !== undefined ? { nextDueAt } : {}),
         }
