@@ -112,8 +112,9 @@
 //     a sweep's `pending` names `when` as its nextDueAt
 //   - a verified delivery-ack runs the ack handler registered for the
 //     acknowledged item's type in its own transaction; a report never does
-//   - a task handler's TaskDiscard commits its state, nothing else: the
-//     disposition is failed at stage 9, no cache entry, no ack, no event
+//   - a task handler's refusal commits nothing; its TaskDiscarded (a
+//     resource-limit discard, Trust 5365) commits its state and nothing
+//     else: disposition `discarded`, no cache entry, no ack, no event
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -133,8 +134,9 @@ import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
 import { freezeDeep } from './util-freeze.js'
 import { ACK_TYPE } from './ack.js'
 import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js'
-import type { Arrival, ReceivePlan, ReceivedDocument, TaskDiscard, TaskRefusal } from './receive.js'
-export type { Arrival, ReceivedDocument, TaskDiscard, TaskFailure, TaskRefusal } from './receive.js'
+import { isTaskDiscarded } from './receive.js'
+import type { Arrival, ReceivePlan, ReceivedDocument, TaskDiscarded, TaskRefusal } from './receive.js'
+export type { Arrival, ReceivedDocument, TaskDiscarded, TaskFailure, TaskRefusal } from './receive.js'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -208,10 +210,9 @@ export interface TaskHandler<T = any, P = any> {
   proof: 'absent' | 'required'
   decode: (payload: unknown) => T | TaskRefusal
   prepare?: (ctx: PrepareCtx, doc: ReceivedDocument<T>, arrival: Arrival) => Promise<P | TaskRefusal>
-  /** a TaskDiscard refuses the document like a TaskRefusal but commits
-   *  its `state` (no effect-cache entry, no ack): the receiver's record
-   *  of a rejected delivery (5.2a: the discarded assembly, its lower bound) */
-  apply: (state: Readonly<HolderState>, prepared: Prepared<P>, doc: ReceivedDocument<T>, arrival: Arrival) => Applied | TaskRefusal | TaskDiscard
+  /** a TaskDiscarded commits its `state` as the disposition `discarded`
+   *  (no effect-cache entry, no ack): a resource-limit discard (Trust 5365) */
+  apply: (state: Readonly<HolderState>, prepared: Prepared<P>, doc: ReceivedDocument<T>, arrival: Arrival) => Applied | TaskRefusal | TaskDiscarded
 }
 
 /** What a duty's apply sees beside the state: its preparation. */
@@ -1038,14 +1039,11 @@ class HolderEngine implements Engine {
           case 'task': {
             const h = tasks().get(plan.type)!
             const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival)
-            if (isTaskRefusal(r)) {
-              const detail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) }
-              const kept = (r as Partial<TaskDiscard>).state
-              if (kept === undefined) return { halt: true, detail }
-              // a discard: its record commits, the document takes no effect,
-              // is not cached and earns no ack
-              if (kept.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache`)
-              return { state: kept, detail }
+            if (isTaskRefusal(r)) return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } }
+            if (isTaskDiscarded(r)) {
+              // a resource-limit discard: its state commits; no cache entry, no ack
+              if (r.state.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache`)
+              return { state: r.state, detail: { disposition: 'discarded', digest: plan.digest, type: plan.type, ...(r.ref !== undefined ? { ref: r.ref } : {}) } }
             }
             if (r.state.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`)
             return {
@@ -1121,8 +1119,8 @@ class HolderEngine implements Engine {
       const r = await this.#run(this.#builtins.receive, bound, when)
       if (isHalt(r)) return r.detail as ReceiveResult
       if (!r.ok) throw new Error('engine: receive does not refuse')
-      const d = r.detail as { disposition: 'unique' | 'duplicate-known' | 'failed', digest: string, type?: string }
-      if (d.disposition === 'failed') return d as unknown as ReceiveResult   // a discard: committed, refused
+      const d = r.detail as { disposition: 'unique' | 'duplicate-known' | 'discarded', digest: string, type?: string, ref?: string }
+      if (d.disposition === 'discarded') return { disposition: 'discarded', digest: d.digest, type: d.type!, ...(d.ref !== undefined ? { ref: d.ref } : {}) }
       return d.disposition === 'unique'
         ? { disposition: 'unique', digest: d.digest, type: d.type!, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
         : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound }

@@ -39,7 +39,10 @@
 // earns a terminal cache entry, no ack of its own.
 //
 // The stage-9 lock set (Delivery 6.2): the engine serializes every
-// operation of a holder in one queue and commits by CAS, so the lock set
+// operation of a holder in one queue and commits by CAS — a strictly
+// stronger serialization than the lock set asks for (it holds every key
+// of the holder, not only the overlapping ones), which is how this
+// library implements it under Stage 2's one-writer contract. The lock set
 // — the digest, and for star and group-star chunks additionally the
 // assembly key (tuple, type, salt) of 4.4 — is held for the whole
 // evaluation; a CAS conflict re-reads and re-enters at stage 1, which
@@ -50,10 +53,17 @@
 // effect (validated assembly, accepted snapshot, completed-salt advance)
 // commits with the cache entry and the ack in one transaction.
 //
-// A handler's apply may answer a TaskDiscard: the document is refused
-// (failed at stage 9, no cache entry, no ack) and the discard's `state`
-// commits — the receiver's record of a rejected delivery (5.2a: the
-// assembly discarded, its salt held as the lower bound, 5366).
+// A refusal (TaskRefusal) never commits anything, at any stage.
+//
+// A handler's apply may answer a TaskDiscarded: the receiver discarded an
+// open assembly at a local resource limit (Trust 5365) and holds its salt
+// as the lower bound (5366). That is a spec-mandated state effect, not a
+// failure of the document: its state commits and the result is the
+// disposition `discarded` — no effect-cache entry (a redelivery is
+// evaluated afresh and meets the lower bound), no ack (the delivery must
+// not complete), no event. DELIVERY GAP: Delivery §6.2 names no
+// disposition for a document whose processing ends in such a discard;
+// `discarded` is this library's, to be registered in Delivery 0.82.
 //
 // A verified ack runs the ack handler a module registered for the
 // acknowledged item's type, in the ack's transaction (engine.ts
@@ -94,9 +104,13 @@ export type TaskFailure = 'malformed' | 'validation-failed' | 'stale-issuance' |
  *  a redelivery is evaluated afresh (Delivery 6.2 stage 4). */
 export interface TaskRefusal { ok: false, reason: TaskFailure, ref?: string }
 
-/** A refusal from apply (stage 9) that still commits `state`, never the
- *  effect cache: the record of a rejected delivery. */
-export interface TaskDiscard extends TaskRefusal { state: HolderState }
+/** A discard at a resource limit (Trust 5365/5366), answered by apply:
+ *  `state` commits (assembly dropped, lower bound held), the disposition
+ *  is `discarded`, with no cache entry, no ack and no event. */
+export interface TaskDiscarded { discarded: true, state: HolderState, ref?: string }
+
+export const isTaskDiscarded = (x: unknown): x is TaskDiscarded =>
+  x !== null && typeof x === 'object' && (x as TaskDiscarded).discarded === true
 
 /** A received document after stage 7: the profile fields, its payload
  *  as the handler's decode returned it. Read-only. */

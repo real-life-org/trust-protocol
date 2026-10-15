@@ -66,12 +66,15 @@
 // the salt's key (5080); then against the assembly: a higher salt
 // displaces it (5330); seq above the resource limit discards (5365);
 // another threadId (5280), a repeated seq of other bytes (5260), a second
-// last (5270), a seq beyond last (5290) reject the delivery; the same
+// last (5270), a seq beyond last (5290) reject the chunk; the same
 // digest again is a repeat, acked, no change (5250). On completion the
-// union must be strictly ascending (5300, 5310). A rejected or discarded
-// delivery commits as a TaskDiscard (receive.ts): the assembly is
-// dropped and its salt becomes the lower bound, so no later chunk of it
-// is acked (5366). Every other chunk before completion is acked on its
+// union must be strictly ascending (5300, 5310). A rejection is a plain
+// refusal, failed(validation-failed) with the rule as ref: nothing
+// commits, the open assembly stays as it was, the chunk is not acked, so
+// the delivery cannot complete with it. A resource-limit discard (5365)
+// is a state effect instead (receive.ts TaskDiscarded, disposition
+// `discarded`): the assembly is dropped and its salt becomes the lower
+// bound, so no later chunk of it is acked (5366). Every other chunk before completion is acked on its
 // own (Delivery: every chunk is acked); only the completing chunk
 // changes the accepted snapshot, advances hwm (5140, 5350) and announces
 // star.accepted, all in its ack's transaction.
@@ -80,9 +83,6 @@
 //   - the resource limit is a bound on seq: an open assembly holds at most
 //     ASSEMBLY_LIMIT.star = 1024 chunks (≤ 1 048 576 entries); a chunk
 //     with a higher seq discards the assembly (5365, 5366)
-//   - a rejected delivery (5260–5310) is handled like a discarded one: its
-//     salt becomes the lower bound, so the delivery cannot complete from
-//     retries of its other chunks
 //   - `accepted` keeps only what matched (6160): the blinded values equal
 //     to HMAC(k, a) for an anchor `a` held for one of the holder's other
 //     contacts (the entry's anchor head, every relationship's held head
@@ -96,7 +96,7 @@ import { seal } from '../delivery.js'
 import { PLAINTEXT_MAX, blindAnchor, buildStarChunks, starChunkMacOk, starChunkOk, starKeyOf, strictlyAscending } from '../star.js'
 import type { StarChunk } from '../star.js'
 import { tupleByRkid } from '../receive.js'
-import type { Arrival, ReceivedDocument, TaskDiscard, TaskRefusal } from '../receive.js'
+import type { Arrival, ReceivedDocument, TaskDiscarded, TaskRefusal } from '../receive.js'
 import type { AckHandler, Applied, EventDraft, OutboundDraft, PrepareCtx, SweepHandler, TaskHandler } from '../engine.js'
 import { triasOf } from '../state.js'
 import type { Assembly, Contact, Dec, HolderState, Relationship, SeqIn, SeqOut, StarPair, TrustClass, Tuple } from '../state.js'
@@ -332,7 +332,7 @@ interface Held { digest: string, threadId: string, body: Body & Record<string, J
 type ChunkPlan<A> =
   | { kind: 'hold', relId: string, tuple: string, assembly: Assembly }
   | { kind: 'repeat' }
-  | { kind: 'reject', relId: string, tuple: string, salt: Dec, ref: string }
+  | { kind: 'discard', relId: string, tuple: string, salt: Dec }
   | { kind: 'complete', relId: string, tuple: string, salt: Dec, accepted: A, memory?: Record<string, Json>, contactId: string }
 
 /** The arrival tuple, if it is the active head of a live relationship (6.4, 5360). */
@@ -369,11 +369,12 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor
       if (!(await art.macOk(ctx, { shared, from: t.counterpartAnchor, own, salt: body.salt, chunk: doc.payload }))) return refuse('validation-failed', 'RLTP-TRU-5080')
       const ids = { relId: rel.id, tuple: t.ownPairLabel }
-      const reject = (ref: string): ChunkPlan<A> => ({ kind: 'reject', ...ids, salt: body.salt, ref })
+      // a rejection refuses the chunk and commits nothing (5260–5310)
+      const reject = (ref: string): TaskRefusal => refuse('validation-failed', ref)
       // a higher salt displaces the open assembly (5330)
       const base: Assembly = inn.assembly && inn.assembly.salt === body.salt ? inn.assembly : { salt: body.salt, chunks: {} }
       const seq = BigInt(body.seq)
-      if (seq > BigInt(limit)) return reject('RLTP-TRU-5365')
+      if (seq > BigInt(limit)) return { kind: 'discard', ...ids, salt: body.salt }            // 5365
       const held = Object.values(base.chunks) as unknown as Held[]
       const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] as unknown as Held : undefined
       if (same && same.digest === arrival.digest) return { kind: 'repeat' }                     // 5250
@@ -396,7 +397,7 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       return { kind: 'complete', ...ids, salt: body.salt, accepted: done.accepted, ...(done.memory ? { memory: done.memory } : {}), contactId }
     },
     // stage 9: the decision lands on the same snapshot
-    apply (state, prepared): Applied | TaskRefusal | TaskDiscard {
+    apply (state, prepared): Applied | TaskRefusal | TaskDiscarded {
       const p = prepared.value
       if (p.kind === 'repeat') return { state: state as HolderState }
       const rel = state.relationships[p.relId]
@@ -411,9 +412,9 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       })
       switch (p.kind) {
         case 'hold': return { state: put({ ...inn, assembly: p.assembly }) }
-        case 'reject':
-          // the delivery cannot complete: discarded, its salt the lower bound (5365, 5366)
-          return { ...refuse('validation-failed', p.ref), state: put({ ...inn, assembly: null, lowerBound: maxDec(inn.lowerBound, p.salt) }) }
+        case 'discard':
+          // the resource limit: the assembly dropped, its salt the lower bound (5365, 5366)
+          return { discarded: true, ref: 'RLTP-TRU-5365', state: put({ ...inn, assembly: null, lowerBound: maxDec(inn.lowerBound, p.salt) }) }
         case 'complete': {
           const events: EventDraft[] = [{ type: art.kind === 'star' ? 'star.accepted' : 'groupStar.accepted', contactId: p.contactId, relationshipId: rel.id, salt: p.salt }]
           return { state: put({ ...inn, hwm: p.salt, assembly: null, accepted: p.accepted }, p.memory ? { ...rel.memory, ...p.memory } : undefined), events }

@@ -59,13 +59,16 @@ export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
  * delivery-ack itself is terminal and earns none), then the documents
  * the effect issued. `duplicate-known`: the stored ack is re-sent
  * byte-identical (none for a terminal document); nothing commits beyond
- * a raised lastWhen. `failed`: nothing took effect and nothing commits,
- * except a handler's discard record (receive.ts TaskDiscard: a rejected
- * chunked delivery's assembly and lower bound, Trust 5.2a).
+ * a raised lastWhen. `failed`: nothing took effect and nothing commits.
+ * `discarded`: the document's chunk met a receiver resource limit (Trust
+ * 5365): the open assembly is dropped and its salt held as the lower
+ * bound (5366), committed; no cache entry, no ack, no event. Delivery
+ * §6.2 has no disposition for it yet (receive.ts: a gap for Delivery 0.82).
  */
 export type ReceiveResult =
   | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[], /** as on ActResult */ nextDueAt?: number }
   | { disposition: 'duplicate-known', digest: string, outbound: Outbound[] }
+  | { disposition: 'discarded', digest: string, type: string, ref?: string }
   | {
     disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string,
     /** local diagnosis of a key failure, never a disposition of its own
