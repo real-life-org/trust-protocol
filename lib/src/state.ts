@@ -300,8 +300,9 @@ export type GroupStarItem =
   | { group: string, mode: 'sealed', member: string, memberOp: string }
 export type GroupStarOut = SeqOut<GroupStarItem>
 /** A completed group star as the receiver keeps it (trust/group-star.ts):
- *  its salt, the entries {d, c} whose d hit one of the holder's own
- *  groups (5520), and those groups, sorted. */
+ *  its salt, the whole assembled union of entries {d, c}, and the holder's
+ *  groups whose d it holds (5520), sorted; a group joined later is matched
+ *  against the union (groupStarRematch). */
 export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }>, groups: string[] }>
 
 /** A chunked document under assembly: chunk index → chunk. */

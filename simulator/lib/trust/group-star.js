@@ -103,13 +103,8 @@ export const GROUP_STAR = {
                 return a.status === 'available' ? a.shared : null;
             },
         });
-        const S = ctx.crypto.subtle;
-        const kg = await groupStarKeyOf(p.shared, p.from, p.own, p.salt, S);
         const hits = results.filter((r) => r.hit).map((r) => r.group).sort();
-        const hitD = new Set();
-        for (const g of hits)
-            hitD.add(await macU(kg, g, S));
-        const entries = union.filter((e) => hitD.has(e.d));
+        const entries = union;
         const pairs = results.filter((r) => r.accepted);
         let memory;
         if (pairs.length) {
@@ -123,3 +118,48 @@ export const GROUP_STAR = {
         return { ok: true, accepted: { salt: p.salt, entries, groups: hits }, ...(memory ? { memory } : {}) };
     },
 };
+/**
+ * 5520 for a group the holder joins: the tuple labels whose accepted group
+ * star's union holds d = HMAC(k_g, G). k_g is the accepted star's key
+ * (its sender, this holder's pair anchor and the star's salt), through
+ * the KeyProvider under the engine's release. Async: the caller prepares
+ * it and applies withGroupHits in its commit.
+ */
+export async function groupStarRematch(ctx, group) {
+    const S = ctx.crypto.subtle;
+    const out = [];
+    for (const r of Object.values(ctx.snapshot.relationships)) {
+        for (const t of r.tuples) {
+            const acc = t.groupStarIn.accepted;
+            if (!acc || acc.groups.includes(group))
+                continue;
+            const x = xRawOfMk(t.counterpartKeyAgreement);
+            if (!x)
+                continue;
+            const a = await ctx.keys.agree(t.rkid, x, ctx.release);
+            if (a.status !== 'available')
+                continue;
+            const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor;
+            const d = await macU(await groupStarKeyOf(a.shared, t.counterpartAnchor, own, acc.salt, S), group, S);
+            if (acc.entries.some((e) => e.d === d))
+                out.push(t.ownPairLabel);
+        }
+    }
+    return out.sort();
+}
+/** The hits of groupStarRematch committed: `group` joins the accepted groups of those tuples. */
+export function withGroupHits(state, labels, group) {
+    if (!labels.length)
+        return state;
+    const hit = new Set(labels);
+    const relationships = {};
+    for (const [id, r] of Object.entries(state.relationships)) {
+        relationships[id] = r.tuples.some((t) => hit.has(t.ownPairLabel)) ? {
+            ...r,
+            tuples: r.tuples.map((t) => (hit.has(t.ownPairLabel) && t.groupStarIn.accepted && !t.groupStarIn.accepted.groups.includes(group))
+                ? { ...t, groupStarIn: { ...t.groupStarIn, accepted: { ...t.groupStarIn.accepted, groups: [...t.groupStarIn.accepted.groups, group].sort() } } }
+                : t),
+        } : r;
+    }
+    return { ...state, relationships };
+}

@@ -129,6 +129,7 @@ import type { Applied, CommandDef, DecisionDef, EventDraft, HolderModule, Outbou
 import type { Access, GroupAccess, Recipient } from '../ports.js'
 import type { Evidence, Group, HolderState, Joining, Millis, Prompt, ReceivedInvite, RosterEntry } from '../state.js'
 import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js'
+import { groupStarRematch, withGroupHits } from '../trust/group-star.js'
 
 const TT = 'https://real-life.org/trust-tasks/'
 /** This library's experimental forms (receive.ts SIGNATURE_CLASS). */
@@ -719,7 +720,7 @@ const acceptedInvite = (state: Readonly<HolderState>, doc: Doc): ReceivedInvite 
   Object.values(state.joining.invites).find((i) => i.status !== 'open' && i.status !== 'declined' &&
     (i.invite as Doc).payload.invite.issuer === doc.issuer && (i.invite as Doc).threadId === doc.threadId && i.group === doc.payload.genesisDigest)
 
-const welcomeTask: TaskHandler<WelcomePayload, null> = {
+const welcomeTask: TaskHandler<WelcomePayload, { hits: string[] }> = {
   proof: 'required',
   decode: (p) => (welcomeShape(p) ? p : refuse('malformed')),
   // the welcome answers an invitation this holder accepted: in its thread,
@@ -729,11 +730,12 @@ const welcomeTask: TaskHandler<WelcomePayload, null> = {
     if (!i || state.addresses.keys[rkid]?.label !== i.memberLabel) return refuse('validation-failed')
     return { keyAgreement: (i.invite as Doc).payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId }
   },
-  async prepare (_ctx, doc) {
+  // the group stars already accepted are matched against the joined group (5520)
+  async prepare (ctx, doc) {
     if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed', 'RLTP-MT-2130')
-    return null
+    return { hits: await groupStarRematch(ctx, doc.payload.genesisDigest) }
   },
-  apply (state, _p, doc, arr) {
+  apply (state, p, doc, arr) {
     const i = acceptedInvite(state, doc)!
     const w = doc.payload
     if (Object.hasOwn(state.groups, w.genesisDigest)) return { state: state as HolderState }
@@ -750,10 +752,10 @@ const welcomeTask: TaskHandler<WelcomePayload, null> = {
       listed: true, memberAnchor: doc.recipient, memberOp: own.op, roster, invitations: {}, evidence: {}, preludes: {}, acceptDigest: i.acceptDigest,
     }
     return {
-      state: {
+      state: withGroupHits({
         ...state, groups: { ...state.groups, [g.id]: g },
         joining: { ...state.joining, invites: { ...state.joining.invites, [i.credDigest]: { ...i, status: 'joined' } } },
-      },
+      }, p.value.hits, g.id),
       events: [{ type: 'group.joined', groupId: g.id }],
     }
   },

@@ -123,6 +123,7 @@ import { withLabel, withPairNonce } from '../identity-state.js';
 import { ED_PKCS8 } from '../keys-seed.js';
 import { tupleByRkid } from '../receive.js';
 import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js';
+import { groupStarRematch, withGroupHits } from '../trust/group-star.js';
 const TT = 'https://real-life.org/trust-tasks/';
 /** This library's experimental forms (receive.ts SIGNATURE_CLASS). */
 export const PRELUDE_REQUEST_TYPE = TT + 'x-membership-prelude-request/0.1';
@@ -700,12 +701,13 @@ const welcomeTask = {
             return refuse('validation-failed');
         return { keyAgreement: i.invite.payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId };
     },
-    async prepare(_ctx, doc) {
+    // the group stars already accepted are matched against the joined group (5520)
+    async prepare(ctx, doc) {
         if (!(await diVerify(doc, doc.issuer)))
             return refuse('validation-failed', 'RLTP-MT-2130');
-        return null;
+        return { hits: await groupStarRematch(ctx, doc.payload.genesisDigest) };
     },
-    apply(state, _p, doc, arr) {
+    apply(state, p, doc, arr) {
         const i = acceptedInvite(state, doc);
         const w = doc.payload;
         if (Object.hasOwn(state.groups, w.genesisDigest))
@@ -723,10 +725,10 @@ const welcomeTask = {
             listed: true, memberAnchor: doc.recipient, memberOp: own.op, roster, invitations: {}, evidence: {}, preludes: {}, acceptDigest: i.acceptDigest,
         };
         return {
-            state: {
+            state: withGroupHits({
                 ...state, groups: { ...state.groups, [g.id]: g },
                 joining: { ...state.joining, invites: { ...state.joining.invites, [i.credDigest]: { ...i, status: 'joined' } } },
-            },
+            }, p.value.hits, g.id),
             events: [{ type: 'group.joined', groupId: g.id }],
         };
     },

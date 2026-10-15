@@ -25,11 +25,6 @@
 //     the vouch section stays in the page for GroupView.pending
 //   - the star's "1 contact blinded": the star's content is the library's
 //     (asserted: no match is shown that the holder cannot compute)
-//   - "Emil's Jonathan carries the shared group": a shared group is the
-//     contact's claim in its last group star (5520); Jonathan's last one
-//     reached Emil before he joined and Jonathan's view toward Emil does
-//     not change by the join (sealed group star off by default), so only
-//     Jonathan's side is asserted
 import { createServer } from 'node:http'
 import { readFile, mkdir } from 'node:fs/promises'
 import { join, extname, dirname } from 'node:path'
@@ -221,14 +216,14 @@ try {
     return P('E').view.state.groups[g.id].memberLabel === 'group/' + g.id && !counterparts('J').includes(self)
   }), 'member anchor ≠ relationship anchor (context separation visible in the data)')
   // shared groups come from the contact's last group star (5520): Emil's,
-  // sent when he joined, hits at Jonathan. Jonathan's last one reached Emil
-  // before Emil was a member, and his view toward Emil has not changed since
-  // (the sealed group star is off by default), so Emil reads no hit yet
+  // sent when he joined, hits at Jonathan; Jonathan's reached Emil before
+  // Emil was a member and is matched again when Emil joins
   await tab('J', 'Contacts')
   await page.locator('#dev-J .prow', { hasText: 'Emil' }).click()
   await page.locator('#dev-J .sect', { hasText: 'Shared groups' }).waitFor()
   check((await page.locator('#dev-J .prow', { hasText: 'Orga-Untergruppe' }).count()) === 1, 'contact detail (Jonathan→Emil): the shared group, from Emil\'s group star')
   check(await ev(() => window.__t.named('J', 'Emil')[0].sharedGroups?.length === 1), 'Jonathan\'s Emil carries the shared group (the contact\'s claim, 5.2)')
+  check(await ev(() => window.__t.named('E', 'Jonathan')[0].sharedGroups?.length === 1), 'Emil\'s Jonathan carries it too: the group star Emil held from before his join, matched again on joining')
   await page.locator('#dev-J .backbtn').click()
   await page.locator('#dev-J .wcat button', { hasText: 'Membership' }).click()
   await page.locator('#dev-J .witem .wtitle', { hasText: 'genesis · Orga-Untergruppe' }).waitFor()

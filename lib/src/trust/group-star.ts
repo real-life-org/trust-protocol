@@ -39,9 +39,12 @@
 //     holder's current groups); steps 4 and 5 of 5560/5570 resolve through
 //     the Access port. Without an Access port, or where it does not know
 //     the group, a hit is recorded but no pair is accepted
-//   - `accepted` keeps the {d, c} entries that hit one of the holder's
-//     groups and those groups (sharedGroups of the contact view); the
-//     filler and the groups the holder is not in are not retained
+//   - `accepted` keeps the whole assembled union of {d, c} entries and the
+//     groups among the holder's that hit (sharedGroups of the contact
+//     view). The union stays so a group the holder joins later is matched
+//     against the stars it already accepted (groupStarRematch, called by
+//     the welcome): a late joiner sees the groups it shares with existing
+//     contacts without a new star, which the sender has no reason to send
 //   - an accepted pair is class V (5580): merged into the relationship's
 //     holder-local memory under `groupMembers` as { [G]: { member,
 //     memberOp } }, a later accepted pair for G replacing it (5770); it is
@@ -53,6 +56,7 @@ import type { GroupMembership } from '../group-star.js'
 import { macU } from '../anchor.js'
 import { jcs } from '../core.js'
 import type { KeyRelease } from '../ports.js'
+import type { PrepareCtx } from '../engine.js'
 import type { Contact, Dec, Group, GroupStarItem, HolderState, Relationship, SeqIn } from '../state.js'
 import { classOnToward, entryRelationships, lags } from './state.js'
 import type { Artifact } from './star.js'
@@ -153,12 +157,8 @@ export const GROUP_STAR: Artifact<GroupStarItem, GroupAccepted> = {
         return a.status === 'available' ? a.shared : null
       },
     })
-    const S = ctx.crypto.subtle
-    const kg = await groupStarKeyOf(p.shared, p.from, p.own, p.salt, S)
     const hits = results.filter((r) => r.hit).map((r) => r.group).sort()
-    const hitD = new Set<string>()
-    for (const g of hits) hitD.add(await macU(kg, g, S))
-    const entries = union.filter((e) => hitD.has(e.d))
+    const entries = union
     const pairs = results.filter((r) => r.accepted)
     let memory: Record<string, Json> | undefined
     if (pairs.length) {
@@ -170,4 +170,46 @@ export const GROUP_STAR: Artifact<GroupStarItem, GroupAccepted> = {
     }
     return { ok: true, accepted: { salt: p.salt, entries, groups: hits }, ...(memory ? { memory } : {}) }
   },
+}
+
+/**
+ * 5520 for a group the holder joins: the tuple labels whose accepted group
+ * star's union holds d = HMAC(k_g, G). k_g is the accepted star's key
+ * (its sender, this holder's pair anchor and the star's salt), through
+ * the KeyProvider under the engine's release. Async: the caller prepares
+ * it and applies withGroupHits in its commit.
+ */
+export async function groupStarRematch (ctx: PrepareCtx, group: string): Promise<string[]> {
+  const S = ctx.crypto.subtle
+  const out: string[] = []
+  for (const r of Object.values(ctx.snapshot.relationships)) {
+    for (const t of r.tuples) {
+      const acc = t.groupStarIn.accepted
+      if (!acc || acc.groups.includes(group)) continue
+      const x = xRawOfMk(t.counterpartKeyAgreement)
+      if (!x) continue
+      const a = await ctx.keys.agree(t.rkid, x, ctx.release)
+      if (a.status !== 'available') continue
+      const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor
+      const d = await macU(await groupStarKeyOf(a.shared, t.counterpartAnchor, own, acc.salt, S), group, S)
+      if (acc.entries.some((e) => e.d === d)) out.push(t.ownPairLabel)
+    }
+  }
+  return out.sort()
+}
+
+/** The hits of groupStarRematch committed: `group` joins the accepted groups of those tuples. */
+export function withGroupHits (state: HolderState, labels: readonly string[], group: string): HolderState {
+  if (!labels.length) return state
+  const hit = new Set(labels)
+  const relationships: Record<string, Relationship> = {}
+  for (const [id, r] of Object.entries(state.relationships)) {
+    relationships[id] = r.tuples.some((t) => hit.has(t.ownPairLabel)) ? {
+      ...r,
+      tuples: r.tuples.map((t) => (hit.has(t.ownPairLabel) && t.groupStarIn.accepted && !t.groupStarIn.accepted.groups.includes(group))
+        ? { ...t, groupStarIn: { ...t.groupStarIn, accepted: { ...t.groupStarIn.accepted, groups: [...t.groupStarIn.accepted.groups, group].sort() } } }
+        : t),
+    } : r
+  }
+  return { ...state, relationships }
 }
