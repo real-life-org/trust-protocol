@@ -124,7 +124,7 @@ export function sampleState (): HolderState {
   }
   s.entryOrder = { nextPos: '2', heads: ['r-alice', 'r-bob-1', 'r-bob-2'] }
   s.groups = {
-    'g-garden': { id: 'g-garden', memberLabel: 'group/g-garden', rules: { vouchThreshold: '2' }, listed: true, membership: null, memberAnchor: 'did:key:z6MkGardenMemberSampleOnly', memberOp: 'oid:garden-admission-sample' },
+    'g-garden': { id: 'g-garden', memberLabel: 'group/g-garden', rules: { vouchThreshold: '2' }, listed: true, name: 'Garden', roster: {}, invitations: {}, evidence: {}, memberAnchor: 'did:key:z6MkGardenMemberSampleOnly', memberOp: 'oid:garden-admission-sample' },
   }
   s.profile = { body: { name: 'Me', text: 'about me' }, revision: '3' }
   s.outbox = {

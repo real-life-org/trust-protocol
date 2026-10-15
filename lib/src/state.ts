@@ -65,6 +65,9 @@ export interface HolderState {
   /** act journal, keyed by actId (note §4.2) */
   acts: Record<string, ActRecord>
   encounter: EncounterState
+  /** groups on the way in: the preludes answered and the invitations
+   *  received, before a welcome makes them groups (Membership 1.2, 3.1) */
+  joining: Joining
 }
 
 // ── Identity ───────────────────────────────────────────────────────────
@@ -307,9 +310,16 @@ export interface Assembly { salt: Dec, chunks: Record<string, Json> }
 // ── Groups, profile ────────────────────────────────────────────────────
 
 export interface Group {
-  /** genesis digest */
+  /** genesis digest: the group's identity (Access 3.2) */
   id: string
-  /** own member context label in this group */
+  /** the group's name, as its genesis names it */
+  name: string
+  /** the group DID, its address, never its identity (Membership 2.3) */
+  did?: string
+  /** the signed genesis, as founded or as the welcome carried it */
+  genesis?: Json
+  /** own member context label in this group: the founding pair label for
+   *  the founder (Access 3.4.1), group/<digest> for a member (5.1) */
   memberLabel: string
   /** group rules are group state, never entropy (note §3) */
   rules: { vouchThreshold: Dec }
@@ -318,11 +328,88 @@ export interface Group {
   /** the own member anchor in G (the anchor of memberLabel) and the oid
    *  naming its canonical admission, or the genesis where the holder
    *  founded G (5400). Required on a listed group (codec.ts): membership
-   *  sets them on join (PR 4c/7); only an unlisted group may lack them. */
+   *  sets them on join; only an unlisted group may lack them. */
   memberAnchor?: string
   memberOp?: string
-  /** the holder's Access view of the group, until membership graduates */
-  membership: Json | null
+  /** the members this holder knows of, by member anchor: its local view
+   *  (membership/*); the replicated log is the Access port's */
+  roster: Record<string, RosterEntry>
+  /** invitations this holder issued and not yet saw answered, by the
+   *  invitee's member anchor (Membership 3.1) */
+  invitations: Record<string, OpenInvitation>
+  /** consent pairs held toward an admission, by the accept document's
+   *  digest, with the vouches for it (Membership 3.4, Access 4.2) */
+  evidence: Record<string, Evidence>
+  /** the own accept's document digest, where the holder joined by one:
+   *  the vouches for it bind it (Access 5.3) */
+  acceptDigest?: string
+}
+
+/** A member as this holder knows it (Membership 2.6: the enclosed card). */
+export interface RosterEntry {
+  /** member anchor */
+  anchor: string
+  /** the oid naming its admission (the accept's digest in this library's
+   *  welcome form), or the genesis digest for the founder */
+  op: string
+  /** its card's key agreement: what a document to it is sealed to */
+  keyAgreement: string
+  /** its card's display name, self-declared (Encounter 6120) */
+  name?: string
+  addedAt: Millis
+  /** the contact this holder knows the member as, where it does */
+  contactId?: string
+}
+
+/** An invitation issued (Membership 3.1): the invite document as sent. */
+export interface OpenInvitation {
+  /** the invitee's member anchor (credentialSubject.id) */
+  invitee: string
+  /** the invitee's member key agreement, from the prelude */
+  keyAgreement: string
+  contactId: string
+  threadId: string
+  /** the invitation's identity: its credential digest (RLTP-MT-2180) */
+  credDigest: string
+  invite: Json
+  validUntil: Millis
+}
+
+/** A consent pair held toward an admission (Membership 3.4). */
+export interface Evidence {
+  /** the invite and the accept documents, complete */
+  invite: Json
+  accept: Json
+  /** vouch@2 credentials for this accept, at most 16 (3805) */
+  vouches: Json[]
+  at: Millis
+}
+
+/** Groups on the way in (Membership 1.2, 3.1, 3.2). */
+export interface Joining {
+  /** preludes answered, by genesis digest: which contact asked, so the
+   *  invite that follows is surfaced as that contact's */
+  preludes: Record<string, { contactId: string, memberLabel: string, at: Millis }>
+  /** invitations received, by credential digest */
+  invites: Record<string, ReceivedInvite>
+}
+
+/** An invitation received (Membership 3.1), surfaced as a group-invite prompt. */
+export interface ReceivedInvite {
+  credDigest: string
+  /** genesis digest */
+  group: string
+  name: string
+  contactId: string
+  memberLabel: string
+  /** the invite document, complete */
+  invite: Json
+  promptId: string
+  validUntil: Millis
+  status: 'open' | 'accepted' | 'declined' | 'joined'
+  /** the accept's document digest, once sent */
+  acceptDigest?: string
+  at: Millis
 }
 
 /** The holder's own profile: one revision counter (6450). */
@@ -485,12 +572,69 @@ export interface ActRecord {
   at: Millis
 }
 
-/** Open challenges, records and introduction acts, keyed by id;
- *  opaque until encounter graduates (note §5, PR 7). */
+/** Open challenges, enactment records and introduction acts (note §2.1). */
 export interface EncounterState {
-  challenges: Record<string, Json>
-  records: Record<string, Json>
+  /** own challenge values still held open (Encounter 5.3), by value */
+  challenges: Record<string, OwnChallenge>
+  /** enactment records (5.5), by the own challenge value: the consumed-
+   *  challenge history, kept for the life of the relation (5360) */
+  records: Record<string, EnactmentRecord>
+  /** introduction acts (Trust §8), opaque until introduction graduates */
   introductions: Record<string, Json>
+}
+
+/** An own challenge value issued on a displayed card (5.3). */
+export interface OwnChallenge {
+  value: string
+  /** issuance time t_ch */
+  tCh: Millis
+  /** the fresh pair label the card is shown under (4.4) */
+  label: string
+  /** the displayed card: the optical payload */
+  card: Json
+  /** the aging latch: set-only, never open again (5260, 5270) */
+  aged?: true
+}
+
+/** A step credential with its credential digest (5.6 step 8). */
+export interface HeldCredential { digest: string, credential: Json }
+
+/** The enactment record (5.5), keyed by the own challenge value. Its
+ *  tuple is the relationship `relId` under the own pair label `label`. */
+export interface EnactmentRecord {
+  ceremony: string
+  /** the own challenge value (the record key) and its issuance time */
+  own: string
+  tCh: Millis
+  /** the counterparty's challenge value */
+  peer: string
+  /** the counterparty anchor and its card as received */
+  counterpart: string
+  card: Json
+  /** the enactment binding (5.4) */
+  bind: string
+  /** local time of the enactment */
+  at: Millis
+  label: string
+  relId: string
+  /** who scanned (sent the bundle) and who displayed */
+  role: 'scanner' | 'displayer'
+  /** the own step credential issued, and the counterparty's accepted,
+   *  per direction (5.6 step 8) */
+  out: HeldCredential | null
+  in: HeldCredential | null
+  /** the thread of the bundle that opened the exchange and that bundle's
+   *  digest (Delivery 4.1); null on the displayer until a bundle landed */
+  thread: string | null
+  bundleDigest: string | null
+  /** later threads used under this record: a re-issued bundle's (its
+   *  digest) or a standalone delivery's, threadId → document digest */
+  threads: Record<string, string>
+  /** the scanner's sent card: the optical leg's payload (5.8) */
+  sentCard: Json | null
+  /** the displayer issued its counter credential on the optical leg
+   *  before the bundle landed: its document waits for the thread (5780) */
+  counterPending: boolean
 }
 
 /** An outbox item's trias position (Delivery §6.1): its last step that is
@@ -523,5 +667,6 @@ export function emptyState (codec: number): HolderState {
     prompts: {},
     acts: {},
     encounter: { challenges: {}, records: {}, introductions: {} },
+    joining: { preludes: {}, invites: {} },
   }
 }

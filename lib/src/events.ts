@@ -5,6 +5,7 @@
 // type, and re-reads its views on any event. Events do not survive a
 // restart; the act journal keeps them only to answer a repeated actId.
 // Pure JSON, like the state that journals them.
+import type { Json } from './core.js'
 import type { Dec, OutboxStatus, PromptChoice, PromptKind } from './state.js'
 
 /** Fields every event carries. */
@@ -58,6 +59,23 @@ export type HolderEvent = EventBase & (
   | { type: 'star.accepted', contactId: string, relationshipId: string, salt: Dec }
   /** a group star (5.2b) completed on a relationship; sharedGroups may have changed */
   | { type: 'groupStar.accepted', contactId: string, relationshipId: string, salt: Dec }
+  /** a card displayed with a fresh own challenge (Encounter 5.3): `card`
+   *  is the optical payload to show (Encounter 6) */
+  | { type: 'encounter.shown', challenge: string, card: Json }
+  /** the scanner's step (5.8 trunk 2–3): `card` is its sent card, the
+   *  optical leg's payload where no network carries the bundle */
+  | { type: 'encounter.scanned', contactId: string, card: Json }
+  /** an enactment record created (5.5), on either side */
+  | { type: 'encounter.recorded', contactId: string, relationshipId: string, role: 'scanner' | 'displayer' }
+  /** the counterparty's step credential accepted (5.6): the edge now
+   *  holds it; mutual when the own one is issued too (4.2) */
+  | { type: 'encounter.accepted', contactId: string, relationshipId: string, mutual: boolean }
+  /** a group founded by this holder (Access 3.4.1) */
+  | { type: 'group.founded', groupId: string }
+  /** a member admitted by this holder, by its member anchor */
+  | { type: 'group.admitted', groupId: string, member: string }
+  /** a vouch@2 issued by this holder for a member anchor (Access 5.3) */
+  | { type: 'group.vouched', groupId: string, member: string }
 )
 
 export type HolderEventType = HolderEvent['type']

@@ -244,6 +244,13 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
   'star.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
   'groupStar.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
+  'encounter.shown': [{ challenge: str, card: anyObj }],
+  'encounter.scanned': [{ contactId: str, card: anyObj }],
+  'encounter.recorded': [{ contactId: str, relationshipId: str, role: lit('scanner', 'displayer') }],
+  'encounter.accepted': [{ contactId: str, relationshipId: str, mutual: bool }],
+  'group.founded': [{ groupId: str }],
+  'group.admitted': [{ groupId: str, member: str }],
+  'group.vouched': [{ groupId: str, member: str }],
 }
 const event: V = (x, p) => {
   if (!isObj(x)) fail(p, 'object expected')
@@ -253,7 +260,13 @@ const event: V = (x, p) => {
   obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p)
 }
 
-const groupShape = obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str })
+const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str })
+const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis })
+const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at: millis })
+const groupShape = obj({
+  id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
+  roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'invitee'), evidence: rec(evidence),
+}, { did: str, genesis: anyObj, memberAnchor: str, memberOp: str, acceptDigest: str })
 /** a listed group carries its member anchor and memberOp: the group star
  *  seals them (Trust 5400, 5430), and their absence is no filler condition */
 const group: V = (x, p) => {
@@ -262,6 +275,13 @@ const group: V = (x, p) => {
   if (g.listed && g.memberAnchor === undefined) fail(`${p}.memberAnchor`, 'missing on a listed group')
   if (g.listed && g.memberOp === undefined) fail(`${p}.memberOp`, 'missing on a listed group')
 }
+
+const heldCredential = obj({ digest: str, credential: anyObj })
+const enactmentRecord = obj({
+  ceremony: str, own: str, tCh: millis, peer: str, counterpart: str, card: anyObj, bind: str, at: millis, label: str, relId: str,
+  role: lit('scanner', 'displayer'), out: nullable(heldCredential), in: nullable(heldCredential),
+  thread: nullable(str), bundleDigest: nullable(str), threads: rec(str), sentCard: nullable(anyObj), counterPending: bool,
+})
 
 const codec0 = obj({
   codec: lit(0),
@@ -289,7 +309,18 @@ const codec0 = obj({
   }), 'id'),
   prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
   acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
-  encounter: obj({ challenges: rec(json), records: rec(json), introductions: rec(json) }),
+  encounter: obj({
+    challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }, { aged: lit(true) }), 'value'),
+    records: keyed(enactmentRecord, 'own'),
+    introductions: rec(json),
+  }),
+  joining: obj({
+    preludes: rec(obj({ contactId: str, memberLabel: str, at: millis })),
+    invites: keyed(obj({
+      credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+      status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
+    }, { acceptDigest: str }), 'credDigest'),
+  }),
 })
 
 /** Structural validators per codec version; every readable codec has one. */
