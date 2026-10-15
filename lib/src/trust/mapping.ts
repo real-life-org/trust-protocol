@@ -419,10 +419,11 @@ function mappingTask (bound: bigint) {
       if (e.committed) events.push({ type: 'trust.received', contactId: e.contact.id })
       events.push({ type: 'contact.verified', contactId: e.contact.id, relationshipId: rel.id })
       // 6160: stars already accepted are tested against the anchors now held
-      const after = rematchStars(e.state, e.contact.id, prepared.value.stars)
       // the net (6520–6605) and 2145: a merge this verification admits runs
       // after its commit, as a persisted continuation (2230)
-      const duties: Duty[] = [...e.duties, ...mergeDutiesAfter(state, after, rel.id, { net: true })]
+      const m = mergeDutiesAfter(state, rematchStars(e.state, e.contact.id, prepared.value.stars), rel.id, { net: true })
+      const after = m.state
+      const duties: Duty[] = [...e.duties, ...m.duties]
       return { state: after, events, ...(duties.length ? { duties } : {}), ...(split?.renames.length ? { renames: split.renames } : {}) }
     },
   }

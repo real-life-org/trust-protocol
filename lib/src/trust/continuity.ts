@@ -438,7 +438,9 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
   }
   out.push(...afterChain(next, R0.id))
   // 2145: a merge the two entries admit runs after this commit (2230)
-  out.push(...mergeDutiesAfter(state, next, R0.id, { net: false }))
+  const md = mergeDutiesAfter(state, next, R0.id, { net: false })
+  next = md.state
+  out.push(...md.duties)
   return { state: next, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: out, renames }
 }
 

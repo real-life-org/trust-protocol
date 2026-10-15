@@ -34,16 +34,17 @@
 //     duty persists its witness (each entry's anchor head and the heads
 //     each held as superseded) and runs only while it holds and the binding
 //     rule and the one anchor head (6605, 6560) still hold; otherwise it is
-//     dropped silently. A verification does not re-open a duty for the
-//     same entries while one is open. The manual merge (6640) involves no
-//     verification and merges in its own act
+//     dropped silently. A verification that admits the merge of the same
+//     entries while a duty is open refreshes its witness. The manual merge
+//     (6640) involves no verification and merges in its own act
 //   - the merged entry's identity: the entry at the earliest position
 //     (2140); where none holds one, the identity of the relationship whose
 //     active head was created last (2180, entryOrder.heads)
 //   - the net (rung 2) runs on every accepted anchor mapping: the incoming
 //     relationship against every other entry when it does not lag in its
-//     own entry (6550), not against an entry whose anchor head its entry
-//     held as superseded before the mapping (6590), and, where the entry's
+//     own entry (6550), 6540 checked against the state including the
+//     lineage just verified (an entry whose head that lineage supersedes
+//     is not joined), and, where the entry's
 //     anchor head changed, every relationship of another entry against it
 //     (6580); all entries that join in one evaluation merge in one duty
 //     (2150), taken in position order while they stay mergeable together
@@ -364,10 +365,11 @@ export function mergeInto (state: Readonly<HolderState>, survivor: Readonly<Cont
  * accepted anchor mapping (6520–6605). One duty for every entry that
  * joins, in position order while they stay mergeable together (2150).
  */
-export function mergeDutiesAfter (before: Readonly<HolderState>, after: Readonly<HolderState>, relId: string, opts: { net: boolean }): MergeDuty[] {
+export function mergeDutiesAfter (before: Readonly<HolderState>, after: HolderState, relId: string, opts: { net: boolean }): { state: HolderState, duties: MergeDuty[] } {
+  const none = { state: after, duties: [] }
   const rel = after.relationships[relId]
   const E = rel && entryOf(after, rel)
-  if (!E || E.pos === null || E.anchorHead === null) return []
+  if (!E || E.pos === null || E.anchorHead === null) return none
   const eRels = entryRelationships(after, E)
   const others = Object.values(after.contacts).filter((x) => x.id !== E.id && x.pos !== null && x.anchorHead !== null).sort(byPos)
   const picked: Contact[] = []
@@ -378,12 +380,12 @@ export function mergeDutiesAfter (before: Readonly<HolderState>, after: Readonly
     if (x && x.id !== E.id && x.pos !== null && x.anchorHead !== null) take(x)
   }
   if (opts.net) {
-    // the incoming relationship, where it does not lag in its own entry (6550)
+    // the incoming relationship, where it does not lag in its own entry
+    // (6550); 6540 against its entry as it stands with the lineage just
+    // verified: a head that lineage supersedes joins nothing
     if (rel.heldCounterpartHead === E.anchorHead) {
-      const relB = Object.hasOwn(before.relationships, relId) ? before.relationships[relId] : undefined
-      const eB = relB && entryOf(before, relB)
-      const supersededBefore = eB ? supersededIn(entryRelationships(before, eB)) : new Set<string>()
-      for (const x of others) if (joins(rel, x, entryRelationships(after, x), supersededBefore)) take(x)
+      const own = supersededIn(eRels)
+      for (const x of others) if (joins(rel, x, entryRelationships(after, x), own)) take(x)
     }
     // 6580: E's anchor head changed — every relationship of another entry against E
     if (findContact(before, E.id)?.anchorHead !== E.anchorHead) {
@@ -393,14 +395,14 @@ export function mergeDutiesAfter (before: Readonly<HolderState>, after: Readonly
       }
     }
   }
-  if (!picked.length) return []
+  if (!picked.length) return none
   const cs = [E, ...picked]
   const ids = cs.map((c) => c.id).sort(cmp)
   const id = 'merge:' + ids.join('|')
-  // a duty open for the same entries is not re-opened: it is re-checked
-  // against its own witness when it runs
-  if (Object.hasOwn(after.duties, id)) return []
-  return [{ kind: 'merge', v: 1, id, entryIds: ids, relId, witness: witnessOf(after, cs) }]
+  const duty: MergeDuty = { kind: 'merge', v: 1, id, entryIds: ids, relId, witness: witnessOf(after, cs) }
+  // a duty open for the same entries takes the new admission's witness
+  if (Object.hasOwn(after.duties, id)) return { state: { ...after, duties: { ...after.duties, [id]: { ...after.duties[id], ...duty } as Duty } }, duties: [] }
+  return { state: after, duties: [duty] }
 }
 
 /** The heads and superseded sets a merge is admitted against. */
