@@ -72,8 +72,10 @@
 //     left waiting ('not-due') for its handler
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
 //     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
-//   - setGroupClass to `default` removes the per-group entry; the sealed
-//     group star class `off` resets every per-group `on` (5450)
+//   - setGroupClass to `default` removes the per-group entry; turning the
+//     sealed group star class `off` resets every per-group `on` (5450), on
+//     that transition only: a group set `on` afterwards stays, and setting
+//     `off` while it is off resets nothing
 import { jcs, iso, makeValidator, calOK } from '../core.js'
 import type { Json } from '../core.js'
 import { digestDoc, xRawOfMk } from '../crypto.js'
@@ -410,9 +412,10 @@ const paused = (c: Readonly<Contact>): boolean => c.settings.star === 'off' && c
 /** One change of a contact's settings: 2840 and 5450 follow from it, the
  *  anchor mapping duties of 2850 and 6410, the events. */
 function changeSettings (state: Readonly<HolderState>, c: Readonly<Contact>, settings: Record<TrustClass, Setting>, groupSettings: Record<string, Setting>): Applied {
-  // 5450: the sealed group star off resets every per-group on to default
+  // 5450: turning the sealed group star off resets every per-group on to
+  // default — on the transition only, so a group set on afterwards stays (2830)
   let groups = groupSettings
-  if (settings.sealedGroupStar === 'off') groups = Object.fromEntries(Object.entries(groups).filter(([, s]) => s !== 'on'))
+  if (c.settings.sealedGroupStar !== 'off' && settings.sealedGroupStar === 'off') groups = Object.fromEntries(Object.entries(groups).filter(([, s]) => s !== 'on'))
   const next: Contact = { ...c, settings, groupSettings: groups }
   const wasOn = classOnToward(c, 'anchorMapping')
   const isOn = classOnToward(next, 'anchorMapping')
