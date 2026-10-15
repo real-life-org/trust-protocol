@@ -267,6 +267,7 @@ const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at:
 const groupShape = obj({
   id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
   roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'invitee'), evidence: rec(evidence),
+  preludes: rec(obj({ contactId: str, rkid: str, at: millis })),
 }, { did: str, genesis: anyObj, memberAnchor: str, memberOp: str, acceptDigest: str })
 /** a listed group carries its member anchor and memberOp: the group star
  *  seals them (Trust 5400, 5430), and their absence is no filler condition */
@@ -328,7 +329,7 @@ const codec0 = obj({
     declarations: rec(obj({ issuer: str, role: str, revision: dec, constants: rec(str), at: millis })),
   }),
   joining: obj({
-    preludes: rec(obj({ contactId: str, memberLabel: str, at: millis })),
+    preludes: rec(obj({ group: str, inviter: str, contactId: str, memberLabel: str, at: millis })),
     invites: keyed(obj({
       credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
       status: lit('open', 'accepted', 'declined', 'joined'), at: millis,

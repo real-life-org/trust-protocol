@@ -77,6 +77,10 @@ export type ActError =
   | 'unknown-group'
   /** membership.vouch: no consent pair held for this member (Access 5.3) */
   | 'no-evidence'
+  /** membership.vouch: the admitting member's own vouch never counts beside its admission */
+  | 'own-admission'
+  /** membership.found: a genesis admits under the rule of one; a stricter rule needs policy.change */
+  | 'threshold-unsupported'
   /** introduction: no such act, or not in a state that allows the step */
   | 'unknown-act'
   /** introduction.request: the mediator's ack-delay declaration is not held (Delivery 4.4) */

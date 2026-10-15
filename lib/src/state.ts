@@ -340,6 +340,9 @@ export interface Group {
   /** consent pairs held toward an admission, by the accept document's
    *  digest, with the vouches for it (Membership 3.4, Access 4.2) */
   evidence: Record<string, Evidence>
+  /** preludes this holder sent for the group and awaits the answer of, by
+   *  thread: the contact and the own rkid of the tuple it went on */
+  preludes: Record<string, { contactId: string, rkid: string, at: Millis }>
   /** the own accept's document digest, where the holder joined by one:
    *  the vouches for it bind it (Access 5.3) */
   acceptDigest?: string
@@ -387,9 +390,10 @@ export interface Evidence {
 
 /** Groups on the way in (Membership 1.2, 3.1, 3.2). */
 export interface Joining {
-  /** preludes answered, by genesis digest: which contact asked, so the
-   *  invite that follows is surfaced as that contact's */
-  preludes: Record<string, { contactId: string, memberLabel: string, at: Millis }>
+  /** preludes answered, by `<genesis digest> <inviter member anchor>`:
+   *  which contact asked as which inviter, so the invite that follows from
+   *  that anchor is surfaced as that contact's */
+  preludes: Record<string, { group: string, inviter: string, contactId: string, memberLabel: string, at: Millis }>
   /** invitations received, by credential digest */
   invites: Record<string, ReceivedInvite>
 }
