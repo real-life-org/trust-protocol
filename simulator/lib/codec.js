@@ -119,9 +119,9 @@ const groupStarItem = (x, p) => {
     obj({ group: str, mode: lit('digest') })(x, p);
 };
 const starOut = seqOut(starPair);
-const starIn = seqIn(obj({ salt: dec, blinded: arr(str) }));
+const starIn = seqIn(obj({ salt: dec, blinded: arr(str), matches: arr(str) }));
 const groupStarOut = seqOut(groupStarItem);
-const groupStarIn = seqIn(obj({ salt: dec, entries: arr(obj({ d: str, c: str })) }));
+const groupStarIn = seqIn(obj({ salt: dec, entries: arr(obj({ d: str, c: str })), groups: arr(str) }));
 const continuityDue = (x, p) => {
     if (isObj(x) && x.kind === 'choice')
         return obj({ kind: str, prior: str, alts: arr(str) })(x, p);
@@ -223,6 +223,8 @@ const EVENT_FIELDS = {
     'profile.updated': [{ contactId: nullable(str) }],
     'anchor.rotated': [{ generation: dec }],
     'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
+    'star.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
+    'groupStar.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
 };
 const event = (x, p) => {
     if (!isObj(x))
@@ -248,7 +250,7 @@ const codec0 = obj({
     contacts: keyed(contact, 'id'),
     relationships: keyed(relationship, 'id'),
     entryOrder: obj({ nextPos: dec, heads: set(str) }),
-    groups: keyed(obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }), 'id'),
+    groups: keyed(obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str }), 'id'),
     profile: obj({ body: json, revision: dec }),
     effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
     outbox: rec(outboxItem),

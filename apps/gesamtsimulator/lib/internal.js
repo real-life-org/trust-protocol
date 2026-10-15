@@ -7,5 +7,7 @@ export { DECIDE } from './prompts.js';
 export { freezeDeep } from './util-freeze.js';
 export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recommitEntries } from './trust/mapping.js';
 export { ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, entryRelationships, activeTuple, findContact } from './trust/state.js';
+export { STAR_TYPE, ASSEMBLY_LIMIT, starView, heldAnchors, discardAssemblies } from './trust/star.js';
+export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js';
 export { promptsModule, collectDecisions } from './prompts.js';
 export { createEngine } from './engine.js';

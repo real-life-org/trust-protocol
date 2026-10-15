@@ -45,10 +45,21 @@
 // — the digest, and for star and group-star chunks additionally the
 // assembly key (tuple, type, salt) of 4.4 — is held for the whole
 // evaluation; a CAS conflict re-reads and re-enters at stage 1, which
-// re-checks the cache at stage 4. The chunk types themselves, with the
-// completing chunk's effect (validated assembly, accepted snapshot and
-// salt advance in the ack's transaction) and one salt = one thread,
-// arrive with the star in PR 4 on exactly this path.
+// re-checks the cache at stage 4. The chunk types (trust/star.ts,
+// trust/group-star.ts, PR 4b) need no key of their own here: every
+// chunk of one tuple and type is evaluated against, and committed over,
+// the one state version its preparation read, so the completing chunk's
+// effect (validated assembly, accepted snapshot, completed-salt advance)
+// commits with the cache entry and the ack in one transaction.
+//
+// A handler's apply may answer a TaskDiscard: the document is refused
+// (failed at stage 9, no cache entry, no ack) and the discard's `state`
+// commits — the receiver's record of a rejected delivery (5.2a: the
+// assembly discarded, its salt held as the lower bound, 5366).
+//
+// A verified ack runs the ack handler a module registered for the
+// acknowledged item's type, in the ack's transaction (engine.ts
+// AckHandler): the sender side of 5660, completion by verified acks only.
 //
 // Ack class (4.4): every type a module can register here is of the
 // designated-verifier class and earns the MAC-form ack; registering a

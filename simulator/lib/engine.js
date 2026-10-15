@@ -105,6 +105,17 @@
 //     dueAt among those; absent where it opened none. It is the app's cue to
 //     call resume (or set a timer), as resume's own nextDueAt is. A journal
 //     replay of a human act carries none: its duties were announced then
+//   - sweeps (Trust 5.4 reconciliation, PR 4b) run in resume after the
+//     duties, in registration order, on the state the duties left; their
+//     preparations run against resume's snapshot beside the duties'. A
+//     piece whose inputs moved since is skipped and makes `when` the
+//     nextDueAt. Their new documents count into nextDueAt like the
+//     duties'. Every other committed operation whose state adds a key to
+//     a sweep's `pending` names `when` as its nextDueAt
+//   - a verified delivery-ack runs the ack handler registered for the
+//     acknowledged item's type in its own transaction; a report never does
+//   - a task handler's TaskDiscard commits its state, nothing else: the
+//     disposition is failed at stage 9, no cache entry, no ack, no event
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -268,6 +279,8 @@ class HolderEngine {
     #commands;
     #tasks;
     #duties;
+    #sweeps;
+    #acks;
     #builtins;
     #listeners = new Set();
     #chain = Promise.resolve();
@@ -307,6 +320,8 @@ class HolderEngine {
         const commands = new Map();
         const tasks = new Map();
         const duties = new Map();
+        const sweeps = new Map();
+        const acks = new Map();
         const names = new Set();
         for (const m of modules) {
             if (!m || typeof m.name !== 'string' || !m.name)
@@ -347,15 +362,34 @@ class HolderEngine {
                     throw new TypeError(`duty ${kind} (module ${m.name}): awaitHolds must be a function`);
                 duties.set(kind, Object.freeze({ ...h }));
             }
+            for (const [name, h] of Object.entries(m.sweeps ?? {})) {
+                if (sweeps.has(name))
+                    throw new Error(`duplicate sweep ${name} (module ${m.name})`);
+                if (typeof h?.apply !== 'function' || typeof h.prepare !== 'function' || typeof h.pending !== 'function')
+                    throw new TypeError(`sweep ${name} (module ${m.name}) needs pending, prepare and apply`);
+                sweeps.set(name, Object.freeze({ ...h }));
+            }
+            for (const [uri, h] of Object.entries(m.acks ?? {})) {
+                if (!TASK_URI.test(uri))
+                    throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`);
+                if (acks.has(uri))
+                    throw new Error(`duplicate ack handler ${uri} (module ${m.name})`);
+                if (typeof h !== 'function')
+                    throw new TypeError(`ack handler ${uri} (module ${m.name}) must be a function`);
+                acks.set(uri, h);
+            }
         }
         this.#commands = commands;
         this.#tasks = tasks;
         this.#duties = duties;
+        this.#sweeps = sweeps;
+        this.#acks = acks;
         this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
             commands: Object.freeze([...commands.keys()]),
             tasks: Object.freeze([...tasks.keys()]),
             duties: Object.freeze([...duties.keys()]),
+            sweeps: Object.freeze([...sweeps.keys()]),
         });
     }
     // ── loading ──────────────────────────────────────────────────────────
@@ -456,7 +490,7 @@ class HolderEngine {
             const release = r.release ?? [];
             // resume computes its own timer; every other operation names the duty
             // work it opened or unblocked, the app's cue to call resume
-            const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#dutyWake(state, r.state, newDuties, at));
+            const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#wake(state, r.state, newDuties, at));
             const extra = { ...(wake !== undefined ? { nextDueAt: wake } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
             if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
                 return { ok: true, outbound: [...release], events: [], ...extra };
@@ -500,6 +534,19 @@ class HolderEngine {
             return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...extra };
         }
         throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`);
+    }
+    /** The work an operation opened or unblocked: its duty work (#dutyWake),
+     *  or `when` where a sweep's pending keys gained one. */
+    #wake(before, after, added, when) {
+        const d = this.#dutyWake(before, after, added, when);
+        if (d === when || before === after)
+            return d;
+        for (const sw of this.#sweeps.values()) {
+            const had = new Set(sw.pending(before, when));
+            if (sw.pending(after, when).some((k) => !had.has(k)))
+                return when;
+        }
+        return d;
     }
     /** The duty work an operation opened or unblocked: over the duties that
      *  are new, changed, or runnable now but not before, `when` where one
@@ -609,15 +656,19 @@ class HolderEngine {
         const policy = () => this.#policy;
         const plan = (state, when) => this.#dutyPlan(state, when);
         const handlers = () => this.#duties;
+        const sweeps = () => this.#sweeps;
         return {
             human: false,
-            // the due duties' preparations, against the snapshot apply will see
+            // the due duties' and the sweeps' preparations, against the snapshot apply will see
             async prepare(ctx) {
                 const values = {};
                 for (const { duty, h } of plan(ctx.snapshot, ctx.when).run)
                     if (h.prepare)
                         values[duty.id] = await h.prepare(ctx, duty);
-                return values;
+                const swept = {};
+                for (const [name, sw] of sweeps())
+                    swept[name] = await sw.prepare(ctx);
+                return { duties: values, sweeps: swept };
             },
             apply(state, prepared, _input, when) {
                 const p = policy();
@@ -671,7 +722,7 @@ class HolderEngine {
                 const duties = [];
                 // ran and stayed (not-due, refused): id → its record as it ran
                 const kept = new Map();
-                const values = prepared.value;
+                const { duties: values, sweeps: swept } = prepared.value;
                 for (const { duty, h } of run) {
                     if (!Object.hasOwn(cur.duties, duty.id))
                         continue; // fulfilled or dropped meanwhile
@@ -692,6 +743,19 @@ class HolderEngine {
                     drafts.push(...(r.outbound ?? []));
                     events.push(...(r.events ?? []));
                     duties.push(...(r.duties ?? []));
+                }
+                // 2b — the sweeps, on the state the duties left; a prepared piece
+                // whose inputs moved is skipped and due again at once
+                for (const [name, sw] of sweeps()) {
+                    const r = sw.apply(cur, Object.freeze({ value: swept[name], version: prepared.version, commitSeq: prepared.commitSeq }), when);
+                    if (r.state.effects !== cur.effects)
+                        throw new Error(`engine: the sweep ${name} wrote the effect cache`);
+                    cur = r.state;
+                    drafts.push(...(r.outbound ?? []));
+                    events.push(...(r.events ?? []));
+                    duties.push(...(r.duties ?? []));
+                    if (r.deferred)
+                        due(when);
                 }
                 // the timer from the final duty set, new duties included: a future
                 // dueAt, or `when` for work runnable now that did not run (deferred,
@@ -808,6 +872,7 @@ class HolderEngine {
     }
     #receiveDef() {
         const tasks = () => this.#tasks;
+        const acks = () => this.#acks;
         const policy = () => this.#policy;
         return {
             human: false,
@@ -824,19 +889,39 @@ class HolderEngine {
                         return { state: state, release: a ? [ackOutbound(a, a.attempt + 1)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } };
                     }
                     case 'ack': {
-                        // terminal: the sender-status update and its cache entry, no ack
+                        // terminal: the sender-status update and its cache entry, no ack;
+                        // the issuing module's ack handler runs in the same transaction
                         const m = markDelivered(state, plan.ref, when);
+                        let next = { ...state, outbox: m.outbox };
+                        const events = m.event ? [m.event] : [];
+                        const h = acks().get(state.outbox[plan.ref].type);
+                        if (h) {
+                            const r = h(next, plan.ref, when);
+                            if (r.state.effects !== next.effects)
+                                throw new Error(`engine: the ack handler of ${state.outbox[plan.ref].type} wrote the effect cache`);
+                            next = r.state;
+                            events.push(...(r.events ?? []));
+                        }
                         return {
-                            state: { ...state, outbox: m.outbox, effects: { ...state.effects, [plan.digest]: cached(null) } },
-                            events: m.event ? [m.event] : [],
+                            state: { ...next, effects: { ...next.effects, [plan.digest]: cached(null) } },
+                            events,
                             detail: { disposition: 'unique', digest: plan.digest, type: ACK_TYPE },
                         };
                     }
                     case 'task': {
                         const h = tasks().get(plan.type);
                         const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival);
-                        if (isTaskRefusal(r))
-                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
+                        if (isTaskRefusal(r)) {
+                            const detail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+                            const kept = r.state;
+                            if (kept === undefined)
+                                return { halt: true, detail };
+                            // a discard: its record commits, the document takes no effect,
+                            // is not cached and earns no ack
+                            if (kept.effects !== state.effects)
+                                throw new Error(`engine: the handler of ${plan.type} wrote the effect cache`);
+                            return { state: kept, detail };
+                        }
                         if (r.state.effects !== state.effects)
                             throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
                         return {
@@ -941,6 +1026,8 @@ class HolderEngine {
             if (!r.ok)
                 throw new Error('engine: receive does not refuse');
             const d = r.detail;
+            if (d.disposition === 'failed')
+                return d; // a discard: committed, refused
             return d.disposition === 'unique'
                 ? { disposition: 'unique', digest: d.digest, type: d.type, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
                 : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound };

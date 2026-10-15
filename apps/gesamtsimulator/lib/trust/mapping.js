@@ -26,7 +26,11 @@
 //             bindings at chain level (6610), the counterpart head, the
 //             entry commit (2060) or its update in place (2070)
 //   duties    class-on/1 (2850) and reissue-mapping/1 (6370, 6596): issue
-//             the current anchor-mapping@4 on one relationship
+//             the current anchor-mapping@4 on one relationship; class-on of
+//             the star classes is discharged by the reconciliation (5.4)
+//   and, from trust/star.ts and trust/group-star.ts (PR 4b): the tasks
+//             star/0.2 and group-star/0.1, the sweeps trust.star and
+//             trust.groupStar run by resume, and their ack handlers
 //
 // Choices this file makes where note and spec leave them open:
 //   - a relationship maps to exactly one entry here: the contact its active
@@ -74,11 +78,13 @@
 //   - every issuance on a relationship fulfils every open class-on duty of
 //     the anchor mapping and every re-issue owed on it (6596: one delivery
 //     meets every re-issue still owed)
-//   - in 4a only the anchor mapping class has a delivery here. The star and
-//     the blinded group star follow through reconciliation (5.4, PR 4b);
-//     the sealed group star (4b) and the profile (PR 6) open their class-on
-//     duties when their modules arrive. A class-on duty of another class is
-//     left waiting ('not-due') for its handler
+//   - the star, the blinded and the sealed group star are delivered by the
+//     reconciliation of 5.4 (trust/star.ts), which sees every settings
+//     change through its view, so changing their settings opens no class-on
+//     duty; a class-on duty of one of them (from elsewhere) is fulfilled
+//     without sending, since the sweep runs in the same resume after the
+//     duties. A class-on duty of the profile is left waiting ('not-due')
+//     for its module (PR 6)
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
 //     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
 //   - setGroupClass to `default` removes the per-group entry; turning the
@@ -93,6 +99,8 @@ import { SCHEMAS } from '../schemas.js';
 import { LINEAGE_MAX, MAPPING_CONDITION_RULE, assembleAnchorMapping, bindingOf, classifyMapping, lineageLinks, mappingBindings, rawProofValue, verifyAnchorMappingWith, } from '../anchor.js';
 import { tupleByRkid } from '../receive.js';
 import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads, } from './state.js';
+import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, sweepOf, taskOf } from './star.js';
+import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js';
 const te = new TextEncoder();
 const V = makeValidator(SCHEMAS);
 const mappingSchemaOk = (m) => V.validate(m, SCHEMAS['visibility-anchor-mapping.schema.json'], SCHEMAS['visibility-anchor-mapping.schema.json']).length === 0;
@@ -526,6 +534,8 @@ const commands = {
 const blocked = (state, why) => why === 'no-community' ? { ok: false, code: 'no-community' }
     : why === 'scope-exhausted' ? { ok: false, code: 'scope-exhausted', ref: 'RLTP-TRU-6310' }
         : { state: state };
+/** The classes whose class-on (2850) the reconciliation of 5.4 discharges. */
+const RECONCILED = ['star', 'groupStar', 'sealedGroupStar'];
 const issueDuty = (lagMatters) => ({
     v: 1,
     prepare: (ctx, duty) => {
@@ -536,8 +546,12 @@ const issueDuty = (lagMatters) => ({
     },
     apply(state, duty, ctx) {
         const d = duty;
+        // 2850: the star and the group star go out through the reconciliation
+        // of 5.4, whose sweep runs in this same resume after the duties (5850)
+        if (d.kind === 'class-on' && RECONCILED.includes(d.cls))
+            return { state: state };
         if (d.kind === 'class-on' && d.cls !== 'anchorMapping')
-            return 'not-due'; // its class's module delivers it
+            return 'not-due'; // its class's module delivers it (profile, PR 6)
         const chk = issuable(state, d.contactId, d.relId, lagMatters);
         if (!chk.ok)
             return blocked(state, chk.why);
@@ -562,16 +576,26 @@ export function trustModule(opts = {}) {
     const bound = opts.admissionBound ?? ADMISSION_BOUND;
     if (typeof bound !== 'bigint' || bound < 0n || bound > ADMISSION_BOUND)
         throw new RangeError('admissionBound must be a bigint within [0, 10^18 − 1]');
+    const limit = opts.assemblyLimit;
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1))
+        throw new RangeError('assemblyLimit must be a positive integer');
     return Object.freeze({
         name: 'trust',
         commands: Object.freeze({
             ...commands,
             [TRUST_COMMANDS.recover]: { human: false, apply: (state) => recommitEntries(state, bound) },
         }),
-        tasks: Object.freeze({ [ANCHOR_MAPPING_TYPE]: mappingTask(bound) }),
+        tasks: Object.freeze({
+            [ANCHOR_MAPPING_TYPE]: mappingTask(bound),
+            [STAR_TYPE]: taskOf(STAR, limit ?? ASSEMBLY_LIMIT.star),
+            [GROUP_STAR_TYPE]: taskOf(GROUP_STAR, limit ?? ASSEMBLY_LIMIT.groupStar),
+        }),
         duties: Object.freeze({
             'class-on': issueDuty(true),
             'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
         }),
+        // 5.4: the star first, then the group star, each its own scope (5730)
+        sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
+        acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
     });
 }

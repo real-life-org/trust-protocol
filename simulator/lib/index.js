@@ -46,7 +46,8 @@
 //                     Layer 2a, 6.1–6.5, Section 2) — the human acts
 //                     trust.set, trust.setClass, trust.setGroupClass,
 //                     trust.pause, the anchor mapping's issuance and
-//                     reception, the entry commit
+//                     reception, the entry commit, the star and the group
+//                     star (5.2–5.4) reconciled on resume and received
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters

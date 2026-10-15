@@ -41,6 +41,10 @@
 //   - classes give the setting and whether the class is on toward the
 //     contact (2760, 2840); per-group settings of the sealed group star
 //     (2830) are not projected yet
+//   - sharedGroups: the union of the groups the last accepted group star
+//     on each of the entry's heads hit (5520, trust/group-star.ts), lagging
+//     heads included (the group star travels on them, 6595); undefined
+//     where no head ever accepted one
 //   - a contact's profile (6425): among the verified profile@1 bodies
 //     (6b.2) on its heads whose relationship does not lag (6461, 6595),
 //     the highest revision, among equal ones the one verified last
@@ -126,6 +130,8 @@ const project = (state, c, ix) => {
             best = t;
     }
     const profile = best ? { revision: best.profileIn.rev, ...profileFields(best.profileIn.body) } : undefined;
+    const received = heads.map((h) => h.t.groupStarIn.accepted).filter((a) => a !== null);
+    const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined;
     return {
         commitSeq: state.commitSeq,
         id: c.id,
@@ -141,6 +147,7 @@ const project = (state, c, ix) => {
             pending,
         },
         classes,
+        ...(sharedGroups ? { sharedGroups } : {}),
         ...(profile ? { profile } : {}),
     };
 };
