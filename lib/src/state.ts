@@ -150,8 +150,11 @@ export interface Relationship {
   earliestAnchor: string | null
   /** links held from verified lineages (6610) */
   links: Array<{ prev: string, next: string }>
-  /** anchor → pre-rotation binding held for it (6610) */
-  bindings: Record<string, string>
+  /** anchor → every pre-rotation binding held for it, sorted (6610: the
+   *  union over the mappings verified on any tuple of the chain; two where
+   *  a chaining joined tuples that disagree, a conflict the binding rule
+   *  sees, 6605) */
+  bindings: Record<string, string[]>
   /** the counterpart's anchor head as last verified */
   heldCounterpartHead: string | null
   /** contact memory and evidence (2280) */

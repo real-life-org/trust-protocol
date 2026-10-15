@@ -55,9 +55,6 @@
 //   - "oldest remaining relationship in entry-commit order" (2100): by
 //     firstVerified (the commitSeq of its first verification, 2190), never
 //     verified ones after, then by the creation of their active heads
-//   - at a binding conflict between the chain and the appended tuple
-//     (6610: the union), the chain's binding is kept: one anchor has one
-//     binding per relationship in this state
 //   - departure removes the relationship (and its husks) from the state;
 //     its tuples' address keys become tombstones by tick's retention. Its
 //     open duties go; its outbox items run to their horizon

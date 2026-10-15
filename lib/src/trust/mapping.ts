@@ -111,7 +111,7 @@ import type { Applied, CommandDef, DutyHandler, EventDraft, HolderModule, Outbou
 import type { KeyRelease } from '../ports.js'
 import type { ClassOnDuty, Contact, Dec, Duty, HolderState, ReissueMappingDuty, Relationship, Setting, TrustClass, Tuple } from '../state.js'
 import {
-  ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel,
+  ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel, unionBindings,
 } from './state.js'
 import { admitPending, classOnDuty, owedOn, entryCommands, mergeDutiesAfter, mergeDuty, settleHead, splitIfUnlinked } from './entries.js'
 import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js'
@@ -358,10 +358,16 @@ function mappingTask (bound: bigint) {
       if (!at) return refuse('validation-failed', 'RLTP-TRU-6240')
       const S = ctx.crypto.subtle
       const own = await ctx.keys.anchorOf(at.tuple.ownPairLabel)
+      // 6118 against every binding held: an anchor the chain holds two
+      // bindings for (6610) admits no card and no successor, since none
+      // can meet both
+      const b0 = doc.payload.body
+      const conflicted = new Set(Object.entries(at.rel.bindings).filter(([, v]) => v.length > 1).map(([k]) => k))
+      if (conflicted.has(b0.card.body.anchor) || b0.lineage.some((r) => conflicted.has((r as { body: { prev: string } }).body.prev))) return refuse('validation-failed', 'RLTP-TRU-6118')
       let infra: unknown = null
       const v = await verifyAnchorMappingWith(doc.payload, {
         ownAnchor: own.anchor, pair: at.tuple.counterpartAnchor, pairKeyAgreement: at.tuple.counterpartKeyAgreement,
-        held: new Map(Object.entries(at.rel.bindings)),
+        held: new Map(Object.entries(at.rel.bindings).filter(([, x]) => x.length === 1).map(([k, x]) => [k, x[0]])),
         agree: async (theirX) => {
           try {
             const a = await ctx.keys.agree(at.tuple.rkid, theirX, ctx.release)
@@ -400,7 +406,7 @@ function mappingTask (bound: bigint) {
       const links = [...rel.links]
       for (const [prev, next] of lineageLinks(b.lineage)) if (!links.some((l) => l.prev === prev && l.next === next)) links.push({ prev, next })
       const nextRel: Relationship = {
-        ...rel, tuples, links, bindings: { ...rel.bindings, ...prepared.value.bindings }, heldCounterpartHead: b.self,
+        ...rel, tuples, links, bindings: unionBindings(rel.bindings, Object.fromEntries(Object.entries(prepared.value.bindings).map(([k, x]) => [k, [x]]))), heldCounterpartHead: b.self,
         // 2190: the verification commit's place in the one total order
         firstVerified: rel.firstVerified ?? inc(state.commitSeq),
       }

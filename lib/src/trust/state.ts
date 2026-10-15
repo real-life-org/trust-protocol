@@ -137,11 +137,22 @@ export const anchorSet = (r: Readonly<Relationship>): Set<string> => {
 export function conflicts (as: readonly Readonly<Relationship>[], bs: readonly Readonly<Relationship>[]): boolean {
   for (const a of as) {
     for (const b of bs) {
+      // within one relationship too: a chain holding two bindings for one anchor (6610)
       if (a.links.some((l) => b.links.some((m) => l.prev === m.prev && l.next !== m.next))) return true
-      for (const [anchor, commit] of Object.entries(a.bindings)) if (Object.hasOwn(b.bindings, anchor) && b.bindings[anchor] !== commit) return true
+      for (const [anchor, commits] of Object.entries(a.bindings)) {
+        const other = Object.hasOwn(b.bindings, anchor) ? b.bindings[anchor] : []
+        if (new Set([...commits, ...other]).size > 1) return true
+      }
     }
   }
   return false
+}
+
+/** The union of two binding records (6610), each list sorted and distinct. */
+export function unionBindings (a: Readonly<Record<string, string[]>>, b: Readonly<Record<string, string[]>>): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const [k, v] of [...Object.entries(a), ...Object.entries(b)]) out[k] = [...new Set([...(out[k] ?? []), ...v])].sort()
+  return out
 }
 
 /**

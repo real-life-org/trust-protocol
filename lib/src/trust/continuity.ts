@@ -74,8 +74,11 @@
 //     the fresh relationship stays as a husk without tuples, chainedInto
 //     the chain, its contactId a chain alias (2090). The chain takes the
 //     fresh relationship's place in entryOrder.heads (2180). Chain state
-//     carries (2280): links and bindings as the union (6610; at a binding
-//     conflict the chain's), the earliest anchor as the earlier of the two
+//     carries (2280): links and bindings as the union (6610), a binding
+//     conflict kept as two bindings for one anchor, which the binding rule
+//     sees: the two entries behind the chain never merge, no merge duty
+//     opens, and no mapping touching that anchor verifies on the chain
+//     (6118); the chaining itself happens (6900), the earliest anchor as the earlier of the two
 //     by generation of the own register lineage (2285), contact memory
 //     (the chain's wins), the relationship's anchor head (the appended
 //     tuple's verified self, else the chain's), firstVerified the earlier;
@@ -114,7 +117,7 @@ import type { AckHandler, Applied, CommandDef, DutyHandler, EventDraft, FailureH
 import { triasOf } from '../state.js'
 import type { Contact, ContinuityDuty, ContinuityOut, Dec, Duty, HolderState, Millis, Relationship, Tuple, TupleRef } from '../state.js'
 import { emptyTuple } from '../state-builder.js'
-import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, liveRel, tupleByLabel } from './state.js'
+import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, liveRel, tupleByLabel, unionBindings } from './state.js'
 import { assembledBodies, assemblyStep, canComplete, chunkDocument, discardAssemblies, pairShared } from './star.js'
 import { classOnDuty, mergeDutiesAfter, mergeInto } from './entries.js'
 
@@ -300,7 +303,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     activeHead: label,
     earliestAnchor: earlierAnchor(state, R0.earliestAnchor, Rn.earliestAnchor),
     links,
-    bindings: { ...Rn.bindings, ...R0.bindings },
+    bindings: unionBindings(R0.bindings, Rn.bindings),
     heldCounterpartHead: Rn.heldCounterpartHead ?? R0.heldCounterpartHead,
     memory: { ...Rn.memory, ...R0.memory },
     firstVerified,
