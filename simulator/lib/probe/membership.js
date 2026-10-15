@@ -40,9 +40,12 @@ import { SCHEMAS } from '../schemas.js';
 const V = makeValidator(SCHEMAS);
 const validOr = (data, file) => { const s = SCHEMAS[file]; const errs = V.validate(data, s, s); if (errs.length)
     throw new Error(file + ': ' + errs[0]); return data; };
-const MEMBERSHIP_SKEW = 300; // PT5M (Membership §5)
+// the pure forms live in the root module (membership.ts); re-exported here
+import { MEMBERSHIP_CONTEXT, MEMBERSHIP_SKEW as MEMBERSHIP_SKEW_MS } from '../membership.js';
+export { INVITE_TYPE, ACCEPT_TYPE, MEMBERSHIP_CONTEXT } from '../membership.js';
+const MEMBERSHIP_SKEW = MEMBERSHIP_SKEW_MS / 1000; // PT5M (Membership §5), seconds
 const TT = 'https://real-life.org/trust-tasks/';
-const CTX3 = ['https://www.w3.org/ns/credentials/v2', 'https://firstperson.network/credentials/dtg/v1', 'https://real-life.org/rltp/v1'];
+const CTX3 = [...MEMBERSHIP_CONTEXT];
 const say = (p, m) => p.log.push(m);
 const uuid = (ent) => ent ?? globalThis.crypto.randomUUID();
 // member anchor: canonical-u re-encoding BEFORE the label (Access 5.1)

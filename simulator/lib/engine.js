@@ -147,6 +147,9 @@
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
+//   - without an Access port, EngineOptions.accessFrom (createHolder: the
+//     membership module's localAccess) builds one over each preparation's
+//     own snapshot, so it describes exactly the state the commit lands on
 //   - EngineOptions.check (createHolder's `invariants: true`) runs on every
 //     commit after the codec's validation and before the CAS; its throw
 //     aborts the operation, nothing commits
@@ -163,7 +166,7 @@ import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
 import { freezeDeep } from './util-freeze.js';
 import { ACK_TYPE } from './ack.js';
-import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
+import { ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
 import { isTaskDiscarded } from './receive.js';
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
@@ -338,6 +341,7 @@ class HolderEngine {
     #retain;
     #builtins;
     #check;
+    #accessFrom;
     #listeners = new Set();
     #chain = Promise.resolve();
     /** a commit whose outcome is unknown, settled before the next operation */
@@ -346,6 +350,9 @@ class HolderEngine {
         if (opts.check !== undefined && typeof opts.check !== 'function')
             throw new TypeError('check must be a function');
         this.#check = opts.check;
+        if (opts.accessFrom !== undefined && typeof opts.accessFrom !== 'function')
+            throw new TypeError('accessFrom must be a function');
+        this.#accessFrom = opts.accessFrom;
         this.#store = ports.store;
         this.#ports = ports;
         this.#crypto = crypto;
@@ -404,14 +411,14 @@ class HolderEngine {
                     throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`);
                 if (uri === ACK_TYPE)
                     throw new Error(`${uri} is built in: acks take the common path (module ${m.name})`);
-                if (SIGNATURE_CLASS.has(uri))
-                    throw new Error(`${uri} is signature-class: its signed ack is not built yet (module ${m.name})`);
                 if (tasks.has(uri))
                     throw new Error(`duplicate task ${uri} (module ${m.name})`);
                 if (typeof h?.apply !== 'function' || typeof h.decode !== 'function')
                     throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`);
                 if (h.proof !== 'absent' && h.proof !== 'required')
                     throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`);
+                if (h.channel !== undefined && typeof h.channel !== 'function')
+                    throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`);
                 tasks.set(uri, Object.freeze({ ...h }));
             }
             for (const [kind, h] of Object.entries(m.duties ?? {})) {
@@ -563,7 +570,7 @@ class HolderEngine {
             }
             // 2 — prepare, bound to this snapshot
             const ctx = Object.freeze({
-                snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access, log: this.#log,
+                snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access ?? this.#accessFrom?.(state), log: this.#log,
                 crypto: this.#crypto, when: at, release: releaseOf(state),
             });
             const value = def.prepare ? await def.prepare(ctx, input) : undefined;

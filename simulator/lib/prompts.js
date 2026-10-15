@@ -1,5 +1,6 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
+import { handlerPrepared } from './receive.js';
 /** The command name of the decision. */
 export const DECIDE = 'prompt.decide';
 const KINDS = ['encounter-confirm', 'group-invite', 'introduction'];
@@ -12,16 +13,29 @@ export function collectDecisions(modules) {
                 throw new Error(`unknown prompt kind ${kind} (module ${m.name})`);
             if (out.has(kind))
                 throw new Error(`duplicate decision handler ${kind} (module ${m.name})`);
-            if (typeof h !== 'function')
-                throw new TypeError(`decision handler ${kind} (module ${m.name}) must be a function`);
+            if (typeof h !== 'function' && (h === null || typeof h !== 'object' || typeof h.apply !== 'function' || (h.prepare !== undefined && typeof h.prepare !== 'function'))) {
+                throw new TypeError(`decision handler ${kind} (module ${m.name}) must be a function or {prepare?, apply}`);
+            }
             out.set(kind, h);
         }
     }
     return out;
 }
+const validInput = (input) => input !== null && typeof input === 'object' && typeof input.promptId === 'string' && (input.choice === 'accept' || input.choice === 'decline');
 const decideDef = (decisions) => ({
     human: true,
-    apply(state, _prepared, input, when) {
+    // a prepared handler's preparation, against the snapshot apply sees;
+    // nothing for an unknown, expired or malformed decision (apply answers it)
+    async prepare(ctx, input) {
+        if (!validInput(input) || !Object.hasOwn(ctx.snapshot.prompts, input.promptId))
+            return undefined;
+        const p = ctx.snapshot.prompts[input.promptId];
+        if (p.expiresAt !== undefined && p.expiresAt <= ctx.when)
+            return undefined;
+        const h = decisions.get(p.kind);
+        return h && typeof h !== 'function' && h.prepare ? h.prepare(ctx, p, input.choice) : undefined;
+    },
+    apply(state, prepared, input, when) {
         if (input === null || typeof input !== 'object' || typeof input.promptId !== 'string')
             throw new TypeError('prompt.decide needs {promptId: string, choice}');
         if (input.choice !== 'accept' && input.choice !== 'decline')
@@ -33,7 +47,9 @@ const decideDef = (decisions) => ({
         if (p.expiresAt !== undefined && p.expiresAt <= when)
             return { ok: false, code: 'prompt-expired' };
         const handler = decisions.get(p.kind);
-        const r = handler ? handler(state, p, choice, when) : { state: state };
+        const r = !handler ? { state: state }
+            : typeof handler === 'function' ? handler(state, p, choice, when)
+                : handler.apply(state, p, choice, when, handlerPrepared(prepared, prepared.value));
         if (r.ok === false)
             return r;
         const done = r;

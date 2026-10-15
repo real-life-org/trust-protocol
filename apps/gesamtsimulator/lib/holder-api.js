@@ -4,7 +4,13 @@
 // note §4.1, §4.5). Domain modules (identity, encounter, trust, continuity,
 // membership, profile) register with the engine as they graduate; today
 // the facade carries the engine's built-ins, the prompts module, the
-// identity module (identity-state.ts: device names, the rotation), the trust
+// encounter module (encounter/ceremony.ts: show, scan, the optical leg, the
+// counter-step, the bundle and the credential delivery), the membership
+// module (membership/holder.ts: founding, the prelude and invite, the
+// accept on a group-invite prompt, admission and welcome, evidence and
+// vouches; and the in-library Access over the holder's groups where no
+// Access port is given), the introduction module (introduction/holder.ts:
+// the three roles of Trust §8 and the mediator's start), the identity module (identity-state.ts: device names, the rotation), the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
 // trust/group-star.ts: the star and the group star, reconciled on resume
@@ -30,6 +36,14 @@
 //   revokeDevice(name, opts)                  identity.revokeDevice     human
 //   rotateAnchor(opts)                        identity.rotate           human
 //   setProfile({name, image?, text?}, opts)   profile.set               human
+//   show(opts{name?})                         encounter.show            human
+//   scan(card, opts{name?})                   encounter.scan            human
+//   captureSentCard(card, opts)               encounter.capture         human
+//   counter(contactId, opts)                  encounter.counter         human
+//   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
+//   invite(groupId, contactId, opts)          membership.invite         human
+//   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
+//   introduce(requesterId, targetId, opts)    introduction.introduce    human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -55,13 +69,16 @@ import { IDENTITY_COMMANDS, deviceKeyOf, identityModule } from './identity-state
 import { PROFILE_SET } from './trust/profile.js';
 import { TRUST_COMMANDS } from './trust/mapping.js';
 import { ENTRY_COMMANDS } from './trust/entries.js';
+import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js';
+import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js';
+import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
-    const modules = [identityModule(), trustModule(), ...(opts.modules ?? [])];
+    const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), ...(opts.modules ?? [])];
     const check = opts.invariants === true
         ? (before, after, op) => {
             const v = commitViolations(before, after, op);
@@ -69,7 +86,7 @@ export async function createHolder(ports, opts = {}) {
                 throw new InfraError('invariant-violated', `invariants broken by ${op.kind}: ${v.map((x) => `[${x.invariant}] ${x.detail}`).join('; ')}`, { cause: v });
         }
         : undefined;
-    const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules], check ? { check } : {});
+    const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules], { ...(check ? { check } : {}), accessFrom: localAccess });
     const read = async () => (await engine.snapshot()).state;
     /** a human act: `when` and actId from the options, a missing actId refused by the engine */
     const human = (command, input, o) => engine.act(command, input, o?.when, o?.actId === undefined ? {} : { actId: o.actId });
@@ -86,6 +103,14 @@ export async function createHolder(ports, opts = {}) {
         recover: (o) => engine.act(TRUST_COMMANDS.recover, {}, o?.when),
         rotateAnchor: (o) => human(IDENTITY_COMMANDS.rotate, {}, o),
         setProfile: (content, o) => human(PROFILE_SET, content, o),
+        show: (o) => human(ENCOUNTER_COMMANDS.show, o?.name === undefined ? {} : { name: o.name }, o),
+        scan: (card, o) => human(ENCOUNTER_COMMANDS.scan, o?.name === undefined ? { card } : { card, name: o.name }, o),
+        captureSentCard: (card, o) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
+        counter: (contactId, o) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
+        foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),
+        invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
+        vouchFor: (groupId, member, o) => human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
+        introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, { requesterId, targetId }, o),
         addDevice: (name, o) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
         revokeDevice: (name, o) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
         deviceKey: async (name, contextLabel) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

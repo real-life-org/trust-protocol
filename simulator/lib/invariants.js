@@ -48,6 +48,15 @@
 //               entry its verifications go to, whose class is on (6410,
 //               2790: the drop rule holds); a class-on duty has its
 //               deterministic id (trust/duties.ts)
+//   encounter   no challenge both open and recorded (5220); challenge and
+//               record labels in the register (4110); a scanner's record
+//               holds its credential (5630), a pending counter document its
+//               credential (5770); an encounter-confirm prompt names a record
+//   groups      the own member anchor on a held roster, its label in the
+//               register; no evidence for a member already admitted
+//   introductions  a mediator completes only with ack, reply forwarded and
+//               vouchers sent (8360); completed, consented and vouched hold
+//               a reply; forwarded holds the target pin (8270)
 //   owed        a duty class on for a live relationship (2850, 6595) with
 //               an artifact to send has it out or owed there: the anchor
 //               mapping issued on the active tuple or a class-on or
@@ -134,6 +143,11 @@
 //               version) the library does not know leaves only by (a), a
 //               module's handler: never where none is registered
 //   journal     act records leave only by tick (retention)
+//   encounter   records only grow, a credential held in a direction never
+//               changes (5.6 step 8, 5660); a challenge leaves only into a
+//               record or aged at lastWhen (5290)
+//   introductions  an act leaves only past its absolute lifetime (8310)
+//   groups      a held group and its roster members stay (removal is not built)
 //
 // Choices where the brief and the note leave them open (PR 5):
 //   - "effects holds only completed digests" is read as: an entry enters
@@ -153,6 +167,8 @@ import { CONTINUITY_MAPPING_TYPE, CONTINUITY_PROBE_TYPE } from './trust/continui
 import { viewDigest } from './trust/star.js';
 import { isKnownDuty } from './codec.js';
 import { communityLabel } from './identity.js';
+import { challengeAged } from './encounter.js';
+import { ACT_EXPIRY, ACT_SKEW } from './introduction.js';
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const big = (d) => BigInt(d);
 const isHusk = (r) => r.chainedInto !== null;
@@ -245,9 +261,54 @@ function registerViolations(v, state) {
     }
 }
 /** The invariants of one state (see the header); empty where all hold. */
+/** The encounter, the groups and the introduction acts (PR 7a). */
+function socialViolations(v, state) {
+    const labels = new Set(state.register.labels);
+    const e = state.encounter;
+    for (const c of Object.values(e.challenges)) {
+        if (Object.hasOwn(e.records, c.value))
+            v.push({ invariant: 'encounter', detail: `challenge ${c.value} both open and recorded (5220)` });
+        if (!labels.has(c.label))
+            v.push({ invariant: 'encounter', detail: `challenge ${c.value}: its label is not in the register (4110)` });
+    }
+    for (const r of Object.values(e.records)) {
+        if (!labels.has(r.label))
+            v.push({ invariant: 'encounter', detail: `record ${r.own}: its label is not in the register (4110)` });
+        if (r.role === 'scanner' && r.out === null)
+            v.push({ invariant: 'encounter', detail: `record ${r.own}: a scanner's record without its step credential (5630)` });
+        if (r.counterPending && r.out === null)
+            v.push({ invariant: 'encounter', detail: `record ${r.own}: a counter document pending without the credential (5770)` });
+    }
+    for (const p of Object.values(state.prompts)) {
+        if (p.kind === 'encounter-confirm' && !Object.hasOwn(e.records, p.id.slice('encounter:'.length)))
+            v.push({ invariant: 'encounter', detail: `prompt ${p.id} names no record` });
+    }
+    for (const g of Object.values(state.groups)) {
+        if (g.memberAnchor !== undefined && Object.keys(g.roster).length && !Object.hasOwn(g.roster, g.memberAnchor))
+            v.push({ invariant: 'groups', detail: `${g.id}: the own member anchor is not on the roster` });
+        if (Object.keys(g.roster).length && !labels.has(g.memberLabel))
+            v.push({ invariant: 'groups', detail: `${g.id}: the member label is not in the register` });
+        for (const ev of Object.values(g.evidence)) {
+            const subject = ev.accept.payload?.accept?.subject;
+            if (subject !== undefined && Object.hasOwn(g.roster, subject))
+                v.push({ invariant: 'groups', detail: `${g.id}: evidence held for a member already admitted` });
+        }
+    }
+    for (const a of Object.values(e.introductions)) {
+        if (a.role === 'mediator' && a.status === 'completed' && !(a.ack !== null && a.replyForwarded && a.vouchersSent))
+            v.push({ invariant: 'introductions', detail: `${a.key}: completed without its three duties (8360)` });
+        if ((a.status === 'completed' && a.role === 'requester') || a.status === 'consented' || a.vouched) {
+            if (a.reply === null)
+                v.push({ invariant: 'introductions', detail: `${a.key}: ${a.status}${a.vouched ? ', vouched' : ''} without a reply` });
+        }
+        if (a.role === 'mediator' && a.status === 'forwarded' && a.pins.target === undefined)
+            v.push({ invariant: 'introductions', detail: `${a.key}: forwarded without a target pin (8270)` });
+    }
+}
 export function stateViolations(state) {
     const v = [];
     registerViolations(v, state);
+    socialViolations(v, state);
     const contacts = Object.values(state.contacts);
     const positions = new Set();
     for (const c of contacts) {
@@ -458,6 +519,8 @@ export function dutyDrops(before, after, d, op) {
         return true;
     if (!isKnownDuty(d))
         return false; // otherwise never, on any operation
+    if (d.kind === 'intro-ack')
+        return false; // only its handler's run ends it
     // (f) the rotation's step 2 completed in this commit (the act's own path)
     if (d.kind === 'rotation') {
         const id = d.rotationId;
@@ -639,6 +702,41 @@ function seqInTransition(v, where, b, a) {
 /** The invariants of one commit from `before` to `after` by `op` (see the header). */
 export function transitionViolations(before, after, op) {
     const v = [];
+    // the encounter (5.3, 5.5, 5.6): records only grow and a credential once
+    // held in a direction stays; a challenge leaves only into a record or aged
+    for (const [own, r] of Object.entries(before.encounter.records)) {
+        const a = after.encounter.records[own];
+        if (!a) {
+            v.push({ invariant: 'encounter', detail: `record ${own} removed` });
+            continue;
+        }
+        for (const dir of ['in', 'out']) {
+            if (r[dir] !== null && (a[dir] === null || a[dir].digest !== r[dir].digest))
+                v.push({ invariant: 'encounter', detail: `record ${own}: the ${dir} credential changed (5.6 step 8, 5660)` });
+        }
+    }
+    for (const [value, c] of Object.entries(before.encounter.challenges)) {
+        if (Object.hasOwn(after.encounter.challenges, value) || Object.hasOwn(after.encounter.records, value))
+            continue;
+        if (!challengeAged(c.tCh, after.lastWhen))
+            v.push({ invariant: 'encounter', detail: `challenge ${value} left neither recorded nor aged (5290)` });
+    }
+    // introduction acts leave only past their absolute lifetime (8310)
+    for (const [k, a] of Object.entries(before.encounter.introductions)) {
+        if (!Object.hasOwn(after.encounter.introductions, k) && after.lastWhen < a.issuedAt + ACT_EXPIRY + ACT_SKEW)
+            v.push({ invariant: 'introductions', detail: `${k} discarded before its lifetime ended` });
+    }
+    // a member stays on the holder's roster (removal is not built)
+    for (const [id, g] of Object.entries(before.groups)) {
+        const ga = after.groups[id];
+        if (!ga) {
+            v.push({ invariant: 'groups', detail: `group ${id} left` });
+            continue;
+        }
+        for (const m of Object.keys(g.roster))
+            if (!Object.hasOwn(ga.roster, m))
+                v.push({ invariant: 'groups', detail: `${id}: member ${m} left the roster` });
+    }
     if (big(after.commitSeq) !== big(before.commitSeq) + 1n)
         v.push({ invariant: 'commitSeq', detail: `commitSeq ${before.commitSeq} → ${after.commitSeq}` });
     if (after.lastWhen < before.lastWhen)
