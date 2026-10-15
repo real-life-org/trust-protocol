@@ -43,18 +43,24 @@ function settingsFollow(state, c, wasOn) {
  * The entry's anchor head from what its relationships hold (6560): the
  * newest of the heads its feeding relationships hold; among several
  * (a manual merge before its split) the one it holds, else `prefer`, else
- * the smallest. Where no feeding relationship holds one, the entry keeps
- * its head while a relationship of it feeds another entry (2145), and
- * has none otherwise.
+ * the smallest. Where a relationship of it feeds another entry (2145), the
+ * head only moves forward: with no feeding head, or none beyond it, it
+ * stays. With neither, the entry has none.
  */
 export function settleHead(state, c, prefer = null) {
     const rels = feeding(state, c);
+    const all = entryRelationships(state, c);
     const newest = newestHeads(rels);
     if (!newest.length) {
-        if (entryRelationships(state, c).length > rels.length)
+        if (all.length > rels.length)
             return c;
         return c.anchorHead === null ? c : { ...c, anchorHead: null };
     }
+    // 2145: a chain of this entry feeds the other one; what the rest feeds
+    // never moves the head back — it stays unless a feeding head lies
+    // beyond it along the links the entry's relationships hold
+    if (all.length > rels.length && c.anchorHead !== null && newestOf([...newest, c.anchorHead], all.flatMap((r) => r.links)).includes(c.anchorHead))
+        return c;
     const head = newest.length === 1 ? newest[0]
         : c.anchorHead !== null && newest.includes(c.anchorHead) ? c.anchorHead
             : prefer !== null && newest.includes(prefer) ? prefer
@@ -107,14 +113,18 @@ function renameBaselines(t, from, to) {
     return changed ? { ...t, starOut: { ...o, snapshot, snapshotDigest, inflight } } : t;
 }
 /**
- * Every holder-local key that resolved through an identity `from` now
- * resolves through `to` (2100, 2140), within `opts`. Contacts are the
- * caller's: their ids and aliases are what the rewrite follows. Stored
- * acks keep the recipient they were sealed for: they are re-sent byte
- * for byte (Delivery 4.2), and only the receive core writes the effect
- * cache. Parts without a change keep their identity.
+ * Every holder-local key that resolved through an identity in `ids` now
+ * resolves through `to` (2100, 2140), within `opts`: tuples' entryId,
+ * duties, the recipients of issued documents, and with `global` the
+ * introducers of relationships (provenance.via), the matches of accepted
+ * stars, prompts and merge duties. Contacts are the caller's: their ids
+ * and aliases are what the rewrite follows. The stored acks follow
+ * through the engine (opts.renames): only the core writes the effect
+ * cache, and their sealed envelopes stay as they are. Parts without a
+ * change keep their identity.
  */
-export function rewriteIdentity(state, from, to, opts = {}) {
+export function rewriteIdentity(state, ids, to, opts = {}) {
+    const from = (x) => ids.includes(x);
     const inRel = opts.rels ?? (() => true);
     const rkids = new Set();
     let relationships = null;
@@ -137,9 +147,12 @@ export function rewriteIdentity(state, from, to, opts = {}) {
                 changed = true;
             return x;
         });
-        if (changed)
-            (relationships ??= { ...state.relationships })[id] = { ...r, tuples };
+        const via = r.provenance.via;
+        const provenance = opts.global && via !== undefined && from(via) ? { ...r.provenance, via: to } : r.provenance;
+        if (changed || provenance !== r.provenance)
+            (relationships ??= { ...state.relationships })[id] = { ...r, tuples, provenance };
     }
+    opts.renames?.push({ from: [...ids], to, rkids: opts.rels ? [...rkids].sort() : null });
     let duties = null;
     for (const [id, d] of Object.entries(state.duties)) {
         const x = d;
@@ -262,15 +275,17 @@ export function mergeInto(state, survivor, id, gone, bound) {
         anchorHead: survivor.anchorHead ?? positioned.find((c) => c.anchorHead !== null)?.anchorHead ?? null,
         settings, groupSettings,
     };
-    const was = new Set(merged);
-    const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => c.relIds));
-    let next = rewriteIdentity({ ...state, contacts }, (x) => was.has(x), id, { global: true });
+    // per relationship, from the entry it sent under before (2146): a chain
+    // behind two entries was on only where the entry it fed had the class on
+    const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => feeding(state, c).map((r) => r.id)));
+    const renames = [];
+    let next = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames });
     next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } };
     const f = settingsFollow(next, next.contacts[id], wasOn);
     next = admitPending(f.state, bound);
     return {
         state: next, events: [{ type: 'contact.merged', contactId: id, merged: [...merged].sort(cmp) }],
-        ...(f.duties.length ? { duties: f.duties } : {}), survivor: id,
+        ...(f.duties.length ? { duties: f.duties } : {}), renames, survivor: id,
     };
 }
 /**
@@ -317,23 +332,61 @@ export function mergeDutiesAfter(before, after, relId, opts) {
     }
     if (!picked.length)
         return [];
-    const ids = [E.id, ...picked.map((x) => x.id)].sort(cmp);
+    const cs = [E, ...picked];
+    const ids = cs.map((c) => c.id).sort(cmp);
     const id = 'merge:' + ids.join('|');
+    // a duty open for the same entries is not re-opened: it is re-checked
+    // against its own witness when it runs
     if (Object.hasOwn(after.duties, id))
         return [];
-    return [{ kind: 'merge', v: 1, id, entryIds: ids, relId }];
+    return [{ kind: 'merge', v: 1, id, entryIds: ids, relId, witness: witnessOf(after, cs) }];
 }
-/** merge/1: the merge as one step after the verification commit (2230). */
+/** The heads and superseded sets a merge is admitted against. */
+function witnessOf(state, cs) {
+    const heads = {};
+    const superseded = {};
+    for (const c of cs)
+        heads[c.id] = c.anchorHead;
+    for (const y of cs) {
+        const sup = supersededIn(entryRelationships(state, y));
+        superseded[y.id] = cs.filter((x) => x !== y && sup.has(x.anchorHead)).map((x) => x.anchorHead).sort(cmp);
+    }
+    return { heads, superseded };
+}
+/**
+ * Whether the merge a duty was opened for still stands (6540, 6550,
+ * 6605): every entry still holds the anchor head it was admitted with, no
+ * entry holds another's head as superseded beyond what it did then, the
+ * relationship that opened it is still one of theirs, and the entries are
+ * mergeable (the binding rule, one anchor head).
+ */
+function witnessHolds(state, d, cs) {
+    const w = d.witness;
+    if (cs.some((c) => !Object.hasOwn(w.heads, c.id) || c.anchorHead !== w.heads[c.id]))
+        return false;
+    if (!cs.some((c) => c.relIds.includes(d.relId)))
+        return false;
+    for (const y of cs) {
+        const sup = supersededIn(entryRelationships(state, y));
+        for (const x of cs)
+            if (x !== y && sup.has(x.anchorHead) && !(w.superseded[y.id] ?? []).includes(x.anchorHead))
+                return false;
+    }
+    return mergeable(state, cs);
+}
+/** merge/1: the merge as one step after the verification commit (2230),
+ *  re-checked against its witness; where it no longer holds, the duty is
+ *  dropped without a trace (a later verification may open another). */
 export const mergeDuty = (bound) => ({
     v: 1,
     apply(state, duty) {
         const d = duty;
         const cs = unique(d.entryIds.map((x) => findContact(state, x)).filter((c) => c !== undefined));
         // the state moved since the commit that opened it: nothing (left) to merge
-        if (cs.length < 2 || cs.some((c) => c.pos === null) || !mergeable(state, cs))
+        if (cs.length < 2 || cs.some((c) => c.pos === null) || !witnessHolds(state, d, cs))
             return { state: state };
         const r = mergeEntries(state, cs, bound);
-        return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}) };
+        return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}), ...(r.renames ? { renames: r.renames } : {}) };
     },
 });
 // ── split (2080–2115) ──────────────────────────────────────────────────
@@ -372,7 +425,7 @@ function oldestIdentity(state, c, remaining, exclude) {
     return own ? own.contactId : rels[0].id;
 }
 /** The keys of the entry's relationships resolve through its new id (2100). */
-const rename = (state, oldId, id, rels) => rewriteIdentity(state, (x) => x === oldId, id, { rels, global: true, baselines: true });
+const rename = (state, oldId, id, rels, renames) => rewriteIdentity(state, [oldId], id, { rels, global: true, baselines: true, renames });
 /**
  * 2080: the first verified mapping on `relId`, already in `mid`, leaves it
  * holding no anchor the other relationships of its entry hold, or another
@@ -391,6 +444,9 @@ export function splitIfUnlinked(before, mid, relId) {
         return null;
     const others = entryRelationships(mid, E).filter((r) => r.id !== relId);
     const holding = others.filter((r) => r.heldCounterpartHead !== null);
+    // 2080 read literally would split every manual merge of unmapped
+    // relationships at the first mapping; open point for Trust 0.32. Here
+    // the relationship stays where the others hold no anchor to contradict
     if (!holding.length)
         return null;
     const mine = anchorSet(rel);
@@ -416,7 +472,6 @@ export function splitOff(state, relId) {
     for (const [g, s] of Object.entries(E.groupSettings))
         if (s === 'off')
             groupSettings[g] = 'off';
-    const resolvesToE = (x) => x === E.id || E.aliases.includes(x);
     const contacts = { ...state.contacts };
     delete contacts[E.id];
     contacts[eId] = { ...E, id: eId, relIds: remaining, aliases: E.aliases.filter((a) => !leaverIds.has(a) && a !== eId) };
@@ -424,14 +479,15 @@ export function splitOff(state, relId) {
         id: identity, pos: null, status: 'none', aliases: chain.filter((a) => a !== identity), relIds: [relId], anchorHead: null, settings, groupSettings,
     };
     // the leaver's keys go to its own entry (2145 entryId, its duties and recipients)
-    let next = rewriteIdentity({ ...state, contacts }, resolvesToE, identity, { rels: (id) => id === relId });
+    const renames = [];
+    let next = rewriteIdentity({ ...state, contacts }, [E.id, ...E.aliases], identity, { rels: (id) => id === relId, renames });
     // the remaining entry's keys that resolved through the old identity (2100)
     if (eId !== E.id)
-        next = rename(next, E.id, eId, (id) => id !== relId);
+        next = rename(next, E.id, eId, (id) => id !== relId, renames);
     next = { ...next, contacts: { ...next.contacts, [eId]: settleHead(next, next.contacts[eId]) } };
     // the leaver's anchor mapping class starts at default, off (2115, 6410)
     next = settingsFollow(next, next.contacts[identity], new Set(classOnToward(E, 'anchorMapping') ? [relId] : [])).state;
-    return { state: next, event: { type: 'contact.split', contactId: eId, leaver: identity, relationshipId: relId } };
+    return { state: next, event: { type: 'contact.split', contactId: eId, leaver: identity, relationshipId: relId }, renames };
 }
 // ── departure (2210, 2250, 2260, 5860) ─────────────────────────────────
 const needInput = (x, name) => {
@@ -508,15 +564,19 @@ export function depart(state, input, bound) {
         ...state, relationships, contacts, duties, rotations,
         entryOrder: { ...state.entryOrder, heads: state.entryOrder.heads.filter((id) => !leaving.has(id)) },
     };
+    const renames = [];
     for (const r of renamed)
-        next = rename(next, r.from, r.to, (id) => r.rels.includes(id));
+        next = rename(next, r.from, r.to, (id) => r.rels.includes(id), renames);
     for (const x of Object.values(next.contacts)) {
         const s = settleHead(next, x);
         if (s !== x)
             next = { ...next, contacts: { ...next.contacts, [x.id]: s } };
     }
     next = admitPending(next, bound);
-    return { state: next, events: [{ type: 'contact.departed', contactId: c.id, relationshipIds: relIds.filter((id) => Object.hasOwn(state.relationships, id)).sort(cmp), removed }] };
+    return {
+        state: next, events: [{ type: 'contact.departed', contactId: c.id, relationshipIds: relIds.filter((id) => Object.hasOwn(state.relationships, id)).sort(cmp), removed }],
+        ...(renames.length ? { renames } : {}),
+    };
 }
 // ── the commands ───────────────────────────────────────────────────────
 export function entryCommands(bound) {
@@ -543,7 +603,7 @@ export function entryCommands(bound) {
                 if (!mergeable(state, cs))
                     return { ok: false, code: 'not-mergeable', ref: 'RLTP-TRU-6605' };
                 const r = mergeEntries(state, cs, bound);
-                return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}) };
+                return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}), ...(r.renames ? { renames: r.renames } : {}) };
             },
         },
         [ENTRY_COMMANDS.depart]: {
