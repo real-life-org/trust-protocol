@@ -265,7 +265,7 @@ const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, th
 const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at: millis });
 const groupShape = obj({
     id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
-    roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'invitee'), evidence: rec(evidence),
+    roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'threadId'), evidence: rec(evidence),
     preludes: rec(obj({ contactId: str, rkid: str, at: millis })),
 }, { did: str, genesis: anyObj, memberAnchor: str, memberOp: str, acceptDigest: str });
 /** a listed group carries its member anchor and memberOp: the group star

@@ -162,7 +162,12 @@
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
 //     entry names them; an address key not shown for the retention and
-//     the own rkid of no tuple that is not deactivated becomes a tombstone
+//     the own rkid of no tuple that is not deactivated becomes a tombstone —
+//     except a member key (a group/… label): an identity context of
+//     Identity §6.1 rather than a delivery address of Delivery §5 (one
+//     derivation per group, reused whenever the holder is invited to it
+//     again), it leaves `addresses` without a tombstone (a point for
+//     Delivery 0.82: addresses and identity contexts)
 import { jcs, b64uOf } from './core.js';
 import { CODEC, decodeState, encodeState } from './codec.js';
 import { emptyState, toOpaque, triasOf } from './state.js';
@@ -171,11 +176,15 @@ import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
 import { freezeDeep } from './util-freeze.js';
 import { ACK_TYPE } from './ack.js';
+import { challengeAged } from './encounter.js';
 import { ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
 import { isTaskDiscarded } from './receive.js';
 /** The Encounter latch exception (receive.ts TaskRefusal): a latch state
- *  differs from its base in encounter.challenges alone, which it only shrinks. */
-function checkLatch(base, latch) {
+ *  differs from its base in encounter.challenges alone; every challenge it
+ *  keeps is byte-identical, and every one it removes is aged at `when`, the
+ *  commit's authoritative time (Encounter 5190, 5260). Anything else is a
+ *  programming error and throws. */
+function checkLatch(base, latch, when) {
     for (const k of Object.keys(base)) {
         if (k === 'encounter')
             continue;
@@ -187,9 +196,16 @@ function checkLatch(base, latch) {
         if (k !== 'challenges' && e[k] !== l[k])
             throw new Error(`engine: an aging latch changed encounter.${k}`);
     }
-    for (const v of Object.keys(l.challenges))
+    for (const [v, c] of Object.entries(l.challenges)) {
         if (!Object.hasOwn(e.challenges, v))
             throw new Error('engine: an aging latch added a challenge');
+        if (jcs(c) !== jcs(e.challenges[v]))
+            throw new Error(`engine: an aging latch changed the challenge ${v}`);
+    }
+    for (const [v, c] of Object.entries(e.challenges)) {
+        if (!Object.hasOwn(l.challenges, v) && !challengeAged(c.tCh, when))
+            throw new Error(`engine: an aging latch removed the unaged challenge ${v}`);
+    }
 }
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
@@ -607,7 +623,7 @@ class HolderEngine {
                 if (!r.latch)
                     return refusal;
                 // the Encounter latch exception: the latch and lastWhen commit, nothing else
-                checkLatch(state, r.latch);
+                checkLatch(state, r.latch, at);
                 const seq = inc(state.commitSeq);
                 const next = { ...r.latch, commitSeq: seq, lastWhen: at };
                 const text = encodeState(next);
@@ -807,7 +823,10 @@ class HolderEngine {
                 const keys = keep(state.addresses.keys, (k, rkid) => {
                     if (k.lastShown + retention > when || live.has(rkid))
                         return true;
-                    if (!tombstones.includes(rkid))
+                    // a member key (group/…) is an identity context, not a delivery
+                    // address of Delivery §5: it leaves without a tombstone, so the same
+                    // derivation can serve the same group again (a re-invitation)
+                    if (!k.label.startsWith('group/') && !tombstones.includes(rkid))
                         tombstones.push(rkid);
                     return false;
                 });
@@ -1154,7 +1173,7 @@ class HolderEngine {
                             if (!r.latch)
                                 return { halt: true, detail: failedDetail };
                             // the Encounter latch exception (receive.ts): only the latch commits
-                            checkLatch(state, r.latch);
+                            checkLatch(state, r.latch, when);
                             return { state: r.latch, detail: failedDetail };
                         }
                         if (isTaskDiscarded(r)) {

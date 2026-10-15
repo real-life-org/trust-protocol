@@ -75,7 +75,8 @@
 //               element, onto a label persisted in an earlier commit (6360)
 //   profile     the own profile's one counter never falls and its content
 //               changes only with it (6450)
-//   addresses   tombstones never shrink; a key leaves only as a tombstone
+//   addresses   tombstones never shrink; a key leaves only as a tombstone,
+//               a member key (group/…, an identity context) excepted
 //               (Delivery §5)
 //   salts       per tuple label: lastSalt, probe seq and the issued
 //               revisions never fall, exhausted is sticky, a new in-flight
@@ -782,7 +783,7 @@ export function transitionViolations(before, after, op) {
     // addresses (Delivery §5)
     lost('tombstones', superset(after.addresses.tombstones, before.addresses.tombstones));
     for (const k of Object.keys(before.addresses.keys)) {
-        if (!Object.hasOwn(after.addresses.keys, k) && !after.addresses.tombstones.includes(k))
+        if (!Object.hasOwn(after.addresses.keys, k) && !after.addresses.tombstones.includes(k) && !before.addresses.keys[k].label.startsWith('group/'))
             v.push({ invariant: 'addresses', detail: `${k} left without a tombstone` });
     }
     // salts, baselines and revisions, per tuple label; the acked document
