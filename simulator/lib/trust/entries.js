@@ -314,10 +314,13 @@ export function mergeDutiesAfter(before, after, relId, opts) {
     }
     if (opts.net) {
         // the incoming relationship, where it does not lag in its own entry
-        // (6550); 6540 against its entry as it stands with the lineage just
-        // verified: a head that lineage supersedes joins nothing
+        // (6550). Head rule (b) against the knowledge the entry held before
+        // this commit: its relationships' links with this relationship's taken
+        // from before the 6610 union of this verification. What the mapping
+        // newly carries counts for (a) only (the 6590 rationale reading)
         if (rel.heldCounterpartHead === E.anchorHead) {
-            const own = supersededIn(eRels);
+            const relB = Object.hasOwn(before.relationships, relId) ? before.relationships[relId] : rel;
+            const own = supersededIn(eRels.map((r) => (r.id === relId ? relB : r)));
             for (const x of others)
                 if (joins(rel, x, entryRelationships(after, x), own))
                     take(x);

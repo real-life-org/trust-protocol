@@ -146,9 +146,9 @@ export function unionBindings(a, b) {
  * (relationships `xs`): (a) r's anchor head is x's or the lineage r holds
  * carries x's as a prev, and (b) x does not hold r's anchor head as
  * superseded, nor r's own entry x's (`ownSuperseded`). For the incoming
- * relationship the caller takes its entry as it stood before the
- * verification: only what the committed mapping newly carries connects
- * (6590).
+ * relationship the caller passes the links its entry held before the
+ * verified mapping's lineage joined them: only what the committed mapping
+ * newly carries connects (the 6590 rationale; trust/entries.ts).
  */
 export const joins = (r, x, xs, ownSuperseded) => r.heldCounterpartHead !== null && x.anchorHead !== null &&
     (r.heldCounterpartHead === x.anchorHead || r.links.some((l) => l.prev === x.anchorHead)) &&
