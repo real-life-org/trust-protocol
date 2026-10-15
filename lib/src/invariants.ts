@@ -217,6 +217,8 @@ export function stateViolations (state: Readonly<HolderState>): Violation[] {
     }
     headViolations(v, state, c)
   }
+  const holdersOf = new Map<string, string[]>()
+  for (const c of contacts) for (const id of c.relIds) holdersOf.set(id, [...(holdersOf.get(id) ?? []), c.id])
   const names = new Map<string, string>()
   for (const c of contacts) {
     if ((c.pos === null) !== (c.status === 'none')) v.push({ invariant: 'entries', detail: `${c.id}: position ${c.pos} with status ${c.status}` })
@@ -228,7 +230,7 @@ export function stateViolations (state: Readonly<HolderState>): Violation[] {
   for (const r of Object.values(state.relationships)) {
     if (!findContact(state, r.contactId)) v.push({ invariant: 'entries', detail: `${r.id}: contactId ${r.contactId} resolves to no contact` })
     if (!isHusk(r)) {
-      const holders = contacts.filter((c) => c.relIds.includes(r.id)).map((c) => c.id)
+      const holders = holdersOf.get(r.id) ?? []
       const own = findContact(state, r.contactId)?.id
       const fed = entryOf(state, r)?.id
       const ok = own !== undefined && holders.includes(own) && holders.every((h) => h === own || h === fed) && (fed === undefined || holders.includes(fed))
@@ -251,7 +253,8 @@ export function stateViolations (state: Readonly<HolderState>): Violation[] {
   const heads = state.entryOrder.heads
   if (new Set(heads).size !== heads.length) v.push({ invariant: 'entries', detail: 'entryOrder.heads repeats a relationship' })
   for (const id of heads) if (!Object.hasOwn(state.relationships, id) || isHusk(state.relationships[id])) v.push({ invariant: 'entries', detail: `entryOrder.heads names ${id}, gone or a husk` })
-  for (const r of Object.values(state.relationships)) if (liveRel(r) && !heads.includes(r.id)) v.push({ invariant: 'entries', detail: `${r.id} is live but not in entryOrder.heads` })
+  const headSet = new Set(heads)
+  for (const r of Object.values(state.relationships)) if (liveRel(r) && !headSet.has(r.id)) v.push({ invariant: 'entries', detail: `${r.id} is live but not in entryOrder.heads` })
   for (const d of Object.values(state.duties)) dutyViolations(v, state, d)
   // 2850: on for a relationship, out there or owed there
   const duties = Object.values(state.duties)
@@ -354,10 +357,12 @@ function headsViolations (v: Violation[], before: Readonly<HolderState>, after: 
     if (r.chainedInto !== null && Object.hasOwn(before.relationships, r.id) && before.relationships[r.id].chainedInto === null) into.set(r.id, r.chainedInto)
   }
   const chains = new Set(into.values())
-  const kept = before.entryOrder.heads.filter((id) => !chains.has(id)).map((id) => into.get(id) ?? id).filter((id) => after.entryOrder.heads.includes(id))
+  const inAfter = new Set(after.entryOrder.heads)
+  const inBefore = new Set(before.entryOrder.heads)
+  const kept = before.entryOrder.heads.filter((id) => !chains.has(id)).map((id) => into.get(id) ?? id).filter((id) => inAfter.has(id))
   const a = after.entryOrder.heads
   const added = a.slice(kept.length)
-  if (jcs(a.slice(0, kept.length)) !== jcs(kept) || added.some((id) => before.entryOrder.heads.includes(id) && !chains.has(id))) {
+  if (jcs(a.slice(0, kept.length)) !== jcs(kept) || added.some((id) => inBefore.has(id) && !chains.has(id))) {
     v.push({ invariant: 'positions', detail: `entryOrder.heads ${jcs(before.entryOrder.heads)} → ${jcs(a)} is no append (2180)` })
   }
 }
