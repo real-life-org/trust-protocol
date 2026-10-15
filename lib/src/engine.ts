@@ -80,8 +80,16 @@
 //     without a trace. A duty of a registered kind at another version is
 //     announced as duty.unsupported on every resume (a commit of its own);
 //     a kind no module registers is kept silently. A duty with awaitHead
-//     runs only when its handler's awaitHolds says so (none: never). A
-//     future dueAt and the new documents of duties count into nextDueAt
+//     runs only when its handler's awaitHolds says so (none: never). Each
+//     planned duty is checked again against the state the duties before it
+//     left: still present at the handler's version, due, its awaited head
+//     holding; a prepared duty whose data changed since its preparation is
+//     deferred to the next resume and prepared afresh there. Its handler's
+//     apply re-checks every other state-dependent precondition itself
+//     (note §4.2 step 3). nextDueAt comes from the final duty set, the
+//     duties created in this resume included: a future dueAt, or `when` for
+//     duty work runnable now that did not run; a duty that ran and stayed
+//     (not-due, refused) sets no timer. New documents of duties count in too
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -393,6 +401,16 @@ interface InternalDef {
 /** Outbound order of one commit: re-emissions, then released acks, then new documents. */
 type RunResult = { ok: true, outbound: Outbound[], events: HolderEvent[], nextDueAt?: Millis, detail?: unknown } | Refusal | Halt
 
+/** A duty's dueAt; absent counts as 0 (due always). */
+const dutyDue = (d: Duty): number => (Number.isSafeInteger(d.dueAt) ? d.dueAt as number : 0)
+
+/** Due, and not waiting on a head its handler's awaitHolds denies (none: waits forever). */
+const dutyRunnable = (d: Duty, h: DutyHandler, state: Readonly<HolderState>, when: Millis): boolean => {
+  if (dutyDue(d) > when) return false
+  const awaits = (d as { awaitHead?: unknown }).awaitHead
+  return typeof awaits !== 'string' || (h.awaitHolds?.(state, d) ?? false)
+}
+
 const isHalt = (r: unknown): r is Halt => (r as Halt)?.halt === true
 
 const actResult = (r: RunResult): ActResult => {
@@ -667,29 +685,27 @@ class HolderEngine implements Engine {
     }
   }
 
-  /** The duties resume runs now, in fixed order (dueAt, then id), the
-   *  registered kinds met at an unknown version, and the earliest future dueAt. */
-  #dutyPlan (state: Readonly<HolderState>, when: Millis): { run: Array<{ duty: Duty, h: DutyHandler }>, unsupported: Duty[], nextDue?: Millis } {
-    const at = (d: Duty): number => (Number.isSafeInteger(d.dueAt) ? d.dueAt as number : 0)
-    const order = Object.values(state.duties).sort((a, b) => (at(a) - at(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  /** The duties a resume plans to run, in fixed order (dueAt, then id),
+   *  and the registered kinds met at an unknown version. Each planned
+   *  duty is checked again against the current state right before its
+   *  handler runs (#resumeDef). */
+  #dutyPlan (state: Readonly<HolderState>, when: Millis): { run: Array<{ duty: Duty, h: DutyHandler }>, unsupported: Duty[] } {
+    const order = Object.values(state.duties).sort((a, b) => (dutyDue(a) - dutyDue(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     const run: Array<{ duty: Duty, h: DutyHandler }> = []
     const unsupported: Duty[] = []
-    let nextDue: Millis | undefined
     for (const duty of order) {
       const h = this.#duties.get(duty.kind)
       if (!h) continue                                    // a kind no module here registers: kept, silent
       if (duty.v !== h.v) { unsupported.push(duty); continue }
-      if (at(duty) > when) { nextDue = nextDue === undefined ? at(duty) : Math.min(nextDue, at(duty)); continue }
-      const awaits = (duty as { awaitHead?: unknown }).awaitHead
-      if (typeof awaits === 'string' && !(h.awaitHolds?.(state, duty) ?? false)) continue
-      run.push({ duty, h })
+      if (dutyRunnable(duty, h, state, when)) run.push({ duty, h })
     }
-    return { run, unsupported, ...(nextDue !== undefined ? { nextDue } : {}) }
+    return { run, unsupported }
   }
 
   #resumeDef (): InternalDef {
     const policy = (): Policy => this.#policy
     const plan = (state: Readonly<HolderState>, when: Millis) => this.#dutyPlan(state, when)
+    const handlers = (): ReadonlyMap<string, DutyHandler> => this.#duties
     return {
       human: false,
       // the due duties' preparations, against the snapshot apply will see
@@ -732,25 +748,42 @@ class HolderEngine implements Engine {
           emit.push(structuredClone({ digest, envelope: it.envelope, type: it.type, threadId: it.threadId, recipient: it.recipient, attempt }))
           due(nextAttemptAt)
         }
-        // 2 — duties, in the plan's order, each on the state the one before left
-        const { run, unsupported, nextDue } = plan(state, when)
-        if (nextDue !== undefined) due(nextDue)
+        // 2 — duties, in the plan's order, each on the state the one before
+        // left and checked against it right before its handler: still there
+        // at the handler's version, due, its awaited head still holding. A
+        // prepared duty whose data changed since its preparation is deferred
+        // to the next resume, which prepares it afresh (due at once)
+        const { run, unsupported } = plan(state, when)
         for (const d of unsupported) events.push({ type: 'duty.unsupported', dutyId: d.id, kind: d.kind, v: d.v })
         // the outbox changed only by a re-emission or a give-up (an event so far)
         let cur: HolderState = !emit.length && !events.length ? state as HolderState : { ...state, outbox }
         const drafts: OutboundDraft[] = []
         const duties: Duty[] = []
+        const kept = new Set<string>()                 // ran and stayed: not-due or refused
         const values = prepared.value as Record<string, unknown>
         for (const { duty, h } of run) {
-          if (!Object.hasOwn(cur.duties, duty.id)) continue                 // fulfilled by an earlier handler
-          const r = h.apply(cur, duty, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when)
-          if (r === 'not-due' || isRefusal(r)) continue
+          if (!Object.hasOwn(cur.duties, duty.id)) continue                 // fulfilled or dropped meanwhile
+          const now = cur.duties[duty.id]
+          if (now.v !== h.v || !dutyRunnable(now, h, cur, when)) continue   // the final pass sets its timer
+          if (h.prepare && jcs(now) !== jcs(duty)) continue                 // prepared on other data
+          const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when)
+          if (r === 'not-due' || isRefusal(r)) { kept.add(duty.id); continue }
           const left = { ...r.state.duties }
           delete left[duty.id]
           cur = { ...r.state, duties: left }
           drafts.push(...(r.outbound ?? []))
           events.push(...(r.events ?? []))
           duties.push(...(r.duties ?? []))
+        }
+        // the timer from the final duty set, new duties included: a future
+        // dueAt, or `when` for work runnable now that did not run (deferred,
+        // newly created, newly unblocked); a duty that ran and stayed
+        // (not-due, refused) sets none
+        for (const d of [...Object.values(cur.duties), ...duties]) {
+          const h = handlers().get(d.kind)
+          if (!h || d.v !== h.v || kept.has(d.id)) continue
+          if (dutyDue(d) > when) due(dutyDue(d))
+          else if (dutyRunnable(d, h, cur, when)) due(when)
         }
         // the duties' new documents enter the outbox in #run, due at backoff(1)
         if (drafts.length) due(dueAt(when, p.backoff(1)))
