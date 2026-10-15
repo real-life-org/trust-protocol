@@ -121,17 +121,22 @@ function settingsFollow (state: HolderState, c: Readonly<Contact>, wasOn: Readon
  * The entry's anchor head from what its relationships hold (6560): the
  * newest of the heads its feeding relationships hold; among several
  * (a manual merge before its split) the one it holds, else `prefer`, else
- * the smallest. Where no feeding relationship holds one, the entry keeps
- * its head while a relationship of it feeds another entry (2145), and
- * has none otherwise.
+ * the smallest. Where a relationship of it feeds another entry (2145), the
+ * head only moves forward: with no feeding head, or none beyond it, it
+ * stays. With neither, the entry has none.
  */
 export function settleHead (state: Readonly<HolderState>, c: Readonly<Contact>, prefer: string | null = null): Contact {
   const rels = feeding(state, c)
+  const all = entryRelationships(state, c)
   const newest = newestHeads(rels)
   if (!newest.length) {
-    if (entryRelationships(state, c).length > rels.length) return c as Contact
+    if (all.length > rels.length) return c as Contact
     return c.anchorHead === null ? c as Contact : { ...c, anchorHead: null }
   }
+  // 2145: a chain of this entry feeds the other one; what the rest feeds
+  // never moves the head back — it stays unless a feeding head lies
+  // beyond it along the links the entry's relationships hold
+  if (all.length > rels.length && c.anchorHead !== null && newestOf([...newest, c.anchorHead], all.flatMap((r) => r.links)).includes(c.anchorHead)) return c as Contact
   const head = newest.length === 1 ? newest[0]
     : c.anchorHead !== null && newest.includes(c.anchorHead) ? c.anchorHead
       : prefer !== null && newest.includes(prefer) ? prefer
@@ -337,7 +342,9 @@ export function mergeInto (state: Readonly<HolderState>, survivor: Readonly<Cont
     anchorHead: survivor.anchorHead ?? positioned.find((c) => c.anchorHead !== null)?.anchorHead ?? null,
     settings, groupSettings,
   }
-  const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => c.relIds))
+  // per relationship, from the entry it sent under before (2146): a chain
+  // behind two entries was on only where the entry it fed had the class on
+  const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => feeding(state, c).map((r) => r.id)))
   const renames: IdentityRename[] = []
   let next: HolderState = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames })
   next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } }
