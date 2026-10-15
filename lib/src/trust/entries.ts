@@ -31,11 +31,12 @@
 //   - every merge path but the manual act runs as a merge/1 duty: the
 //     verification (or the chaining) commits first, and the duty, run by
 //     the next resume before the sweeps, merges in one step (2230). The
-//     duty re-checks the binding rule and that the merged entry has one
-//     anchor head (6605, 6560) on the state it meets, and does nothing
-//     where they fail by then; the head rule is checked when the duty is
-//     opened. The manual merge (6640) involves no verification and merges
-//     in its own act
+//     duty persists its witness (each entry's anchor head and the heads
+//     each held as superseded) and runs only while it holds and the binding
+//     rule and the one anchor head (6605, 6560) still hold; otherwise it is
+//     dropped silently. A verification does not re-open a duty for the
+//     same entries while one is open. The manual merge (6640) involves no
+//     verification and merges in its own act
 //   - the merged entry's identity: the entry at the earliest position
 //     (2140); where none holds one, the identity of the relationship whose
 //     active head was created last (2180, entryOrder.heads)
@@ -393,20 +394,55 @@ export function mergeDutiesAfter (before: Readonly<HolderState>, after: Readonly
     }
   }
   if (!picked.length) return []
-  const ids = [E.id, ...picked.map((x) => x.id)].sort(cmp)
+  const cs = [E, ...picked]
+  const ids = cs.map((c) => c.id).sort(cmp)
   const id = 'merge:' + ids.join('|')
+  // a duty open for the same entries is not re-opened: it is re-checked
+  // against its own witness when it runs
   if (Object.hasOwn(after.duties, id)) return []
-  return [{ kind: 'merge', v: 1, id, entryIds: ids, relId }]
+  return [{ kind: 'merge', v: 1, id, entryIds: ids, relId, witness: witnessOf(after, cs) }]
 }
 
-/** merge/1: the merge as one step after the verification commit (2230). */
+/** The heads and superseded sets a merge is admitted against. */
+function witnessOf (state: Readonly<HolderState>, cs: readonly Readonly<Contact>[]): MergeDuty['witness'] {
+  const heads: Record<string, string> = {}
+  const superseded: Record<string, string[]> = {}
+  for (const c of cs) heads[c.id] = c.anchorHead!
+  for (const y of cs) {
+    const sup = supersededIn(entryRelationships(state, y))
+    superseded[y.id] = cs.filter((x) => x !== y && sup.has(x.anchorHead!)).map((x) => x.anchorHead!).sort(cmp)
+  }
+  return { heads, superseded }
+}
+
+/**
+ * Whether the merge a duty was opened for still stands (6540, 6550,
+ * 6605): every entry still holds the anchor head it was admitted with, no
+ * entry holds another's head as superseded beyond what it did then, the
+ * relationship that opened it is still one of theirs, and the entries are
+ * mergeable (the binding rule, one anchor head).
+ */
+function witnessHolds (state: Readonly<HolderState>, d: Readonly<MergeDuty>, cs: readonly Readonly<Contact>[]): boolean {
+  const w = d.witness
+  if (cs.some((c) => !Object.hasOwn(w.heads, c.id) || c.anchorHead !== w.heads[c.id])) return false
+  if (!cs.some((c) => c.relIds.includes(d.relId))) return false
+  for (const y of cs) {
+    const sup = supersededIn(entryRelationships(state, y))
+    for (const x of cs) if (x !== y && sup.has(x.anchorHead!) && !(w.superseded[y.id] ?? []).includes(x.anchorHead!)) return false
+  }
+  return mergeable(state, cs)
+}
+
+/** merge/1: the merge as one step after the verification commit (2230),
+ *  re-checked against its witness; where it no longer holds, the duty is
+ *  dropped without a trace (a later verification may open another). */
 export const mergeDuty = (bound: bigint): DutyHandler => ({
   v: 1,
   apply (state, duty) {
     const d = duty as MergeDuty
     const cs = unique(d.entryIds.map((x) => findContact(state, x)).filter((c): c is Contact => c !== undefined))
     // the state moved since the commit that opened it: nothing (left) to merge
-    if (cs.length < 2 || cs.some((c) => c.pos === null) || !mergeable(state, cs)) return { state: state as HolderState }
+    if (cs.length < 2 || cs.some((c) => c.pos === null) || !witnessHolds(state, d, cs)) return { state: state as HolderState }
     const r = mergeEntries(state, cs, bound)
     return { state: r.state, ...(r.events ? { events: r.events } : {}), ...(r.duties ? { duties: r.duties } : {}), ...(r.renames ? { renames: r.renames } : {}) }
   },

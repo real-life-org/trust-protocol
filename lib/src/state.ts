@@ -396,7 +396,13 @@ export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, dueAt?: 
 
 /** The persisted continuation of a merge (2230): the verification has
  *  committed; these entries merge in one later atomic step. */
-export interface MergeDuty { kind: 'merge', v: 1, id: string, dueAt?: Millis, entryIds: string[], relId: string }
+export interface MergeDuty {
+  kind: 'merge', v: 1, id: string, dueAt?: Millis, entryIds: string[], relId: string
+  /** what the merge was admitted against (6540, 6550, 6605): each entry's
+   *  anchor head, and per entry the other entries' heads it then held as
+   *  superseded. The duty runs only while this still holds */
+  witness: { heads: Record<string, string>, superseded: Record<string, string[]> }
+}
 
 // Every duty may carry `dueAt`: resume runs it only from then on and
 // counts it into nextDueAt (engine.ts).
