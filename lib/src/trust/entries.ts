@@ -55,7 +55,11 @@
 //     verified ones after, then by the creation of their active heads
 //   - departure removes the relationship (and its husks) from the state;
 //     its tuples' address keys become tombstones by tick's retention. Its
-//     open duties go; its outbox items run to their horizon
+//     open duties go; its outbox items run to their horizon. An entry
+//     removed with it leaves the matches of every accepted star (6160); an
+//     entry that keeps relationships keeps its matches, though the anchors
+//     behind one may have left with the relationship (a match is not
+//     re-tested without the star's key; matches only grow otherwise)
 //   - a merge rewrites every holder-local key of the merged ids to the
 //     survivor's; a rename (2100) rewrites the remaining entry's keys and
 //     the star baselines' members, so a rename alone diverges nothing; the
@@ -529,6 +533,21 @@ const needInput = (x: unknown, name: string): Record<string, unknown> => {
   return x as Record<string, unknown>
 }
 
+/** The matches of every accepted star without the entry ids `ids` (6160). */
+function dropMatches (state: HolderState, ids: readonly string[]): HolderState {
+  if (!ids.length) return state
+  let relationships: HolderState['relationships'] | null = null
+  for (const [id, r] of Object.entries(state.relationships)) {
+    if (!r.tuples.some((t) => t.starIn.accepted?.matches.some((m) => ids.includes(m)))) continue
+    const tuples = r.tuples.map((t) => {
+      const acc = t.starIn.accepted
+      return acc && acc.matches.some((m) => ids.includes(m)) ? { ...t, starIn: { ...t.starIn, accepted: { ...acc, matches: acc.matches.filter((m) => !ids.includes(m)) } } } : t
+    })
+    ;(relationships ??= { ...state.relationships })[id] = { ...r, tuples }
+  }
+  return relationships ? { ...state, relationships } : state
+}
+
 /** The identities of a relationship: its own and its chain aliases. */
 const identitiesOf = (state: Readonly<HolderState>, relId: string): string[] =>
   [state.relationships[relId].contactId, ...chainAliases(state, relId)]
@@ -559,10 +578,11 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
   const contacts: HolderState['contacts'] = {}
   const renamed: Array<{ from: string, to: string, rels: string[] }> = []
   let removed = false
+  const removedIds: string[] = []
   for (const x of Object.values(state.contacts)) {
     const rest = x.relIds.filter((id) => !leaving.has(id))
     if (rest.length === x.relIds.length && !x.aliases.some((a) => goneIds.has(a))) { contacts[x.id] = x; continue }
-    if (!rest.length) { if (x.id === c.id) removed = true; continue }
+    if (!rest.length) { if (x.id === c.id) removed = true; removedIds.push(x.id); continue }
     const id = goneIds.has(x.id) ? oldestIdentity(state, x, rest, goneIds) : x.id
     if (id !== x.id) renamed.push({ from: x.id, to: id, rels: rest })
     contacts[id] = { ...x, id, relIds: rest, aliases: x.aliases.filter((a) => !goneIds.has(a) && a !== id) }
@@ -583,6 +603,8 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
     ...state, relationships, contacts, duties, rotations,
     entryOrder: { ...state.entryOrder, heads: state.entryOrder.heads.filter((id) => !leaving.has(id)) },
   }
+  // 6160: an accepted star matches the holder's contacts; one that left matches nothing
+  next = dropMatches(next, removedIds)
   const renames: IdentityRename[] = []
   for (const r of renamed) next = rename(next, r.from, r.to, (id) => r.rels.includes(id), renames)
   for (const x of Object.values(next.contacts)) {
