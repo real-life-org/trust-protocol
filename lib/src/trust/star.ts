@@ -71,15 +71,16 @@
 // the salt's key (5080); then against the assembly: a higher salt
 // displaces it (5330); seq above the resource limit discards (5365);
 // another threadId (5280), a repeated seq of other bytes (5260), a second
-// last (5270), a seq beyond last (5290) reject the chunk; the same
+// last (5270), a seq beyond last (5290) reject the delivery; the same
 // digest again is a repeat, acked, no change (5250). On completion the
-// union must be strictly ascending (5300, 5310). A rejection is a plain
-// refusal, failed(validation-failed) with the rule as ref: nothing
-// commits, the open assembly stays as it was, the chunk is not acked, so
-// the delivery cannot complete with it. A resource-limit discard (5365)
-// is a state effect instead (receive.ts TaskDiscarded, disposition
-// `discarded`): the assembly is dropped and its salt becomes the lower
-// bound, so no later chunk of it is acked (5366). Every other chunk before completion is acked on its
+// union must be strictly ascending (5300, 5310). A rejection (the chunk is
+// authenticated: its MAC verified) and a resource-limit discard (5365)
+// both commit as receive.ts TaskDiscarded, disposition `discarded` with
+// reason `rejected` or `resource-limit`: the assembly is dropped and its
+// salt becomes the lower bound, so no later chunk of it is acked and the
+// delivery never completes (5366); the completed hwm stays. Checks before
+// the MAC (salt rules) and a failed MAC are plain refusals that touch
+// nothing, so an unauthenticated chunk can discard no assembly. Every other chunk before completion is acked on its
 // own (Delivery: every chunk is acked); only the completing chunk
 // changes the accepted snapshot, advances hwm (5140, 5350) and announces
 // star.accepted, all in its ack's transaction.
@@ -379,7 +380,7 @@ interface Held { digest: string, threadId: string, body: Body & Record<string, J
 type ChunkPlan<A> =
   | { kind: 'hold', relId: string, tuple: string, assembly: Assembly }
   | { kind: 'repeat' }
-  | { kind: 'discard', relId: string, tuple: string, salt: Dec }
+  | { kind: 'discard', relId: string, tuple: string, salt: Dec, reason: 'resource-limit' | 'rejected', ref: string }
   | { kind: 'complete', relId: string, tuple: string, salt: Dec, accepted: A, memory?: Record<string, Json>, contactId: string }
 
 /** The arrival tuple, if it is the active head of a live relationship (6.4, 5360). */
@@ -416,12 +417,12 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor
       if (!(await art.macOk(ctx, { shared, from: t.counterpartAnchor, own, salt: body.salt, chunk: doc.payload }))) return refuse('validation-failed', 'RLTP-TRU-5080')
       const ids = { relId: rel.id, tuple: t.ownPairLabel }
-      // a rejection refuses the chunk and commits nothing (5260–5310)
-      const reject = (ref: string): TaskRefusal => refuse('validation-failed', ref)
+      // the chunk is authenticated: a violation rejects the whole delivery (5260–5310)
+      const reject = (ref: string): ChunkPlan<A> => ({ kind: 'discard', ...ids, salt: body.salt, reason: 'rejected', ref })
       // a higher salt displaces the open assembly (5330)
       const base: Assembly = inn.assembly && inn.assembly.salt === body.salt ? inn.assembly : { salt: body.salt, chunks: {} }
       const seq = BigInt(body.seq)
-      if (seq > BigInt(limit)) return { kind: 'discard', ...ids, salt: body.salt }            // 5365
+      if (seq > BigInt(limit)) return { kind: 'discard', ...ids, salt: body.salt, reason: 'resource-limit', ref: 'RLTP-TRU-5365' }
       const held = Object.values(base.chunks) as unknown as Held[]
       const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] as unknown as Held : undefined
       if (same && same.digest === arrival.digest) return { kind: 'repeat' }                     // 5250
@@ -460,8 +461,9 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       switch (p.kind) {
         case 'hold': return { state: put({ ...inn, assembly: p.assembly }) }
         case 'discard':
-          // the resource limit: the assembly dropped, its salt the lower bound (5365, 5366)
-          return { discarded: true, ref: 'RLTP-TRU-5365', state: put({ ...inn, assembly: null, lowerBound: maxDec(inn.lowerBound, p.salt) }) }
+          // the resource limit or a rejected delivery: the assembly dropped,
+          // its salt the lower bound (5365, 5366); the completed hwm stays
+          return { discarded: true, reason: p.reason, ref: p.ref, state: put({ ...inn, assembly: null, lowerBound: maxDec(inn.lowerBound, p.salt) }) }
         case 'complete': {
           const events: EventDraft[] = [{ type: art.kind === 'star' ? 'star.accepted' : 'groupStar.accepted', contactId: p.contactId, relationshipId: rel.id, salt: p.salt }]
           return { state: put({ ...inn, hwm: p.salt, assembly: null, accepted: p.accepted }, p.memory ? { ...rel.memory, ...p.memory } : undefined), events }

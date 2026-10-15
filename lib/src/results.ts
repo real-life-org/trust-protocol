@@ -61,14 +61,17 @@ export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
  * byte-identical (none for a terminal document); nothing commits beyond
  * a raised lastWhen. `failed`: nothing took effect and nothing commits.
  * `discarded`: the document's chunk met a receiver resource limit (Trust
- * 5365): the open assembly is dropped and its salt held as the lower
- * bound (5366), committed; no cache entry, no ack, no event. Delivery
- * §6.2 has no disposition for it yet (receive.ts: a gap for Delivery 0.82).
+ * 5365, reason `resource-limit`) or, authenticated, violated the assembly
+ * rules so that its whole delivery is rejected (5260–5310, 5500, 5510,
+ * reason `rejected`): the open assembly is dropped and its salt held as
+ * the lower bound (5366), committed; no cache entry, no ack, no event.
+ * Delivery §6.2 has no disposition for it yet (receive.ts: a gap for
+ * Delivery 0.82).
  */
 export type ReceiveResult =
   | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[], /** as on ActResult */ nextDueAt?: number }
   | { disposition: 'duplicate-known', digest: string, outbound: Outbound[] }
-  | { disposition: 'discarded', digest: string, type: string, ref?: string }
+  | { disposition: 'discarded', digest: string, type: string, reason: 'resource-limit' | 'rejected', ref?: string }
   | {
     disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string,
     /** local diagnosis of a key failure, never a disposition of its own
