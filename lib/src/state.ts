@@ -288,10 +288,13 @@ export interface Effect { ack: StoredAck | null, expiresAt: Millis }
 /**
  * The acknowledgement of a completed effect, sealed once inside the
  * effect's transaction and re-sent byte-identical on every duplicate
- * (Delivery 4.2, 6.2 stage 4). Acks are outbox-less: no trias, no retry
- * schedule. `sent` is false until the app reports the ack's digest
- * (any DeliveryReport status); resume re-emits every ack still unsent,
- * which covers a restart between the receive commit and the send.
+ * (Delivery 4.2, 6.2 stage 4). Acks are outbox-less: no trias. Until the
+ * app reports the ack's digest (any DeliveryReport status) it is unsent
+ * and resume re-offers it on the retry policy like an outbox item
+ * (attempt, nextAttemptAt, backoff), which covers a restart between the
+ * receive commit and the send. At the horizon (at + horizonMs) the holder
+ * stops offering it: `sent` with `sentBy: 'horizon'`; a redelivery of the
+ * document still earns it (duplicate-known).
  */
 export interface StoredAck {
   /** the ack document's digest; report() on it marks the ack sent */
@@ -300,7 +303,15 @@ export interface StoredAck {
   envelope: Envelope
   threadId: string
   recipient: Recipient
+  /** commit time of the effect, the first emission; the horizon counts from it */
+  at: Millis
+  /** emissions on the retry schedule so far (duplicates' re-sends excluded) */
+  attempt: number
+  /** next re-offer while unsent */
+  nextAttemptAt?: Millis
   sent: boolean
+  /** why it counts as sent: the app reported it, or the horizon passed */
+  sentBy?: 'report' | 'horizon'
 }
 
 export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'

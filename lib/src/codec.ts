@@ -188,7 +188,7 @@ const outboxItem: V = (x, p) => {
 const DUE = { dueAt: millis }
 /** a retained ack: sealed to the counterpart key, like an outbox item */
 const storedAck: V = (x, p) => {
-  obj({ digest: str, envelope, threadId: str, recipient, sent: bool })(x, p)
+  obj({ digest: str, envelope, threadId: str, recipient, at: millis, attempt: positive, sent: bool }, { nextAttemptAt: millis, sentBy: lit('report', 'horizon') })(x, p)
   const a = x as { recipient: { keyAgreement: string }, envelope: { rkid: string } }
   if (a.envelope.rkid !== a.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
 }

@@ -61,6 +61,9 @@ import { ACK_TYPE, ackDocument, ackKeyOf, macAck, macAckForm, macAckValid } from
 import { SCHEMAS } from './schemas.js'
 import { triasOf } from './state.js'
 import type { HolderState, Millis, OutboxItem, Relationship, StoredAck, Tuple } from './state.js'
+
+/** An ack as sealed in the preparation; the engine adds its schedule. */
+export type SealedAck = Pick<StoredAck, 'digest' | 'envelope' | 'threadId' | 'recipient'>
 import type { Outbound } from './ports.js'
 import { InfraError } from './results.js'
 import type { ReceiveFailure, ReceiveResult, ReceiveStageNo } from './results.js'
@@ -94,9 +97,8 @@ export interface ReceivedDocument<T = unknown> {
   readonly proof?: Json
 }
 
-/** A sealed-and-stored ack as the outbound the app sends; attempt 1 at
- *  its first emission, 2 on every re-send (acks keep no counter). */
-export const ackOutbound = (a: Readonly<StoredAck>, attempt: 1 | 2): Outbound =>
+/** A sealed ack as the outbound the app sends, at the given attempt. */
+export const ackOutbound = (a: Readonly<SealedAck>, attempt: number): Outbound =>
   structuredClone({ digest: a.digest, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt })
 
 /** Signature-class types: their acks are signed (4.4), not MACed. */
@@ -117,7 +119,7 @@ export type ReceivePlan =
   | { kind: 'failed', result: Failed }
   | { kind: 'duplicate', digest: string }
   | { kind: 'ack', digest: string, ref: string }
-  | { kind: 'task', digest: string, type: string, doc: ReceivedDocument, arrival: Arrival, value: unknown, ack: StoredAck }
+  | { kind: 'task', digest: string, type: string, doc: ReceivedDocument, arrival: Arrival, value: unknown, ack: SealedAck }
 
 /** The handler surface the core needs (engine.ts TaskHandler). */
 export interface TaskEntry {
@@ -213,9 +215,9 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   }), key, S)
   const envelope = await seal(ackDoc as unknown as Json, at.tuple.counterpartKeyAgreement,
     { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S)
-  const ack: StoredAck = {
+  const ack: SealedAck = {
     digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-    recipient: { contactId: at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement }, sent: false,
+    recipient: { contactId: at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
   }
   return { kind: 'task', digest, type: doc.type as string, doc: rdoc, arrival, value, ack }
 }

@@ -68,10 +68,13 @@
 //     stages again, which re-checks the effect cache at stage 4
 //   - an ack is stored sealed (StoredAck: envelope, digest, recipient) in
 //     its effect, so every re-send is byte-identical down to the envelope.
-//     Its outbound carries attempt 1 when first emitted and 2 on every
-//     re-send (acks keep no counter). It stays `sent: false` until any
-//     report on its digest; resume re-emits every unsent ack on every call
-//     and never schedules them (nextDueAt ignores acks)
+//     It stays `sent: false` until any report on its digest. Unsent, it has
+//     the outbox's retry schedule: attempt 1 at the receive, re-offered by
+//     resume when due (attempt + 1, backoff), counted into nextDueAt, and at
+//     its horizon (effect commit + horizonMs) marked sent by the horizon
+//     (`sentBy: 'horizon'`, no event: acks have no trias). A duplicate's
+//     re-send carries attempt + 1 and does not move the schedule (it
+//     commits nothing beyond lastWhen)
 //   - outbound of one commit, in order: outbox re-emissions, released
 //     acks, new documents
 //   - resume runs duties after the outbox, ordered by dueAt (absent: due
@@ -788,9 +791,29 @@ class HolderEngine implements Engine {
         // the duties' new documents enter the outbox in #run, due at backoff(1)
         if (drafts.length) due(dueAt(when, p.backoff(1)))
         // 3 — acks still unsent (a restart between the receive commit and the
-        // send, or no report yet): re-emitted byte-identical, by effect digest
-        const release = Object.keys(state.effects).sort()
-          .flatMap((d) => { const a = state.effects[d].ack; return a && !a.sent ? [ackOutbound(a, 2)] : [] })
+        // send, or no report yet): re-offered byte-identical on the retry
+        // policy, by effect digest; at the horizon marked sent by it
+        const release: Outbound[] = []
+        let effects: HolderState['effects'] | null = null
+        for (const d of Object.keys(cur.effects).sort()) {
+          const a = cur.effects[d].ack
+          if (!a || a.sent) continue
+          const expiry = Math.min(a.at + p.horizonMs, Number.MAX_SAFE_INTEGER)
+          effects ??= { ...cur.effects }
+          if (when >= expiry) {
+            const { nextAttemptAt: _, ...rest } = a
+            effects[d] = { ...cur.effects[d], ack: { ...rest, sent: true, sentBy: 'horizon' } }
+            continue
+          }
+          due(expiry)
+          if (a.nextAttemptAt !== undefined && a.nextAttemptAt > when) { due(a.nextAttemptAt); continue }
+          const attempt = a.attempt + 1
+          const nextAttemptAt = dueAt(when, p.backoff(attempt))
+          effects[d] = { ...cur.effects[d], ack: { ...a, attempt, nextAttemptAt } }
+          release.push(ackOutbound(a, attempt))
+          due(nextAttemptAt)
+        }
+        if (effects && jcs(effects) !== jcs(cur.effects)) cur = { ...cur, effects }
         return {
           state: cur, emit, events, outbound: drafts, duties, release,
           ...(nextDueAt !== undefined ? { nextDueAt } : {}),
@@ -809,7 +832,8 @@ class HolderEngine implements Engine {
           if (eff === undefined) return { ok: false, code: 'unknown-digest' }
           const e = state.effects[eff]
           if (e.ack!.sent) return { state: state as HolderState }
-          return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack: { ...e.ack!, sent: true } } } } }
+          const { nextAttemptAt: _, ...ack } = e.ack!
+          return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack: { ...ack, sent: true, sentBy: 'report' } } } } }
         }
         const it = state.outbox[report.digest]
         const trias = triasOf(it)
@@ -866,8 +890,9 @@ class HolderEngine implements Engine {
           case 'failed': return { halt: true, detail: plan.result }
           case 'duplicate': {
             // the stored ack, byte-identical; a terminal document has none
+            // (its outbound attempt is one past the schedule's, which it does not move)
             const a = state.effects[plan.digest].ack
-            return { state: state as HolderState, release: a ? [ackOutbound(a, 2)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } }
+            return { state: state as HolderState, release: a ? [ackOutbound(a, a.attempt + 1)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } }
           }
           case 'ack': {
             // terminal: the sender-status update and its cache entry, no ack
@@ -884,7 +909,7 @@ class HolderEngine implements Engine {
             if (isTaskRefusal(r)) return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest } }
             if (r.state.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`)
             return {
-              state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached(plan.ack) } },
+              state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
               ...(r.outbound ? { outbound: r.outbound } : {}),
               ...(r.events ? { events: r.events } : {}),
               ...(r.duties ? { duties: r.duties } : {}),
