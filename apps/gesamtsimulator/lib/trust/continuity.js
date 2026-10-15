@@ -130,6 +130,48 @@
 //     afterChain); delivering it is profile@1's, PR 6
 //   - the class duties of both relationships move to the chain and the
 //     follow rule runs over the chaining (trust/duties.ts)
+//
+// Open point for Trust 0.32 (found by the invariants generator, seed 5 and
+// 50; reproduced in test/trust-continuity.test.mjs "one-sided chaining"):
+// concurrent re-encounters of one pair race for one prior and leave the
+// two holders with different chains. Exact sequence, two fresh pairs x
+// and y of A and C, created before either chained, A the record side of
+// x, C of y (isRecordSide per fresh pair):
+//   1. the probes cross; A, record side of x, matches C's probe on x and
+//      chooses its prior (the original tuple, the first match still an
+//      active head, 6910), chains x atomically with issuing (6900, 6220);
+//      C, record side of y, does the same for y onto its original tuple
+//   2. A's record mapping on x reaches C: its prior is in C's frozen
+//      prior-candidate set of x (6960 passes on the snapshot), but C's
+//      original tuple is no longer an active head: y took it. Nothing in
+//      6.4 or 6a.4 says onto what C appends; this library refuses it
+//      (validation-failed, ref 6900), symmetrically at A for y
+//   3. end state: A's chain is original→x, C's is original→y; C keeps x,
+//      A keeps y, as relationships of their own. x's standing mapping duty
+//      never ends (6840): 6990's "chained to the record-chosen relationship,
+//      or honestly unchained pending transport" is false, nothing is
+//      pending. The net still puts C's r-A-x into its entry A (2145)
+//   4. C rotates before anything went out on x; its anchor mapping on x
+//      carries the lineage from x's own earliest anchor (2285, 6420: per
+//      relationship), the new generation, so none. A holds C's earlier
+//      generation on its chain, whose head is x: 6170 (an unlinked change
+//      of self) refuses it on every re-issue. 6985 does not apply at C: C
+//      never chained. (Had C issued on x before rotating, x's earliest
+//      anchor would be the earlier generation and the segment would reach
+//      A; the divergent chains and the endless duty of step 3 remain.)
+// Every rule was applied as written. What 0.32 needs to decide, either:
+//   (a) order competing chainings: one deterministic winner among fresh
+//       pairs that choose the same prior (say the lower record anchor),
+//       the loser chained after the winner on both sides, so 6960's
+//       snapshot verification has a defined append target; then 6990
+//       holds, and 6985 covers the loser's head; or
+//   (b) widen the lineage: 6420/2285 take the earliest generation issued
+//       on any relationship of the entry (2145), not of the relationship
+//       — C's r-A-x and r-A are one entry, so the segment from generation
+//       1 would reach A — and 6260/6990 name the unchained end state.
+// C's earliestAnchor on r-A-x is right by 2285 as written (nothing
+// earlier was issued on that relationship); it is the per-relationship
+// scope, not the value, that leaves A without the link.
 import { iso, jcs } from '../core.js';
 import { digestDoc } from '../crypto.js';
 import { seal } from '../delivery.js';
