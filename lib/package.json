@@ -17,6 +17,7 @@
     "dist/encounter.*",
     "dist/delivery.*",
     "dist/ack.*",
+    "dist/receive.*",
     "dist/carrier.*",
     "dist/carrier-identity.*",
     "dist/carrier-holder.*",

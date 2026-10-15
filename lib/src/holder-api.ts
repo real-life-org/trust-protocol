@@ -9,14 +9,16 @@
 // events; the app re-reads the views it shows, and a view read after the
 // announcement is at that commitSeq or later.
 //
-// `receive(env, when)` is deliberately absent: it arrives in PR 3 with
-// the Delivery stages 1–4 in the core and the task register's dispatch.
-// No stub stands in for it.
+// Delivery: `receive(env, when)` runs Delivery §6.2 in the core and
+// dispatches through the task register (receive.ts); `report` takes the
+// adapter's reports (on an ack's digest it marks the ack sent); `resume`
+// re-emits, runs due duties and re-emits unsent acks; `tick` expires and
+// retains (engine.ts).
 import { createEngine } from './engine.js'
 import type { CommitListener, EnginePorts, HolderModule } from './engine.js'
 import type { DeliveryReport } from './ports.js'
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js'
-import type { ActResult, ResumeResult } from './results.js'
+import type { ActResult, ReceiveResult, ResumeResult } from './results.js'
 import { toOpaque } from './state.js'
 import type { Dec, Millis, OpaqueHolderState, PromptChoice } from './state.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
@@ -39,6 +41,9 @@ export interface Holder {
   tick (when: Millis): Promise<ActResult>
   resume (when: Millis): Promise<ResumeResult>
   report (report: DeliveryReport, when: Millis): Promise<ActResult>
+  /** an arriving envelope, as the app's transport delivered it (non-human,
+   *  no actId; idempotent over the document digest) */
+  receive (env: unknown, when: Millis): Promise<ReceiveResult>
   /** after every commit: its commitSeq and events, the cue to re-read the views */
   subscribe (listener: CommitListener): () => void
   snapshot (): Promise<HolderSnapshot>
@@ -67,6 +72,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     tick: (when: Millis) => engine.tick(when),
     resume: (when: Millis) => engine.resume(when),
     report: (report: DeliveryReport, when: Millis) => engine.report(report, when),
+    receive: (env: unknown, when: Millis) => engine.receive(env, when),
     subscribe: (listener: CommitListener) => engine.subscribe(listener),
     snapshot: async (): Promise<HolderSnapshot> => {
       const s = await engine.snapshot()

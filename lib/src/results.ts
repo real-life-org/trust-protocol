@@ -51,14 +51,23 @@ export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 /**
  * The outcome of receive(env, when). `unique`: the effect committed,
- * with its ack among `outbound` where the type acknowledges.
- * `duplicate-known`: the stored ack is re-sent byte-identical (none for
- * a terminal document). `failed`: nothing took effect.
+ * with its ack first among `outbound` where the type acknowledges (a
+ * delivery-ack itself is terminal and earns none), then the documents
+ * the effect issued. `duplicate-known`: the stored ack is re-sent
+ * byte-identical (none for a terminal document); nothing commits beyond
+ * a raised lastWhen. `failed`: nothing took effect and nothing commits.
  */
 export type ReceiveResult =
   | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[] }
   | { disposition: 'duplicate-known', digest: string, outbound: Outbound[] }
-  | { disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string }
+  | {
+    disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string,
+    /** local diagnosis of a key failure, never a disposition of its own
+     *  (Delivery §5, §6.2): 'unknown' — an rkid this holder never issued,
+     *  failed(malformed) at stage 2; 'retired' — a tombstone (or a key
+     *  marked retired), failed(decryption-failed) at stage 3 */
+    key?: 'unknown' | 'retired'
+  }
 
 export type InfraErrorCode =
   | 'store-read'

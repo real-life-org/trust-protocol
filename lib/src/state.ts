@@ -280,8 +280,28 @@ export interface OwnProfile { body: Json | null, revision: Dec }
 
 // ── Delivery: effects and outbox ───────────────────────────────────────
 
-/** A completed effect with its retained ack (null for a terminal document). */
-export interface Effect { ack: Json | null, expiresAt: Millis }
+/** A completed effect with its retained ack (null for a terminal
+ *  document): the cache entry and the ack commit together at stage 9 and
+ *  expire together at expiresAt = commit + key-retention (Delivery 4.2, §7). */
+export interface Effect { ack: StoredAck | null, expiresAt: Millis }
+
+/**
+ * The acknowledgement of a completed effect, sealed once inside the
+ * effect's transaction and re-sent byte-identical on every duplicate
+ * (Delivery 4.2, 6.2 stage 4). Acks are outbox-less: no trias, no retry
+ * schedule. `sent` is false until the app reports the ack's digest
+ * (any DeliveryReport status); resume re-emits every ack still unsent,
+ * which covers a restart between the receive commit and the send.
+ */
+export interface StoredAck {
+  /** the ack document's digest; report() on it marks the ack sent */
+  digest: string
+  /** sealed to recipient.keyAgreement, as first emitted */
+  envelope: Envelope
+  threadId: string
+  recipient: Recipient
+  sent: boolean
+}
 
 export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'
 
@@ -313,17 +333,20 @@ export interface OutboxItem {
 
 /** Re-issue of the anchor mapping after a rotation (6370): due now, or
  *  waiting until the relationship presents `awaitHead` (6596). */
-export interface ReissueMappingDuty { kind: 'reissue-mapping', v: 1, id: string, contactId: string, relId: string, awaitHead: string | null }
+export interface ReissueMappingDuty { kind: 'reissue-mapping', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, awaitHead: string | null }
 /** Send a class's current artifact on a relationship it turned on for (2850). */
-export interface ClassOnDuty { kind: 'class-on', v: 1, id: string, contactId: string, relId: string, cls: TrustClass }
+export interface ClassOnDuty { kind: 'class-on', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, cls: TrustClass }
 /** Deliver profile revision `rev` on a relationship (6455). */
-export interface ProfileDuty { kind: 'profile', v: 1, id: string, contactId: string, relId: string, rev: Dec }
+export interface ProfileDuty { kind: 'profile', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, rev: Dec }
 /** Continuity resend on a tuple (6830–6850). */
-export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, relId: string, tuple: string, step: 'probe' | 'mapping' }
+export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping' }
 
 /** The persisted continuation of a merge (2230): the verification has
  *  committed; these entries merge in one later atomic step. */
-export interface MergeDuty { kind: 'merge', v: 1, id: string, entryIds: string[], relId: string }
+export interface MergeDuty { kind: 'merge', v: 1, id: string, dueAt?: Millis, entryIds: string[], relId: string }
+
+// Every duty may carry `dueAt`: resume runs it only from then on and
+// counts it into nextDueAt (engine.ts).
 
 export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty
 /** A duty of a kind (or version) this library does not know: kept as is. */

@@ -37,6 +37,9 @@ export type HolderEvent = EventBase & (
   /** contactId null: the holder's own profile */
   | { type: 'profile.updated', contactId: string | null }
   | { type: 'anchor.rotated', generation: Dec }
+  /** resume found a duty of a registered kind at a version no handler
+   *  knows: kept untouched, announced once per resume (engine.ts) */
+  | { type: 'duty.unsupported', dutyId: string, kind: string, v: number }
 )
 
 export type HolderEventType = HolderEvent['type']
