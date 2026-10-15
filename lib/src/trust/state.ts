@@ -160,9 +160,9 @@ export function unionBindings (a: Readonly<Record<string, string[]>>, b: Readonl
  * (relationships `xs`): (a) r's anchor head is x's or the lineage r holds
  * carries x's as a prev, and (b) x does not hold r's anchor head as
  * superseded, nor r's own entry x's (`ownSuperseded`). For the incoming
- * relationship the caller takes its entry as it stood before the
- * verification: only what the committed mapping newly carries connects
- * (6590).
+ * relationship the caller passes the links its entry held before the
+ * verified mapping's lineage joined them: only what the committed mapping
+ * newly carries connects (the 6590 rationale; trust/entries.ts).
  */
 export const joins = (r: Readonly<Relationship>, x: Readonly<Contact>, xs: readonly Readonly<Relationship>[], ownSuperseded: ReadonlySet<string>): boolean =>
   r.heldCounterpartHead !== null && x.anchorHead !== null &&

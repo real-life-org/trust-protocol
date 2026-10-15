@@ -42,9 +42,7 @@
 //     active head was created last (2180, entryOrder.heads)
 //   - the net (rung 2) runs on every accepted anchor mapping: the incoming
 //     relationship against every other entry when it does not lag in its
-//     own entry (6550), 6540 checked against the state including the
-//     lineage just verified (an entry whose head that lineage supersedes
-//     is not joined), and, where the entry's
+//     own entry (6550), and, where the entry's
 //     anchor head changed, every relationship of another entry against it
 //     (6580); all entries that join in one evaluation merge in one duty
 //     (2150), taken in position order while they stay mergeable together
@@ -63,6 +61,14 @@
 //     the star baselines' members, so a rename alone diverges nothing; the
 //     introducer a relationship names (provenance.via) follows both; the
 //     stored acks follow through the engine (Applied.renames)
+//   - head rule (b) for the incoming relationship is read by the rationale
+//     under 6590 ("only knowledge the committed mapping newly carries
+//     connects … stale knowledge … must not create a merge"): (b) is
+//     evaluated against the links its entry held before this
+//     verification's lineage joined them (6610), while that lineage counts
+//     for (a). Read literally after the commit, 6540 would refuse every
+//     case 6530 (a) admits by a lineage that extends E's head; the wording
+//     of 6540 is a follow-up for Trust 0.32
 //   - the split exception: 2080 read literally would split every manual
 //     merge of unmapped relationships at the first mapping; open point for
 //     Trust 0.32. A relationship whose entry's other relationships hold no
@@ -381,10 +387,13 @@ export function mergeDutiesAfter (before: Readonly<HolderState>, after: HolderSt
   }
   if (opts.net) {
     // the incoming relationship, where it does not lag in its own entry
-    // (6550); 6540 against its entry as it stands with the lineage just
-    // verified: a head that lineage supersedes joins nothing
+    // (6550). Head rule (b) against the knowledge the entry held before
+    // this commit: its relationships' links with this relationship's taken
+    // from before the 6610 union of this verification. What the mapping
+    // newly carries counts for (a) only (the 6590 rationale reading)
     if (rel.heldCounterpartHead === E.anchorHead) {
-      const own = supersededIn(eRels)
+      const relB = Object.hasOwn(before.relationships, relId) ? before.relationships[relId] : rel
+      const own = supersededIn(eRels.map((r) => (r.id === relId ? relB : r)))
       for (const x of others) if (joins(rel, x, entryRelationships(after, x), own)) take(x)
     }
     // 6580: E's anchor head changed — every relationship of another entry against E
