@@ -278,8 +278,8 @@ export interface Group {
   listed: boolean
   /** the own member anchor in G (the anchor of memberLabel) and the oid
    *  naming its canonical admission, or the genesis where the holder
-   *  founded G (5400). Set where membership has materialized them; a
-   *  group without both is listed digest-only, never sealed. */
+   *  founded G (5400). Required on a listed group (codec.ts): membership
+   *  sets them on join (PR 4c/7); only an unlisted group may lack them. */
   memberAnchor?: string
   memberOp?: string
   /** the holder's Access view of the group, until membership graduates */

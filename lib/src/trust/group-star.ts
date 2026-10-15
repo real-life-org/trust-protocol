@@ -25,9 +25,11 @@
 // view it alters (5750, 5770, 5800).
 //
 // Choices this file makes where note and spec leave them open:
-//   - a group without memberAnchor and memberOp (state.ts Group) is listed
-//     digest-only: there is nothing to seal. memberAnchor must be the
-//     anchor of memberLabel; a mismatch is a broken invariant and throws
+//   - 5430's two filler conditions (sealed off for (group, contact), the
+//     relationship lags) are the only ones: a listed group carries
+//     memberAnchor and memberOp (codec.ts), and a listed group without them
+//     where a pair is due is a broken invariant and throws, never filler.
+//     memberAnchor must be the anchor of memberLabel; a mismatch throws too
 //   - the sealed pair's proof agrees through the KeyProvider with the
 //     member label's key-agreement key under a release derived from the
 //     group (not from `addresses`: the member key is no delivery address),
@@ -70,10 +72,11 @@ export function sealedOn (c: Readonly<Contact>, group: string): boolean {
 /** The group-star view toward contact c on relationship r (5730). */
 export function groupStarView (state: Readonly<HolderState>, c: Readonly<Contact>, rel: Readonly<Relationship>): GroupStarItem[] {
   const lagging = lags(rel, entryRelationships(state, c))
-  return Object.values(state.groups).filter((g) => g.listed).sort((a, b) => cmp(a.id, b.id)).map((g): GroupStarItem =>
-    !lagging && g.memberAnchor !== undefined && g.memberOp !== undefined && sealedOn(c, g.id)
-      ? { group: g.id, mode: 'sealed', member: g.memberAnchor, memberOp: g.memberOp }
-      : { group: g.id, mode: 'digest' })
+  return Object.values(state.groups).filter((g) => g.listed).sort((a, b) => cmp(a.id, b.id)).map((g): GroupStarItem => {
+    if (lagging || !sealedOn(c, g.id)) return { group: g.id, mode: 'digest' }
+    if (g.memberAnchor === undefined || g.memberOp === undefined) throw new Error(`trust: listed group ${g.id} lacks memberAnchor or memberOp (5400)`)
+    return { group: g.id, mode: 'sealed', member: g.memberAnchor, memberOp: g.memberOp }
+  })
 }
 
 type GroupAccepted = NonNullable<SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }>, groups: string[] }>['accepted']>

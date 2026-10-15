@@ -237,6 +237,16 @@ const event: V = (x, p) => {
   obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p)
 }
 
+const groupShape = obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str })
+/** a listed group carries its member anchor and memberOp: the group star
+ *  seals them (Trust 5400, 5430), and their absence is no filler condition */
+const group: V = (x, p) => {
+  groupShape(x, p)
+  const g = x as { listed: boolean, memberAnchor?: unknown, memberOp?: unknown }
+  if (g.listed && g.memberAnchor === undefined) fail(`${p}.memberAnchor`, 'missing on a listed group')
+  if (g.listed && g.memberOp === undefined) fail(`${p}.memberOp`, 'missing on a listed group')
+}
+
 const codec0 = obj({
   codec: lit(0),
   commitSeq: dec,
@@ -252,7 +262,7 @@ const codec0 = obj({
   contacts: keyed(contact, 'id'),
   relationships: keyed(relationship, 'id'),
   entryOrder: obj({ nextPos: dec, heads: set(str) }),
-  groups: keyed(obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str }), 'id'),
+  groups: keyed(group, 'id'),
   profile: obj({ body: json, revision: dec }),
   effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
   outbox: rec(outboxItem),
