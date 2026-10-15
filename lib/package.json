@@ -48,6 +48,7 @@
     "dist/views.*",
     "dist/invariants.*",
     "dist/trust/",
+    "dist/encounter/",
     "dist/prompts.*",
     "dist/fixtures.*",
     "dist/internal.*",

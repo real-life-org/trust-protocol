@@ -2,6 +2,8 @@
 // note §4.1, §4.5). Domain modules (identity, encounter, trust, continuity,
 // membership, profile) register with the engine as they graduate; today
 // the facade carries the engine's built-ins, the prompts module, the
+// encounter module (encounter/ceremony.ts: show, scan, the optical leg, the
+// counter-step, the bundle and the credential delivery), the
 // identity module (identity-state.ts: device names, the rotation), the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
@@ -28,6 +30,10 @@
 //   revokeDevice(name, opts)                  identity.revokeDevice     human
 //   rotateAnchor(opts)                        identity.rotate           human
 //   setProfile({name, image?, text?}, opts)   profile.set               human
+//   show(opts{name?})                         encounter.show            human
+//   scan(card, opts{name?})                   encounter.scan            human
+//   captureSentCard(card, opts)               encounter.capture         human
+//   counter(contactId, opts)                  encounter.counter         human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -61,6 +67,8 @@ import type { ProfileContent } from './profile.js'
 import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass } from './state.js'
 import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
+import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js'
+import type { Json } from './core.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
 import type { ContactView, DeliveryStatusView, GroupView, ProfileView, PromptView } from './views.js'
 
@@ -116,6 +124,19 @@ export interface Holder {
    *  revision of the one counter (6450), delivered on every relationship
    *  the profile class is on for (6455); human */
   setProfile (content: ProfileContent, opts: HumanActOptions): Promise<ActResult>
+  /** a displayed card with a fresh own challenge under a fresh pair
+   *  anchor (Encounter 5.3, 4.4): the event encounter.shown carries the
+   *  card to display; `name` the card's display name (default: the own
+   *  profile's); human */
+  show (opts: HumanActOptions & { name?: string }): Promise<ActResult>
+  /** the scanner's step on a displayed card (Encounter 5.8): the record,
+   *  the fresh tuple, the bundle; encounter.scanned carries the sent card
+   *  for the optical leg; human */
+  scan (card: Json, opts: HumanActOptions & { name?: string }): Promise<ActResult>
+  /** the optical leg (Encounter 5.8, 5710): a sent card shown by the scanner; human */
+  captureSentCard (card: Json, opts: HumanActOptions): Promise<ActResult>
+  /** the counter-step toward a contact met as displayer (Encounter 5.8 step 4); human */
+  counter (contactId: string, opts: HumanActOptions): Promise<ActResult>
   /** the device key of a held, unrevoked device name under an own anchor
    *  context (Identity §5.5); reads, changes nothing */
   deviceKey (name: string, contextLabel: string): Promise<DeviceKeyResult>
@@ -143,7 +164,7 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const modules = [identityModule(), trustModule(), ...(opts.modules ?? [])]
+  const modules = [identityModule(), trustModule(), encounterModule(), ...(opts.modules ?? [])]
   const check = opts.invariants === true
     ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
         const v = commitViolations(before, after, op)
@@ -170,6 +191,10 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     recover: (o: { when: Millis }) => engine.act(TRUST_COMMANDS.recover, {}, o?.when as Millis),
     rotateAnchor: (o: HumanActOptions) => human(IDENTITY_COMMANDS.rotate, {}, o),
     setProfile: (content: ProfileContent, o: HumanActOptions) => human(PROFILE_SET, content, o),
+    show: (o: HumanActOptions & { name?: string }) => human(ENCOUNTER_COMMANDS.show, o?.name === undefined ? {} : { name: o.name }, o),
+    scan: (card: Json, o: HumanActOptions & { name?: string }) => human(ENCOUNTER_COMMANDS.scan, o?.name === undefined ? { card } : { card, name: o.name }, o),
+    captureSentCard: (card: Json, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
+    counter: (contactId: string, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

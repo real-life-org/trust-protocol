@@ -83,20 +83,25 @@ export function cardBody (ctx: { anchor: string, keyAgreement: string }, fields:
   if (sentTo !== undefined) { b.sentTo = sentTo; b.boundTo = boundTo }
   return b
 }
+/** The unsigned body of a step credential (Encounter 7.2): issuer, the
+ *  subject, the subject's challenge and the enactment binding. */
+export const credentialBody = (
+  issuerAnchor: string, subjectAnchor: string, ceremony: string,
+  subjectChallenge: string, enactmentBinding: string, whenIso: string,
+) => ({
+  '@context': [...CRED_CONTEXT],
+  type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
+  issuer: issuerAnchor,
+  // the issuer is a fresh pair anchor, known to exactly one counterparty (4.4)
+  issuerScope: 'pairwise',
+  validFrom: whenIso,
+  credentialSubject: { id: subjectAnchor, format: CRED_FORMAT, ceremony, challenge: subjectChallenge, enactmentBinding },
+})
 export async function issueCredential (
   ctx: Signer, subjectAnchor: string, ceremony: string,
   subjectChallenge: string, enactmentBinding: string, whenIso: string,
 ) {
-  const body = {
-    '@context': [...CRED_CONTEXT],
-    type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
-    issuer: ctx.anchor,
-    // the issuer is a fresh pair anchor, known to exactly one counterparty (4.4)
-    issuerScope: 'pairwise',
-    validFrom: whenIso,
-    credentialSubject: { id: subjectAnchor, format: CRED_FORMAT, ceremony, challenge: subjectChallenge, enactmentBinding },
-  }
-  return diSign(ctx, body, whenIso)
+  return diSign(ctx, credentialBody(ctx.anchor, subjectAnchor, ceremony, subjectChallenge, enactmentBinding, whenIso), whenIso)
 }
 
 

@@ -310,7 +310,7 @@ const codec0 = obj({
   prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
   acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
   encounter: obj({
-    challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }, { aged: lit(true) }), 'value'),
+    challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
     records: keyed(enactmentRecord, 'own'),
     introductions: rec(json),
   }),

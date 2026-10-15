@@ -592,8 +592,6 @@ export interface OwnChallenge {
   label: string
   /** the displayed card: the optical payload */
   card: Json
-  /** the aging latch: set-only, never open again (5260, 5270) */
-  aged?: true
 }
 
 /** A step credential with its credential digest (5.6 step 8). */
