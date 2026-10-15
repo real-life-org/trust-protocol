@@ -34,7 +34,8 @@
 //     star and blinded group star both `off` (2780); trust.pending: given,
 //     but not yet out on every head (no mapping issued on it, or its
 //     relationship lags (6595)), or a re-issue or class-on duty for the
-//     anchor mapping is open. Delivery of the documents is not part of
+//     anchor mapping is open at a version this library handles (a duty of
+//     an unhandled version is opaque, note §2.1). Delivery of the documents is not part of
 //     it; deliveryStatus answers that
 //   - classes give the setting and whether the class is on toward the
 //     contact (2760, 2840); the sealed group star also per group (2830):
@@ -60,6 +61,7 @@ import type { Json } from './core.js'
 import { triasOf } from './state.js'
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
+import { classOfDuty } from './trust/duties.js'
 import type {
   Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
 } from './state.js'
@@ -226,9 +228,10 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
     const t = activeTuple(r)
     if (t && !t.deactivated && mine(t)) heads.push({ r, t, lagging: lags(r, rels) })
   }
+  // a class-on or re-issue of the anchor mapping, at a version this library
+  // handles (classOfDuty: an unhandled version is opaque and owes nothing here)
   const owed = Object.values(state.duties).some((d) =>
-    (d.kind === 'reissue-mapping' && d.contactId === c.id) ||
-    (d.kind === 'class-on' && d.contactId === c.id && d.cls === 'anchorMapping'))
+    classOfDuty(d) === 'anchorMapping' && (d as { contactId?: unknown }).contactId === c.id)
   const pending = trusted && (owed || heads.some((h) => h.t.mappingOut.body === null || h.lagging))
   let best: Tuple | undefined
   for (const { t, lagging } of heads) {
