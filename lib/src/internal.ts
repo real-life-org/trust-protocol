@@ -29,7 +29,7 @@
 //   invariants  the predicates of invariants.ts over a state and a commit
 export type * from './state.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
-export { CODEC, RETIRED, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
+export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
 export type { StateCodecErrorCode, StateValidator } from './codec.js'
 export type { HolderModule, CommandDef, PrepareCtx, Prepared, Applied, Refusal, TaskHandler, DutyHandler, DutyCtx, SweepHandler, AckHandler, DecisionHandler, DecisionDef, DecisionFn, EventDraft, OutboundDraft, EngineSnapshot } from './engine.js'
 export type { Arrival, Channel, ReceivedDocument, TaskDiscarded, DiscardReason, TaskFailure, TaskRefusal } from './receive.js'

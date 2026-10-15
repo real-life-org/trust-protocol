@@ -141,9 +141,8 @@ the state as opaque JSON and gives it back; the library decodes it
   holders, `test/fixtures/gen-state-v1.mjs`) decodes and re-encodes byte
   for byte. A later codec brings its validator, a pure migration from the
   one before, and its own fixture with a migration test.
-- **Codec 0**, the unstable format of the releases before 0.4.0, is not
-  migrated: `decodeState` refuses it as `codec-unknown`. A newer codec is
-  refused as `codec-newer`; nothing is read best-effort.
+- A newer codec is refused as `codec-newer`, a codec without a validator
+  as `codec-unknown`; nothing is read best-effort.
 
 **Writing a Store adapter.** Implement `read(): Promise<{state, version}>`
 (a deep, independent copy; `null` state and version for an empty store) and

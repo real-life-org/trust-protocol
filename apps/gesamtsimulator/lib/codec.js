@@ -13,21 +13,15 @@
 // versions and the codec are independent; a migration never re-issues
 // stored documents, outbound or acks.
 //
-// Codec 1 is the format of 0.4.0, the first stable one: its golden
-// fixture is lib/test/fixtures/state-v1.json (a deterministic run over
-// three holders, lib/test/fixtures/gen-state-v1.mjs), decoded and
-// re-encoded byte-identically by test/codec-fixture.test.mjs. Every later
-// codec adds its validator, a migration from the one before, and its own
-// fixture with a migration test. Codec 0 was the unstable format of the
-// releases before 0.4.0; it is not migrated: decodeState refuses it as
-// codec-unknown (RETIRED below).
+// Codec 1 is the format of 0.4.0: its golden fixtures are
+// lib/test/fixtures/*.json (deterministic runs, test/fixtures/gen-state-v1.mjs),
+// decoded and re-encoded byte-identically by test/codec-fixture.test.mjs.
+// The rule: codec 1 is read; a newer codec is codec-newer; a codec without
+// a validator is codec-unknown. Every later codec adds its validator, a
+// migration from the one before, and its own fixture with a migration test.
 import { jcs } from './core.js';
 /** The codec this library writes. */
 export const CODEC = 1;
-/** Codecs the library knows and will not read, with the reason it gives. */
-export const RETIRED = Object.freeze({
-    0: 'codec 0 was the unstable state format before 0.4.0 and is not migrated; start from a fresh state',
-});
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
@@ -387,8 +381,6 @@ export function decodeChain(raw, chain) {
         throw new StateCodecError('codec-unknown', 'codec must be a non-negative integer');
     if (at > chain.codec)
         throw new StateCodecError('codec-newer', `codec ${at} is newer than ${chain.codec}`);
-    if (chain.retired && Object.hasOwn(chain.retired, at))
-        throw new StateCodecError('codec-unknown', chain.retired[at]);
     validatorOf(chain, at)(s);
     for (let c = at; c < chain.codec; c++) {
         const up = chain.migrations[c];
@@ -401,7 +393,7 @@ export function decodeChain(raw, chain) {
     }
     return s;
 }
-const LIBRARY_CHAIN = { codec: CODEC, migrations: MIGRATIONS, validators: VALIDATORS, retired: RETIRED };
+const LIBRARY_CHAIN = { codec: CODEC, migrations: MIGRATIONS, validators: VALIDATORS };
 /**
  * Load a stored state: a JSON string or an already parsed value. Returns
  * an independent copy at the current codec, or throws StateCodecError.
