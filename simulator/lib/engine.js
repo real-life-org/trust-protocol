@@ -70,10 +70,13 @@
 //     stages again, which re-checks the effect cache at stage 4
 //   - an ack is stored sealed (StoredAck: envelope, digest, recipient) in
 //     its effect, so every re-send is byte-identical down to the envelope.
-//     Its outbound carries attempt 1 when first emitted and 2 on every
-//     re-send (acks keep no counter). It stays `sent: false` until any
-//     report on its digest; resume re-emits every unsent ack on every call
-//     and never schedules them (nextDueAt ignores acks)
+//     It stays `sent: false` until any report on its digest. Unsent, it has
+//     the outbox's retry schedule: attempt 1 at the receive, re-offered by
+//     resume when due (attempt + 1, backoff), counted into nextDueAt, and at
+//     its horizon (effect commit + horizonMs) marked sent by the horizon
+//     (`sentBy: 'horizon'`, no event: acks have no trias). A duplicate's
+//     re-send carries attempt + 1 and does not move the schedule (it
+//     commits nothing beyond lastWhen)
 //   - outbound of one commit, in order: outbox re-emissions, released
 //     acks, new documents
 //   - resume runs duties after the outbox, ordered by dueAt (absent: due
@@ -82,8 +85,16 @@
 //     without a trace. A duty of a registered kind at another version is
 //     announced as duty.unsupported on every resume (a commit of its own);
 //     a kind no module registers is kept silently. A duty with awaitHead
-//     runs only when its handler's awaitHolds says so (none: never). A
-//     future dueAt and the new documents of duties count into nextDueAt
+//     runs only when its handler's awaitHolds says so (none: never). Each
+//     planned duty is checked again against the state the duties before it
+//     left: still present at the handler's version, due, its awaited head
+//     holding; a prepared duty whose data changed since its preparation is
+//     deferred to the next resume and prepared afresh there. Its handler's
+//     apply re-checks every other state-dependent precondition itself
+//     (note §4.2 step 3). nextDueAt comes from the final duty set, the
+//     duties created in this resume included: a future dueAt, or `when` for
+//     duty work runnable now that did not run; a duty that ran and stayed
+//     (not-due, refused) sets no timer. New documents of duties count in too
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -217,6 +228,15 @@ const checkWhen = (when) => {
     if (!Number.isSafeInteger(when) || when < 0)
         throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`);
 };
+/** A duty's dueAt; absent counts as 0 (due always). */
+const dutyDue = (d) => (Number.isSafeInteger(d.dueAt) ? d.dueAt : 0);
+/** Due, and not waiting on a head its handler's awaitHolds denies (none: waits forever). */
+const dutyRunnable = (d, h, state, when) => {
+    if (dutyDue(d) > when)
+        return false;
+    const awaits = d.awaitHead;
+    return typeof awaits !== 'string' || (h.awaitHolds?.(state, d) ?? false);
+};
 const isHalt = (r) => r?.halt === true;
 const actResult = (r) => {
     if (isHalt(r))
@@ -302,6 +322,8 @@ class HolderEngine {
                     throw new Error(`duplicate task ${uri} (module ${m.name})`);
                 if (typeof h?.apply !== 'function' || typeof h.decode !== 'function')
                     throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`);
+                if (h.proof !== 'absent' && h.proof !== 'required')
+                    throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`);
                 tasks.set(uri, Object.freeze({ ...h }));
             }
             for (const [kind, h] of Object.entries(m.duties ?? {})) {
@@ -530,14 +552,14 @@ class HolderEngine {
             },
         };
     }
-    /** The duties resume runs now, in fixed order (dueAt, then id), the
-     *  registered kinds met at an unknown version, and the earliest future dueAt. */
+    /** The duties a resume plans to run, in fixed order (dueAt, then id),
+     *  and the registered kinds met at an unknown version. Each planned
+     *  duty is checked again against the current state right before its
+     *  handler runs (#resumeDef). */
     #dutyPlan(state, when) {
-        const at = (d) => (Number.isSafeInteger(d.dueAt) ? d.dueAt : 0);
-        const order = Object.values(state.duties).sort((a, b) => (at(a) - at(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        const order = Object.values(state.duties).sort((a, b) => (dutyDue(a) - dutyDue(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
         const run = [];
         const unsupported = [];
-        let nextDue;
         for (const duty of order) {
             const h = this.#duties.get(duty.kind);
             if (!h)
@@ -546,20 +568,15 @@ class HolderEngine {
                 unsupported.push(duty);
                 continue;
             }
-            if (at(duty) > when) {
-                nextDue = nextDue === undefined ? at(duty) : Math.min(nextDue, at(duty));
-                continue;
-            }
-            const awaits = duty.awaitHead;
-            if (typeof awaits === 'string' && !(h.awaitHolds?.(state, duty) ?? false))
-                continue;
-            run.push({ duty, h });
+            if (dutyRunnable(duty, h, state, when))
+                run.push({ duty, h });
         }
-        return { run, unsupported, ...(nextDue !== undefined ? { nextDue } : {}) };
+        return { run, unsupported };
     }
     #resumeDef() {
         const policy = () => this.#policy;
         const plan = (state, when) => this.#dutyPlan(state, when);
+        const handlers = () => this.#duties;
         return {
             human: false,
             // the due duties' preparations, against the snapshot apply will see
@@ -608,23 +625,33 @@ class HolderEngine {
                     emit.push(structuredClone({ digest, envelope: it.envelope, type: it.type, threadId: it.threadId, recipient: it.recipient, attempt }));
                     due(nextAttemptAt);
                 }
-                // 2 — duties, in the plan's order, each on the state the one before left
-                const { run, unsupported, nextDue } = plan(state, when);
-                if (nextDue !== undefined)
-                    due(nextDue);
+                // 2 — duties, in the plan's order, each on the state the one before
+                // left and checked against it right before its handler: still there
+                // at the handler's version, due, its awaited head still holding. A
+                // prepared duty whose data changed since its preparation is deferred
+                // to the next resume, which prepares it afresh (due at once)
+                const { run, unsupported } = plan(state, when);
                 for (const d of unsupported)
                     events.push({ type: 'duty.unsupported', dutyId: d.id, kind: d.kind, v: d.v });
                 // the outbox changed only by a re-emission or a give-up (an event so far)
                 let cur = !emit.length && !events.length ? state : { ...state, outbox };
                 const drafts = [];
                 const duties = [];
+                const kept = new Set(); // ran and stayed: not-due or refused
                 const values = prepared.value;
                 for (const { duty, h } of run) {
                     if (!Object.hasOwn(cur.duties, duty.id))
-                        continue; // fulfilled by an earlier handler
-                    const r = h.apply(cur, duty, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when);
-                    if (r === 'not-due' || isRefusal(r))
+                        continue; // fulfilled or dropped meanwhile
+                    const now = cur.duties[duty.id];
+                    if (now.v !== h.v || !dutyRunnable(now, h, cur, when))
+                        continue; // the final pass sets its timer
+                    if (h.prepare && jcs(now) !== jcs(duty))
+                        continue; // prepared on other data
+                    const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when);
+                    if (r === 'not-due' || isRefusal(r)) {
+                        kept.add(duty.id);
                         continue;
+                    }
                     const left = { ...r.state.duties };
                     delete left[duty.id];
                     cur = { ...r.state, duties: left };
@@ -632,13 +659,51 @@ class HolderEngine {
                     events.push(...(r.events ?? []));
                     duties.push(...(r.duties ?? []));
                 }
+                // the timer from the final duty set, new duties included: a future
+                // dueAt, or `when` for work runnable now that did not run (deferred,
+                // newly created, newly unblocked); a duty that ran and stayed
+                // (not-due, refused) sets none
+                for (const d of [...Object.values(cur.duties), ...duties]) {
+                    const h = handlers().get(d.kind);
+                    if (!h || d.v !== h.v || kept.has(d.id))
+                        continue;
+                    if (dutyDue(d) > when)
+                        due(dutyDue(d));
+                    else if (dutyRunnable(d, h, cur, when))
+                        due(when);
+                }
                 // the duties' new documents enter the outbox in #run, due at backoff(1)
                 if (drafts.length)
                     due(dueAt(when, p.backoff(1)));
                 // 3 — acks still unsent (a restart between the receive commit and the
-                // send, or no report yet): re-emitted byte-identical, by effect digest
-                const release = Object.keys(state.effects).sort()
-                    .flatMap((d) => { const a = state.effects[d].ack; return a && !a.sent ? [ackOutbound(a, 2)] : []; });
+                // send, or no report yet): re-offered byte-identical on the retry
+                // policy, by effect digest; at the horizon marked sent by it
+                const release = [];
+                let effects = null;
+                for (const d of Object.keys(cur.effects).sort()) {
+                    const a = cur.effects[d].ack;
+                    if (!a || a.sent)
+                        continue;
+                    const expiry = Math.min(a.at + p.horizonMs, Number.MAX_SAFE_INTEGER);
+                    effects ??= { ...cur.effects };
+                    if (when >= expiry) {
+                        const { nextAttemptAt: _, ...rest } = a;
+                        effects[d] = { ...cur.effects[d], ack: { ...rest, sent: true, sentBy: 'horizon' } };
+                        continue;
+                    }
+                    due(expiry);
+                    if (a.nextAttemptAt !== undefined && a.nextAttemptAt > when) {
+                        due(a.nextAttemptAt);
+                        continue;
+                    }
+                    const attempt = a.attempt + 1;
+                    const nextAttemptAt = dueAt(when, p.backoff(attempt));
+                    effects[d] = { ...cur.effects[d], ack: { ...a, attempt, nextAttemptAt } };
+                    release.push(ackOutbound(a, attempt));
+                    due(nextAttemptAt);
+                }
+                if (effects && jcs(effects) !== jcs(cur.effects))
+                    cur = { ...cur, effects };
                 return {
                     state: cur, emit, events, outbound: drafts, duties, release,
                     ...(nextDueAt !== undefined ? { nextDueAt } : {}),
@@ -658,7 +723,8 @@ class HolderEngine {
                     const e = state.effects[eff];
                     if (e.ack.sent)
                         return { state: state };
-                    return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack: { ...e.ack, sent: true } } } } };
+                    const { nextAttemptAt: _, ...ack } = e.ack;
+                    return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack: { ...ack, sent: true, sentBy: 'report' } } } } };
                 }
                 const it = state.outbox[report.digest];
                 const trias = triasOf(it);
@@ -718,8 +784,9 @@ class HolderEngine {
                     case 'failed': return { halt: true, detail: plan.result };
                     case 'duplicate': {
                         // the stored ack, byte-identical; a terminal document has none
+                        // (its outbound attempt is one past the schedule's, which it does not move)
                         const a = state.effects[plan.digest].ack;
-                        return { state: state, release: a ? [ackOutbound(a, 2)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } };
+                        return { state: state, release: a ? [ackOutbound(a, a.attempt + 1)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } };
                     }
                     case 'ack': {
                         // terminal: the sender-status update and its cache entry, no ack
@@ -738,7 +805,7 @@ class HolderEngine {
                         if (r.state.effects !== state.effects)
                             throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
                         return {
-                            state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached(plan.ack) } },
+                            state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
                             ...(r.outbound ? { outbound: r.outbound } : {}),
                             ...(r.events ? { events: r.events } : {}),
                             ...(r.duties ? { duties: r.duties } : {}),

@@ -13,7 +13,14 @@
 //        recipient = the own anchor of the label the arrival rkid derives
 //        under (addresses)
 //   6    dispatch by the full type URI with version: the built-in
-//        delivery-ack path, else the task register, else unknown-type
+//        delivery-ack path, else the task register, else unknown-type;
+//        then the entry's proof declaration. Delivery §3 wants `proof`
+//        absent on every type but delivery-ack and registry-declaration,
+//        and §4.4 puts the declaration into the registry entry; the
+//        profile schema can name only the types it knows, so for
+//        companion types the rule is enforced here, the earliest stage at
+//        which the receiver holds the entry: a mismatch is
+//        failed(validation-failed)
 //   7–8  the handler's decode (malformed at 7, any other refusal at 8),
 //        the core's closed acceptance binding (Delivery 4.4: the arrival
 //        tuple is selected by rkid, the document's issuer is its
@@ -54,8 +61,7 @@ import { ACK_TYPE, ackDocument, ackKeyOf, macAck, macAckForm, macAckValid } from
 import { SCHEMAS } from './schemas.js';
 import { triasOf } from './state.js';
 import { InfraError } from './results.js';
-/** A sealed-and-stored ack as the outbound the app sends; attempt 1 at
- *  its first emission, 2 on every re-send (acks keep no counter). */
+/** A sealed ack as the outbound the app sends, at the given attempt. */
 export const ackOutbound = (a, attempt) => structuredClone({ digest: a.digest, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt });
 /** Signature-class types: their acks are signed (4.4), not MACed. */
 export const SIGNATURE_CLASS = new Set([
@@ -142,6 +148,8 @@ export async function prepareReceive(ctx, env, tasks) {
     const h = tasks.get(doc.type);
     if (!h)
         return failed('unknown-type', 6, { digest });
+    if ((h.proof === 'absent') !== (doc.proof === undefined))
+        return failed('validation-failed', 6, { digest });
     // 7–8 — decode, the closed acceptance binding, the handler's preparation
     const payload = h.decode(doc.payload);
     if (isTaskRefusal(payload))
@@ -165,7 +173,7 @@ export async function prepareReceive(ctx, env, tasks) {
     const envelope = await seal(ackDoc, at.tuple.counterpartKeyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S);
     const ack = {
         digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-        recipient: { contactId: at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement }, sent: false,
+        recipient: { contactId: at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
     };
     return { kind: 'task', digest, type: doc.type, doc: rdoc, arrival, value, ack };
 }
