@@ -629,7 +629,7 @@ class HolderEngine implements Engine {
       anchorOf: base.anchorOf, sign: base.sign, agree: base.agree,
       carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
     })
-    if (ports.log) this.#log = guard(ports.log, ['head', 'append'], 'log')
+    if (ports.log) this.#log = guard(ports.log, ['head', 'at', 'append'], 'log')
     if (ports.access) this.#access = guard(ports.access, ['memberships', 'membership'], 'access')
 
     const commands = new Map<string, InternalDef>()
