@@ -99,6 +99,10 @@
 //     different community anchors (6985); its lineage starts at the
 //     chain's earliest anchor (2285). The duty respects lagging (6595):
 //     a lagging relationship gets it when it ceases to lag (2850)
+//   - at a chaining, the class-on and re-issue duties owed on the chain and
+//     on the appended relationship move to the chain under the entry that
+//     takes its verifications (2146); several re-issues become one, the
+//     most urgent awaited head kept (relocateDuties)
 //   - 6465 (the profile on the new head after a chaining) is profile@1's,
 //     PR 6: the hook is afterChain below
 import { iso, jcs } from '../core.js'
@@ -115,7 +119,7 @@ import { tupleByRkid } from '../receive.js'
 import type { Arrival, ReceivedDocument, TaskDiscarded, TaskRefusal } from '../receive.js'
 import type { AckHandler, Applied, CommandDef, DutyHandler, EventDraft, FailureHandler, HolderModule, IdentityRename, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
 import { triasOf } from '../state.js'
-import type { Contact, ContinuityDuty, ContinuityOut, Dec, Duty, HolderState, Millis, Relationship, Tuple, TupleRef } from '../state.js'
+import type { ClassOnDuty, Contact, ContinuityDuty, ContinuityOut, Dec, Duty, HolderState, Millis, ReissueMappingDuty, Relationship, Tuple, TupleRef } from '../state.js'
 import { emptyTuple } from '../state-builder.js'
 import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, liveRel, tupleByLabel, unionBindings } from './state.js'
 import { assembledBodies, assemblyStep, canComplete, chunkDocument, discardAssemblies, pairShared } from './star.js'
@@ -267,6 +271,34 @@ const issuedUnder = (r: Readonly<Relationship>): string[] =>
   [r.earliestAnchor, ...r.tuples.map((t) => t.mappingOut.underAnchor)].filter((a): a is string => a !== null)
 
 /**
+ * The class and re-issue duties owed on the chain and the appended
+ * relationship, after a chaining: on the chain, under the entry that takes
+ * its verifications (2146), none dropped. Several re-issues are one (6596:
+ * one delivery meets every re-issue owed), the most urgent awaited head
+ * kept (null, due at once, wins; else the chain's); several class-on
+ * duties of one class are one.
+ */
+function relocateDuties (state: HolderState, from: readonly string[], relId: string, contactId: string): HolderState {
+  const owed = Object.values(state.duties)
+    .filter((d) => (d.kind === 'class-on' || d.kind === 'reissue-mapping') && from.includes((d as { relId: string }).relId))
+    .sort((a, b) => from.indexOf((a as { relId: string }).relId) - from.indexOf((b as { relId: string }).relId))
+  if (!owed.length) return state
+  const duties = { ...state.duties }
+  for (const d of owed) delete duties[d.id]
+  const reissues = owed.filter((d): d is ReissueMappingDuty => d.kind === 'reissue-mapping')
+  if (reissues.length) {
+    const base = reissues[0]
+    const awaitHead = reissues.some((d) => d.awaitHead === null) ? null : base.awaitHead
+    duties[base.id] = { ...base, contactId, relId, awaitHead }
+  }
+  for (const d of owed.filter((x): x is ClassOnDuty => x.kind === 'class-on')) {
+    const id = `class-on:${d.cls}:${relId}`
+    if (!Object.hasOwn(duties, id)) duties[id] = { ...d, id, contactId, relId }
+  }
+  return { ...state, duties }
+}
+
+/**
  * 6465: after a chaining toward whose contact the profile class is on,
  * the current profile SHOULD go out on the new head. profile@1 arrives in
  * PR 6; until then this hook opens nothing.
@@ -313,12 +345,15 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
   }
   // the chain takes the fresh relationship's place in the creation order of active heads (2180)
   const heads = state.entryOrder.heads.filter((id) => id !== R0.id).map((id) => (id === Rn.id ? R0.id : id))
-  // the fresh relationship's duties move to the chain; its anchor mapping duties are owed anew below
+  // the fresh relationship's continuity duties move to the chain; the
+  // class and re-issue duties of both are relocated below, once the entry
+  // that takes the chain's verifications is known
   const duties: HolderState['duties'] = {}
   for (const [id, d] of Object.entries(state.duties)) {
     const relId = (d as { relId?: unknown }).relId
     if (relId !== Rn.id || d.kind === 'merge') { duties[id] = d; continue }
     if (d.kind === 'continuity') duties[id] = { ...d, relId: R0.id } as Duty
+    else if (d.kind === 'class-on' || d.kind === 'reissue-mapping') duties[id] = d
   }
   const rotations: HolderState['rotations'] = {}
   for (const [id, r] of Object.entries(state.rotations)) {
@@ -355,6 +390,7 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     entryId = m.survivor
   }
   next = withTuple(next, label, (x) => ({ ...x, entryId }))
+  next = relocateDuties(next, [R0.id, Rn.id], R0.id, entryId)
   // 6980, 6985: the anchor mapping on the new head, from the chain's earliest anchor (2285)
   const entry = next.contacts[entryId]
   if (classOnToward(entry, 'anchorMapping')) {
