@@ -36,7 +36,6 @@ export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recom
 export type { TrustModuleOptions, TrustSetInput, TrustSetClassInput, TrustSetGroupClassInput, TrustPauseInput } from './trust/mapping.js'
 export { ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, entryRelationships, activeTuple, findContact } from './trust/state.js'
 export { STAR_TYPE, ASSEMBLY_LIMIT, starView, viewDigest, heldAnchors, discardAssemblies, rematchStars, retainInflight } from './trust/star.js'
-export { sha256Hex } from './sha256.js'
 export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js'
 export { promptsModule, collectDecisions } from './prompts.js'
 export { createEngine } from './engine.js'
