@@ -62,6 +62,31 @@
 //     listener's throw or rejection is dropped
 //   - the next state is validated by the codec before every commit; an
 //     invalid state is a programming error and throws
+//   - receive (receive.ts) is a built-in like tick: a failed disposition
+//     commits nothing, lastWhen included (like a refusal); duplicate-known
+//     commits only a raised lastWhen; a CAS conflict re-reads and runs the
+//     stages again, which re-checks the effect cache at stage 4
+//   - an ack is stored sealed (StoredAck: envelope, digest, recipient) in
+//     its effect, so every re-send is byte-identical down to the envelope.
+//     Its outbound carries attempt 1 when first emitted and 2 on every
+//     re-send (acks keep no counter). It stays `sent: false` until any
+//     report on its digest; resume re-emits every unsent ack on every call
+//     and never schedules them (nextDueAt ignores acks)
+//   - outbound of one commit, in order: outbox re-emissions, released
+//     acks, new documents
+//   - resume runs duties after the outbox, ordered by dueAt (absent: due
+//     always, counted as 0), then id. An Applied fulfils the duty and the
+//     engine removes it in the same commit; 'not-due' and a refusal keep it
+//     without a trace. A duty of a registered kind at another version is
+//     announced as duty.unsupported on every resume (a commit of its own);
+//     a kind no module registers is kept silently. A duty with awaitHead
+//     runs only when its handler's awaitHolds says so (none: never). A
+//     future dueAt and the new documents of duties count into nextDueAt
+//   - tick retains with the key-retention max(P90D, horizonMs): effects
+//     with their acks at expiresAt; terminal outbox items once the
+//     retention has passed since their last step, unless a kept journal
+//     entry names them; an address key not shown for the retention and
+//     the own rkid of no tuple that is not deactivated becomes a tombstone
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
 import { emptyState, toOpaque, triasOf } from './state.js'
@@ -210,7 +235,8 @@ export interface Engine {
   /** the names registered at construction, frozen */
   readonly registry: Readonly<{ commands: readonly string[], tasks: readonly string[], duties: readonly string[] }>
   act (command: string, input: unknown, when: Millis, opts?: { actId?: string }): Promise<ActResult>
-  /** expiry and retention: effects, prompts, the act journal; raises lastWhen */
+  /** expiry and retention: effects, prompts, the act journal, terminal
+   *  outbox items, address keys to tombstones; raises lastWhen */
   tick (when: Millis): Promise<ActResult>
   /** re-emits due outbox items (attempt + 1) or gives them up, runs due
    *  duties, re-emits unsent acks */
@@ -720,6 +746,8 @@ class HolderEngine implements Engine {
           events.push(...(r.events ?? []))
           duties.push(...(r.duties ?? []))
         }
+        // the duties' new documents enter the outbox in #run, due at backoff(1)
+        if (drafts.length) due(dueAt(when, p.backoff(1)))
         // 3 — acks still unsent (a restart between the receive commit and the
         // send, or no report yet): re-emitted byte-identical, by effect digest
         const release = Object.keys(state.effects).sort()
