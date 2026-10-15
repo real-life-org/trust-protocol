@@ -16,41 +16,55 @@
 //   duty      rotation/1 {rotationId}        step 2 on resume, until the log
 //               holds the entry
 //
-// The rotation, a procedure in state.rotations (note §2.1, §3 Log):
-//   step 1 (identity.rotate, one commit)  generation g+1 derived and its
-//     label recorded in the register (§5.4: persisted before any
-//     presentation; 6360: before the log entry); anchor-rotation@2 built
-//     (prev g, next g+1, commit = the binding of g+2) and signed by prev and
-//     next through the KeyProvider; the head of the log read; per
+// The rotation, a procedure in state.rotations (note §2.1, §3 Log: head,
+// at, append):
+//   where the log stands (standing), for a rotation g → g+1 (§5.4, RLTP-
+//     ACC-5980): the genesis must match; a log whose generation g+1 is
+//     held (head.gen ≥ g+1) holds this rotation where at(g+1) names its
+//     next and commit (present: this device's append whose answer was
+//     lost, or another device of the seed, the log since moved on or not),
+//     else a fork (diverged); otherwise the device may append over the
+//     head that holds the lineage through g (empty for g = 1, else gen g,
+//     next = prev, commit = the binding of next); an earlier head is
+//     behind, any other diverged
+//   step 1 (identity.rotate, one commit)  anchor-rotation@2 built (prev g,
+//     next g+1, commit = the binding of g+2) and signed by prev and next
+//     through the KeyProvider; the head read and the log's standing checked
+//     BEFORE anything commits: behind and diverged are refused (log-behind,
+//     log-diverged), so the label and the 6596 decision persist only when
+//     the device may rotate. Then in one commit the label of g+1 (§5.4:
+//     persisted before any presentation; 6360: before the log entry), per
 //     relationship the withholding of 6596 decided against the entry state
-//     now (awaitHead: H, the entry's anchor head, where the relationship
-//     lags; null where it does not; only where the anchor mapping class is
-//     on); the closure {entry: {rotation}, overHead} persisted; the
-//     rotation duty opened. The register's head stays g: nothing is issued
-//     under g+1 before the log holds it
-//   step 2 (the rotation duty on resume, or identity.rotate again)  through
-//     the Log port: head() must show the lineage through g (§5.4, RLTP-ACC-
-//     5980: empty for g = 1, else the entry that introduced g: gen g, next
-//     = prev, commit = the binding of next), otherwise log-behind (the head
-//     is earlier) or log-diverged (another genesis, or a head the rotation
-//     does not continue), and the rotation stays pending. A head that
-//     already shows this rotation (a lost answer) is appended again and
-//     answers exists. append(entry, head) on appended/exists completes the
+//     now (awaitHead: H, the entry's anchor head, where it lags; null where
+//     it does not; only where the anchor mapping class is on), the closure
+//     {entry: {rotation}, overHead: the head read}, the rotation duty. The
+//     register's head stays g: nothing is issued under g+1 before the log
+//     holds it, and no device key derives under g+1 (deviceKey)
+//   step 2 (the rotation duty on resume, or identity.rotate again)  the
+//     standing again: present completes without an append; behind and
+//     diverged keep the rotation pending (the duty refused, no timer: the
+//     log's sync is the cue; the act answers log-behind, log-diverged). An
+//     append goes only ever over the head the rotation record names, so the
+//     port's idempotence over exactly (entry, overHead) holds across a lost
+//     answer: where the head the device may append over is another, it is
+//     persisted first (the record's overHead, the duty due at once) and the
+//     append follows on the next run. append on appended/exists completes the
 //     rotation in one commit: the register's head g+1, the rotation in
 //     register.lineage, the rotation and its duty gone, anchor.rotated, and
 //     the re-issue duties of 6370 opened from the awaitHead decided at step
 //     1 (reissue-mapping/1, id reissue:<g+1>:<relId>) — and for a live
 //     relationship the class is on for now that was not in it (new since
-//     step 1), decided at completion. head-conflict re-reads and retries
-//     (four reads); failure, or a port that throws, keeps the rotation
-//     pending: the duty is due again after the retry backoff (attempt,
-//     lastAt), the act answers log-failure
+//     step 1), decided at completion. A chaining in between unions the
+//     decisions onto the chain (null wins). head-conflict re-reads (four
+//     reads); failure, or a port that throws, keeps the rotation pending:
+//     the duty is due again after the retry backoff (attempt, lastAt), the
+//     act answers log-failure
 //   6380 (the self card under the new anchor wherever it is carried): the
 //     card travels only inside anchor-mapping@4 here (6.1 card), so the
 //     re-issue of 6370 carries it; no duty of its own until the encounter
 //     (PR 7) carries a card elsewhere
-//   A throw of the Log port's head() at step 1 is InfraError('log'):
-//   nothing commits. Without a Log port the rotation is refused (log-missing); at the last
+//   A throw of the Log port at step 1 is InfraError('log'): nothing
+//   commits. Without a Log port the rotation is refused (log-missing); at the last
 //   generation 2^53 − 2 it is refused (scope-exhausted, Identity §5.4)
 //
 // Pure register helpers for the modules that open contexts (the encounter
@@ -156,43 +170,61 @@ type RotationArtifact = { body: { type: 'anchor-rotation@2', prev: string, next:
 /** What step 2 found at the log. */
 type LogOutcome =
   | { status: 'done', head: LogHead }
+  /** the log stands where this device may rotate, over a head other than
+   *  the persisted closure's: persist it before appending over it */
+  | { status: 'moved', head: LogHead }
   | { status: 'behind' | 'diverged', head: LogHead }
   | { status: 'failure', reason: string }
   | { status: 'log-missing' }
 
+type Rot = RotationArtifact['body']
+
 /**
- * Step 2 through the Log port (see the header): the precondition of §5.4
- * against head(), then append(entry, head) idempotently; head-conflict
- * re-reads. A port that throws is a failure: the rotation stays pending.
+ * Where the log stands for the rotation g → g+1 (Identity §5.4, RLTP-ACC-
+ * 5980): `present`, its generation g+1 holds this rotation (at(g+1) names
+ * this next and commit — appended by this device with its answer lost, or
+ * by another device of the same seed, the log since moved on or not);
+ * `{over}`, the device may append over that head (empty for g = 1, else
+ * the entry that introduced g: gen g, next = prev, commit = the binding of
+ * next); `behind`, the log has not reached g; `diverged`, another genesis,
+ * another entry at g+1 (a fork), or a head the rotation does not continue.
+ */
+async function standing (ctx: PrepareCtx, head: LogHead, genesis: string, from: number, rot: Rot): Promise<'present' | 'behind' | 'diverged' | { over: string | null }> {
+  if (head.genesis !== genesis) return 'diverged'
+  if ('empty' in head) return from === 1 ? { over: null } : 'behind'
+  if (head.gen >= from + 1) {
+    const e = await ctx.log!.at(from + 1)
+    return e && e.next === rot.next && e.commit === rot.commit ? 'present' : 'diverged'
+  }
+  if (head.gen === from && head.next === rot.prev && head.commit === await bindingOf(rot.next, ctx.crypto.subtle)) return { over: head.entryId }
+  return head.gen < from ? 'behind' : 'diverged'
+}
+
+const headId = (h: LogHead): string | null => ('empty' in h ? null : h.entryId)
+
+/**
+ * Step 2 through the Log port (see the header): where the log stands, then
+ * append(entry, the persisted overHead) — only ever over the head the
+ * rotation record names, so the port's idempotence over exactly (entry,
+ * overHead) holds across a lost answer; a head that moved is persisted
+ * first ('moved'). head-conflict re-reads. A port that throws is a
+ * failure: the rotation stays pending.
  */
 async function logStep (ctx: PrepareCtx, r: Readonly<Rotation>, genesis: string): Promise<LogOutcome> {
   const log = ctx.log
   if (!log) return { status: 'log-missing' }
   const rot = (r.entry as { rotation: RotationArtifact }).rotation
-  const from = Number(r.from)
   try {
     for (let i = 0; i < 4; i++) {
       const head = await log.head()
-      if (head.genesis !== genesis) return { status: 'diverged', head }
-      let over: string | null
-      if ('empty' in head) {
-        if (from !== 1) return { status: 'behind', head }
-        over = null
-      } else if (head.next === rot.body.next) {
-        // the log holds this rotation already (an append whose answer was
-        // lost): the closure's append again, which the log answers exists
-        over = 'empty' in r.overHead ? null : r.overHead.entryId
-      } else if (head.gen === from && head.next === rot.body.prev) {
-        // 5960: the head's binding admits next, or the log is no lineage of this register
-        if (head.commit !== await bindingOf(rot.body.next, ctx.crypto.subtle)) return { status: 'diverged', head }
-        over = head.entryId
-      } else {
-        return { status: head.gen < from ? 'behind' : 'diverged', head }
-      }
-      const a = await log.append({ rotation: rot } as unknown as Json, over)
+      const at = await standing(ctx, head, genesis, Number(r.from), rot.body)
+      if (at === 'present') return { status: 'done', head }
+      if (at === 'behind' || at === 'diverged') return { status: at, head }
+      if (at.over !== headId(r.overHead) || head.genesis !== r.overHead.genesis) return { status: 'moved', head }
+      const a = await log.append({ rotation: rot } as unknown as Json, at.over)
       if (a.status === 'appended' || a.status === 'exists') return { status: 'done', head: a.head }
       if (a.status === 'failure') return { status: 'failure', reason: a.reason }
-      // head-conflict: re-read and retry
+      // head-conflict: re-read
     }
     return { status: 'failure', reason: 'head-conflict persisted' }
   } catch (e) {
@@ -264,11 +296,23 @@ function completeRotation (state: Readonly<HolderState>, r: Readonly<Rotation>):
 }
 
 /** What step 2's outcome means for the rotation: completion, or why not. */
-function afterLog (state: Readonly<HolderState>, rotationId: string, o: LogOutcome): Applied | Refusal {
+function afterLog (state: Readonly<HolderState>, rotationId: string, o: LogOutcome, when: Millis): Applied | Refusal {
   const r = Object.hasOwn(state.rotations, rotationId) ? state.rotations[rotationId] : undefined
   if (!r) return refuse('in-flight')
   switch (o.status) {
     case 'done': return completeRotation(state, r)
+    case 'moved': {
+      // the closure's head, persisted before any append over it; the duty
+      // runs again at once (lastAt marks the change, no dueAt)
+      const id = rotationDutyId(r.id)
+      const held = Object.hasOwn(state.duties, id) ? state.duties[id] as RotationDuty : { kind: 'rotation' as const, v: 1 as const, id, rotationId: r.id }
+      const { dueAt: _, ...rest } = held
+      const duty: RotationDuty = { ...rest, lastAt: when }
+      return {
+        state: { ...state, rotations: { ...state.rotations, [r.id]: { ...r, overHead: o.head } }, duties: { ...state.duties, [id]: duty } },
+        duties: [duty],
+      }
+    }
     case 'behind': return refuse('log-behind', 'RLTP-ACC-5980')
     case 'diverged': return refuse('log-diverged', 'RLTP-ACC-5980')
     case 'log-missing': return refuse('log-missing')
@@ -300,7 +344,12 @@ const rotateCommand: CommandDef<Record<string, never>, RotatePrepared> = {
       body,
       proof: { proofValue: rawProofValue(await ctx.keys.sign(prevL, bytes)), successorProofValue: rawProofValue(await ctx.keys.sign(nextL, bytes)) },
     }
+    // §5.4: the device rotates only over the log it holds — checked before
+    // anything commits, so label and 6596 decision persist only when it may
     const overHead = await ctx.log.head()
+    const at = await standing(ctx, overHead, com.genesis, g, body)
+    if (at === 'behind') return { kind: 'refuse', code: 'log-behind', ref: 'RLTP-ACC-5980' }
+    if (at === 'diverged') return { kind: 'refuse', code: 'log-diverged', ref: 'RLTP-ACC-5980' }
     const to = String(g + 1)
     return { kind: 'start', id: to, from: com.head, to, entry: { rotation } as unknown as Json, overHead, label: nextL }
   },
@@ -308,7 +357,7 @@ const rotateCommand: CommandDef<Record<string, never>, RotatePrepared> = {
     const p = prepared.value
     if (p.kind === 'refuse') return refuse(p.code, p.ref)
     if (p.kind === 'start') return startRotation(state, p, when)
-    return afterLog(state, p.rotationId, p.outcome)
+    return afterLog(state, p.rotationId, p.outcome, when)
   },
 }
 
@@ -332,7 +381,7 @@ const rotationDuty: DutyHandler<LogOutcome | null> = {
       const again: RotationDuty = { ...d, attempt, lastAt: when, dueAt: Math.min(when + Math.max(0, Math.ceil(ctx.backoff(attempt))), Number.MAX_SAFE_INTEGER) }
       return { state: state as HolderState, duties: [again] }
     }
-    return afterLog(state, d.rotationId, o)
+    return afterLog(state, d.rotationId, o, when)
   },
 }
 
