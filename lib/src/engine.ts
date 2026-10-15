@@ -107,7 +107,9 @@
 //     duties, in registration order, on the state the duties left; their
 //     preparations run against resume's snapshot beside the duties'. A
 //     piece whose inputs moved since is skipped and makes `when` the
-//     nextDueAt. Their new documents count into nextDueAt like the
+//     nextDueAt, as does sweep work that became pending during the resume
+//     itself (a give-up at the horizon, a duty's change) without having
+//     been prepared. Their new documents count into nextDueAt like the
 //     duties'. Every other committed operation whose state adds a key to
 //     a sweep's `pending` names `when` as its nextDueAt
 //   - a verified delivery-ack runs the ack handler registered for the
@@ -898,6 +900,15 @@ class HolderEngine implements Engine {
           events.push(...(r.events ?? []))
           duties.push(...(r.duties ?? []))
           if (r.deferred) due(when)
+        }
+        // work a sweep owes now but did not prepare: a divergence the outbox
+        // step (a give-up at the horizon) or a duty of this resume created —
+        // due at once, prepared by the next resume
+        if (cur !== state) {
+          for (const sw of sweeps().values()) {
+            const had = new Set(sw.pending(state, when))
+            if (sw.pending(cur, when).some((k) => !had.has(k))) { due(when); break }
+          }
         }
         // the timer from the final duty set, new duties included: a future
         // dueAt, or `when` for work runnable now that did not run (deferred,
