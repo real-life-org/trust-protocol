@@ -687,12 +687,20 @@ const welcomeShape = (p) => {
         return e !== null && typeof e === 'object' && isStr(e.anchor) && isStr(e.op) && isStr(e.keyAgreement) && (e.name === undefined || isStr(e.name));
     });
 };
+/** A roster carries each member once: its anchors and its ops distinct
+ *  (one admission per member, one member per admission). No rule of
+ *  Membership 0.19 names it for this library's welcome form, so a repeat
+ *  is validation-failed without a ref. */
+const rosterDistinct = (roster) => new Set(roster.map((m) => m.anchor)).size === roster.length && new Set(roster.map((m) => m.op)).size === roster.length;
+/** The welcome's roster as the holder materialises it, by member anchor:
+ *  the one map the re-match reads and the group commits. */
+const welcomeRoster = (roster) => new Map(roster.map((m) => [m.anchor, m]));
 /** The invite this holder accepted whose welcome `doc` would be. */
 const acceptedInvite = (state, doc) => Object.values(state.joining.invites).find((i) => i.status !== 'open' && i.status !== 'declined' &&
     i.invite.payload.invite.issuer === doc.issuer && i.invite.threadId === doc.threadId && i.group === doc.payload.genesisDigest);
 const welcomeTask = {
     proof: 'required',
-    decode: (p) => (welcomeShape(p) ? p : refuse('malformed')),
+    decode: (p) => (!welcomeShape(p) ? refuse('malformed') : !rosterDistinct(p.roster) ? refuse('validation-failed') : p),
     // the welcome answers an invitation this holder accepted: in its thread,
     // from its inviter, to the member key of its group
     channel(state, doc, rkid) {
@@ -706,11 +714,11 @@ const welcomeTask = {
         if (!(await diVerify(doc, doc.issuer)))
             return refuse('validation-failed', 'RLTP-MT-2130');
         // the joined group as the welcome carries it: its roster, the oids naming the admissions
-        const roster = doc.payload.roster;
+        const roster = welcomeRoster(doc.payload.roster);
         const membership = {
             group: doc.payload.genesisDigest,
-            isMember: (a) => roster.some((m) => m.anchor === a),
-            resolve: (oid) => { const e = roster.find((m) => m.op === oid); return e ? { subject: e.anchor, keyAgreement: e.keyAgreement } : null; },
+            isMember: (a) => roster.has(a),
+            resolve: (oid) => { const e = [...roster.values()].find((m) => m.op === oid); return e ? { subject: e.anchor, keyAgreement: e.keyAgreement } : null; },
         };
         return { hits: await groupStarRematch(ctx, membership) };
     },
@@ -724,7 +732,7 @@ const welcomeTask = {
             return refuse('validation-failed');
         }
         const roster = {};
-        for (const m of w.roster) {
+        for (const m of welcomeRoster(w.roster).values()) {
             roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer ? { contactId: i.contactId } : {}) };
         }
         const g = {
