@@ -37,10 +37,14 @@
 //
 // The Stage-2 holder (contract, engine core and facade):
 //
-//   holder-api        createHolder — the facade: act, decide, receive, tick,
-//                     resume, report, subscribe, snapshot and the views:
-//                     contacts, contact, groups, profile, prompts,
-//                     deliveryStatus. Built in: the trust module (Trust
+//   holder-api        createHolder — the facade: the typed human acts
+//                     (trust, untrust, pauseTrust, setClass, setGroupClass,
+//                     merge, depart, decide; {when, actId}), recover, act,
+//                     receive, tick, resume, report, subscribe, snapshot and
+//                     the views: contacts, contact, groups, profile,
+//                     prompts, deliveryStatus; `invariants: true` checks
+//                     invariants.ts on every commit (testing mode). Built
+//                     in: the trust module (Trust
 //                     Layer 2a, 6.1–6.5, Section 2) — the human acts
 //                     trust.set, trust.setClass, trust.setGroupClass,
 //                     trust.pause, trust.merge, trust.depart, the anchor

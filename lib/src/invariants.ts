@@ -40,6 +40,11 @@
 //               entry its verifications go to, whose class is on (6410,
 //               2790: the drop rule holds); a class-on duty has its
 //               deterministic id (trust/duties.ts)
+//   owed        a duty class on for a live relationship (2850, 6595) with
+//               an artifact to send has it out or owed there: the anchor
+//               mapping issued on the active tuple or a class-on or
+//               re-issue duty open on it; the profile (once one exists) a
+//               class-on or profile duty open on it until PR 6 delivers it
 //
 // Over one commit (transitionViolations):
 //   commitSeq   strictly +1 per commit; lastWhen never falls (4.7)
@@ -67,9 +72,12 @@
 //                 receive       continuity (the flow's end by its ack)
 //                 any commit    a class duty whose relationship left or is
 //                               a husk now (departure, the move at a
-//                               chaining) or whose class is off toward the
-//                               entry it is owed under (6410, 2790); a
-//                               continuity duty whose relationship left
+//                               chaining), that merged into another of its
+//                               kind on the same relationship (the move:
+//                               several re-issues are one, 6596), or whose
+//                               class is off toward the entry it is owed
+//                               under (6410, 2790); a continuity duty whose
+//                               relationship left
 //               a duty of a kind the library does not know never leaves
 //   journal     act records leave only by tick (retention)
 //
@@ -87,7 +95,7 @@ import { jcs } from './core.js'
 import { triasOf } from './state.js'
 import type { Contact, Duty, HolderState, Relationship, SeqIn, SeqOut, Tuple } from './state.js'
 import { ADMISSION_BOUND, classOnToward, entryOf, entryRelationships, feeding, findContact, liveRel, newestHeads, newestOf } from './trust/state.js'
-import { classOfDuty, classOnId } from './trust/duties.js'
+import { classOfDuty, classOnId, hasArtifact, onFor, owedOn } from './trust/duties.js'
 
 /** What a commit was: the operation that produced it. */
 export type CommitOp =
@@ -208,6 +216,16 @@ export function stateViolations (state: Readonly<HolderState>): Violation[] {
   for (const id of heads) if (!Object.hasOwn(state.relationships, id) || isHusk(state.relationships[id])) v.push({ invariant: 'entries', detail: `entryOrder.heads names ${id}, gone or a husk` })
   for (const r of Object.values(state.relationships)) if (liveRel(r) && !heads.includes(r.id)) v.push({ invariant: 'entries', detail: `${r.id} is live but not in entryOrder.heads` })
   for (const d of Object.values(state.duties)) dutyViolations(v, state, d)
+  // 2850: on for a relationship, out there or owed there
+  const duties = Object.values(state.duties)
+  for (const r of Object.values(state.relationships)) {
+    if (!liveRel(r)) continue
+    for (const cls of ['anchorMapping', 'profile'] as const) {
+      if (!hasArtifact(state, cls) || !onFor(state, r, cls)) continue
+      const out = cls === 'anchorMapping' && r.tuples.find((t) => t.ownPairLabel === r.activeHead)!.mappingOut.body !== null
+      if (!out && !duties.some((d) => owedOn(d, r.id, cls))) v.push({ invariant: 'owed', detail: `${r.id}: the ${cls} class is on for it, nothing is out there and no duty owes it (2850)` })
+    }
+  }
   return v
 }
 
@@ -245,6 +263,10 @@ export function dutyDrops (before: Readonly<HolderState>, after: Readonly<Holder
   const cls = classOfDuty(d as Duty)
   if (cls === null) return false
   if (relGone) return true
+  // merged into one of its kind owed on the same relationship (the move at a
+  // chaining: several re-issues are one, 6596; one class-on per class; the
+  // highest profile revision)
+  if (Object.values(after.duties).some((x) => x.kind === d.kind && owedOn(x, relId as string, cls))) return true
   const e = entryOf(after, after.relationships[relId as string])
   return e !== undefined && !classOnToward(e, cls)
 }
