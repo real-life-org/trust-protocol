@@ -8,14 +8,15 @@
 // anchor per group, public personas. No two contexts link to each other
 // unless their holder deliberately discloses the link.
 //
-// The label registry is CLOSED (Identity §6.1): exactly four label forms
+// The label registry is CLOSED (Identity §6.1): exactly five label forms
 // derive — group/<digest>, group/<digest>/<generation> (the community
-// anchor's later generations, §5.4, the one row added since 0.13),
-// pair/<digest>, persona/<name> — and this API rejects every other
-// string before any key derivation — fail closed, no repair. `self`,
-// `recovery`, `carrier` and `device/…` are not labels; recovery and the
-// carrier-relationship identity have their own fixed derivations outside
-// this registry and are deliberately NOT part of this module yet.
+// anchor's later generations, §5.4), pair/<digest>, persona/<name> and
+// device/<name>/<context> (one device under one anchor context, §5.5) —
+// and this API rejects every other string before any key derivation —
+// fail closed, no repair. `self`, `recovery`, `carrier` and a `device/…`
+// string without exactly its two components are not labels; recovery and
+// the carrier-relationship identity have their own fixed derivations
+// outside this registry and are deliberately NOT part of this module yet.
 //
 // Fresh-always (Encounter §4.4): a ceremony mints a pair context whose
 // label digests the NONCE BYTES, so nothing correlatable is displayed —
@@ -80,7 +81,35 @@ export function canonicalLabel(label) {
         const name = personaName(label.slice(8));
         return name === null ? null : 'persona/' + name;
     }
-    return null; // self, recovery, carrier, device/…, and every unknown form: fail closed
+    if (label.startsWith('device/')) {
+        // §5.5: device/<n>/<c> — c is 47 characters and n holds no '/', so
+        // the label parses into exactly one (n, c); n follows 6.2 (NFC applied)
+        const rest = label.slice(7);
+        const cut = rest.length - 48;
+        if (cut < 1 || rest[cut] !== '/' || !digestComponent(rest.slice(cut + 1)))
+            return null;
+        const name = personaName(rest.slice(0, cut));
+        return name === null ? null : `device/${name}/${rest.slice(cut + 1)}`;
+    }
+    return null; // self, recovery, carrier, device/… without both components, and every unknown form: fail closed
+}
+/** A device name per 6.2 (Identity §5.5), NFC-normalized, or null. */
+export const deviceName = (raw) => (typeof raw === 'string' ? personaName(raw) : null);
+/**
+ * The device label of one device under one anchor context (Identity
+ * §5.5): device/<n>/<c>, c the 6.1 encoding of sha2-256 over the UTF-8
+ * bytes of the context's canonical label — a group/…, persona/… or pair/…
+ * label, never a device/… one. One device key per anchor context: the
+ * context is part of the label.
+ */
+export async function deviceLabel(name, contextLabel, subtle) {
+    const n = deviceName(name);
+    if (n === null)
+        throw new Error(`not a device name (Identity §5.5, §6.2): ${JSON.stringify(name)}`);
+    const a = canonicalLabel(contextLabel);
+    if (a === null || a.startsWith('device/'))
+        throw new Error(`not an anchor context label (Identity §5.5): ${JSON.stringify(contextLabel)}`);
+    return `device/${n}/${await digestBytes(new TextEncoder().encode(a), subtle)}`;
 }
 export async function labeledContext(rootIkm, label) {
     const canonical = canonicalLabel(label);

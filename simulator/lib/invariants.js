@@ -12,6 +12,12 @@
 // Identity §n is identity-layer.md, Delivery §n delivery-contract.md.
 //
 // Over one state (stateViolations):
+//   register    every revocation mark names a held device name; the
+//               lineage is chained (each prev the preceding next) and no
+//               longer than the head allows; at most one rotation runs,
+//               from the head to the next generation, its label persisted
+//               (6360), its step-2 duty open; a rotation duty names a
+//               running rotation (Identity §5.4, §5.5)
 //   entries     every tuple's entryId names a contact or an alias (2145);
 //               every contact's relIds exist, are distinct, are no husks;
 //               every relationship's contactId resolves (2090, 2140);
@@ -45,14 +51,20 @@
 //   owed        a duty class on for a live relationship (2850, 6595) with
 //               an artifact to send has it out or owed there: the anchor
 //               mapping issued on the active tuple or a class-on or
-//               re-issue duty open on it; the profile (once one exists) a
-//               class-on or profile duty open on it until PR 6 delivers it
+//               re-issue duty open on it; the profile (once one exists)
+//               issued at the counter's revision on the active tuple
+//               (profileOut) or a class-on or profile duty open on it
 //
 // Over one commit (transitionViolations):
 //   commitSeq   strictly +1 per commit; lastWhen never falls (4.7)
 //   register    labels, pair nonces, carriers, device names and revocation
 //               marks only grow; the community keeps its genesis and its
-//               head never falls; the lineage only extends (Identity §2)
+//               head never falls; the lineage only extends (Identity §2); a
+//               name revoked before is never added again (§5.5); the head
+//               moves one generation at a time, with exactly one lineage
+//               element, onto a label persisted in an earlier commit (6360)
+//   profile     the own profile's one counter never falls and its content
+//               changes only with it (6450)
 //   addresses   tombstones never shrink; a key leaves only as a tombstone
 //               (Delivery §5)
 //   salts       per tuple label: lastSalt, probe seq and the issued
@@ -104,13 +116,19 @@
 //                   revision
 //               (d) the same delivery: an anchor mapping issued on the
 //                   relationship in this commit meets every class-on and
-//                   re-issue of the anchor mapping owed there (6596)
+//                   re-issue of the anchor mapping owed there (6596); a
+//                   profile issued there (its revision rose on the active
+//                   tuple, or a profile duty owed there was fulfilled)
+//                   meets every class-on and profile duty owed there
 //               (e) a received document that ends its continuity step: a
 //                   probe duty by the ack that completes an in-flight probe
 //                   (done set in this commit, 6830); a mapping duty by its
 //                   current issuance answered (aligned in this commit) —
 //                   the ack of one of that issuance's documents, or a
 //                   continuity mapping arriving on the tuple (6850)
+//               (f) a rotation duty, by its rotation's completion in this
+//                   commit (the act's step 2: the head moved, the rotation
+//                   gone)
 //               expiry: no duty kind expires yet. A duty of a kind (or
 //               version) the library does not know leaves only by (a), a
 //               module's handler: never where none is registered
@@ -133,6 +151,7 @@ import { classOfDuty, classOnId, hasArtifact, onFor, owedOn } from './trust/duti
 import { CONTINUITY_MAPPING_TYPE, CONTINUITY_PROBE_TYPE } from './trust/continuity.js';
 import { viewDigest } from './trust/star.js';
 import { isKnownDuty } from './codec.js';
+import { communityLabel } from './identity.js';
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const big = (d) => BigInt(d);
 const isHusk = (r) => r.chainedInto !== null;
@@ -192,9 +211,40 @@ function dutyViolations(v, state, d) {
     else if (!classOnToward(e, cls))
         v.push({ invariant: 'duties', detail: `${d.id}: the class ${cls} is off toward ${e.id} (6410)` });
 }
+/** The register (Identity §2, §5.4, §5.5) and the running rotations. */
+function registerViolations(v, state) {
+    const r = state.register;
+    for (const n of r.devices.revoked)
+        if (!r.devices.names.includes(n))
+            v.push({ invariant: 'register', detail: `revocation mark ${n} without its device name` });
+    const lin = r.lineage;
+    for (let i = 1; i < lin.length; i++)
+        if (lin[i].body?.prev !== lin[i - 1].body?.next)
+            v.push({ invariant: 'register', detail: `lineage element ${i} does not continue element ${i - 1}` });
+    if (r.community !== null && big(r.community.head) - 1n < BigInt(lin.length))
+        v.push({ invariant: 'register', detail: `${lin.length} lineage elements beyond head ${r.community.head}` });
+    for (const rot of Object.values(state.rotations)) {
+        if (r.community === null || big(rot.from) !== big(r.community.head) || big(rot.to) !== big(rot.from) + 1n)
+            v.push({ invariant: 'register', detail: `rotation ${rot.id} ${rot.from} → ${rot.to} does not start at the head ${r.community?.head}` });
+        else if (!r.labels.includes(communityLabel(r.community.genesis, Number(rot.to))))
+            v.push({ invariant: 'register', detail: `rotation ${rot.id}: the label of generation ${rot.to} is not persisted (6360)` });
+    }
+    if (Object.keys(state.rotations).length > 1)
+        v.push({ invariant: 'register', detail: 'more than one rotation running' });
+    // a running rotation has its step-2 duty open, and a rotation duty names a running rotation
+    for (const rot of Object.values(state.rotations)) {
+        if (!Object.values(state.duties).some((d) => d.kind === 'rotation' && d.rotationId === rot.id))
+            v.push({ invariant: 'register', detail: `rotation ${rot.id} has no rotation duty: it would never complete` });
+    }
+    for (const d of Object.values(state.duties)) {
+        if (d.kind === 'rotation' && isKnownDuty(d) && !Object.hasOwn(state.rotations, d.rotationId))
+            v.push({ invariant: 'duties', detail: `${d.id}: no rotation ${d.rotationId} runs` });
+    }
+}
 /** The invariants of one state (see the header); empty where all hold. */
 export function stateViolations(state) {
     const v = [];
+    registerViolations(v, state);
     const contacts = Object.values(state.contacts);
     const positions = new Set();
     for (const c of contacts) {
@@ -278,7 +328,8 @@ export function stateViolations(state) {
         for (const cls of ['anchorMapping', 'profile']) {
             if (!hasArtifact(state, cls) || !onFor(state, r, cls))
                 continue;
-            const out = cls === 'anchorMapping' && r.tuples.find((t) => t.ownPairLabel === r.activeHead).mappingOut.body !== null;
+            const head = r.tuples.find((t) => t.ownPairLabel === r.activeHead);
+            const out = cls === 'anchorMapping' ? head.mappingOut.body !== null : head.profileOut.rev === state.profile.revision;
             if (!out && !duties.some((d) => owedOn(d, r.id, cls)))
                 v.push({ invariant: 'owed', detail: `${r.id}: the ${cls} class is on for it, nothing is out there and no duty owes it (2850)` });
         }
@@ -337,6 +388,8 @@ function freshViolations(t) {
         out.push('continuityIn');
     if (t.profileIn.rev !== '0' || t.profileIn.body !== null)
         out.push('profileIn');
+    if (t.profileOut.rev !== '0')
+        out.push('profileOut');
     if (t.deactivated)
         out.push('deactivated');
     return out;
@@ -402,6 +455,12 @@ export function dutyDrops(before, after, d, op) {
         return true;
     if (!isKnownDuty(d))
         return false; // otherwise never, on any operation
+    // (f) the rotation's step 2 completed in this commit (the act's own path)
+    if (d.kind === 'rotation') {
+        const id = d.rotationId;
+        return !Object.hasOwn(after.rotations, id) && after.register.community !== null && before.register.community !== null &&
+            big(after.register.community.head) === big(before.register.community.head) + 1n;
+    }
     const relId = d.relId;
     const relGone = !Object.hasOwn(after.relationships, relId) || isHusk(after.relationships[relId]);
     if (d.kind === 'merge')
@@ -446,6 +505,17 @@ export function dutyDrops(before, after, d, op) {
     }
     if (d.kind === 'profile' && same.some((x) => BigInt(x.rev) >= BigInt(d.rev)))
         return true;
+    // (d) the profile went out on the relationship in this commit: its
+    // revision rose there, or a profile duty owed there was fulfilled
+    if (cls === 'profile') {
+        const was = before.relationships[relId], now = after.relationships[relId];
+        const head = now.tuples.find((x) => x.ownPairLabel === now.activeHead);
+        const prior = was?.tuples.find((x) => x.ownPairLabel === now.activeHead);
+        if (head && prior && big(head.profileOut.rev) > big(prior.profileOut.rev))
+            return true;
+        if (op.kind === 'resume' && (op.fulfilled ?? []).some((id) => Object.hasOwn(before.duties, id) && owedOn(before.duties[id], relId, 'profile')))
+            return true;
+    }
     // (d) the anchor mapping went out on the relationship in this commit
     if (cls === 'anchorMapping') {
         const was = before.relationships[relId], now = after.relationships[relId];
@@ -585,6 +655,24 @@ export function transitionViolations(before, after, op) {
     }
     if (ra.lineage.length < rb.lineage.length || jcs(ra.lineage.slice(0, rb.lineage.length)) !== jcs(rb.lineage))
         v.push({ invariant: 'register', detail: 'the lineage did not only extend' });
+    // a revoked name is never given again (Identity §5.5)
+    for (const n of ra.devices.names)
+        if (!rb.devices.names.includes(n) && rb.devices.revoked.includes(n))
+            v.push({ invariant: 'register', detail: `device name ${n} given again after its revocation` });
+    // the head moves by one generation at a time, with one lineage element,
+    // onto a label persisted in an earlier commit (6360, Identity §5.4)
+    if (rb.community !== null && ra.community !== null && ra.community.head !== rb.community.head) {
+        const g = big(ra.community.head);
+        if (g !== big(rb.community.head) + 1n || ra.lineage.length !== rb.lineage.length + 1)
+            v.push({ invariant: 'register', detail: `the head moved ${rb.community.head} → ${ra.community.head} with ${ra.lineage.length - rb.lineage.length} lineage elements` });
+        if (!rb.labels.includes(communityLabel(ra.community.genesis, Number(g))))
+            v.push({ invariant: 'register', detail: `the head moved to generation ${ra.community.head} whose label was not persisted before (6360)` });
+    }
+    // the own profile's one counter never falls, and its content changes only with it (6450)
+    if (big(after.profile.revision) < big(before.profile.revision))
+        v.push({ invariant: 'profile', detail: `the profile revision fell ${before.profile.revision} → ${after.profile.revision}` });
+    else if (after.profile.revision === before.profile.revision && jcs(after.profile.body) !== jcs(before.profile.body))
+        v.push({ invariant: 'profile', detail: `the profile changed under revision ${after.profile.revision}` });
     // addresses (Delivery §5)
     lost('tombstones', superset(after.addresses.tombstones, before.addresses.tombstones));
     for (const k of Object.keys(before.addresses.keys)) {
@@ -610,6 +698,12 @@ export function transitionViolations(before, after, op) {
             v.push({ invariant: 'salts', detail: `${label}: mapping revision fell` });
         if (big(a.continuityOut.rev) < big(b.continuityOut.rev))
             v.push({ invariant: 'salts', detail: `${label}: continuity revision fell` });
+        if (big(a.profileOut.rev) < big(b.profileOut.rev))
+            v.push({ invariant: 'salts', detail: `${label}: profile revision issued fell` });
+        if (big(a.profileOut.rev) > big(after.profile.revision))
+            v.push({ invariant: 'salts', detail: `${label}: profile revision ${a.profileOut.rev} issued above the counter ${after.profile.revision} (6450)` });
+        if (big(a.profileIn.rev) < big(b.profileIn.rev))
+            v.push({ invariant: 'salts', detail: `${label}: the held profile revision fell (6460)` });
     }
     // a new tuple starts with fresh per-tuple state (6250): nothing migrates into it
     for (const r of Object.values(after.relationships)) {

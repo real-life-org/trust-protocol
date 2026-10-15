@@ -11,7 +11,9 @@ export { STAR_TYPE, ASSEMBLY_LIMIT, starView, viewDigest, heldAnchors, discardAs
 export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js';
 export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple } from './trust/continuity.js';
 export { ENTRY_COMMANDS, mergeEntries, mergeDutiesAfter, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending, } from './trust/entries.js';
-export { DUTY_CLASSES, RECONCILED, classOnId, profileDutyId, classOfDuty, owedOn, onFor, onRelationships, classOnDuty, dropOff, followClasses, moveDuties, afterChain, classOnHandler, profileDuty, } from './trust/duties.js';
+export { DUTY_CLASSES, RECONCILED, classOnId, profileDutyId, classOfDuty, owedOn, onFor, onRelationships, classOnDuty, dropOff, followClasses, moveDuties, afterChain, classOnHandler, } from './trust/duties.js';
 export { promptsModule, collectDecisions } from './prompts.js';
+export { PROFILE_SET, profileIssueDuty, profileTask, profileParts } from './trust/profile.js';
+export { identityModule, IDENTITY_COMMANDS, GENERATION_LAST, withLabel, withPairNonce, deviceKeyOf, rotationDutyId, reissueId } from './identity-state.js';
 export { stateViolations, transitionViolations, commitViolations, dutyDrops } from './invariants.js';
 export { createEngine } from './engine.js';

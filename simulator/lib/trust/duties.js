@@ -156,7 +156,8 @@ export function afterChain(state, relId, extra) {
 /**
  * The class-on/1 handler: a reconciled class is fulfilled without sending
  * (its sweep runs in the same resume after the duties, 5850); a class with
- * a handler in `byClass` runs it; any other (the profile until PR 6) waits.
+ * a handler in `byClass` runs it (the anchor mapping, the profile); any
+ * other waits.
  */
 export function classOnHandler(byClass) {
     const of = (d) => d.cls;
@@ -175,8 +176,5 @@ export function classOnHandler(byClass) {
         },
     };
 }
-/** profile/1 (6455): a stub until profile@1 graduates in PR 6. The duty
- *  is opened, moved and dropped by the rules above; delivering it waits. */
-export const profileDuty = Object.freeze({ v: 1, apply: () => 'not-due' });
 /** Every relationship of `c` the class is on for (2820, 2850): for tests and views. */
 export const onRelationships = (state, c, cls) => entryRelationships(state, c).filter((r) => onFor(state, r, cls)).map((r) => r.id);
