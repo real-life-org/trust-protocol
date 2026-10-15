@@ -137,9 +137,11 @@ the state as opaque JSON and gives it back; the library decodes it
 (`decodeState`), the adapter never migrates.
 
 - **Codec 1** is the format of 0.4.0, the first stable one. Its golden
-  fixture `test/fixtures/state-v1.json` (a deterministic run over three
-  holders, `test/fixtures/gen-state-v1.mjs`) decodes and re-encodes byte
-  for byte. A later codec brings its validator, a pure migration from the
+  fixtures (`test/fixtures/state-v1*.json`, deterministic runs of
+  `test/fixtures/gen-state-v1.mjs`, reproduced in `npm test`) cover a
+  settled holder, one with work open (prompts, a joining invite, duties, a
+  rotation at step 2) and one with a tombstone, a revoked device and
+  carrier entries; each decodes and re-encodes byte for byte. A later codec brings its validator, a pure migration from the
   one before, and its own fixture with a migration test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
