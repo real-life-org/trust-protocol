@@ -91,6 +91,8 @@ import {
 import { viewDigest } from './star.js'
 import { dropOff, followClasses } from './duties.js'
 import { isKnownDuty } from '../codec.js'
+import { jcs } from '../core.js'
+const jcsEq = (a: unknown, b: unknown): boolean => jcs(a) === jcs(b)
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 const cmpDec = (a: Dec, b: Dec): number => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0 }
@@ -191,7 +193,12 @@ function renameBaselines (t: Tuple, from: (id: string) => boolean, to: string): 
  * resolves through `to` (2100, 2140), within `opts`: tuples' entryId,
  * duties, the recipients of issued documents, and with `global` the
  * introducers of relationships (provenance.via), the matches of accepted
- * stars, prompts and merge duties. Contacts are the caller's: their ids
+ * stars, prompts and merge duties; and the contact references of the
+ * membership and introduction state — a reference that carries the rkid
+ * it arrived on (joining.preludes, groups[*].preludes) follows with the
+ * relationships in `opts`, the others (joining.invites, groups[*]
+ * invitations and roster, encounter.offers, memory.vouchedBy) with
+ * `global`. Contacts are the caller's: their ids
  * and aliases are what the rewrite follows. The stored acks follow
  * through the engine (opts.renames): only the core writes the effect
  * cache, and their sealed envelopes stay as they are. Parts without a
@@ -238,14 +245,46 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
   if (opts.global) {
     for (const [id, p] of Object.entries(state.prompts)) if (p.contactId !== undefined && from(p.contactId)) (prompts ??= { ...state.prompts })[id] = { ...p, contactId: to }
   }
+  // membership and introduction: the contact references they keep
+  const byRkid = (rkid: string): boolean => !opts.rels || rkids.has(rkid)
+  const re = (x: string | undefined, tied: boolean): boolean => x !== undefined && from(x) && tied
+  let joining: HolderState['joining'] | null = null
+  for (const [k, p] of Object.entries(state.joining.preludes)) {
+    if (re(p.contactId, byRkid(p.rkid))) (joining ??= { ...state.joining, preludes: { ...state.joining.preludes } }).preludes[k] = { ...p, contactId: to }
+  }
+  for (const [k, i] of Object.entries(state.joining.invites)) {
+    if (re(i.contactId, !!opts.global)) {
+      joining ??= { ...state.joining, preludes: { ...state.joining.preludes } }
+      joining.invites = { ...joining.invites, [k]: { ...i, contactId: to } }
+    }
+  }
+  let groups: HolderState['groups'] | null = null
+  for (const [gid, g] of Object.entries(state.groups)) {
+    const preludes = Object.fromEntries(Object.entries(g.preludes).map(([k, p]) => [k, re(p.contactId, byRkid(p.rkid)) ? { ...p, contactId: to } : p]))
+    const invitations = Object.fromEntries(Object.entries(g.invitations).map(([k, i]) => [k, re(i.contactId, !!opts.global) ? { ...i, contactId: to } : i]))
+    const roster = Object.fromEntries(Object.entries(g.roster).map(([k, m]) => [k, re(m.contactId, !!opts.global) ? { ...m, contactId: to } : m]))
+    if (jcsEq(preludes, g.preludes) && jcsEq(invitations, g.invitations) && jcsEq(roster, g.roster)) continue
+    ;(groups ??= { ...state.groups })[gid] = { ...g, preludes, invitations, roster }
+  }
+  let encounter: HolderState['encounter'] | null = null
+  for (const [k, o] of Object.entries(state.encounter.offers)) {
+    if (re(o.mediatorContactId, !!opts.global)) (encounter ??= { ...state.encounter, offers: { ...state.encounter.offers } }).offers[k] = { ...o, mediatorContactId: to }
+  }
+  if (opts.global) {
+    for (const [id, r] of Object.entries(relationships ?? state.relationships)) {
+      const v = r.memory.vouchedBy
+      if (typeof v === 'string' && from(v)) (relationships ??= { ...state.relationships })[id] = { ...r, memory: { ...r.memory, vouchedBy: to } }
+    }
+  }
   let outbox: HolderState['outbox'] | null = null
   for (const [d, it] of Object.entries(state.outbox)) {
     if (from(it.recipient.contactId) && rkids.has(it.recipient.rkid)) (outbox ??= { ...state.outbox })[d] = { ...it, recipient: { ...it.recipient, contactId: to } }
   }
-  if (!relationships && !duties && !prompts && !outbox) return state as HolderState
+  if (!relationships && !duties && !prompts && !outbox && !joining && !groups && !encounter) return state as HolderState
   return {
     ...state,
     ...(relationships ? { relationships } : {}), ...(duties ? { duties } : {}), ...(prompts ? { prompts } : {}), ...(outbox ? { outbox } : {}),
+    ...(joining ? { joining } : {}), ...(groups ? { groups } : {}), ...(encounter ? { encounter } : {}),
   }
 }
 

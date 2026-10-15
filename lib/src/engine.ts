@@ -147,6 +147,15 @@
 //     app plug-ins)
 //   - a failure handler gets the retry backoff, so a failure can make work
 //     due no earlier than its schedule allows
+//   - the timer contract: tick does the time-driven work (expiry,
+//     retention, the modules' `retain`), resume the delivery work (retries,
+//     due duties, sweeps, acks). nextDueAt names the earliest of both: on
+//     resume, the earliest future deadline of the expiry work (prompt
+//     expiresAt, effect expiry, the act journal's, a terminal outbox item's
+//     and an address key's retention, every module's `deadlines`); on an
+//     act or receive, also a deadline the commit newly introduced. The app
+//     sets one timer on it and, when it fires, calls tick and then resume
+//     (README "The holder")
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -412,6 +421,9 @@ export interface HolderModule {
   /** the module's own retention, run by tick after the engine's: pure and
    *  synchronous, returning the same state object where nothing goes */
   retain?: (state: Readonly<HolderState>, when: Millis) => HolderState
+  /** the times at which the module's `retain` (run by tick) changes the
+   *  state: counted into nextDueAt (the timer contract, the header) */
+  deadlines?: (state: Readonly<HolderState>) => Iterable<Millis>
   /** at most one handler per prompt kind across all modules; collected by
    *  createHolder for the prompts module (prompts.ts) */
   decisions?: Partial<Record<PromptKind, DecisionHandler>>
@@ -658,6 +670,7 @@ class HolderEngine implements Engine {
   readonly #ownRetries: ReadonlySet<string>
   readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<string>>
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
+  readonly #deadlines: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<Millis>>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #check?: EngineOptions['check']
   readonly #accessFrom?: EngineOptions['accessFrom']
@@ -705,6 +718,7 @@ class HolderEngine implements Engine {
     const ownRetries = new Set<string>()
     const keepKeys: Array<(state: Readonly<HolderState>) => Iterable<string>> = []
     const retain: Array<(state: Readonly<HolderState>, when: Millis) => HolderState> = []
+    const deadlines: Array<(state: Readonly<HolderState>) => Iterable<Millis>> = []
     const names = new Set<string>()
     for (const m of modules) {
       if (!m || typeof m.name !== 'string' || !m.name) throw new TypeError('a module needs a name')
@@ -760,6 +774,10 @@ class HolderEngine implements Engine {
         if (typeof m.retain !== 'function') throw new TypeError(`retain (module ${m.name}) must be a function`)
         retain.push(m.retain)
       }
+      if (m.deadlines !== undefined) {
+        if (typeof m.deadlines !== 'function') throw new TypeError(`deadlines (module ${m.name}) must be a function`)
+        deadlines.push(m.deadlines)
+      }
     }
     this.#commands = commands
     this.#tasks = tasks
@@ -769,6 +787,7 @@ class HolderEngine implements Engine {
     this.#failures = failures
     this.#ownRetries = ownRetries
     this.#keepKeys = Object.freeze(keepKeys)
+    this.#deadlines = Object.freeze(deadlines)
     this.#retain = Object.freeze(retain)
     this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() })
     this.registry = Object.freeze({
@@ -931,8 +950,36 @@ class HolderEngine implements Engine {
 
   /** The work an operation opened or unblocked: its duty work (#dutyWake),
    *  or `when` where a sweep's pending keys gained one. */
+  /** Every time at which tick's expiry and retention change `state`: the
+   *  engine's own and the modules' `deadlines` (the timer contract). */
+  #expiries (state: Readonly<HolderState>): Millis[] {
+    const retention = this.#policy.retentionMs
+    const out: Millis[] = []
+    for (const p of Object.values(state.prompts)) if (p.expiresAt !== undefined) out.push(p.expiresAt)
+    for (const e of Object.values(state.effects)) out.push(e.expiresAt)
+    for (const a of Object.values(state.acts)) out.push(a.at + retention)
+    for (const it of Object.values(state.outbox)) {
+      const t = triasOf(it)
+      if ((t === 'delivered' || t === 'failed') && it.history.length) out.push(it.history[it.history.length - 1].at + retention)
+    }
+    for (const k of Object.values(state.addresses.keys)) out.push(k.lastShown + retention)
+    for (const f of this.#deadlines) for (const t of f(state)) out.push(t)
+    return out.filter((t) => Number.isSafeInteger(t))
+  }
+
+  /** The earliest expiry deadline after `when`, among those `only` admits. */
+  #nextExpiry (state: Readonly<HolderState>, when: Millis, only: (t: Millis) => boolean = () => true): Millis | undefined {
+    let next: Millis | undefined
+    for (const t of this.#expiries(state)) if (t > when && only(t) && (next === undefined || t < next)) next = t
+    return next
+  }
+
   #wake (before: Readonly<HolderState>, after: Readonly<HolderState>, added: readonly Duty[], when: Millis): Millis | undefined {
-    const d = this.#dutyWake(before, after, added, when)
+    const d0 = this.#dutyWake(before, after, added, when)
+    // a deadline the commit introduced (a prompt opened, an act started, …)
+    const had = before === after ? null : new Set(this.#expiries(before))
+    const x = had === null ? undefined : this.#nextExpiry(after, when, (t) => !had.has(t))
+    const d = d0 === undefined ? x : x === undefined ? d0 : Math.min(d0, x)
     if (d === when || before === after) return d
     for (const sw of this.#sweeps.values()) {
       // a sweep whose declared inputs are untouched (by reference) cannot have new pending keys
@@ -1068,6 +1115,7 @@ class HolderEngine implements Engine {
   }
 
   #resumeDef (): InternalDef {
+    const expiryAfter = (st: Readonly<HolderState>, w: Millis): Millis | undefined => this.#nextExpiry(st, w)
     const policy = (): Policy => this.#policy
     const plan = (state: Readonly<HolderState>, when: Millis) => this.#dutyPlan(state, when)
     const handlers = (): ReadonlyMap<string, DutyHandler> => this.#duties
@@ -1221,6 +1269,9 @@ class HolderEngine implements Engine {
           due(nextAttemptAt)
         }
         if (effects && jcs(effects) !== jcs(cur.effects)) cur = { ...cur, effects }
+        // the expiry work tick does (the timer contract, the header)
+        const ex = expiryAfter(cur, when)
+        if (ex !== undefined) due(ex)
         return {
           state: cur, emit, events, outbound: drafts, release, detail: { fulfilled },
           ...(renames.length ? { renames } : {}),

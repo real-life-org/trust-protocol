@@ -49,11 +49,11 @@ export const memberLabelOf = (genesisDigest: unknown): string | null => {
 
 /** An enclosed card's profile (Membership 2.6): the displayed form, its
  *  proof under its anchor, no sentTo, boundTo or deliveryHints. */
-export async function enclosedCardOk (card: any, anchor: string): Promise<boolean> {
+export async function enclosedCardOk (card: any, anchor: string, subtle?: SubtleCrypto): Promise<boolean> {
   if (!membershipSchemaOk('contact-card.schema.json', card)) return false
   if (card.anchor !== anchor) return false
   if ('sentTo' in card || 'boundTo' in card || 'deliveryHints' in card) return false
-  return diVerify(card, anchor)
+  return diVerify(card, anchor, subtle)
 }
 
 /** The unsigned InvitationCredential (Membership 3.1, RLTP-MT-3010–3070). */
@@ -74,7 +74,7 @@ export const inviteCredentialBody = (f: {
  *  validity dates, no enactment, the budget. The prelude check (3030)
  *  needs the recipient's own derivation and stays the caller's. null when
  *  they pass, else the rule. */
-export async function inviteProblem (doc: any): Promise<string | null> {
+export async function inviteProblem (doc: any, subtle?: SubtleCrypto): Promise<string | null> {
   const inv = doc.payload.invite
   if (!withinBudget(doc)) return 'RLTP-MT-2210'
   if (doc.ceremony?.enactment !== undefined) return 'RLTP-MT-2170'
@@ -82,8 +82,8 @@ export async function inviteProblem (doc: any): Promise<string | null> {
   if (inv.credentialSubject.id !== doc.recipient) return 'RLTP-MT-3025'
   if (inv.taskContext !== doc.threadId) return 'RLTP-MT-3075'
   if (![inv.validFrom, inv.validUntil, inv.proof?.created].every(calOK) || tsec(inv.validUntil) < tsec(inv.validFrom)) return 'RLTP-MT-3055'
-  if (!(await diVerify(inv, inv.issuer))) return 'RLTP-MT-3070'
-  if (!(await enclosedCardOk(inv.credentialSubject.card, inv.issuer))) return 'RLTP-MT-3050'
+  if (!(await diVerify(inv, inv.issuer, subtle))) return 'RLTP-MT-3070'
+  if (!(await enclosedCardOk(inv.credentialSubject.card, inv.issuer, subtle))) return 'RLTP-MT-3050'
   return null
 }
 
@@ -91,7 +91,7 @@ export async function inviteProblem (doc: any): Promise<string | null> {
  *  past its schema and the document proof's presence: the proof under the
  *  issuer, issuer = subject = the invite's subject, ref = the invite's
  *  credential digest, the group, the card, the times, the budget. */
-export async function acceptProblem (doc: any, invite: any, credDigest: string): Promise<string | null> {
+export async function acceptProblem (doc: any, invite: any, credDigest: string, subtle?: SubtleCrypto): Promise<string | null> {
   const acc = doc.payload.accept
   const inv = invite.payload.invite
   if (!withinBudget(doc)) return 'RLTP-MT-2210'
@@ -104,8 +104,8 @@ export async function acceptProblem (doc: any, invite: any, credDigest: string):
   if (![doc.issuedAt, doc.proof?.created].every(calOK)) return 'RLTP-MT-3270'
   const last = tsec(inv.validUntil) + MEMBERSHIP_SKEW
   if (tsec(doc.issuedAt) > last || tsec(doc.proof.created) > last) return 'RLTP-MT-3270'
-  if (!(await diVerify(doc, doc.issuer))) return 'RLTP-MT-2130'
-  if (!(await enclosedCardOk(acc.card, acc.subject))) return 'RLTP-MT-3240'
+  if (!(await diVerify(doc, doc.issuer, subtle))) return 'RLTP-MT-2130'
+  if (!(await enclosedCardOk(acc.card, acc.subject, subtle))) return 'RLTP-MT-3240'
   return null
 }
 
@@ -120,21 +120,21 @@ export const vouchCredentialBody = (f: { issuer: string, subject: string, genesi
 
 /** A vouch's checks for one enclosed pair (RLTP-MT-3810): schema, proof
  *  under its issuer, subject, accept and genesis bindings. */
-export async function vouchProblem (vouch: any, acceptSubject: string, acceptDigest: string, genesisDigest: string): Promise<string | null> {
+export async function vouchProblem (vouch: any, acceptSubject: string, acceptDigest: string, genesisDigest: string, subtle?: SubtleCrypto): Promise<string | null> {
   if (!membershipSchemaOk('access-vouch.schema.json', vouch)) return 'RLTP-MT-3810'
   const e = vouch.credentialSubject.endorsement
   if (vouch.credentialSubject.id !== acceptSubject || !sameDigest(e.accept, acceptDigest) || !sameDigest(e.genesisDigest, genesisDigest)) return 'RLTP-MT-3810'
-  if (!(await diVerify(vouch, vouch.issuer))) return 'RLTP-MT-3810'
+  if (!(await diVerify(vouch, vouch.issuer, subtle))) return 'RLTP-MT-3810'
   return null
 }
 
 /** The evidence pair's checks (RLTP-MT-3725), past the payload schema. */
-export async function evidenceProblem (invite: any, accept: any, credDigest: string): Promise<string | null> {
+export async function evidenceProblem (invite: any, accept: any, credDigest: string, subtle?: SubtleCrypto): Promise<string | null> {
   const inv = invite.payload.invite
   if (inv.issuer !== invite.issuer || invite.recipient !== inv.credentialSubject.id) return 'RLTP-MT-3725'
   if (invite.threadId !== inv.taskContext || accept.threadId !== invite.threadId) return 'RLTP-MT-3725'
   if (![inv.validFrom, inv.validUntil].every(calOK) || tsec(inv.validUntil) < tsec(inv.validFrom)) return 'RLTP-MT-3725'
-  if (!(await diVerify(inv, inv.issuer))) return 'RLTP-MT-3725'
-  if (!(await enclosedCardOk(inv.credentialSubject.card, inv.issuer))) return 'RLTP-MT-3725'
-  return (await acceptProblem(accept, invite, credDigest)) === null ? null : 'RLTP-MT-3725'
+  if (!(await diVerify(inv, inv.issuer, subtle))) return 'RLTP-MT-3725'
+  if (!(await enclosedCardOk(inv.credentialSubject.card, inv.issuer, subtle))) return 'RLTP-MT-3725'
+  return (await acceptProblem(accept, invite, credDigest, subtle)) === null ? null : 'RLTP-MT-3725'
 }

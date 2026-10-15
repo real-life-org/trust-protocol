@@ -49,6 +49,14 @@ const { outbound, nextDueAt } = await holder.resume(Date.now())
 holder.subscribe(async () => render(await holder.contacts(), await holder.prompts()))
 ```
 
+**The timer.** Every act, receive and resume may name `nextDueAt`: the
+earliest time something is due, delivery work (retries, duties, acks)
+and expiry work (a prompt's expiry, an act's timeout or lifetime, an aging
+challenge, the retention of the effect cache, the journal, the outbox and
+the address keys) alike. The app keeps one timer at the earliest
+`nextDueAt` it was given; when it fires, it calls `tick(now)` and then
+`resume(now)`, sends the outbound and sets the timer anew.
+
 Every act returns `{ok: true, outbound, events} | {ok: false, code, ref?}`;
 `code` is a closed union, `ref` names the rule where one applies. Every
 `outbound` item is pure JSON (`digest`, `envelope`, `type`, `threadId`,

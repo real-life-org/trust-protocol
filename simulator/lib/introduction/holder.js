@@ -220,8 +220,8 @@ const introduceDef = {
 const declarationTask = {
     proof: 'required',
     decode: (p) => (introSchemaOk('payload-registry-declaration.schema.json', p) ? p : refuse('malformed')),
-    async prepare(_ctx, doc) {
-        if (!(await diVerify(doc, doc.issuer)))
+    async prepare(ctx, doc) {
+        if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle)))
             return refuse('validation-failed');
         const d = doc.payload.declaration;
         // the registering specification closes names and domains: only the mediator role is known here
@@ -255,7 +255,7 @@ const offerTask = {
             return refuse('malformed');
         return x;
     },
-    async prepare(_ctx, doc) { return (await diVerify(doc, doc.issuer)) ? null : refuse('validation-failed'); },
+    async prepare(ctx, doc) { return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed'); },
     apply(state, _p, doc, arr) {
         const a = arrival(state, arr.rkid);
         const o = {
@@ -322,7 +322,7 @@ const requestTask = {
         if (!liveRel(a.rel) || a.tuple.deactivated || a.rel.activeHead !== a.label)
             return refuse('validation-failed', 'RLTP-TRU-8410');
         // step 2: form — schema (decode), digest, signature, the window, the ack cutoff
-        if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor)))
+        if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor, ctx.crypto.subtle)))
             return refuse('validation-failed', 'RLTP-TRU-8420');
         if (!(await requestFormOk(doc.payload, ctx.crypto.subtle)))
             return refuse('validation-failed', 'RLTP-TRU-8420');
@@ -400,7 +400,7 @@ const forwardTask = {
         // the request signature under the card's anchor, cardDigest, the card (8050)
         if (!(await requestFormOk(doc.payload, ctx.crypto.subtle)))
             return refuse('validation-failed', 'RLTP-TRU-8050');
-        if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor)))
+        if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor, ctx.crypto.subtle)))
             return refuse('validation-failed', 'RLTP-TRU-8050');
         return { known: false };
     },
@@ -494,7 +494,7 @@ const replyChecks = async (ctx, a, payload) => {
         return a.role === 'mediator' ? 'RLTP-TRU-8510' : 'RLTP-TRU-8570';
     if (r.requesterPair !== a.requestCard.anchor)
         return a.role === 'mediator' ? 'RLTP-TRU-8520' : 'RLTP-TRU-8580';
-    if (!introCardShapeOk(payload.card) || !(await diVerify(payload.card, payload.card.anchor)))
+    if (!introCardShapeOk(payload.card) || !(await diVerify(payload.card, payload.card.anchor, ctx.crypto.subtle)))
         return a.role === 'mediator' ? 'RLTP-TRU-8530' : 'RLTP-TRU-8590';
     return null;
 };
@@ -522,6 +522,11 @@ const replyTask = {
             const bad = await replyChecks(ctx, m, doc.payload);
             if (bad)
                 return refuse('validation-failed', bad);
+            // the requester's relationship departed while the act ran: the reply is
+            // taken (an authentic document on the pinned target tuple), the relay
+            // ends as failed; nothing goes to a departed relationship
+            if (!tupleByLabel(s, m.pins.requester))
+                return { repeat: false, toRequester: null, vouchers: [], orphaned: true };
             // forward unchanged (8060) and both vouchers (8740)
             const toRequester = await onTuple(ctx, m.pins.requester, INTRODUCTION_TYPES.reply, doc.payload, m.threads.request);
             const vouchers = [];
@@ -554,6 +559,8 @@ const replyTask = {
             const m = held(state, 'mediator', r.act);
             if (p.repeat)
                 return { state: state };
+            if (p.orphaned)
+                return { state: withAct(state, { ...m, status: 'failed', reply: doc.payload.introduction, replyCard: doc.payload.card }) };
             const next = completedIfDone({ ...m, reply: doc.payload.introduction, replyCard: doc.payload.card, replyForwarded: true, vouchersSent: true });
             return { state: withAct(state, next), outbound: [draft(p.toRequester), ...p.vouchers.map(draft)] };
         }
@@ -679,6 +686,19 @@ function retainActs(state, when) {
         delete kept[o.id];
     return { ...state, encounter: { ...state.encounter, introductions: out ?? state.encounter.introductions, offers: kept } };
 }
+/** When retainActs changes something: a requester's timeout fires, an
+ *  act's absolute lifetime ends (the timer contract, engine.ts). */
+function actDeadlines(state) {
+    const out = [];
+    for (const a of Object.values(state.encounter.introductions)) {
+        out.push(actFiresAt(a.issuedAt + ACT_EXPIRY + ACT_SKEW));
+        if (a.role === 'requester' && a.status === 'sent')
+            out.push(actFiresAt(a.at + a.ackDelayMs + ACT_SKEW));
+        if (a.role === 'requester' && a.status === 'acked')
+            out.push(actFiresAt(a.at + ACT_EXPIRY));
+    }
+    return out;
+}
 /** The introduction module createHolder registers. */
 export function introductionModule() {
     return Object.freeze({
@@ -696,5 +716,6 @@ export function introductionModule() {
         duties: Object.freeze({ 'intro-ack': ackDuty }),
         decisions: Object.freeze({ introduction: introductionDecision }),
         retain: retainActs,
+        deadlines: actDeadlines,
     });
 }

@@ -149,6 +149,15 @@
 //     app plug-ins)
 //   - a failure handler gets the retry backoff, so a failure can make work
 //     due no earlier than its schedule allows
+//   - the timer contract: tick does the time-driven work (expiry,
+//     retention, the modules' `retain`), resume the delivery work (retries,
+//     due duties, sweeps, acks). nextDueAt names the earliest of both: on
+//     resume, the earliest future deadline of the expiry work (prompt
+//     expiresAt, effect expiry, the act journal's, a terminal outbox item's
+//     and an address key's retention, every module's `deadlines`); on an
+//     act or receive, also a deadline the commit newly introduced. The app
+//     sets one timer on it and, when it fires, calls tick and then resume
+//     (README "The holder")
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -378,6 +387,7 @@ class HolderEngine {
     #ownRetries;
     #keepKeys;
     #retain;
+    #deadlines;
     #builtins;
     #check;
     #accessFrom;
@@ -431,6 +441,7 @@ class HolderEngine {
         const ownRetries = new Set();
         const keepKeys = [];
         const retain = [];
+        const deadlines = [];
         const names = new Set();
         for (const m of modules) {
             if (!m || typeof m.name !== 'string' || !m.name)
@@ -511,6 +522,11 @@ class HolderEngine {
                     throw new TypeError(`retain (module ${m.name}) must be a function`);
                 retain.push(m.retain);
             }
+            if (m.deadlines !== undefined) {
+                if (typeof m.deadlines !== 'function')
+                    throw new TypeError(`deadlines (module ${m.name}) must be a function`);
+                deadlines.push(m.deadlines);
+            }
         }
         this.#commands = commands;
         this.#tasks = tasks;
@@ -520,6 +536,7 @@ class HolderEngine {
         this.#failures = failures;
         this.#ownRetries = ownRetries;
         this.#keepKeys = Object.freeze(keepKeys);
+        this.#deadlines = Object.freeze(deadlines);
         this.#retain = Object.freeze(retain);
         this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
@@ -704,8 +721,44 @@ class HolderEngine {
     }
     /** The work an operation opened or unblocked: its duty work (#dutyWake),
      *  or `when` where a sweep's pending keys gained one. */
+    /** Every time at which tick's expiry and retention change `state`: the
+     *  engine's own and the modules' `deadlines` (the timer contract). */
+    #expiries(state) {
+        const retention = this.#policy.retentionMs;
+        const out = [];
+        for (const p of Object.values(state.prompts))
+            if (p.expiresAt !== undefined)
+                out.push(p.expiresAt);
+        for (const e of Object.values(state.effects))
+            out.push(e.expiresAt);
+        for (const a of Object.values(state.acts))
+            out.push(a.at + retention);
+        for (const it of Object.values(state.outbox)) {
+            const t = triasOf(it);
+            if ((t === 'delivered' || t === 'failed') && it.history.length)
+                out.push(it.history[it.history.length - 1].at + retention);
+        }
+        for (const k of Object.values(state.addresses.keys))
+            out.push(k.lastShown + retention);
+        for (const f of this.#deadlines)
+            for (const t of f(state))
+                out.push(t);
+        return out.filter((t) => Number.isSafeInteger(t));
+    }
+    /** The earliest expiry deadline after `when`, among those `only` admits. */
+    #nextExpiry(state, when, only = () => true) {
+        let next;
+        for (const t of this.#expiries(state))
+            if (t > when && only(t) && (next === undefined || t < next))
+                next = t;
+        return next;
+    }
     #wake(before, after, added, when) {
-        const d = this.#dutyWake(before, after, added, when);
+        const d0 = this.#dutyWake(before, after, added, when);
+        // a deadline the commit introduced (a prompt opened, an act started, …)
+        const had = before === after ? null : new Set(this.#expiries(before));
+        const x = had === null ? undefined : this.#nextExpiry(after, when, (t) => !had.has(t));
+        const d = d0 === undefined ? x : x === undefined ? d0 : Math.min(d0, x);
         if (d === when || before === after)
             return d;
         for (const sw of this.#sweeps.values()) {
@@ -864,6 +917,7 @@ class HolderEngine {
         return { run, unsupported };
     }
     #resumeDef() {
+        const expiryAfter = (st, w) => this.#nextExpiry(st, w);
         const policy = () => this.#policy;
         const plan = (state, when) => this.#dutyPlan(state, when);
         const handlers = () => this.#duties;
@@ -1054,6 +1108,10 @@ class HolderEngine {
                 }
                 if (effects && jcs(effects) !== jcs(cur.effects))
                     cur = { ...cur, effects };
+                // the expiry work tick does (the timer contract, the header)
+                const ex = expiryAfter(cur, when);
+                if (ex !== undefined)
+                    due(ex);
                 return {
                     state: cur, emit, events, outbound: drafts, release, detail: { fulfilled },
                     ...(renames.length ? { renames } : {}),

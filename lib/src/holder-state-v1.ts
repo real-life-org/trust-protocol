@@ -87,6 +87,7 @@ export type HolderStateV1 = {
       group: string
       inviter: string
       contactId: string
+      rkid: string
       memberLabel: string
       at: MillisV1
     }>

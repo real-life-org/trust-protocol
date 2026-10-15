@@ -212,7 +212,7 @@ export async function prepareReceive(ctx, env, tasks) {
         if (expected === undefined || doc.issuer !== expected)
             return failed('validation-failed', 8, { digest });
         if (signed) {
-            if (!(await diVerify(doc, doc.issuer)))
+            if (!(await diVerify(doc, doc.issuer, S)))
                 return failed('validation-failed', 8, { digest });
         }
         else {

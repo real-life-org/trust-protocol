@@ -312,7 +312,7 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
 /** The arrival tuple's own label and the entry it feeds. */
 function arrival (state: Readonly<HolderState>, rkid: string) {
   const at = tupleByRkid(state, rkid)
-  return at ? { label: at.tuple.ownPairLabel, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId, tuple: at.tuple } : null
+  return at ? { label: at.tuple.ownPairLabel, contactId: entryOf(state, at.rel)?.id ?? findContact(state, at.rel.contactId)?.id ?? at.rel.contactId, tuple: at.tuple } : null
 }
 
 interface PreludeRequestPayload { genesisDigest: string, group: string, name: string, inviter: string, binding: Doc }
@@ -330,11 +330,11 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
     return memberLabelOf(x.genesisDigest) === null ? refuse('validation-failed') : x as unknown as PreludeRequestPayload
   },
   async prepare (ctx, doc, arr) {
-    if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed', 'RLTP-MT-2130')
+    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2130')
     // the claimed inviter proven by its own member key, for this group and thread
     const b = doc.payload.binding
     if (b.type !== 'x-membership-inviter@0.1' || b.inviter !== doc.payload.inviter || b.genesisDigest !== doc.payload.genesisDigest ||
-      b.threadId !== doc.threadId || b.from !== doc.issuer || b.to !== doc.recipient || !(await diVerify(b, doc.payload.inviter))) return refuse('validation-failed', 'RLTP-MT-3020')
+      b.threadId !== doc.threadId || b.from !== doc.issuer || b.to !== doc.recipient || !(await diVerify(b, doc.payload.inviter, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-3020')
     const a = arrival(ctx.snapshot, arr.rkid)!
     const label = memberLabelOf(doc.payload.genesisDigest)!
     const member = await ctx.keys.anchorOf(label)
@@ -351,9 +351,13 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
   apply (state, prepared, doc, arr) {
     const p = prepared.value
     const a = arrival(state, arr.rkid)!
-    // a binding (group, inviter) held for another contact is never overwritten
+    // a binding (group, inviter) held for another contact is never
+    // overwritten: compared by the entries the two arrival tuples feed now
+    // (a merge, a split or a chaining since moves it with them); a binding
+    // whose tuple is gone (a departure) is free
     const bound = state.joining.preludes[preludeKey(toU(doc.payload.genesisDigest)!, doc.payload.inviter)]
-    if (bound && bound.contactId !== a.contactId) return refuse('validation-failed', 'RLTP-MT-3030')
+    const was = bound ? arrival(state, bound.rkid) : null
+    if (was && was.contactId !== a.contactId) return refuse('validation-failed', 'RLTP-MT-3030')
     const keys = Object.hasOwn(state.addresses.keys, p.rkid) ? state.addresses.keys : { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: arr.when } }
     return {
       state: {
@@ -361,7 +365,7 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
         // the member label in the register before its anchor is shown (Identity 6.1)
         register: withLabel(state.register, p.label),
         addresses: { ...state.addresses, keys },
-        joining: { ...state.joining, preludes: { ...state.joining.preludes, [preludeKey(toU(doc.payload.genesisDigest)!, doc.payload.inviter)]: { group: toU(doc.payload.genesisDigest)!, inviter: doc.payload.inviter, contactId: a.contactId, memberLabel: p.label, at: arr.when } } },
+        joining: { ...state.joining, preludes: { ...state.joining.preludes, [preludeKey(toU(doc.payload.genesisDigest)!, doc.payload.inviter)]: { group: toU(doc.payload.genesisDigest)!, inviter: doc.payload.inviter, contactId: a.contactId, rkid: arr.rkid, memberLabel: p.label, at: arr.when } } },
       },
       outbound: [draft(p.reply)],
     }
@@ -379,13 +383,13 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
   },
   async prepare (ctx, doc, arr) {
     const s = ctx.snapshot
-    if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed', 'RLTP-MT-2130')
+    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2130')
     // the answer to exactly the prelude this holder sent: its group, thread and tuple
     const g = s.groups[toU(doc.payload.genesisDigest) ?? '']
     const asked = g?.preludes[doc.threadId]
     if (!g || g.memberAnchor === undefined || !asked || asked.rkid !== arr.rkid) return refuse('validation-failed', 'RLTP-MT-3030')
     const card = doc.payload.card
-    if (!(await enclosedCardOk(card, card.anchor))) return refuse('validation-failed', 'RLTP-MT-2250')
+    if (!(await enclosedCardOk(card, card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2250')
     const a = arrival(s, arr.rkid)!
     const S = ctx.crypto.subtle
     const at = iso(ctx.when)
@@ -438,7 +442,7 @@ const inviteTask: TaskHandler<Doc, { credDigest: string }> = {
     return { keyAgreement: inv.credentialSubject.card.keyAgreement, contactId: pre.contactId }
   },
   async prepare (ctx, doc) {
-    const bad = await inviteProblem(doc)
+    const bad = await inviteProblem(doc, ctx.crypto.subtle)
     if (bad) return refuse('validation-failed', bad)
     return { credDigest: await digestDoc(doc.payload.invite, ctx.crypto.subtle) }
   },
@@ -571,7 +575,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
   async prepare (ctx, doc, arr) {
     const g = groupOfLabel(ctx.snapshot, ctx.snapshot.addresses.keys[arr.rkid].label)!
     const inv = invitationOf(g, doc.threadId, doc.issuer)!
-    const bad = await acceptProblem(doc, inv.invite, inv.credDigest)
+    const bad = await acceptProblem(doc, inv.invite, inv.credDigest, ctx.crypto.subtle)
     if (bad) return refuse('validation-failed', bad)
     const acceptDigest = await digestDoc(doc, ctx.crypto.subtle)
     const ev: Evidence = { invite: inv.invite, accept: doc as unknown as JsonObject, vouches: [], at: arr.when }
@@ -617,11 +621,11 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
     const { invite, accept, vouches = [] } = doc.payload.evidence
     const S = ctx.crypto.subtle
     const credDigest = await digestDoc(invite.payload.invite, S)
-    const bad = await evidenceProblem(invite, accept, credDigest)
+    const bad = await evidenceProblem(invite, accept, credDigest, S)
     if (bad) return refuse('validation-failed', bad)
     const acceptDigest = await digestDoc(accept, S)
     for (const v of vouches) {
-      const vb = await vouchProblem(v, accept.payload.accept.subject, acceptDigest, invite.payload.invite.credentialSubject.genesisDigest)
+      const vb = await vouchProblem(v, accept.payload.accept.subject, acceptDigest, invite.payload.invite.credentialSubject.genesisDigest, S)
       if (vb) return refuse('validation-failed', vb)
     }
     const g = groupOfLabel(ctx.snapshot, ctx.snapshot.addresses.keys[arr.rkid].label)!
@@ -745,7 +749,7 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
   },
   // the group stars already accepted are matched against the joined group (5520)
   async prepare (ctx, doc) {
-    if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed', 'RLTP-MT-2130')
+    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2130')
     // the joined group as the welcome carries it: its roster, the oids naming the admissions
     const roster = welcomeRoster(doc.payload.roster)
     const membership: GroupMembership = {
@@ -819,6 +823,22 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
   return changed ? { ...state, groups, joining: { preludes, invites } } : state as HolderState
 }
 
+/** When retainMembership lets something go (the timer contract, engine.ts). */
+function membershipDeadlines (state: Readonly<HolderState>): Millis[] {
+  const out: Millis[] = []
+  for (const g of Object.values(state.groups)) {
+    for (const i of Object.values(g.invitations)) out.push(i.validUntil + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
+    for (const e of Object.values(g.evidence)) out.push(untilOf(e.invite) + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
+    for (const p of Object.values(g.preludes)) out.push(p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
+  }
+  for (const i of Object.values(state.joining.invites)) {
+    if (i.status === 'open') out.push(i.validUntil + MEMBERSHIP_SKEW + 1)
+    if (i.status === 'accepted' || i.status === 'joined') out.push(i.validUntil + MEMBERSHIP_SKEW + 2 * HORIZON_MAX + 1)
+  }
+  for (const p of Object.values(state.joining.preludes)) out.push(p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
+  return out
+}
+
 /** The membership module createHolder registers. */
 export function membershipModule (): HolderModule {
   return Object.freeze({
@@ -840,5 +860,6 @@ export function membershipModule (): HolderModule {
     decisions: Object.freeze({ 'group-invite': acceptDecision }),
     keepKeys: memberKeys,
     retain: retainMembership,
+    deadlines: membershipDeadlines,
   })
 }

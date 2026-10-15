@@ -315,8 +315,12 @@ function afterLog (state: Readonly<HolderState>, rotationId: string, o: LogOutco
       const held = Object.hasOwn(state.duties, id) ? state.duties[id] as RotationDuty : { kind: 'rotation' as const, v: 1 as const, id, rotationId: r.id }
       const { dueAt: _, ...rest } = held
       const duty: RotationDuty = { ...rest, lastAt: when }
+      // single path: the duty leaves the state and comes back as Applied.duties,
+      // on the act path and in resume alike
+      const left = { ...state.duties }
+      delete left[id]
       return {
-        state: { ...state, rotations: { ...state.rotations, [r.id]: { ...r, overHead: o.head } }, duties: { ...state.duties, [id]: duty } },
+        state: { ...state, rotations: { ...state.rotations, [r.id]: { ...r, overHead: o.head } }, duties: left },
         duties: [duty],
       }
     }

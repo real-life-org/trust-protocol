@@ -86,7 +86,7 @@
 import { b64uOf, iso, jcs, makeValidator, sameDigest } from '../core.js';
 import { diSignWith, diVerify, digestBytes, digestDoc } from '../crypto.js';
 import { seal } from '../delivery.js';
-import { BUNDLE_TYPE, CEREMONY, DELIVERY_TYPE, acceptTail, bundleForm, cardBody, cardOk, challengeAged, challengeOf, credHead, credentialBody, deliveryForm, dispositionOf, futureOk, issuanceEnd, issuanceOpen, windowOk, } from '../encounter.js';
+import { BUNDLE_TYPE, CEREMONY, CHALLENGE_MAX_AGE, SKEW_TOLERANCE, DELIVERY_TYPE, acceptTail, bundleForm, cardBody, cardOk, challengeAged, challengeOf, credHead, credentialBody, deliveryForm, dispositionOf, futureOk, issuanceEnd, issuanceOpen, windowOk, } from '../encounter.js';
 import { SCHEMAS } from '../schemas.js';
 import { withPairNonce } from '../identity-state.js';
 import { tupleByRkid } from '../receive.js';
@@ -215,7 +215,7 @@ const scanDef = {
     human: true,
     async prepare(ctx, input) {
         const peer = input?.card;
-        if ((await cardOk(peer)) !== null)
+        if ((await cardOk(peer, ctx.crypto.subtle)) !== null)
             return no('card-invalid', 'RLTP-ENC-6010');
         // a displayed card carries neither sentTo nor boundTo (6070)
         if (peer.sentTo !== undefined || peer.boundTo !== undefined)
@@ -290,7 +290,7 @@ const captureDef = {
     human: true,
     async prepare(ctx, input) {
         const card = input?.card;
-        if ((await cardOk(card)) !== null)
+        if ((await cardOk(card, ctx.crypto.subtle)) !== null)
             return no('card-invalid', 'RLTP-ENC-6010');
         if (typeof card.sentTo !== 'string' || typeof card.boundTo !== 'string')
             return no('card-invalid', 'RLTP-ENC-6030');
@@ -499,9 +499,9 @@ const bundleTask = {
     // held, checks 5–6 at stage 8 (an unknown value goes to stage 9)
     async prepare(ctx, doc, arrival) {
         const { card, credential } = doc.payload;
-        if (!(await diVerify(card, card.anchor)))
+        if (!(await diVerify(card, card.anchor, ctx.crypto.subtle)))
             return refuse('validation-failed', 'RLTP-ENC-6020');
-        const h = await credHead(credential, doc.recipient, false);
+        const h = await credHead(credential, doc.recipient, false, ctx.crypto.subtle);
         if (h)
             return refuse(dispositionOf(h), errRef(h));
         const S = ctx.crypto.subtle;
@@ -595,7 +595,7 @@ const deliveryTask = {
         if (!at || !recordOfLabel(ctx.snapshot, at.tuple.ownPairLabel))
             return refuse('validation-failed');
         // 5.6 steps 1–3, no state touched; the rest runs in the transaction
-        return { verdict: await credHead(doc.payload.credential, doc.recipient), credDigest: await digestDoc(doc.payload.credential, ctx.crypto.subtle) };
+        return { verdict: await credHead(doc.payload.credential, doc.recipient, true, ctx.crypto.subtle), credDigest: await digestDoc(doc.payload.credential, ctx.crypto.subtle) };
     },
     apply(state, prepared, doc, arrival) {
         const at = tupleByRkid(state, arrival.rkid);
@@ -637,6 +637,9 @@ function retainChallenges(state, when) {
         delete challenges[c.value];
     return { ...state, encounter: { ...state.encounter, challenges } };
 }
+/** When retainChallenges drops an aged challenge (5.3): the first whole
+ *  second past its maximum age and the skew (the timer contract, engine.ts). */
+const challengeDeadlines = (state) => Object.values(state.encounter.challenges).map((c) => (Math.floor(c.tCh / 1000) + (CHALLENGE_MAX_AGE + SKEW_TOLERANCE) / 1000 + 1) * 1000);
 /** The encounter module createHolder registers. */
 export function encounterModule() {
     return Object.freeze({
@@ -650,5 +653,6 @@ export function encounterModule() {
         tasks: Object.freeze({ [BUNDLE_TYPE]: bundleTask, [DELIVERY_TYPE]: deliveryTask }),
         decisions: Object.freeze({ 'encounter-confirm': confirmDecision }),
         retain: retainChallenges,
+        deadlines: challengeDeadlines,
     });
 }

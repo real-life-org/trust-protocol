@@ -284,7 +284,7 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
     const expected = at ? at.tuple.counterpartAnchor : item.recipient.anchor
     if (expected === undefined || doc.issuer !== expected) return failed('validation-failed', 8, { digest })
     if (signed) {
-      if (!(await diVerify(doc, doc.issuer as string))) return failed('validation-failed', 8, { digest })
+      if (!(await diVerify(doc, doc.issuer as string, S))) return failed('validation-failed', 8, { digest })
     } else {
       const key = await ackKey(ctx, rkid, item.recipient.keyAgreement, doc.issuer as string, doc.recipient as string)
       if (!key || !(await macAckValid(doc, key, S))) return failed('validation-failed', 8, { digest })

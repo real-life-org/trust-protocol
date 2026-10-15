@@ -332,7 +332,7 @@ const codec1 = obj({
     declarations: rec(obj({ issuer: str, role: str, revision: dec, constants: rec(str), at: millis })),
   }),
   joining: obj({
-    preludes: rec(obj({ group: str, inviter: str, contactId: str, memberLabel: str, at: millis })),
+    preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
     invites: keyed(obj({
       credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
       status: lit('open', 'accepted', 'declined', 'joined'), at: millis,

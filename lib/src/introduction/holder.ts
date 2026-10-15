@@ -247,8 +247,8 @@ const introduceDef: CommandDef<IntroduceInput, IntroducePrep> = {
 const declarationTask: TaskHandler<Doc, null> = {
   proof: 'required',
   decode: (p) => (introSchemaOk('payload-registry-declaration.schema.json', p) ? p as Doc : refuse('malformed')),
-  async prepare (_ctx, doc) {
-    if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed')
+  async prepare (ctx, doc) {
+    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed')
     const d = doc.payload.declaration
     // the registering specification closes names and domains: only the mediator role is known here
     if (d.role !== MEDIATOR_ROLE || mediatorConstants(d.constants) === null) return refuse('validation-failed')
@@ -279,7 +279,7 @@ const offerTask: TaskHandler<Doc, null> = {
       (x.label !== undefined && (typeof x.label !== 'string' || !x.label.length || [...x.label].length > 64)) || Object.keys(x).some((k) => !['target', 'label'].includes(k))) return refuse('malformed')
     return x as Doc
   },
-  async prepare (_ctx, doc) { return (await diVerify(doc, doc.issuer)) ? null : refuse('validation-failed') },
+  async prepare (ctx, doc) { return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed') },
   apply (state, _p, doc, arr) {
     const a = arrival(state, arr.rkid)!
     const o: IntroOffer = {
@@ -353,7 +353,7 @@ const requestTask: TaskHandler<RequestPayload, MediatorPrep> = {
     // step 1: an active channel (the pin set at arrival)
     if (!liveRel(a.rel) || a.tuple.deactivated || a.rel.activeHead !== a.label) return refuse('validation-failed', 'RLTP-TRU-8410')
     // step 2: form — schema (decode), digest, signature, the window, the ack cutoff
-    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor))) return refuse('validation-failed', 'RLTP-TRU-8420')
+    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8420')
     if (!(await requestFormOk(doc.payload, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8420')
     if (!actWindowHolds(body.issuedAt, ctx.when) || !requestCutoffHolds(body.issuedAt, ctx.when, ACK_DELAY_MS)) return refuse('validation-failed', 'RLTP-TRU-8160')
     const h = held(s, 'mediator', body.act)
@@ -423,7 +423,7 @@ const forwardTask: TaskHandler<RequestPayload, { known: boolean }> = {
     if (h) return jcs((h.request as Doc).body) === jcs(doc.payload.introduction.body) ? { known: true } : refuse('validation-failed', 'RLTP-TRU-8260')
     // the request signature under the card's anchor, cardDigest, the card (8050)
     if (!(await requestFormOk(doc.payload, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8050')
-    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor))) return refuse('validation-failed', 'RLTP-TRU-8050')
+    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8050')
     return { known: false }
   },
   // received: the pin at the forward's arrival (8270); the human decides
@@ -510,7 +510,7 @@ const introductionDecision: DecisionDef<RequestPrep | ReplyPrep | Refusal | null
 // ── the reply at the mediator (8480–8540) and at the requester (8550–8600) ─
 
 interface ReplyPayload { introduction: Artifact<ReplyBody>, card: Doc }
-type MediatorReplyPrep = { repeat: boolean, toRequester: Sealed | null, vouchers: Sealed[] }
+type MediatorReplyPrep = { repeat: boolean, toRequester: Sealed | null, vouchers: Sealed[], orphaned?: true }
 type RequesterReplyPrep = { ignore: boolean }
 
 const replyChecks = async (ctx: PrepareCtx, a: Readonly<IntroAct>, payload: ReplyPayload): Promise<string | null> => {
@@ -518,7 +518,7 @@ const replyChecks = async (ctx: PrepareCtx, a: Readonly<IntroAct>, payload: Repl
   if (!(await replyBound(payload, ctx.crypto.subtle))) return a.role === 'mediator' ? 'RLTP-TRU-8500' : 'RLTP-TRU-8560'
   if (r.requestDigest !== await introDigest((a.request as Doc).body, ctx.crypto.subtle)) return a.role === 'mediator' ? 'RLTP-TRU-8510' : 'RLTP-TRU-8570'
   if (r.requesterPair !== (a.requestCard as Doc).anchor) return a.role === 'mediator' ? 'RLTP-TRU-8520' : 'RLTP-TRU-8580'
-  if (!introCardShapeOk(payload.card) || !(await diVerify(payload.card, payload.card.anchor))) return a.role === 'mediator' ? 'RLTP-TRU-8530' : 'RLTP-TRU-8590'
+  if (!introCardShapeOk(payload.card) || !(await diVerify(payload.card, payload.card.anchor, ctx.crypto.subtle))) return a.role === 'mediator' ? 'RLTP-TRU-8530' : 'RLTP-TRU-8590'
   return null
 }
 
@@ -542,6 +542,10 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
       if (!actWindowHolds(issuedAt, ctx.when) || !replyCutoffHolds(issuedAt, ctx.when)) return { repeat: true, toRequester: null, vouchers: [] }   // 8180: dropped silently
       const bad = await replyChecks(ctx, m, doc.payload)
       if (bad) return refuse('validation-failed', bad)
+      // the requester's relationship departed while the act ran: the reply is
+      // taken (an authentic document on the pinned target tuple), the relay
+      // ends as failed; nothing goes to a departed relationship
+      if (!tupleByLabel(s, m.pins.requester!)) return { repeat: false, toRequester: null, vouchers: [], orphaned: true }
       // forward unchanged (8060) and both vouchers (8740)
       const toRequester = await onTuple(ctx, m.pins.requester!, INTRODUCTION_TYPES.reply, doc.payload, m.threads.request)
       const vouchers: Sealed[] = []
@@ -568,6 +572,7 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     if ('vouchers' in p) {
       const m = held(state, 'mediator', r.act)!
       if (p.repeat) return { state: state as HolderState }
+      if (p.orphaned) return { state: withAct(state as HolderState, { ...m, status: 'failed', reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject }) }
       const next = completedIfDone({ ...m, reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject, replyForwarded: true, vouchersSent: true })
       return { state: withAct(state as HolderState, next), outbound: [draft(p.toRequester!), ...p.vouchers.map(draft)] }
     }
@@ -686,6 +691,18 @@ function retainActs (state: Readonly<HolderState>, when: Millis): HolderState {
   return { ...state, encounter: { ...state.encounter, introductions: out ?? state.encounter.introductions, offers: kept } }
 }
 
+/** When retainActs changes something: a requester's timeout fires, an
+ *  act's absolute lifetime ends (the timer contract, engine.ts). */
+function actDeadlines (state: Readonly<HolderState>): Millis[] {
+  const out: Millis[] = []
+  for (const a of Object.values(state.encounter.introductions)) {
+    out.push(actFiresAt(a.issuedAt + ACT_EXPIRY + ACT_SKEW))
+    if (a.role === 'requester' && a.status === 'sent') out.push(actFiresAt(a.at + a.ackDelayMs + ACT_SKEW))
+    if (a.role === 'requester' && a.status === 'acked') out.push(actFiresAt(a.at + ACT_EXPIRY))
+  }
+  return out
+}
+
 /** The introduction module createHolder registers. */
 export function introductionModule (): HolderModule {
   return Object.freeze({
@@ -703,5 +720,6 @@ export function introductionModule (): HolderModule {
     duties: Object.freeze({ 'intro-ack': ackDuty }),
     decisions: Object.freeze({ introduction: introductionDecision }),
     retain: retainActs,
+    deadlines: actDeadlines,
   })
 }

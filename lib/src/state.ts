@@ -394,7 +394,9 @@ export interface Joining {
   /** preludes answered, by `<genesis digest> <inviter member anchor>`:
    *  which contact asked as which inviter, so the invite that follows from
    *  that anchor is surfaced as that contact's */
-  preludes: Record<string, { group: string, inviter: string, contactId: string, memberLabel: string, at: Millis }>
+  /** by (group, inviter): the contact and the own rkid of the tuple the
+   *  prelude arrived on, the binding a later prelude is held against */
+  preludes: Record<string, { group: string, inviter: string, contactId: string, rkid: string, memberLabel: string, at: Millis }>
   /** invitations received, by credential digest */
   invites: Record<string, ReceivedInvite>
 }
