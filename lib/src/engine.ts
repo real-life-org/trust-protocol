@@ -111,7 +111,9 @@
 //     itself (a give-up at the horizon, a duty's change) without having
 //     been prepared. Their new documents count into nextDueAt like the
 //     duties'. Every other committed operation whose state adds a key to
-//     a sweep's `pending` names `when` as its nextDueAt
+//     a sweep's `pending` names `when` as its nextDueAt; a sweep that
+//     declares the state parts it reads (`reads`) is skipped there when the
+//     operation left all of them untouched (by reference)
 //   - a verified delivery-ack runs the ack handler registered for the
 //     acknowledged item's type in its own transaction; a report never does
 //   - a task handler's refusal commits nothing; its TaskDiscarded (a
@@ -251,6 +253,9 @@ export interface DutyHandler<P = any> {
  */
 export interface SweepHandler<P = any> {
   pending: (state: Readonly<HolderState>, when: Millis) => string[]
+  /** the top-level state parts `pending` reads; where given, an operation
+   *  that replaced none of them skips `pending` (its keys cannot change) */
+  reads?: ReadonlyArray<keyof HolderState>
   prepare: (ctx: PrepareCtx) => Promise<P>
   apply: (state: Readonly<HolderState>, prepared: Prepared<P>, when: Millis) => Applied & { deferred?: boolean }
 }
@@ -730,6 +735,8 @@ class HolderEngine implements Engine {
     const d = this.#dutyWake(before, after, added, when)
     if (d === when || before === after) return d
     for (const sw of this.#sweeps.values()) {
+      // a sweep whose declared inputs are untouched (by reference) cannot have new pending keys
+      if (sw.reads && sw.reads.every((k) => before[k] === after[k])) continue
       const had = new Set(sw.pending(before, when))
       if (sw.pending(after, when).some((k) => !had.has(k))) return when
     }

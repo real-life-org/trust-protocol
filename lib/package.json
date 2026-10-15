@@ -18,6 +18,7 @@
     "dist/delivery.*",
     "dist/anchor.*",
     "dist/star.*",
+    "dist/sha256.*",
     "dist/group-star.*",
     "dist/ack.*",
     "dist/receive.*",

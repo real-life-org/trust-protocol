@@ -26,7 +26,7 @@
 // snapshot, assigns lastSalt + 1, builds the chunks blinded under the
 // tuple's pair secret (KeyProvider.agree on the tuple's rkid), stamps one
 // fresh threadId on every chunk of the salt (entropy thread.id), and
-// commits `lastSalt`, `inflight[salt] = {view, digests, acked: []}` and
+// commits `lastSalt`, `inflight[salt] = {view, viewDigest, digests, acked: []}` and
 // the outbox items in one transition (5090, 5110); the outbound leaves
 // only after that commit. Chunk retries are the outbox's, byte-identical
 // down to the envelope and the threadId (Delivery 4.2). Completion: the
@@ -104,6 +104,7 @@ import { seal } from '../delivery.js'
 import { PLAINTEXT_MAX, blindAnchor, buildStarChunks, starChunkMacOk, starChunkOk, starKeyOf, strictlyAscending } from '../star.js'
 import type { StarChunk } from '../star.js'
 import { tupleByRkid } from '../receive.js'
+import { sha256Hex } from '../sha256.js'
 import type { Arrival, ReceivedDocument, TaskDiscarded, TaskRefusal } from '../receive.js'
 import type { AckHandler, Applied, EventDraft, OutboundDraft, PrepareCtx, SweepHandler, TaskHandler } from '../engine.js'
 import { triasOf } from '../state.js'
@@ -180,21 +181,26 @@ const canIssue = (o: Readonly<SeqOut<unknown>>): boolean => !o.exhausted && BigI
 
 /** An in-flight salt above H carrying exactly this view, none of whose
  *  chunks has failed: the divergence is being delivered. */
-const inFlight = (state: Readonly<HolderState>, o: Readonly<SeqOut<unknown>>, viewText: string): boolean =>
-  Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && jcs(f.view) === viewText && canComplete(state, f))
+const inFlight = (state: Readonly<HolderState>, o: Readonly<SeqOut<unknown>>, viewDigest: string): boolean =>
+  Object.entries(o.inflight).some(([salt, f]) => BigInt(salt) > BigInt(o.hwm) && f.viewDigest === viewDigest && canComplete(state, f))
 
 /** A uniform view, once per contacts record (the record is replaced on
  *  every change of a contact, so the cache cannot go stale). */
-const uniformViews = new WeakMap<object, Map<string, { view: unknown[], text: string }>>()
+const uniformViews = new WeakMap<object, Map<string, { view: unknown[], digest: string }>>()
 
-/** The view toward a recipient and its canonical text. */
-function viewAt<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Recipient): { view: V[], text: string } {
-  if (!art.uniform) { const view = art.view(state, r.contact, r.rel); return { view, text: jcs(view) } }
+/** The digest of a view: SHA-256 over its JCS form. Views are compared by
+ *  it (the baseline's snapshotDigest, an inflight entry's viewDigest),
+ *  never re-serialized per comparison. */
+export const viewDigest = (view: readonly unknown[]): string => sha256Hex(jcs(view))
+
+/** The view toward a recipient and its digest. */
+function viewAt<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Recipient): { view: V[], digest: string } {
+  if (!art.uniform) { const view = art.view(state, r.contact, r.rel); return { view, digest: viewDigest(view) } }
   let byKind = uniformViews.get(state.contacts)
   if (!byKind) uniformViews.set(state.contacts, (byKind = new Map()))
   let v = byKind.get(art.kind)
-  if (!v) { const view = art.view(state, r.contact, r.rel); byKind.set(art.kind, (v = { view, text: jcs(view) })) }
-  return v as { view: V[], text: string }
+  if (!v) { const view = art.view(state, r.contact, r.rel); byKind.set(art.kind, (v = { view, digest: viewDigest(view) })) }
+  return v as { view: V[], digest: string }
 }
 
 /** Whether an in-flight delivery can still complete: every chunk acked,
@@ -230,11 +236,11 @@ export function retainInflight (state: Readonly<HolderState>): HolderState {
 /** Whether the artifact is owed now on this recipient (5690–5720, 5830):
  *  the class on, the scope able to issue, the view diverging from the
  *  baseline (absent: by definition) and not already in flight. */
-export function owed<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Recipient, viewText: string): boolean {
+export function owed<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Recipient, digest: string): boolean {
   const o = art.out(r.tuple)
   if (!classOnToward(r.contact, art.cls) || !canIssue(o)) return false
-  if (o.snapshot !== null && jcs(o.snapshot) === viewText) return false
-  return !inFlight(state, o, viewText)
+  if (o.snapshotDigest !== null && o.snapshotDigest === digest) return false
+  return !inFlight(state, o, digest)
 }
 
 /** The sweep's pending keys: one per owed recipient and view. */
@@ -242,8 +248,8 @@ export function pendingOf<V, A> (art: Artifact<V, A>, state: Readonly<HolderStat
   const keys: string[] = []
   for (const r of recipients(state)) {
     if (!classOnToward(r.contact, art.cls)) continue
-    const { text } = viewAt(art, state, r)
-    if (owed(art, state, r, text)) keys.push(`${art.kind}|${r.rel.id}|${r.tuple.ownPairLabel}|${text}`)
+    const { digest } = viewAt(art, state, r)
+    if (owed(art, state, r, digest)) keys.push(`${art.kind}|${r.rel.id}|${r.tuple.ownPairLabel}|${digest}`)
   }
   return keys
 }
@@ -256,7 +262,7 @@ interface Production<V> {
   baseSalt: Dec
   salt: Dec
   view: V[]
-  viewText: string
+  viewDigest: string
   outbound: OutboundDraft[]
 }
 
@@ -282,13 +288,16 @@ async function chunkDocument (ctx: PrepareCtx, type: string, issuer: string, t: 
 export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[]> {
   return {
     pending: (state) => pendingOf(art, state),
+    // contacts (views, settings), relationships (scopes), groups (the group
+    // star's view) and the outbox (whether a delivery can still complete)
+    reads: ['contacts', 'relationships', 'groups', 'outbox'],
     async prepare (ctx) {
       const st = ctx.snapshot
       const out: Production<V>[] = []
       for (const r of recipients(st)) {
         if (!classOnToward(r.contact, art.cls)) continue
-        const { view, text: viewText } = viewAt(art, st, r)
-        if (!owed(art, st, r, viewText)) continue
+        const { view, digest } = viewAt(art, st, r)
+        if (!owed(art, st, r, digest)) continue
         const shared = await pairShared(ctx, r.tuple)
         if (!shared) continue
         const own = (await ctx.keys.anchorOf(r.tuple.ownPairLabel)).anchor
@@ -300,7 +309,7 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
         const threadId = ctx.entropy.id('thread.id')
         const outbound: OutboundDraft[] = []
         for (const chunk of chunks) outbound.push(await chunkDocument(ctx, art.type, own, r.tuple, r.contact.id, threadId, chunk))
-        out.push({ relId: r.rel.id, tuple: r.tuple.ownPairLabel, contactId: r.contact.id, baseSalt: o.lastSalt, salt, view, viewText, outbound })
+        out.push({ relId: r.rel.id, tuple: r.tuple.ownPairLabel, contactId: r.contact.id, baseSalt: o.lastSalt, salt, view, viewDigest: digest, outbound })
       }
       return out
     },
@@ -314,18 +323,18 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
         const tuple = rel && activeTuple(rel)
         if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id)) continue
         const r: Recipient = { contact, rel, tuple }
-        const { text } = viewAt(art, cur, r)
+        const { digest } = viewAt(art, cur, r)
         // 5110: the snapshot, the salt and the commit are one step — a
         // production prepared on another view or salt is not committed
-        if (art.out(tuple).lastSalt !== p.baseSalt || text !== p.viewText || !owed(art, cur, r, text)) {
-          if (owed(art, cur, r, text)) deferred = true
+        if (art.out(tuple).lastSalt !== p.baseSalt || digest !== p.viewDigest || !owed(art, cur, r, digest)) {
+          if (owed(art, cur, r, digest)) deferred = true
           continue
         }
         const o = art.out(tuple)
         const next: SeqOut<V> = {
           ...o, lastSalt: p.salt, exhausted: BigInt(p.salt) >= ADMISSION_BOUND,
           // what can no longer complete leaves with the next production
-          inflight: { ...livingInflight(cur, o), [p.salt]: { view: p.view, digests: p.outbound.map((d) => d.digest), acked: [] } },
+          inflight: { ...livingInflight(cur, o), [p.salt]: { view: p.view, viewDigest: p.viewDigest, digests: p.outbound.map((d) => d.digest), acked: [] } },
         }
         const tuples = rel.tuples.map((t) => (t.ownPairLabel === p.tuple ? art.withOut(t, next) : t))
         cur = { ...cur, relationships: { ...cur.relationships, [rel.id]: { ...rel, tuples } } }
@@ -354,7 +363,7 @@ export function ackOf<V, A> (art: Artifact<V, A>): AckHandler {
       const hwm = advance ? salt : o.hwm
       const inflight: SeqOut<V>['inflight'] = {}
       for (const [s, x] of Object.entries(o.inflight)) if (s !== salt && BigInt(s) > BigInt(hwm)) inflight[s] = x
-      next = { ...o, hwm, snapshot: advance ? f.view : o.snapshot, inflight }
+      next = { ...o, hwm, snapshot: advance ? f.view : o.snapshot, snapshotDigest: advance ? f.viewDigest : o.snapshotDigest, inflight }
     } else next = { ...o, inflight: { ...o.inflight, [salt]: { ...f, acked } } }
     const tuples = at.rel.tuples.map((t) => (t.ownPairLabel === at.tuple.ownPairLabel ? art.withOut(t, next) : t))
     return { state: { ...state, relationships: { ...state.relationships, [at.rel.id]: { ...at.rel, tuples } } } }

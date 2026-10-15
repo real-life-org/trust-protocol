@@ -109,10 +109,19 @@ const trustClass = lit('star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 
 const recipient = obj({ contactId: str, rkid: str, keyAgreement: str })
 const envelope = obj({ rkid: str, epk: str, nonce: str, ciphertext: str })
 const assembly = obj({ salt: dec, chunks: rec(json) })
-const seqOut = (item: V): V => obj({
-  lastSalt: dec, exhausted: bool, hwm: dec, snapshot: nullable(arr(item)),
-  inflight: rec(obj({ view: arr(item), digests: arr(str), acked: arr(str) })),
+const seqOutShape = (item: V): V => obj({
+  lastSalt: dec, exhausted: bool, hwm: dec, snapshot: nullable(arr(item)), snapshotDigest: nullable(str),
+  inflight: rec(obj({ view: arr(item), viewDigest: str, digests: arr(str), acked: arr(str) })),
 })
+/** the snapshot and its digest are present together */
+const seqOut = (item: V): V => {
+  const shape = seqOutShape(item)
+  return (x, p) => {
+    shape(x, p)
+    const o = x as { snapshot: unknown, snapshotDigest: unknown }
+    if ((o.snapshot === null) !== (o.snapshotDigest === null)) fail(`${p}.snapshotDigest`, 'null exactly when snapshot is')
+  }
+}
 const seqIn = (accepted: V): V => obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly), accepted: nullable(accepted) })
 const starPair = obj({ member: str, head: str })
 const groupStarItem: V = (x, p) => {

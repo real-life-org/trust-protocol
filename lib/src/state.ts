@@ -230,8 +230,11 @@ export interface SeqOut<V> {
   hwm: Dec
   /** snapshot S completed at H, or absent (5630) */
   snapshot: V[] | null
-  /** salt → the view sent under it and its chunks' digests (5660) */
-  inflight: Record<string, { view: V[], digests: string[], acked: string[] }>
+  /** SHA-256 hex of JCS(snapshot), null exactly when snapshot is: the
+   *  comparison key of the reconciliation (trust/star.ts viewDigest) */
+  snapshotDigest: string | null
+  /** salt → the view sent under it, its digest, and its chunks' digests (5660) */
+  inflight: Record<string, { view: V[], viewDigest: string, digests: string[], acked: string[] }>
 }
 
 /** Receiver side of one chunked sequence (5.2a): A is what an accepted

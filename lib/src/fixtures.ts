@@ -26,7 +26,7 @@ const BOB_ANCHOR_0 = 'did:key:z6MkbobAnchorZeroBobAnchorZeroBobAnchorZero'
 const BOB_ANCHOR_1 = 'did:key:z6MkbobAnchorOneBobAnchorOneBobAnchorOneBo'
 const OWN_ANCHOR = 'did:key:z6MkownAnchorOwnAnchorOwnAnchorOwnAnchorOw'
 
-const seqOut = () => ({ lastSalt: '0', exhausted: false, hwm: '0', snapshot: null, inflight: {} })
+const seqOut = () => ({ lastSalt: '0', exhausted: false, hwm: '0', snapshot: null, snapshotDigest: null, inflight: {} })
 const seqIn = () => ({ hwm: '0', lowerBound: '0', assembly: null, accepted: null })
 
 interface TupleSpec {
