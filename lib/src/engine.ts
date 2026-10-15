@@ -131,6 +131,10 @@
 //     the engine after the transition: each stored ack's recipient.contactId
 //     that a rename names moves to its new id; the envelope, sealed to the
 //     key agreement, is untouched (an ack re-sent is byte-identical)
+//   - a module's ownRetries are task types it re-issues itself: resume
+//     never re-emits their outbox items (the horizon still gives them up);
+//     its keepKeys name own rkids tick must not tombstone though no live
+//     tuple carries them
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -243,7 +247,12 @@ export interface TaskHandler<T = any, P = any> {
 }
 
 /** What a duty's apply sees beside the state: its preparation. */
-export interface DutyCtx<P = unknown> { readonly prepared: Prepared<P> }
+export interface DutyCtx<P = unknown> {
+  readonly prepared: Prepared<P>
+  /** the holder's retry backoff (RetryPolicy): the delay before attempt
+   *  n, for duties that re-schedule themselves (dueAt) */
+  readonly backoff: (attempt: number) => number
+}
 
 /**
  * A duty kind's handler at one version (note §2.1 duties), run by
@@ -321,6 +330,13 @@ export interface HolderModule {
   /** failure handlers by the full task type URI of the failed document;
    *  at most one per type across all modules */
   failures?: Record<string, FailureHandler>
+  /** task types whose documents the module re-issues itself (a fresh
+   *  document, never a reproduction): the outbox never re-emits their
+   *  items and gives them up only at the horizon */
+  ownRetries?: readonly string[]
+  /** own rkids the module still needs although no live tuple carries
+   *  them: tick does not tombstone them */
+  keepKeys?: (state: Readonly<HolderState>) => Iterable<string>
   /** the module's own retention, run by tick after the engine's: pure and
    *  synchronous, returning the same state object where nothing goes */
   retain?: (state: Readonly<HolderState>, when: Millis) => HolderState
@@ -556,6 +572,8 @@ class HolderEngine implements Engine {
   readonly #sweeps: ReadonlyMap<string, SweepHandler>
   readonly #acks: ReadonlyMap<string, AckHandler>
   readonly #failures: ReadonlyMap<string, FailureHandler>
+  readonly #ownRetries: ReadonlySet<string>
+  readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<string>>
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #listeners = new Set<CommitListener>()
@@ -595,6 +613,8 @@ class HolderEngine implements Engine {
     const sweeps = new Map<string, SweepHandler>()
     const acks = new Map<string, AckHandler>()
     const failures = new Map<string, FailureHandler>()
+    const ownRetries = new Set<string>()
+    const keepKeys: Array<(state: Readonly<HolderState>) => Iterable<string>> = []
     const retain: Array<(state: Readonly<HolderState>, when: Millis) => HolderState> = []
     const names = new Set<string>()
     for (const m of modules) {
@@ -639,6 +659,14 @@ class HolderEngine implements Engine {
         if (typeof h !== 'function') throw new TypeError(`failure handler ${uri} (module ${m.name}) must be a function`)
         failures.set(uri, h)
       }
+      for (const uri of m.ownRetries ?? []) {
+        if (!TASK_URI.test(uri)) throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`)
+        ownRetries.add(uri)
+      }
+      if (m.keepKeys !== undefined) {
+        if (typeof m.keepKeys !== 'function') throw new TypeError(`keepKeys (module ${m.name}) must be a function`)
+        keepKeys.push(m.keepKeys)
+      }
       if (m.retain !== undefined) {
         if (typeof m.retain !== 'function') throw new TypeError(`retain (module ${m.name}) must be a function`)
         retain.push(m.retain)
@@ -650,6 +678,8 @@ class HolderEngine implements Engine {
     this.#sweeps = sweeps
     this.#acks = acks
     this.#failures = failures
+    this.#ownRetries = ownRetries
+    this.#keepKeys = Object.freeze(keepKeys)
     this.#retain = Object.freeze(retain)
     this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() })
     this.registry = Object.freeze({
@@ -853,6 +883,7 @@ class HolderEngine implements Engine {
   #tickDef (): InternalDef {
     const policy = (): Policy => this.#policy
     const retainers = () => this.#retain
+    const keepers = () => this.#keepKeys
     return {
       human: false,
       apply (state, _p, _input, when) {
@@ -882,6 +913,8 @@ class HolderEngine implements Engine {
         // forever; tombstones never shrink
         const live = new Set<string>()
         for (const r of Object.values(state.relationships)) for (const t of r.tuples) if (!t.deactivated) live.add(t.rkid)
+        // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
+        for (const k of keepers()) for (const rkid of k(state)) live.add(rkid)
         const tombstones = [...state.addresses.tombstones]
         const keys = keep(state.addresses.keys, (k, rkid) => {
           if (k.lastShown + retention > when || live.has(rkid)) return true
@@ -923,6 +956,7 @@ class HolderEngine implements Engine {
     const handlers = (): ReadonlyMap<string, DutyHandler> => this.#duties
     const sweeps = (): ReadonlyMap<string, SweepHandler> => this.#sweeps
     const failed = (st: HolderState, digests: readonly string[], when: Millis) => this.#failed(st, digests, when)
+    const ownRetries = (): ReadonlySet<string> => this.#ownRetries
     return {
       human: false,
       // the due duties' and the sweeps' preparations, against the snapshot apply will see
@@ -962,6 +996,8 @@ class HolderEngine implements Engine {
           // never re-emitted: an accepted item (the service has it) and one the
           // adapter holds (awaiting-transport, until it reports again)
           if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
+          // a type its module re-issues itself is never reproduced (Trust 6710)
+          if (ownRetries().has(it.type)) continue
           if (it.nextAttemptAt !== undefined && it.nextAttemptAt > when) { due(it.nextAttemptAt); continue }
           const attempt = it.attempt + 1
           const nextAttemptAt = dueAt(when, p.backoff(attempt))
@@ -992,7 +1028,7 @@ class HolderEngine implements Engine {
           // another kind or version since the plan: the next resume dispatches it
           if (now.kind !== duty.kind || now.id !== duty.id || now.v !== h.v || !dutyRunnable(now, h, cur, when)) continue   // the final pass sets its timer
           if (h.prepare && jcs(now) !== jcs(duty)) continue                 // prepared on other data
-          const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when)
+          const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }), backoff: p.backoff }), when)
           if (r === 'not-due' || isRefusal(r)) { kept.set(duty.id, jcs(now)); continue }
           const left = { ...r.state.duties }
           delete left[duty.id]

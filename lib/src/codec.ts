@@ -206,7 +206,7 @@ const KNOWN_DUTIES: Record<KnownDuty['kind'], { v: number, shape: V }> = {
   'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
   'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }, DUE) },
   profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }, DUE) },
-  continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, DUE) },
+  continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural }) },
   merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str, witness: obj({ heads: rec(str), superseded: rec(set(str)) }) }, DUE) },
 }
 

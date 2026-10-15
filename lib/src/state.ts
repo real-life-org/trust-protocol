@@ -392,7 +392,11 @@ export interface ClassOnDuty { kind: 'class-on', v: 1, id: string, dueAt?: Milli
 /** Deliver profile revision `rev` on a relationship (6455). */
 export interface ProfileDuty { kind: 'profile', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, rev: Dec }
 /** Continuity resend on a tuple (6830–6850). */
-export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping' }
+export interface ContinuityDuty {
+  kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping'
+  /** sends so far under this standing duty; the next waits backoff(attempt + 1) */
+  attempt?: number
+}
 
 /** The persisted continuation of a merge (2230): the verification has
  *  committed; these entries merge in one later atomic step. */
