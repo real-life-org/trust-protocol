@@ -731,7 +731,8 @@ class HolderEngine implements Engine {
         const { run, unsupported, nextDue } = plan(state, when)
         if (nextDue !== undefined) due(nextDue)
         for (const d of unsupported) events.push({ type: 'duty.unsupported', dutyId: d.id, kind: d.kind, v: d.v })
-        let cur: HolderState = state.outbox === outbox && !emit.length && !events.length ? state as HolderState : { ...state, outbox }
+        // the outbox changed only by a re-emission or a give-up (an event so far)
+        let cur: HolderState = !emit.length && !events.length ? state as HolderState : { ...state, outbox }
         const drafts: OutboundDraft[] = []
         const duties: Duty[] = []
         const values = prepared.value as Record<string, unknown>
