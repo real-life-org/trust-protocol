@@ -79,7 +79,7 @@ const bundle = async (t) => {
   ch.faults.hold = false
   const w = net.wire.length
   await net.releaseHeld(T0 + 42_000)
-  check(net.wire.slice(w).filter((x) => x.disp === 'unique' && x.type === undefined).length === 1 && ch.held.length === 0, 'hold released: the parked delivery lands, its effect once')
+  check(net.wire.slice(w).filter((x) => x.disp === 'unique' && x.type === TYPES.bundle).length === 1 && ch.held.length === 0, 'hold released: the parked delivery lands, its effect once')
 
   ch.faults.dup = true
   const w2 = net.wire.length
@@ -100,6 +100,39 @@ const bundle = async (t) => {
   await net.setOnline(b, true, T0 + 120_000)
   check(net.wire.slice(w).filter((x) => x.disp === 'unique' && x.kind === 'from transit').length === 1, 'online: the transit flows, its effect once')
   check((await a.h.deliveryStatus(o.digest)).items[0].status === 'delivered', 'and the sender reads delivered once the ack is back')
+}
+
+// ── the sender learns what the channel saw ─────────────────────────────
+{
+  // an rkid no device on the network holds: failed(unroutable) at the sender
+  const o = await bundle(T0 + 200_000)
+  const lone = createNetwork([a])
+  const e = await lone.deliver(a, o, T0 + 201_000)
+  check(e.disp === 'unroutable', 'an rkid no device holds: the channel cannot route it')
+  const st = (await a.h.deliveryStatus(o.digest)).items[0]
+  check(st.status === 'failed' && st.reason === 'unroutable', 'the sender reads failed(unroutable) — reported back, not only logged')
+}
+{
+  // a kept outbound stays kept until the channel takes it
+  await net.setOnline(a, false, T0 + 300_000)
+  const o = await bundle(T0 + 300_000)
+  await net.deliver(a, o, T0 + 301_000)
+  check(net.outq.get('Anton')?.length === 1, 'offline sender: the bundle is kept on the device')
+  ch.faults.lose = true
+  await net.setOnline(a, true, T0 + 302_000)
+  ch.faults.lose = false
+  check(net.outq.get('Anton')?.length === 1, 'back online but the channel lost it: it stays kept')
+  const st = (await a.h.deliveryStatus(o.digest)).items[0]
+  check(st.status === 'submitted' && st.awaiting === 'transport-unreachable', 'and the sender reads awaiting-transport (transport-unreachable), not a silent submitted')
+  ch.faults.hold = true
+  await net.setOnline(a, true, T0 + 303_000)
+  ch.faults.hold = false
+  check(net.outq.get('Anton')?.length === 0 && ch.held.length === 1, 'the next try: the channel holds it — the relay has it now')
+  check((await a.h.deliveryStatus(o.digest)).items[0].status === 'accepted', 'held by the relay: accepted')
+  const w = net.wire.length
+  await net.releaseHeld(T0 + 304_000)
+  check(net.wire.slice(w).some((x) => x.type === TYPES.bundle && x.disp === 'unique'), 'released: it lands, its wire row carries its type')
+  check((await a.h.deliveryStatus(o.digest)).items[0].status === 'delivered', 'and the ack makes it delivered')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -136,6 +136,10 @@ export const contactNamed = (contacts, name) => contacts.find((c) => c.displayNa
  */
 export function createNetwork (people = []) {
   const net = { people: [...people], channel: createChannel(), wire: [], outq: new Map() }
+  // what the relay knows of an envelope it holds in transit: sender, type, digest
+  const meta = new WeakMap()
+  /** the sender hears what the channel saw; a report the holder refuses changes nothing */
+  const tell = async (p, report, when) => { try { await p.h.report(report, when) } catch { /* not the sender's item */ } }
   net.add = (p) => { net.people.push(p); return p }
   net.ownerOfRkid = async (rkid) => {
     for (const p of net.people) if (Object.hasOwn((await p.read()).addresses.keys, rkid)) return p
@@ -150,15 +154,22 @@ export function createNetwork (people = []) {
       const q = net.outq.get(from.name) ?? []
       q.push(o)
       net.outq.set(from.name, q)
-      await from.h.report({ digest: o.digest, status: 'awaiting-transport', reason: 'offline' }, when)
+      await tell(from, { digest: o.digest, status: 'awaiting-transport', reason: 'offline' }, when)
       entry.disp = 'kept on the sending device (offline)'
+      entry.kept = true
       return entry
     }
-    if (!to) { entry.disp = 'unroutable'; return entry }
-    const r = await channelDeliver(net.channel, to, o.envelope, when, { ...opts, kind: entry.kind })
+    if (!to) {
+      entry.disp = 'unroutable'
+      await tell(from, { digest: o.digest, status: 'failed', reason: 'unroutable' }, when)
+      return entry
+    }
+    meta.set(o.envelope, { from, type: o.type, digest: o.digest })
+    const r = await channelDeliver(net.channel, to, o.envelope, when, { ...opts, kind: entry.kind, meta: { from, type: o.type, digest: o.digest } })
     Object.assign(entry, { disp: r.disp, stages: r.stages, result: r.result })
-    // the relay took it (delivered now or held in transit): accepted (Delivery §6.1)
-    if (r.arrived || /^transit/.test(r.disp)) await from.h.report({ digest: o.digest, status: 'accepted' }, when)
+    entry.taken = r.arrived || /^(transit|held)/.test(r.disp)
+    // the relay took it (delivered now, held, or in transit): accepted (Delivery §6.1)
+    if (entry.taken) await tell(from, { digest: o.digest, status: 'accepted' }, when)
     if (r.result && (r.result.disposition === 'unique' || r.result.disposition === 'duplicate-known')) {
       await net.send(to, r.result.outbound, when)
     }
@@ -197,12 +208,20 @@ export function createNetwork (people = []) {
     if (!online) return
     for (const env of drainTransit(net.channel, p.name)) {
       const r = await channelDeliver(net.channel, p, env, when, { replay: true })
-      net.wire.push({ n: net.wire.length + 1, from: 'relay', to: p.name, kind: 'from transit', env, disp: r.disp, stages: r.stages, result: r.result })
+      const m = meta.get(env)
+      net.wire.push({ n: net.wire.length + 1, from: 'relay', to: p.name, kind: 'from transit', type: m?.type, digest: m?.digest, env, disp: r.disp, stages: r.stages, result: r.result })
       if (r.result && (r.result.disposition === 'unique' || r.result.disposition === 'duplicate-known')) await net.send(p, r.result.outbound, when)
     }
-    const kept = net.outq.get(p.name) ?? []
-    net.outq.set(p.name, [])
-    await net.send(p, kept, when)
+    // the kept outbound: each leaves the device only once the channel took it;
+    // lost on the way, it stays kept and the sender hears the transport failed
+    const still = []
+    for (const o of net.outq.get(p.name) ?? []) {
+      const e = await net.deliver(p, o, when)
+      if (e.taken || e.disp === 'unroutable') continue
+      still.push(o)
+      await tell(p, { digest: o.digest, status: 'awaiting-transport', reason: 'transport-unreachable' }, when)
+    }
+    net.outq.set(p.name, still)
   }
   /** the hold fault released: the parked envelopes flow */
   net.releaseHeld = async (when) => {
@@ -210,7 +229,7 @@ export function createNetwork (people = []) {
       const to = net.people.find((p) => p.name === h.toName)
       if (!to) continue
       const r = await channelDeliver(net.channel, to, h.env, when, { replay: true })
-      net.wire.push({ n: net.wire.length + 1, from: 'relay', to: to.name, kind: (h.kind ?? 'delivery') + ' — released from hold', env: h.env, disp: r.disp, stages: r.stages, result: r.result })
+      net.wire.push({ n: net.wire.length + 1, from: 'relay', to: to.name, kind: (h.kind ?? 'delivery') + ' — released from hold', type: h.meta?.type, digest: h.meta?.digest, env: h.env, disp: r.disp, stages: r.stages, result: r.result })
       if (r.result && (r.result.disposition === 'unique' || r.result.disposition === 'duplicate-known')) await net.send(to, r.result.outbound, when)
     }
   }

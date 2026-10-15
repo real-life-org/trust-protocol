@@ -61,7 +61,7 @@ export async function deliver (ch, to, env, when, opts = {}) {
   }
   if (ch.faults.tamper && !opts.replay) env = tamper(env)
   if (ch.faults.hold && !opts.replay) {
-    ch.held.push({ toName: to.name, env, kind: opts.kind })
+    ch.held.push({ toName: to.name, env, kind: opts.kind, meta: opts.meta })
     return { arrived: false, disp: 'held (fault) — parked on the channel', stages: [] }
   }
   if (!to.online) {
