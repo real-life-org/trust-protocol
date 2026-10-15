@@ -49,6 +49,8 @@
 //     (highest verifiedSeq); displayName is that profile's name
 //   - deliveryStatus(x) lists the outbox items whose digest or threadId is
 //     x, by first submission, then digest; an unknown x lists none
+//   - relationships: the entry's own (relIds), in that order; chainedFrom
+//     the husks chained into each (chainedInto), by id
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
@@ -71,8 +73,14 @@ export interface ContactView {
   commitSeq: Dec
   /** the entry id: stable across aliases (2140) and chains (6a.4) */
   id: string
-  /** identities merged into this entry; contact(alias) finds it too */
+  /** identities merged into this entry (2140) and the fresh contacts its
+   *  chains took in (6a.4); contact(alias) finds it too */
   aliases: string[]
+  /** its relationships (Contact.relIds), each with the number of tuples
+   *  its chain holds (one per enactment that continued it, 6.4) and the
+   *  fresh relationships chained into it (6a.4); a relationship that
+   *  stands behind two entries (2145) is listed under both */
+  relationships: RelationshipView[]
   /** the verified profile's name. Before profile@1 graduates (PR 6) no
    *  profile is verified, and the ceremony card's name enters the state
    *  only when Encounter graduates (PR 7); until then mostly undefined. */
@@ -91,6 +99,9 @@ export interface ContactView {
   sharedGroups?: string[]
   profile?: ContactProfileView
 }
+
+/** One relationship of a contact, as its chain stands. */
+export interface RelationshipView { id: string, tuples: number, chainedFrom: string[] }
 
 /** One group the holder is a member of. */
 export interface GroupView {
@@ -217,6 +228,10 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
     commitSeq: state.commitSeq,
     id: c.id,
     aliases: [...c.aliases],
+    relationships: own.map((r) => ({
+      id: r.id, tuples: r.tuples.length,
+      chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
+    })),
     ...(profile?.name !== undefined ? { displayName: profile.name } : {}),
     provenance: origin.provenance.kind,
     ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),
