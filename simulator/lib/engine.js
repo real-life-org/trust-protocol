@@ -118,12 +118,13 @@
 //     operation left all of them untouched (by reference)
 //   - a verified delivery-ack runs the ack handler registered for the
 //     acknowledged item's type in its own transaction; a report never does
-//   - a task handler's refusal commits nothing; its TaskDiscarded (a
-//     resource-limit discard, Trust 5365) commits its state and nothing
-//     else: disposition `discarded`, no cache entry, no ack, no event
+//   - a task handler's refusal commits nothing; its TaskDiscarded (an
+//     assembly discarded at a resource limit or rejected, Trust 5365/5366)
+//     commits its state and nothing else: disposition `discarded` with the
+//     reason, no cache entry, no ack, no event
 //   - after its own retention, tick runs every module's `retain` hook on
-//     the result (the trust module prunes in-flight star deliveries that
-//     can no longer complete)
+//     the result (the trust module drops in-flight star deliveries whose
+//     outbox items have all been retained away)
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
@@ -956,7 +957,7 @@ class HolderEngine {
                             // a resource-limit discard: its state commits; no cache entry, no ack
                             if (r.state.effects !== state.effects)
                                 throw new Error(`engine: the handler of ${plan.type} wrote the effect cache`);
-                            return { state: r.state, detail: { disposition: 'discarded', digest: plan.digest, type: plan.type, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
+                            return { state: r.state, detail: { disposition: 'discarded', digest: plan.digest, type: plan.type, reason: r.reason, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
                         }
                         if (r.state.effects !== state.effects)
                             throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
@@ -1063,7 +1064,7 @@ class HolderEngine {
                 throw new Error('engine: receive does not refuse');
             const d = r.detail;
             if (d.disposition === 'discarded')
-                return { disposition: 'discarded', digest: d.digest, type: d.type, ...(d.ref !== undefined ? { ref: d.ref } : {}) };
+                return { disposition: 'discarded', digest: d.digest, type: d.type, reason: d.reason, ...(d.ref !== undefined ? { ref: d.ref } : {}) };
             return d.disposition === 'unique'
                 ? { disposition: 'unique', digest: d.digest, type: d.type, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
                 : { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound };

@@ -58,14 +58,20 @@
 // A refusal (TaskRefusal) never commits anything, at any stage.
 //
 // A handler's apply may answer a TaskDiscarded: the receiver discarded an
-// open assembly at a local resource limit (Trust 5365) and holds its salt
-// as the lower bound (5366). That is a spec-mandated state effect, not a
-// failure of the document: its state commits and the result is the
-// disposition `discarded` — no effect-cache entry (a redelivery is
-// evaluated afresh and meets the lower bound), no ack (the delivery must
-// not complete), no event. DELIVERY GAP: Delivery §6.2 names no
+// open assembly and holds its salt as the lower bound (5366), for one of
+// two reasons: `resource-limit` (Trust 5365), or `rejected` — an
+// authenticated chunk (its MAC verified) violates the assembly rules
+// (5260–5310, 5500, 5510), and the spec rejects the whole delivery, so it
+// must not complete from any later chunk. That is a spec-mandated state
+// effect, not a failure of the document: its state commits and the result
+// is the disposition `discarded` with the reason and the rule — no
+// effect-cache entry (a redelivery is evaluated afresh and meets the lower
+// bound), no ack (the delivery must not complete), no event; the completed
+// high-water mark stays. A chunk that does not authenticate is a plain
+// refusal and touches nothing. DELIVERY GAP: Delivery §6.2 names no
 // disposition for a document whose processing ends in such a discard;
-// `discarded` is this library's, to be registered in Delivery 0.82.
+// `discarded` (both reasons) is this library's, to be registered in
+// Delivery 0.82.
 //
 // A verified ack runs the ack handler a module registered for the
 // acknowledged item's type, in the ack's transaction (engine.ts

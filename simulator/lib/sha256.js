@@ -1,10 +1,12 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
-// sha256 — a synchronous SHA-256 (FIPS 180-4) over UTF-8 text, for the
-// places where a pure, synchronous transition needs a collision-resistant
-// digest of local state (trust/star.ts: the reconciliation views of 5.4).
-// WebCrypto's digest is asynchronous and cannot serve there. Not used for
-// anything that leaves the holder; wire digests stay on WebCrypto.
+// sha256 — a synchronous SHA-256 (FIPS 180-4) over UTF-8 text: a
+// deliberately scoped exception to "WebCrypto only" (README). It digests
+// local state only — the reconciliation views of 5.4 that a pure,
+// synchronous transition compares (trust/star.ts, used for the star and
+// the group star) — and never wire bytes, keys or MACs; WebCrypto's digest
+// is asynchronous and cannot serve there. test/sha256.test.mjs checks it
+// differentially against node:crypto and that no other module imports it.
 const K = new Uint32Array([
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
