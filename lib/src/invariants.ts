@@ -10,6 +10,12 @@
 // Identity §n is identity-layer.md, Delivery §n delivery-contract.md.
 //
 // Over one state (stateViolations):
+//   register    every revocation mark names a held device name; the
+//               lineage is chained (each prev the preceding next) and no
+//               longer than the head allows; at most one rotation runs,
+//               from the head to the next generation, its label persisted
+//               (6360), its step-2 duty open; a rotation duty names a
+//               running rotation (Identity §5.4, §5.5)
 //   entries     every tuple's entryId names a contact or an alias (2145);
 //               every contact's relIds exist, are distinct, are no husks;
 //               every relationship's contactId resolves (2090, 2140);
@@ -50,7 +56,12 @@
 //   commitSeq   strictly +1 per commit; lastWhen never falls (4.7)
 //   register    labels, pair nonces, carriers, device names and revocation
 //               marks only grow; the community keeps its genesis and its
-//               head never falls; the lineage only extends (Identity §2)
+//               head never falls; the lineage only extends (Identity §2); a
+//               name revoked before is never added again (§5.5); the head
+//               moves one generation at a time, with exactly one lineage
+//               element, onto a label persisted in an earlier commit (6360)
+//   profile     the own profile's one counter never falls and its content
+//               changes only with it (6450)
 //   addresses   tombstones never shrink; a key leaves only as a tombstone
 //               (Delivery §5)
 //   salts       per tuple label: lastSalt, probe seq and the issued
@@ -109,6 +120,9 @@
 //                   current issuance answered (aligned in this commit) —
 //                   the ack of one of that issuance's documents, or a
 //                   continuity mapping arriving on the tuple (6850)
+//               (f) a rotation duty, by its rotation's completion in this
+//                   commit (the act's step 2: the head moved, the rotation
+//                   gone)
 //               expiry: no duty kind expires yet. A duty of a kind (or
 //               version) the library does not know leaves only by (a), a
 //               module's handler: never where none is registered
@@ -214,6 +228,13 @@ function registerViolations (v: Violation[], state: Readonly<HolderState>): void
     else if (!r.labels.includes(communityLabel(r.community.genesis, Number(rot.to)))) v.push({ invariant: 'register', detail: `rotation ${rot.id}: the label of generation ${rot.to} is not persisted (6360)` })
   }
   if (Object.keys(state.rotations).length > 1) v.push({ invariant: 'register', detail: 'more than one rotation running' })
+  // a running rotation has its step-2 duty open, and a rotation duty names a running rotation
+  for (const rot of Object.values(state.rotations)) {
+    if (!Object.values(state.duties).some((d) => d.kind === 'rotation' && (d as { rotationId?: unknown }).rotationId === rot.id)) v.push({ invariant: 'register', detail: `rotation ${rot.id} has no rotation duty: it would never complete` })
+  }
+  for (const d of Object.values(state.duties)) {
+    if (d.kind === 'rotation' && isKnownDuty(d) && !Object.hasOwn(state.rotations, (d as { rotationId: string }).rotationId)) v.push({ invariant: 'duties', detail: `${d.id}: no rotation ${(d as { rotationId: string }).rotationId} runs` })
+  }
 }
 
 /** The invariants of one state (see the header); empty where all hold. */
@@ -390,6 +411,12 @@ export function dutyDrops (before: Readonly<HolderState>, after: Readonly<Holder
   // (a) a registered handler ran it (only a kind the engine registers runs)
   if (op.kind === 'resume' && (op.fulfilled ?? []).includes(d.id)) return true
   if (!isKnownDuty(d as Duty)) return false                                    // otherwise never, on any operation
+  // (f) the rotation's step 2 completed in this commit (the act's own path)
+  if (d.kind === 'rotation') {
+    const id = (d as { rotationId: string }).rotationId
+    return !Object.hasOwn(after.rotations, id) && after.register.community !== null && before.register.community !== null &&
+      big(after.register.community.head) === big(before.register.community.head) + 1n
+  }
   const relId = (d as { relId?: unknown }).relId as string
   const relGone = !Object.hasOwn(after.relationships, relId) || isHusk(after.relationships[relId])
   if (d.kind === 'merge') return false
@@ -543,6 +570,7 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
   if (rb.community !== null && ra.community !== null && ra.community.head !== rb.community.head) {
     const g = big(ra.community.head)
     if (g !== big(rb.community.head) + 1n || ra.lineage.length !== rb.lineage.length + 1) v.push({ invariant: 'register', detail: `the head moved ${rb.community.head} → ${ra.community.head} with ${ra.lineage.length - rb.lineage.length} lineage elements` })
+    if (!rb.labels.includes(communityLabel(ra.community.genesis, Number(g)))) v.push({ invariant: 'register', detail: `the head moved to generation ${ra.community.head} whose label was not persisted before (6360)` })
   }
   // the own profile's one counter never falls, and its content changes only with it (6450)
   if (big(after.profile.revision) < big(before.profile.revision)) v.push({ invariant: 'profile', detail: `the profile revision fell ${before.profile.revision} → ${after.profile.revision}` })

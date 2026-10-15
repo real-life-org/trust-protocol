@@ -36,6 +36,8 @@
     "dist/events.*",
     "dist/entropy.*",
     "dist/store-memory.*",
+    "dist/log-memory.*",
+    "dist/identity-state.*",
     "dist/store-contract.*",
     "dist/testing.*",
     "dist/state-builder.*",

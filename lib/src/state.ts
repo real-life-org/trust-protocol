@@ -416,10 +416,15 @@ export interface MergeDuty {
   witness: { heads: Record<string, string>, superseded: Record<string, string[]> }
 }
 
+/** Step 2 of a running rotation (identity-state.ts): its log append, on
+ *  resume, until the log holds the entry; after a failure due again after
+ *  the retry backoff (attempt, lastAt). */
+export interface RotationDuty { kind: 'rotation', v: 1, id: string, dueAt?: Millis, rotationId: string, attempt?: number, lastAt?: Millis }
+
 // Every duty may carry `dueAt`: resume runs it only from then on and
 // counts it into nextDueAt (engine.ts).
 
-export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty
+export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty | RotationDuty
 /** A duty of a kind (or version) this library does not know: kept as is. */
 export interface UnknownDuty { kind: string, v: number, id: string, [field: string]: Json }
 /** Narrow with isKnownDuty (codec.ts) before switching on `kind`. */
@@ -428,11 +433,15 @@ export type Duty = KnownDuty | UnknownDuty
 // ── Rotations, prompts, acts, encounter ────────────────────────────────
 
 /**
- * A running rotation; steps in order: register, then log, then duties.
- * The whole append closure is persisted before the append, so a restart
- * repeats or recognizes exactly that append (Log.append idempotence).
+ * A running rotation (identity-state.ts); steps in order: register, then
+ * log, then duties. Step 1 commits the register's label and the whole
+ * append closure with step 'log', so a restart repeats or recognizes
+ * exactly that append (Log.append idempotence); the completion commits the
+ * head, the lineage and the re-issue duties and removes the record.
+ * 'register' and 'duties' name no state a commit leaves behind today.
  */
 export interface Rotation {
+  /** the generation it moves to, as a decimal string */
   id: string
   from: Dec
   to: Dec

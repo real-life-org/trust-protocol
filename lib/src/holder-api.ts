@@ -25,6 +25,7 @@
 //   decide(promptId, choice, opts)            prompt.decide             human
 //   addDevice(name, opts)                     identity.addDevice        human
 //   revokeDevice(name, opts)                  identity.revokeDevice     human
+//   rotateAnchor(opts)                        identity.rotate           human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -103,6 +104,10 @@ export interface Holder {
   addDevice (name: string, opts: HumanActOptions): Promise<ActResult>
   /** the name's revocation mark: never removed, the name never given again (Identity §5.5); human */
   revokeDevice (name: string, opts: HumanActOptions): Promise<ActResult>
+  /** the community anchor's rotation (Identity §5.4): step 1 (label,
+   *  closure, 6596 decided) when none runs, else step 2 of the running one
+   *  through the Log port; resume carries step 2 on its own (identity-state.ts) */
+  rotateAnchor (opts: HumanActOptions): Promise<ActResult>
   /** the device key of a held, unrevoked device name under an own anchor
    *  context (Identity §5.5); reads, changes nothing */
   deviceKey (name: string, contextLabel: string): Promise<DeviceKeyResult>
@@ -155,6 +160,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     depart: (contactId: string, o: HumanActOptions & { relationshipId?: string }) =>
       human(ENTRY_COMMANDS.depart, o?.relationshipId === undefined ? { contactId } : { contactId, relationshipId: o.relationshipId }, o),
     recover: (o: { when: Millis }) => engine.act(TRUST_COMMANDS.recover, {}, o?.when as Millis),
+    rotateAnchor: (o: HumanActOptions) => human(IDENTITY_COMMANDS.rotate, {}, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),
