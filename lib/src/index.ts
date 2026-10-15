@@ -16,7 +16,10 @@
 //
 //   core              the form every artifact obeys
 //   crypto            the primitives, and the Data Integrity proof
-//   identity          context derivation under the closed registry (§6.1/§6.2)
+//   identity          context derivation under the closed registry (§6.1/§6.2),
+//                     device labels device/<n>/<c> (§5.5)
+//   profile           profile@1 (Trust §6b): k_pr, the MAC, the bounds and
+//                     the picture's header read before any decoding
 //   encounter         the ceremony's wire forms: challenges, cards, credentials
 //   delivery          the sealed envelope and the generic receive stages 1–4
 //   carrier-identity  the carrier-relationship principal (Identity §7a)
@@ -39,12 +42,15 @@
 //
 //   holder-api        createHolder — the facade: the typed human acts
 //                     (trust, untrust, pauseTrust, setClass, setGroupClass,
-//                     merge, depart, decide; {when, actId}), recover, act,
+//                     merge, depart, decide, rotateAnchor, setProfile,
+//                     addDevice, revokeDevice; {when, actId}), recover, act,
 //                     receive, tick, resume, report, subscribe, snapshot and
 //                     the views: contacts, contact, groups, profile,
 //                     prompts, deliveryStatus; `invariants: true` checks
 //                     invariants.ts on every commit (testing mode). Built
-//                     in: the trust module (Trust
+//                     in: the identity module (Identity §2, §5.4, §5.5: the
+//                     register's device names, deviceKey, the community
+//                     anchor's rotation over the Log port), the trust module (Trust
 //                     Layer 2a, 6.1–6.5, Section 2) — the human acts
 //                     trust.set, trust.setClass, trust.setGroupClass,
 //                     trust.pause, trust.merge, trust.depart, the anchor
@@ -52,7 +58,8 @@
 //                     merge and split (Section 2, 6a.1), the star and the
 //                     group star (5.2–5.4) reconciled on resume and
 //                     received, continuity (§6a: probe, continuity
-//                     mapping, chaining)
+//                     mapping, chaining), profile@1 (§6b: setProfile,
+//                     delivery on the class gates, reception)
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters
@@ -66,7 +73,7 @@
 //                     …), the pure view functions, the trust module's factory
 //                     and its pure reads — for the library's modules and
 //                     tests, not an app contract
-//   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
+//   ./testing         InMemoryStore, memoryLog, scriptedEntropy, storeContract, emptyState,
 //                     stateBuilder, freezeDeep, sampleState, openPromptModule
 //
 // Specification, schemas and vectors: https://trust-protocol.real-life.org

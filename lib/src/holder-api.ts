@@ -1,13 +1,14 @@
 // holder-api — createHolder, the facade over the engine (lib Stage 2,
 // note §4.1, §4.5). Domain modules (identity, encounter, trust, continuity,
 // membership, profile) register with the engine as they graduate; today
-// the facade carries the engine's built-ins, the prompts module, the trust
+// the facade carries the engine's built-ins, the prompts module, the
+// identity module (identity-state.ts: device names, the rotation), the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
 // trust/group-star.ts: the star and the group star, reconciled on resume
 // and received with their assemblies; trust/entries.ts: merge, split and
 // departure; trust/continuity.ts: the probe, the continuity mapping and
-// the chaining) and the modules given.
+// the chaining; trust/profile.ts: profile@1) and the modules given.
 //
 // The human acts (note §4.2) are typed methods with an options object
 // `{when, actId}`; actId is required, minted by the app when the human
