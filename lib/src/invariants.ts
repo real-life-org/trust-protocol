@@ -68,6 +68,16 @@
 //               5680; star and group star); a rename rewrites the star
 //               baseline's members only. The probe's done is sticky and
 //               set only by the ack completing a probe (6830)
+//   tuples      a tuple new in this commit carries fresh per-tuple state:
+//               every salt, revision and sequence at 0, no baseline,
+//               assembly, in-flight entry or verified artifact (6250)
+//   positions   a position once assigned stays with its entry (2120,
+//               2190; after a split with what remains of it, 2080, 2100):
+//               it leaves only with the entry, merged into one at an
+//               earlier position or departed, and is never assigned again;
+//               nextPos never falls; entryOrder.heads only appends, a
+//               departed relationship leaving it and a chaining moving the
+//               chain into the appended relationship's place (2180)
 //   bindings    a second binding for one anchor arises only where a
 //               chaining appended a tuple in this commit (6610, the union of
 //               4c); a relationship's held anchor head moves only along the
@@ -283,6 +293,75 @@ const tuplesByLabel = (state: Readonly<HolderState>): Map<string, Tuple> => {
 
 const dueOf = (d: Readonly<Duty>): number => (Number.isSafeInteger(d.dueAt) ? d.dueAt as number : 0)
 
+/** What a tuple new in this commit carries beyond fresh state (6250). */
+function freshViolations (t: Readonly<Tuple>): string[] {
+  const out: string[] = []
+  const seqOutFresh = (o: Readonly<SeqOut<unknown>>): boolean => o.lastSalt === '0' && o.hwm === '0' && !o.exhausted && o.snapshot === null && Object.keys(o.inflight).length === 0
+  const seqInFresh = (i: Readonly<{ hwm: string, lowerBound: string, assembly: unknown, accepted?: unknown }>): boolean =>
+    i.hwm === '0' && i.lowerBound === '0' && i.assembly === null && (i.accepted ?? null) === null
+  if (!seqOutFresh(t.starOut)) out.push('starOut')
+  if (!seqOutFresh(t.groupStarOut)) out.push('groupStarOut')
+  if (!seqInFresh(t.starIn)) out.push('starIn')
+  if (!seqInFresh(t.groupStarIn)) out.push('groupStarIn')
+  if (!seqInFresh(t.probeIn)) out.push('probeIn')
+  if (t.probeOut.seq !== '0' || Object.keys(t.probeOut.inflight).length || t.probeOut.done) out.push('probeOut')
+  if (t.mappingOut.rev !== '0' || t.mappingOut.body !== null) out.push('mappingOut')
+  if (t.mappingIn.rev !== '0' || t.mappingIn.body !== null) out.push('mappingIn')
+  if (t.continuityOut.rev !== '0' || t.continuityOut.body !== null) out.push('continuityOut')
+  if (t.continuityIn.rev !== '0' || t.continuityIn.body !== null) out.push('continuityIn')
+  if (t.profileIn.rev !== '0' || t.profileIn.body !== null) out.push('profileIn')
+  if (t.deactivated) out.push('deactivated')
+  return out
+}
+
+/**
+ * 2120, 2190: a position once assigned stays with its entry. Every
+ * position held before is held after, unless its entry merged into one at
+ * an earlier position or left the state; a position new in this commit
+ * lies at or above the old nextPos (never reused); nextPos never falls.
+ */
+function positionViolations (v: Violation[], before: Readonly<HolderState>, after: Readonly<HolderState>): void {
+  if (big(after.entryOrder.nextPos) < big(before.entryOrder.nextPos)) v.push({ invariant: 'positions', detail: `nextPos fell ${before.entryOrder.nextPos} → ${after.entryOrder.nextPos}` })
+  const holder = new Map(Object.values(after.contacts).filter((c) => c.pos !== null).map((c) => [c.pos as string, c]))
+  const had = new Set(Object.values(before.contacts).map((c) => c.pos).filter((p): p is string => p !== null))
+  for (const c of Object.values(before.contacts)) {
+    if (c.pos === null) continue
+    const x = findContact(after, c.id)
+    const y = holder.get(c.pos)
+    if (y !== undefined) {
+      // held by the same entry: the one c.id resolves to, or what remains of
+      // c's entry under another identity (2100: a rename; 2080: a split whose
+      // leaver took c.id, the remaining relationships keeping the position)
+      if (x !== undefined && x !== y && !y.relIds.every((id) => c.relIds.includes(id))) v.push({ invariant: 'positions', detail: `${c.id}: position ${c.pos} moved to ${y.id}` })
+      continue
+    }
+    if (x !== undefined && !(x.pos !== null && big(x.pos) < big(c.pos) && !Object.hasOwn(after.contacts, c.id))) {
+      v.push({ invariant: 'positions', detail: `${c.id}: position ${c.pos} changed to ${x.pos}` })
+    }
+  }
+  const held = holder.keys()
+  for (const p of held) if (!had.has(p) && big(p) < big(before.entryOrder.nextPos)) v.push({ invariant: 'positions', detail: `position ${p} assigned again (nextPos was ${before.entryOrder.nextPos})` })
+}
+
+/**
+ * 2180: entryOrder.heads only appends, except that a departed relationship
+ * leaves it and a chaining puts the chain in the appended relationship's
+ * place (the chain's own place leaves).
+ */
+function headsViolations (v: Violation[], before: Readonly<HolderState>, after: Readonly<HolderState>): void {
+  const into = new Map<string, string>()
+  for (const r of Object.values(after.relationships)) {
+    if (r.chainedInto !== null && Object.hasOwn(before.relationships, r.id) && before.relationships[r.id].chainedInto === null) into.set(r.id, r.chainedInto)
+  }
+  const chains = new Set(into.values())
+  const kept = before.entryOrder.heads.filter((id) => !chains.has(id)).map((id) => into.get(id) ?? id).filter((id) => after.entryOrder.heads.includes(id))
+  const a = after.entryOrder.heads
+  const added = a.slice(kept.length)
+  if (jcs(a.slice(0, kept.length)) !== jcs(kept) || added.some((id) => before.entryOrder.heads.includes(id) && !chains.has(id))) {
+    v.push({ invariant: 'positions', detail: `entryOrder.heads ${jcs(before.entryOrder.heads)} → ${jcs(a)} is no append (2180)` })
+  }
+}
+
 /** Whether a rule lets duty `d` of `before` be gone after the commit `op` (see the header). */
 export function dutyDrops (before: Readonly<HolderState>, after: Readonly<HolderState>, d: Readonly<Duty>, op: CommitOp): boolean {
   // (a) a registered handler ran it (only a kind the engine registers runs)
@@ -448,6 +527,17 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
     if (big(a.mappingOut.rev) < big(b.mappingOut.rev)) v.push({ invariant: 'salts', detail: `${label}: mapping revision fell` })
     if (big(a.continuityOut.rev) < big(b.continuityOut.rev)) v.push({ invariant: 'salts', detail: `${label}: continuity revision fell` })
   }
+  // a new tuple starts with fresh per-tuple state (6250): nothing migrates into it
+  for (const r of Object.values(after.relationships)) {
+    for (const t of r.tuples) {
+      if (tb.has(t.ownPairLabel)) continue
+      const stale = freshViolations(t)
+      if (stale.length) v.push({ invariant: 'tuples', detail: `${t.ownPairLabel}: a new tuple carries ${stale.join(', ')} (6250)` })
+    }
+  }
+  // entry positions (2120, 2190) and the creation order of active heads (2180)
+  positionViolations(v, before, after)
+  headsViolations(v, before, after)
   // bindings and held heads, per relationship (6610, 6150)
   for (const [id, a] of Object.entries(after.relationships)) {
     if (!Object.hasOwn(before.relationships, id) || isHusk(a)) continue
