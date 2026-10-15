@@ -166,11 +166,11 @@ import type { Entropy, PlatformRandom } from './entropy.js'
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
 import { freezeDeep } from './util-freeze.js'
 import { ACK_TYPE } from './ack.js'
-import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js'
+import { ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js'
 import { isTaskDiscarded } from './receive.js'
-import type { Arrival, ReceivePlan, ReceivedDocument, TaskDiscarded, TaskRefusal } from './receive.js'
+import type { Arrival, Channel, ReceivePlan, ReceivedDocument, TaskDiscarded, TaskRefusal } from './receive.js'
 import type { CommitOp } from './invariants.js'
-export type { Arrival, ReceivedDocument, TaskDiscarded, TaskFailure, TaskRefusal } from './receive.js'
+export type { Arrival, Channel, ReceivedDocument, TaskDiscarded, TaskFailure, TaskRefusal } from './receive.js'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -251,6 +251,11 @@ export interface TaskHandler<T = any, P = any> {
    *  signatures are the payload's business); checked at stage 6 */
   proof: 'absent' | 'required'
   decode: (payload: unknown) => T | TaskRefusal
+  /** the acceptance binding of a document that may arrive on an own key no
+   *  tuple carries yet (receive.ts): the counterpart's key agreement and
+   *  contact, from the document itself, or a refusal; absent: the arrival
+   *  tuple's binding (Delivery 4.4) */
+  channel?: (state: Readonly<HolderState>, doc: ReceivedDocument<T>, rkid: string) => Channel | TaskRefusal
   prepare?: (ctx: PrepareCtx, doc: ReceivedDocument<T>, arrival: Arrival) => Promise<P | TaskRefusal>
   /** a TaskDiscarded commits its `state` as the disposition `discarded`
    *  (no effect-cache entry, no ack): a resource-limit discard (Trust 5365) */
@@ -654,10 +659,10 @@ class HolderEngine implements Engine {
       for (const [uri, h] of Object.entries(m.tasks ?? {})) {
         if (!TASK_URI.test(uri)) throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`)
         if (uri === ACK_TYPE) throw new Error(`${uri} is built in: acks take the common path (module ${m.name})`)
-        if (SIGNATURE_CLASS.has(uri)) throw new Error(`${uri} is signature-class: its signed ack is not built yet (module ${m.name})`)
         if (tasks.has(uri)) throw new Error(`duplicate task ${uri} (module ${m.name})`)
         if (typeof h?.apply !== 'function' || typeof h.decode !== 'function') throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`)
         if (h.proof !== 'absent' && h.proof !== 'required') throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`)
+        if (h.channel !== undefined && typeof h.channel !== 'function') throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`)
         tasks.set(uri, Object.freeze({ ...h }))
       }
       for (const [kind, h] of Object.entries(m.duties ?? {})) {

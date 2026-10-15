@@ -173,9 +173,12 @@ export interface SubmissionRef { submissionId: string, digest: string }
 // ── Outbound ───────────────────────────────────────────────────────────
 
 /** Whom a document goes to. `rkid` is the own key-agreement id of the
- *  tuple it travels on (the app's sending relationship, Delivery §5a);
- *  `keyAgreement` the counterpart key the envelope is sealed to. */
-export interface Recipient { contactId: string, rkid: string, keyAgreement: string }
+ *  tuple it travels on (the app's sending relationship, Delivery §5a), or
+ *  of the own key it is sent from where no tuple carries it (a member
+ *  anchor, Membership 3.1); `keyAgreement` the counterpart key the
+ *  envelope is sealed to; `anchor`, set where no tuple carries the
+ *  document, the anchor it is addressed to (its ack's issuer, 4.2). */
+export interface Recipient { contactId: string, rkid: string, keyAgreement: string, anchor?: string }
 
 /** A sealed document for the app to send. `digest` keys report();
  *  attempt > 1 is a retry. Pure JSON. */

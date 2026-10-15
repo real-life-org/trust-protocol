@@ -106,7 +106,7 @@ const keyed = (v: V, idField: string): V => (x, p) => {
 // ── the HolderState shape (state.ts) ───────────────────────────────────
 const setting = lit('default', 'on', 'off')
 const trustClass = lit('star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 'profile')
-const recipient = obj({ contactId: str, rkid: str, keyAgreement: str })
+const recipient = obj({ contactId: str, rkid: str, keyAgreement: str }, { anchor: str })
 const envelope = obj({ rkid: str, epk: str, nonce: str, ciphertext: str })
 const assembly = obj({ salt: dec, chunks: rec(json) })
 const seqOutShape = (item: V): V => obj({
