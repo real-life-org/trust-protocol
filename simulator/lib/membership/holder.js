@@ -705,7 +705,14 @@ const welcomeTask = {
     async prepare(ctx, doc) {
         if (!(await diVerify(doc, doc.issuer)))
             return refuse('validation-failed', 'RLTP-MT-2130');
-        return { hits: await groupStarRematch(ctx, doc.payload.genesisDigest) };
+        // the joined group as the welcome carries it: its roster, the oids naming the admissions
+        const roster = doc.payload.roster;
+        const membership = {
+            group: doc.payload.genesisDigest,
+            isMember: (a) => roster.some((m) => m.anchor === a),
+            resolve: (oid) => { const e = roster.find((m) => m.op === oid); return e ? { subject: e.anchor, keyAgreement: e.keyAgreement } : null; },
+        };
+        return { hits: await groupStarRematch(ctx, membership) };
     },
     apply(state, p, doc, arr) {
         const i = acceptedInvite(state, doc);

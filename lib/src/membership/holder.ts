@@ -130,6 +130,8 @@ import type { Access, GroupAccess, Recipient } from '../ports.js'
 import type { Evidence, Group, HolderState, Joining, Millis, Prompt, ReceivedInvite, RosterEntry } from '../state.js'
 import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js'
 import { groupStarRematch, withGroupHits } from '../trust/group-star.js'
+import type { GroupStarRehit } from '../trust/group-star.js'
+import type { GroupMembership } from '../group-star.js'
 
 const TT = 'https://real-life.org/trust-tasks/'
 /** This library's experimental forms (receive.ts SIGNATURE_CLASS). */
@@ -720,7 +722,7 @@ const acceptedInvite = (state: Readonly<HolderState>, doc: Doc): ReceivedInvite 
   Object.values(state.joining.invites).find((i) => i.status !== 'open' && i.status !== 'declined' &&
     (i.invite as Doc).payload.invite.issuer === doc.issuer && (i.invite as Doc).threadId === doc.threadId && i.group === doc.payload.genesisDigest)
 
-const welcomeTask: TaskHandler<WelcomePayload, { hits: string[] }> = {
+const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
   proof: 'required',
   decode: (p) => (welcomeShape(p) ? p : refuse('malformed')),
   // the welcome answers an invitation this holder accepted: in its thread,
@@ -733,7 +735,14 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: string[] }> = {
   // the group stars already accepted are matched against the joined group (5520)
   async prepare (ctx, doc) {
     if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed', 'RLTP-MT-2130')
-    return { hits: await groupStarRematch(ctx, doc.payload.genesisDigest) }
+    // the joined group as the welcome carries it: its roster, the oids naming the admissions
+    const roster = doc.payload.roster
+    const membership: GroupMembership = {
+      group: doc.payload.genesisDigest,
+      isMember: (a) => roster.some((m) => m.anchor === a),
+      resolve: (oid) => { const e = roster.find((m) => m.op === oid); return e ? { subject: e.anchor, keyAgreement: e.keyAgreement } : null },
+    }
+    return { hits: await groupStarRematch(ctx, membership) }
   },
   apply (state, p, doc, arr) {
     const i = acceptedInvite(state, doc)!

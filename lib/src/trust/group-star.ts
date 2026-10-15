@@ -43,8 +43,10 @@
 //     groups among the holder's that hit (sharedGroups of the contact
 //     view). The union stays so a group the holder joins later is matched
 //     against the stars it already accepted (groupStarRematch, called by
-//     the welcome): a late joiner sees the groups it shares with existing
-//     contacts without a new star, which the sender has no reason to send
+//     the welcome): the hit, and a sealed pair opened and checked by
+//     5530–5570 against the joined group as at completion; a late joiner
+//     sees the groups it shares with existing contacts, and their members,
+//     without a new star, which the sender has no reason to send
 //   - an accepted pair is class V (5580): merged into the relationship's
 //     holder-local memory under `groupMembers` as { [G]: { member,
 //     memberOp } }, a later accepted pair for G replacing it (5770); it is
@@ -172,44 +174,66 @@ export const GROUP_STAR: Artifact<GroupStarItem, GroupAccepted> = {
   },
 }
 
+/** One tuple's outcome of the re-match: the hit, and the accepted pair if one opened. */
+export interface GroupStarRehit { label: string, member?: string, memberOp?: string }
+
 /**
- * 5520 for a group the holder joins: the tuple labels whose accepted group
- * star's union holds d = HMAC(k_g, G). k_g is the accepted star's key
- * (its sender, this holder's pair anchor and the star's salt), through
- * the KeyProvider under the engine's release. Async: the caller prepares
- * it and applies withGroupHits in its commit.
+ * 5520–5580 for a group the holder joins, over the group stars it already
+ * accepted: d = HMAC(k_g, G) tested against each stored union, and on a
+ * hit the sealed pair opened and checked in the order of 5530–5570
+ * against `membership` (the joined group's roster as the welcome carries
+ * it), exactly as at a star's completion. k_g and k_e are the accepted
+ * star's (its sender, this holder's pair anchor, its salt), through the
+ * KeyProvider under the engine's release. Async: the caller prepares it
+ * and applies withGroupHits in its commit.
  */
-export async function groupStarRematch (ctx: PrepareCtx, group: string): Promise<string[]> {
-  const S = ctx.crypto.subtle
-  const out: string[] = []
+export async function groupStarRematch (ctx: PrepareCtx, membership: GroupMembership): Promise<GroupStarRehit[]> {
+  const out: GroupStarRehit[] = []
   for (const r of Object.values(ctx.snapshot.relationships)) {
     for (const t of r.tuples) {
       const acc = t.groupStarIn.accepted
-      if (!acc || acc.groups.includes(group)) continue
+      if (!acc || acc.groups.includes(membership.group)) continue
       const x = xRawOfMk(t.counterpartKeyAgreement)
       if (!x) continue
       const a = await ctx.keys.agree(t.rkid, x, ctx.release)
       if (a.status !== 'available') continue
       const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor
-      const d = await macU(await groupStarKeyOf(a.shared, t.counterpartAnchor, own, acc.salt, S), group, S)
-      if (acc.entries.some((e) => e.d === d)) out.push(t.ownPairLabel)
+      const [res] = await openGroupStarWith({
+        shared: a.shared, from: t.counterpartAnchor, own, salt: acc.salt, entries: acc.entries, memberships: [membership], subtle: ctx.crypto.subtle,
+        agreeMember: async (keyAgreement) => {
+          const mx = xRawOfMk(keyAgreement)
+          if (!mx) return null
+          const m = await ctx.keys.agree(t.rkid, mx, ctx.release)
+          return m.status === 'available' ? m.shared : null
+        },
+      })
+      if (!res?.hit) continue
+      out.push(res.accepted ? { label: t.ownPairLabel, member: res.member!, memberOp: res.memberOp! } : { label: t.ownPairLabel })
     }
   }
-  return out.sort()
+  return out.sort((p, q) => cmp(p.label, q.label))
 }
 
-/** The hits of groupStarRematch committed: `group` joins the accepted groups of those tuples. */
-export function withGroupHits (state: HolderState, labels: readonly string[], group: string): HolderState {
-  if (!labels.length) return state
-  const hit = new Set(labels)
+/** The re-match committed: `group` joins the accepted groups of the hit
+ *  tuples, and an accepted pair is merged into its relationship's memory
+ *  under `groupMembers` (class V, 5580), as at a star's completion. */
+export function withGroupHits (state: HolderState, hits: readonly GroupStarRehit[], group: string): HolderState {
+  if (!hits.length) return state
+  const byLabel = new Map(hits.map((h) => [h.label, h]))
   const relationships: Record<string, Relationship> = {}
   for (const [id, r] of Object.entries(state.relationships)) {
-    relationships[id] = r.tuples.some((t) => hit.has(t.ownPairLabel)) ? {
-      ...r,
-      tuples: r.tuples.map((t) => (hit.has(t.ownPairLabel) && t.groupStarIn.accepted && !t.groupStarIn.accepted.groups.includes(group))
-        ? { ...t, groupStarIn: { ...t.groupStarIn, accepted: { ...t.groupStarIn.accepted, groups: [...t.groupStarIn.accepted.groups, group].sort() } } }
-        : t),
-    } : r
+    if (!r.tuples.some((t) => byLabel.has(t.ownPairLabel))) { relationships[id] = r; continue }
+    let memory = r.memory
+    const tuples = r.tuples.map((t) => {
+      const h = byLabel.get(t.ownPairLabel)
+      if (!h || !t.groupStarIn.accepted || t.groupStarIn.accepted.groups.includes(group)) return t
+      if (h.member !== undefined) {
+        const held = (memory.groupMembers ?? {}) as Record<string, Json>
+        memory = { ...memory, groupMembers: { ...held, [group]: { member: h.member, memberOp: h.memberOp! } } }
+      }
+      return { ...t, groupStarIn: { ...t.groupStarIn, accepted: { ...t.groupStarIn.accepted, groups: [...t.groupStarIn.accepted.groups, group].sort() } } }
+    })
+    relationships[id] = { ...r, tuples, memory }
   }
   return { ...state, relationships }
 }
