@@ -81,7 +81,10 @@
 //     without a tombstone (an identity context, engine.ts tick), so a later
 //     invitation to the same group derives and uses the same key again
 //   - the prelude request proves its claimed inviter: a binding signed
-//     under the inviter's member key over (anchor, group, thread); the
+//     under the inviter's member key over (anchor, group, thread, and both
+//     pair anchors of the channel it travels on, checked against the
+//     document's issuer and recipient as stage 8 authenticated them), so
+//     no other contact can replay it on its own channel; the
 //     answering holder never overwrites a binding (group, inviter) held for
 //     another contact. Residue: the binding links the inviter's member
 //     anchor to its pair channel transferably (the invite names that
@@ -290,7 +293,9 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
       threadId: ctx.entropy.id('thread.id'), issuedAt: at, payload: { genesisDigest: g.id, group: g.did ?? '', name: g.name, inviter: g.memberAnchor, binding: {} as Doc },
     }
     // the inviter's member anchor proven: signed under it over (anchor, group, thread)
-    body.payload.binding = await signDoc(ctx, g.memberLabel, g.memberAnchor, { type: 'x-membership-inviter@0.1', inviter: g.memberAnchor, genesisDigest: g.id, threadId: body.threadId }, at)
+    body.payload.binding = await signDoc(ctx, g.memberLabel, g.memberAnchor, {
+      type: 'x-membership-inviter@0.1', inviter: g.memberAnchor, genesisDigest: g.id, threadId: body.threadId, from: own.anchor, to: ch.tuple.counterpartAnchor,
+    }, at)
     const doc = await signDoc(ctx, ch.tuple.ownPairLabel, own.anchor, body, at)
     return sealed(ctx, doc, { contactId: ch.contact.id, rkid: ch.tuple.rkid, keyAgreement: ch.tuple.counterpartKeyAgreement })
   },
@@ -328,7 +333,7 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
     // the claimed inviter proven by its own member key, for this group and thread
     const b = doc.payload.binding
     if (b.type !== 'x-membership-inviter@0.1' || b.inviter !== doc.payload.inviter || b.genesisDigest !== doc.payload.genesisDigest ||
-      b.threadId !== doc.threadId || !(await diVerify(b, doc.payload.inviter))) return refuse('validation-failed', 'RLTP-MT-3020')
+      b.threadId !== doc.threadId || b.from !== doc.issuer || b.to !== doc.recipient || !(await diVerify(b, doc.payload.inviter))) return refuse('validation-failed', 'RLTP-MT-3020')
     const a = arrival(ctx.snapshot, arr.rkid)!
     const label = memberLabelOf(doc.payload.genesisDigest)!
     const member = await ctx.keys.anchorOf(label)
