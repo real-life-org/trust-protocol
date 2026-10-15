@@ -116,5 +116,8 @@ export const continuityMappingOk = (m: unknown): boolean =>
   schemaOk('visibility-continuity-mapping.schema.json', m) && calOK((m as ContinuityMapping).body.issuedAt)
 
 /** 2290: the record side of a fresh tuple is the party whose new pair
- *  anchor is the smaller by byte order (did:key strings are ASCII). */
+ *  anchor is the smaller by byte order (did:key strings are ASCII). Either
+ *  party can grind its anchor to take either side, so being the record
+ *  side grants nothing: neither side chains without the counterpart's
+ *  mapping verified under the prior key (trust/continuity.ts, follow-up 14). */
 export const isRecordSide = (ownNew: string, counterpartNew: string): boolean => ownNew < counterpartNew
