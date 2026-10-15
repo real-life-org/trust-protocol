@@ -330,7 +330,21 @@ export type FailureHandler = (state: Readonly<HolderState>, ref: string, when: M
  * It sees the prompt still open; the prompts module removes it after. A
  * refusal refuses the decision.
  */
-export type DecisionHandler = (state: Readonly<HolderState>, prompt: Readonly<Prompt>, choice: PromptChoice, when: Millis) => Applied | Refusal
+export type DecisionHandler = DecisionFn | DecisionDef
+
+/** The synchronous form: the domain effect needs no preparation. */
+export type DecisionFn = (state: Readonly<HolderState>, prompt: Readonly<Prompt>, choice: PromptChoice, when: Millis) => Applied | Refusal
+
+/**
+ * The prepared form, for a domain effect that signs or seals (the
+ * counter-step, the membership accept, the introduction's consent):
+ * `prepare` runs in the decision's preparation against its snapshot, the
+ * prompt still open there; `apply` gets its value bound to that snapshot.
+ */
+export interface DecisionDef<P = any> {
+  prepare?: (ctx: PrepareCtx, prompt: Readonly<Prompt>, choice: PromptChoice) => Promise<P>
+  apply: (state: Readonly<HolderState>, prompt: Readonly<Prompt>, choice: PromptChoice, when: Millis, prepared: Prepared<P>) => Applied | Refusal
+}
 
 /** A domain module: what it registers with the engine. */
 export interface HolderModule {
