@@ -130,10 +130,16 @@ export interface GroupView {
   commitSeq: Dec
   /** genesis digest */
   id: string
+  /** the group's name, as its genesis names it */
+  name: string
   /** listed in the blinded group star (5.2b per-group switch) */
   listed: boolean
   vouchThreshold: Dec
-  /** the group's name and members arrive with membership's graduation (PR 7) */
+  /** the members this holder knows of, by member anchor (its roster);
+   *  `self` marks the own one, `contactId` a member it knows as a contact */
+  members: Array<{ anchor: string, name?: string, contactId?: string, self: boolean }>
+  /** consent pairs held toward an admission (Membership 3.4), by subject */
+  pending: Array<{ member: string, name?: string, vouches: number }>
 }
 
 /** The holder's own profile (6450). */
@@ -330,7 +336,14 @@ export function contactView (state: Readonly<HolderState>, id: string): ContactV
 /** The holder's groups, by genesis digest. */
 export function groupsView (state: Readonly<HolderState>): GroupView[] {
   return freezeDeep(Object.values(state.groups).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
-    commitSeq: state.commitSeq, id: g.id, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
+    commitSeq: state.commitSeq, id: g.id, name: g.name, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
+    members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
+      anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
+    })),
+    pending: Object.values(g.evidence).map((e) => {
+      const acc = (e.accept as { payload?: { accept?: { subject?: string, card?: { name?: string } } } }).payload?.accept
+      return { member: acc?.subject ?? '', ...(typeof acc?.card?.name === 'string' ? { name: acc.card.name } : {}), vouches: e.vouches.length }
+    }).sort((a, b) => cmp(a.member, b.member)),
   })))
 }
 

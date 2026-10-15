@@ -3,8 +3,11 @@
 // membership, profile) register with the engine as they graduate; today
 // the facade carries the engine's built-ins, the prompts module, the
 // encounter module (encounter/ceremony.ts: show, scan, the optical leg, the
-// counter-step, the bundle and the credential delivery), the
-// identity module (identity-state.ts: device names, the rotation), the trust
+// counter-step, the bundle and the credential delivery), the membership
+// module (membership/holder.ts: founding, the prelude and invite, the
+// accept on a group-invite prompt, admission and welcome, evidence and
+// vouches; and the in-library Access over the holder's groups where no
+// Access port is given), the identity module (identity-state.ts: device names, the rotation), the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
 // trust/group-star.ts: the star and the group star, reconciled on resume
@@ -34,6 +37,9 @@
 //   scan(card, opts{name?})                   encounter.scan            human
 //   captureSentCard(card, opts)               encounter.capture         human
 //   counter(contactId, opts)                  encounter.counter         human
+//   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
+//   invite(groupId, contactId, opts)          membership.invite         human
+//   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -68,6 +74,7 @@ import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass 
 import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js'
+import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js'
 import type { Json } from './core.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
 import type { ContactView, DeliveryStatusView, GroupView, ProfileView, PromptView } from './views.js'
@@ -137,6 +144,16 @@ export interface Holder {
   captureSentCard (card: Json, opts: HumanActOptions): Promise<ActResult>
   /** the counter-step toward a contact met as displayer (Encounter 5.8 step 4); human */
   counter (contactId: string, opts: HumanActOptions): Promise<ActResult>
+  /** a group founded under a fresh pair anchor (Access 3.4.1); its rule
+   *  vouchThreshold (default "1") is group state; event group.founded; human */
+  foundGroup (group: { name: string, vouchThreshold?: string, listed?: boolean }, opts: HumanActOptions): Promise<ActResult>
+  /** invite a contact into a group: the prelude, then the invite on its
+   *  answer (Membership 1.2, 3.1); the contact decides on a group-invite
+   *  prompt; human */
+  invite (groupId: string, contactId: string, opts: HumanActOptions): Promise<ActResult>
+  /** a vouch@2 for a member anchor whose consent pair this holder holds
+   *  (Access 5.3, Membership 3.4); human */
+  vouchFor (groupId: string, member: string, opts: HumanActOptions & { provenance?: 'met' | 'introduced' }): Promise<ActResult>
   /** the device key of a held, unrevoked device name under an own anchor
    *  context (Identity §5.5); reads, changes nothing */
   deviceKey (name: string, contextLabel: string): Promise<DeviceKeyResult>
@@ -164,14 +181,14 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const modules = [identityModule(), trustModule(), encounterModule(), ...(opts.modules ?? [])]
+  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), ...(opts.modules ?? [])]
   const check = opts.invariants === true
     ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
         const v = commitViolations(before, after, op)
         if (v.length) throw new InfraError('invariant-violated', `invariants broken by ${op.kind}: ${v.map((x) => `[${x.invariant}] ${x.detail}`).join('; ')}`, { cause: v })
       }
     : undefined
-  const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules], check ? { check } : {})
+  const engine = await createEngine(ports, [promptsModule(collectDecisions(modules)), ...modules], { ...(check ? { check } : {}), accessFrom: localAccess })
   const read = async () => (await engine.snapshot()).state
   /** a human act: `when` and actId from the options, a missing actId refused by the engine */
   const human = (command: string, input: unknown, o: HumanActOptions | undefined) =>
@@ -195,6 +212,10 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     scan: (card: Json, o: HumanActOptions & { name?: string }) => human(ENCOUNTER_COMMANDS.scan, o?.name === undefined ? { card } : { card, name: o.name }, o),
     captureSentCard: (card: Json, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
     counter: (contactId: string, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
+    foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),
+    invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
+    vouchFor: (groupId: string, member: string, o: HumanActOptions & { provenance?: 'met' | 'introduced' }) =>
+      human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

@@ -145,6 +145,9 @@
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
+//   - without an Access port, EngineOptions.accessFrom (createHolder: the
+//     membership module's localAccess) builds one over each preparation's
+//     own snapshot, so it describes exactly the state the commit lands on
 //   - EngineOptions.check (createHolder's `invariants: true`) runs on every
 //     commit after the codec's validation and before the CAS; its throw
 //     aborts the operation, nothing commits
@@ -395,6 +398,9 @@ export interface EnginePorts {
  *  (createHolder's `invariants: true`, invariants.ts). */
 export interface EngineOptions {
   check?: (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => void
+  /** where no Access port is given: an Access over each preparation's own
+   *  snapshot (createHolder passes the membership module's localAccess) */
+  accessFrom?: (state: Readonly<HolderState>) => Access
 }
 
 /** Announced after every commit of this engine, with its commitSeq. */
@@ -618,6 +624,7 @@ class HolderEngine implements Engine {
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #check?: EngineOptions['check']
+  readonly #accessFrom?: EngineOptions['accessFrom']
   readonly #listeners = new Set<CommitListener>()
   #chain: Promise<unknown> = Promise.resolve()
   /** a commit whose outcome is unknown, settled before the next operation */
@@ -626,6 +633,8 @@ class HolderEngine implements Engine {
   constructor (ports: EnginePorts, crypto: CryptoHandle, modules: readonly HolderModule[], opts: EngineOptions = {}) {
     if (opts.check !== undefined && typeof opts.check !== 'function') throw new TypeError('check must be a function')
     this.#check = opts.check
+    if (opts.accessFrom !== undefined && typeof opts.accessFrom !== 'function') throw new TypeError('accessFrom must be a function')
+    this.#accessFrom = opts.accessFrom
     this.#store = ports.store
     this.#ports = ports
     this.#crypto = crypto
@@ -802,7 +811,7 @@ class HolderEngine implements Engine {
       }
       // 2 — prepare, bound to this snapshot
       const ctx: PrepareCtx = Object.freeze({
-        snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access, log: this.#log,
+        snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access ?? this.#accessFrom?.(state), log: this.#log,
         crypto: this.#crypto, when: at, release: releaseOf(state),
       })
       const value = def.prepare ? await def.prepare(ctx, input) : undefined
