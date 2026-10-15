@@ -332,10 +332,12 @@ function admitPending (state: Readonly<HolderState>, bound: bigint): HolderState
   return contacts ? { ...state, contacts } : state as HolderState
 }
 
-/** 2240: every relationship holding a verified mapping on a tuple whose
+/** First, pending entries are admitted in position order while the set
+ *  has room (2250): they hold earlier positions than any re-commit. Then
+ *  (2240) every relationship holding a verified mapping on a tuple whose
  *  entry holds no position re-commits that entry, in the order of
- *  entryOrder.heads (2180), then by relationship id; then pending entries
- *  are admitted in position order while the set has room (2250). */
+ *  entryOrder.heads (2180), then by relationship id, at the next position,
+ *  admitted or pending by what room is left. */
 export function recommitEntries (state: Readonly<HolderState>, bound: bigint = ADMISSION_BOUND): Applied {
   const order = Object.keys(state.relationships).sort((a, b) => {
     const ia = state.entryOrder.heads.indexOf(a), ib = state.entryOrder.heads.indexOf(b)
