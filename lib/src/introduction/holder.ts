@@ -34,6 +34,9 @@
 //   duty        intro-ack/1: the mediator's one ack at t_received + ack-delay
 //   retain      time-driven transitions (8140: the first whole second after
 //               the bound) and the discard at the absolute lifetime (8310)
+//   keepKeys    the own rkids of every pinned tuple of a held act: a
+//               chaining mid-act deactivates it, tick keeps its key (8270,
+//               8290)
 //
 // Choices this file makes where spec and note leave them open:
 //   - who starts: §8 has the requester mint the act and name the target by
@@ -703,6 +706,21 @@ function actDeadlines (state: Readonly<HolderState>): Millis[] {
   return out
 }
 
+/** The own rkids of every tuple a held act pinned (8270): a chaining
+ *  during the act deactivates such a tuple, but the act's artifacts stay
+ *  on it and verify under its key until the absolute lifetime (8290), when
+ *  retainActs discards the act and with it this claim. */
+function pinnedKeys (state: Readonly<HolderState>): string[] {
+  const out = new Set<string>()
+  for (const a of Object.values(state.encounter.introductions)) {
+    for (const label of [a.pins.requester, a.pins.target, a.pins.mediator]) {
+      const at = label === undefined ? null : tupleByLabel(state, label)
+      if (at) out.add(at.tuple.rkid)
+    }
+  }
+  return [...out]
+}
+
 /** The introduction module createHolder registers. */
 export function introductionModule (): HolderModule {
   return Object.freeze({
@@ -721,5 +739,6 @@ export function introductionModule (): HolderModule {
     decisions: Object.freeze({ introduction: introductionDecision }),
     retain: retainActs,
     deadlines: actDeadlines,
+    keepKeys: pinnedKeys,
   })
 }

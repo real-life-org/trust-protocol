@@ -22,7 +22,8 @@
 //               reply/0.1 (tuple binding) and x-membership-welcome/0.1
 //               (channel binding), this library's experimental forms; all
 //               signature-class: signed acks
-//   keepKeys    the member keys of held groups and of groups on the way in
+//   keepKeys    the member keys of held groups and of groups on the way in,
+//               and the tuple rkid of every held prelude (sent or answered)
 //   retain      declined and expired invitations leave `joining`
 //
 // Choices this file makes where spec and note leave them open:
@@ -793,7 +794,13 @@ function memberKeys (state: Readonly<HolderState>): string[] {
   const labels = new Set<string>(Object.values(state.groups).map((g) => g.memberLabel))
   for (const p of Object.values(state.joining.preludes)) labels.add(p.memberLabel)
   for (const i of Object.values(state.joining.invites)) if (i.status === 'open' || i.status === 'accepted') labels.add(i.memberLabel)
-  return Object.entries(state.addresses.keys).filter(([, k]) => labels.has(k.label)).map(([rkid]) => rkid)
+  const out = Object.entries(state.addresses.keys).filter(([, k]) => labels.has(k.label)).map(([rkid]) => rkid)
+  // the tuple a held prelude travelled on: a chaining may deactivate it
+  // while the prelude is open, and its answer, its acks and the invitation
+  // bound to it still arrive under that key
+  for (const g of Object.values(state.groups)) for (const p of Object.values(g.preludes)) out.push(p.rkid)
+  for (const p of Object.values(state.joining.preludes)) out.push(p.rkid)
+  return out
 }
 
 const untilOf = (invite: Json): Millis => Date.parse((invite as Doc).payload.invite.validUntil)
