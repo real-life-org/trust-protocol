@@ -113,7 +113,7 @@
 //   - a member group is listed in the group star (5420: listed unless
 //     switched off)
 import { b64uOf, fromB64u, iso, sameDigest, toU } from '../core.js'
-import type { Json } from '../core.js'
+import type { Json, JsonObject } from '../core.js'
 import { anchorOfEd, diSignWith, diVerify, digestBytes, digestDoc } from '../crypto.js'
 import { seal } from '../delivery.js'
 import { cardBody } from '../encounter.js'
@@ -246,7 +246,7 @@ const foundDef: CommandDef<FoundInput, FoundPrep> = {
     if (!/^[1-9][0-9]?$/.test(threshold)) throw new TypeError('membership.found: vouchThreshold is a positive decimal')
     if (threshold !== '1') return no('threshold-unsupported')
     const group: Group = {
-      id: p.genesisDigest, name: input.name, did: p.did, genesis: p.genesis, memberLabel: p.label, rules: { vouchThreshold: threshold },
+      id: p.genesisDigest, name: input.name, did: p.did, genesis: p.genesis as JsonObject, memberLabel: p.label, rules: { vouchThreshold: threshold },
       listed: input.listed ?? true, memberAnchor: p.anchor, memberOp: oidOf(p.genesisDigest)!,
       roster: { [p.anchor]: { anchor: p.anchor, op: oidOf(p.genesisDigest)!, keyAgreement: p.keyAgreement, ...(p.name !== undefined ? { name: p.name } : {}), addedAt: when } },
       invitations: {}, evidence: {}, preludes: {},
@@ -409,7 +409,7 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
     // kept beside earlier ones (an accept signed in time may still travel)
     if (Object.hasOwn(g.roster, p.invitee)) return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } } }
     if (!p.recipient.rkid) throw new Error(`membership: no address key for ${g.memberLabel}`)
-    const inv = { invitee: p.invitee, keyAgreement: p.recipient.keyAgreement, contactId: p.recipient.contactId, threadId: p.threadId, credDigest: p.credDigest, invite: p.invite as Json, validUntil: p.validUntil }
+    const inv = { invitee: p.invitee, keyAgreement: p.recipient.keyAgreement, contactId: p.recipient.contactId, threadId: p.threadId, credDigest: p.credDigest, invite: p.invite as JsonObject, validUntil: p.validUntil }
     return {
       state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes, invitations: { ...g.invitations, [p.threadId]: inv } } } },
       outbound: [draft(p)],
@@ -450,7 +450,7 @@ const inviteTask: TaskHandler<Doc, { credDigest: string }> = {
     const validUntil = Date.parse(inv.validUntil)
     const r: ReceivedInvite = {
       credDigest, group: gd, name: typeof inv.credentialSubject.name === 'string' ? inv.credentialSubject.name : '', contactId: pre.contactId,
-      memberLabel: memberLabelOf(gd)!, invite: doc as unknown as Json, promptId: invitePromptId(credDigest), validUntil, status: 'open', at: arr.when,
+      memberLabel: memberLabelOf(gd)!, invite: doc as unknown as JsonObject, promptId: invitePromptId(credDigest), validUntil, status: 'open', at: arr.when,
     }
     const prompt: Prompt = { id: r.promptId, kind: 'group-invite', contactId: r.contactId, groupId: gd, openedAt: arr.when, expiresAt: validUntil + MEMBERSHIP_SKEW }
     return {
@@ -572,7 +572,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
     const bad = await acceptProblem(doc, inv.invite, inv.credDigest)
     if (bad) return refuse('validation-failed', bad)
     const acceptDigest = await digestDoc(doc, ctx.crypto.subtle)
-    const ev: Evidence = { invite: inv.invite, accept: doc as unknown as Json, vouches: [], at: arr.when }
+    const ev: Evidence = { invite: inv.invite, accept: doc as unknown as JsonObject, vouches: [], at: arr.when }
     const docs = await admissionDocs(ctx, g, ev, acceptDigest, policyMet(g, ev))
     return { group: g.id, acceptDigest, ...docs }
   },
@@ -581,7 +581,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
   apply (state, prepared, doc, arr) {
     const p = prepared.value
     const g = state.groups[p.group]
-    const ev: Evidence = { invite: invitationOf(g, doc.threadId, doc.issuer)!.invite, accept: doc as unknown as Json, vouches: [], at: arr.when }
+    const ev: Evidence = { invite: invitationOf(g, doc.threadId, doc.issuer)!.invite, accept: doc as unknown as JsonObject, vouches: [], at: arr.when }
     if (p.welcome) {
       const a = admitted(state, g, p.acceptDigest, ev, arr.when)
       return { state: a.state, events: a.events, outbound: [draft(p.welcome)] }
@@ -625,7 +625,7 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
     const g = groupOfLabel(ctx.snapshot, ctx.snapshot.addresses.keys[arr.rkid].label)!
     const held = g.evidence[acceptDigest]
     const merged = mergeVouches(held?.vouches as Doc[] ?? [], vouches)
-    const ev: Evidence = { invite, accept, vouches: merged as Json[], at: arr.when }
+    const ev: Evidence = { invite, accept, vouches: merged as JsonObject[], at: arr.when }
     // the inviter admits once the policy holds (the header)
     const admit = invite.payload.invite.issuer === g.memberAnchor && !Object.hasOwn(g.roster, accept.payload.accept.subject) && policyMet(g, ev)
     const welcome = admit ? (await admissionDocs(ctx, g, ev, acceptDigest, true)).welcome : null
@@ -637,7 +637,7 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
     const { invite, accept } = doc.payload.evidence
     if (Object.hasOwn(g.roster, accept.payload.accept.subject)) return { state: state as HolderState }
     const held = g.evidence[p.acceptDigest]
-    const ev: Evidence = { invite, accept, vouches: mergeVouches(held?.vouches as Doc[] ?? [], p.vouches) as Json[], at: held?.at ?? arr.when }
+    const ev: Evidence = { invite, accept, vouches: mergeVouches(held?.vouches as Doc[] ?? [], p.vouches) as JsonObject[], at: held?.at ?? arr.when }
     if (p.welcome) {
       const a = admitted(state, g, p.acceptDigest, ev, arr.when)
       return { state: a.state, events: a.events, outbound: [draft(p.welcome)] }
@@ -685,7 +685,7 @@ const vouchDef: CommandDef<VouchInput, VouchPrep> = {
     if (isRefusal(p)) return p
     const g = state.groups[p.group]
     const ev = g.evidence[p.acceptDigest]
-    const next: Evidence = { ...ev, vouches: mergeVouches(ev.vouches as Doc[], [p.vouch]) as Json[] }
+    const next: Evidence = { ...ev, vouches: mergeVouches(ev.vouches as Doc[], [p.vouch]) as JsonObject[] }
     const events: EventDraft[] = [{ type: 'group.vouched', groupId: g.id, member: input.member }]
     if (p.welcome) {
       const a = admitted(state, g, p.acceptDigest, next, when)
@@ -748,7 +748,7 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: string[] }> = {
       roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer ? { contactId: i.contactId } : {}) }
     }
     const g: Group = {
-      id: w.genesisDigest, name: w.name, did: w.group, genesis: w.genesis as Json, memberLabel: i.memberLabel, rules: { vouchThreshold: w.vouchThreshold },
+      id: w.genesisDigest, name: w.name, did: w.group, genesis: w.genesis as JsonObject, memberLabel: i.memberLabel, rules: { vouchThreshold: w.vouchThreshold },
       listed: true, memberAnchor: doc.recipient, memberOp: own.op, roster, invitations: {}, evidence: {}, preludes: {}, acceptDigest: i.acceptDigest,
     }
     return {

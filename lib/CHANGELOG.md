@@ -21,8 +21,10 @@
 - Delivery: stages 1–9 once per envelope through a task register, the
   completed-effect cache with stored acks, the outbox with the status
   trias, retry by backoff, give-up at the horizon.
-- State codec 1 with golden fixtures (`test/fixtures/`); a newer codec is
-  `codec-newer`, a codec without a validator `codec-unknown`.
+- State codec 1 with golden fixtures (`test/fixtures/`) and a
+  non-normative JSON Schema (`schemas/holder-state-v1.schema.json`) with
+  the generated type `HolderStateV1`; a newer codec is `codec-newer`, a
+  codec without a validator `codec-unknown`.
 - Entry points: the root, `./testing`, `./internal`,
   `./adapters/vti-mediator`. `visibility` and `ceremony` carry pure wire
   builders and verifiers only. There is no `./probe` entry point.

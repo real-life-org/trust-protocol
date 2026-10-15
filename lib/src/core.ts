@@ -14,6 +14,8 @@
 
 // ── JCS (RFC 8785 subset for the ASCII I-JSON forms this stack ships) ──
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
+/** A JSON object (the codec's `anyObj`: an object, contents open). */
+export type JsonObject = { [field: string]: Json }
 
 /** RFC 8785 subset for the ASCII I-JSON forms this stack ships. */
 export const jcs = (o: unknown): string => {

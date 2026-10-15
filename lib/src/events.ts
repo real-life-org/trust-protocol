@@ -5,7 +5,7 @@
 // type, and re-reads its views on any event. Events do not survive a
 // restart; the act journal keeps them only to answer a repeated actId.
 // Pure JSON, like the state that journals them.
-import type { Json } from './core.js'
+import type { Json, JsonObject } from './core.js'
 import type { Dec, OutboxStatus, PromptChoice, PromptKind } from './state.js'
 
 /** Fields every event carries. */
@@ -61,10 +61,10 @@ export type HolderEvent = EventBase & (
   | { type: 'groupStar.accepted', contactId: string, relationshipId: string, salt: Dec }
   /** a card displayed with a fresh own challenge (Encounter 5.3): `card`
    *  is the optical payload to show (Encounter 6) */
-  | { type: 'encounter.shown', challenge: string, card: Json }
+  | { type: 'encounter.shown', challenge: string, card: JsonObject }
   /** the scanner's step (5.8 trunk 2–3): `card` is its sent card, the
    *  optical leg's payload where no network carries the bundle */
-  | { type: 'encounter.scanned', contactId: string, card: Json }
+  | { type: 'encounter.scanned', contactId: string, card: JsonObject }
   /** an enactment record created (5.5), on either side */
   | { type: 'encounter.recorded', contactId: string, relationshipId: string, role: 'scanner' | 'displayer' }
   /** the counterparty's step credential accepted (5.6): the edge now

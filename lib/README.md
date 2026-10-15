@@ -143,6 +143,14 @@ the state as opaque JSON and gives it back; the library decodes it
   one before, and its own fixture with a migration test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
+- `schemas/holder-state-v1.schema.json` describes codec 1 as a
+  non-normative JSON Schema (published with the package). The type
+  `HolderStateV1` (`./internal`) is generated from it
+  (`scripts/build-holder-state-types.mjs`); the build holds it against the
+  library's `HolderState`, and the tests hold the schema against the
+  codec's validator on the fixtures and on mutations of them. Two rules
+  only the codec states: a record's id equals its key, and an envelope's
+  `rkid` equals its recipient's `keyAgreement`.
 
 **Writing a Store adapter.** Implement `read(): Promise<{state, version}>`
 (a deep, independent copy; `null` state and version for an empty store) and

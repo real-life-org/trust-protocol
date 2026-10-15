@@ -82,7 +82,7 @@
 //     trigger): the app shows the sent card (encounter.scanned) when it
 //     sees the bundle undelivered (deliveryStatus)
 import { b64uOf, iso, jcs, makeValidator, sameDigest } from '../core.js'
-import type { Json } from '../core.js'
+import type { Json, JsonObject } from '../core.js'
 import { diSignWith, diVerify, digestBytes, digestDoc } from '../crypto.js'
 import { seal } from '../delivery.js'
 import {
@@ -95,7 +95,7 @@ import { withPairNonce } from '../identity-state.js'
 import { tupleByRkid } from '../receive.js'
 import type { Channel, TaskRefusal } from '../receive.js'
 import type { Applied, CommandDef, DecisionDef, EventDraft, HolderModule, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
-import type { EnactmentRecord, HolderState, Millis, Prompt } from '../state.js'
+import type { EnactmentRecord, HeldCredential, HolderState, Millis, Prompt } from '../state.js'
 import { openTuple } from '../trust/continuity.js'
 import { entryOf, findContact, tupleByLabel } from '../trust/state.js'
 
@@ -234,9 +234,9 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
         // 4110: the label in the register before the card is displayed
         register: withPairNonce(state.register, p.label, p.nonce),
         addresses: { ...state.addresses, keys: { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: when } } },
-        encounter: { ...state.encounter, challenges: { ...state.encounter.challenges, [p.value]: { value: p.value, tCh: when, label: p.label, card: p.card } } },
+        encounter: { ...state.encounter, challenges: { ...state.encounter.challenges, [p.value]: { value: p.value, tCh: when, label: p.label, card: p.card as JsonObject } } },
       },
-      events: [{ type: 'encounter.shown', challenge: p.value, card: p.card }],
+      events: [{ type: 'encounter.shown', challenge: p.value, card: p.card as JsonObject }],
     }
   },
 }
@@ -296,9 +296,9 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
       counterpartKeyAgreement: p.peer.keyAgreement, provenance: { kind: 'ceremony' }, nonce: p.nonce,
     }, p.rkid, when)
     const record: EnactmentRecord = {
-      ceremony: CEREMONY, own: p.own, tCh: when, peer: peerValue, counterpart: p.peer.anchor, card: p.peer as Json, bind: p.bind,
-      at: when, label: p.label, relId: ids.relId, role: 'scanner', out: { digest: p.credDigest, credential: p.credential }, in: null,
-      thread: p.threadId, bundleDigest: p.doc.digest, threads: {}, sentCard: p.sentCard, counterPending: false,
+      ceremony: CEREMONY, own: p.own, tCh: when, peer: peerValue, counterpart: p.peer.anchor, card: p.peer as JsonObject, bind: p.bind,
+      at: when, label: p.label, relId: ids.relId, role: 'scanner', out: { digest: p.credDigest, credential: p.credential as JsonObject }, in: null,
+      thread: p.threadId, bundleDigest: p.doc.digest, threads: {}, sentCard: p.sentCard as JsonObject | null, counterPending: false,
     }
     return {
       state: withRecord(opened.state, record),
@@ -309,7 +309,7 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
       events: [
         ...(opened.events ?? []),
         { type: 'encounter.recorded', contactId: ids.contactId, relationshipId: ids.relId, role: 'scanner' },
-        { type: 'encounter.scanned', contactId: ids.contactId, card: p.sentCard },
+        { type: 'encounter.scanned', contactId: ids.contactId, card: p.sentCard as JsonObject },
       ],
       duties: opened.duties,
     }
@@ -376,8 +376,8 @@ function recordCreating (state: Readonly<HolderState>, x: {
     counterpartKeyAgreement: x.card.keyAgreement, provenance: { kind: 'ceremony' }, ...(nonce !== undefined ? { nonce } : {}),
   }, x.rkid, x.when)
   const record: EnactmentRecord = {
-    ceremony: CEREMONY, own: x.own, tCh: x.tCh, peer: x.card.challenge.value, counterpart: x.card.anchor, card: x.card as Json, bind: x.bind,
-    at: x.when, label: x.label, relId: ids.relId, role: 'displayer', out: null, in: x.in, thread: x.thread, bundleDigest: x.digest,
+    ceremony: CEREMONY, own: x.own, tCh: x.tCh, peer: x.card.challenge.value, counterpart: x.card.anchor, card: x.card as JsonObject, bind: x.bind,
+    at: x.when, label: x.label, relId: ids.relId, role: 'displayer', out: null, in: x.in as HeldCredential | null, thread: x.thread, bundleDigest: x.digest,
     threads: {}, sentCard: null, counterPending: false,
   }
   const challenges = { ...opened.state.encounter.challenges }
@@ -448,7 +448,7 @@ function applyCounter (state: Readonly<HolderState>, p: CounterPrep, when: Milli
   if (!issuanceOpen(Date.parse((r.card as Card).challenge.issuedAt), when)) return no('stale-issuance', 'RLTP-ENC-5530')
   if ((p.doc === null) !== (r.thread === null)) throw new Error('encounter.counter: prepared on another thread state')
   const place = placeOf(state, r)
-  let next = withRecord(state as HolderState, { ...r, out: { digest: p.digest, credential: p.credential }, counterPending: p.doc === null })
+  let next = withRecord(state as HolderState, { ...r, out: { digest: p.digest, credential: p.credential as JsonObject }, counterPending: p.doc === null })
   const events: EventDraft[] = []
   const pid = confirmPromptId(r.own)
   if (closePrompt && Object.hasOwn(next.prompts, pid)) {
@@ -582,7 +582,7 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
     const thread = r.thread ?? doc.threadId
     const next: EnactmentRecord = {
       ...r,
-      in: r.in ?? { digest: p.credDigest, credential: credential as Json },
+      in: r.in ?? { digest: p.credDigest, credential: credential as JsonObject },
       thread,
       bundleDigest: r.bundleDigest ?? arrival.digest,
       threads: thread === doc.threadId ? r.threads : { ...r.threads, [doc.threadId]: arrival.digest },
@@ -639,7 +639,7 @@ const deliveryTask: TaskHandler<DeliveryPayload, DeliveryPrep> = {
     let next: EnactmentRecord = inBundle ? r : { ...r, threads: { ...r.threads, [doc.threadId]: arrival.digest } }
     const events: EventDraft[] = []
     if (!e && !r.in) {
-      next = { ...next, in: { digest: p.credDigest, credential: cred as Json } }
+      next = { ...next, in: { digest: p.credDigest, credential: cred as JsonObject } }
       const place = placeOf(state, r)
       events.push({ type: 'encounter.accepted', contactId: place.contactId, relationshipId: place.relationshipId, mutual: r.out !== null })
     }

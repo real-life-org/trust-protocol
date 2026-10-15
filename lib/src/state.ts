@@ -9,7 +9,7 @@
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md);
 // Identity §n is identity-layer.md, Delivery §n delivery-contract.md.
-import type { Json } from './core.js'
+import type { Json, JsonObject } from './core.js'
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
 import type { DeliveryFailure, LogHead, PreTransportReason, ReceiverRefusalCode, Recipient } from './ports.js'
@@ -91,7 +91,7 @@ export interface Register {
 }
 
 /** A signed anchor-rotation@2 artifact (Trust §6.5). */
-export type AnchorRotation = { [field: string]: Json }
+export type AnchorRotation = JsonObject
 
 export interface CarrierNonce { nonce: B64u, generation: Dec }
 
@@ -318,7 +318,7 @@ export interface Group {
   /** the group DID, its address, never its identity (Membership 2.3) */
   did?: string
   /** the signed genesis, as founded or as the welcome carried it */
-  genesis?: Json
+  genesis?: JsonObject
   /** own member context label in this group: the founding pair label for
    *  the founder (Access 3.4.1), group/<digest> for a member (5.1) */
   memberLabel: string
@@ -375,17 +375,17 @@ export interface OpenInvitation {
   threadId: string
   /** the invitation's identity: its credential digest (RLTP-MT-2180) */
   credDigest: string
-  invite: Json
+  invite: JsonObject
   validUntil: Millis
 }
 
 /** A consent pair held toward an admission (Membership 3.4). */
 export interface Evidence {
   /** the invite and the accept documents, complete */
-  invite: Json
-  accept: Json
+  invite: JsonObject
+  accept: JsonObject
   /** vouch@2 credentials for this accept, at most 16 (3805) */
-  vouches: Json[]
+  vouches: JsonObject[]
   at: Millis
 }
 
@@ -408,7 +408,7 @@ export interface ReceivedInvite {
   contactId: string
   memberLabel: string
   /** the invite document, complete */
-  invite: Json
+  invite: JsonObject
   promptId: string
   validUntil: Millis
   status: 'open' | 'accepted' | 'declined' | 'joined'
@@ -613,10 +613,10 @@ export interface IntroAct {
   /** the request's issuedAt: the act's lifetime datum (8090) */
   issuedAt: Millis
   /** the request artifact and its card; the reply and its card (8200) */
-  request: Json
-  requestCard: Json
-  reply: Json | null
-  replyCard: Json | null
+  request: JsonObject
+  requestCard: JsonObject
+  reply: JsonObject | null
+  replyCard: JsonObject | null
   /** the pinned tuples, by own pair label (8270): the requester's and the
    *  target's toward the mediator, the mediator's toward each side */
   pins: { requester?: string, target?: string, mediator?: string }
@@ -629,15 +629,15 @@ export interface IntroAct {
   /** the own fresh pair label of the act (requester, target) */
   ownLabel: string | null
   /** mediator: the one ack value produced (8640) */
-  ack: Json | null
+  ack: JsonObject | null
   /** mediator: the reply forwarded and the vouchers sent (8360) */
   replyForwarded: boolean
   vouchersSent: boolean
   /** requester, target: a voucher held pending its reply (8770) */
-  pendingVoucher: Json | null
+  pendingVoucher: JsonObject | null
   /** requester, target: the accepted voucher, retained until the absolute
    *  lifetime for the duplicate rule (8200, 8260) */
-  voucher: Json | null
+  voucher: JsonObject | null
   vouched: boolean
   /** target: the prompt asking for consent */
   promptId: string | null
@@ -670,11 +670,11 @@ export interface OwnChallenge {
   /** the fresh pair label the card is shown under (4.4) */
   label: string
   /** the displayed card: the optical payload */
-  card: Json
+  card: JsonObject
 }
 
 /** A step credential with its credential digest (5.6 step 8). */
-export interface HeldCredential { digest: string, credential: Json }
+export interface HeldCredential { digest: string, credential: JsonObject }
 
 /** The enactment record (5.5), keyed by the own challenge value. Its
  *  tuple is the relationship `relId` under the own pair label `label`. */
@@ -687,7 +687,7 @@ export interface EnactmentRecord {
   peer: string
   /** the counterparty anchor and its card as received */
   counterpart: string
-  card: Json
+  card: JsonObject
   /** the enactment binding (5.4) */
   bind: string
   /** local time of the enactment */
@@ -708,7 +708,7 @@ export interface EnactmentRecord {
    *  digest) or a standalone delivery's, threadId → document digest */
   threads: Record<string, string>
   /** the scanner's sent card: the optical leg's payload (5.8) */
-  sentCard: Json | null
+  sentCard: JsonObject | null
   /** the displayer issued its counter credential on the optical leg
    *  before the bundle landed: its document waits for the thread (5780) */
   counterPending: boolean

@@ -76,7 +76,7 @@
 //     relationship's memory as `introducedName`, which the views read until
 //     a profile arrives (self-declared, Encounter 6120)
 import { iso, jcs } from '../core.js'
-import type { Json } from '../core.js'
+import type { Json, JsonObject } from '../core.js'
 import { diSignWith, diVerify, digestBytes, digestDoc, xRawOfMk } from '../crypto.js'
 import { seal } from '../delivery.js'
 import { cardBody } from '../encounter.js'
@@ -321,8 +321,8 @@ function applyRequest (state: Readonly<HolderState>, o: Readonly<IntroOffer>, p:
   if (held(state, 'requester', p.act)) throw new Error('introduction: the act id is not fresh (8080)')
   if (state.register.labels.includes(p.fresh.label)) throw new Error('introduction: the pair label is not fresh')
   const a: IntroAct = {
-    key: keyOf('requester', p.act), act: p.act, role: 'requester', status: 'sent', issuedAt: tsec(when), request: p.request as unknown as Json,
-    requestCard: p.fresh.card as Json, reply: null, replyCard: null, pins: { mediator: o.pin }, threads: { request: p.doc.threadId },
+    key: keyOf('requester', p.act), act: p.act, role: 'requester', status: 'sent', issuedAt: tsec(when), request: p.request as unknown as JsonObject,
+    requestCard: p.fresh.card as JsonObject, reply: null, replyCard: null, pins: { mediator: o.pin }, threads: { request: p.doc.threadId },
     at: when, ackDelayMs: p.ackDelayMs, ownLabel: p.fresh.label, ack: null, replyForwarded: false, vouchersSent: false,
     pendingVoucher: null, voucher: null, vouched: false, promptId: null, ...(o.label !== undefined ? { peerName: o.label } : {}),
   }
@@ -379,7 +379,7 @@ const requestTask: TaskHandler<RequestPayload, MediatorPrep> = {
     const body = doc.payload.introduction.body
     const act: IntroAct = {
       key: keyOf('mediator', body.act), act: body.act, role: 'mediator', status: p.forward ? 'forwarded' : 'received',
-      issuedAt: Date.parse(body.issuedAt), request: doc.payload.introduction as unknown as Json, requestCard: doc.payload.card as Json,
+      issuedAt: Date.parse(body.issuedAt), request: doc.payload.introduction as unknown as JsonObject, requestCard: doc.payload.card as JsonObject,
       reply: null, replyCard: null, pins: { requester: a.label, ...(p.target ? { target: p.target } : {}) },
       threads: { request: doc.threadId, ...(p.forward ? { forward: p.forward.threadId } : {}) }, at: arr.when, ackDelayMs: ACK_DELAY_MS,
       ownLabel: null, ack: null, replyForwarded: false, vouchersSent: false, pendingVoucher: null, voucher: null, vouched: false, promptId: null,
@@ -399,7 +399,7 @@ const ackDuty: DutyHandler<{ sealed: Sealed, ack: Json } | null> = {
     const key = await pinKey(ctx, a.pins.requester, MAC_ACK_INFO)
     if (!key) return null
     const ack = await introMacArtifact<AckBody>({ type: 'introduction-ack@1', act: a.act }, key, ctx.crypto.subtle)
-    return { sealed: await onTuple(ctx, a.pins.requester, INTRODUCTION_TYPES.ack, { introduction: ack }, a.threads.request), ack: ack as unknown as Json }
+    return { sealed: await onTuple(ctx, a.pins.requester, INTRODUCTION_TYPES.ack, { introduction: ack }, a.threads.request), ack: ack as unknown as JsonObject }
   },
   apply (state, duty, ctx, when) {
     const a = held(state, 'mediator', (duty as IntroAckDuty).act)
@@ -407,7 +407,7 @@ const ackDuty: DutyHandler<{ sealed: Sealed, ack: Json } | null> = {
     // past the lifetime, or the pinned key gone: the duty ends without production (8280)
     if (!a || a.ack || lifetimeOver(a, when) || p === null) return { state: state as HolderState }
     // the ack value as produced, retained for re-delivery (8200, 8230)
-    return { state: withAct(state as HolderState, completedIfDone({ ...a, ack: p.ack })), outbound: [draft(p.sealed)] }
+    return { state: withAct(state as HolderState, completedIfDone({ ...a, ack: p.ack as JsonObject })), outbound: [draft(p.sealed)] }
   },
 }
 
@@ -435,7 +435,7 @@ const forwardTask: TaskHandler<RequestPayload, { known: boolean }> = {
     const promptId = consentPromptId(body.act)
     const act: IntroAct = {
       key: keyOf('target', body.act), act: body.act, role: 'target', status: 'received', issuedAt: Date.parse(body.issuedAt),
-      request: doc.payload.introduction as unknown as Json, requestCard: doc.payload.card as Json, reply: null, replyCard: null,
+      request: doc.payload.introduction as unknown as JsonObject, requestCard: doc.payload.card as JsonObject, reply: null, replyCard: null,
       pins: { mediator: a.label }, threads: { request: '', forward: doc.threadId }, at: arr.when, ackDelayMs: 0, ownLabel: null, ack: null,
       replyForwarded: false, vouchersSent: false, pendingVoucher: null, voucher: null, vouched: false, promptId,
     }
@@ -470,7 +470,7 @@ function applyConsent (state: Readonly<HolderState>, a: Readonly<IntroAct>, p: R
   const via = arrivalContact(state, a.pins.mediator!)
   const name = ((a.request as Doc).body.profile as { displayName?: string }).displayName
   const opened = openIntroduced(state, p.fresh.label, p.fresh.nonce, p.fresh.rkid, a.requestCard as Doc, via, name, when)
-  const next: IntroAct = { ...a, status: 'consented', reply: p.reply as unknown as Json, replyCard: p.fresh.card as Json, ownLabel: p.fresh.label }
+  const next: IntroAct = { ...a, status: 'consented', reply: p.reply as unknown as JsonObject, replyCard: p.fresh.card as JsonObject, ownLabel: p.fresh.label }
   return { state: withAct(opened.state, next), outbound: [draft(p.doc)], events: opened.events, duties: opened.duties }
 }
 
@@ -568,14 +568,14 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     if ('vouchers' in p) {
       const m = held(state, 'mediator', r.act)!
       if (p.repeat) return { state: state as HolderState }
-      const next = completedIfDone({ ...m, reply: doc.payload.introduction as unknown as Json, replyCard: doc.payload.card as Json, replyForwarded: true, vouchersSent: true })
+      const next = completedIfDone({ ...m, reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject, replyForwarded: true, vouchersSent: true })
       return { state: withAct(state as HolderState, next), outbound: [draft(p.toRequester!), ...p.vouchers.map(draft)] }
     }
     if (p.ignore) return { state: state as HolderState }
     const q = held(state, 'requester', r.act)!
     const via = arrivalContact(state, q.pins.mediator!)
     const opened = openIntroduced(state, q.ownLabel!, state.register.pairNonces[q.ownLabel!], rkidOf(state, q.ownLabel!), doc.payload.card, via, q.peerName, arr.when)
-    let next: IntroAct = { ...q, status: 'completed', reply: doc.payload.introduction as unknown as Json, replyCard: doc.payload.card as Json }
+    let next: IntroAct = { ...q, status: 'completed', reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject }
     // the pending voucher, re-evaluated (8600, 8770)
     let st = opened.state
     if (q.pendingVoucher) {
@@ -656,9 +656,9 @@ const voucherTask: TaskHandler<{ voucher: Artifact<VoucherBody> }, { role: 'requ
     const a = held(state, prepared.value.role, v.body.act)!
     const kept = (a.voucher ?? a.pendingVoucher) as Doc | null
     if (kept) return jcs(kept.body) === jcs(v.body) ? { state: state as HolderState } : refuse('validation-failed', 'RLTP-TRU-8260')
-    if (a.reply === null) return { state: withAct(state as HolderState, { ...a, pendingVoucher: v as Json }) }   // 8770
+    if (a.reply === null) return { state: withAct(state as HolderState, { ...a, pendingVoucher: v as JsonObject }) }   // 8770
     if (!voucherMatches(a, v)) return refuse('validation-failed', 'RLTP-TRU-8760')
-    const next = { ...a, voucher: v as Json, vouched: true }
+    const next = { ...a, voucher: v as JsonObject, vouched: true }
     return { state: withAct(markVouched(state as HolderState, next), next) }
   },
 }
