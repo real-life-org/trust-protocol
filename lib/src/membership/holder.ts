@@ -63,17 +63,29 @@
 //     asked as that inviter; the inviter files its request by thread
 //     (group, contact, own rkid) and takes an answer only for exactly that
 //     group on exactly that thread and tuple
+//   - invitations are kept per thread: a new invite opens its own thread
+//     beside earlier ones, so an accept signed in time on an earlier thread
+//     still answers it; an accept answers exactly the invitation of its
+//     thread, and an admission answers every invitation to its subject
 //   - bounded state (tick): an issued invitation leaves past validUntil +
-//     membership-skew + the longest give-up horizon (P90D, RLTP-MT-3090);
-//     a new invite to the same contact while one is open and unexpired is
-//     refused as in-flight (the inviter cannot learn of a silent decline),
-//     after its validUntil + skew the answer replaces it; evidence leaves
-//     past its invite's validUntil + skew or once its subject is on the
-//     roster; an outgoing prelude past an invite's life and the horizon
-//     (its answer may travel that long); an answered
-//     prelude, an accepted or joined invitation past the invite's
-//     answerable life + skew + P90D, and with the prelude its member key
-//     leaves keepKeys (tick then tombstones it)
+//     membership-skew + the longest give-up horizon (P90D, RLTP-MT-3090),
+//     as does evidence (an accept signed in time may arrive that late), or
+//     once its subject is on the roster; an outgoing prelude past an
+//     invite's life and the horizon (its answer may travel that long); an
+//     answered prelude no open or accepted invitation rests on past an
+//     invite's life + skew + P90D; an accepted or joined invitation past
+//     validUntil + skew + two horizons — the accept's delivery and the
+//     welcome's — so the welcome finds the accepted state and the member
+//     key (kept while an invitation is open or accepted); an explicit abort
+//     is not built. A member key leaving keepKeys leaves `addresses`
+//     without a tombstone (an identity context, engine.ts tick), so a later
+//     invitation to the same group derives and uses the same key again
+//   - the prelude request proves its claimed inviter: a binding signed
+//     under the inviter's member key over (anchor, group, thread); the
+//     answering holder never overwrites a binding (group, inviter) held for
+//     another contact. Residue: the binding links the inviter's member
+//     anchor to its pair channel transferably (the invite names that
+//     anchor before consent anyway)
 //   - the admission policy: the group rule vouchThreshold n reads as the
 //     `vouch` rule of member.add (Access 4.2) counting the admitting
 //     member: n distinct members stand behind an admission, the admitting
@@ -275,8 +287,10 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
     const at = iso(ctx.when)
     const body = {
       id: ctx.entropy.id('doc.id'), type: PRELUDE_REQUEST_TYPE, issuer: own.anchor, recipient: ch.tuple.counterpartAnchor,
-      threadId: ctx.entropy.id('thread.id'), issuedAt: at, payload: { genesisDigest: g.id, group: g.did ?? '', name: g.name, inviter: g.memberAnchor },
+      threadId: ctx.entropy.id('thread.id'), issuedAt: at, payload: { genesisDigest: g.id, group: g.did ?? '', name: g.name, inviter: g.memberAnchor, binding: {} as Doc },
     }
+    // the inviter's member anchor proven: signed under it over (anchor, group, thread)
+    body.payload.binding = await signDoc(ctx, g.memberLabel, g.memberAnchor, { type: 'x-membership-inviter@0.1', inviter: g.memberAnchor, genesisDigest: g.id, threadId: body.threadId }, at)
     const doc = await signDoc(ctx, ch.tuple.ownPairLabel, own.anchor, body, at)
     return sealed(ctx, doc, { contactId: ch.contact.id, rkid: ch.tuple.rkid, keyAgreement: ch.tuple.counterpartKeyAgreement })
   },
@@ -284,8 +298,6 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
     const p = prepared.value
     if (isRefusal(p)) return p
     const g = state.groups[input.groupId]
-    // an invitation to this contact still open and answerable: explicit, not a silent no-op
-    if (Object.values(g.invitations).some((i) => i.contactId === p.recipient.contactId && when <= i.validUntil + MEMBERSHIP_SKEW)) return no('in-flight', 'RLTP-MT-3055')
     const preludes = { ...g.preludes, [p.threadId]: { contactId: p.recipient.contactId, rkid: p.recipient.rkid, at: when } }
     return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } }, outbound: [draft(p)] }
   },
@@ -297,7 +309,7 @@ function arrival (state: Readonly<HolderState>, rkid: string) {
   return at ? { label: at.tuple.ownPairLabel, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId, tuple: at.tuple } : null
 }
 
-interface PreludeRequestPayload { genesisDigest: string, group: string, name: string, inviter: string }
+interface PreludeRequestPayload { genesisDigest: string, group: string, name: string, inviter: string, binding: Doc }
 
 /** An answered prelude's key: the group and the inviter that asked. */
 const preludeKey = (group: string, inviter: string): string => `${group} ${inviter}`
@@ -306,12 +318,17 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
   proof: 'required',
   decode (p) {
     const x = p as Record<string, unknown>
-    if (x === null || typeof x !== 'object' || Object.keys(x).length !== 4 || typeof x.genesisDigest !== 'string' || typeof x.group !== 'string' ||
-      typeof x.name !== 'string' || typeof x.inviter !== 'string' || !/^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$/.test(x.inviter)) return refuse('malformed')
+    if (x === null || typeof x !== 'object' || Object.keys(x).length !== 5 || typeof x.genesisDigest !== 'string' || typeof x.group !== 'string' ||
+      typeof x.name !== 'string' || typeof x.inviter !== 'string' || !/^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$/.test(x.inviter) ||
+      x.binding === null || typeof x.binding !== 'object') return refuse('malformed')
     return memberLabelOf(x.genesisDigest) === null ? refuse('validation-failed') : x as unknown as PreludeRequestPayload
   },
   async prepare (ctx, doc, arr) {
     if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed', 'RLTP-MT-2130')
+    // the claimed inviter proven by its own member key, for this group and thread
+    const b = doc.payload.binding
+    if (b.type !== 'x-membership-inviter@0.1' || b.inviter !== doc.payload.inviter || b.genesisDigest !== doc.payload.genesisDigest ||
+      b.threadId !== doc.threadId || !(await diVerify(b, doc.payload.inviter))) return refuse('validation-failed', 'RLTP-MT-3020')
     const a = arrival(ctx.snapshot, arr.rkid)!
     const label = memberLabelOf(doc.payload.genesisDigest)!
     const member = await ctx.keys.anchorOf(label)
@@ -328,6 +345,9 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
   apply (state, prepared, doc, arr) {
     const p = prepared.value
     const a = arrival(state, arr.rkid)!
+    // a binding (group, inviter) held for another contact is never overwritten
+    const bound = state.joining.preludes[preludeKey(toU(doc.payload.genesisDigest)!, doc.payload.inviter)]
+    if (bound && bound.contactId !== a.contactId) return refuse('validation-failed', 'RLTP-MT-3030')
     const keys = Object.hasOwn(state.addresses.keys, p.rkid) ? state.addresses.keys : { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: arr.when } }
     return {
       state: {
@@ -381,16 +401,13 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
     const g = state.groups[toU(doc.payload.genesisDigest)!]
     const preludes = { ...g.preludes }
     delete preludes[doc.threadId]
-    // a member is not invited again; an open invitation still answerable
-    // stands, an expired one is replaced (the header)
-    const held = g.invitations[p.invitee]
-    if (Object.hasOwn(g.roster, p.invitee) || (held && arr.when <= held.validUntil + MEMBERSHIP_SKEW)) {
-      return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } } }
-    }
+    // a member is not invited again; every invitation is its own thread,
+    // kept beside earlier ones (an accept signed in time may still travel)
+    if (Object.hasOwn(g.roster, p.invitee)) return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } } }
     if (!p.recipient.rkid) throw new Error(`membership: no address key for ${g.memberLabel}`)
     const inv = { invitee: p.invitee, keyAgreement: p.recipient.keyAgreement, contactId: p.recipient.contactId, threadId: p.threadId, credDigest: p.credDigest, invite: p.invite as Json, validUntil: p.validUntil }
     return {
-      state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes, invitations: { ...g.invitations, [p.invitee]: inv } } } },
+      state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes, invitations: { ...g.invitations, [p.threadId]: inv } } } },
       outbound: [draft(p)],
     }
   },
@@ -508,7 +525,13 @@ async function admissionDocs (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<
   return { welcome: null, relays }
 }
 
-const contactOfInvitation = (g: Readonly<Group>, subject: string): string => g.invitations[subject]?.contactId ?? 'member:' + subject
+/** The invitation of a thread to a subject (Membership 3.2: the accept answers the invite of its thread). */
+const invitationOf = (g: Readonly<Group>, threadId: string, subject: string) => {
+  const i = Object.hasOwn(g.invitations, threadId) ? g.invitations[threadId] : undefined
+  return i && i.invitee === subject ? i : undefined
+}
+const contactOfInvitation = (g: Readonly<Group>, subject: string): string =>
+  Object.values(g.invitations).find((i) => i.invitee === subject)?.contactId ?? 'member:' + subject
 
 const rosterEntryOf = (acc: Doc, acceptDigest: string, when: Millis, contactId: string): RosterEntry => ({
   anchor: acc.subject, op: oidOf(acceptDigest)!, keyAgreement: acc.card.keyAgreement,
@@ -518,9 +541,9 @@ const rosterEntryOf = (acc: Doc, acceptDigest: string, when: Millis, contactId: 
 /** The admission's state: the roster grows, the evidence and the invitation go. */
 function admitted (state: Readonly<HolderState>, g: Readonly<Group>, acceptDigest: string, ev: Readonly<Evidence>, when: Millis): { state: HolderState, events: EventDraft[] } {
   const acc = (ev.accept as Doc).payload.accept
-  const contactId = g.invitations[acc.subject]?.contactId ?? ''
-  const invitations = { ...g.invitations }
-  delete invitations[acc.subject]
+  const contactId = Object.values(g.invitations).find((i) => i.invitee === acc.subject)?.contactId ?? ''
+  // every invitation to the now member is answered
+  const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, i]) => i.invitee !== acc.subject))
   const evidence = { ...g.evidence }
   delete evidence[acceptDigest]
   const next: Group = { ...g, roster: { ...g.roster, [acc.subject]: rosterEntryOf(acc, acceptDigest, when, contactId) }, invitations, evidence }
@@ -535,13 +558,13 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
   // to the member key that issued the invitation this accept answers
   channel (state, doc, rkid): Channel | TaskRefusal {
     const g = groupOfLabel(state, state.addresses.keys[rkid]?.label)
-    const inv = g?.invitations[doc.issuer]
-    if (!g || !inv || inv.threadId !== doc.threadId) return refuse('validation-failed', 'RLTP-MT-3270')
+    const inv = g && invitationOf(g, doc.threadId, doc.issuer)
+    if (!g || !inv) return refuse('validation-failed', 'RLTP-MT-3270')
     return { keyAgreement: doc.payload.accept.card.keyAgreement, contactId: inv.contactId }
   },
   async prepare (ctx, doc, arr) {
     const g = groupOfLabel(ctx.snapshot, ctx.snapshot.addresses.keys[arr.rkid].label)!
-    const inv = g.invitations[doc.issuer]
+    const inv = invitationOf(g, doc.threadId, doc.issuer)!
     const bad = await acceptProblem(doc, inv.invite, inv.credDigest)
     if (bad) return refuse('validation-failed', bad)
     const acceptDigest = await digestDoc(doc, ctx.crypto.subtle)
@@ -554,7 +577,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
   apply (state, prepared, doc, arr) {
     const p = prepared.value
     const g = state.groups[p.group]
-    const ev: Evidence = { invite: g.invitations[doc.issuer].invite, accept: doc as unknown as Json, vouches: [], at: arr.when }
+    const ev: Evidence = { invite: invitationOf(g, doc.threadId, doc.issuer)!.invite, accept: doc as unknown as Json, vouches: [], at: arr.when }
     if (p.welcome) {
       const a = admitted(state, g, p.acceptDigest, ev, arr.when)
       return { state: a.state, events: a.events, outbound: [draft(p.welcome)] }
@@ -735,10 +758,12 @@ const welcomeTask: TaskHandler<WelcomePayload, null> = {
 
 // ── keys and retention ─────────────────────────────────────────────────
 
-/** The member keys still needed: held groups' and those on the way in. */
+/** The member keys still needed: held groups' and those on the way in
+ *  (an answered prelude, an invitation open or accepted). */
 function memberKeys (state: Readonly<HolderState>): string[] {
   const labels = new Set<string>(Object.values(state.groups).map((g) => g.memberLabel))
   for (const p of Object.values(state.joining.preludes)) labels.add(p.memberLabel)
+  for (const i of Object.values(state.joining.invites)) if (i.status === 'open' || i.status === 'accepted') labels.add(i.memberLabel)
   return Object.entries(state.addresses.keys).filter(([, k]) => labels.has(k.label)).map(([rkid]) => rkid)
 }
 
@@ -751,14 +776,15 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
   for (const [id, g] of Object.entries(state.groups)) {
     const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, i]) => i.validUntil + MEMBERSHIP_SKEW + HORIZON_MAX >= when))
     const evidence = Object.fromEntries(Object.entries(g.evidence).filter(([, e]) =>
-      untilOf(e.invite) + MEMBERSHIP_SKEW >= when && !Object.hasOwn(g.roster, (e.accept as Doc).payload.accept.subject)))
+      untilOf(e.invite) + MEMBERSHIP_SKEW + HORIZON_MAX >= when && !Object.hasOwn(g.roster, (e.accept as Doc).payload.accept.subject)))
     const preludes = Object.fromEntries(Object.entries(g.preludes).filter(([, p]) => p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= when))
     const same = Object.keys(invitations).length === Object.keys(g.invitations).length && Object.keys(evidence).length === Object.keys(g.evidence).length &&
       Object.keys(preludes).length === Object.keys(g.preludes).length
     groups[id] = same ? g : { ...g, invitations, evidence, preludes }
     if (!same) changed = true
   }
-  const late = (i: ReceivedInvite): boolean => i.validUntil + MEMBERSHIP_SKEW + HORIZON_MAX < when
+  // the accept → admission → welcome chain: two deliveries, each within a give-up horizon
+  const late = (i: ReceivedInvite): boolean => i.validUntil + MEMBERSHIP_SKEW + 2 * HORIZON_MAX < when
   const invites = Object.fromEntries(Object.entries(state.joining.invites).filter(([, i]) =>
     !(i.status === 'declined' || (i.status === 'open' && i.validUntil + MEMBERSHIP_SKEW < when) || ((i.status === 'accepted' || i.status === 'joined') && late(i)))))
   // an answered prelude no open or accepted invitation still rests on, past an invite's life and the horizon

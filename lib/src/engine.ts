@@ -160,7 +160,12 @@
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
 //     entry names them; an address key not shown for the retention and
-//     the own rkid of no tuple that is not deactivated becomes a tombstone
+//     the own rkid of no tuple that is not deactivated becomes a tombstone —
+//     except a member key (a group/… label): an identity context of
+//     Identity §6.1 rather than a delivery address of Delivery §5 (one
+//     derivation per group, reused whenever the holder is invited to it
+//     again), it leaves `addresses` without a tombstone (a point for
+//     Delivery 0.82: addresses and identity contexts)
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
 import { emptyState, toOpaque, triasOf } from './state.js'
@@ -1027,7 +1032,10 @@ class HolderEngine implements Engine {
         const tombstones = [...state.addresses.tombstones]
         const keys = keep(state.addresses.keys, (k, rkid) => {
           if (k.lastShown + retention > when || live.has(rkid)) return true
-          if (!tombstones.includes(rkid)) tombstones.push(rkid)
+          // a member key (group/…) is an identity context, not a delivery
+          // address of Delivery §5: it leaves without a tombstone, so the same
+          // derivation can serve the same group again (a re-invitation)
+          if (!k.label.startsWith('group/') && !tombstones.includes(rkid)) tombstones.push(rkid)
           return false
         })
         let next: HolderState = dropped ? { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } : state as HolderState

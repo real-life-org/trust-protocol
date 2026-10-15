@@ -334,8 +334,8 @@ export interface Group {
   /** the members this holder knows of, by member anchor: its local view
    *  (membership/*); the replicated log is the Access port's */
   roster: Record<string, RosterEntry>
-  /** invitations this holder issued and not yet saw answered, by the
-   *  invitee's member anchor (Membership 3.1) */
+  /** invitations this holder issued and not yet saw answered, by thread
+   *  (Membership 3.1: the invite opens its thread) */
   invitations: Record<string, OpenInvitation>
   /** consent pairs held toward an admission, by the accept document's
    *  digest, with the vouches for it (Membership 3.4, Access 4.2) */
