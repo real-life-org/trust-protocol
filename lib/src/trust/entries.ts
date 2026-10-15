@@ -218,6 +218,7 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
   opts.renames?.push({ from: [...ids], to, rkids: opts.rels ? [...rkids].sort() : null })
   let duties: HolderState['duties'] | null = null
   for (const [id, d] of Object.entries(state.duties)) {
+    if (!isKnownDuty(d)) continue   // a kind or version this library does not handle stays as it is
     const x = d as unknown as Record<string, unknown>
     let nd: Duty = d
     if (d.kind === 'merge' && opts.global && Array.isArray(x.entryIds) && (x.entryIds as string[]).some(from)) {

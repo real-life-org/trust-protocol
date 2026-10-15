@@ -47,6 +47,9 @@
 //   - 6465 (the profile on the new head after a chaining, a SHOULD) is
 //     followed: the chaining opens the profile's class-on duty on the
 //     chain where the class is on for it (afterChain)
+//   - a duty of a kind or version this library does not handle is opaque:
+//     classOfDuty names no class for it, so nothing here moves, drops or
+//     opens anything for it (note §2.1: unknown kinds are kept as they are)
 //   - which transitions may drop a duty is listed in invariants.ts
 //     (dutyDrops): fulfilment by resume, the drop rule above, departure of
 //     its relationship, the move at a chaining, a merge duty that no longer
@@ -54,6 +57,7 @@
 import type { DutyHandler } from '../engine.js'
 import type { ClassOnDuty, Contact, Duty, HolderState, ProfileDuty, ReissueMappingDuty, Relationship, TrustClass } from '../state.js'
 import { classOnToward, entryOf, entryRelationships, lags, liveRel } from './state.js'
+import { isKnownDuty } from '../codec.js'
 
 /** The classes a class-on duty delivers (2850), in the table's order. */
 export const DUTY_CLASSES: readonly TrustClass[] = Object.freeze(['anchorMapping', 'profile'])
@@ -65,8 +69,11 @@ export const classOnId = (cls: TrustClass, relId: string): string => `class-on:$
 /** The profile revision duty's deterministic id (6455). */
 export const profileDutyId = (relId: string): string => `profile:${relId}`
 
-/** The class a duty delivers on one relationship, or null for every other kind. */
+/** The class a duty delivers on one relationship, or null for every other
+ *  kind — and for a known kind at a version this library does not handle,
+ *  which stays opaque: never moved, dropped or checked (note §2.1). */
 export function classOfDuty (d: Duty): TrustClass | null {
+  if (!isKnownDuty(d)) return null
   if (d.kind === 'class-on') return (d as ClassOnDuty).cls
   if (d.kind === 'reissue-mapping') return 'anchorMapping'
   if (d.kind === 'profile') return 'profile'
