@@ -10,7 +10,7 @@
 //             (CODEC, MIGRATIONS, VALIDATORS), isKnownDuty
 //   engine    the module surface: HolderModule, CommandDef, PrepareCtx,
 //             Prepared, Applied, Refusal, TaskHandler, DutyHandler, DutyCtx,
-//             SweepHandler, AckHandler, DecisionHandler, EventDraft,
+//             SweepHandler, AckHandler, FailureHandler, DecisionHandler, EventDraft,
 //             OutboundDraft, EngineSnapshot; receive's Arrival,
 //             ReceivedDocument, TaskRefusal, TaskDiscarded, TaskFailure
 //   views     the pure projections state → view
