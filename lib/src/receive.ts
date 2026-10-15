@@ -87,6 +87,7 @@ import type { KeyAnswer } from './delivery.js'
 import { ACK_TYPE, ackDocument, ackKeyOf, macAck, macAckForm, macAckValid } from './ack.js'
 import { SCHEMAS } from './schemas.js'
 import { triasOf } from './state.js'
+import { entryOf } from './trust/state.js'
 import type { HolderState, Millis, OutboxItem, Relationship, StoredAck, Tuple } from './state.js'
 
 /** An ack as sealed in the preparation; the engine adds its schedule. */
@@ -256,7 +257,8 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
     { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S)
   const ack: SealedAck = {
     digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-    recipient: { contactId: at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
+    // the entry the arrival's relationship sends under (2146), by its current id
+    recipient: { contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
   }
   return { kind: 'task', digest, type: doc.type as string, doc: rdoc, arrival, value, ack }
 }

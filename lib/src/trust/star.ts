@@ -112,7 +112,7 @@ import type { Arrival, ReceivedDocument, TaskDiscarded, TaskRefusal } from '../r
 import type { AckHandler, Applied, EventDraft, OutboundDraft, PrepareCtx, SweepHandler, TaskHandler } from '../engine.js'
 import { triasOf } from '../state.js'
 import type { Assembly, Contact, Dec, HolderState, Relationship, SeqIn, SeqOut, StarPair, TrustClass, Tuple } from '../state.js'
-import { ADMISSION_BOUND, activeTuple, classOnToward, entryRelationships, findContact } from './state.js'
+import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, entryRelationships, findContact } from './state.js'
 
 /** The registered task type that carries star@2 (Delivery §4.4, 5640). */
 export const STAR_TYPE = 'https://real-life.org/trust-tasks/star/0.2'
@@ -166,12 +166,14 @@ const bodyOf = (chunk: Json): Body & Record<string, Json> => (chunk as { body: B
  *  live relationships (2820). */
 export interface Recipient { contact: Contact, rel: Relationship, tuple: Tuple }
 
-/** Every contact's live relationships, by contact id, then relationship order. */
+/** Every contact's live relationships, by contact id, then relationship
+ *  order; a relationship behind two entries under the one its
+ *  verifications go to (2146), once. */
 export function recipients (state: Readonly<HolderState>): Recipient[] {
   const out: Recipient[] = []
   for (const contact of Object.values(state.contacts).sort((a, b) => cmp(a.id, b.id))) {
     for (const rel of entryRelationships(state, contact)) {
-      if (rel.chainedInto !== null) continue
+      if (rel.chainedInto !== null || entryOf(state, rel)?.id !== contact.id) continue
       const tuple = activeTuple(rel)
       if (tuple && !tuple.deactivated) out.push({ contact, rel, tuple })
     }
@@ -327,7 +329,7 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
         const rel = Object.hasOwn(cur.relationships, p.relId) ? cur.relationships[p.relId] : undefined
         const contact = findContact(cur, p.contactId)
         const tuple = rel && activeTuple(rel)
-        if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id)) continue
+        if (!rel || !contact || !tuple || tuple.ownPairLabel !== p.tuple || rel.chainedInto !== null || tuple.deactivated || !contact.relIds.includes(rel.id) || entryOf(cur, rel)?.id !== contact.id) continue
         const r: Recipient = { contact, rel, tuple }
         const { digest } = viewAt(art, cur, r)
         // 5110: the snapshot, the salt and the commit are one step — a
@@ -446,7 +448,7 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       for (let i = 1n; i <= last!; i++) union.push(...art.entries((chunks[String(i)] as unknown as Held).body))
       const done = await art.complete(ctx, { shared, from: t.counterpartAnchor, own, salt: body.salt, union, rel, tuple: t })
       if (!done.ok) return reject(done.ref)
-      const contactId = (findContact(ctx.snapshot, t.entryId) ?? ctx.snapshot.contacts[rel.contactId])?.id ?? rel.contactId
+      const contactId = entryOf(ctx.snapshot, rel)?.id ?? rel.contactId
       return { kind: 'complete', ...ids, salt: body.salt, accepted: done.accepted, ...(done.memory ? { memory: done.memory } : {}), contactId }
     },
     // stage 9: the decision lands on the same snapshot
@@ -500,7 +502,7 @@ export function starView (state: Readonly<HolderState>): StarPair[] {
 
 /** The entry a tuple's documents come from (2145): the star's sender. */
 const senderOf = (state: Readonly<HolderState>, rel: Readonly<Relationship>, t: Readonly<Tuple>): string =>
-  findContact(state, t.entryId)?.id ?? rel.contactId
+  findContact(state, t.entryId)?.id ?? findContact(state, rel.contactId)?.id ?? rel.contactId
 
 /** Blinded values of `anchors` under the key of every accepted star, by
  *  `<relId>|<tuple>`, with the salt they were blinded for: the async half
