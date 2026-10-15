@@ -49,6 +49,7 @@
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
 import { triasOf } from './state.js'
+import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js'
 import type {
   Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
 } from './state.js'
@@ -147,17 +148,6 @@ const profileFields = (body: Json | null): { name?: string, image?: string, text
   return out
 }
 
-const CLASSES: readonly TrustClass[] = ['star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 'profile']
-
-/** 2760: star and blinded group star go to every contact, the anchor
- *  mapping to none, sealed group star and profile to the trusted contacts. */
-const classOn = (cls: TrustClass, setting: Setting, trusted: boolean): boolean => {
-  if (setting !== 'default') return setting === 'on'
-  if (cls === 'star' || cls === 'groupStar') return true
-  if (cls === 'anchorMapping') return false
-  return trusted
-}
-
 /** entry id → the relationships holding a tuple of that entry (2145) */
 type EntryIndex = Map<string, Set<string>>
 
@@ -187,18 +177,6 @@ const relationshipsOf = (state: Readonly<HolderState>, c: Readonly<Contact>, ids
   return { own, all }
 }
 
-const activeTuple = (r: Relationship): Tuple | undefined => r.tuples.find((t) => t.ownPairLabel === r.activeHead)
-
-/** A relationship lags where its anchor head is held in its entry as
- *  superseded: the prev of a link one of the entry's relationships holds. */
-const lags = (r: Relationship, rels: readonly Relationship[]): boolean =>
-  r.heldCounterpartHead !== null && rels.some((o) => o.links.some((l) => l.prev === r.heldCounterpartHead))
-
-const findContact = (state: Readonly<HolderState>, id: string): Contact | undefined => {
-  if (Object.hasOwn(state.contacts, id)) return state.contacts[id]
-  return Object.values(state.contacts).find((c) => c.aliases.includes(id))
-}
-
 const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex): ContactView => {
   const ids = new Set([c.id, ...c.aliases])
   const { own, all: rels } = relationshipsOf(state, c, ids, ix)
@@ -207,7 +185,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
   const origin = [...own].sort((a, b) => (a.provenance.at - b.provenance.at) || cmp(a.id, b.id))[0]
   const out = tuples.some((t) => t.mappingOut.body !== null)
   const inn = tuples.some((t) => t.mappingIn.body !== null)
-  const trusted = c.settings.anchorMapping === 'on'
+  const trusted = isTrusted(c)
   const classes = {} as Record<TrustClass, ClassView>
   for (const cls of CLASSES) classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) }
   const heads: Array<{ r: Relationship, t: Tuple, lagging: boolean }> = []

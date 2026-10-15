@@ -34,6 +34,7 @@
     "dist/store-memory.*",
     "dist/store-contract.*",
     "dist/testing.*",
+    "dist/state-builder.*",
     "dist/keys-seed.*",
     "dist/engine.*",
     "dist/holder-api.*",
