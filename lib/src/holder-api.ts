@@ -3,7 +3,9 @@
 // membership, profile) register with the engine as they graduate; today
 // the facade carries the engine's built-ins, the prompts module, the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
-// mapping's issuance and reception, the entry commit) and the modules given.
+// mapping's issuance and reception, the entry commit; trust/star.ts and
+// trust/group-star.ts: the star and the group star, reconciled on resume
+// and received with their assemblies) and the modules given.
 //
 // Reading: the views (views.ts) over one snapshot each, carrying its
 // commitSeq. `subscribe` announces every commit with its commitSeq and

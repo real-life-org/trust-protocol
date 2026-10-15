@@ -16,9 +16,11 @@
 //   views     the pure projections state → view
 //   prompts   DECIDE, DecideInput
 //   trust     the trust module's factory (trustModule, for tests with another
-//             admission bound), its task type and command names, the pure
-//             reads of trust/state.ts (trusted, lags, classOn, …) and the
-//             2240 re-commit (recommitEntries)
+//             admission bound or assembly limit), its task types and command
+//             names, the pure reads of trust/state.ts (trusted, lags,
+//             classOn, …), the 2240 re-commit (recommitEntries), the views
+//             of 5.4 (starView, groupStarView, sealedOn), heldAnchors,
+//             ASSEMBLY_LIMIT and discardAssemblies (5360, for PR 4c)
 //   freeze    freezeDeep
 export type * from './state.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
@@ -33,5 +35,7 @@ export { freezeDeep } from './util-freeze.js'
 export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recommitEntries } from './trust/mapping.js'
 export type { TrustModuleOptions, TrustSetInput, TrustSetClassInput, TrustSetGroupClassInput, TrustPauseInput } from './trust/mapping.js'
 export { ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, entryRelationships, activeTuple, findContact } from './trust/state.js'
+export { STAR_TYPE, ASSEMBLY_LIMIT, starView, heldAnchors, discardAssemblies } from './trust/star.js'
+export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js'
 export { promptsModule, collectDecisions } from './prompts.js'
 export { createEngine } from './engine.js'

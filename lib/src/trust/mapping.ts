@@ -24,7 +24,11 @@
 //             bindings at chain level (6610), the counterpart head, the
 //             entry commit (2060) or its update in place (2070)
 //   duties    class-on/1 (2850) and reissue-mapping/1 (6370, 6596): issue
-//             the current anchor-mapping@4 on one relationship
+//             the current anchor-mapping@4 on one relationship; class-on of
+//             the star classes is discharged by the reconciliation (5.4)
+//   and, from trust/star.ts and trust/group-star.ts (PR 4b): the tasks
+//             star/0.2 and group-star/0.1, the sweeps trust.star and
+//             trust.groupStar run by resume, and their ack handlers
 //
 // Choices this file makes where note and spec leave them open:
 //   - a relationship maps to exactly one entry here: the contact its active
@@ -72,11 +76,13 @@
 //   - every issuance on a relationship fulfils every open class-on duty of
 //     the anchor mapping and every re-issue owed on it (6596: one delivery
 //     meets every re-issue still owed)
-//   - in 4a only the anchor mapping class has a delivery here. The star and
-//     the blinded group star follow through reconciliation (5.4, PR 4b);
-//     the sealed group star (4b) and the profile (PR 6) open their class-on
-//     duties when their modules arrive. A class-on duty of another class is
-//     left waiting ('not-due') for its handler
+//   - the star, the blinded and the sealed group star are delivered by the
+//     reconciliation of 5.4 (trust/star.ts), which sees every settings
+//     change through its view, so changing their settings opens no class-on
+//     duty; a class-on duty of one of them (from elsewhere) is fulfilled
+//     without sending, since the sweep runs in the same resume after the
+//     duties. A class-on duty of the profile is left waiting ('not-due')
+//     for its module (PR 6)
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
 //     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
 //   - setGroupClass to `default` removes the per-group entry; turning the

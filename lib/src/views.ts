@@ -39,6 +39,10 @@
 //   - classes give the setting and whether the class is on toward the
 //     contact (2760, 2840); per-group settings of the sealed group star
 //     (2830) are not projected yet
+//   - sharedGroups: the union of the groups the last accepted group star
+//     on each of the entry's heads hit (5520, trust/group-star.ts), lagging
+//     heads included (the group star travels on them, 6595); undefined
+//     where no head ever accepted one
 //   - a contact's profile (6425): among the verified profile@1 bodies
 //     (6b.2) on its heads whose relationship does not lag (6461, 6595),
 //     the highest revision, among equal ones the one verified last
@@ -79,9 +83,11 @@ export interface ContactView {
   verification: 'mutual' | 'outgoing' | 'incoming' | 'met'
   trust: { given: boolean, received: boolean, paused: boolean, pending: boolean }
   classes: Record<TrustClass, ClassView>
-  /** groups shared with the contact. Not derivable yet: it needs the
-   *  group star's reception (5.2b) in the state, which PR 4 brings;
-   *  until then always undefined, never a claimed empty list. */
+  /** groups shared with the contact: the groups of the holder whose
+   *  digest hit in the contact's last completed group star (5520), over
+   *  its heads, sorted. A hit is the contact's claim (5.2, no veracity).
+   *  Undefined while no group star was ever accepted on a head, never a
+   *  claimed empty list. */
   sharedGroups?: string[]
   profile?: ContactProfileView
 }
@@ -205,6 +211,8 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
       (cmpDec(t.profileIn.rev, best.profileIn.rev) === 0 && cmpDec(t.profileIn.verifiedSeq, best.profileIn.verifiedSeq) > 0)) best = t
   }
   const profile = best ? { revision: best.profileIn.rev, ...profileFields(best.profileIn.body) } : undefined
+  const received = heads.map((h) => h.t.groupStarIn.accepted).filter((a) => a !== null)
+  const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined
   return {
     commitSeq: state.commitSeq,
     id: c.id,
@@ -220,6 +228,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
       pending,
     },
     classes,
+    ...(sharedGroups ? { sharedGroups } : {}),
     ...(profile ? { profile } : {}),
   }
 }
