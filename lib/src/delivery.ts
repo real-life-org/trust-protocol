@@ -15,13 +15,19 @@
 // rejection is not an effect and stays repeatable); a cached digest
 // answers 'duplicate-known' forever after, and a second delivery never
 // produces a second effect. receive() honors such a cache when given one.
+//
+// Two ways to name the receiver's key: receive() takes a resolver to the
+// private CryptoKey (the probe world's contexts); receiveByAgreement()
+// takes an asynchronous key agreement that answers with the shared secret
+// or why not (the holder's KeyProvider, which never hands out a key).
+// Both run the same stages. Every function here takes an optional
+// SubtleCrypto; without one it uses the platform's at call time.
 import { jcs, b64uOf, fromB64u } from './core.js'
 import type { Json } from './core.js'
 import { hkdf, xFromSeed, xRawOfMk, ecdh, digestDoc, rand } from './crypto.js'
 import { platformSubtle } from './crypto.js'
 
 const te = new TextEncoder()
-const S = platformSubtle
 
 // canonical base64url or nothing — a second spelling of the same bytes
 // is a different string, and dedup digests are computed over strings
@@ -35,9 +41,9 @@ const canonicalB64u = (s: unknown): Uint8Array | null => {
 // ── sealed envelope (Delivery §5) ───────────────────────────────────────
 // X25519 ephemeral → HKDF('rltp/v1/seal') → AES-256-GCM (12-byte nonce,
 // 16-byte tag appended). Entropy is caller-suppliable for replay.
-const aesKey = async (shared: Uint8Array, usage: 'encrypt' | 'decrypt'): Promise<CryptoKey> => {
+const aesKey = async (shared: Uint8Array, usage: 'encrypt' | 'decrypt', S: SubtleCrypto): Promise<CryptoKey> => {
   if (shared.every((b) => b === 0)) throw new Error('all-zero shared secret')
-  return S().importKey('raw', await hkdf(shared, 'rltp/v1/seal'), { name: 'AES-GCM' }, false, [usage])
+  return S.importKey('raw', await hkdf(shared, 'rltp/v1/seal', 32, S), { name: 'AES-GCM' }, false, [usage])
 }
 /** A sealed envelope as it travels: recipient key id, ephemeral public key, nonce, ciphertext. */
 export interface Envelope { rkid: string, epk: string, nonce: string, ciphertext: string }
@@ -45,37 +51,33 @@ export interface Envelope { rkid: string, epk: string, nonce: string, ciphertext
 export interface SealEntropy { ephSeed?: Uint8Array, nonce?: Uint8Array }
 
 export async function seal (
-  document: Json, recipientKeyAgreement: string, { ephSeed, nonce }: SealEntropy = {},
+  document: Json, recipientKeyAgreement: string, { ephSeed, nonce }: SealEntropy = {}, subtle?: SubtleCrypto,
 ): Promise<Envelope> {
   // a producer API never emits what the contract rejects (B-3): the only
   // envelope nonce is 96 bits, the only ephemeral seed 32 bytes
   if (ephSeed !== undefined && !(ephSeed instanceof Uint8Array && ephSeed.length === 32)) throw new Error('ephSeed must be exactly 32 bytes')
   if (nonce !== undefined && !(nonce instanceof Uint8Array && nonce.length === 12)) throw new Error('envelope nonce must be exactly 12 bytes (Delivery §5)')
-  const eph = await xFromSeed(ephSeed ?? rand(32))
+  const S = subtle ?? platformSubtle()
+  const eph = await xFromSeed(ephSeed ?? rand(32), S)
   const theirRaw = xRawOfMk(recipientKeyAgreement)
   if (!theirRaw) throw new Error('malformed recipient keyAgreement')
-  const key = await aesKey(await ecdh(eph.priv, theirRaw), 'encrypt')
+  const key = await aesKey(await ecdh(eph.priv, theirRaw, S), 'encrypt', S)
   const n = nonce ?? rand(12)
   const plaintext = te.encode(jcs(document))
   if (plaintext.length > 65536) throw new Error('oversize')
-  const ct = new Uint8Array(await S().encrypt({ name: 'AES-GCM', iv: n }, key, plaintext))
+  const ct = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: n }, key, plaintext))
   return { rkid: recipientKeyAgreement, epk: b64uOf(eph.pubRaw), nonce: b64uOf(n), ciphertext: b64uOf(ct) }
 }
 
 /** Opening an envelope never throws: every failure is a named reason. */
 export type Unsealed = { document: Json, error?: undefined } | { document?: undefined, error: 'malformed' | 'oversize' | 'decryption-failed' }
 
-export async function unseal (env: Envelope, xPriv: CryptoKey): Promise<Unsealed> {
-  // total over ARBITRARY input (B-4): a foreign envelope with invalid or
-  // non-canonical base64url is 'malformed', never an exception
-  const nonce = canonicalB64u(env?.nonce), epkRaw = canonicalB64u(env?.epk), raw = canonicalB64u(env?.ciphertext)
-  if (!nonce || !epkRaw || !raw) return { error: 'malformed' }
-  if (nonce.length !== 12 || epkRaw.length !== 32 || raw.length < 16) return { error: 'malformed' }
-  if (raw.length - 16 > 65536) return { error: 'oversize' }          // size bound BEFORE decryption
+/** Decrypt and parse under an agreed shared secret; never throws. */
+async function openShared (nonce: Uint8Array, raw: Uint8Array, shared: Uint8Array, S: SubtleCrypto): Promise<Unsealed> {
   let key
-  try { key = await aesKey(await ecdh(xPriv, epkRaw), 'decrypt') } catch { return { error: 'decryption-failed' } }
+  try { key = await aesKey(shared, 'decrypt', S) } catch { return { error: 'decryption-failed' } }
   let bytes
-  try { bytes = await S().decrypt({ name: 'AES-GCM', iv: nonce }, key, raw) } catch { return { error: 'decryption-failed' } }
+  try { bytes = await S.decrypt({ name: 'AES-GCM', iv: nonce }, key, raw) } catch { return { error: 'decryption-failed' } }
   // from here the cryptography has SPOKEN — everything below is form:
   // authenticated invalid UTF-8 and unparseable JSON are 'malformed'
   // (stage 4 in the receive chain), never a crypto failure (review 3, M-2)
@@ -83,6 +85,19 @@ export async function unseal (env: Envelope, xPriv: CryptoKey): Promise<Unsealed
   try { plaintext = new TextDecoder('utf-8', { fatal: true }).decode(bytes) } catch { return { error: 'malformed' } }
   try { return { document: JSON.parse(plaintext) } }
   catch { return { error: 'malformed' } }
+}
+
+export async function unseal (env: Envelope, xPriv: CryptoKey, subtle?: SubtleCrypto): Promise<Unsealed> {
+  // total over ARBITRARY input (B-4): a foreign envelope with invalid or
+  // non-canonical base64url is 'malformed', never an exception
+  const nonce = canonicalB64u(env?.nonce), epkRaw = canonicalB64u(env?.epk), raw = canonicalB64u(env?.ciphertext)
+  if (!nonce || !epkRaw || !raw) return { error: 'malformed' }
+  if (nonce.length !== 12 || epkRaw.length !== 32 || raw.length < 16) return { error: 'malformed' }
+  if (raw.length - 16 > 65536) return { error: 'oversize' }          // size bound BEFORE decryption
+  const S = subtle ?? platformSubtle()
+  let shared
+  try { shared = await ecdh(xPriv, epkRaw, S) } catch { return { error: 'decryption-failed' } }
+  return openShared(nonce, raw, shared, S)
 }
 
 // ── the generic receive chain (Delivery §4: stages 1–4) ─────────────────
@@ -94,7 +109,24 @@ export interface Received {
   /** present when the chain passed stage 4 (also on duplicate-known) */
   document?: Json
   digest?: string
+  /** why the key failed: 'unknown' at stage 2 (an rkid never issued),
+   *  'retired' at stage 3 (a tombstone). Local diagnosis only: the
+   *  disposition stays the one Delivery §6.2 names. */
+  key?: 'unknown' | 'retired'
 }
+
+/**
+ * What a receiver's key agreement answers for an envelope's rkid and
+ * ephemeral key (Delivery §5, §6.2 stages 2–3): the raw X25519 shared
+ * secret; `retired` for a tombstone (known, the key destroyed: the
+ * envelope dies at stage 3); `unknown` for an rkid never issued (stage 2);
+ * `invalid` for an ephemeral key that yields no usable secret (stage 3).
+ */
+export type KeyAnswer =
+  | { status: 'available', shared: Uint8Array }
+  | { status: 'retired' }
+  | { status: 'unknown' }
+  | { status: 'invalid' }
 
 /**
  * The generic stages every delivery passes before its layer sees it.
@@ -113,7 +145,30 @@ export async function receive (
   env: unknown,
   keyForRkid: (rkid: string) => CryptoKey | null | undefined,
   completedEffects?: Set<string>,
+  subtle?: SubtleCrypto,
 ): Promise<Received> {
+  const resolve = async (rkid: string, epk: Uint8Array): Promise<KeyAnswer> => {
+    const key = keyForRkid(rkid)
+    if (key === undefined) return { status: 'unknown' }
+    if (key === null) return { status: 'retired' }
+    try { return { status: 'available', shared: await ecdh(key, epk, subtle ?? platformSubtle()) } } catch { return { status: 'invalid' } }
+  }
+  return receiveByAgreement(env, resolve, completedEffects ? (d) => completedEffects.has(d) : undefined, subtle)
+}
+
+/**
+ * The same stages over a key agreement: `agree(rkid, epk)` is asked once,
+ * after the envelope's closed form passed, and its answer decides stage 2
+ * (unknown) and feeds stage 3. `completed(digest)` is the completed-effect
+ * cache, read only.
+ */
+export async function receiveByAgreement (
+  env: unknown,
+  agree: (rkid: string, epk: Uint8Array) => Promise<KeyAnswer>,
+  completed?: (digest: string) => boolean,
+  subtle?: SubtleCrypto,
+): Promise<Received> {
+  const S = subtle ?? platformSubtle()
   const stages: ReceiveStage[] = []
   const step = (stage: ReceiveStage['stage'], label: string, ok: boolean): boolean => { stages.push({ stage, label, ok }); return ok }
   const e = env as Partial<Envelope> | null | undefined
@@ -127,19 +182,25 @@ export async function receive (
   //     canonical; the rkid a decodable multikey the resolver knows
   const isObj = e !== null && typeof e === 'object' && !Array.isArray(e)
   const ctBytes = isObj ? canonicalB64u((e as any).ciphertext) : null
+  const epkRaw = isObj ? canonicalB64u(e.epk) : null
+  const nonce = isObj ? canonicalB64u(e.nonce) : null
   const closedForm = isObj && Object.keys(e).length === 4
-    && canonicalB64u(e.epk)?.length === 32 && canonicalB64u(e.nonce)?.length === 12
+    && epkRaw?.length === 32 && nonce?.length === 12
     && ctBytes !== null && ctBytes.length >= 17                     // tag + at least one byte (schema lower bound)
     && typeof e.rkid === 'string' && xRawOfMk(e.rkid) !== null
-  const key = closedForm ? keyForRkid((e as Envelope).rkid) : undefined
-  if (!step(2, 'envelope: closed form · base64url canonical · epk 32 B · nonce 12 B · rkid known', closedForm && key !== undefined)) return { stages, disposition: 'failed(malformed)' }
+  const answer: KeyAnswer = closedForm ? await agree((e as Envelope).rkid, new Uint8Array(epkRaw!)) : { status: 'unknown' }
+  if (!step(2, 'envelope: closed form · base64url canonical · epk 32 B · nonce 12 B · rkid known', closedForm && answer.status !== 'unknown')) {
+    return { stages, disposition: 'failed(malformed)', ...(closedForm ? { key: 'unknown' as const } : {}) }
+  }
 
   // 3 — decryption: X25519 + HKDF(rltp/v1/seal) + the AES-256-GCM tag.
-  //     A tombstoned rkid (key === null) dies HERE, not at stage 2.
-  const opened = key === null ? { error: 'decryption-failed' as const } : await unseal(e as Envelope, key as CryptoKey)
+  //     A tombstoned rkid dies HERE, not at stage 2.
+  const opened: Unsealed = answer.status === 'available' ? await openShared(nonce!, ctBytes!, answer.shared, S) : { error: 'decryption-failed' }
   // only CRYPTO failures belong to stage 3; an authenticated plaintext
   // that defeats UTF-8 or JSON is a stage-4 malformed (review 3, M-2)
-  if (!step(3, 'decryption: X25519 + HKDF(rltp/v1/seal) + AES-256-GCM tag', opened.error !== 'decryption-failed' && opened.error !== 'oversize')) return { stages, disposition: `failed(${opened.error!})` as Disposition }
+  if (!step(3, 'decryption: X25519 + HKDF(rltp/v1/seal) + AES-256-GCM tag', opened.error !== 'decryption-failed' && opened.error !== 'oversize')) {
+    return { stages, disposition: `failed(${opened.error!})` as Disposition, ...(answer.status === 'retired' ? { key: 'retired' as const } : {}) }
+  }
   if (opened.error === 'malformed') { step(4, 'parse — invalid UTF-8 or not JSON', false); return { stages, disposition: 'failed(malformed)' } }
 
   // 4 — parse: a JSON object; digest over its CANONICAL form; cache
@@ -149,8 +210,8 @@ export async function receive (
   const doc = (opened as { document?: Json }).document
   if (doc === null || doc === undefined || typeof doc !== 'object' || Array.isArray(doc)) { step(4, 'parse — not a JSON object', false); return { stages, disposition: 'failed(malformed)' } }
   let digest: string
-  try { digest = await digestDoc(doc) } catch { step(4, 'parse — no canonical form (non-finite number)', false); return { stages, disposition: 'failed(malformed)' } }
+  try { digest = await digestDoc(doc, S) } catch { step(4, 'parse — no canonical form (non-finite number)', false); return { stages, disposition: 'failed(malformed)' } }
   step(4, `parse + digest ${digest.slice(0, 14)}… · completed-effect cache`, true)
-  if (completedEffects?.has(digest)) return { stages, disposition: 'duplicate-known', document: doc, digest }
+  if (completed?.(digest)) return { stages, disposition: 'duplicate-known', document: doc, digest }
   return { stages, disposition: 'unique', document: doc, digest }
 }

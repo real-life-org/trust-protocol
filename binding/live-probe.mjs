@@ -10,7 +10,7 @@
 // Network-gated: set RLTP_LIVE_MEDIATOR=1 to run.
 //   MEDIATOR_DID=...   overrides the public dev mediator.
 
-import { MediatorCarrierAdapter } from "../lib/dist/adapter-mediator.js";
+import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire } from "./vti-wire.mjs";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {

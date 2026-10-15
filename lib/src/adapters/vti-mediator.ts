@@ -1,4 +1,12 @@
-// RLTP transport adapter: VTI mediator.
+// RLTP transport adapter: VTI mediator — published as
+// @real-life/trust-protocol/adapters/vti-mediator (lib Stage 2, note §4.6).
+//
+// Its reports reach the holder as the ports' DeliveryReport: submitOutbound
+// files an Outbound under its document digest and returns the
+// SubmissionRef (submission id ↔ digest); report(id) maps the adapter's
+// SubmissionState onto DeliveryReport (deliveryReportOf), which the app
+// hands to holder.report(). An adapter's `delivered` is its claim about
+// transport; the holder's receive core verifies the delivery-ack itself.
 //
 // Profile: spec/adapter-vti-mediator.md v0.23 (twenty-third casting;
 // round journals under design/adapter-review*). A
@@ -15,9 +23,12 @@
 //   · A retired instance mutates nothing and refuses everything
 //     except reading its ack state.
 
-import { sha } from './crypto.js'
-import { carrierPrincipal, carrierScopedIdentity } from './carrier-identity.js'
-import type { CarrierPrincipal, CarrierScopedIdentity } from './carrier-identity.js'
+import { jcs } from '../core.js'
+import { sha } from '../crypto.js'
+import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js'
+import type { CarrierPrincipal, CarrierScopedIdentity } from '../carrier-identity.js'
+import type { DeliveryReport, Outbound, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
+export type { ReceiverRefusalCode } from '../ports.js'
 
 // ── Declared constants (profile §2) — promises of THIS casting ──────
 export const DECLARED = {
@@ -64,11 +75,8 @@ export interface TokenSet {
 }
 
 // ── Sender states (§6.1 — the closed sets, nothing else) ────────────
-export type ReceiverRefusalCode =
-  | 'malformedRequest' | 'unsupportedType' | 'proofRequired'
-  | 'proofInvalid' | 'wrongRecipient' | 'identityMismatch'
-
-const RECEIVER_REFUSAL_CODES: ReadonlySet<string> = new Set([
+// ReceiverRefusalCode is the ports' (one closed set, one place)
+const RECEIVER_REFUSAL_CODES: ReadonlySet<ReceiverRefusalCode> = new Set<ReceiverRefusalCode>([
   'malformedRequest', 'unsupportedType', 'proofRequired',
   'proofInvalid', 'wrongRecipient', 'identityMismatch',
 ])
@@ -79,6 +87,19 @@ export type SubmissionState =
   | { state: 'delivered', late: boolean }
   | { state: 'failed', reason: 'unroutable' | 'oversize' | 'expired-by-adapter-policy' }
   | { state: 'failed', reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
+
+/** The ports' DeliveryReport for a document `digest` in adapter state `st`
+ *  (Delivery §6.1): one-to-one, `late` and the refusal code carried over. */
+export function deliveryReportOf (digest: string, st: SubmissionState): DeliveryReport {
+  switch (st.state) {
+    case 'awaiting-transport': return { digest, status: 'awaiting-transport', reason: st.reason }
+    case 'accepted': return { digest, status: 'accepted' }
+    case 'delivered': return { digest, status: 'delivered', late: st.late }
+    case 'failed': return st.reason === 'rejected-by-receiver'
+      ? { digest, status: 'failed', reason: 'rejected-by-receiver', code: st.code }
+      : { digest, status: 'failed', reason: st.reason }
+  }
+}
 
 export interface CollectedItem { bytes: Uint8Array, queueId: string }
 export interface Collection { id: string, items: CollectedItem[] }
@@ -92,6 +113,8 @@ export interface AckState {
 }
 
 interface Submission {
+  /** the document digest, for submissions filed by submitOutbound */
+  digest?: string
   bytes: Uint8Array
   submittedAt: number
   attemptStartedAt: number | null
@@ -359,6 +382,28 @@ export class MediatorCarrierAdapter {
     this.#subs.set(id, sub)
     if (!knownOffline) this.#startAttempt(sub, now)
     return id
+  }
+
+  /** Files an Outbound (its envelope as JCS bytes) and returns the
+   *  SubmissionRef the holder's reports are keyed by: submission id ↔
+   *  document digest (note §4.3). */
+  submitOutbound (outbound: Pick<Outbound, 'digest' | 'envelope'>, rawNow: number): SubmissionRef {
+    this.#open()
+    if (typeof outbound?.digest !== 'string' || outbound.digest === '') throw new Error('an outbound needs its document digest')
+    const submissionId = this.submit(new TextEncoder().encode(jcs(outbound.envelope)), rawNow)
+    this.#subs.get(submissionId)!.digest = outbound.digest
+    return { submissionId, digest: outbound.digest }
+  }
+
+  /** The current state as the ports' DeliveryReport for holder.report(),
+   *  or null while no honest report exists (and for an unknown id). A
+   *  submission filed without a digest (submit) has no report form. */
+  report (id: string): DeliveryReport | null {
+    const st = this.status(id)
+    if (st === null) return null
+    const digest = this.#subs.get(id)!.digest
+    if (digest === undefined) throw new Error('submitted without a document digest: use submitOutbound')
+    return deliveryReportOf(digest, st)
   }
 
   has (id: string): boolean {
