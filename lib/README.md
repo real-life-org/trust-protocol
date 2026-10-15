@@ -5,15 +5,18 @@ encounters between people: two humans meet, recognize each other, and record
 that recognition as verifiable credentials. Cryptography proves freshness and
 authorship; only a human can witness a human.
 
-This package is the **executable form of the specification** — it lives beside
-the schemas and the test vectors it must reproduce byte-for-byte. Published by
-the [Real Life Organisation](https://real-life.org) under CC BY 4.0.
+This package is the reference library of the specification. It lives beside
+the schemas and the test vectors it reproduces byte for byte. Published by the
+[Real Life Organisation](https://real-life.org) under CC BY 4.0.
 
 - Specification, schemas and vectors: <https://trust-protocol.real-life.org>
-- Zero dependencies. WebCrypto only (Ed25519, X25519, HKDF, AES-256-GCM).
-  One scoped exception: a synchronous SHA-256 (`sha256.ts`) digests local reconciliation views inside synchronous state transitions (trust star and group star) and is never used for wire bytes, keys or MACs.
-- Works in browsers, Node ≥ 20, Deno, Bun. No DOM, no storage, no network:
-  the library computes and verifies, the host decides where bytes live.
+- Zero runtime dependencies. WebCrypto only (Ed25519, X25519, HKDF,
+  AES-256-GCM, SHA-256), with one scoped exception: a synchronous SHA-256
+  (`sha256.ts`) digests local reconciliation views inside synchronous state
+  transitions (the star and the group star). It never touches wire bytes,
+  keys or MACs.
+- No DOM, no storage, no network: the holder computes and verifies, the app
+  stores its state and carries its envelopes.
 
 ## Install
 
@@ -21,92 +24,180 @@ the [Real Life Organisation](https://real-life.org) under CC BY 4.0.
 npm i @real-life/trust-protocol
 ```
 
-## The modules mirror the specification
+## The holder
 
-Each module answers to one document, so a reader of the spec knows where to
-look in the code:
+`createHolder` is one person's device: its state behind the human acts, the
+delivery channel's three calls and the views an app reads.
 
-| Module | Specification | What it carries |
+```ts
+import { createHolder, seedKeys } from '@real-life/trust-protocol'
+import { InMemoryStore } from '@real-life/trust-protocol/testing'
+
+const holder = await createHolder({ store: new InMemoryStore(), keys: seedKeys(rootSeed) })
+
+// a human act: its time and an actId the app mints when the human acts
+const shown = await holder.show({ when: Date.now(), actId: crypto.randomUUID() })
+// shown.events carries the card to display; shown.outbound the envelopes to send
+
+// the channel: one receive per arriving envelope, the adapter's reports,
+// and resume on a timer (retries and due duties)
+const got = await holder.receive(envelope, Date.now())
+await holder.report({ digest, status: 'accepted' }, Date.now())
+const { outbound, nextDueAt } = await holder.resume(Date.now())
+
+// the views, read after each commit (subscribe announces them)
+holder.subscribe(async () => render(await holder.contacts(), await holder.prompts()))
+```
+
+Every act returns `{ok: true, outbound, events} | {ok: false, code, ref?}`;
+`code` is a closed union, `ref` names the rule where one applies. Every
+`outbound` item is pure JSON (`digest`, `envelope`, `type`, `threadId`,
+`recipient`, `attempt`); the app delivers it to the device holding
+`envelope.rkid` and reports what its transport saw by `digest`.
+
+The human acts: `show`, `scan`, `captureSentCard`, `counter` (the encounter),
+`decide` (a prompt: confirm an encounter, accept an invitation, take up or
+consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
+`setGroupClass`, `merge`, `depart`, `setProfile`, `foundGroup`, `invite`,
+`vouchFor`, `introduce`, `rotateAnchor`, `addDevice`, `revokeDevice`. Not
+human: `receive`, `report`, `resume`, `tick`, `recover`. Reads: `contacts`,
+`contact`, `groups`, `profile`, `prompts`, `deliveryStatus`, `deviceKey`,
+`snapshot`, `subscribe`.
+
+## What the root exports
+
+- `createHolder` and its types (`Holder`, `HolderOptions`, `HumanActOptions`,
+  `HolderSnapshot`).
+- The ports: `Store`, `KeyProvider`, `Entropy`, `Log`, `Access`,
+  `RetryPolicy`, `DeliveryReport`, `Outbound`; `seedKeys(seed)` is the
+  default KeyProvider, `randomEntropy` the default Entropy.
+- The views: `ContactView`, `GroupView`, `PromptView`, `ProfileView`,
+  `DeliveryStatusView` and their parts.
+- The results and events: `ActResult`, `ReceiveResult`, `ResumeResult`,
+  `InfraError`, `CryptoUnavailableError`, `HolderEvent`.
+- The state as an opaque type (`HolderState`), `decodeState`, `CODEC`,
+  `StateCodecError`, and `storeContract`, the suite a Store adapter passes.
+- The pure wire builders and verifiers of every layer (`core`, `crypto`,
+  `identity`, `profile`, `encounter`, `membership`, `introduction`,
+  `delivery`, `carrier-identity`, `carrier`, `carrier-holder`), and two
+  namespaces of pure forms: `visibility` (anchor, star, group star,
+  continuity, acks) and `ceremony` (the encounter's, the group's and the
+  introduction's forms).
+
+Other entry points:
+
+| Entry point | What it holds |
+|---|---|
+| `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
+| `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
+| `./adapters/vti-mediator` | The VTI mediator as a carrier adapter: its submission states as `DeliveryReport`, collection and ack handling. |
+
+## The modules and the rules they implement
+
+Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
+
+| Module | Specification | Rules |
 |---|---|---|
-| `core` | across all layers | The canonical form: JCS serialization, multibase encodings, digest equality over *decoded* bytes, whole-second timestamps, calendar validity — and the JSON-Schema subset validator the conformance runner uses. |
-| `crypto` | — (primitives) | Hashes, HKDF, key pairs, did:key and multikey renderings, ECDH, and the eddsa-jcs-2022 Data Integrity proof every layer signs with. Answers *how*, never *what*. |
-| `identity` | Identity Layer 0.54 | One root seed, every context derived — community anchor (and its later generations `group/<digest>/<generation>`, §5.4), pair anchor per relationship, member anchor per group. Contexts never link without their holder's deliberate act. |
-| `encounter` | Encounter Layer | The ceremony under fresh-always pair anchors: challenges, contact cards, the enactment binding both sides compute independently, encounter credentials. |
-| `delivery` | Delivery Contract | The sealed envelope, and the receive chain in its declared order — size bound *before* decryption, envelope form, decryption, parse and digest over the canonical form, completed-effect cache. |
-| `carrier-identity` | Identity §7a | The carrier-relationship principal: one Ed25519 control key per (relationship × carrier), derived so that no computable relation to the relationship's other principals or its `rkid` exists — which is why registration must *prove* the binding instead of computing it. |
-| `carrier` | Delivery §4.4 + §5a | The carrier side of the port as one transport-agnostic state machine: the five guarantees, the proof rule, the total binding lifecycle (unbound → live → closing → released), the verdict sets in their normative evaluation orders, wind-up and binding tombstones. The clock is injected. |
-| `carrier-holder` | Delivery §5a + Identity §9.3 | The holder's half: proof construction for all four purposes, the closed verdict set, and the two-exchange recovery flow for a lost carrier entry. |
-| `visibility` | Trust Layer 0.31 on Delivery 0.81 | The trust act (`anchor-mapping@4` with `self-card@2`), the community anchor's rotation with pre-rotation (`anchor-rotation@2`, the binding of Identity 0.54 §5.4, the lineage per relationship, conditions 4a and 4b, condition 8: a changed `self` is a rotation or rejected), the group star (`group-star@1` with sealed `group-pair@1`: `buildGroupStar`, `assembleGroupStar`, `openGroupStar`), the blinded star (`star@2`, 5.2a chunks), the admission layer with the head rule and the binding rule and the 5.4 reconciliation automaton, §6a continuity (probe + mapping — chains instead of duplicates), and the deniable `delivery-ack/0.1`. Namespaced: `visibility.trust`, `.continuity`, `.acks`. Graduated from `/probe` on 04.09.2026 after a 39-round conformance loop. |
-| `ceremony` | Encounter 0.31 (`encounter-scan@0.25`) on Delivery 0.79 | The ceremony's transmission: `encounter-bundle/0.1`, `encounter-credential-delivery/0.1` (counter-step in the bundle's thread), the signed `delivery-ack/0.1`; the own-challenge state model with its aging latch, the enactment record as the serialization point, the eight-step acceptance, connected and offline path with free switching; one commit discipline (prepare → verify → commit) under the §6.2 lock set; resumable issuance. Graduated from `/probe` on 05.09.2026 after a 25-round conformance loop. |
+| `core` | all layers | the canonical form: JCS (RFC 8785), multibase, digest equality over decoded bytes, whole-second timestamps, calendar validity, the JSON-Schema subset validator |
+| `crypto` | primitives | HKDF, key pairs, did:key and multikey, X25519, the `eddsa-jcs-2022` Data Integrity proof |
+| `identity` | Identity 0.54 §6.1, §6.2, §5.4, §5.5 | context derivation under the closed label registry: `group/<digest>` and its generations, `pair/…`, `persona/…`, `device/<n>/<c>`; the name pipeline pinned to Unicode 15.0 |
+| `identity-state` | Identity §2, §5.4, §5.5 | the label register with monotone sets, device names and revocation marks, the community anchor's rotation as a procedure over the Log port (register before log before duties) |
+| `encounter`, `encounter/ceremony` | Encounter 0.31 §4–§7 | `encounter-scan@0.25`: challenges and their aging latch (5.3), the enactment record (5.5), the 5.6 acceptance in its order, both paths of 5.8, `encounter-bundle/0.1` and `encounter-credential-delivery/0.1` with signed acks, the confirm prompt |
+| `trust/mapping` | Trust Section 2, 2a, §6.1–§6.5 | the trust act and the class settings (2720–2850), `anchor-mapping@4` issuance (6300/6310, 6420) and verification (6.3, conditions 4a, 4b, 8), the entry commit and the admission bound |
+| `trust/star`, `trust/group-star` | Trust §5.1–§5.4, §5.2b | `star@2` and `group-star@1` reconciled per recipient (5.4: salt scope, baseline automaton, completion by the ack), reception with assemblies and lower bounds |
+| `trust/entries` | Trust Section 2, §6a.1 | merge (net and manual, 6640), split (2080–2115), departure (2260), the head rule and the binding rule (6605) |
+| `trust/continuity` | Trust §6a | `continuity-probe@1` and `continuity-mapping@1`, chaining a re-encounter into the existing relationship (6a.4) |
+| `trust/profile`, `profile` | Trust §6b | `profile@1`: the one revision counter (6450), delivery on the class gates (6455), reception and the image bounds (6475) |
+| `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
+| `membership`, `membership/holder` | Membership Tasks 0.19 on Access 0.57 | founding (Access 3.4.1), the prelude, invite, accept, admission and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
+| `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeouts (8340, 8690) |
+| `receive`, `engine` | Delivery 0.81 §5, §6.1, §6.2 | the sealed envelope, stages 1–9 once per envelope, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
+| `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
+| `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |
 
-Everything is re-exported from the package root; the table is a map, not an
-import instruction.
+## Runtime
+
+| Runtime | Status |
+|---|---|
+| Node 22 | tested in CI (the library job) |
+| Node 24 | tested locally |
+| Node 20 | the declared minimum (`engines`); Ed25519 and X25519 are in its WebCrypto |
+| Chromium 145 | tested by the workbench's end-to-end run (`apps/gesamtsimulator/tests/local-perspective.mjs`) |
+| Chromium ≥ 137, Firefox ≥ 129, Safari ≥ 17 | expected: they carry Ed25519 and X25519 in WebCrypto; not tested here |
+
+The WebCrypto handle is resolved when a holder is built, not at import: an
+app may pass its own (`createHolder({crypto})`, `seedKeys(seed, crypto)`),
+and a runtime without Ed25519 or X25519 is reported then as
+`CryptoUnavailableError`.
+
+## State, codec and storage
+
+A holder's state is pure JSON under a codec version. The Store port takes
+the state as opaque JSON and gives it back; the library decodes it
+(`decodeState`), the adapter never migrates.
+
+- **Codec 1** is the format of 0.4.0, the first stable one. Its golden
+  fixture `test/fixtures/state-v1.json` (a deterministic run over three
+  holders, `test/fixtures/gen-state-v1.mjs`) decodes and re-encodes byte
+  for byte. A later codec brings its validator, a pure migration from the
+  one before, and its own fixture with a migration test.
+- **Codec 0**, the unstable format of the releases before 0.4.0, is not
+  migrated: `decodeState` refuses it as `codec-unknown`. A newer codec is
+  refused as `codec-newer`; nothing is read best-effort.
+
+**Writing a Store adapter.** Implement `read(): Promise<{state, version}>`
+(a deep, independent copy; `null` state and version for an empty store) and
+`commit(version, next): Promise<{ok: true, version} | {ok: false, reason:
+'conflict'}>` as compare-and-swap: atomic, storing a copy, a version token
+never reused in the store's lifetime. One writer per holder; the adapter
+guarantees it. Then run the contract against it:
 
 ```ts
-import { labeledContext, signCard, seal, sameDigest } from '@real-life/trust-protocol'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { storeContract } from '@real-life/trust-protocol'
+
+storeContract(() => new MyStore(), { test, assert })   // a fresh, empty store per call
 ```
 
-## Two entry points
+It checks snapshot isolation, CAS, atomicity, a lost result, the codec
+boundary and reopening. Durability across process loss is the persistent
+adapter's own test.
 
-```ts
-import { …, visibility } from '@real-life/trust-protocol'   // wire-normative core
-const { trust, continuity, acks } = visibility                // Trust Layer, graduated
-import { introduce, membership }
-  from '@real-life/trust-protocol/probe'                     // draft — will change
-```
+## Invariants and the generator
 
-The **`/probe` subpath is deliberate.** Its modules exercise the converged
-*semantics* of their layers, but their transport shapes carry `@probe` and
-are **not wire-normative**: mediated introductions over a rendezvous drop
-and group membership (founding, VIC invite, admission, vouching). The
-trust act, the blinded star, §6a continuity and the deniable ack **left
-this subpath on 04.09.2026** — they are wire-normative now and live under
-`visibility` at the package root; the Encounter ceremony's transmission
-**left on 05.09.2026** and lives under `ceremony`. Experiment with the rest; do not treat its wire forms
-as an interoperability target. A subpath import is a decision someone has
-to make — nothing behind it can be reached by accident.
-
-**The redelivery contract of probe receivers:** a receiver's inbound
-effect is complete the moment it returns `handled: true` without `error` —
-that delivery is cached and answers `duplicate-known` forever after.
-Outbound work a receiver triggers (star refreshes, continuity mappings)
-is built per recipient and never discards partial results; what failed is
-named in `outboundError` / `outbound.failures`, and **redelivering the
-inbound document is not the retry path** — re-invoking the producing call
-(e.g. `trust.starRefreshAll`) is, and it is the host application's job.
+`invariants.ts` states predicates over a commit (`state → state'`): the
+register and revocation marks only grow, tombstones never shrink, a salt is
+issued at most once per tuple, the effect cache holds only completed
+digests, `accepted` arises only from a report, a duty leaves only by its
+specified fulfilment. `createHolder(ports, {invariants: true})` checks them
+on every commit. `test/invariants-generator.test.mjs` runs random sequences
+of acts, receives, reports and ticks over two and three holders and checks
+every predicate after every step.
 
 ## Versions
 
-This package uses its own semver; the specification uses castings. Each
-release states, per module, whose **wire forms** it implements — and what
-it deliberately does not:
+This package uses its own semver; the specification uses castings.
 
-| Module (0.3.x) | Casting | Implemented | Not in this package |
-|---|---|---|---|
-| `identity` | Identity 0.54 | context derivation under the closed label registry (§6.1) for `group/<digest>`, its generations `group/<digest>/<generation>` (§5.4), `pair/…`, `persona/…` and the device labels `device/<name>/<context>` of §5.5 (`deviceLabel`, `deviceName`; vector `identity-device-keys.json`), with the ordered name pipeline (§6.2, Unicode 15.0 pinned); the pre-rotation binding (§5.4) is computed in `visibility` | recovery derivation (§5.3), service identities (§7); the label register and the rotation procedure live in the Stage-2 holder, not in this module |
-| `carrier-identity` | Identity 0.51 (§7a) | the carrier-relationship principal derivation, identifier validation | the register's generation state (held by the holder's store) |
-| `carrier` + `carrier-holder` | Delivery 0.79 (§4.4, §5a) + Identity 0.51 (§9.3) | the port state machine, proofs for all four purposes, verdicts, recovery | transport adapters and their policies (a carrier's budgets enter through hooks) |
-| `encounter` | Encounter 0.31 — `rltp-card/0.25`, `rltp-encounter-credential/0.26` (a held `0.25` credential still validates under its format), `encounter-scan@0.25` | challenges, both card profiles, the enactment binding, encounter credentials as DTG RelationshipCredentials (DTG Credentials WD 0.6.0: registry context v1, `issuerScope: "pairwise"`) (the primitives) | — (the ceremony machine lives in `ceremony`) |
-| `ceremony` | Encounter 0.31 §5.3–5.8 + Delivery 0.79 (§3, §4.1–4.3, §6) | `encounter-bundle/0.1`, `encounter-credential-delivery/0.1`, signed `delivery-ack/0.1`; own-challenge state model (aging latch, whole seconds), enactment record + record-key lock set, 5.6 acceptance in order, both 5.8 paths, thread freshness incl. re-issue, resumable issuance, chain-head carry | storage, transport adapters, the host's UI correlation (duties listed in the handoff) |
-| `delivery` | Delivery 0.64 | the sealed envelope (§5) and the generic receive stages 1–4 | the type-specific stages, residual bookkeeping, transport adapters |
-| `core`, `crypto` | cross-layer | canonical form, digest equality, timestamps, validator; primitives + `eddsa-jcs-2022` proof | — |
-| `visibility` | Trust Layer 0.31 + Identity 0.54 (§5.4) + Delivery 0.81 (§3, §4.2, §4.4) | the trust act (`anchor-mapping@4` with `self-card@2`, task `anchor-mapping/0.3`), `anchor-rotation@2` with the pre-rotation binding and the lineage per relationship from the earliest generation issued there (§6.5, 6420), verification in the order of §6.3 with conditions 4a and 4b against the bindings a relationship holds, condition 8 on the receiver (a changed `self` follows only as a rotation whose segment carries the held `self`; an unlinked change is rejected with no ack and no mutation, 6170), `group-star@1` construction, assembly and reception (§5.2b; the 5.4 subscription of the group star is not yet in the automaton), `star@2` (task `star/0.2`) with 5.2a chunk assembly, the admission layer (Section 2) with the head rule and the binding rule (§6a.1), the 5.4 reconciliation automaton with completion via deniable acks, §6a continuity (`continuity-probe@1`, `continuity-mapping@1`, chaining, the mapping re-issued on the new head), the registered task documents and `delivery-ack/0.1` with the 4.2 class rule; full §6.2 stage order on every receive path, peek→build→commit issuance on every producer | **not implemented yet (stage 2):** `profile@1` and its task `profile/0.1` (§6b); the trust classes of Section 2a as an API (the trust act stands for “anchor mapping class on”; per-class settings, defaults and overrides per contact and group are not modelled); the rule for a relationship that lags (6595, with the decision at the rotation of 6596): no send path withholds a class on such a relationship, the re-issue after a rotation included; graduation of the remaining probe modules. Also not here: storage, transport adapters and their policies (the Encounter ceremony's flows live in `ceremony`) |
-| `/probe` | Trust Layer (introductions) · Membership Tasks + Access | mediated introductions, group membership — semantics of the running castings, transport shapes `@probe` | any wire-form stability whatsoever |
-
-Persona-name validation is **pinned to Unicode 15.0** as Identity §6.2
-requires: the repertoire ships with the package (`unicode15.ts`, ~5 kB of
-ranges) and no platform Unicode data is consulted — the same name derives
-the same anchor on every runtime, whatever ICU it carries.
+| Area | Casting | Not in this package |
+|---|---|---|
+| identity | Identity 0.54 | recovery derivation (§5.3), service identities (§7) |
+| encounter | Encounter 0.31, cards 0.25, credentials 0.26 | — |
+| trust | Trust Layer 0.31 | — |
+| membership | Membership Tasks 0.19, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`, and the prelude as `x-membership-prelude-*`); roster replication: a holder knows the members it admitted and the roster its welcome carried |
+| introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
+| delivery | Delivery 0.81 | transport adapters beyond `./adapters/vti-mediator` |
+| devices | Identity §5.5 | multi-device production: one writer per holder |
 
 ## The contract: the vectors
 
-A version that does not reproduce `vectors/` byte-for-byte is not a valid
-version — the conformance runner checks every cryptographic claim, and every
-negative case must fail at its declared stage. If you implement RLTP in
-another language, those same vectors are how you check yourself; you do not
-need this package to do it.
+A version that does not reproduce `vectors/` byte for byte is not a valid
+version. The conformance runner checks every cryptographic claim, and every
+negative case fails at its declared stage. An implementation in another
+language checks itself against the same vectors; it does not need this
+package.
 
 ## License
 
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — specification and
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), specification and
 reference implementation alike.
