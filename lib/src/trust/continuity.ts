@@ -173,9 +173,10 @@
 // C's earliestAnchor on r-A-x is right by 2285 as written (nothing
 // earlier was issued on that relationship); it is the per-relationship
 // scope, not the value, that leaves A without the link.
-import { iso, jcs } from '../core.js'
+import { iso, jcs, fromB64u } from '../core.js'
 import type { Json } from '../core.js'
-import { digestDoc } from '../crypto.js'
+import { digestBytes, digestDoc } from '../crypto.js'
+import { withLabel, withPairNonce } from '../identity-state.js'
 import { seal } from '../delivery.js'
 import {
   assembleContinuityMapping, blindPrior, buildProbeChunks, continuityMacsOk, continuityMappingOk, isRecordSide, probeChunkMacOk,
@@ -302,6 +303,10 @@ export interface NewTupleInput {
   counterpartAnchor: string
   counterpartKeyAgreement: string
   provenance?: { kind: 'ceremony' | 'introduced', via?: string }
+  /** the 32-byte relationship nonce the pair label digests (Identity
+   *  §6.1), base64url; where given, the register records it beside the
+   *  label, and the label must be pair/<multihash(nonce)> */
+  nonce?: string
 }
 
 /**
@@ -336,7 +341,7 @@ export function openTuple (state: Readonly<HolderState>, i: NewTupleInput, rkid:
   return {
     state: {
       ...state,
-      register: { ...state.register, labels: state.register.labels.includes(i.ownPairLabel) ? state.register.labels : [...state.register.labels, i.ownPairLabel] },
+      register: i.nonce === undefined ? withLabel(state.register, i.ownPairLabel) : withPairNonce(state.register, i.ownPairLabel, i.nonce),
       addresses: { ...state.addresses, keys: { ...state.addresses.keys, [rkid]: { label: i.ownPairLabel, lastShown: when } } },
       contacts: { ...state.contacts, [i.contactId]: contact },
       relationships: { ...state.relationships, [i.relId]: rel },
@@ -1010,7 +1015,14 @@ export const continuityTestModule: HolderModule = Object.freeze({
   commands: Object.freeze({
     [NEW_TUPLE]: {
       human: false,
-      prepare: async (ctx: PrepareCtx, input: NewTupleInput) => (await ctx.keys.anchorOf(input.ownPairLabel)).keyAgreement,
+      async prepare (ctx: PrepareCtx, input: NewTupleInput) {
+        // Identity §6.1: the label digests the 32 nonce bytes
+        if (input.nonce !== undefined) {
+          const n = fromB64u(input.nonce)
+          if (n.length !== 32 || 'pair/' + await digestBytes(n, ctx.crypto.subtle) !== input.ownPairLabel) throw new TypeError(`${NEW_TUPLE}: the label is not pair/<multihash(nonce)> of a 32-byte nonce`)
+        }
+        return (await ctx.keys.anchorOf(input.ownPairLabel)).keyAgreement
+      },
       apply: (state: Readonly<HolderState>, prepared: { value: string }, input: NewTupleInput, when: Millis) => openTuple(state, input, prepared.value, when),
     } satisfies CommandDef<NewTupleInput, string>,
   }),

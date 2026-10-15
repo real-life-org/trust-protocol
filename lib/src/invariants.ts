@@ -132,6 +132,7 @@ import { classOfDuty, classOnId, hasArtifact, onFor, owedOn } from './trust/duti
 import { CONTINUITY_MAPPING_TYPE, CONTINUITY_PROBE_TYPE } from './trust/continuity.js'
 import { viewDigest } from './trust/star.js'
 import { isKnownDuty } from './codec.js'
+import { communityLabel } from './identity.js'
 
 /** What a commit was: the operation that produced it. */
 export type CommitOp =
@@ -201,9 +202,24 @@ function dutyViolations (v: Violation[], state: Readonly<HolderState>, d: Readon
   else if (!classOnToward(e, cls)) v.push({ invariant: 'duties', detail: `${d.id}: the class ${cls} is off toward ${e.id} (6410)` })
 }
 
+/** The register (Identity §2, §5.4, §5.5) and the running rotations. */
+function registerViolations (v: Violation[], state: Readonly<HolderState>): void {
+  const r = state.register
+  for (const n of r.devices.revoked) if (!r.devices.names.includes(n)) v.push({ invariant: 'register', detail: `revocation mark ${n} without its device name` })
+  const lin = r.lineage as Array<{ body?: { prev?: unknown, next?: unknown } }>
+  for (let i = 1; i < lin.length; i++) if (lin[i].body?.prev !== lin[i - 1].body?.next) v.push({ invariant: 'register', detail: `lineage element ${i} does not continue element ${i - 1}` })
+  if (r.community !== null && big(r.community.head) - 1n < BigInt(lin.length)) v.push({ invariant: 'register', detail: `${lin.length} lineage elements beyond head ${r.community.head}` })
+  for (const rot of Object.values(state.rotations)) {
+    if (r.community === null || big(rot.from) !== big(r.community.head) || big(rot.to) !== big(rot.from) + 1n) v.push({ invariant: 'register', detail: `rotation ${rot.id} ${rot.from} → ${rot.to} does not start at the head ${r.community?.head}` })
+    else if (!r.labels.includes(communityLabel(r.community.genesis, Number(rot.to)))) v.push({ invariant: 'register', detail: `rotation ${rot.id}: the label of generation ${rot.to} is not persisted (6360)` })
+  }
+  if (Object.keys(state.rotations).length > 1) v.push({ invariant: 'register', detail: 'more than one rotation running' })
+}
+
 /** The invariants of one state (see the header); empty where all hold. */
 export function stateViolations (state: Readonly<HolderState>): Violation[] {
   const v: Violation[] = []
+  registerViolations(v, state)
   const contacts = Object.values(state.contacts)
   const positions = new Set<string>()
   for (const c of contacts) {
@@ -520,6 +536,17 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
     v.push({ invariant: 'register', detail: 'the community lost its genesis or its head fell' })
   }
   if (ra.lineage.length < rb.lineage.length || jcs(ra.lineage.slice(0, rb.lineage.length)) !== jcs(rb.lineage)) v.push({ invariant: 'register', detail: 'the lineage did not only extend' })
+  // a revoked name is never given again (Identity §5.5)
+  for (const n of ra.devices.names) if (!rb.devices.names.includes(n) && rb.devices.revoked.includes(n)) v.push({ invariant: 'register', detail: `device name ${n} given again after its revocation` })
+  // the head moves by one generation at a time, with one lineage element,
+  // onto a label persisted in an earlier commit (6360, Identity §5.4)
+  if (rb.community !== null && ra.community !== null && ra.community.head !== rb.community.head) {
+    const g = big(ra.community.head)
+    if (g !== big(rb.community.head) + 1n || ra.lineage.length !== rb.lineage.length + 1) v.push({ invariant: 'register', detail: `the head moved ${rb.community.head} → ${ra.community.head} with ${ra.lineage.length - rb.lineage.length} lineage elements` })
+  }
+  // the own profile's one counter never falls, and its content changes only with it (6450)
+  if (big(after.profile.revision) < big(before.profile.revision)) v.push({ invariant: 'profile', detail: `the profile revision fell ${before.profile.revision} → ${after.profile.revision}` })
+  else if (after.profile.revision === before.profile.revision && jcs(after.profile.body) !== jcs(before.profile.body)) v.push({ invariant: 'profile', detail: `the profile changed under revision ${after.profile.revision}` })
   // addresses (Delivery §5)
   lost('tombstones', superset(after.addresses.tombstones, before.addresses.tombstones))
   for (const k of Object.keys(before.addresses.keys)) {

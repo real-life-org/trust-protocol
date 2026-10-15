@@ -35,6 +35,25 @@ export type ActError =
   /** trust.merge: the manual merge joins at most one entry (6640), and
    *  never relationships the binding rule keeps apart (6605) */
   | 'not-mergeable'
+  /** identity.addDevice: not a device name of 6.2 (Identity §5.5) */
+  | 'device-name-invalid'
+  /** identity.addDevice: the register already holds the name (Identity §5.5, SHOULD) */
+  | 'device-name-held'
+  /** identity.addDevice: a revoked name is never given again (Identity §5.5) */
+  | 'device-name-revoked'
+  /** identity.revokeDevice: the register holds no such device name */
+  | 'unknown-device'
+  /** identity.rotate: the log replica does not hold the lineage through the
+   *  current generation (Identity §5.4, Access RLTP-ACC-5980); the rotation
+   *  stays pending until it does */
+  | 'log-behind'
+  /** identity.rotate: the log's head is no generation of this register's
+   *  lineage (another genesis, or a head the register does not follow) */
+  | 'log-diverged'
+  /** identity.rotate: the log answered failure; the rotation stays pending */
+  | 'log-failure'
+  /** setProfile: the body breaks 6430/6435 or its image 6475 */
+  | 'profile-invalid'
 
 export type ActResult =
   /** nextDueAt: duty work this act opened or unblocked is due then (`when`:

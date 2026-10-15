@@ -237,6 +237,8 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
   'profile.updated': [{ contactId: nullable(str) }],
   'anchor.rotated': [{ generation: dec }],
+  'device.added': [{ name: str }],
+  'device.revoked': [{ name: str }],
   'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
   'star.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
   'groupStar.accepted': [{ contactId: str, relationshipId: str, salt: dec }],

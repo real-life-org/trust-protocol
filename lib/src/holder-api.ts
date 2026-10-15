@@ -23,7 +23,11 @@
 //   merge(contactIds, opts)                   trust.merge               human
 //   depart(contactId, opts{relationshipId?})  trust.depart              human
 //   decide(promptId, choice, opts)            prompt.decide             human
+//   addDevice(name, opts)                     identity.addDevice        human
+//   revokeDevice(name, opts)                  identity.revokeDevice     human
 //   recover({when})                           trust.recover          not human
+// and the read deviceKey(name, contextLabel): the device key of a held,
+// unrevoked name under an own anchor context (identity-state.ts).
 // A missing actId is refused at runtime as actid-missing.
 //
 // Reading: the views (views.ts) over one snapshot each, carrying its
@@ -47,6 +51,8 @@ import type { CommitOp } from './invariants.js'
 import type { HolderState } from './state.js'
 import { toOpaque } from './state.js'
 import { trustModule } from './trust/mapping.js'
+import { IDENTITY_COMMANDS, deviceKeyOf, identityModule } from './identity-state.js'
+import type { DeviceKeyResult } from './identity-state.js'
 import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass } from './state.js'
 import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
@@ -93,6 +99,13 @@ export interface Holder {
   depart (contactId: string, opts: HumanActOptions & { relationshipId?: string }): Promise<ActResult>
   /** 2240: entries re-commit from verified mappings recovered without them; not human */
   recover (opts: { when: Millis }): Promise<ActResult>
+  /** a device name into the register before any key derived from it is presented (Identity §5.5); human */
+  addDevice (name: string, opts: HumanActOptions): Promise<ActResult>
+  /** the name's revocation mark: never removed, the name never given again (Identity §5.5); human */
+  revokeDevice (name: string, opts: HumanActOptions): Promise<ActResult>
+  /** the device key of a held, unrevoked device name under an own anchor
+   *  context (Identity §5.5); reads, changes nothing */
+  deviceKey (name: string, contextLabel: string): Promise<DeviceKeyResult>
   tick (when: Millis): Promise<ActResult>
   resume (when: Millis): Promise<ResumeResult>
   report (report: DeliveryReport, when: Millis): Promise<ActResult>
@@ -117,7 +130,7 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const modules = [trustModule(), ...(opts.modules ?? [])]
+  const modules = [identityModule(), trustModule(), ...(opts.modules ?? [])]
   const check = opts.invariants === true
     ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
         const v = commitViolations(before, after, op)
@@ -142,6 +155,9 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     depart: (contactId: string, o: HumanActOptions & { relationshipId?: string }) =>
       human(ENTRY_COMMANDS.depart, o?.relationshipId === undefined ? { contactId } : { contactId, relationshipId: o.relationshipId }, o),
     recover: (o: { when: Millis }) => engine.act(TRUST_COMMANDS.recover, {}, o?.when as Millis),
+    addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
+    revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
+    deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),
     tick: (when: Millis) => engine.tick(when),
     resume: (when: Millis) => engine.resume(when),
     report: (report: DeliveryReport, when: Millis) => engine.report(report, when),

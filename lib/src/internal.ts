@@ -56,6 +56,8 @@ export {
   classOnHandler, profileDuty,
 } from './trust/duties.js'
 export { promptsModule, collectDecisions } from './prompts.js'
+export { identityModule, IDENTITY_COMMANDS, withLabel, withPairNonce, deviceKeyOf } from './identity-state.js'
+export type { DeviceInput, DeviceKeyResult } from './identity-state.js'
 export { stateViolations, transitionViolations, commitViolations, dutyDrops } from './invariants.js'
 export type { CommitOp, Violation } from './invariants.js'
 export { createEngine } from './engine.js'

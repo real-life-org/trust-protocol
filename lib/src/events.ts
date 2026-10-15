@@ -45,7 +45,12 @@ export type HolderEvent = EventBase & (
   | { type: 'delivery.status', digest: string, threadId: string, status: OutboxStatus, late?: boolean }
   /** contactId null: the holder's own profile */
   | { type: 'profile.updated', contactId: string | null }
+  /** the community anchor's rotation completed: the head is this generation (Identity §5.4) */
   | { type: 'anchor.rotated', generation: Dec }
+  /** a device name entered the register (Identity §5.5) */
+  | { type: 'device.added', name: string }
+  /** a device name was marked revoked (Identity §5.5) */
+  | { type: 'device.revoked', name: string }
   /** resume found a duty of a registered kind at a version no handler
    *  knows: kept untouched, announced once per resume (engine.ts) */
   | { type: 'duty.unsupported', dutyId: string, kind: string, v: number }
