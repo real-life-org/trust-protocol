@@ -34,8 +34,17 @@ export type { DecideInput } from './prompts.js'
 export { freezeDeep } from './util-freeze.js'
 export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recommitEntries } from './trust/mapping.js'
 export type { TrustModuleOptions, TrustSetInput, TrustSetClassInput, TrustSetGroupClassInput, TrustPauseInput } from './trust/mapping.js'
-export { ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, entryRelationships, activeTuple, findContact } from './trust/state.js'
+export {
+  ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, newestOf, entryRelationships, activeTuple, findContact,
+  entryOf, feeding, conflicts, joins, supersededIn, anchorSet, tupleByLabel, liveRel,
+} from './trust/state.js'
 export { STAR_TYPE, ASSEMBLY_LIMIT, starView, viewDigest, heldAnchors, discardAssemblies, rematchStars, retainInflight } from './trust/star.js'
 export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js'
+export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple } from './trust/continuity.js'
+export type { NewTupleInput } from './trust/continuity.js'
+export {
+  ENTRY_COMMANDS, mergeEntries, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending,
+} from './trust/entries.js'
+export type { TrustMergeInput, TrustDepartInput } from './trust/entries.js'
 export { promptsModule, collectDecisions } from './prompts.js'
 export { createEngine } from './engine.js'

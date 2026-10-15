@@ -117,6 +117,7 @@ import { admitPending, classOnDuty, owedOn, entryCommands, mergeDutiesAfter, mer
 import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js'
 import type { StarBlinds } from './star.js'
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js'
+import { continuityParts } from './continuity.js'
 
 const te = new TextEncoder()
 const V = makeValidator(SCHEMAS)
@@ -575,8 +576,8 @@ export interface TrustModuleOptions {
   /** the deliverable set's bound (2050); another value is for tests only */
   admissionBound?: bigint
   /** the receiver's resource limit of 5365 (highest seq of an open
-   *  assembly) for star and group star; default ASSEMBLY_LIMIT, another
-   *  value is for tests only */
+   *  assembly) for star, group star and probe; default ASSEMBLY_LIMIT,
+   *  another value is for tests only */
   assemblyLimit?: number
 }
 
@@ -586,6 +587,7 @@ export function trustModule (opts: TrustModuleOptions = {}): HolderModule {
   if (typeof bound !== 'bigint' || bound < 0n || bound > ADMISSION_BOUND) throw new RangeError('admissionBound must be a bigint within [0, 10^18 − 1]')
   const limit = opts.assemblyLimit
   if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) throw new RangeError('assemblyLimit must be a positive integer')
+  const cont = continuityParts(bound, limit ?? ASSEMBLY_LIMIT.probe)
   return Object.freeze({
     name: 'trust',
     commands: Object.freeze({
@@ -597,15 +599,18 @@ export function trustModule (opts: TrustModuleOptions = {}): HolderModule {
       [ANCHOR_MAPPING_TYPE]: mappingTask(bound),
       [STAR_TYPE]: taskOf(STAR, limit ?? ASSEMBLY_LIMIT.star),
       [GROUP_STAR_TYPE]: taskOf(GROUP_STAR, limit ?? ASSEMBLY_LIMIT.groupStar),
+      ...cont.tasks,
     }),
     duties: Object.freeze({
       'class-on': issueDuty(true),
       'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
       merge: mergeDuty(bound),
+      ...cont.duties,
     }),
     // 5.4: the star first, then the group star, each its own scope (5730)
     sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
-    acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
+    acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR), ...cont.acks }),
+    failures: Object.freeze({ ...cont.failures }),
     // in-flight deliveries whose outbox items are all gone leave on tick
     retain: (state: Readonly<HolderState>) => retainInflight(state),
   })

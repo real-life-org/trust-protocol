@@ -119,7 +119,7 @@ export const STAR_TYPE = 'https://real-life.org/trust-tasks/star/0.2'
 
 /** The receiver's resource limit (5365): the highest seq an open assembly
  *  takes, per artifact. */
-export const ASSEMBLY_LIMIT = Object.freeze({ star: 1024, groupStar: 64 })
+export const ASSEMBLY_LIMIT = Object.freeze({ star: 1024, groupStar: 64, probe: 64 })
 
 const te = new TextEncoder()
 const inc = (d: Dec): Dec => (BigInt(d) + 1n).toString()
@@ -210,7 +210,7 @@ function viewAt<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Rec
 
 /** Whether an in-flight delivery can still complete: every chunk acked,
  *  or still in the outbox and not failed (an ack refers to an outbox item). */
-const canComplete = (state: Readonly<HolderState>, f: Readonly<{ digests: string[], acked: string[] }>): boolean =>
+export const canComplete = (state: Readonly<HolderState>, f: Readonly<{ digests: string[], acked: string[] }>): boolean =>
   f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed'))
 
 /** The in-flight deliveries whose completion data is still needed: any
@@ -275,7 +275,7 @@ interface Production<V> {
 }
 
 /** A key agreement on the tuple's own rkid with the counterpart key, or null. */
-async function pairShared (ctx: PrepareCtx, t: Readonly<Tuple>, peerKeyAgreement: string = t.counterpartKeyAgreement): Promise<Uint8Array | null> {
+export async function pairShared (ctx: PrepareCtx, t: Readonly<Tuple>, peerKeyAgreement: string = t.counterpartKeyAgreement): Promise<Uint8Array | null> {
   const x = xRawOfMk(peerKeyAgreement)
   if (!x) return null
   const a = await ctx.keys.agree(t.rkid, x, ctx.release)
@@ -283,7 +283,7 @@ async function pairShared (ctx: PrepareCtx, t: Readonly<Tuple>, peerKeyAgreement
 }
 
 /** Seal one chunk as its own document of the salt's thread (Delivery §4.4). */
-async function chunkDocument (ctx: PrepareCtx, type: string, issuer: string, t: Readonly<Tuple>, contactId: string, threadId: string, chunk: Json): Promise<OutboundDraft> {
+export async function chunkDocument (ctx: PrepareCtx, type: string, issuer: string, t: Readonly<Tuple>, contactId: string, threadId: string, chunk: Json): Promise<OutboundDraft> {
   const S = ctx.crypto.subtle
   const doc = { id: ctx.entropy.id('doc.id'), type, issuer, recipient: t.counterpartAnchor, threadId, issuedAt: iso(ctx.when), payload: chunk }
   // 5190: within the Delivery Contract's plaintext limit, by construction
@@ -381,7 +381,50 @@ export function ackOf<V, A> (art: Artifact<V, A>): AckHandler {
 // ── the receiver ───────────────────────────────────────────────────────
 
 /** An assembly chunk as held: the document's digest and thread, the body. */
-interface Held { digest: string, threadId: string, body: Body & Record<string, Json> }
+interface Held { digest: string, threadId: string, body: { seq: Dec, last: boolean } & Record<string, Json> }
+
+/** What one authenticated chunk does to its tuple's open assembly of one
+ *  artifact (5.2a; the probe under 6790 with `probe` as the salt). */
+export type AssemblyStep =
+  | { kind: 'repeat' }
+  | { kind: 'reject', ref: string }
+  | { kind: 'limit' }
+  | { kind: 'hold', assembly: Assembly }
+  | { kind: 'complete', chunks: Record<string, Json>, last: bigint }
+
+/**
+ * The assembly rules after the salt checks and the MAC (5250–5290, 5330,
+ * 5365): a higher salt displaces the open assembly; a seq above `limit`
+ * is the resource limit; the same digest again a repeat; another thread,
+ * a repeated seq of other bytes, a second last or a seq beyond last
+ * reject the delivery; otherwise the chunk is held, or completes the
+ * assembly with every seq up to last present.
+ */
+export function assemblyStep (open: Assembly | null, salt: Dec, body: { seq: Dec, last: boolean } & Record<string, Json>, threadId: string, digest: string, limit: number): AssemblyStep {
+  const base: Assembly = open && open.salt === salt ? open : { salt, chunks: {} }
+  const seq = BigInt(body.seq)
+  if (seq > BigInt(limit)) return { kind: 'limit' }
+  const held = Object.values(base.chunks) as unknown as Held[]
+  const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] as unknown as Held : undefined
+  if (same && same.digest === digest) return { kind: 'repeat' }                       // 5250
+  if (held.some((h) => h.threadId !== threadId)) return { kind: 'reject', ref: 'RLTP-TRU-5280' }
+  if (same) return { kind: 'reject', ref: 'RLTP-TRU-5260' }
+  const heldLast = held.find((h) => h.body.last)
+  if (body.last && heldLast) return { kind: 'reject', ref: 'RLTP-TRU-5270' }
+  const last = body.last ? seq : heldLast ? BigInt(heldLast.body.seq) : null
+  if (last !== null && (seq > last || held.some((h) => BigInt(h.body.seq) > last))) return { kind: 'reject', ref: 'RLTP-TRU-5290' }
+  const chunks = { ...base.chunks, [body.seq]: { digest, threadId, body } as unknown as Json }
+  if (last === null) return { kind: 'hold', assembly: { salt, chunks } }
+  for (let i = 1n; i <= last; i++) if (!Object.hasOwn(chunks, String(i))) return { kind: 'hold', assembly: { salt, chunks } }
+  return { kind: 'complete', chunks, last }
+}
+
+/** The held bodies of a complete assembly, in seq order. */
+export const assembledBodies = (chunks: Record<string, Json>, last: bigint): Array<Record<string, Json>> => {
+  const out: Array<Record<string, Json>> = []
+  for (let i = 1n; i <= last; i++) out.push((chunks[String(i)] as unknown as Held).body)
+  return out
+}
 
 /** What stage 8 decided for one chunk. */
 type ChunkPlan<A> =
@@ -426,26 +469,13 @@ export function taskOf<V, A> (art: Artifact<V, A>, limit: number): TaskHandler<J
       const ids = { relId: rel.id, tuple: t.ownPairLabel }
       // the chunk is authenticated: a violation rejects the whole delivery (5260–5310)
       const reject = (ref: string): ChunkPlan<A> => ({ kind: 'discard', ...ids, salt: body.salt, reason: 'rejected', ref })
-      // a higher salt displaces the open assembly (5330)
-      const base: Assembly = inn.assembly && inn.assembly.salt === body.salt ? inn.assembly : { salt: body.salt, chunks: {} }
-      const seq = BigInt(body.seq)
-      if (seq > BigInt(limit)) return { kind: 'discard', ...ids, salt: body.salt, reason: 'resource-limit', ref: 'RLTP-TRU-5365' }
-      const held = Object.values(base.chunks) as unknown as Held[]
-      const same = Object.hasOwn(base.chunks, body.seq) ? base.chunks[body.seq] as unknown as Held : undefined
-      if (same && same.digest === arrival.digest) return { kind: 'repeat' }                     // 5250
-      if (held.some((h) => h.threadId !== doc.threadId)) return reject('RLTP-TRU-5280')
-      if (same) return reject('RLTP-TRU-5260')
-      const heldLast = held.find((h) => h.body.last)
-      if (body.last && heldLast) return reject('RLTP-TRU-5270')
-      const last = body.last ? seq : heldLast ? BigInt(heldLast.body.seq) : null
-      if (last !== null && (seq > last || held.some((h) => BigInt(h.body.seq) > last))) return reject('RLTP-TRU-5290')
-      const chunks = { ...base.chunks, [body.seq]: { digest: arrival.digest, threadId: doc.threadId, body } as unknown as Json }
-      let complete = last !== null
-      for (let i = 1n; complete && i <= last!; i++) if (!Object.hasOwn(chunks, String(i))) complete = false
-      if (!complete) return { kind: 'hold', ...ids, assembly: { salt: body.salt, chunks } }
+      const step = assemblyStep(inn.assembly, body.salt, body, doc.threadId, arrival.digest, limit)
+      if (step.kind === 'limit') return { kind: 'discard', ...ids, salt: body.salt, reason: 'resource-limit', ref: 'RLTP-TRU-5365' }
+      if (step.kind === 'repeat') return { kind: 'repeat' }
+      if (step.kind === 'reject') return reject(step.ref)
+      if (step.kind === 'hold') return { kind: 'hold', ...ids, assembly: step.assembly }
       // the completing chunk: the union in seq order, validated, evaluated
-      const union: Json[] = []
-      for (let i = 1n; i <= last!; i++) union.push(...art.entries((chunks[String(i)] as unknown as Held).body))
+      const union: Json[] = assembledBodies(step.chunks, step.last).flatMap((b) => art.entries(b))
       const done = await art.complete(ctx, { shared, from: t.counterpartAnchor, own, salt: body.salt, union, rel, tuple: t })
       if (!done.ok) return reject(done.ref)
       const contactId = entryOf(ctx.snapshot, rel)?.id ?? rel.contactId
