@@ -34,7 +34,9 @@ export type ActError =
   | 'prompt-expired'
 
 export type ActResult =
-  | { ok: true, outbound: Outbound[], events: HolderEvent[] }
+  /** nextDueAt: duty work this act opened or unblocked is due then (`when`:
+   *  now) — call resume at that time (engine.ts) */
+  | { ok: true, outbound: Outbound[], events: HolderEvent[], nextDueAt?: number }
   | { ok: false, code: ActError, ref?: string }
 
 /** Receiver failure dispositions (Delivery §6.2), by the stage that names them. */
@@ -60,7 +62,7 @@ export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
  * a raised lastWhen. `failed`: nothing took effect and nothing commits.
  */
 export type ReceiveResult =
-  | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[] }
+  | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[], /** as on ActResult */ nextDueAt?: number }
   | { disposition: 'duplicate-known', digest: string, outbound: Outbound[] }
   | {
     disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string,
