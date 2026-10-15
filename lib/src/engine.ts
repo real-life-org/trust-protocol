@@ -174,6 +174,7 @@ import type { Entropy, PlatformRandom } from './entropy.js'
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
 import { freezeDeep } from './util-freeze.js'
 import { ACK_TYPE } from './ack.js'
+import { challengeAged } from './encounter.js'
 import { ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js'
 import { isTaskDiscarded } from './receive.js'
 import type { Arrival, Channel, ReceivePlan, ReceivedDocument, TaskDiscarded, TaskRefusal } from './receive.js'
@@ -238,8 +239,11 @@ export interface Applied {
 export interface Refusal { ok: false, code: ActError, ref?: string, latch?: HolderState }
 
 /** The Encounter latch exception (receive.ts TaskRefusal): a latch state
- *  differs from its base in encounter.challenges alone, which it only shrinks. */
-function checkLatch (base: Readonly<HolderState>, latch: Readonly<HolderState>): void {
+ *  differs from its base in encounter.challenges alone; every challenge it
+ *  keeps is byte-identical, and every one it removes is aged at `when`, the
+ *  commit's authoritative time (Encounter 5190, 5260). Anything else is a
+ *  programming error and throws. */
+function checkLatch (base: Readonly<HolderState>, latch: Readonly<HolderState>, when: Millis): void {
   for (const k of Object.keys(base) as Array<keyof HolderState>) {
     if (k === 'encounter') continue
     if (base[k] !== latch[k]) throw new Error(`engine: an aging latch changed ${k}`)
@@ -248,7 +252,13 @@ function checkLatch (base: Readonly<HolderState>, latch: Readonly<HolderState>):
   for (const k of Object.keys(e) as Array<keyof HolderState['encounter']>) {
     if (k !== 'challenges' && e[k] !== l[k]) throw new Error(`engine: an aging latch changed encounter.${k}`)
   }
-  for (const v of Object.keys(l.challenges)) if (!Object.hasOwn(e.challenges, v)) throw new Error('engine: an aging latch added a challenge')
+  for (const [v, c] of Object.entries(l.challenges)) {
+    if (!Object.hasOwn(e.challenges, v)) throw new Error('engine: an aging latch added a challenge')
+    if (jcs(c) !== jcs(e.challenges[v])) throw new Error(`engine: an aging latch changed the challenge ${v}`)
+  }
+  for (const [v, c] of Object.entries(e.challenges)) {
+    if (!Object.hasOwn(l.challenges, v) && !challengeAged(c.tCh, when)) throw new Error(`engine: an aging latch removed the unaged challenge ${v}`)
+  }
 }
 
 /** One command of a module. `human` acts need an actId and are journaled. */
@@ -844,7 +854,7 @@ class HolderEngine implements Engine {
         const refusal: Refusal = { ok: false, code: r.code, ...(r.ref !== undefined ? { ref: r.ref } : {}) }
         if (!r.latch) return refusal
         // the Encounter latch exception: the latch and lastWhen commit, nothing else
-        checkLatch(state, r.latch)
+        checkLatch(state, r.latch, at)
         const seq = inc(state.commitSeq)
         const next: HolderState = { ...r.latch, commitSeq: seq, lastWhen: at }
         const text = encodeState(next)
@@ -1316,7 +1326,7 @@ class HolderEngine implements Engine {
               const failedDetail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) }
               if (!r.latch) return { halt: true, detail: failedDetail }
               // the Encounter latch exception (receive.ts): only the latch commits
-              checkLatch(state, r.latch)
+              checkLatch(state, r.latch, when)
               return { state: r.latch, detail: failedDetail }
             }
             if (isTaskDiscarded(r)) {
