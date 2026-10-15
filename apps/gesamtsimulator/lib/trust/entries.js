@@ -127,6 +127,8 @@ export function rewriteIdentity(state, ids, to, opts = {}) {
     opts.renames?.push({ from: [...ids], to, rkids: opts.rels ? [...rkids].sort() : null });
     let duties = null;
     for (const [id, d] of Object.entries(state.duties)) {
+        if (!isKnownDuty(d))
+            continue; // a kind or version this library does not handle stays as it is
         const x = d;
         let nd = d;
         if (d.kind === 'merge' && opts.global && Array.isArray(x.entryIds) && x.entryIds.some(from)) {

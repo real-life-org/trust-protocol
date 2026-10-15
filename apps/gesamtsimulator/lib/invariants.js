@@ -105,10 +105,12 @@
 //               (d) the same delivery: an anchor mapping issued on the
 //                   relationship in this commit meets every class-on and
 //                   re-issue of the anchor mapping owed there (6596)
-//               (e) a received document that ends a continuity flow: the
-//                   ack of a probe or continuity mapping sent on the
-//                   duty's tuple, or a continuity mapping arriving on it
-//                   (6830, 6850)
+//               (e) a received document that ends its continuity step: a
+//                   probe duty by the ack that completes an in-flight probe
+//                   (done set in this commit, 6830); a mapping duty by its
+//                   current issuance answered (aligned in this commit) —
+//                   the ack of one of that issuance's documents, or a
+//                   continuity mapping arriving on the tuple (6850)
 //               expiry: no duty kind expires yet. A duty of a kind (or
 //               version) the library does not know leaves only by (a), a
 //               module's handler: never where none is registered
@@ -407,17 +409,27 @@ export function dutyDrops(before, after, d, op) {
     if (relGone)
         return true; // (b) departed, moved
     if (d.kind === 'continuity') {
+        // (e) on receive, by the end of its own step only
         if (op.kind !== 'receive')
             return false;
         const label = d.tuple;
-        const t = before.relationships[relId]?.tuples.find((x) => x.ownPairLabel === label) ??
-            Object.values(before.relationships).flatMap((r) => r.tuples).find((x) => x.ownPairLabel === label);
-        if (!t)
+        const tb = tuplesByLabel(before).get(label), ta = tuplesByLabel(after).get(label);
+        if (!tb || !ta)
             return false;
-        const acked = op.ref !== undefined && Object.hasOwn(before.outbox, op.ref) ? before.outbox[op.ref] : undefined;
-        if (acked && acked.recipient.rkid === t.rkid && (acked.type === CONTINUITY_PROBE_TYPE || acked.type === CONTINUITY_MAPPING_TYPE))
-            return true;
-        return op.type === CONTINUITY_MAPPING_TYPE && op.rkid === t.rkid; // (e)
+        const ref = op.ref;
+        if (d.step === 'probe') {
+            // 6830: the ack that completes an in-flight probe, done set in this commit
+            if (tb.probeOut.done || !ta.probeOut.done || ref === undefined)
+                return false;
+            return Object.values(tb.probeOut.inflight).some((e) => e.digests.includes(ref) && e.digests.every((x) => x === ref || e.acked.includes(x)));
+        }
+        // 6850: the current issuance answered, aligned in this commit — by the
+        // ack of one of its own documents, or by a continuity mapping on the tuple
+        if (tb.continuityOut.aligned || !ta.continuityOut.aligned)
+            return false;
+        if (ref !== undefined)
+            return tb.continuityOut.sent.includes(ref) && before.outbox[ref]?.type === CONTINUITY_MAPPING_TYPE;
+        return op.type === CONTINUITY_MAPPING_TYPE && op.rkid === tb.rkid;
     }
     const cls = classOfDuty(d);
     if (cls === null)

@@ -1,6 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 import { classOnToward, entryOf, entryRelationships, lags, liveRel } from './state.js';
+import { isKnownDuty } from '../codec.js';
 /** The classes a class-on duty delivers (2850), in the table's order. */
 export const DUTY_CLASSES = Object.freeze(['anchorMapping', 'profile']);
 /** The classes the reconciliation of 5.4 delivers. */
@@ -9,8 +10,12 @@ export const RECONCILED = Object.freeze(['star', 'groupStar', 'sealedGroupStar']
 export const classOnId = (cls, relId) => `class-on:${cls}:${relId}`;
 /** The profile revision duty's deterministic id (6455). */
 export const profileDutyId = (relId) => `profile:${relId}`;
-/** The class a duty delivers on one relationship, or null for every other kind. */
+/** The class a duty delivers on one relationship, or null for every other
+ *  kind — and for a known kind at a version this library does not handle,
+ *  which stays opaque: never moved, dropped or checked (note §2.1). */
 export function classOfDuty(d) {
+    if (!isKnownDuty(d))
+        return null;
     if (d.kind === 'class-on')
         return d.cls;
     if (d.kind === 'reissue-mapping')

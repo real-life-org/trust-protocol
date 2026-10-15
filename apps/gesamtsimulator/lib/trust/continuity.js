@@ -159,7 +159,10 @@
 //      never chained. (Had C issued on x before rotating, x's earliest
 //      anchor would be the earlier generation and the segment would reach
 //      A; the divergent chains and the endless duty of step 3 remain.)
-// Every rule was applied as written. What 0.32 needs to decide, either:
+// Each local decision follows a rule as written (6900, 6910, 6960); the
+// refusal of step 2 is this library's conservative reading, which 6900
+// does not state; the end state violates the progress rules 6870 and
+// 6990. What 0.32 needs to decide, either:
 //   (a) order competing chainings: one deterministic winner among fresh
 //       pairs that choose the same prior (say the lower record anchor),
 //       the loser chained after the winner on both sides, so 6960's
