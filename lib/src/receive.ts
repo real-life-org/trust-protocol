@@ -123,8 +123,15 @@ export interface Arrival { rkid: string, threadId: string, digest: string, when:
 export type TaskFailure = 'malformed' | 'validation-failed' | 'stale-issuance' | 'gate-future' | 'consumed-challenge'
 
 /** A handler's refusal: nothing commits, the digest stays uncached and
- *  a redelivery is evaluated afresh (Delivery 6.2 stage 4). */
-export interface TaskRefusal { ok: false, reason: TaskFailure, ref?: string }
+ *  a redelivery is evaluated afresh (Delivery 6.2 stage 4) — with one
+ *  narrow, enumerated exception, the Encounter aging latch: an apply that
+ *  refuses because its authoritative resolution found an own challenge past
+ *  its age bound (Encounter 5260, 5270, 5290; Delivery 4.1 check 5) returns
+ *  `latch`, the state with that challenge removed, and the engine commits
+ *  exactly it (and the raised lastWhen): no cache entry, no ack, no event;
+ *  the disposition stays failed. A latch that touches anything beyond
+ *  encounter.challenges is a programming error and throws (engine.ts). */
+export interface TaskRefusal { ok: false, reason: TaskFailure, ref?: string, latch?: HolderState }
 
 /** A discard at a resource limit (Trust 5365/5366), answered by apply:
  *  `state` commits (assembly dropped, lower bound held), the disposition

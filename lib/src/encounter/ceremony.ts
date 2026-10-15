@@ -50,13 +50,13 @@
 //   - ids: the contact and the relationship of a ceremony-born tuple are
 //     named after the own fresh pair label, `c-<digest>` and `r-<digest>`
 //     (the label's digest component): unique by freshness (4.4)
-//   - the aging latch (5260) is structural: resolution compares t_ch with
-//     `when`, which the engine raises to lastWhen (4.7), and tick removes
-//     the aged values (5210, 5230: no challenge history beyond open values
-//     and records). Residual: a refused receive commits nothing, lastWhen
-//     included, so an aging observed only by a refusal latches at the next
-//     commit or tick; a clock that moves back in between re-opens nothing
-//     for committed operations (lastWhen), but such a refusal leaves no trace
+//   - the aging latch (5260, 5270): an aged value is removed (5210, 5230:
+//     no challenge history beyond open values and records), so it never
+//     resolves open again. tick removes every aged value; a bundle or an
+//     optical card refused because its authoritative resolution found its
+//     bound value aged commits that removal and the raised lastWhen even
+//     though it refuses — the Encounter latch exception of the engine
+//     (receive.ts TaskRefusal.latch): no cache entry, no ack, no journal
 //   - the scanner's own challenge c_A goes straight to its record: the
 //     record and the issuance commit together (5630: record, then issue);
 //     nothing is released before the commit, so "record before issuing"
@@ -135,6 +135,18 @@ export function resolve (state: Readonly<HolderState>, value: string, when: Mill
   if (Object.hasOwn(state.encounter.records, value)) return 'recorded'
   const c = Object.hasOwn(state.encounter.challenges, value) ? state.encounter.challenges[value] : undefined
   return !c || challengeAged(c.tCh, when) ? 'unknown' : 'open'
+}
+
+/** The aging latch (5260, 5270): where a resolution finds a held value
+ *  past its age bound, the state with that value removed — committed even
+ *  by a refusal (receive.ts, the Encounter latch exception), so a clock
+ *  that moves back never resolves it open again; else undefined. */
+function latchOf (state: Readonly<HolderState>, value: string, when: Millis): HolderState | undefined {
+  const c = Object.hasOwn(state.encounter.challenges, value) ? state.encounter.challenges[value] : undefined
+  if (!c || !challengeAged(c.tCh, when) || Object.hasOwn(state.encounter.records, value)) return undefined
+  const challenges = { ...state.encounter.challenges }
+  delete challenges[value]
+  return { ...state, encounter: { ...state.encounter, challenges } }
 }
 
 const facts = (r: Readonly<EnactmentRecord>): RecordFacts => ({ counterpart: r.counterpart, ceremony: r.ceremony, tCh: r.tCh, bind: r.bind })
@@ -322,7 +334,10 @@ const captureDef: CommandDef<CaptureInput, CapturePrep> = {
     if (isRefusal(p)) return p
     const { card } = p
     const st = resolve(state, card.boundTo, when)
-    if (st === 'unknown') return no('gate-expired', 'RLTP-ENC-5460')
+    if (st === 'unknown') {
+      const latch = latchOf(state, card.boundTo, when)
+      return { ...no('gate-expired', 'RLTP-ENC-5460'), ...(latch ? { latch } : {}) }
+    }
     if (st === 'recorded') {
       // the taxonomy of 5.5 (5430–5450)
       const r = state.encounter.records[card.boundTo]
@@ -514,7 +529,10 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
     const when = arrival.when
     const own = credential.credentialSubject.challenge as string
     const st = resolve(state, own, when)
-    if (st === 'unknown') return refuse('validation-failed', 'RLTP-ENC-5240')
+    if (st === 'unknown') {
+      const latch = latchOf(state, own, when)
+      return { ...refuse('validation-failed', 'RLTP-ENC-5240'), ...(latch ? { latch } : {}) }
+    }
     const held = st === 'open' ? state.encounter.challenges[own] : state.encounter.records[own]
     if (credential.credentialSubject.ceremony !== CEREMONY) return refuse('validation-failed', 'RLTP-ENC-5520')
     // the enacting anchor is the one that displayed the bound challenge (4.4)
