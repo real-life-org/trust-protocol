@@ -60,7 +60,8 @@
 //   register    labels, pair nonces, carriers, device names and revocation
 //               marks only grow; the community keeps its genesis and its
 //               head never falls; the lineage only extends (Identity §2); a
-//               name revoked before is never added again (§5.5); the head
+//               device.added of an act never names a name revoked before
+//               (§5.5); names and marks are sets (a state check); the head
 //               moves one generation at a time, with exactly one lineage
 //               element, onto a label persisted in an earlier commit (6360)
 //   profile     the own profile's one counter never falls and its content
@@ -217,6 +218,8 @@ function registerViolations(v, state) {
     for (const n of r.devices.revoked)
         if (!r.devices.names.includes(n))
             v.push({ invariant: 'register', detail: `revocation mark ${n} without its device name` });
+    if (new Set(r.devices.names).size !== r.devices.names.length || new Set(r.devices.revoked).size !== r.devices.revoked.length)
+        v.push({ invariant: 'register', detail: 'device names or revocation marks repeat: they are sets' });
     const lin = r.lineage;
     for (let i = 1; i < lin.length; i++)
         if (lin[i].body?.prev !== lin[i - 1].body?.next)
@@ -656,9 +659,12 @@ export function transitionViolations(before, after, op) {
     if (ra.lineage.length < rb.lineage.length || jcs(ra.lineage.slice(0, rb.lineage.length)) !== jcs(rb.lineage))
         v.push({ invariant: 'register', detail: 'the lineage did not only extend' });
     // a revoked name is never given again (Identity §5.5)
-    for (const n of ra.devices.names)
-        if (!rb.devices.names.includes(n) && rb.devices.revoked.includes(n))
-            v.push({ invariant: 'register', detail: `device name ${n} given again after its revocation` });
+    // a revoked name is never given again (§5.5): no device.added names one
+    if (op.kind === 'act') {
+        for (const e of op.events ?? [])
+            if (e.type === 'device.added' && rb.devices.revoked.includes(e.name))
+                v.push({ invariant: 'register', detail: `device name ${e.name} given again after its revocation` });
+    }
     // the head moves by one generation at a time, with one lineage element,
     // onto a label persisted in an earlier commit (6360, Identity §5.4)
     if (rb.community !== null && ra.community !== null && ra.community.head !== rb.community.head) {

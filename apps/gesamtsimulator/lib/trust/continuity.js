@@ -410,7 +410,12 @@ export function chainTuple(state, label, prior, bound) {
             rotations[id] = r;
             continue;
         }
-        const { [Rn.id]: _, ...awaitHead } = r.awaitHead;
+        // the 6596 decision of a running rotation moves to the chain like the
+        // re-issue duties (moveDuties): one re-issue owed, due at once where
+        // either was (null wins), else the chain's own wait
+        const { [Rn.id]: fresh, ...awaitHead } = r.awaitHead;
+        const own = Object.hasOwn(awaitHead, R0.id) ? awaitHead[R0.id] : undefined;
+        awaitHead[R0.id] = own === undefined ? fresh : own === null || fresh === null ? null : own;
         rotations[id] = { ...r, awaitHead };
     }
     let next = {

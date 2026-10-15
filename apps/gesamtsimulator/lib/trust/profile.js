@@ -27,7 +27,13 @@
 //   - a profile duty carries the revision that opened it; whichever profile
 //     duty runs issues the current profile (the newest content), so an older
 //     duty never sends an older revision. One issuance on a relationship
-//     meets every profile and profile class-on duty owed there
+//     meets every profile and profile class-on duty owed there. A newer
+//     revision supersedes the one still owed: two changes before a resume
+//     deliver the second only. This reads 6455 ("each new revision") through
+//     its rationale — a revision whose delivery fails for good stays
+//     undelivered until the next one, the profile replaces itself, and the
+//     receiver keeps only the newest (6460) — rather than its letter; the
+//     wording is a Trust 0.32 follow-up
 //   - the tuple keeps the revision last issued in its scope (profileOut,
 //     6300); a class turning on again sends the current revision once more,
 //     which the receiver takes as a repeat (6270)

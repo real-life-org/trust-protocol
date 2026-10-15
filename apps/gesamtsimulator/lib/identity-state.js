@@ -73,47 +73,58 @@ export const rotationDutyId = (rotationId) => `rotation:${rotationId}`;
 /** A re-issue duty's id after the rotation to generation `to` (6370). */
 export const reissueId = (to, relId) => `reissue:${to}:${relId}`;
 /**
- * Step 2 through the Log port (see the header): the precondition of §5.4
- * against head(), then append(entry, head) idempotently; head-conflict
- * re-reads. A port that throws is a failure: the rotation stays pending.
+ * Where the log stands for the rotation g → g+1 (Identity §5.4, RLTP-ACC-
+ * 5980): `present`, its generation g+1 holds this rotation (at(g+1) names
+ * this next and commit — appended by this device with its answer lost, or
+ * by another device of the same seed, the log since moved on or not);
+ * `{over}`, the device may append over that head (empty for g = 1, else
+ * the entry that introduced g: gen g, next = prev, commit = the binding of
+ * next); `behind`, the log has not reached g; `diverged`, another genesis,
+ * another entry at g+1 (a fork), or a head the rotation does not continue.
+ */
+async function standing(ctx, head, genesis, from, rot) {
+    if (head.genesis !== genesis)
+        return 'diverged';
+    if ('empty' in head)
+        return from === 1 ? { over: null } : 'behind';
+    if (head.gen >= from + 1) {
+        const e = await ctx.log.at(from + 1);
+        return e && e.next === rot.next && e.commit === rot.commit ? 'present' : 'diverged';
+    }
+    if (head.gen === from && head.next === rot.prev && head.commit === await bindingOf(rot.next, ctx.crypto.subtle))
+        return { over: head.entryId };
+    return head.gen < from ? 'behind' : 'diverged';
+}
+const headId = (h) => ('empty' in h ? null : h.entryId);
+/**
+ * Step 2 through the Log port (see the header): where the log stands, then
+ * append(entry, the persisted overHead) — only ever over the head the
+ * rotation record names, so the port's idempotence over exactly (entry,
+ * overHead) holds across a lost answer; a head that moved is persisted
+ * first ('moved'). head-conflict re-reads. A port that throws is a
+ * failure: the rotation stays pending.
  */
 async function logStep(ctx, r, genesis) {
     const log = ctx.log;
     if (!log)
         return { status: 'log-missing' };
     const rot = r.entry.rotation;
-    const from = Number(r.from);
     try {
         for (let i = 0; i < 4; i++) {
             const head = await log.head();
-            if (head.genesis !== genesis)
-                return { status: 'diverged', head };
-            let over;
-            if ('empty' in head) {
-                if (from !== 1)
-                    return { status: 'behind', head };
-                over = null;
-            }
-            else if (head.next === rot.body.next) {
-                // the log holds this rotation already (an append whose answer was
-                // lost): the closure's append again, which the log answers exists
-                over = 'empty' in r.overHead ? null : r.overHead.entryId;
-            }
-            else if (head.gen === from && head.next === rot.body.prev) {
-                // 5960: the head's binding admits next, or the log is no lineage of this register
-                if (head.commit !== await bindingOf(rot.body.next, ctx.crypto.subtle))
-                    return { status: 'diverged', head };
-                over = head.entryId;
-            }
-            else {
-                return { status: head.gen < from ? 'behind' : 'diverged', head };
-            }
-            const a = await log.append({ rotation: rot }, over);
+            const at = await standing(ctx, head, genesis, Number(r.from), rot.body);
+            if (at === 'present')
+                return { status: 'done', head };
+            if (at === 'behind' || at === 'diverged')
+                return { status: at, head };
+            if (at.over !== headId(r.overHead) || head.genesis !== r.overHead.genesis)
+                return { status: 'moved', head };
+            const a = await log.append({ rotation: rot }, at.over);
             if (a.status === 'appended' || a.status === 'exists')
                 return { status: 'done', head: a.head };
             if (a.status === 'failure')
                 return { status: 'failure', reason: a.reason };
-            // head-conflict: re-read and retry
+            // head-conflict: re-read
         }
         return { status: 'failure', reason: 'head-conflict persisted' };
     }
@@ -190,12 +201,24 @@ function completeRotation(state, r) {
     };
 }
 /** What step 2's outcome means for the rotation: completion, or why not. */
-function afterLog(state, rotationId, o) {
+function afterLog(state, rotationId, o, when) {
     const r = Object.hasOwn(state.rotations, rotationId) ? state.rotations[rotationId] : undefined;
     if (!r)
         return refuse('in-flight');
     switch (o.status) {
         case 'done': return completeRotation(state, r);
+        case 'moved': {
+            // the closure's head, persisted before any append over it; the duty
+            // runs again at once (lastAt marks the change, no dueAt)
+            const id = rotationDutyId(r.id);
+            const held = Object.hasOwn(state.duties, id) ? state.duties[id] : { kind: 'rotation', v: 1, id, rotationId: r.id };
+            const { dueAt: _, ...rest } = held;
+            const duty = { ...rest, lastAt: when };
+            return {
+                state: { ...state, rotations: { ...state.rotations, [r.id]: { ...r, overHead: o.head } }, duties: { ...state.duties, [id]: duty } },
+                duties: [duty],
+            };
+        }
         case 'behind': return refuse('log-behind', 'RLTP-ACC-5980');
         case 'diverged': return refuse('log-diverged', 'RLTP-ACC-5980');
         case 'log-missing': return refuse('log-missing');
@@ -225,7 +248,14 @@ const rotateCommand = {
             body,
             proof: { proofValue: rawProofValue(await ctx.keys.sign(prevL, bytes)), successorProofValue: rawProofValue(await ctx.keys.sign(nextL, bytes)) },
         };
+        // §5.4: the device rotates only over the log it holds — checked before
+        // anything commits, so label and 6596 decision persist only when it may
         const overHead = await ctx.log.head();
+        const at = await standing(ctx, overHead, com.genesis, g, body);
+        if (at === 'behind')
+            return { kind: 'refuse', code: 'log-behind', ref: 'RLTP-ACC-5980' };
+        if (at === 'diverged')
+            return { kind: 'refuse', code: 'log-diverged', ref: 'RLTP-ACC-5980' };
         const to = String(g + 1);
         return { kind: 'start', id: to, from: com.head, to, entry: { rotation }, overHead, label: nextL };
     },
@@ -235,7 +265,7 @@ const rotateCommand = {
             return refuse(p.code, p.ref);
         if (p.kind === 'start')
             return startRotation(state, p, when);
-        return afterLog(state, p.rotationId, p.outcome);
+        return afterLog(state, p.rotationId, p.outcome, when);
     },
 };
 /** The rotation duty (rotation/1): step 2 on resume. */
@@ -260,7 +290,7 @@ const rotationDuty = {
             const again = { ...d, attempt, lastAt: when, dueAt: Math.min(when + Math.max(0, Math.ceil(ctx.backoff(attempt))), Number.MAX_SAFE_INTEGER) };
             return { state: state, duties: [again] };
         }
-        return afterLog(state, d.rotationId, o);
+        return afterLog(state, d.rotationId, o, when);
     },
 };
 /** Whether `label` names an own anchor context: a label of the register,
@@ -268,18 +298,20 @@ const rotationDuty = {
 function ownContext(state, label) {
     if (label.startsWith('device/'))
         return false;
-    if (state.register.labels.includes(label))
-        return true;
+    // the community's generations first, bounded by the head: the label of
+    // a pending g+1 is recorded, but no key is presented under it before the
+    // rotation completes (§5.4)
     const c = state.register.community;
-    if (c === null)
-        return false;
-    const base = communityLabel(c.genesis, 1);
-    if (label === base)
-        return true;
-    if (!label.startsWith(base + '/'))
-        return false;
-    const g = BigInt(label.slice(base.length + 1));
-    return g >= 2n && g <= BigInt(c.head);
+    if (c !== null) {
+        const base = communityLabel(c.genesis, 1);
+        if (label === base)
+            return true;
+        if (label.startsWith(base + '/')) {
+            const g = BigInt(label.slice(base.length + 1));
+            return g >= 2n && g <= BigInt(c.head);
+        }
+    }
+    return state.register.labels.includes(label);
 }
 /**
  * The device key of a held, unrevoked device name under an own anchor

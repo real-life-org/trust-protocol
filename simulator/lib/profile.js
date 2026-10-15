@@ -17,10 +17,14 @@
 //     (6440, 2.1)
 //   · the picture (6435, 6475): one still picture of the declared media
 //     type whose every declared dimension is within 1024 × 1024, read from
-//     the header alone — WebP: the VP8 or VP8L frame, and in the extended
-//     (VP8X) container both its canvas and its frame; an animation (the
-//     VP8X flag, ANIM, ANMF) is no still picture; JPEG: the first SOFn
-//     marker. Unreadable is rejected. The library never decodes pixels;
+//     the header alone, the container's structure checked as far as the
+//     header goes — WebP: every chunk within the RIFF container, the whole
+//     container scanned, the VP8 or VP8L frame, and in the extended (VP8X)
+//     container both its canvas and its one frame; JPEG: the markers up to
+//     the scan, exactly one non-differential frame header, no hierarchical
+//     image. An animated profile is not allowed (6435 asks for one still
+//     picture): the VP8X animation flag, ANIM and ANMF are rejected.
+//     Unreadable is rejected. The library never decodes pixels;
 //     re-encoding without metadata (6445) is the app's duty before
 //     setProfile, as is ignoring metadata when it displays (6485)
 import { jcs, makeValidator } from './core.js';
@@ -54,52 +58,95 @@ const u16be = (b, o) => (b[o] << 8) | b[o + 1];
 const u24le = (b, o) => b[o] | (b[o + 1] << 8) | (b[o + 2] << 16);
 const u32le = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
 const ascii = (b, o, n) => String.fromCharCode(...b.subarray(o, o + n));
-/** The frame of a VP8L or VP8 chunk at offset o (its payload at o + 8). */
-function frameAt(b, o) {
+/** The frame of a VP8L or VP8 chunk at offset o (its payload at o + 8,
+ *  ending at `end`): read only within the chunk. */
+function frameAt(b, o, end) {
     const fourcc = ascii(b, o, 4), p = o + 8;
-    if (fourcc === 'VP8L' && p + 5 <= b.length && b[p] === 0x2f) {
+    if (fourcc === 'VP8L' && p + 5 <= end && b[p] === 0x2f) {
         const v = u32le(b, p + 1);
         return { width: (v & 0x3fff) + 1, height: ((v >>> 14) & 0x3fff) + 1 };
     }
-    if (fourcc === 'VP8 ' && p + 10 <= b.length && b[p + 3] === 0x9d && b[p + 4] === 0x01 && b[p + 5] === 0x2a) {
+    if (fourcc === 'VP8 ' && p + 10 <= end && b[p + 3] === 0x9d && b[p + 4] === 0x01 && b[p + 5] === 0x2a) {
         return { width: u16le(b, p + 6) & 0x3fff, height: u16le(b, p + 8) & 0x3fff };
     }
     return null;
 }
+/**
+ * WebP: the RIFF container exactly as long as it says, every chunk within
+ * it (its length bounded by the container, padded to even), the whole
+ * container scanned. The simple format is one VP8 or VP8L chunk and
+ * nothing else; the extended format starts with a VP8X chunk of 10 bytes
+ * (canvas) and holds exactly one VP8 or VP8L chunk (frame) — both
+ * declarations count. An animation (the VP8X flag, an ANIM or ANMF chunk
+ * anywhere) is no single still picture.
+ */
 function webp(b) {
-    if (b.length < 30 || ascii(b, 0, 4) !== 'RIFF' || ascii(b, 8, 4) !== 'WEBP' || u32le(b, 4) + 8 !== b.length)
+    if (b.length < 20 || ascii(b, 0, 4) !== 'RIFF' || ascii(b, 8, 4) !== 'WEBP' || u32le(b, 4) + 8 !== b.length)
         return null;
-    if (ascii(b, 12, 4) !== 'VP8X')
-        return frameAt(b, 12);
-    // the extended container declares twice: the canvas here, the frame in
-    // the VP8/VP8L chunk that follows; an animation is no still picture
-    if (u32le(b, 16) !== 10 || (b[20] & 0x02))
-        return null;
-    const canvas = { width: u24le(b, 24) + 1, height: u24le(b, 27) + 1 };
-    for (let o = 30; o + 8 <= b.length;) {
-        const fourcc = ascii(b, o, 4), size = u32le(b, o + 4);
-        if (fourcc === 'ANIM' || fourcc === 'ANMF')
+    const chunks = [];
+    for (let o = 12; o < b.length;) {
+        if (o + 8 > b.length)
             return null;
-        if (fourcc === 'VP8L' || fourcc === 'VP8 ') {
-            const f = frameAt(b, o);
-            return f === null ? null : { canvas, frame: f };
-        }
-        o += 8 + size + (size & 1);
+        const size = u32le(b, o + 4);
+        const end = o + 8 + size;
+        if (end > b.length)
+            return null;
+        chunks.push({ fourcc: ascii(b, o, 4), o, end });
+        o = end + (size & 1);
+        if (o > b.length)
+            return null;
     }
-    return null;
+    if (!chunks.length || chunks.some((c) => c.fourcc === 'ANIM' || c.fourcc === 'ANMF'))
+        return null;
+    const [first, ...rest] = chunks;
+    if (first.fourcc === 'VP8 ' || first.fourcc === 'VP8L')
+        return rest.length ? null : frameAt(b, first.o, first.end);
+    if (first.fourcc !== 'VP8X' || first.end - first.o !== 18 || (b[first.o + 8] & 0x02))
+        return null;
+    const canvas = { width: u24le(b, first.o + 12) + 1, height: u24le(b, first.o + 15) + 1 };
+    const frames = rest.filter((c) => c.fourcc === 'VP8 ' || c.fourcc === 'VP8L');
+    if (frames.length !== 1 || rest.some((c) => c.fourcc === 'VP8X'))
+        return null;
+    const frame = frameAt(b, frames[0].o, frames[0].end);
+    return frame === null ? null : { canvas, frame };
 }
+/**
+ * JPEG: the markers from SOI up to SOS, every segment length at least 2
+ * and within the data. Exactly one frame header: SOF0–3 or SOF9–11; the
+ * differential SOF5–7 and SOF13–15, DHP (a hierarchical image), JPG, a
+ * second SOF, a SOF of the wrong length, restart, SOI or EOI markers
+ * before the scan, and a SOS without a frame are rejected.
+ */
 function jpeg(b) {
-    if (b[0] !== 0xff || b[1] !== 0xd8)
+    if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8)
         return null;
-    for (let i = 2; i + 9 <= b.length;) {
-        if (b[i] !== 0xff)
+    let frame = null;
+    for (let i = 2;;) {
+        if (i >= b.length || b[i] !== 0xff)
             return null;
-        const m = b[i + 1], len = u16be(b, i + 2);
-        if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc)
-            return { width: u16be(b, i + 7), height: u16be(b, i + 5) };
-        i += 2 + len;
+        while (i < b.length && b[i] === 0xff)
+            i++; // fill bytes
+        if (i >= b.length)
+            return null;
+        const m = b[i++];
+        if (m === 0x00 || m === 0x01 || (m >= 0xd0 && m <= 0xd9))
+            return null;
+        if (i + 2 > b.length)
+            return null;
+        const len = u16be(b, i);
+        if (len < 2 || i + len > b.length)
+            return null;
+        if (m === 0xde)
+            return null; // DHP
+        if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xcc) {
+            if (!(m <= 0xc3 || (m >= 0xc9 && m <= 0xcb)) || frame !== null || len < 8 || len !== 8 + 3 * b[i + 7])
+                return null;
+            frame = { width: u16be(b, i + 5), height: u16be(b, i + 3) };
+        }
+        if (m === 0xda)
+            return frame; // SOS
+        i += len;
     }
-    return null;
 }
 /**
  * The dimensions a data URI's picture declares in its header, read before
