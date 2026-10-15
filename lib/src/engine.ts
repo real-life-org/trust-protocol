@@ -833,7 +833,7 @@ class HolderEngine implements Engine {
         this.#check(state, next,
           op.kind === 'receive' ? { kind: 'receive', ...pick('disposition'), ...pick('digest'), ...pick('type'), ...pick('ref'), ...pick('rkid') }
             : op.kind === 'resume' ? { kind: 'resume', fulfilled: d.fulfilled ?? [] }
-              : op)
+              : op.kind === 'act' ? { ...op, events } : op)
       }
       let res
       try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {

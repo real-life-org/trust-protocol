@@ -346,14 +346,19 @@ export type DeviceKeyResult =
  *  or a generation of the community anchor up to its head (§5.4). */
 function ownContext (state: Readonly<HolderState>, label: string): boolean {
   if (label.startsWith('device/')) return false
-  if (state.register.labels.includes(label)) return true
+  // the community's generations first, bounded by the head: the label of
+  // a pending g+1 is recorded, but no key is presented under it before the
+  // rotation completes (§5.4)
   const c = state.register.community
-  if (c === null) return false
-  const base = communityLabel(c.genesis, 1)
-  if (label === base) return true
-  if (!label.startsWith(base + '/')) return false
-  const g = BigInt(label.slice(base.length + 1))
-  return g >= 2n && g <= BigInt(c.head)
+  if (c !== null) {
+    const base = communityLabel(c.genesis, 1)
+    if (label === base) return true
+    if (label.startsWith(base + '/')) {
+      const g = BigInt(label.slice(base.length + 1))
+      return g >= 2n && g <= BigInt(c.head)
+    }
+  }
+  return state.register.labels.includes(label)
 }
 
 /**
