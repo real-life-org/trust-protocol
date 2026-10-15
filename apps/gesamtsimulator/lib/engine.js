@@ -136,7 +136,11 @@
 //   - a module's ownRetries are task types it re-issues itself: resume
 //     never re-emits their outbox items (the horizon still gives them up);
 //     its keepKeys name own rkids tick must not tombstone though no live
-//     tuple carries them
+//     tuple carries them. Both trust the registered modules: no ownership
+//     of a type or a key is checked (modules are the library's own, not
+//     app plug-ins)
+//   - a failure handler gets the retry backoff, so a failure can make work
+//     due no earlier than its schedule allows
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -657,7 +661,7 @@ class HolderEngine {
             const h = this.#failures.get(cur.outbox[digest].type);
             if (!h)
                 continue;
-            const r = h(cur, digest, when);
+            const r = h(cur, digest, when, { backoff: this.#policy.backoff });
             if (r.state.effects !== cur.effects)
                 throw new Error(`engine: the failure handler of ${cur.outbox[digest].type} wrote the effect cache`);
             if (r.outbound?.length)

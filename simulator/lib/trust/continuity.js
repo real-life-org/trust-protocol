@@ -48,7 +48,10 @@
 //     after the holder's retry backoff (DutyCtx.backoff, growing with its
 //     attempt) and then sends a fresh probe, next sequence, fresh padding
 //     (6710, 6830). The outbox never reproduces a probe (ownRetries); a
-//     failed chunk (report, give-up) makes the duty due at once
+//     failed chunk of the current probe (report, give-up) makes the duty
+//     due as soon as its backoff allows, max(when, lastAt +
+//     backoff(attempt)), never earlier; a superseded probe's failure
+//     touches nothing
 //   - the record side chooses the first match, in prior-candidate order,
 //     whose tuple is still the active head of a live relationship; the
 //     non-record side reports the first such match. A match report that
@@ -62,13 +65,19 @@
 //     and proof) re-sealed in a new document, same revision, a repeat at
 //     the receiver (6270), but only when no document of it is still with
 //     the outbox (whose retries are byte-identical, Delivery 4.2); a
-//     failure makes it due at once. The record side's choice stands until
+//     failure of this issuance makes it due as soon as its backoff allows. The record side's choice stands until
 //     the counterpart's mapping on the chosen relationship arrives
-//     (`aligned`; a report on it, verified again after the choice, counts),
+//     under a higher revision than it held (`aligned`; a repeat answers
+//     nothing, 6270, and the report a choice was made from is no answer),
 //     the match report until the record side's mapping is verified (6850,
 //     6860: it is never produced after), the alignment until its delivery
-//     completes (6850). A non-record side whose report already names the
-//     chosen relationship sends that report again as its answer (6930).
+//     completes (6850), counted by this issuance's documents only (`sent`
+//     is per issuance, `align` marks the alignment). The non-record side
+//     always aligns with a new issuance under the next revision, even where
+//     its report already named the chosen relationship (6930). Residue: a
+//     report the record side never saw, arriving first after the choice
+//     and naming it, is wire-identical to an alignment without a report
+//     before it and counts as the answer
 //     The outbox's retries of an issued report run to their horizon like
 //     superseded star salts; the record side rejects a lower revision
 //   - tick keeps the address key of a deactivated prior tuple while a live
@@ -176,16 +185,23 @@ const flowOpen = (t) => !t.continuityOut.aligned && (t.continuityOut.chosen !== 
  *  and issue it, so tick keeps them (engine keepKeys). */
 export function continuityKeys(state) {
     const out = new Set();
+    let byLabel = null; // every tuple by its own label, once per call
     for (const rel of Object.values(state.relationships)) {
         if (!liveRel(rel))
             continue;
         const t = activeTuple(rel);
         if (!t.priorCandidates.length || !flowOpen(t))
             continue;
+        if (!byLabel) {
+            byLabel = new Map();
+            for (const r of Object.values(state.relationships))
+                for (const x of r.tuples)
+                    byLabel.set(x.ownPairLabel, x);
+        }
         for (const pc of t.priorCandidates) {
-            const at = tupleByLabel(state, pc.ownPairLabel);
-            if (at && at.tuple.deactivated)
-                out.add(at.tuple.rkid);
+            const p = byLabel.get(pc.ownPairLabel);
+            if (p && p.deactivated)
+                out.add(p.rkid);
         }
     }
     return [...out];
@@ -203,7 +219,7 @@ function issuanceStands(t, record) {
     if (t.continuityIn.recordPrior === null)
         return true; // the match report, until the choice is verified
     const chosen = priorOf(t, t.continuityIn.recordPrior)?.ownPairLabel;
-    return o.reported === chosen && !o.aligned; // the alignment, until its delivery completes
+    return o.align && o.reported === chosen && !o.aligned; // the alignment, until its delivery completes
 }
 /** The record side of a tuple, read from its last issuance or its prior state. */
 const recordOf = (t) => {
@@ -420,7 +436,9 @@ export function chainTuple(state, label, prior, bound) {
     }
     out.push(...afterChain(next, R0.id));
     // 2145: a merge the two entries admit runs after this commit (2230)
-    out.push(...mergeDutiesAfter(state, next, R0.id, { net: false }));
+    const md = mergeDutiesAfter(state, next, R0.id, { net: false });
+    next = md.state;
+    out.push(...md.duties);
     return { state: next, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: out, renames };
 }
 /** Seal a continuity-mapping/0.1 document on tuple `t`. */
@@ -463,7 +481,10 @@ function commitIssue(state, p, set) {
         return null;
     const next = withTuple(state, p.label, (t) => ({
         ...t,
-        continuityOut: { ...t.continuityOut, rev: p.rev, body: p.body, proof: p.proof, sent: [p.outbound.digest], due: null, ...set(t.continuityOut) },
+        continuityOut: {
+            ...t.continuityOut, rev: p.rev, body: p.body, proof: p.proof, sent: [p.outbound.digest], due: null,
+            align: t.continuityIn.recordPrior !== null, ...set(t.continuityOut),
+        },
     }));
     const after = tupleByLabel(next, p.label);
     const contactId = entryOf(next, after.rel)?.id ?? p.outbound.recipient.contactId;
@@ -472,11 +493,15 @@ function commitIssue(state, p, set) {
 /** The standing mapping duty of the tuple (6840, 6850), in the state:
  *  opened (or restarted) at an issuance; its first run schedules the
  *  resend after the backoff. */
-const openMapping = (state, label, relId) => ({ ...state, duties: { ...state.duties, [mappingDutyId(label)]: { kind: 'continuity', v: 1, id: mappingDutyId(label), relId, tuple: label, step: 'mapping', attempt: 1 } } });
-/** The standing duty made due now (a failure, 6830/6840): opened if absent. */
-const dueNow = (state, d, when) => {
+const openMapping = (state, label, relId, when) => ({ ...state, duties: { ...state.duties, [mappingDutyId(label)]: { kind: 'continuity', v: 1, id: mappingDutyId(label), relId, tuple: label, step: 'mapping', attempt: 1, lastAt: when } } });
+/** The earliest time the standing duty may send again: the backoff after its last send. */
+const nextAt = (d, backoff) => Math.min((d.lastAt ?? 0) + Math.max(0, Math.ceil(backoff(Math.max(1, d.attempt ?? 1)))), Number.MAX_SAFE_INTEGER);
+/** A failure (6830/6840) makes the standing duty due as soon as its
+ *  backoff allows, never earlier: max(when, lastAt + backoff(attempt)). */
+const dueOnFailure = (state, d, when, backoff) => {
     const cur = Object.hasOwn(state.duties, d.id) ? state.duties[d.id] : d;
-    return { ...state, duties: { ...state.duties, [d.id]: { ...cur, dueAt: when } } };
+    const dueAt = cur.lastAt === undefined ? when : Math.max(when, nextAt(cur, backoff));
+    return cur.dueAt === dueAt ? state : { ...state, duties: { ...state.duties, [d.id]: { ...cur, dueAt } } };
 };
 const dropDuty = (state, id) => {
     if (!Object.hasOwn(state.duties, id))
@@ -489,7 +514,7 @@ const dropDuty = (state, id) => {
  * chainable is chained atomically with its issuance; where none was
  * prepared but some match is still chainable, the choice is owed (due).
  */
-function choose(state, label, matches, issues, bound) {
+function choose(state, label, matches, issues, bound, when) {
     for (const p of issues) {
         if (!chainable(state, label, p.prior))
             continue;
@@ -500,7 +525,7 @@ function choose(state, label, matches, issues, bound) {
         if (!i)
             continue;
         const after = tupleByLabel(i.state, label);
-        return { state: openMapping(i.state, label, after.rel.id), outbound: [i.outbound], events: c.events, duties: c.duties, renames: c.renames };
+        return { state: openMapping(i.state, label, after.rel.id, when), outbound: [i.outbound], events: c.events, duties: c.duties, renames: c.renames };
     }
     const viable = matches.filter((m) => chainable(state, label, m));
     // every candidate gone: an owed choice dies, honestly unchained (6990)
@@ -518,11 +543,11 @@ const owe = (state, label, relId) => {
     return { ...state, duties: { ...state.duties, [id]: cur } };
 };
 /** The non-record side's match report or alignment (6930): issued, or owed. */
-function issueOrOwe(state, label, prior, issue, kind) {
+function issueOrOwe(state, label, prior, issue, kind, when) {
     const at = tupleByLabel(state, label);
     const i = issue && issue.prior === prior ? commitIssue(state, issue, () => ({ reported: prior, aligned: false })) : null;
     if (i)
-        return { state: openMapping(i.state, label, at.rel.id), outbound: [i.outbound] };
+        return { state: openMapping(i.state, label, at.rel.id, when), outbound: [i.outbound] };
     const s = withTuple(state, label, (t) => ({ ...t, continuityOut: { ...t.continuityOut, due: { kind, prior } } }));
     return { state: owe(s, label, at.rel.id) };
 }
@@ -605,9 +630,12 @@ function continuityDuty(bound) {
             const p = ctx.prepared.value;
             const attempt = d.attempt ?? 0;
             // the standing duty stays, due again after the backoff (6830, 6840)
-            const again = (n) => {
+            // sent now (`sent`), or only rescheduled from the last send
+            const again = (n, sent = true) => {
                 const { dueAt: _, ...rest } = d;
-                return { ...rest, relId: at.rel.id, attempt: n, dueAt: Math.min(when + Math.max(0, Math.ceil(ctx.backoff(Math.max(1, n)))), Number.MAX_SAFE_INTEGER) };
+                const lastAt = sent ? when : (d.lastAt ?? when);
+                const next = { ...rest, relId: at.rel.id, attempt: n, lastAt };
+                return { ...next, dueAt: Math.max(when, nextAt(next, ctx.backoff)) };
             };
             if (d.step === 'probe') {
                 if (!probeOwed(state, t))
@@ -638,7 +666,7 @@ function continuityDuty(bound) {
             if (w.kind === 'choice') {
                 if (o.chosen !== null || o.due?.kind !== 'choice')
                     return { state: withTuple(state, d.tuple, (x) => ({ ...x, continuityOut: { ...x.continuityOut, due: null } })) };
-                const r = choose(state, d.tuple, [o.due.prior, ...o.due.alts], w.issues, bound);
+                const r = choose(state, d.tuple, [o.due.prior, ...o.due.alts], w.issues, bound, when);
                 if (r.outbound?.length)
                     return { ...r, duties: [...(r.duties ?? []), again(1)] };
                 // still owed (no key for any candidate): the duty stays; else every candidate is gone
@@ -660,8 +688,8 @@ function continuityDuty(bound) {
             const record = recordOf(t);
             if (record === null || !issuanceStands(t, record))
                 return { state: state };
-            if (d.dueAt === undefined || o.sent.some((x) => pending(state, x)))
-                return { state: state, duties: [again(Math.max(1, attempt))] };
+            if (when < nextAt(d, ctx.backoff) || o.sent.some((x) => pending(state, x)))
+                return { state: state, duties: [again(Math.max(1, attempt), false)] };
             const resend = w.outbound;
             return {
                 state: withTuple(state, d.tuple, (x) => ({ ...x, continuityOut: { ...x.continuityOut, sent: [...x.continuityOut.sent, resend.digest] } })),
@@ -692,12 +720,15 @@ const probeAck = (state, ref) => {
     return { state: done ? dropDuty(next, probeDutyId(at.tuple.ownPairLabel)) : next };
 };
 /** A failed probe chunk: the fresh probe is due at once (6710, 6830). */
-const probeFailed = (state, ref, when) => {
+const probeFailed = (state, ref, when, { backoff }) => {
     const at = tupleByRkid(state, state.outbox[ref].recipient.rkid);
     if (!at || !liveHead(state, at.tuple.ownPairLabel) || !probeOwed(state, at.tuple))
         return { state: state };
+    // only the current probe's failure counts; a superseded one's touches nothing
+    if (!(at.tuple.probeOut.inflight[at.tuple.probeOut.seq]?.digests ?? []).includes(ref))
+        return { state: state };
     const label = at.tuple.ownPairLabel;
-    return { state: dueNow(state, { kind: 'continuity', v: 1, id: probeDutyId(label), relId: at.rel.id, tuple: label, step: 'probe' }, when) };
+    return { state: dueOnFailure(state, { kind: 'continuity', v: 1, id: probeDutyId(label), relId: at.rel.id, tuple: label, step: 'probe' }, when, backoff) };
 };
 /** The alignment delivered: its duty ends (6850). */
 const mappingAck = (state, ref) => {
@@ -706,13 +737,14 @@ const mappingAck = (state, ref) => {
         return { state: state };
     const t = at.tuple;
     const rp = t.continuityIn.recordPrior;
-    if (rp === null || t.continuityOut.reported !== priorOf(t, rp)?.ownPairLabel)
+    // only the alignment's own documents (this issuance's `sent`) complete it
+    if (rp === null || !t.continuityOut.align || t.continuityOut.reported !== priorOf(t, rp)?.ownPairLabel)
         return { state: state };
     const next = withTuple(state, t.ownPairLabel, (x) => ({ ...x, continuityOut: { ...x.continuityOut, aligned: true } }));
     return { state: t.continuityOut.due ? next : dropDuty(next, mappingDutyId(t.ownPairLabel)) };
 };
 /** A failed mapping that still stands: the resend is due at once (6840). */
-const mappingFailed = (state, ref, when) => {
+const mappingFailed = (state, ref, when, { backoff }) => {
     const at = tupleByRkid(state, state.outbox[ref].recipient.rkid);
     if (!at || !liveHead(state, at.tuple.ownPairLabel))
         return { state: state };
@@ -723,7 +755,7 @@ const mappingFailed = (state, ref, when) => {
     if (t.continuityOut.sent.some((x) => pending(state, x)))
         return { state: state };
     const label = t.ownPairLabel;
-    return { state: dueNow(state, { kind: 'continuity', v: 1, id: mappingDutyId(label), relId: at.rel.id, tuple: label, step: 'mapping', attempt: 1 }, when) };
+    return { state: dueOnFailure(state, { kind: 'continuity', v: 1, id: mappingDutyId(label), relId: at.rel.id, tuple: label, step: 'mapping', attempt: 1 }, when, backoff) };
 };
 const maxDec = (a, b) => (BigInt(a) >= BigInt(b) ? a : b);
 function probeTask(bound, limit) {
@@ -798,7 +830,7 @@ function probeTask(bound, limit) {
             }
             return { kind: 'complete', label, probe: body.probe, matches, record, issues };
         },
-        apply(state, prepared) {
+        apply(state, prepared, _doc, arrival) {
             const p = prepared.value;
             if (p.kind === 'repeat')
                 return { state: state };
@@ -816,12 +848,12 @@ function probeTask(bound, limit) {
             if (p.record) {
                 if (t.continuityOut.chosen !== null)
                     return { state: next };
-                return choose(next, p.label, p.matches, p.issues, bound);
+                return choose(next, p.label, p.matches, p.issues, bound, arrival.when);
             }
             if (t.continuityOut.reported !== null || t.continuityIn.recordPrior !== null)
                 return { state: next };
             const m = p.issues[0]?.prior ?? p.matches.find((x) => chainable(next, p.label, x)) ?? p.matches[0];
-            return issueOrOwe(next, p.label, m, p.issues[0] ?? null, 'report');
+            return issueOrOwe(next, p.label, m, p.issues[0] ?? null, 'report', arrival.when);
         },
     };
 }
@@ -857,15 +889,13 @@ function mappingTask(bound) {
             const ownPrior = (await ctx.keys.anchorOf(pc.ownPairLabel)).anchor;
             const o = t.continuityOut;
             let issue = null;
-            if (senderRecord && o.reported !== pc.ownPairLabel)
+            // the alignment (6930): a new issuance under the next revision, even
+            // where an earlier report already named this relationship
+            if (senderRecord && !(o.align && o.reported === pc.ownPairLabel))
                 issue = await prepareIssue(ctx, t.ownPairLabel, pc.ownPairLabel);
             if (!senderRecord && o.chosen === null && chainable(st, t.ownPairLabel, pc.ownPairLabel))
                 issue = await prepareIssue(ctx, t.ownPairLabel, pc.ownPairLabel);
-            let answer = null;
-            if (senderRecord && o.reported === pc.ownPairLabel && !o.aligned && o.body !== null && o.proof !== null) {
-                answer = await mappingDocument(ctx, t, entryOf(st, at.rel)?.id ?? at.rel.contactId, own, { body: o.body, proof: o.proof });
-            }
-            return { label: t.ownPairLabel, prior: pc.ownPairLabel, senderRecord, ownPrior, issue, answer };
+            return { label: t.ownPairLabel, prior: pc.ownPairLabel, senderRecord, ownPrior, issue };
         },
         // step 6 (6970): the revision rule with the record freeze, and what follows
         apply(state, prepared, doc, arrival) {
@@ -879,11 +909,9 @@ function mappingTask(bound) {
             const cur = BigInt(t.continuityIn.rev);
             if (rev === cur) {
                 // a repeat is ignored (6270); another body under it an equivocation
+                // a repeat changes nothing, not even an open duty: it answers no choice
                 if (t.continuityIn.body === null || jcs(b) !== jcs(t.continuityIn.body))
                     return refuse('validation-failed', 'RLTP-TRU-6270');
-                // a report on the chosen relationship, again after the choice: the answer (6840)
-                if (!p.senderRecord && t.continuityOut.chosen === p.prior && !t.continuityOut.aligned)
-                    return { state: answered(state, p.label) };
                 return { state: state };
             }
             if (rev < cur)
@@ -906,22 +934,18 @@ function mappingTask(bound) {
                 const x = tupleByLabel(next, p.label).tuple;
                 if (x.continuityOut.due?.kind === 'report')
                     next = withTuple(next, p.label, (y) => ({ ...y, continuityOut: { ...y.continuityOut, due: null } }));
-                if (x.continuityOut.reported === p.prior) {
-                    // the earlier report names the chosen relationship: sent again as
-                    // the answer, under its revision; its delivery ends the duty (6850)
-                    if (x.continuityOut.aligned || !p.answer)
-                        return { ...out, state: next };
-                    next = withTuple(next, p.label, (y) => ({ ...y, continuityOut: { ...y.continuityOut, sent: [...y.continuityOut.sent, p.answer.digest] } }));
-                    const contactId = entryOf(next, tupleByLabel(next, p.label).rel)?.id ?? p.answer.recipient.contactId;
-                    return merge(out, { state: openMapping(next, p.label, tupleByLabel(next, p.label).rel.id), outbound: [{ ...p.answer, recipient: { ...p.answer.recipient, contactId } }] });
-                }
-                return merge(out, issueOrOwe(next, p.label, p.prior, p.issue, 'align'));
+                // a higher revision of the same choice, already aligned to: nothing new
+                if (x.continuityOut.align && x.continuityOut.reported === p.prior)
+                    return { ...out, state: next };
+                return merge(out, issueOrOwe(next, p.label, p.prior, p.issue, 'align', arrival.when));
             }
             // a match report (6910, 6920): it informs the choice, never chains by itself
             const x = tupleByLabel(next, p.label).tuple;
             if (x.continuityOut.chosen === null)
-                return choose(next, p.label, [p.prior], p.issue ? [p.issue] : [], bound);
-            // the counterpart's mapping on the chosen relationship answers the choice (6840)
+                return choose(next, p.label, [p.prior], p.issue ? [p.issue] : [], bound, arrival.when);
+            // the counterpart's mapping on the chosen relationship, verified under a
+            // higher revision than any it held, answers the choice (6840); the
+            // report a choice was made from is not its answer
             if (x.continuityOut.chosen === p.prior)
                 next = answered(next, p.label);
             return { state: next };

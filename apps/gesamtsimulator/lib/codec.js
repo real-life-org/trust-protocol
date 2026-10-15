@@ -148,7 +148,7 @@ const tuple = obj({
     starOut, starIn, groupStarOut, groupStarIn,
     probeOut: obj({ seq: dec, inflight: rec(obj({ digests: arr(str), acked: arr(str) })), done: bool }),
     probeIn: obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly) }),
-    continuityOut: obj({ rev: dec, body: json, proof: json, sent: arr(str), chosen: nullable(str), reported: nullable(str), aligned: bool, due: nullable(continuityDue) }),
+    continuityOut: obj({ rev: dec, body: json, proof: json, sent: arr(str), align: bool, chosen: nullable(str), reported: nullable(str), aligned: bool, due: nullable(continuityDue) }),
     continuityIn: obj({ rev: dec, body: json, recordPrior: nullable(str) }),
     mappingOut: obj({ rev: dec, body: json, underAnchor: nullable(str) }),
     mappingIn: obj({ rev: dec, body: json, self: nullable(str), card: json }),
@@ -204,7 +204,7 @@ const KNOWN_DUTIES = {
     'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
     'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }, DUE) },
     profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }, DUE) },
-    continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural }) },
+    continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural, lastAt: millis }) },
     merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str, witness: obj({ heads: rec(str), superseded: rec(set(str)) }) }, DUE) },
 };
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
