@@ -71,6 +71,7 @@ export const emptyTuple = (spec: TupleSpec & { entryId: string }): Tuple => ({
   continuityIn: { rev: '0', body: null, recordPrior: null },
   mappingOut: { rev: '0', body: null, underAnchor: null },
   mappingIn: { rev: '0', body: null, self: null, card: null },
+  profileOut: { rev: '0' },
   profileIn: { rev: '0', body: null, verifiedSeq: '0' },
   deactivated: false,
   ...spec,

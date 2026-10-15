@@ -151,6 +151,7 @@ const tuple = obj({
   continuityIn: obj({ rev: dec, body: json, recordPrior: nullable(str) }),
   mappingOut: obj({ rev: dec, body: json, underAnchor: nullable(str) }),
   mappingIn: obj({ rev: dec, body: json, self: nullable(str), card: json }),
+  profileOut: obj({ rev: dec }),
   profileIn: obj({ rev: dec, body: json, verifiedSeq: dec }),
   deactivated: bool,
 })

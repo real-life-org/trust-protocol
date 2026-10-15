@@ -53,9 +53,10 @@ export {
 export type { TrustMergeInput, TrustDepartInput } from './trust/entries.js'
 export {
   DUTY_CLASSES, RECONCILED, classOnId, profileDutyId, classOfDuty, owedOn, onFor, onRelationships, classOnDuty, dropOff, followClasses, moveDuties, afterChain,
-  classOnHandler, profileDuty,
+  classOnHandler,
 } from './trust/duties.js'
 export { promptsModule, collectDecisions } from './prompts.js'
+export { PROFILE_SET, profileIssueDuty, profileTask, profileParts } from './trust/profile.js'
 export { identityModule, IDENTITY_COMMANDS, GENERATION_LAST, withLabel, withPairNonce, deviceKeyOf, rotationDutyId, reissueId } from './identity-state.js'
 export type { DeviceInput, DeviceKeyResult } from './identity-state.js'
 export { stateViolations, transitionViolations, commitViolations, dutyDrops } from './invariants.js'

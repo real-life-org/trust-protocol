@@ -82,6 +82,11 @@ export * from './carrier-holder.js'
 /** @deprecated The probe-world Trust Layer API; apps use createHolder.
  *  Kept until its consumers (the gesamtsimulator) move in PR 7; nothing
  *  new is added to it. */
+export {
+  PROFILE_TYPE, PROFILE_LIMITS, profileSchemaOk, imageDimensions, imageWithinBounds, profileProblem, profileInfo, profileKey,
+  assembleProfile, profileMacOk,
+} from './profile.js'
+export type { ProfileContent, ProfileBody, ProfileArtifact, Dimensions, ImageDimensions } from './profile.js'
 export * as visibility from './visibility.js'
 /** @deprecated The probe-world ceremony API; apps use createHolder.
  *  Kept until its consumers move in PR 7; nothing new is added to it. */

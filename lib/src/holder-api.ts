@@ -26,6 +26,7 @@
 //   addDevice(name, opts)                     identity.addDevice        human
 //   revokeDevice(name, opts)                  identity.revokeDevice     human
 //   rotateAnchor(opts)                        identity.rotate           human
+//   setProfile({name, image?, text?}, opts)   profile.set               human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -54,6 +55,8 @@ import { toOpaque } from './state.js'
 import { trustModule } from './trust/mapping.js'
 import { IDENTITY_COMMANDS, deviceKeyOf, identityModule } from './identity-state.js'
 import type { DeviceKeyResult } from './identity-state.js'
+import { PROFILE_SET } from './trust/profile.js'
+import type { ProfileContent } from './profile.js'
 import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass } from './state.js'
 import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
@@ -108,6 +111,10 @@ export interface Holder {
    *  closure, 6596 decided) when none runs, else step 2 of the running one
    *  through the Log port; resume carries step 2 on its own (identity-state.ts) */
   rotateAnchor (opts: HumanActOptions): Promise<ActResult>
+  /** the own profile (Trust 6b): validated (6430, 6435, 6475), the next
+   *  revision of the one counter (6450), delivered on every relationship
+   *  the profile class is on for (6455); human */
+  setProfile (content: ProfileContent, opts: HumanActOptions): Promise<ActResult>
   /** the device key of a held, unrevoked device name under an own anchor
    *  context (Identity §5.5); reads, changes nothing */
   deviceKey (name: string, contextLabel: string): Promise<DeviceKeyResult>
@@ -161,6 +168,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
       human(ENTRY_COMMANDS.depart, o?.relationshipId === undefined ? { contactId } : { contactId, relationshipId: o.relationshipId }, o),
     recover: (o: { when: Millis }) => engine.act(TRUST_COMMANDS.recover, {}, o?.when as Millis),
     rotateAnchor: (o: HumanActOptions) => human(IDENTITY_COMMANDS.rotate, {}, o),
+    setProfile: (content: ProfileContent, o: HumanActOptions) => human(PROFILE_SET, content, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

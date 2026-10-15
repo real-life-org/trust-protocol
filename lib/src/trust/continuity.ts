@@ -125,7 +125,7 @@
 //     follow rule)
 //   - 6465 (the profile on the new head after a chaining): the chaining
 //     opens the profile's class-on duty on the chain (trust/duties.ts
-//     afterChain); delivering it is profile@1's, PR 6
+//     afterChain), which trust/profile.ts delivers
 //   - the class duties of both relationships move to the chain and the
 //     follow rule runs over the chaining (trust/duties.ts)
 //

@@ -202,6 +202,9 @@ export interface Tuple {
   mappingOut: { rev: Dec, body: Json | null, underAnchor: string | null }
   /** verified anchor mapping, its self and card */
   mappingIn: { rev: Dec, body: Json | null, self: string | null, card: Json | null }
+  /** the profile revision last issued in this tuple's scope (6300, 6450):
+   *  the one counter's value it went out under, "0" before any */
+  profileOut: { rev: Dec }
   /** verified profile (6b.2) */
   profileIn: { rev: Dec, body: Json | null, verifiedSeq: Dec }
   deactivated: boolean

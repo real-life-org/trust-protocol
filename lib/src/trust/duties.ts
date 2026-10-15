@@ -22,8 +22,8 @@
 //   - anchor mapping: class-on/1 `class-on:anchorMapping:<relId>` (2850)
 //     and reissue-mapping/1 (6370, 6596)
 //   - profile: class-on/1 `class-on:profile:<relId>` (2850, 6455) and
-//     profile/1 `profile:<relId>` for a new revision (6455). Both kinds
-//     wait ('not-due') until profile@1 graduates in PR 6
+//     profile/1 `profile:<relId>` for a new revision (6455), both issued by
+//     trust/profile.ts
 //
 // The follow rule (followClasses), run on (before, after) of a transition:
 //   open  per live relationship and duty class: on for it now and not
@@ -43,7 +43,7 @@
 //   - the profile class-on duty opens only where an own profile exists
 //     (state.profile.body): 2850 and 6455 owe "the class's current
 //     artifact", and before the first profile there is none. A profile set
-//     later goes out by its own revision duty (6455, PR 6)
+//     later goes out by its own revision duty (6455, trust/profile.ts)
 //   - 6465 (the profile on the new head after a chaining, a SHOULD) is
 //     followed: the chaining opens the profile's class-on duty on the
 //     chain where the class is on for it (afterChain)
@@ -206,7 +206,8 @@ export function afterChain (state: Readonly<HolderState>, relId: string, extra: 
 /**
  * The class-on/1 handler: a reconciled class is fulfilled without sending
  * (its sweep runs in the same resume after the duties, 5850); a class with
- * a handler in `byClass` runs it; any other (the profile until PR 6) waits.
+ * a handler in `byClass` runs it (the anchor mapping, the profile); any
+ * other waits.
  */
 export function classOnHandler (byClass: Partial<Record<TrustClass, DutyHandler>>): DutyHandler {
   const of = (d: Duty): TrustClass => (d as ClassOnDuty).cls
@@ -224,10 +225,6 @@ export function classOnHandler (byClass: Partial<Record<TrustClass, DutyHandler>
     },
   }
 }
-
-/** profile/1 (6455): a stub until profile@1 graduates in PR 6. The duty
- *  is opened, moved and dropped by the rules above; delivering it waits. */
-export const profileDuty: DutyHandler = Object.freeze({ v: 1, apply: () => 'not-due' as const })
 
 /** Every relationship of `c` the class is on for (2820, 2850): for tests and views. */
 export const onRelationships = (state: Readonly<HolderState>, c: Readonly<Contact>, cls: TrustClass): string[] =>

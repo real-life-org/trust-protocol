@@ -49,8 +49,9 @@
 //   owed        a duty class on for a live relationship (2850, 6595) with
 //               an artifact to send has it out or owed there: the anchor
 //               mapping issued on the active tuple or a class-on or
-//               re-issue duty open on it; the profile (once one exists) a
-//               class-on or profile duty open on it until PR 6 delivers it
+//               re-issue duty open on it; the profile (once one exists)
+//               issued at the counter's revision on the active tuple
+//               (profileOut) or a class-on or profile duty open on it
 //
 // Over one commit (transitionViolations):
 //   commitSeq   strictly +1 per commit; lastWhen never falls (4.7)
@@ -113,7 +114,10 @@
 //                   revision
 //               (d) the same delivery: an anchor mapping issued on the
 //                   relationship in this commit meets every class-on and
-//                   re-issue of the anchor mapping owed there (6596)
+//                   re-issue of the anchor mapping owed there (6596); a
+//                   profile issued there (its revision rose on the active
+//                   tuple, or a profile duty owed there was fulfilled)
+//                   meets every class-on and profile duty owed there
 //               (e) a received document that ends its continuity step: a
 //                   probe duty by the ack that completes an in-flight probe
 //                   (done set in this commit, 6830); a mapping duty by its
@@ -301,7 +305,8 @@ export function stateViolations (state: Readonly<HolderState>): Violation[] {
     if (!liveRel(r)) continue
     for (const cls of ['anchorMapping', 'profile'] as const) {
       if (!hasArtifact(state, cls) || !onFor(state, r, cls)) continue
-      const out = cls === 'anchorMapping' && r.tuples.find((t) => t.ownPairLabel === r.activeHead)!.mappingOut.body !== null
+      const head = r.tuples.find((t) => t.ownPairLabel === r.activeHead)!
+      const out = cls === 'anchorMapping' ? head.mappingOut.body !== null : head.profileOut.rev === state.profile.revision
       if (!out && !duties.some((d) => owedOn(d, r.id, cls))) v.push({ invariant: 'owed', detail: `${r.id}: the ${cls} class is on for it, nothing is out there and no duty owes it (2850)` })
     }
   }
@@ -352,6 +357,7 @@ function freshViolations (t: Readonly<Tuple>): string[] {
   if (t.continuityOut.rev !== '0' || t.continuityOut.body !== null) out.push('continuityOut')
   if (t.continuityIn.rev !== '0' || t.continuityIn.body !== null) out.push('continuityIn')
   if (t.profileIn.rev !== '0' || t.profileIn.body !== null) out.push('profileIn')
+  if (t.profileOut.rev !== '0') out.push('profileOut')
   if (t.deactivated) out.push('deactivated')
   return out
 }
@@ -450,6 +456,15 @@ export function dutyDrops (before: Readonly<HolderState>, after: Readonly<Holder
     if (same.some((x) => dueOf(x) <= dueOf(d) && (waits !== null || (x as { awaitHead: string | null }).awaitHead === null))) return true
   }
   if (d.kind === 'profile' && same.some((x) => BigInt((x as { rev: string }).rev) >= BigInt((d as { rev: string }).rev))) return true
+  // (d) the profile went out on the relationship in this commit: its
+  // revision rose there, or a profile duty owed there was fulfilled
+  if (cls === 'profile') {
+    const was = before.relationships[relId], now = after.relationships[relId]
+    const head = now.tuples.find((x) => x.ownPairLabel === now.activeHead)
+    const prior = was?.tuples.find((x) => x.ownPairLabel === now.activeHead)
+    if (head && prior && big(head.profileOut.rev) > big(prior.profileOut.rev)) return true
+    if (op.kind === 'resume' && (op.fulfilled ?? []).some((id) => Object.hasOwn(before.duties, id) && owedOn(before.duties[id], relId, 'profile'))) return true
+  }
   // (d) the anchor mapping went out on the relationship in this commit
   if (cls === 'anchorMapping') {
     const was = before.relationships[relId], now = after.relationships[relId]
@@ -596,6 +611,9 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
     seqInTransition(v, `${label} probeIn`, b.probeIn, a.probeIn)
     if (big(a.mappingOut.rev) < big(b.mappingOut.rev)) v.push({ invariant: 'salts', detail: `${label}: mapping revision fell` })
     if (big(a.continuityOut.rev) < big(b.continuityOut.rev)) v.push({ invariant: 'salts', detail: `${label}: continuity revision fell` })
+    if (big(a.profileOut.rev) < big(b.profileOut.rev)) v.push({ invariant: 'salts', detail: `${label}: profile revision issued fell` })
+    if (big(a.profileOut.rev) > big(after.profile.revision)) v.push({ invariant: 'salts', detail: `${label}: profile revision ${a.profileOut.rev} issued above the counter ${after.profile.revision} (6450)` })
+    if (big(a.profileIn.rev) < big(b.profileIn.rev)) v.push({ invariant: 'salts', detail: `${label}: the held profile revision fell (6460)` })
   }
   // a new tuple starts with fresh per-tuple state (6250): nothing migrates into it
   for (const r of Object.values(after.relationships)) {
