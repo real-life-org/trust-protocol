@@ -25,6 +25,14 @@ import * as C from './deps.js'
 import type { Person } from './deps.js'
 import { hmac, hmacU, reissueTrust, chainAdmission, withContactLock, withIssueLock } from './trust.js'
 import { buildAck, ACK_TYPE } from './acks.js'
+// the pure wire constructions, moved to the root module in lib Stage 2
+// (PR 4c) for the holder's trust module; this file's flow keeps its own
+// Person-based keys until PR 7
+export {
+  PROBE_CHUNK, probeKeyOf, blindPrior, padValue, buildProbeChunks, probeChunkOk, probeChunkMacOk,
+  continuityMacKeys, assembleContinuityMapping, continuityMacsOk, continuityMappingOk, isRecordSide,
+} from '../continuity.js'
+export type { ProbeChunk, ContinuityMapping, ContinuityMappingBody } from '../continuity.js'
 
 const say = (p: Person, m: string) => p.log.push(m)
 const CHUNK = 256
