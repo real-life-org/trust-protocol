@@ -1999,7 +1999,7 @@ carry them; it describes the library as it is.
 | Optical leg (5.8), record gate outcomes `gate-future`, `gate-expired` (5.5) | `encounter/ceremony` (holder) | `captureSentCard` |
 | Connected path, staged evaluation, acceptance steps 1–8 with their error codes (5.6, 5.8) | `encounter/ceremony`, `receive` (holder) | `receive`, with the pure checks of `encounter` (`acceptTail`, `bundleForm`, `deliveryForm`) |
 | Known credential formats and their schemas (12) | `encounter` | `CRED_FORMATS`, `credentialSchemaOf` |
-| Normative schemas, embedded for offline validation (15) | `schemas`, `wire` | the three schemas of 15 and their generated types |
+| Normative schemas, embedded for offline validation (15) | `schemas`, `wire`, on the `./testing` entry point | `SCHEMAS`, the three schemas of 15 and their generated `wire` types |
 
 The holder keeps its state behind the Store port; the app carries
 storage and transport. The simulators under `simulator/`

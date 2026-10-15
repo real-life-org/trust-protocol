@@ -54,12 +54,13 @@ Everything else convinces exactly its addressee and no one further.
 ## Status of This Document
 
 This is an Editor's Draft with no standing beyond its own argument.
-The reference library implements its artifacts and rules on its
-holder, the trust classes of Section 2a, the profile, the rule for a
-relationship that lags (6595, 6596) and the introduction act of
-Section 8 among them; a holder reads group membership from its own
-groups, not from a replicated Access roster, and one writer per holder
-stands in for several devices. The profile has conformance vectors
+The reference library implements on its holder the deliverable set
+and its admission (Section 2), the trust classes (2a), the blinded and
+the group star (5), the anchor mapping and the rotation it follows
+(6), continuity (6a), the profile (6b) and the introduction act (8);
+a holder reads group membership from its own groups, not from a
+replicated Access roster, and one writer per holder stands in for
+several devices. The profile has conformance vectors
 (`vectors/profile.json`). The next expected changes are the points the
 implementation raised for the next casting, among them how a requester
 learns the mediator's designator (8.3). The attestation is a
