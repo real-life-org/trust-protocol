@@ -394,7 +394,7 @@ function witnessOf (state: Readonly<HolderState>, cs: readonly Readonly<Contact>
   for (const c of cs) heads[c.id] = c.anchorHead!
   for (const y of cs) {
     const sup = supersededIn(entryRelationships(state, y))
-    superseded[y.id] = cs.filter((x) => x !== y && sup.has(x.anchorHead!)).map((x) => x.anchorHead!).sort(cmp)
+    superseded[y.id] = unique(cs.filter((x) => x !== y && sup.has(x.anchorHead!)).map((x) => x.anchorHead!)).sort(cmp)
   }
   return { heads, superseded }
 }

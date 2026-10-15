@@ -48,7 +48,7 @@ export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js'
 export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple } from './trust/continuity.js'
 export type { NewTupleInput } from './trust/continuity.js'
 export {
-  ENTRY_COMMANDS, mergeEntries, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending,
+  ENTRY_COMMANDS, mergeEntries, mergeDutiesAfter, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending,
 } from './trust/entries.js'
 export type { TrustMergeInput, TrustDepartInput } from './trust/entries.js'
 export {
