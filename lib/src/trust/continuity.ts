@@ -104,7 +104,9 @@
 //     is fresh unless it completed a delivery before (5810, 5820)
 //   - the entries at chaining: where both relationships hold an entry,
 //     the appended tuple keeps its entry and the chain stands behind both
-//     (2145) until a merge duty merges them; where only one holds one,
+//     (2145) until a merge duty merges them; every entry behind the chain
+//     settles its anchor head on what the chain holds (6560), so the
+//     appended tuple's entry, which may hold none yet, takes the chain's; where only one holds one,
 //     that one takes the other contact as an alias, the settings merged
 //     by 2160; where neither does, the chain's contact takes the fresh one
 //     as an alias (the chain continues; 2180 decides merges, and this is
@@ -142,9 +144,9 @@ import type { AckHandler, Applied, CommandDef, DutyHandler, EventDraft, FailureH
 import { triasOf } from '../state.js'
 import type { ClassOnDuty, Contact, ContinuityDuty, ContinuityOut, Dec, Duty, HolderState, Millis, ReissueMappingDuty, Relationship, Tuple, TupleRef } from '../state.js'
 import { emptyTuple } from '../state-builder.js'
-import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, liveRel, tupleByLabel, unionBindings } from './state.js'
+import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, findContact, liveRel, tupleByLabel, unionBindings } from './state.js'
 import { assembledBodies, assemblyStep, canComplete, chunkDocument, discardAssemblies, pairShared } from './star.js'
-import { mergeDutiesAfter, mergeInto } from './entries.js'
+import { mergeDutiesAfter, mergeInto, settleHead } from './entries.js'
 import { afterChain, classOnDuty, followClasses, moveDuties } from './duties.js'
 import { isKnownDuty } from '../codec.js'
 
@@ -405,6 +407,15 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     entryId = m.survivor
   }
   next = withTuple(next, label, (x) => ({ ...x, entryId }))
+  // 6560: the entries behind the chain settle their anchor heads on what
+  // the chain holds now — the appended tuple's entry included, which (2145)
+  // takes its verifications and may hold none of its own yet
+  for (const id of new Set([entryId, Eo?.id, En?.id].filter((x): x is string => x !== undefined))) {
+    const c = findContact(next, id)
+    if (!c) continue
+    const settled = settleHead(next, c, chain.heldCounterpartHead)
+    if (settled !== c) next = { ...next, contacts: { ...next.contacts, [c.id]: settled } }
+  }
   next = moveDuties(next, [R0.id, Rn.id], R0.id, entryId)
   // 6980, 6985: the anchor mapping on the new head, from the chain's earliest anchor (2285)
   const entry = next.contacts[entryId]
