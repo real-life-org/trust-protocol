@@ -629,7 +629,7 @@ export function trustModule (opts: TrustModuleOptions = {}): HolderModule {
     // 5.4: the star first, then the group star, each its own scope (5730)
     sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
     acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
-    // in-flight deliveries that can no longer complete leave on tick
+    // in-flight deliveries whose outbox items are all gone leave on tick
     retain: (state: Readonly<HolderState>) => retainInflight(state),
   })
 }

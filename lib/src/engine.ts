@@ -121,8 +121,8 @@
 //     commits its state and nothing else: disposition `discarded` with the
 //     reason, no cache entry, no ack, no event
 //   - after its own retention, tick runs every module's `retain` hook on
-//     the result (the trust module prunes in-flight star deliveries that
-//     can no longer complete)
+//     the result (the trust module drops in-flight star deliveries whose
+//     outbox items have all been retained away)
 //   - tick retains with the key-retention max(P90D, horizonMs): effects
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal

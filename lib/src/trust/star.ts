@@ -48,11 +48,13 @@
 //   - superseded salts are not withdrawn from the outbox: their retries
 //     run to the horizon like any item (no trias state says "superseded"),
 //     and the receiver refuses them (5150) or answers a cached duplicate
-//   - an in-flight entry that can no longer complete (a chunk unacked and
-//     failed, or gone from the outbox, where an ack could not find it) is
-//     pruned at the tuple's next production and by tick (retainInflight);
-//     a late ack after that completes nothing, and the divergence it
-//     carried is delivered again under a fresh salt
+//   - needing delivery and completing are kept apart: a delivery with a
+//     failed chunk no longer counts as in flight (the next resume issues a
+//     fresh salt), but its inflight entry (view, digests, acked) stays as
+//     long as any of its outbox items exists, so a late ack still completes
+//     it (5660; the automaton then advances on s > H only, 5670). It leaves
+//     when the last of its items has left the outbox (tick's key-retention):
+//     at the tuple's next production and by tick (retainInflight)
 //   - the star goes on every live relationship of the contact (2820), the
 //     active-head tuple of each, lagging ones included (6595); a contact
 //     with no entry yet is a recipient like any other (2760: every contact)
@@ -209,22 +211,25 @@ function viewAt<V, A> (art: Artifact<V, A>, state: Readonly<HolderState>, r: Rec
 const canComplete = (state: Readonly<HolderState>, f: Readonly<{ digests: string[], acked: string[] }>): boolean =>
   f.digests.every((d) => f.acked.includes(d) || (Object.hasOwn(state.outbox, d) && triasOf(state.outbox[d]) !== 'failed'))
 
-/** The in-flight deliveries that can still complete. */
-function livingInflight<V> (state: Readonly<HolderState>, o: Readonly<SeqOut<V>>): SeqOut<V>['inflight'] {
+/** The in-flight deliveries whose completion data is still needed: any
+ *  of their outbox items exists, failed ones included — an ack can still
+ *  arrive late for it (Delivery §6.1 failed → delivered) and complete the
+ *  salt (5660). Whether one still needs delivering is canComplete's. */
+function retainedInflight<V> (state: Readonly<HolderState>, o: Readonly<SeqOut<V>>): SeqOut<V>['inflight'] {
   const out: SeqOut<V>['inflight'] = {}
-  for (const [s, f] of Object.entries(o.inflight)) if (canComplete(state, f)) out[s] = f
+  for (const [s, f] of Object.entries(o.inflight)) if (f.digests.some((d) => Object.hasOwn(state.outbox, d))) out[s] = f
   return out
 }
 
 /** Every tuple's in-flight deliveries of both artifacts pruned to those
- *  that can still complete; tick's retention (the same state object where
- *  nothing is pruned). */
+ *  whose outbox items are not all gone; tick's retention (the same state
+ *  object where nothing is pruned). */
 export function retainInflight (state: Readonly<HolderState>): HolderState {
   let relationships: HolderState['relationships'] | null = null
   for (const rel of Object.values(state.relationships)) {
     let changed = false
     const tuples = rel.tuples.map((t) => {
-      const so = livingInflight(state, t.starOut), go = livingInflight(state, t.groupStarOut)
+      const so = retainedInflight(state, t.starOut), go = retainedInflight(state, t.groupStarOut)
       if (Object.keys(so).length === Object.keys(t.starOut.inflight).length && Object.keys(go).length === Object.keys(t.groupStarOut.inflight).length) return t
       changed = true
       return { ...t, starOut: { ...t.starOut, inflight: so }, groupStarOut: { ...t.groupStarOut, inflight: go } }
@@ -334,8 +339,8 @@ export function sweepOf<V, A> (art: Artifact<V, A>): SweepHandler<Production<V>[
         const o = art.out(tuple)
         const next: SeqOut<V> = {
           ...o, lastSalt: p.salt, exhausted: BigInt(p.salt) >= ADMISSION_BOUND,
-          // what can no longer complete leaves with the next production
-          inflight: { ...livingInflight(cur, o), [p.salt]: { view: p.view, viewDigest: p.viewDigest, digests: p.outbound.map((d) => d.digest), acked: [] } },
+          // what no ack can reach any more leaves with the next production
+          inflight: { ...retainedInflight(cur, o), [p.salt]: { view: p.view, viewDigest: p.viewDigest, digests: p.outbound.map((d) => d.digest), acked: [] } },
         }
         const tuples = rel.tuples.map((t) => (t.ownPairLabel === p.tuple ? art.withOut(t, next) : t))
         cur = { ...cur, relationships: { ...cur.relationships, [rel.id]: { ...rel, tuples } } }
