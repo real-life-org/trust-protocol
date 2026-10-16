@@ -603,7 +603,7 @@ function renameAcks (effects: HolderState['effects'], renames: readonly Identity
     let a = e.ack
     if (!a) continue
     for (const r of renames) {
-      if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.rkid))) a = { ...a, recipient: { ...a.recipient, contactId: r.to } }
+      if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.via ?? a.recipient.rkid))) a = { ...a, recipient: { ...a.recipient, contactId: r.to } }
     }
     if (a !== e.ack) (out ??= { ...effects })[d] = { ...e, ack: a }
   }

@@ -404,7 +404,7 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
     const invite = await signDoc(ctx, g.memberLabel, g.memberAnchor, cred, at)
     const inviteDoc = { id: ctx.entropy.id('doc.id'), type: INVITE_TYPE, issuer: g.memberAnchor, recipient: card.anchor, threadId, issuedAt: at, payload: { invite } }
     if (!membershipSchemaOk('payload-membership-invite.schema.json', inviteDoc.payload) || !withinBudget(inviteDoc)) return refuse('validation-failed', 'RLTP-MT-2220')
-    const out = await sealed(ctx, inviteDoc, { contactId: a.contactId, rkid: rkidOf(s, g.memberLabel) ?? '', keyAgreement: card.keyAgreement, anchor: card.anchor })
+    const out = await sealed(ctx, inviteDoc, { contactId: a.contactId, rkid: rkidOf(s, g.memberLabel) ?? '', keyAgreement: card.keyAgreement, anchor: card.anchor, via: arr.rkid })
     return { ...out, invitee: card.anchor, credDigest: await digestDoc(invite, S), invite: inviteDoc, validUntil: until }
   },
   apply (state, prepared, doc, arr) {
@@ -440,7 +440,7 @@ const inviteTask: TaskHandler<Doc, { credDigest: string }> = {
     // the contact that asked as this inviter (the prelude's binding)
     const pre = state.joining.preludes[preludeKey(toU(inv.credentialSubject.genesisDigest) ?? '', inv.issuer)]
     if (!pre) return refuse('validation-failed', 'RLTP-MT-3030')
-    return { keyAgreement: inv.credentialSubject.card.keyAgreement, contactId: pre.contactId }
+    return { keyAgreement: inv.credentialSubject.card.keyAgreement, contactId: pre.contactId, via: pre.rkid }
   },
   async prepare (ctx, doc) {
     const bad = await inviteProblem(doc, ctx.crypto.subtle)
@@ -487,7 +487,7 @@ const acceptDecision: DecisionDef<(Sealed & { acceptDigest: string }) | Refusal 
     }
     const doc = await signDoc(ctx, r.memberLabel, me.anchor, body, at)
     if (!withinBudget(doc)) return no('unknown-group', 'RLTP-MT-2220')
-    const out = await sealed(ctx, doc, { contactId: r.contactId, rkid: rkidOf(ctx.snapshot, r.memberLabel) ?? '', keyAgreement: inv.credentialSubject.card.keyAgreement, anchor: inv.issuer })
+    const out = await sealed(ctx, doc, { contactId: r.contactId, rkid: rkidOf(ctx.snapshot, r.memberLabel) ?? '', keyAgreement: inv.credentialSubject.card.keyAgreement, anchor: inv.issuer, via: r.rkid })
     return { ...out, acceptDigest: await digestDoc(doc, ctx.crypto.subtle) }
   },
   apply (state, prompt, choice, when, prepared) {
@@ -522,7 +522,7 @@ async function admissionDocs (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<
       payload: { genesisDigest: g.id, group: g.did ?? '', name: g.name, genesis: g.genesis ?? {}, vouchThreshold: g.rules.vouchThreshold, accept: acceptDigest, roster },
     }
     const doc = await signDoc(ctx, g.memberLabel, g.memberAnchor!, body, at)
-    return { welcome: await sealed(ctx, doc, { contactId: contactOfInvitation(g, acc.subject), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: acc.card.keyAgreement, anchor: acc.subject }), relays: [] }
+    return { welcome: await sealed(ctx, doc, { ...contactOfInvitation(g, acc.subject), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: acc.card.keyAgreement, anchor: acc.subject }), relays: [] }
   }
   const relays: Sealed[] = []
   for (const m of Object.values(g.roster)) {
@@ -531,7 +531,7 @@ async function admissionDocs (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<
       id: ctx.entropy.id('doc.id'), type: EVIDENCE_TYPE, issuer: g.memberAnchor!, recipient: m.anchor, threadId: (ev.accept as Doc).threadId, issuedAt: at,
       payload: { evidence: { invite: ev.invite, accept: ev.accept } },
     }
-    relays.push(await sealed(ctx, body, { contactId: m.contactId ?? 'member:' + m.anchor, rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: m.keyAgreement, anchor: m.anchor }))
+    relays.push(await sealed(ctx, body, { ...contactOfMember(m), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: m.keyAgreement, anchor: m.anchor }))
   }
   return { welcome: null, relays }
 }
@@ -541,8 +541,14 @@ const invitationOf = (g: Readonly<Group>, threadId: string, subject: string) => 
   const i = Object.hasOwn(g.invitations, threadId) ? g.invitations[threadId] : undefined
   return i && i.invitee === subject ? i : undefined
 }
-const contactOfInvitation = (g: Readonly<Group>, subject: string): string =>
-  Object.values(g.invitations).find((i) => i.invitee === subject)?.contactId ?? 'member:' + subject
+/** The contact an invitee was invited as, with the tuple its prelude went on (Recipient.via). */
+const contactOfInvitation = (g: Readonly<Group>, subject: string): { contactId: string, via?: string } => {
+  const i = Object.values(g.invitations).find((x) => x.invitee === subject)
+  return i ? { contactId: i.contactId, via: i.rkid } : { contactId: 'member:' + subject }
+}
+/** A member as a recipient's contact: the contact it is known as, with its tuple (Recipient.via). */
+const contactOfMember = (m: Readonly<RosterEntry>): { contactId: string, via?: string } =>
+  (m.contactId !== undefined ? { contactId: m.contactId, ...(m.rkid !== undefined ? { via: m.rkid } : {}) } : { contactId: 'member:' + m.anchor })
 
 const rosterEntryOf = (acc: Doc, acceptDigest: string, when: Millis, by: Readonly<OpenInvitation> | undefined): RosterEntry => ({
   anchor: acc.subject, op: oidOf(acceptDigest)!, keyAgreement: acc.card.keyAgreement,
@@ -572,7 +578,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
     const g = groupOfLabel(state, state.addresses.keys[rkid]?.label)
     const inv = g && invitationOf(g, doc.threadId, doc.issuer)
     if (!g || !inv) return refuse('validation-failed', 'RLTP-MT-3270')
-    return { keyAgreement: doc.payload.accept.card.keyAgreement, contactId: inv.contactId }
+    return { keyAgreement: doc.payload.accept.card.keyAgreement, contactId: inv.contactId, via: inv.rkid }
   },
   async prepare (ctx, doc, arr) {
     const g = groupOfLabel(ctx.snapshot, ctx.snapshot.addresses.keys[arr.rkid].label)!
@@ -617,7 +623,7 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
     if (!g || !sameDigest(g.id, inv.credentialSubject.genesisDigest)) return refuse('validation-failed', 'RLTP-MT-3755')
     const m = g.roster[doc.issuer]
     if (!m) return refuse('validation-failed', 'RLTP-MT-3750')
-    return { keyAgreement: m.keyAgreement, contactId: m.contactId ?? 'member:' + m.anchor }
+    return { keyAgreement: m.keyAgreement, ...contactOfMember(m) }
   },
   async prepare (ctx, doc, arr) {
     const { invite, accept, vouches = [] } = doc.payload.evidence
@@ -685,7 +691,7 @@ const vouchDef: CommandDef<VouchInput, VouchPrep> = {
       id: ctx.entropy.id('doc.id'), type: EVIDENCE_TYPE, issuer: g.memberAnchor, recipient: inv.issuer, threadId: (ev.accept as Doc).threadId, issuedAt: at,
       payload: { evidence: { invite: ev.invite, accept: ev.accept, vouches: [vouch] } },
     }
-    const relay = await sealed(ctx, doc, { contactId: to.contactId ?? 'member:' + to.anchor, rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: to.keyAgreement, anchor: to.anchor })
+    const relay = await sealed(ctx, doc, { ...contactOfMember(to), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: to.keyAgreement, anchor: to.anchor })
     return { group: g.id, acceptDigest, vouch, relay, welcome: null }
   },
   apply (state, prepared, input, when) {
@@ -747,7 +753,7 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
   channel (state, doc, rkid): Channel | TaskRefusal {
     const i = acceptedInvite(state, doc)
     if (!i || state.addresses.keys[rkid]?.label !== i.memberLabel) return refuse('validation-failed')
-    return { keyAgreement: (i.invite as Doc).payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId }
+    return { keyAgreement: (i.invite as Doc).payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId, via: i.rkid }
   },
   // the group stars already accepted are matched against the joined group (5520)
   async prepare (ctx, doc) {

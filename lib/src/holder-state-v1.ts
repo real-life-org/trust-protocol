@@ -123,6 +123,7 @@ export type RecipientV1 = {
   rkid: string
   keyAgreement: string
   anchor?: string
+  via?: string
 }
 
 export type EnvelopeV1 = {

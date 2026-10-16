@@ -178,7 +178,10 @@ export interface SubmissionRef { submissionId: string, digest: string }
  *  anchor, Membership 3.1); `keyAgreement` the counterpart key the
  *  envelope is sealed to; `anchor`, set where no tuple carries the
  *  document, the anchor it is addressed to (its ack's issuer, 4.2). */
-export interface Recipient { contactId: string, rkid: string, keyAgreement: string, anchor?: string }
+/** `via`: where `rkid` is no tuple's (a member key, Membership), the own
+ *  rkid of the relationship tuple the contact was named through — what a
+ *  split of the contact's entry follows (Trust 2080). */
+export interface Recipient { contactId: string, rkid: string, keyAgreement: string, anchor?: string, via?: string }
 
 /** A sealed document for the app to send. `digest` keys report();
  *  attempt > 1 is a retry. Pure JSON. */

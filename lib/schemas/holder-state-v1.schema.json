@@ -562,6 +562,9 @@
         },
         "anchor": {
           "type": "string"
+        },
+        "via": {
+          "type": "string"
         }
       },
       "required": [

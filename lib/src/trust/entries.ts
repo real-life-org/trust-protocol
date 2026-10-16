@@ -66,7 +66,8 @@
 //     was made on, never with the entry it was filed under: membership
 //     records keep the own rkid of the tuple their prelude went or arrived
 //     on (joining preludes and invites, groups' preludes and invitations,
-//     the roster entry an invitation became), introduction records the own
+//     the roster entry an invitation became, and as Recipient.via the
+//     outbox items and stored acks of documents on a member key), introduction records the own
 //     pair label toward the mediator (an offer's pin, the introducer's
 //     provenance.viaPin, the voucher mark's memory.vouchedPin); a prompt
 //     follows the record it asks about
@@ -313,7 +314,8 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
   }
   let outbox: HolderState['outbox'] | null = null
   for (const [d, it] of Object.entries(state.outbox)) {
-    if (from(it.recipient.contactId) && rkids.has(it.recipient.rkid)) (outbox ??= { ...state.outbox })[d] = { ...it, recipient: { ...it.recipient, contactId: to } }
+    // a document on a member key follows the tuple its contact was named through (Recipient.via)
+    if (from(it.recipient.contactId) && rkids.has(it.recipient.via ?? it.recipient.rkid)) (outbox ??= { ...state.outbox })[d] = { ...it, recipient: { ...it.recipient, contactId: to } }
   }
   if (!relationships && !duties && !prompts && !outbox && !joining && !groups && !encounter) return state as HolderState
   return {

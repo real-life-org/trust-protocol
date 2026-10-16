@@ -191,7 +191,10 @@ export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([
 
 /** The counterpart a `channel` binding names: the key agreement the ack
  *  is sealed to and the contact it is filed under. */
-export interface Channel { keyAgreement: string, contactId: string }
+/** The binding a document arrives under: the counterpart's key and the
+ *  contact; `via`, where the arrival key is no tuple's (a member key), the
+ *  own rkid of the tuple the contact was named through (Recipient.via). */
+export interface Channel { keyAgreement: string, contactId: string, via?: string }
 
 export const isTaskRefusal = (x: unknown): x is TaskRefusal =>
   x !== null && typeof x === 'object' && (x as TaskRefusal).ok === false && typeof (x as TaskRefusal).reason === 'string'
@@ -339,7 +342,7 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   const envelope = await seal(ackDoc, peer.keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S)
   const ack: SealedAck = {
     digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-    recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement },
+    recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement, ...(peer.via !== undefined ? { via: peer.via } : {}) },
   }
   return { kind: 'task', digest, type: doc.type as string, doc: rdoc, arrival, value, ack }
 }
