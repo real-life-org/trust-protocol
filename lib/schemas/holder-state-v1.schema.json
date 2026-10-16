@@ -445,6 +445,9 @@
               "contactId": {
                 "type": "string"
               },
+              "rkid": {
+                "type": "string"
+              },
               "memberLabel": {
                 "type": "string"
               },
@@ -477,6 +480,7 @@
               "group",
               "name",
               "contactId",
+              "rkid",
               "memberLabel",
               "invite",
               "promptId",
@@ -3222,6 +3226,9 @@
         },
         "contactId": {
           "type": "string"
+        },
+        "rkid": {
+          "type": "string"
         }
       },
       "required": [
@@ -3244,6 +3251,9 @@
         "contactId": {
           "type": "string"
         },
+        "rkid": {
+          "type": "string"
+        },
         "threadId": {
           "type": "string"
         },
@@ -3261,6 +3271,7 @@
         "invitee",
         "keyAgreement",
         "contactId",
+        "rkid",
         "threadId",
         "credDigest",
         "invite",

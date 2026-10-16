@@ -62,6 +62,12 @@
 //     the star baselines' members, so a rename alone diverges nothing; the
 //     introducer a relationship names (provenance.via) follows both; the
 //     stored acks follow through the engine (Applied.renames)
+//   - a split (2080) moves a contact reference with the relationship it
+//     was made on, never with the entry it was filed under: membership
+//     records keep the own rkid of the tuple their prelude went or arrived
+//     on (joining preludes and invites, groups' preludes and invitations,
+//     the roster entry an invitation became), a prompt follows the record
+//     it asks about
 //   - head rule (b) for the incoming relationship is read by the rationale
 //     under 6590 ("only knowledge the committed mapping newly carries
 //     connects … stale knowledge … must not create a merge"): (b) is
@@ -84,7 +90,7 @@
 // extends opens no merge, while the same relationships arriving the other
 // way round can (test/trust-ported.test.mjs, "the other direction").
 import type { CommandDef, DutyHandler, EventDraft, IdentityRename, Refusal, Applied } from '../engine.js'
-import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
+import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, Prompt, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
 import {
   CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn,
 } from './state.js'
@@ -188,17 +194,26 @@ function renameBaselines (t: Tuple, from: (id: string) => boolean, to: string): 
   return changed ? { ...t, starOut: { ...o, snapshot, snapshotDigest, inflight } } : t
 }
 
+/** The own rkid of the tuple the record a prompt asks about was made on:
+ *  a group-invite's invite; undefined where none is held. */
+function promptRkid (state: Readonly<HolderState>, p: Readonly<Prompt>): string | undefined {
+  if (p.kind === 'group-invite') return Object.values(state.joining.invites).find((i) => i.promptId === p.id)?.rkid
+  return undefined
+}
+
 /**
  * Every holder-local key that resolved through an identity in `ids` now
  * resolves through `to` (2100, 2140), within `opts`: tuples' entryId,
  * duties, the recipients of issued documents, and with `global` the
  * introducers of relationships (provenance.via), the matches of accepted
- * stars, prompts and merge duties; and the contact references of the
- * membership and introduction state — a reference that carries the rkid
- * it arrived on (joining.preludes, groups[*].preludes) follows with the
- * relationships in `opts`, the others (joining.invites, groups[*]
- * invitations and roster, encounter.offers, memory.vouchedBy) with
- * `global`. Contacts are the caller's: their ids
+ * stars and merge duties; and the contact references of the membership
+ * and introduction state and of prompts, each with the relationship of
+ * the tuple it was made on (2080): the own rkid it arrived or went on
+ * (joining preludes and invites, groups' preludes, invitations and
+ * roster) follows with the relationships in `opts`, a prompt with the
+ * record it asks about; a reference without one (encounter.offers,
+ * memory.vouchedBy, prompts of other kinds) follows with `global`.
+ * Contacts are the caller's: their ids
  * and aliases are what the rewrite follows. The stored acks follow
  * through the engine (opts.renames): only the core writes the effect
  * cache, and their sealed envelopes stay as they are. Parts without a
@@ -241,19 +256,20 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
     }
     if (nd !== d) (duties ??= { ...state.duties })[id] = nd
   }
-  let prompts: HolderState['prompts'] | null = null
-  if (opts.global) {
-    for (const [id, p] of Object.entries(state.prompts)) if (p.contactId !== undefined && from(p.contactId)) (prompts ??= { ...state.prompts })[id] = { ...p, contactId: to }
-  }
-  // membership and introduction: the contact references they keep
-  const byRkid = (rkid: string): boolean => !opts.rels || rkids.has(rkid)
+  // membership, introduction and prompts: each contact reference with the
+  // relationship of the tuple it was made on, where it names one (2080)
+  const byRkid = (rkid: string | undefined): boolean => (rkid === undefined ? !!opts.global : !opts.rels || rkids.has(rkid))
   const re = (x: string | undefined, tied: boolean): boolean => x !== undefined && from(x) && tied
+  let prompts: HolderState['prompts'] | null = null
+  for (const [id, p] of Object.entries(state.prompts)) {
+    if (re(p.contactId, byRkid(promptRkid(state, p)))) (prompts ??= { ...state.prompts })[id] = { ...p, contactId: to }
+  }
   let joining: HolderState['joining'] | null = null
   for (const [k, p] of Object.entries(state.joining.preludes)) {
     if (re(p.contactId, byRkid(p.rkid))) (joining ??= { ...state.joining, preludes: { ...state.joining.preludes } }).preludes[k] = { ...p, contactId: to }
   }
   for (const [k, i] of Object.entries(state.joining.invites)) {
-    if (re(i.contactId, !!opts.global)) {
+    if (re(i.contactId, byRkid(i.rkid))) {
       joining ??= { ...state.joining, preludes: { ...state.joining.preludes } }
       joining.invites = { ...joining.invites, [k]: { ...i, contactId: to } }
     }
@@ -261,8 +277,8 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
   let groups: HolderState['groups'] | null = null
   for (const [gid, g] of Object.entries(state.groups)) {
     const preludes = Object.fromEntries(Object.entries(g.preludes).map(([k, p]) => [k, re(p.contactId, byRkid(p.rkid)) ? { ...p, contactId: to } : p]))
-    const invitations = Object.fromEntries(Object.entries(g.invitations).map(([k, i]) => [k, re(i.contactId, !!opts.global) ? { ...i, contactId: to } : i]))
-    const roster = Object.fromEntries(Object.entries(g.roster).map(([k, m]) => [k, re(m.contactId, !!opts.global) ? { ...m, contactId: to } : m]))
+    const invitations = Object.fromEntries(Object.entries(g.invitations).map(([k, i]) => [k, re(i.contactId, byRkid(i.rkid)) ? { ...i, contactId: to } : i]))
+    const roster = Object.fromEntries(Object.entries(g.roster).map(([k, m]) => [k, re(m.contactId, byRkid(m.rkid)) ? { ...m, contactId: to } : m]))
     if (jcsEq(preludes, g.preludes) && jcsEq(invitations, g.invitations) && jcsEq(roster, g.roster)) continue
     ;(groups ??= { ...state.groups })[gid] = { ...g, preludes, invitations, roster }
   }

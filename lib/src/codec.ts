@@ -264,8 +264,8 @@ const event: V = (x, p) => {
   obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p)
 }
 
-const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str })
-const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis })
+const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str, rkid: str })
+const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, rkid: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis })
 const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at: millis })
 const groupShape = obj({
   id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
@@ -334,7 +334,7 @@ const codec1 = obj({
   joining: obj({
     preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
     invites: keyed(obj({
-      credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+      credDigest: str, group: str, name: str, contactId: str, rkid: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
       status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
     }, { acceptDigest: str }), 'credDigest'),
   }),

@@ -96,6 +96,7 @@ export type HolderStateV1 = {
       group: string
       name: string
       contactId: string
+      rkid: string
       memberLabel: string
       invite: { [k: string]: Json }
       promptId: string
@@ -669,12 +670,14 @@ export type RosterEntryV1 = {
   addedAt: MillisV1
   name?: string
   contactId?: string
+  rkid?: string
 }
 
 export type OpenInvitationV1 = {
   invitee: string
   keyAgreement: string
   contactId: string
+  rkid: string
   threadId: string
   credDigest: string
   invite: { [k: string]: Json }

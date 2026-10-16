@@ -363,6 +363,9 @@ export interface RosterEntry {
   addedAt: Millis
   /** the contact this holder knows the member as, where it does */
   contactId?: string
+  /** with contactId: the own rkid of the tuple that named the member as
+   *  that contact (its invitation's prelude), which a split follows (2080) */
+  rkid?: string
 }
 
 /** An invitation issued (Membership 3.1): the invite document as sent. */
@@ -372,6 +375,8 @@ export interface OpenInvitation {
   /** the invitee's member key agreement, from the prelude */
   keyAgreement: string
   contactId: string
+  /** the own rkid of the tuple the prelude went on, which a split follows (2080) */
+  rkid: string
   threadId: string
   /** the invitation's identity: its credential digest (RLTP-MT-2180) */
   credDigest: string
@@ -408,6 +413,8 @@ export interface ReceivedInvite {
   group: string
   name: string
   contactId: string
+  /** the own rkid of the tuple its prelude arrived on, which a split follows (2080) */
+  rkid: string
   memberLabel: string
   /** the invite document, complete */
   invite: JsonObject
