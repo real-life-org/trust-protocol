@@ -329,7 +329,7 @@ export function openTuple(state, i, rkid, when) {
     const rel = {
         id: i.relId, contactId: i.contactId, tuples: [tuple], activeHead: i.ownPairLabel, earliestAnchor: null, links: [], bindings: {},
         heldCounterpartHead: null, memory: {}, chainedInto: null, firstVerified: null,
-        provenance: { kind: i.provenance?.kind ?? 'ceremony', ...(i.provenance?.via !== undefined ? { via: i.provenance.via } : {}), at: when },
+        provenance: { kind: i.provenance?.kind ?? 'ceremony', ...(i.provenance?.via !== undefined ? { via: i.provenance.via } : {}), ...(i.provenance?.viaPin !== undefined ? { viaPin: i.provenance.viaPin } : {}), at: when },
     };
     const contact = {
         id: i.contactId, pos: null, status: 'none', aliases: [], relIds: [i.relId], anchorHead: null,
@@ -367,7 +367,8 @@ const earlierAnchor = (state, a, b) => a === null ? b : b === null ? a : generat
 const issuedUnder = (r) => [r.earliestAnchor, ...r.tuples.map((t) => t.mappingOut.underAnchor)].filter((a) => a !== null);
 const mapOf = (x) => (x !== null && typeof x === 'object' && !Array.isArray(x) ? x : {});
 /** Contact memory at a chaining (2280): the chain's wins key by key
- *  (introducedName, vouchedBy: what the earlier relationship established),
+ *  (introducedName, vouchedBy with its vouchedPin: what the earlier
+ *  relationship established),
  *  except the class-V group-star pairs (5580), merged per group with the
  *  appended relationship's winning, since it is the active head whose
  *  stars are the newer (5770). */

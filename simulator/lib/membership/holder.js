@@ -389,7 +389,7 @@ const preludeReplyTask = {
             return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } } };
         if (!p.recipient.rkid)
             throw new Error(`membership: no address key for ${g.memberLabel}`);
-        const inv = { invitee: p.invitee, keyAgreement: p.recipient.keyAgreement, contactId: p.recipient.contactId, threadId: p.threadId, credDigest: p.credDigest, invite: p.invite, validUntil: p.validUntil };
+        const inv = { invitee: p.invitee, keyAgreement: p.recipient.keyAgreement, contactId: p.recipient.contactId, rkid: arr.rkid, threadId: p.threadId, credDigest: p.credDigest, invite: p.invite, validUntil: p.validUntil };
         return {
             state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes, invitations: { ...g.invitations, [p.threadId]: inv } } } },
             outbound: [draft(p)],
@@ -430,7 +430,7 @@ const inviteTask = {
         const pre = state.joining.preludes[preludeKey(gd, inv.issuer)];
         const validUntil = Date.parse(inv.validUntil);
         const r = {
-            credDigest, group: gd, name: typeof inv.credentialSubject.name === 'string' ? inv.credentialSubject.name : '', contactId: pre.contactId,
+            credDigest, group: gd, name: typeof inv.credentialSubject.name === 'string' ? inv.credentialSubject.name : '', contactId: pre.contactId, rkid: pre.rkid,
             memberLabel: memberLabelOf(gd), invite: doc, promptId: invitePromptId(credDigest), validUntil, status: 'open', at: arr.when,
         };
         const prompt = { id: r.promptId, kind: 'group-invite', contactId: r.contactId, groupId: gd, openedAt: arr.when, expiresAt: validUntil + MEMBERSHIP_SKEW };
@@ -487,7 +487,7 @@ const acceptDecision = {
 async function admissionDocs(ctx, g, ev, acceptDigest, admit) {
     const acc = ev.accept.payload.accept;
     const at = iso(ctx.when);
-    const entry = rosterEntryOf(acc, acceptDigest, ctx.when, '');
+    const entry = rosterEntryOf(acc, acceptDigest, ctx.when, undefined);
     if (admit) {
         const roster = [...Object.values(g.roster), entry].map((m) => ({ anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}) }));
         const body = {
@@ -515,19 +515,20 @@ const invitationOf = (g, threadId, subject) => {
     return i && i.invitee === subject ? i : undefined;
 };
 const contactOfInvitation = (g, subject) => Object.values(g.invitations).find((i) => i.invitee === subject)?.contactId ?? 'member:' + subject;
-const rosterEntryOf = (acc, acceptDigest, when, contactId) => ({
+const rosterEntryOf = (acc, acceptDigest, when, by) => ({
     anchor: acc.subject, op: oidOf(acceptDigest), keyAgreement: acc.card.keyAgreement,
-    ...(typeof acc.card.name === 'string' ? { name: acc.card.name } : {}), addedAt: when, ...(contactId ? { contactId } : {}),
+    ...(typeof acc.card.name === 'string' ? { name: acc.card.name } : {}), addedAt: when, ...(by ? { contactId: by.contactId, rkid: by.rkid } : {}),
 });
 /** The admission's state: the roster grows, the evidence and the invitation go. */
 function admitted(state, g, acceptDigest, ev, when) {
     const acc = ev.accept.payload.accept;
-    const contactId = Object.values(g.invitations).find((i) => i.invitee === acc.subject)?.contactId ?? '';
+    // the contact the member was invited as, on the tuple its prelude went on
+    const by = Object.values(g.invitations).find((i) => i.invitee === acc.subject);
     // every invitation to the now member is answered
     const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, i]) => i.invitee !== acc.subject));
     const evidence = { ...g.evidence };
     delete evidence[acceptDigest];
-    const next = { ...g, roster: { ...g.roster, [acc.subject]: rosterEntryOf(acc, acceptDigest, when, contactId) }, invitations, evidence };
+    const next = { ...g, roster: { ...g.roster, [acc.subject]: rosterEntryOf(acc, acceptDigest, when, by) }, invitations, evidence };
     return { state: { ...state, groups: { ...state.groups, [g.id]: next } }, events: [{ type: 'group.admitted', groupId: g.id, member: acc.subject }] };
 }
 const acceptTask = {
@@ -738,7 +739,7 @@ const welcomeTask = {
         }
         const roster = {};
         for (const m of welcomeRoster(w.roster).values()) {
-            roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer ? { contactId: i.contactId } : {}) };
+            roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer ? { contactId: i.contactId, rkid: i.rkid } : {}) };
         }
         const g = {
             id: w.genesisDigest, name: w.name, did: w.group, genesis: w.genesis, memberLabel: i.memberLabel, rules: { vouchThreshold: w.vouchThreshold },

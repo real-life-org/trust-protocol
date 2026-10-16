@@ -162,7 +162,7 @@ const tuple = obj({
 const relationship = obj({
     id: str, contactId: str, tuples: arr(tuple), activeHead: str, earliestAnchor: nullable(str),
     links: arr(obj({ prev: str, next: str })), bindings: rec(set(str)), heldCounterpartHead: nullable(str),
-    memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str }),
+    memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str, viaPin: str }),
     chainedInto: nullable(str), firstVerified: nullable(dec),
 });
 const contact = obj({
@@ -263,8 +263,8 @@ const event = (x, p) => {
     const [req, opt = {}] = EVENT_FIELDS[t];
     obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
 };
-const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str });
-const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis });
+const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str, rkid: str });
+const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, rkid: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis });
 const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at: millis });
 const groupShape = obj({
     id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
@@ -332,7 +332,7 @@ const codec1 = obj({
     joining: obj({
         preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
         invites: keyed(obj({
-            credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+            credDigest: str, group: str, name: str, contactId: str, rkid: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
             status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
         }, { acceptDigest: str }), 'credDigest'),
     }),

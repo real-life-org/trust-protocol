@@ -160,7 +160,10 @@
 //     (README "The holder")
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
-//     outbox items have all been retained away)
+//     outbox items have all been retained away); the address keys' retention
+//     comes last, its live set and keepKeys read on what the hooks left, so
+//     a key whose last claim (an act's pin, 8290) left in this tick leaves in
+//     the same tick and no passed key deadline outlives it
 //   - without an Access port, EngineOptions.accessFrom (createHolder: the
 //     membership module's localAccess) builds one over each preparation's
 //     own snapshot, so it describes exactly the state the commit lands on
@@ -862,30 +865,7 @@ class HolderEngine {
                     const last = it.history.length ? it.history[it.history.length - 1].at : 0;
                     return last + retention > when || journaled.has(digest);
                 });
-                // addresses (Delivery §5): a key not shown for the retention, and the
-                // own rkid of no live tuple, becomes a tombstone — its id alone, kept
-                // forever; tombstones never shrink
-                const live = new Set();
-                for (const r of Object.values(state.relationships))
-                    for (const t of r.tuples)
-                        if (!t.deactivated)
-                            live.add(t.rkid);
-                // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
-                for (const k of keepers())
-                    for (const rkid of k(state))
-                        live.add(rkid);
-                const tombstones = [...state.addresses.tombstones];
-                const keys = keep(state.addresses.keys, (k, rkid) => {
-                    if (k.lastShown + retention > when || live.has(rkid))
-                        return true;
-                    // a member key (group/…) is an identity context, not a delivery
-                    // address of Delivery §5: it leaves without a tombstone, so the same
-                    // derivation can serve the same group again (a re-invitation)
-                    if (!k.label.startsWith('group/') && !tombstones.includes(rkid))
-                        tombstones.push(rkid);
-                    return false;
-                });
-                let next = dropped ? { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } : state;
+                let next = dropped ? { ...state, effects, prompts, acts, outbox } : state;
                 // the modules' own retention, on what the engine's left
                 for (const r of retainers()) {
                     const after = r(next, when);
@@ -893,6 +873,37 @@ class HolderEngine {
                         throw new Error('engine: a module\'s retain wrote the effect cache');
                     next = after;
                 }
+                // addresses (Delivery §5), on what the retention left, so a key whose
+                // last claim left in this tick leaves with it: a key not shown for the
+                // retention, and the own rkid of no live tuple, becomes a tombstone —
+                // its id alone, kept forever; tombstones never shrink
+                const held = next;
+                const live = new Set();
+                for (const r of Object.values(held.relationships))
+                    for (const t of r.tuples)
+                        if (!t.deactivated)
+                            live.add(t.rkid);
+                // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
+                for (const k of keepers())
+                    for (const rkid of k(held))
+                        live.add(rkid);
+                const tombstones = [...held.addresses.tombstones];
+                let gone = false;
+                const keys = {};
+                for (const [rkid, k] of Object.entries(held.addresses.keys)) {
+                    if (k.lastShown + retention > when || live.has(rkid)) {
+                        keys[rkid] = k;
+                        continue;
+                    }
+                    gone = true;
+                    // a member key (group/…) is an identity context, not a delivery
+                    // address of Delivery §5: it leaves without a tombstone, so the same
+                    // derivation can serve the same group again (a re-invitation)
+                    if (!k.label.startsWith('group/') && !tombstones.includes(rkid))
+                        tombstones.push(rkid);
+                }
+                if (gone)
+                    next = { ...held, addresses: { keys, tombstones } };
                 return { state: next }; // unchanged: the engine still commits a raised lastWhen
             },
         };
