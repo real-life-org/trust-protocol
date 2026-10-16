@@ -37,10 +37,14 @@
 //
 // The Stage-2 holder (contract, engine core and facade):
 //
-//   holder-api        createHolder — the facade: act, decide, receive, tick,
-//                     resume, report, subscribe, snapshot and the views:
-//                     contacts, contact, groups, profile, prompts,
-//                     deliveryStatus. Built in: the trust module (Trust
+//   holder-api        createHolder — the facade: the typed human acts
+//                     (trust, untrust, pauseTrust, setClass, setGroupClass,
+//                     merge, depart, decide; {when, actId}), recover, act,
+//                     receive, tick, resume, report, subscribe, snapshot and
+//                     the views: contacts, contact, groups, profile,
+//                     prompts, deliveryStatus; `invariants: true` checks
+//                     invariants.ts on every commit (testing mode). Built
+//                     in: the trust module (Trust
 //                     Layer 2a, 6.1–6.5, Section 2) — the human acts
 //                     trust.set, trust.setClass, trust.setGroupClass,
 //                     trust.pause, trust.merge, trust.depart, the anchor
@@ -101,7 +105,7 @@ export type { Entropy, EntropyPurpose, EntropyErrorCode, PlatformRandom } from '
 export { storeContract } from './store-contract.js'
 export { seedKeys } from './keys-seed.js'
 export { createHolder } from './holder-api.js'
-export type { Holder, HolderOptions, HolderSnapshot } from './holder-api.js'
-export type { ContactView, RelationshipView, ClassView, ContactProfileView, GroupView, ProfileView, PromptView, DeliveryItemView, DeliveryStatusView } from './views.js'
+export type { Holder, HolderOptions, HolderSnapshot, HumanActOptions } from './holder-api.js'
+export type { ContactView, RelationshipView, ClassView, SealedClassView, ClassesView, ContactProfileView, GroupView, ProfileView, PromptView, DeliveryItemView, DeliveryStatusView } from './views.js'
 export type { EnginePorts, CommitListener, CryptoHandle } from './engine.js'
 export type { ContractHarness } from './store-contract.js'

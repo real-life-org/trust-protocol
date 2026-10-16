@@ -97,6 +97,10 @@ export type InfraErrorCode =
   | 'key-provider'
   | 'log'
   | 'access'
+  /** testing mode only (createHolder's `invariants: true`): a commit would
+   *  break an invariant of invariants.ts; nothing committed, the
+   *  violations are the cause */
+  | 'invariant-violated'
 
 /** A failure of a port the host provides, never of the protocol. */
 export class InfraError extends Error {

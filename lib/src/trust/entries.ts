@@ -55,7 +55,11 @@
 //     verified ones after, then by the creation of their active heads
 //   - departure removes the relationship (and its husks) from the state;
 //     its tuples' address keys become tombstones by tick's retention. Its
-//     open duties go; its outbox items run to their horizon
+//     open duties go; its outbox items run to their horizon. An entry
+//     removed with it leaves the matches of every accepted star (6160); an
+//     entry that keeps relationships keeps its matches, though the anchors
+//     behind one may have left with the relationship (a match is not
+//     re-tested without the star's key; matches only grow otherwise)
 //   - a merge rewrites every holder-local key of the merged ids to the
 //     survivor's; a rename (2100) rewrites the remaining entry's keys and
 //     the star baselines' members, so a rename alone diverges nothing; the
@@ -79,6 +83,8 @@ import {
   CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn,
 } from './state.js'
 import { viewDigest } from './star.js'
+import { dropOff, followClasses } from './duties.js'
+import { isKnownDuty } from '../codec.js'
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 const cmpDec = (a: Dec, b: Dec): number => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0 }
@@ -90,38 +96,6 @@ export const ENTRY_COMMANDS = Object.freeze({ merge: 'trust.merge', depart: 'tru
 
 export interface TrustMergeInput { contactIds: string[] }
 export interface TrustDepartInput { contactId: string, relationshipId?: string }
-
-// ── the anchor mapping's duties ────────────────────────────────────────
-
-/** Is this duty an anchor-mapping duty owed on `relId`? */
-export const owedOn = (d: Duty, relId: string): boolean =>
-  (d.kind === 'reissue-mapping' && (d as ReissueMappingDuty).relId === relId) ||
-  (d.kind === 'class-on' && (d as ClassOnDuty).cls === 'anchorMapping' && (d as ClassOnDuty).relId === relId)
-
-/** A class-on duty of the anchor mapping on `rel`, unless one is open. */
-export const classOnDuty = (state: Readonly<HolderState>, contactId: string, relId: string, extra: readonly Duty[]): ClassOnDuty[] => {
-  const id = `class-on:anchorMapping:${relId}`
-  if (Object.hasOwn(state.duties, id) || extra.some((d) => d.id === id)) return []
-  return [{ kind: 'class-on', v: 1, id, contactId, relId, cls: 'anchorMapping' }]
-}
-
-/**
- * The anchor mapping after a merge or a split changed an entry's settings
- * (2160, 2115): where the class turned on for a relationship, its current
- * mapping is owed there (2850), unless it lags (6595); where it is off
- * toward the entry now, nothing more goes out, the owed re-issues
- * included (6410). `wasOn` names the relationships it was on for.
- */
-function settingsFollow (state: HolderState, c: Readonly<Contact>, wasOn: ReadonlySet<string>): { state: HolderState, duties: Duty[] } {
-  const rels = entryRelationships(state, c)
-  if (!classOnToward(c, 'anchorMapping')) {
-    const kept = Object.entries(state.duties).filter(([, d]) => !rels.some((r) => owedOn(d, r.id)))
-    return { state: kept.length === Object.keys(state.duties).length ? state : { ...state, duties: Object.fromEntries(kept) }, duties: [] }
-  }
-  const duties: Duty[] = []
-  for (const r of rels) if (!wasOn.has(r.id) && liveRel(r) && entryOf(state, r)?.id === c.id && !lags(r, rels)) duties.push(...classOnDuty(state, c.id, r.id, duties))
-  return { state, duties }
-}
 
 // ── the anchor head and admission ──────────────────────────────────────
 
@@ -244,6 +218,7 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
   opts.renames?.push({ from: [...ids], to, rkids: opts.rels ? [...rkids].sort() : null })
   let duties: HolderState['duties'] | null = null
   for (const [id, d] of Object.entries(state.duties)) {
+    if (!isKnownDuty(d)) continue   // a kind or version this library does not handle stays as it is
     const x = d as unknown as Record<string, unknown>
     let nd: Duty = d
     if (d.kind === 'merge' && opts.global && Array.isArray(x.entryIds) && (x.entryIds as string[]).some(from)) {
@@ -350,14 +325,13 @@ export function mergeInto (state: Readonly<HolderState>, survivor: Readonly<Cont
     anchorHead: survivor.anchorHead ?? positioned.find((c) => c.anchorHead !== null)?.anchorHead ?? null,
     settings, groupSettings,
   }
-  // per relationship, from the entry it sent under before (2146): a chain
-  // behind two entries was on only where the entry it fed had the class on
-  const wasOn = new Set(all.filter((c) => classOnToward(c, 'anchorMapping')).flatMap((c) => feeding(state, c).map((r) => r.id)))
   const renames: IdentityRename[] = []
   let next: HolderState = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames })
   next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } }
-  const f = settingsFollow(next, next.contacts[id], wasOn)
-  next = admitPending(f.state, bound)
+  // the class duties of the merged settings (2160, 2850, 6410): per
+  // relationship against the entry it sent under before (2146)
+  const f = followClasses(state, admitPending(next, bound))
+  next = f.state
   return {
     state: next, events: [{ type: 'contact.merged', contactId: id, merged: [...merged].sort(cmp) }],
     ...(f.duties.length ? { duties: f.duties } : {}), renames, survivor: id,
@@ -421,7 +395,7 @@ function witnessOf (state: Readonly<HolderState>, cs: readonly Readonly<Contact>
   for (const c of cs) heads[c.id] = c.anchorHead!
   for (const y of cs) {
     const sup = supersededIn(entryRelationships(state, y))
-    superseded[y.id] = cs.filter((x) => x !== y && sup.has(x.anchorHead!)).map((x) => x.anchorHead!).sort(cmp)
+    superseded[y.id] = unique(cs.filter((x) => x !== y && sup.has(x.anchorHead!)).map((x) => x.anchorHead!)).sort(cmp)
   }
   return { heads, superseded }
 }
@@ -549,8 +523,8 @@ export function splitOff (state: Readonly<HolderState>, relId: string): { state:
   // the remaining entry's keys that resolved through the old identity (2100)
   if (eId !== E.id) next = rename(next, E.id, eId, (id) => id !== relId, renames)
   next = { ...next, contacts: { ...next.contacts, [eId]: settleHead(next, next.contacts[eId]) } }
-  // the leaver's anchor mapping class starts at default, off (2115, 6410)
-  next = settingsFollow(next, next.contacts[identity], new Set(classOnToward(E, 'anchorMapping') ? [relId] : [])).state
+  // the leaver's classes start at default (2115): the trusted contacts' classes off with the anchor mapping (6410)
+  next = dropOff(next).state
   return { state: next, event: { type: 'contact.split', contactId: eId, leaver: identity, relationshipId: relId }, renames }
 }
 
@@ -559,6 +533,21 @@ export function splitOff (state: Readonly<HolderState>, relId: string): { state:
 const needInput = (x: unknown, name: string): Record<string, unknown> => {
   if (x === null || typeof x !== 'object' || Array.isArray(x)) throw new TypeError(`${name} needs an input object`)
   return x as Record<string, unknown>
+}
+
+/** The matches of every accepted star without the entry ids `ids` (6160). */
+function dropMatches (state: HolderState, ids: readonly string[]): HolderState {
+  if (!ids.length) return state
+  let relationships: HolderState['relationships'] | null = null
+  for (const [id, r] of Object.entries(state.relationships)) {
+    if (!r.tuples.some((t) => t.starIn.accepted?.matches.some((m) => ids.includes(m)))) continue
+    const tuples = r.tuples.map((t) => {
+      const acc = t.starIn.accepted
+      return acc && acc.matches.some((m) => ids.includes(m)) ? { ...t, starIn: { ...t.starIn, accepted: { ...acc, matches: acc.matches.filter((m) => !ids.includes(m)) } } } : t
+    })
+    ;(relationships ??= { ...state.relationships })[id] = { ...r, tuples }
+  }
+  return relationships ? { ...state, relationships } : state
 }
 
 /** The identities of a relationship: its own and its chain aliases. */
@@ -591,10 +580,11 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
   const contacts: HolderState['contacts'] = {}
   const renamed: Array<{ from: string, to: string, rels: string[] }> = []
   let removed = false
+  const removedIds: string[] = []
   for (const x of Object.values(state.contacts)) {
     const rest = x.relIds.filter((id) => !leaving.has(id))
     if (rest.length === x.relIds.length && !x.aliases.some((a) => goneIds.has(a))) { contacts[x.id] = x; continue }
-    if (!rest.length) { if (x.id === c.id) removed = true; continue }
+    if (!rest.length) { if (x.id === c.id) removed = true; removedIds.push(x.id); continue }
     const id = goneIds.has(x.id) ? oldestIdentity(state, x, rest, goneIds) : x.id
     if (id !== x.id) renamed.push({ from: x.id, to: id, rels: rest })
     contacts[id] = { ...x, id, relIds: rest, aliases: x.aliases.filter((a) => !goneIds.has(a) && a !== id) }
@@ -602,7 +592,8 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
   const duties: HolderState['duties'] = {}
   for (const [id, d] of Object.entries(state.duties)) {
     const relOf = (d as { relId?: unknown }).relId
-    if (typeof relOf === 'string' && leaving.has(relOf) && d.kind !== 'merge') continue
+    // a duty of a kind (or version) this library does not know is kept as it is
+    if (typeof relOf === 'string' && leaving.has(relOf) && d.kind !== 'merge' && isKnownDuty(d)) continue
     duties[id] = d
   }
   const rotations: HolderState['rotations'] = {}
@@ -615,14 +606,19 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
     ...state, relationships, contacts, duties, rotations,
     entryOrder: { ...state.entryOrder, heads: state.entryOrder.heads.filter((id) => !leaving.has(id)) },
   }
+  // 6160: an accepted star matches the holder's contacts; one that left matches nothing
+  next = dropMatches(next, removedIds)
   const renames: IdentityRename[] = []
   for (const r of renamed) next = rename(next, r.from, r.to, (id) => r.rels.includes(id), renames)
   for (const x of Object.values(next.contacts)) {
     const s = settleHead(next, x)
     if (s !== x) next = { ...next, contacts: { ...next.contacts, [x.id]: s } }
   }
-  next = admitPending(next, bound)
+  // 2850: a relationship that ceased to lag with the departure gets the classes on for it
+  const f = followClasses(state, admitPending(next, bound))
+  next = f.state
   return {
+    ...(f.duties.length ? { duties: f.duties } : {}),
     state: next, events: [{ type: 'contact.departed', contactId: c.id, relationshipIds: relIds.filter((id) => Object.hasOwn(state.relationships, id)).sort(cmp), removed }],
     ...(renames.length ? { renames } : {}),
   }

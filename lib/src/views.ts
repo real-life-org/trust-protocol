@@ -34,11 +34,15 @@
 //     star and blinded group star both `off` (2780); trust.pending: given,
 //     but not yet out on every head (no mapping issued on it, or its
 //     relationship lags (6595)), or a re-issue or class-on duty for the
-//     anchor mapping is open. Delivery of the documents is not part of
+//     anchor mapping is open at a version this library handles (a duty of
+//     an unhandled version is opaque, note §2.1). Delivery of the documents is not part of
 //     it; deliveryStatus answers that
 //   - classes give the setting and whether the class is on toward the
-//     contact (2760, 2840); per-group settings of the sealed group star
-//     (2830) are not projected yet
+//     contact (2760, 2840); the sealed group star also per group (2830):
+//     every group of the holder and every group the contact holds a
+//     per-group setting for, by id, with the setting (`default` where none
+//     is held) and whether it is on for (group, contact) — the per-group
+//     setting first, else the class (trust/group-star.ts sealedOn)
 //   - sharedGroups: the union of the groups the last accepted group star
 //     on each of the entry's heads hit (5520, trust/group-star.ts), lagging
 //     heads included (the group star travels on them, 6595); undefined
@@ -56,6 +60,8 @@ import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
 import { triasOf } from './state.js'
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js'
+import { sealedOn } from './trust/group-star.js'
+import { classOfDuty } from './trust/duties.js'
 import type {
   Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
 } from './state.js'
@@ -63,6 +69,13 @@ import type { DeliveryFailure, PreTransportReason, ReceiverRefusalCode } from '.
 
 /** One trust class toward one contact: its setting (2810) and whether it is on (2760). */
 export interface ClassView { setting: Setting, on: boolean }
+
+/** The sealed group star toward one contact: the class, and per group
+ *  (2830) the per-group setting and whether it is on for (group, contact). */
+export interface SealedClassView extends ClassView { groups: Record<string, ClassView> }
+
+/** Every class toward one contact (2720), the sealed group star per group too. */
+export type ClassesView = Record<Exclude<TrustClass, 'sealedGroupStar'>, ClassView> & { sealedGroupStar: SealedClassView }
 
 /** A contact's verified profile (6b.2): string fields only. */
 export interface ContactProfileView { revision: Dec, name?: string, image?: string, text?: string }
@@ -90,7 +103,7 @@ export interface ContactView {
   via?: string
   verification: 'mutual' | 'outgoing' | 'incoming' | 'met'
   trust: { given: boolean, received: boolean, paused: boolean, pending: boolean }
-  classes: Record<TrustClass, ClassView>
+  classes: ClassesView
   /** groups shared with the contact: the groups of the holder whose
    *  digest hit in the contact's last completed group star (5520), over
    *  its heads, sorted. A hit is the contact's claim (5.2, no veracity).
@@ -205,15 +218,20 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
   const trusted = isTrusted(c)
   const classes = {} as Record<TrustClass, ClassView>
   for (const cls of CLASSES) classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) }
+  const groups: Record<string, ClassView> = {}
+  for (const g of [...new Set([...Object.keys(state.groups), ...Object.keys(c.groupSettings)])].sort(cmp)) {
+    groups[g] = { setting: Object.hasOwn(c.groupSettings, g) ? c.groupSettings[g] : 'default', on: sealedOn(c, g) }
+  }
   const heads: Array<{ r: Relationship, t: Tuple, lagging: boolean }> = []
   for (const r of rels) {
     if (r.chainedInto !== null) continue
     const t = activeTuple(r)
     if (t && !t.deactivated && mine(t)) heads.push({ r, t, lagging: lags(r, rels) })
   }
+  // a class-on or re-issue of the anchor mapping, at a version this library
+  // handles (classOfDuty: an unhandled version is opaque and owes nothing here)
   const owed = Object.values(state.duties).some((d) =>
-    (d.kind === 'reissue-mapping' && d.contactId === c.id) ||
-    (d.kind === 'class-on' && d.contactId === c.id && d.cls === 'anchorMapping'))
+    classOfDuty(d) === 'anchorMapping' && (d as { contactId?: unknown }).contactId === c.id)
   const pending = trusted && (owed || heads.some((h) => h.t.mappingOut.body === null || h.lagging))
   let best: Tuple | undefined
   for (const { t, lagging } of heads) {
@@ -242,7 +260,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
       paused: c.settings.star === 'off' && c.settings.groupStar === 'off',
       pending,
     },
-    classes,
+    classes: { ...classes, sealedGroupStar: { ...classes.sealedGroupStar, groups } } as ClassesView,
     ...(sharedGroups ? { sharedGroups } : {}),
     ...(profile ? { profile } : {}),
   }
