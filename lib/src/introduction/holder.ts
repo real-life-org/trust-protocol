@@ -20,7 +20,10 @@
 // target's card on an accepted reply, the target toward the requester's
 // card at consent (Trust openTuple, provenance `introduced` via the
 // mediator's contact, 8790); the continuity probe follows on it. A
-// verified voucher marks the relationship's memory `vouchedBy`.
+// verified voucher marks the relationship's memory `vouchedBy`. Both name
+// the mediator with the own pair label toward it the act pinned
+// (provenance.viaPin, memory.vouchedPin), so a split of the mediator's
+// entry moves them with that relationship (2080).
 //
 // What it registers (introductionModule):
 //   human acts  introduction.introduce  the mediator's act (below)
@@ -208,11 +211,11 @@ async function freshCard (ctx: PrepareCtx): Promise<{ label: string, nonce: stri
 }
 
 /** The fresh relationship of an act toward the counterpart's card, introduced via the mediator (8790). */
-function openIntroduced (state: Readonly<HolderState>, label: string, nonce: string | undefined, rkid: string, card: Doc, via: string, name: string | undefined, when: Millis): Applied {
+function openIntroduced (state: Readonly<HolderState>, label: string, nonce: string | undefined, rkid: string, card: Doc, viaPin: string, name: string | undefined, when: Millis): Applied {
   const ids = idsOf(label)
   const opened = openTuple(state, {
     relId: ids.relId, contactId: ids.contactId, ownPairLabel: label, counterpartAnchor: card.anchor, counterpartKeyAgreement: card.keyAgreement,
-    provenance: { kind: 'introduced', via }, ...(nonce !== undefined ? { nonce } : {}),
+    provenance: { kind: 'introduced', via: arrivalContact(state, viaPin), viaPin }, ...(nonce !== undefined ? { nonce } : {}),
   }, rkid, when)
   if (name === undefined) return opened
   const rel = opened.state.relationships[ids.relId]
@@ -478,9 +481,8 @@ async function prepareReply (ctx: PrepareCtx, a: Readonly<IntroAct>): Promise<Re
 function applyConsent (state: Readonly<HolderState>, a: Readonly<IntroAct>, p: ReplyPrep, when: Millis): Applied | Refusal {
   if (a.status !== 'received') return no('unknown-act')
   if (lifetimeOver(a, when)) return no('prompt-expired', 'RLTP-TRU-8280')
-  const via = arrivalContact(state, a.pins.mediator!)
   const name = ((a.request as Doc).body.profile as { displayName?: string }).displayName
-  const opened = openIntroduced(state, p.fresh.label, p.fresh.nonce, p.fresh.rkid, a.requestCard as Doc, via, name, when)
+  const opened = openIntroduced(state, p.fresh.label, p.fresh.nonce, p.fresh.rkid, a.requestCard as Doc, a.pins.mediator!, name, when)
   const next: IntroAct = { ...a, status: 'consented', reply: p.reply as unknown as JsonObject, replyCard: p.fresh.card as JsonObject, ownLabel: p.fresh.label }
   return { state: withAct(opened.state, next), outbound: [draft(p.doc)], events: opened.events, duties: opened.duties }
 }
@@ -591,8 +593,7 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     }
     if (p.ignore) return { state: state as HolderState }
     const q = held(state, 'requester', r.act)!
-    const via = arrivalContact(state, q.pins.mediator!)
-    const opened = openIntroduced(state, q.ownLabel!, state.register.pairNonces[q.ownLabel!], rkidOf(state, q.ownLabel!), doc.payload.card, via, q.peerName, arr.when)
+    const opened = openIntroduced(state, q.ownLabel!, state.register.pairNonces[q.ownLabel!], rkidOf(state, q.ownLabel!), doc.payload.card, q.pins.mediator!, q.peerName, arr.when)
     let next: IntroAct = { ...q, status: 'completed', reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject }
     // the pending voucher, re-evaluated (8600, 8770)
     let st = opened.state
@@ -652,7 +653,7 @@ function markVouched (state: HolderState, a: Readonly<IntroAct>): HolderState {
   const at = a.ownLabel ? tupleByLabel(state, a.ownLabel) : null
   if (!at) return state
   const rel = at.rel
-  return { ...state, relationships: { ...state.relationships, [rel.id]: { ...rel, memory: { ...rel.memory, vouchedBy: arrivalContact(state, a.pins.mediator!) } } } }
+  return { ...state, relationships: { ...state.relationships, [rel.id]: { ...rel, memory: { ...rel.memory, vouchedBy: arrivalContact(state, a.pins.mediator!), vouchedPin: a.pins.mediator! } } } }
 }
 
 const voucherTask: TaskHandler<{ voucher: Artifact<VoucherBody> }, { role: 'requester' | 'target' }> = {

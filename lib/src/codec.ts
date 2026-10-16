@@ -162,7 +162,7 @@ const tuple = obj({
 const relationship = obj({
   id: str, contactId: str, tuples: arr(tuple), activeHead: str, earliestAnchor: nullable(str),
   links: arr(obj({ prev: str, next: str })), bindings: rec(set(str)), heldCounterpartHead: nullable(str),
-  memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str }),
+  memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str, viaPin: str }),
   chainedInto: nullable(str), firstVerified: nullable(dec),
 })
 

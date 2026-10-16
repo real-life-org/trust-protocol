@@ -162,7 +162,9 @@ export interface Relationship {
   heldCounterpartHead: string | null
   /** contact memory and evidence (2280) */
   memory: Record<string, Json>
-  provenance: { kind: 'ceremony' | 'introduced', via?: string, at: Millis }
+  /** via: the introducer's contact; viaPin: the own pair label toward it
+   *  the act was pinned to (8270), which a split follows (2080) */
+  provenance: { kind: 'ceremony' | 'introduced', via?: string, viaPin?: string, at: Millis }
   /** set when this chain was appended into another (6a.4): the fresh
    *  relationship whose tuple a chaining appended to `chainedInto` stays as
    *  a husk without tuples, its id resolving to the chain and its contactId

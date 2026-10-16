@@ -314,6 +314,7 @@ export type RelationshipV1 = {
     kind: "ceremony" | "introduced"
     at: MillisV1
     via?: string
+    viaPin?: string
   }
   chainedInto: (string) | (null)
   firstVerified: (DecV1) | (null)

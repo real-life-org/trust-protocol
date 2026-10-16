@@ -1519,6 +1519,9 @@
             },
             "via": {
               "type": "string"
+            },
+            "viaPin": {
+              "type": "string"
             }
           },
           "required": [

@@ -322,7 +322,7 @@ export interface NewTupleInput {
   ownPairLabel: string
   counterpartAnchor: string
   counterpartKeyAgreement: string
-  provenance?: { kind: 'ceremony' | 'introduced', via?: string }
+  provenance?: { kind: 'ceremony' | 'introduced', via?: string, viaPin?: string }
   /** the 32-byte relationship nonce the pair label digests (Identity
    *  §6.1), base64url; where given, the register records it beside the
    *  label, and the label must be pair/<multihash(nonce)> */
@@ -351,7 +351,7 @@ export function openTuple (state: Readonly<HolderState>, i: NewTupleInput, rkid:
   const rel: Relationship = {
     id: i.relId, contactId: i.contactId, tuples: [tuple], activeHead: i.ownPairLabel, earliestAnchor: null, links: [], bindings: {},
     heldCounterpartHead: null, memory: {}, chainedInto: null, firstVerified: null,
-    provenance: { kind: i.provenance?.kind ?? 'ceremony', ...(i.provenance?.via !== undefined ? { via: i.provenance.via } : {}), at: when },
+    provenance: { kind: i.provenance?.kind ?? 'ceremony', ...(i.provenance?.via !== undefined ? { via: i.provenance.via } : {}), ...(i.provenance?.viaPin !== undefined ? { viaPin: i.provenance.viaPin } : {}), at: when },
   }
   const contact: Contact = {
     id: i.contactId, pos: null, status: 'none', aliases: [], relIds: [i.relId], anchorHead: null,
@@ -398,7 +398,8 @@ const mapOf = (x: Json | undefined): Record<string, Json> =>
   (x !== null && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, Json> : {})
 
 /** Contact memory at a chaining (2280): the chain's wins key by key
- *  (introducedName, vouchedBy: what the earlier relationship established),
+ *  (introducedName, vouchedBy with its vouchedPin: what the earlier
+ *  relationship established),
  *  except the class-V group-star pairs (5580), merged per group with the
  *  appended relationship's winning, since it is the active head whose
  *  stars are the newer (5770). */
