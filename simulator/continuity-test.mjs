@@ -118,7 +118,7 @@ async function introduce (net, m, r, t, label, when) {
   await meet(net, a, b, T0 + 100 * MIN)      // the first REAL meeting
   const bs = named(a, 'Berta')
   check(bs.length === 1 && bs[0].verification === 'mutual' && bs[0].relationships[0].chainedFrom.length === 1, 'the first real meeting lifts it: one contact, now mutually verified, by the chain (chapter 2)')
-  check(bs[0].provenance === 'introduced', 'the relationship\'s history begins at the introduction — how the person came stays')
+  check(bs[0].provenance === 'ceremony' && bs[0].via === undefined, 'the first completed enactment chained onto it sets the provenance to ceremony, never downward — the introducer leaves the contact (RLTP-TRU-8800)')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

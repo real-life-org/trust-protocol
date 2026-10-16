@@ -321,7 +321,7 @@ try {
     return em.length === 1 && jo.length === 1 && em[0].verification === 'mutual' && jo[0].verification === 'mutual' &&
       em[0].relationships[0].chainedFrom.length === 1 && P('J').view.contacts.length === 2
   }, null, 15000)
-  check(await ev(() => window.__t.named('J', 'Emil')[0].provenance === 'introduced'), 'chapter 2 live: introduced → verified by the chain, ONE Emil; how the person came stays')
+  check(await ev(() => { const [em] = window.__t.named('J', 'Emil'); return em.provenance === 'ceremony' && em.via === undefined }), 'chapter 2 live: introduced → verified by the chain, ONE Emil; the meeting sets the provenance to ceremony (RLTP-TRU-8800)')
   await page.locator('#dev-J .cdlg button', { hasText: 'Trust…' }).click()
   await page.locator('#dev-J .phdlg-card', { hasText: 'Trust Emil permanently?' }).waitFor()
   check((await page.locator('#dev-J .phdlg-card', { hasText: 'Not yet verified' }).count()) === 0, 'the trust sheet without the introducer note — verified now')
