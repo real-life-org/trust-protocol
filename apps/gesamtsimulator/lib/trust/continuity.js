@@ -118,8 +118,11 @@
 //     (the chain's wins key by key, the group-star pairs merged per group
 //     with the appended head's winning: chainMemory), the relationship's anchor head (the appended
 //     tuple's verified self, else the chain's), firstVerified the earlier;
-//     provenance stays the chain's. Tuple state does not migrate (6250):
-//     the prior tuple is deactivated with its open assemblies discarded
+//     provenance the chain's, except that an enactment chained onto an
+//     introduced chain sets it to ceremony, at the chain's time and without
+//     the introducer, never downward (8790, 8800: chainProvenance). Tuple
+//     state does not migrate (6250): the prior tuple is deactivated with
+//     its open assemblies discarded
 //     (5360), the fresh tuple keeps its own scopes, so its star baseline
 //     is fresh unless it completed a delivery before (5810, 5820)
 //   - the entries at chaining: where both relationships hold an entry,
@@ -378,6 +381,13 @@ function chainMemory(r0, rn) {
         m.groupMembers = { ...mapOf(r0.groupMembers), ...mapOf(rn.groupMembers) };
     return m;
 }
+/** The chain's provenance (8790, 8800): an introduced chain becomes
+ *  `ceremony` when the appended relationship came by an enactment, at the
+ *  chain's time and without the introducer (via and viaPin name the
+ *  introduction; the voucher mark and the introduced name are memory and
+ *  stay); never downward: a ceremony chain stays ceremony, an introduced
+ *  one appended by an introduction keeps its own introducer. */
+const chainProvenance = (p0, pn) => p0.kind === 'introduced' && pn.kind === 'ceremony' ? { kind: 'ceremony', at: p0.at } : p0;
 /**
  * The chain append (6220): the fresh tuple `label` becomes the active head
  * of the chain whose active head `prior` is, atomically with that prior's
@@ -416,6 +426,7 @@ export function chainTuple(state, label, prior, bound) {
         heldCounterpartHead: Rn.heldCounterpartHead ?? R0.heldCounterpartHead,
         memory: chainMemory(R0.memory, Rn.memory),
         firstVerified,
+        provenance: chainProvenance(R0.provenance, Rn.provenance),
     };
     const husk = {
         ...Rn, tuples: [], chainedInto: R0.id, links: [], bindings: {}, earliestAnchor: null, heldCounterpartHead: null, memory: {},
