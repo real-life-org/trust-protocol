@@ -219,7 +219,8 @@ export function rewriteIdentity(state, ids, to, opts = {}) {
     }
     let outbox = null;
     for (const [d, it] of Object.entries(state.outbox)) {
-        if (from(it.recipient.contactId) && rkids.has(it.recipient.rkid))
+        // a document on a member key follows the tuple its contact was named through (Recipient.via)
+        if (from(it.recipient.contactId) && rkids.has(it.recipient.via ?? it.recipient.rkid))
             (outbox ??= { ...state.outbox })[d] = { ...it, recipient: { ...it.recipient, contactId: to } };
     }
     if (!relationships && !duties && !prompts && !outbox && !joining && !groups && !encounter)

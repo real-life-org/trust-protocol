@@ -278,7 +278,7 @@ export async function prepareReceive(ctx, env, tasks) {
     const envelope = await seal(ackDoc, peer.keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S);
     const ack = {
         digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-        recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement },
+        recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement, ...(peer.via !== undefined ? { via: peer.via } : {}) },
     };
     return { kind: 'task', digest, type: doc.type, doc: rdoc, arrival, value, ack };
 }
