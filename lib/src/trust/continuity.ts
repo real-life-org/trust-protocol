@@ -24,6 +24,35 @@
 // the record side's verified mapping (6900). 6900/6910 need the evidence
 // wording against 6970.
 //
+// Spec follow-up 17 (Trust 0.32, where 2300 freezes the prior-candidate
+// set): candidate substitution. Two fresh tuples toward one counterpart
+// opened before either chained (a double scan under a transport outage)
+// both name the prior P; the later one, F2, also names F1. Where F2's
+// traffic arrives first, F2 chains onto P, and F1's only candidate is
+// consumed: the record side makes no choice, the non-record side resends
+// its report forever, two entries stay. So: when a chaining deactivates P
+// as the prior of a chain whose new head is X, every other fresh tuple
+// not yet chained whose prior-candidate set names P gets X in P's place
+// (same position; substitutePrior, run by chainTuple on its result), and
+// what its flow held about P is re-targeted to X as a fresh issuance under
+// the next revision, through the mapping duty: the record side's choice
+// (`chosen`, an owed `due`) is owed again naming X, X now the chain's head
+// and chainable; the non-record side's report or alignment likewise; the
+// frozen record prior (6290) follows to X's counterpart anchor. mac1 then
+// runs under X's relationship key (6970), which both holders hold, X being
+// a verified chained tuple; both sides apply the rule when they themselves
+// chain X, so the substituted candidate verifies on both. Transitive: a
+// chaining onto X later substitutes again. Only a tuple verified chained
+// onto P takes its place (chainTuple runs only on a verified mapping,
+// follow-up 14); a third party's fresh tuple never enters another flow's
+// candidates, and a probe hit proves nothing as before. A probe built
+// before the counterpart substituted still blinds P's anchor: a candidate
+// answers a probe for its own counterpart anchor and for those of the
+// deactivated tuples before it in its chain (standsFor, 6800). A mapping
+// naming P that arrives after the substitution is refused (6960); its
+// sender re-targets on its own chaining. P's key is not kept for the
+// substituted flow: nothing verifies or issues under it there any more.
+
 // What it registers (through trustModule, trust/mapping.ts):
 //   tasks   continuity-probe/0.1 (proof absent): the assembly per tuple
 //           (6790, the 5.2a rules with `probe` as the salt), the highest
@@ -66,6 +95,11 @@
 //     due as soon as its backoff allows, max(when, lastAt +
 //     backoff(attempt)), never earlier; a superseded probe's failure
 //     touches nothing
+//   - the substitution (follow-up 17) applies to every fresh tuple not yet
+//     chained, its flow open or not: a flow that has matched nothing yet
+//     can still be reached by a late probe or mapping naming the head.
+//     `chosen` is final once set except here, where the chosen prior was
+//     consumed by another chaining and the choice is owed again on its head
 //   - the record side chooses the first match, in prior-candidate order,
 //     whose tuple is still the active head of a live relationship, and
 //     chains on nothing yet; the non-record side reports the first such
@@ -100,9 +134,10 @@
 //     (continuityKeys, the engine's keepKeys): mac1 needs it (6970)
 //   - a prior that a competing chaining took (deactivated, its chain's
 //     head another tuple) is refused at the record side's mapping as
-//     validation-failed with ref 6900; a chaining replayed is one append
-//     (6230): a record-side mapping on an already chained tuple chains
-//     nothing again
+//     validation-failed with ref 6900 where the flow still names it (an
+//     unchained one had it substituted, follow-up 17, and refuses with
+//     6960); a chaining replayed is one append (6230): a record-side
+//     mapping on an already chained tuple chains nothing again
 //   - chaining keeps the chain's relationship id (the chain continues);
 //     the fresh relationship stays as a husk without tuples, chainedInto
 //     the chain, its contactId a chain alias (2090). The chain takes the
@@ -166,7 +201,11 @@
 //      C's frozen prior-candidate set of y (6960 passes on the snapshot),
 //      but C's original tuple is no longer an active head: x took it.
 //      Nothing in 6.4 or 6a.4 says onto what C appends; this library
-//      refuses it (validation-failed, ref 6900), symmetrically at A for x
+//      refuses it (validation-failed, ref 6900), symmetrically at A for x.
+//      Since follow-up 17 the refusal comes earlier, ref 6960: C's chaining
+//      of y put y in the original's place in x's candidates (and A's of x
+//      in y's), and each record side's re-choice on its own head meets a
+//      counterpart already chained onto the original. The race stays
 //   3. end state: A's chain is original→x, C's is original→y; C keeps x,
 //      A keeps y, as relationships of their own. x's standing mapping duty
 //      never ends (6840): 6990's "chained to the record-chosen relationship,
@@ -298,6 +337,18 @@ export function continuityKeys (state: Readonly<HolderState>): string[] {
 /** The own pair label of the prior-candidate entry whose counterpart anchor is `anchor` (6960). */
 const priorOf = (t: Readonly<Tuple>, anchor: string): TupleRef | undefined =>
   t.priorCandidates.find((pc) => pc.counterpartAnchor === anchor && pc.counterpartAnchor !== t.counterpartAnchor && pc.ownPairLabel !== t.ownPairLabel)
+
+/** The counterpart anchors a prior candidate answers a probe for (6800):
+ *  its own and, where it took their place by a chaining (follow-up 17),
+ *  those of the deactivated tuples before it in its chain: a probe built
+ *  before the counterpart's substitution still blinds the replaced
+ *  prior's anchor. A hit proves nothing either way (follow-up 14). */
+const standsFor = (state: Readonly<HolderState>, pc: Readonly<TupleRef>): string[] => {
+  const at = tupleByLabel(state, pc.ownPairLabel)
+  if (!at || at.rel.activeHead !== pc.ownPairLabel) return [pc.counterpartAnchor]
+  const before = at.rel.tuples.slice(0, at.rel.tuples.findIndex((x) => x.ownPairLabel === pc.ownPairLabel)).filter((x) => x.deactivated)
+  return [...new Set([pc.counterpartAnchor, ...before.map((x) => x.counterpartAnchor)])]
+}
 
 /** Whether the last issuance still stands (6840, 6850, 6860), and the
  *  record side's view of it. */
@@ -535,7 +586,54 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
   // the follow rule over the whole chaining: the drop of a class off toward
   // the entry now, a class on for the chain that was not before (2850)
   const f = followClasses(state, md.state, out)
-  return { state: f.state, events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: f.duties, renames }
+  // spec follow-up 17 (2300): the new head takes the prior's place in every other unchained flow
+  return { state: substitutePrior(f.state, prior, label), events: [{ type: 'contact.chained', contactId: entryId, from: Rn.id, into: R0.id }], duties: f.duties, renames }
+}
+
+/**
+ * Candidate substitution (spec follow-up 17, 2300): `prior` was just
+ * deactivated as the prior of a chaining whose new head is `head`, a tuple
+ * verified chained onto it (mac1 under the prior's key, 6970). Every other
+ * fresh tuple not yet chained whose prior-candidate set names `prior` gets
+ * `head` in its place (same position, a duplicate dropped), and what its
+ * flow held about `prior` is re-targeted to `head`, a fresh issuance under
+ * the next revision through the mapping duty: the record side's choice is
+ * owed again naming `head` (chainable now), the non-record side's report or
+ * alignment likewise, the frozen record prior (6290) follows to `head`'s
+ * counterpart anchor. Transitive by construction: a chaining onto `head`
+ * later substitutes again. Pure: the state only, the duties written into it.
+ */
+export function substitutePrior (state: HolderState, prior: string, head: string): HolderState {
+  const h = tupleByLabel(state, head)
+  const p = tupleByLabel(state, prior)
+  if (!h || !p) return state
+  const into: TupleRef = { ownPairLabel: head, counterpartAnchor: h.tuple.counterpartAnchor }
+  const sub = (l: string): string => (l === prior ? head : l)
+  let next = state
+  for (const rel of Object.values(state.relationships)) {
+    if (!liveRel(rel) || rel.tuples.length !== 1) continue                        // a strand absorbs no second one (2220)
+    const t = rel.tuples[0]
+    if (t.ownPairLabel === head || !t.priorCandidates.some((pc) => pc.ownPairLabel === prior)) continue
+    const seen = new Set<string>()
+    const priorCandidates = t.priorCandidates.map((pc) => (pc.ownPairLabel === prior ? into : pc))
+      .filter((pc) => !seen.has(pc.ownPairLabel) && (seen.add(pc.ownPairLabel), true))
+    const o = t.continuityOut
+    const rp = t.continuityIn.recordPrior
+    let due: Tuple['continuityOut']['due'] = o.due === null ? null
+      : o.due.kind === 'choice' ? { kind: 'choice', prior: sub(o.due.prior), alts: [...new Set(o.due.alts.map(sub))].filter((x) => x !== sub(o.due!.prior)) }
+      : { kind: o.due.kind, prior: sub(o.due.prior) }
+    // the record side re-chooses: its choice on the prior is owed again, on the head
+    let chosen = o.chosen
+    if (chosen === prior) { chosen = null; due = { kind: 'choice', prior: head, alts: [] } }
+    // the non-record side re-reports, or re-aligns, naming the head
+    if (o.reported === prior && due === null) due = { kind: rp !== null ? 'align' : 'report', prior: head }
+    const recordPrior = rp === p.tuple.counterpartAnchor ? into.counterpartAnchor : rp
+    next = withTuple(next, t.ownPairLabel, (x) => ({
+      ...x, priorCandidates, continuityIn: { ...x.continuityIn, recordPrior }, continuityOut: { ...x.continuityOut, chosen, due },
+    }))
+    if (due !== null && (chosen !== o.chosen || due.kind !== o.due?.kind || due.prior !== o.due.prior)) next = owe(next, t.ownPairLabel, rel.id)
+  }
+  return next
 }
 
 // ── issuing a continuity mapping (6880, 6300) ──────────────────────────
@@ -780,6 +878,9 @@ function continuityDuty (bound: bigint): DutyHandler<ProbeIssue | MappingWork | 
       if (o.rev !== w.baseRev) return 'not-due'
       if (w.kind === 'choice') {
         if (o.chosen !== null || o.due?.kind !== 'choice') return { state: withTuple(state, d.tuple, (x) => ({ ...x, continuityOut: { ...x.continuityOut, due: null } })) }
+        // prepared before a substitution re-targeted it (follow-up 17): prepared again
+        const owed = [o.due.prior, ...o.due.alts]
+        if (w.issues.length && !w.issues.some((i) => owed.includes(i.prior))) return 'not-due'
         const r = choose(state as HolderState, d.tuple, [o.due.prior, ...o.due.alts], w.issues, bound, when, false)
         if (r.outbound?.length) return { ...r, duties: [...(r.duties ?? []), again(1)] }
         // still owed (no key for any candidate): the duty stays; else every candidate is gone
@@ -790,6 +891,8 @@ function continuityDuty (bound: bigint): DutyHandler<ProbeIssue | MappingWork | 
         // 6860: a match report after the record side's choice is never sent
         if (w.kind === 'report' && t.continuityIn.recordPrior !== null) return { state: withTuple(state, d.tuple, (x) => ({ ...x, continuityOut: { ...x.continuityOut, due: null } })) }
         if (!w.issue) return { ok: false, code: 'no-own-channel' }
+        // prepared before a substitution re-targeted it (follow-up 17): prepared again
+        if (w.issue.prior !== o.due.prior) return 'not-due'
         const i = commitIssue(state as HolderState, w.issue, () => ({ reported: w.issue!.prior, aligned: false }))
         return i ? { state: i.state, outbound: [i.outbound], duties: [again(1)] } : 'not-due'
       }
@@ -912,7 +1015,9 @@ function probeTask (bound: bigint, limit: number): TaskHandler<ProbeChunk, Probe
       const matches: string[] = []
       for (const pc of t.priorCandidates) {
         if (pc.ownPairLabel === label || pc.counterpartAnchor === t.counterpartAnchor) continue
-        if (inUnion.has(await blindPrior(k, pc.counterpartAnchor, S))) matches.push(pc.ownPairLabel)
+        for (const a of standsFor(st, pc)) {
+          if (inUnion.has(await blindPrior(k, a, S))) { matches.push(pc.ownPairLabel); break }
+        }
       }
       const record = isRecordSide(own, t.counterpartAnchor)
       const issues: Issue[] = []
