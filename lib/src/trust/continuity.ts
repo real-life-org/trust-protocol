@@ -46,9 +46,15 @@
 // onto P takes its place (chainTuple runs only on a verified mapping,
 // follow-up 14); a third party's fresh tuple never enters another flow's
 // candidates, and a probe hit proves nothing as before. A probe built
-// before the counterpart substituted still blinds P's anchor: a candidate
-// answers a probe for its own counterpart anchor and for those of the
-// deactivated tuples before it in its chain (standsFor, 6800). A mapping
+// before the counterpart substituted still blinds P's anchor: X keeps, in
+// this tuple's set, the anchors it replaced in this flow (`replaces`,
+// transitively: Y in X's place stands for X and P), and answers a probe
+// for its own counterpart anchor and for those (standsFor). This is a
+// deviation from 6800, which matches the frozen set only (A19), limited to
+// anchors substituted in the tuple's own flow: a tuple opened after a
+// chaining completed has no history and matches its frozen candidates
+// only, so an attacker who knows an old pair anchor learns no current one
+// (stack review round 6: Codex I). A mapping
 // naming P that arrives after the substitution is refused (6960); its
 // sender re-targets on its own chaining. P's key is not kept for the
 // substituted flow: nothing verifies or issues under it there any more.
@@ -339,16 +345,12 @@ const priorOf = (t: Readonly<Tuple>, anchor: string): TupleRef | undefined =>
   t.priorCandidates.find((pc) => pc.counterpartAnchor === anchor && pc.counterpartAnchor !== t.counterpartAnchor && pc.ownPairLabel !== t.ownPairLabel)
 
 /** The counterpart anchors a prior candidate answers a probe for (6800):
- *  its own and, where it took their place by a chaining (follow-up 17),
- *  those of the deactivated tuples before it in its chain: a probe built
- *  before the counterpart's substitution still blinds the replaced
- *  prior's anchor. A hit proves nothing either way (follow-up 14). */
-const standsFor = (state: Readonly<HolderState>, pc: Readonly<TupleRef>): string[] => {
-  const at = tupleByLabel(state, pc.ownPairLabel)
-  if (!at || at.rel.activeHead !== pc.ownPairLabel) return [pc.counterpartAnchor]
-  const before = at.rel.tuples.slice(0, at.rel.tuples.findIndex((x) => x.ownPairLabel === pc.ownPairLabel)).filter((x) => x.deactivated)
-  return [...new Set([pc.counterpartAnchor, ...before.map((x) => x.counterpartAnchor)])]
-}
+ *  its own and those it replaced in this tuple's own flow (follow-up 17,
+ *  `replaces`): a probe built before the counterpart's substitution still
+ *  blinds the replaced prior's anchor. Never the chain's other deactivated
+ *  tuples: a tuple opened after a chaining matches its frozen candidates
+ *  only, so an old pair anchor discloses no current one (Codex I). */
+const standsFor = (pc: Readonly<TupleRef>): string[] => [pc.counterpartAnchor, ...(pc.replaces ?? [])]
 
 /** Whether the last issuance still stands (6840, 6850, 6860), and the
  *  record side's view of it. */
@@ -600,23 +602,33 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
  * the next revision through the mapping duty: the record side's choice is
  * owed again naming `head` (chainable now), the non-record side's report or
  * alignment likewise, the frozen record prior (6290) follows to `head`'s
- * counterpart anchor. Transitive by construction: a chaining onto `head`
+ * counterpart anchor. The head's entry records in `replaces` the anchors
+ * it stands for in this flow (standsFor). Transitive by construction: a chaining onto `head`
  * later substitutes again. Pure: the state only, the duties written into it.
  */
 export function substitutePrior (state: HolderState, prior: string, head: string): HolderState {
   const h = tupleByLabel(state, head)
   const p = tupleByLabel(state, prior)
   if (!h || !p) return state
-  const into: TupleRef = { ownPairLabel: head, counterpartAnchor: h.tuple.counterpartAnchor }
   const sub = (l: string): string => (l === prior ? head : l)
   let next = state
   for (const rel of Object.values(state.relationships)) {
     if (!liveRel(rel) || rel.tuples.length !== 1) continue                        // a strand absorbs no second one (2220)
     const t = rel.tuples[0]
     if (t.ownPairLabel === head || !t.priorCandidates.some((pc) => pc.ownPairLabel === prior)) continue
-    const seen = new Set<string>()
-    const priorCandidates = t.priorCandidates.map((pc) => (pc.ownPairLabel === prior ? into : pc))
-      .filter((pc) => !seen.has(pc.ownPairLabel) && (seen.add(pc.ownPairLabel), true))
+    // the head in the prior's place, standing for whatever the prior stood for in this flow and for
+    // the prior, oldest first (transitive); a head already in the set keeps the first position
+    const pc0 = t.priorCandidates.find((pc) => pc.ownPairLabel === prior)!
+    const into: TupleRef = { ownPairLabel: head, counterpartAnchor: h.tuple.counterpartAnchor }
+    const replaces = new Set<string>()
+    for (const pc of t.priorCandidates) if (pc.ownPairLabel === prior || pc.ownPairLabel === head) for (const a of [...(pc.replaces ?? []), pc.counterpartAnchor]) replaces.add(a)
+    replaces.delete(into.counterpartAnchor)
+    if (replaces.size) into.replaces = [...replaces]
+    const priorCandidates: TupleRef[] = []
+    for (const pc of t.priorCandidates) {
+      const x = pc.ownPairLabel === prior || pc.ownPairLabel === head ? into : pc
+      if (!priorCandidates.some((y) => y.ownPairLabel === x.ownPairLabel)) priorCandidates.push(x)
+    }
     const o = t.continuityOut
     const rp = t.continuityIn.recordPrior
     let due: Tuple['continuityOut']['due'] = o.due === null ? null
@@ -627,7 +639,7 @@ export function substitutePrior (state: HolderState, prior: string, head: string
     if (chosen === prior) { chosen = null; due = { kind: 'choice', prior: head, alts: [] } }
     // the non-record side re-reports, or re-aligns, naming the head
     if (o.reported === prior && due === null) due = { kind: rp !== null ? 'align' : 'report', prior: head }
-    const recordPrior = rp === p.tuple.counterpartAnchor ? into.counterpartAnchor : rp
+    const recordPrior = rp === pc0.counterpartAnchor ? into.counterpartAnchor : rp
     next = withTuple(next, t.ownPairLabel, (x) => ({
       ...x, priorCandidates, continuityIn: { ...x.continuityIn, recordPrior }, continuityOut: { ...x.continuityOut, chosen, due },
     }))
@@ -1015,7 +1027,7 @@ function probeTask (bound: bigint, limit: number): TaskHandler<ProbeChunk, Probe
       const matches: string[] = []
       for (const pc of t.priorCandidates) {
         if (pc.ownPairLabel === label || pc.counterpartAnchor === t.counterpartAnchor) continue
-        for (const a of standsFor(st, pc)) {
+        for (const a of standsFor(pc)) {
           if (inUnion.has(await blindPrior(k, a, S))) { matches.push(pc.ownPairLabel); break }
         }
       }

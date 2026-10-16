@@ -1149,6 +1149,12 @@
               },
               "counterpartAnchor": {
                 "type": "string"
+              },
+              "replaces": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [

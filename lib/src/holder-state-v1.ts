@@ -242,6 +242,7 @@ export type TupleV1 = {
   priorCandidates: {
     ownPairLabel: string
     counterpartAnchor: string
+    replaces?: string[]
   }[]
   starOut: StarOutV1
   starIn: StarInV1

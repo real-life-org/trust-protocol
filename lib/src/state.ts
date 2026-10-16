@@ -215,8 +215,11 @@ export interface Tuple {
   deactivated: boolean
 }
 
-/** A frozen reference to one tuple: its own pair label and the counterpart anchor. */
-export interface TupleRef { ownPairLabel: string, counterpartAnchor: string }
+/** A frozen reference to one tuple: its own pair label and the counterpart
+ *  anchor; in a prior-candidate set, `replaces` holds the counterpart
+ *  anchors of the candidates it took the place of in this tuple's flow
+ *  (spec follow-up 17), transitively, absent where none */
+export interface TupleRef { ownPairLabel: string, counterpartAnchor: string, replaces?: string[] }
 
 /** Continuity work the tuple still owes (today's contMappingDue): the
  *  record side's choice (with the remaining alternatives), the non-record
