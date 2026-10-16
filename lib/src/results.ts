@@ -25,10 +25,18 @@ export type ActError =
   /** a human act came without the actId the app must mint (note §4.2) */
   | 'actid-missing'
   | 'log-missing'
+  /** the anchor mapping needs the holder's community anchor (register.community, Identity §5.4) */
+  | 'no-community'
   | 'unknown-digest'
+  /** prompt.decide: no open prompt has this id */
+  | 'unknown-prompt'
+  /** prompt.decide: the prompt's expiresAt is not after when; tick removes it */
+  | 'prompt-expired'
 
 export type ActResult =
-  | { ok: true, outbound: Outbound[], events: HolderEvent[] }
+  /** nextDueAt: duty work this act opened or unblocked is due then (`when`:
+   *  now) — call resume at that time (engine.ts) */
+  | { ok: true, outbound: Outbound[], events: HolderEvent[], nextDueAt?: number }
   | { ok: false, code: ActError, ref?: string }
 
 /** Receiver failure dispositions (Delivery §6.2), by the stage that names them. */
@@ -38,7 +46,7 @@ export type ReceiveFailure =
   | 'decryption-failed'    // stage 3
   | 'wrong-recipient'      // stage 5
   | 'unknown-type'         // stage 6
-  | 'validation-failed'    // stages 8, 9
+  | 'validation-failed'    // stages 6 (the entry's proof declaration), 8, 9
   | 'stale-issuance'       // stage 8
   | 'gate-future'          // stage 9
   | 'consumed-challenge'   // stage 9
@@ -47,14 +55,34 @@ export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 /**
  * The outcome of receive(env, when). `unique`: the effect committed,
- * with its ack among `outbound` where the type acknowledges.
- * `duplicate-known`: the stored ack is re-sent byte-identical (none for
- * a terminal document). `failed`: nothing took effect.
+ * with its ack first among `outbound` where the type acknowledges (a
+ * delivery-ack itself is terminal and earns none), then the documents
+ * the effect issued. `duplicate-known`: the stored ack is re-sent
+ * byte-identical (none for a terminal document); nothing commits beyond
+ * a raised lastWhen. `failed`: nothing took effect and nothing commits.
+ * `discarded`: the document's chunk met a receiver resource limit (Trust
+ * 5365, reason `resource-limit`) or, authenticated, violated the assembly
+ * rules so that its whole delivery is rejected (5260–5310, 5500, 5510,
+ * reason `rejected`): the open assembly is dropped and its salt held as
+ * the lower bound (5366), committed; no cache entry, no ack, no event.
+ * Delivery §6.2 has no disposition for it yet (receive.ts: a gap for
+ * Delivery 0.82).
  */
 export type ReceiveResult =
-  | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[] }
+  | { disposition: 'unique', digest: string, type: string, outbound: Outbound[], events: HolderEvent[], /** as on ActResult */ nextDueAt?: number }
   | { disposition: 'duplicate-known', digest: string, outbound: Outbound[] }
-  | { disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string }
+  | { disposition: 'discarded', digest: string, type: string, reason: 'resource-limit' | 'rejected', ref?: string }
+  | {
+    disposition: 'failed', reason: ReceiveFailure, stage: ReceiveStageNo, digest?: string,
+    /** local diagnosis of a key failure, never a disposition of its own
+     *  (Delivery §5, §6.2): 'unknown' — an rkid this holder never issued,
+     *  failed(malformed) at stage 2; 'retired' — a tombstone (or a key
+     *  marked retired), failed(decryption-failed) at stage 3 */
+    key?: 'unknown' | 'retired'
+    /** the rule the document failed, where its task handler names one
+     *  (TaskRefusal.ref), e.g. RLTP-TRU-6118 */
+    ref?: string
+  }
 
 export type InfraErrorCode =
   | 'store-read'

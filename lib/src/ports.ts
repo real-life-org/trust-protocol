@@ -6,7 +6,7 @@
 // report, retries through resume. Types only.
 import type { Json } from './core.js'
 import type { Envelope } from './delivery.js'
-import type { HolderState } from './state.js'
+import type { OpaqueHolderState } from './state.js'
 
 // ── Store (user: the engine) ───────────────────────────────────────────
 
@@ -34,7 +34,7 @@ export type CommitResult = { ok: true, version: string } | { ok: false, reason: 
  */
 export interface Store {
   read (): Promise<StoreSnapshot>
-  commit (version: string | null, next: HolderState): Promise<CommitResult>
+  commit (version: string | null, next: OpaqueHolderState): Promise<CommitResult>
 }
 
 // ── KeyProvider (user: act preparation) ────────────────────────────────

@@ -8,6 +8,10 @@
 // by the layer that issues it. Runs on globalThis.crypto.subtle in
 // browsers, Node >= 20, Deno and Bun alike.
 //
+// Every primitive below runs on the platform's SubtleCrypto unless the
+// caller hands its own (the holder passes the handle it resolved at
+// construction, note §3 Crypto).
+//
 // Determinism: every construction takes its entropy from the CALLER
 // (nonces, ephemeral seeds). Random helpers exist, but nothing here
 // calls them implicitly — that is what makes the whole stack replayable
@@ -36,20 +40,20 @@ export const cat = (...bs: Uint8Array[]): Uint8Array => {
 export const rand = (n: number): Uint8Array => globalThis.crypto.getRandomValues(new Uint8Array(n))
 
 // ── hashes, KDF, digests ────────────────────────────────────────────────
-export const sha = async (bytes: Uint8Array): Promise<Uint8Array> => new Uint8Array(await S().digest('SHA-256', bytes))
-export const hkdf = async (ikm: Uint8Array, info: string, len = 32): Promise<Uint8Array> => {
-  const k = await S().importKey('raw', ikm, 'HKDF', false, ['deriveBits'])
-  return new Uint8Array(await S().deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: te.encode(info) }, k, len * 8))
+export const sha = async (bytes: Uint8Array, subtle: SubtleCrypto = S()): Promise<Uint8Array> => new Uint8Array(await subtle.digest('SHA-256', bytes))
+export const hkdf = async (ikm: Uint8Array, info: string, len = 32, subtle: SubtleCrypto = S()): Promise<Uint8Array> => {
+  const k = await subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits'])
+  return new Uint8Array(await subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: te.encode(info) }, k, len * 8))
 }
 // multibase multihash (u, sha2-256) over raw BYTES — pair labels digest the nonce bytes
-export const digestBytes = async (bytes: Uint8Array): Promise<string> => 'u' + b64uOf(cat(Uint8Array.from([0x12, 0x20]), await sha(bytes)))
+export const digestBytes = async (bytes: Uint8Array, subtle?: SubtleCrypto): Promise<string> => 'u' + b64uOf(cat(Uint8Array.from([0x12, 0x20]), await sha(bytes, subtle)))
 // …and over the JCS of a document — the document digest of the stack
-export const digestDoc = async (obj: unknown): Promise<string> => digestBytes(te.encode(jcs(obj)))
+export const digestDoc = async (obj: unknown, subtle?: SubtleCrypto): Promise<string> => digestBytes(te.encode(jcs(obj)), subtle)
 
 // ── keys (Ed25519 signing, X25519 agreement; did:key / multikey) ────────
 const ED_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20])
 const X_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22, 0x04, 0x20])
-const jwkX = async (priv: CryptoKey): Promise<Uint8Array> => fromB64u((await S().exportKey('jwk', priv)).x!)
+const jwkX = async (priv: CryptoKey, subtle: SubtleCrypto = S()): Promise<Uint8Array> => fromB64u((await subtle.exportKey('jwk', priv)).x!)
 /** A key pair as this library carries it: the private CryptoKey plus the raw public bytes. */
 export interface KeyPair { priv: CryptoKey, pubRaw: Uint8Array }
 
@@ -57,9 +61,9 @@ export async function edFromSeed (seed: Uint8Array): Promise<KeyPair> {
   const priv = await S().importKey('pkcs8', cat(ED_PKCS8, seed), { name: 'Ed25519' }, true, ['sign'])
   return { priv, pubRaw: await jwkX(priv) }
 }
-export async function xFromSeed (seed: Uint8Array): Promise<KeyPair> {
-  const priv = await S().importKey('pkcs8', cat(X_PKCS8, seed), { name: 'X25519' }, true, ['deriveBits'])
-  return { priv, pubRaw: await jwkX(priv) }
+export async function xFromSeed (seed: Uint8Array, subtle: SubtleCrypto = S()): Promise<KeyPair> {
+  const priv = await subtle.importKey('pkcs8', cat(X_PKCS8, seed), { name: 'X25519' }, true, ['deriveBits'])
+  return { priv, pubRaw: await jwkX(priv, subtle) }
 }
 export const anchorOfEd = (pubRaw: Uint8Array): string => 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), pubRaw))
 export const mkOfX = (pubRaw: Uint8Array): string => 'z' + base58(cat(Uint8Array.from([0xec, 0x01]), pubRaw))
@@ -73,9 +77,9 @@ export const xRawOfMk = (mk: unknown): Uint8Array | null => {
   const b = fromBase58(mk.slice(1))
   return (b && b.length === 34 && b[0] === 0xec && b[1] === 0x01) ? b.subarray(2) : null
 }
-export const ecdh = async (xPriv: CryptoKey, theirPubRaw: Uint8Array): Promise<Uint8Array> => {
-  const pub = await S().importKey('raw', theirPubRaw, { name: 'X25519' }, false, [])
-  return new Uint8Array(await S().deriveBits({ name: 'X25519', public: pub }, xPriv, 256))
+export const ecdh = async (xPriv: CryptoKey, theirPubRaw: Uint8Array, subtle: SubtleCrypto = S()): Promise<Uint8Array> => {
+  const pub = await subtle.importKey('raw', theirPubRaw, { name: 'X25519' }, false, [])
+  return new Uint8Array(await subtle.deriveBits({ name: 'X25519', public: pub }, xPriv, 256))
 }
 
 // ── eddsa-jcs-2022 Data Integrity (W3C-true; Encounter §2.3) ──────────

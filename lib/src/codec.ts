@@ -109,10 +109,19 @@ const trustClass = lit('star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 
 const recipient = obj({ contactId: str, rkid: str, keyAgreement: str })
 const envelope = obj({ rkid: str, epk: str, nonce: str, ciphertext: str })
 const assembly = obj({ salt: dec, chunks: rec(json) })
-const seqOut = (item: V): V => obj({
-  lastSalt: dec, exhausted: bool, hwm: dec, snapshot: nullable(arr(item)),
-  inflight: rec(obj({ view: arr(item), digests: arr(str), acked: arr(str) })),
+const seqOutShape = (item: V): V => obj({
+  lastSalt: dec, exhausted: bool, hwm: dec, snapshot: nullable(arr(item)), snapshotDigest: nullable(str),
+  inflight: rec(obj({ view: arr(item), viewDigest: str, digests: arr(str), acked: arr(str) })),
 })
+/** the snapshot and its digest are present together */
+const seqOut = (item: V): V => {
+  const shape = seqOutShape(item)
+  return (x, p) => {
+    shape(x, p)
+    const o = x as { snapshot: unknown, snapshotDigest: unknown }
+    if ((o.snapshot === null) !== (o.snapshotDigest === null)) fail(`${p}.snapshotDigest`, 'null exactly when snapshot is')
+  }
+}
 const seqIn = (accepted: V): V => obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly), accepted: nullable(accepted) })
 const starPair = obj({ member: str, head: str })
 const groupStarItem: V = (x, p) => {
@@ -120,9 +129,9 @@ const groupStarItem: V = (x, p) => {
   obj({ group: str, mode: lit('digest') })(x, p)
 }
 const starOut = seqOut(starPair)
-const starIn = seqIn(obj({ salt: dec, blinded: arr(str) }))
+const starIn = seqIn(obj({ salt: dec, blinded: arr(str), matches: arr(str) }))
 const groupStarOut = seqOut(groupStarItem)
-const groupStarIn = seqIn(obj({ salt: dec, entries: arr(obj({ d: str, c: str })) }))
+const groupStarIn = seqIn(obj({ salt: dec, entries: arr(obj({ d: str, c: str })), groups: arr(str) }))
 const continuityDue: V = (x, p) => {
   if (isObj(x) && x.kind === 'choice') return obj({ kind: str, prior: str, alts: arr(str) })(x, p)
   obj({ kind: lit('report', 'align'), prior: str })(x, p)
@@ -185,12 +194,20 @@ const outboxItem: V = (x, p) => {
   if (o.envelope.rkid !== o.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
 }
 
+const DUE = { dueAt: millis }
+/** a retained ack: sealed to the counterpart key, like an outbox item */
+const storedAck: V = (x, p) => {
+  obj({ digest: str, envelope, threadId: str, recipient, at: millis, attempt: positive, sent: bool }, { nextAttemptAt: millis, sentBy: lit('report', 'horizon') })(x, p)
+  const a = x as { recipient: { keyAgreement: string }, envelope: { rkid: string } }
+  if (a.envelope.rkid !== a.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
+}
+
 const KNOWN_DUTIES: Record<KnownDuty['kind'], { v: number, shape: V }> = {
-  'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }) },
-  'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }) },
-  profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }) },
-  continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }) },
-  merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str }) },
+  'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
+  'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }, DUE) },
+  profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }, DUE) },
+  continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, DUE) },
+  merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str }, DUE) },
 }
 
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
@@ -213,9 +230,13 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'trust.paused': [{ contactId: str, paused: bool }],
   'group.joined': [{ groupId: str }],
   'prompt.opened': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction') }],
+  'prompt.decided': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), choice: lit('accept', 'decline') }],
   'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
   'profile.updated': [{ contactId: nullable(str) }],
   'anchor.rotated': [{ generation: dec }],
+  'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
+  'star.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
+  'groupStar.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
 }
 const event: V = (x, p) => {
   if (!isObj(x)) fail(p, 'object expected')
@@ -223,6 +244,16 @@ const event: V = (x, p) => {
   if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t)) fail(`${p}.type`, 'unknown event type')
   const [req, opt = {}] = EVENT_FIELDS[t as HolderEventType]
   obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p)
+}
+
+const groupShape = obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str })
+/** a listed group carries its member anchor and memberOp: the group star
+ *  seals them (Trust 5400, 5430), and their absence is no filler condition */
+const group: V = (x, p) => {
+  groupShape(x, p)
+  const g = x as { listed: boolean, memberAnchor?: unknown, memberOp?: unknown }
+  if (g.listed && g.memberAnchor === undefined) fail(`${p}.memberAnchor`, 'missing on a listed group')
+  if (g.listed && g.memberOp === undefined) fail(`${p}.memberOp`, 'missing on a listed group')
 }
 
 const codec0 = obj({
@@ -240,9 +271,9 @@ const codec0 = obj({
   contacts: keyed(contact, 'id'),
   relationships: keyed(relationship, 'id'),
   entryOrder: obj({ nextPos: dec, heads: set(str) }),
-  groups: keyed(obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }), 'id'),
+  groups: keyed(group, 'id'),
   profile: obj({ body: json, revision: dec }),
-  effects: rec(obj({ ack: json, expiresAt: millis })),
+  effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
   outbox: rec(outboxItem),
   duties: keyed(duty, 'id'),
   rotations: keyed(obj({

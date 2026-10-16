@@ -20,19 +20,16 @@
 // Deniable by construction: either relationship party can compute the
 // MAC — for DV payloads the ack is evidence to the sender alone, never
 // an attestation toward anyone else (4.2).
-import { jcs, makeValidator } from '../core.js';
+//
+// The pure parts (type, key derivation, MAC) live in the root module
+// ack.ts, shared with the holder's receive core.
+import { makeValidator } from '../core.js';
 import { SCHEMAS } from '../schemas.js';
 import * as C from './deps.js';
-import { platformSubtle } from '../crypto.js';
-const te = new TextEncoder();
-const S = platformSubtle;
-export const ACK_TYPE = 'https://real-life.org/trust-tasks/delivery-ack/0.1';
+import { ACK_TYPE, ackKeyOf, ackMac } from '../ack.js';
+export { ACK_TYPE };
 const V = makeValidator(SCHEMAS);
 const schemaOk = (file, data) => V.validate(data, SCHEMAS[file], SCHEMAS[file]).length === 0;
-const hmacU = async (key, msg) => {
-    const k = await S().importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    return 'u' + C.b64uOf(new Uint8Array(await S().sign('HMAC', k, te.encode(msg))));
-};
 const contactKeyOf = (p, contact) => {
     for (const [k, c] of p.contacts)
         if (c === contact)
@@ -41,10 +38,7 @@ const contactKeyOf = (p, contact) => {
 };
 /** the channel ack key — Section 5's derivation discipline, 4.2's info */
 export async function ackKey(ownCtx, counterpartKa, issuerAnchor, recipientAnchor) {
-    const shared = await C.ecdh(ownCtx.x.priv, C.xRawOfMk(counterpartKa));
-    if (shared.every((b) => b === 0))
-        throw new Error('all-zero X25519 output');
-    return C.hkdf(shared, 'rltp/v1/delivery/mac/ack/' + issuerAnchor + '/' + recipientAnchor);
+    return ackKeyOf(await C.ecdh(ownCtx.x.priv, C.xRawOfMk(counterpartKa)), issuerAnchor, recipientAnchor);
 }
 /**
  * Build the sealed deniable ack for a document received on `contact`'s
@@ -76,7 +70,7 @@ export async function buildAck(p, contact, refDigest, threadId, when, ent = {}) 
         return { to: contact, kind: 'delivery-ack/0.1 (signiert, eddsa-jcs-2022 unter dem Issuer-Anker)', env: await C.seal(document, contact.channel.counterpartKa, ent) };
     }
     const k = await ackKey(own, contact.channel.counterpartKa, doc.issuer, doc.recipient);
-    const document = { ...doc, proof: { mac: await hmacU(k, jcs(doc)) } };
+    const document = { ...doc, proof: { mac: await ackMac(k, doc) } };
     return { to: contact, kind: 'delivery-ack/0.1 (deniabel, MAC unter dem Kanal-Ack-Key)', env: await C.seal(document, contact.channel.counterpartKa, ent) };
 }
 /**
@@ -144,7 +138,7 @@ export async function verifyAck(p, contact, doc, cls = 'dv') {
         }
         const { proof, ...rest } = doc;
         const k = await ackKey(contact.channel.own, contact.channel.counterpartKa, doc.issuer, doc.recipient);
-        if ((await hmacU(k, jcs(rest))) !== proof.mac)
+        if ((await ackMac(k, rest)) !== proof.mac)
             return null;
         return { ref: doc.payload.ref, threadId: doc.threadId };
     }

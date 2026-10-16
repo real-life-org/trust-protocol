@@ -13,8 +13,8 @@
 // freshness across process loss and reopening themselves.
 import { jcs } from './core.js'
 import { CODEC, decodeState, StateCodecError } from './codec.js'
-import { emptyState } from './state.js'
-import type { HolderState } from './state.js'
+import { emptyState, toOpaque } from './state.js'
+import type { HolderState, OpaqueHolderState } from './state.js'
 import type { Store } from './ports.js'
 
 /** The slice of node:test and node:assert the suite uses. */
@@ -26,12 +26,14 @@ export interface ContractHarness {
   }
 }
 
-const stateWith = (when: number, label?: string): HolderState => {
+const structural = (when: number, label?: string): HolderState => {
   const s = emptyState(CODEC)
   s.lastWhen = when
   if (label) s.register.labels.push(label)
   return s
 }
+/** A state as the Store port receives it: opaque. */
+const stateWith = (when: number, label?: string): OpaqueHolderState => toOpaque(structural(when, label))
 const j = (x: unknown): string => jcs(x)
 
 export function storeContract (makeStore: () => Promise<Store> | Store, { test, assert }: ContractHarness): void {
@@ -46,8 +48,8 @@ export function storeContract (makeStore: () => Promise<Store> | Store, { test, 
 
   test('store contract: snapshot isolation — reads and commits are copies', async () => {
     const s = await fresh()
-    const a = stateWith(1, 'pair/x')
-    const c = await s.commit(null, a)
+    const a = structural(1, 'pair/x')
+    const c = await s.commit(null, toOpaque(a))
     assert.ok(c.ok, 'first commit on an empty store')
     a.register.labels.push('mutated after commit')
     const r1 = await s.read()
@@ -176,8 +178,8 @@ export function storeContract (makeStore: () => Promise<Store> | Store, { test, 
 
   test('store contract: codec boundary — the store keeps any JSON, decodeState is the gate', async () => {
     const s = await fresh()
-    const newer = { ...stateWith(1), codec: CODEC + 1 }
-    const c1 = await s.commit(null, newer as unknown as HolderState)
+    const newer = { ...structural(1), codec: CODEC + 1 }
+    const c1 = await s.commit(null, newer as unknown as OpaqueHolderState)
     assert.ok(c1.ok, 'the store does not validate or migrate')
     const r1 = await s.read()
     assert.equal(j(r1.state), j(newer))
@@ -185,9 +187,9 @@ export function storeContract (makeStore: () => Promise<Store> | Store, { test, 
     try { decodeState(r1.state) } catch (e) { code = e instanceof StateCodecError ? e.code : 'untyped' }
     assert.equal(code, 'codec-newer')
 
-    const corrupted: Record<string, unknown> = { ...stateWith(1) }
+    const corrupted: Record<string, unknown> = { ...structural(1) }
     delete corrupted.register
-    const c2 = await s.commit(c1.ok ? c1.version : null, corrupted as unknown as HolderState)
+    const c2 = await s.commit(c1.ok ? c1.version : null, corrupted as unknown as OpaqueHolderState)
     assert.ok(c2.ok)
     code = undefined
     try { decodeState((await s.read()).state) } catch (e) { code = e instanceof StateCodecError ? e.code : 'untyped' }

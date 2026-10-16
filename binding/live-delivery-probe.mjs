@@ -7,7 +7,7 @@
 //
 // Network-gated: RLTP_LIVE_MEDIATOR=1.
 
-import { MediatorCarrierAdapter } from "../lib/dist/adapter-mediator.js";
+import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { seal, receive } from "../lib/dist/delivery.js";
 import {
   xFromSeed, mkOfX, edFromSeed, anchorOfEd, diSign, diVerify,

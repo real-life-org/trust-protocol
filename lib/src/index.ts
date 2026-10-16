@@ -37,18 +37,30 @@
 //
 // The Stage-2 holder (contract, engine core and facade):
 //
-//   holder-api        createHolder — the facade: act, tick, resume, report,
-//                     subscribe, snapshot (receive follows in PR 3)
-//   engine            the act in four steps over a CAS store, the act
-//                     journal, module registration (HolderModule types)
+//   holder-api        createHolder — the facade: act, decide, receive, tick,
+//                     resume, report, subscribe, snapshot and the views:
+//                     contacts, contact, groups, profile, prompts,
+//                     deliveryStatus. Built in: the trust module (Trust
+//                     Layer 2a, 6.1–6.5, Section 2) — the human acts
+//                     trust.set, trust.setClass, trust.setGroupClass,
+//                     trust.pause, the anchor mapping's issuance and
+//                     reception, the entry commit, the star and the group
+//                     star (5.2–5.4) reconciled on resume and received
+//   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
-//   state             HolderState — the holder's whole state as JSON
-//   codec             decodeState / encodeState under the codec version
+//   state             HolderState — opaque here (note §4.5): store adapters
+//                     persist it, apps read the views
+//   codec             decodeState (to the opaque state), CODEC, StateCodecError
 //   ports             Store, KeyProvider, Log, Access, DeliveryReport, Outbound
 //   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
 //   entropy           the Entropy port by closed purpose
+//   ./internal        the structural state, encodeState and the codec chain,
+//                     the engine's module types (HolderModule, DecisionHandler,
+//                     …), the pure view functions, the trust module's factory
+//                     and its pure reads — for the library's modules and
+//                     tests, not an app contract
 //   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
-//                     freezeDeep
+//                     stateBuilder, freezeDeep, sampleState, openPromptModule
 //
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 
@@ -60,11 +72,23 @@ export * from './delivery.js'
 export * from './carrier-identity.js'
 export * from './carrier.js'
 export * from './carrier-holder.js'
+/** @deprecated The probe-world Trust Layer API; apps use createHolder.
+ *  Kept until its consumers (the gesamtsimulator) move in PR 7; nothing
+ *  new is added to it. */
 export * as visibility from './visibility.js'
+/** @deprecated The probe-world ceremony API; apps use createHolder.
+ *  Kept until its consumers move in PR 7; nothing new is added to it. */
 export * as ceremony from './ceremony.js'
-export type * from './state.js'
-export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
-export type { StateCodecErrorCode, StateValidator } from './codec.js'
+import { decodeState as decodeStructural } from './codec.js'
+import type { OpaqueHolderState } from './state.js'
+export type { OpaqueHolderState as HolderState, Dec, Millis, B64u, TrustClass, Setting, PromptKind, PromptChoice, OutboxStatus } from './state.js'
+export { CODEC, StateCodecError } from './codec.js'
+export type { StateCodecErrorCode } from './codec.js'
+/** Load a stored state (a JSON string or a parsed value): an independent,
+ *  opaque copy at the current codec, or StateCodecError. */
+export function decodeState (raw: unknown): OpaqueHolderState {
+  return decodeStructural(raw) as unknown as OpaqueHolderState
+}
 export type * from './ports.js'
 export type * from './events.js'
 export { InfraError, CryptoUnavailableError } from './results.js'
@@ -74,6 +98,7 @@ export type { Entropy, EntropyPurpose, EntropyErrorCode, PlatformRandom } from '
 export { storeContract } from './store-contract.js'
 export { seedKeys } from './keys-seed.js'
 export { createHolder } from './holder-api.js'
-export type { Holder, HolderOptions } from './holder-api.js'
-export type { HolderModule, CommandDef, PrepareCtx, Prepared, Applied, Refusal, TaskHandler, DutyHandler, EventDraft, OutboundDraft, EnginePorts, CommitListener, HolderSnapshot, CryptoHandle } from './engine.js'
+export type { Holder, HolderOptions, HolderSnapshot } from './holder-api.js'
+export type { ContactView, ClassView, ContactProfileView, GroupView, ProfileView, PromptView, DeliveryItemView, DeliveryStatusView } from './views.js'
+export type { EnginePorts, CommitListener, CryptoHandle } from './engine.js'
 export type { ContractHarness } from './store-contract.js'

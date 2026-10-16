@@ -11,6 +11,7 @@ the [Real Life Organisation](https://real-life.org) under CC BY 4.0.
 
 - Specification, schemas and vectors: <https://trust-protocol.real-life.org>
 - Zero dependencies. WebCrypto only (Ed25519, X25519, HKDF, AES-256-GCM).
+  One scoped exception: a synchronous SHA-256 (`sha256.ts`) digests local reconciliation views inside synchronous state transitions (trust star and group star) and is never used for wire bytes, keys or MACs.
 - Works in browsers, Node ≥ 20, Deno, Bun. No DOM, no storage, no network:
   the library computes and verifies, the host decides where bytes live.
 

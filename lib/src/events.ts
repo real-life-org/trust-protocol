@@ -5,7 +5,7 @@
 // type, and re-reads its views on any event. Events do not survive a
 // restart; the act journal keeps them only to answer a repeated actId.
 // Pure JSON, like the state that journals them.
-import type { Dec, OutboxStatus, PromptKind } from './state.js'
+import type { Dec, OutboxStatus, PromptChoice, PromptKind } from './state.js'
 
 /** Fields every event carries. */
 export interface EventBase {
@@ -30,11 +30,20 @@ export type HolderEvent = EventBase & (
   | { type: 'trust.paused', contactId: string, paused: boolean }
   | { type: 'group.joined', groupId: string }
   | { type: 'prompt.opened', promptId: string, kind: PromptKind }
+  /** the human decided a prompt; it is closed (prompts.ts) */
+  | { type: 'prompt.decided', promptId: string, kind: PromptKind, choice: PromptChoice }
   /** sender status trias (Delivery §6.1) */
   | { type: 'delivery.status', digest: string, threadId: string, status: OutboxStatus, late?: boolean }
   /** contactId null: the holder's own profile */
   | { type: 'profile.updated', contactId: string | null }
   | { type: 'anchor.rotated', generation: Dec }
+  /** resume found a duty of a registered kind at a version no handler
+   *  knows: kept untouched, announced once per resume (engine.ts) */
+  | { type: 'duty.unsupported', dutyId: string, kind: string, v: number }
+  /** a star (5.2a) completed on a relationship: its accepted snapshot changed */
+  | { type: 'star.accepted', contactId: string, relationshipId: string, salt: Dec }
+  /** a group star (5.2b) completed on a relationship; sharedGroups may have changed */
+  | { type: 'groupStar.accepted', contactId: string, relationshipId: string, salt: Dec }
 )
 
 export type HolderEventType = HolderEvent['type']

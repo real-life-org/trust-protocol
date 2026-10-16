@@ -21,6 +21,19 @@ export type B64u = string
 /** Milliseconds since the epoch, a non-negative safe integer. */
 export type Millis = number
 
+declare const OPAQUE: unique symbol
+
+/**
+ * The holder's state at the consumer boundary (note §4.5): opaque. Store
+ * adapters persist it as JSON and hand it back; apps never read inside it
+ * and use the views (holder methods) instead. At runtime it is the
+ * structural HolderState below, which only ./internal exposes.
+ */
+export interface OpaqueHolderState { readonly [OPAQUE]: 'HolderState' }
+
+/** The structural state as the opaque one, for the store and the facade. */
+export const toOpaque = (s: Readonly<HolderState>): OpaqueHolderState => s as unknown as OpaqueHolderState
+
 export interface HolderState {
   /** state format version (codec.ts) */
   codec: number
@@ -217,8 +230,11 @@ export interface SeqOut<V> {
   hwm: Dec
   /** snapshot S completed at H, or absent (5630) */
   snapshot: V[] | null
-  /** salt → the view sent under it and its chunks' digests (5660) */
-  inflight: Record<string, { view: V[], digests: string[], acked: string[] }>
+  /** SHA-256 hex of JCS(snapshot), null exactly when snapshot is: the
+   *  comparison key of the reconciliation (trust/star.ts viewDigest) */
+  snapshotDigest: string | null
+  /** salt → the view sent under it, its digest, and its chunks' digests (5660) */
+  inflight: Record<string, { view: V[], viewDigest: string, digests: string[], acked: string[] }>
 }
 
 /** Receiver side of one chunked sequence (5.2a): A is what an accepted
@@ -233,7 +249,11 @@ export interface SeqIn<A> {
 /** One star reconciliation pair (member, anchor head of its entry) (5610). */
 export interface StarPair { member: string, head: string }
 export type StarOut = SeqOut<StarPair>
-export type StarIn = SeqIn<{ salt: Dec, blinded: string[] }>
+/** A completed star as the receiver keeps it (trust/star.ts): its salt,
+ *  the whole assembled union of blinded values (sorted), and the entry ids
+ *  of the holder's contacts one of whose held anchors it carries (6160),
+ *  re-matched whenever the holder comes to hold new anchors. */
+export type StarIn = SeqIn<{ salt: Dec, blinded: string[], matches: string[] }>
 
 /** One group-star domain element (5730): member and memberOp present for
  *  sealed entries only, and a change of either diverges (5770). */
@@ -241,8 +261,10 @@ export type GroupStarItem =
   | { group: string, mode: 'digest' }
   | { group: string, mode: 'sealed', member: string, memberOp: string }
 export type GroupStarOut = SeqOut<GroupStarItem>
-/** Received group star: its entries {d, c} as accepted (5.2b). */
-export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }> }>
+/** A completed group star as the receiver keeps it (trust/group-star.ts):
+ *  its salt, the entries {d, c} whose d hit one of the holder's own
+ *  groups (5520), and those groups, sorted. */
+export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }>, groups: string[] }>
 
 /** A chunked document under assembly: chunk index → chunk. */
 export interface Assembly { salt: Dec, chunks: Record<string, Json> }
@@ -258,6 +280,12 @@ export interface Group {
   rules: { vouchThreshold: Dec }
   /** listed in the blinded group star (5.2b per-group switch) */
   listed: boolean
+  /** the own member anchor in G (the anchor of memberLabel) and the oid
+   *  naming its canonical admission, or the genesis where the holder
+   *  founded G (5400). Required on a listed group (codec.ts): membership
+   *  sets them on join (PR 4c/7); only an unlisted group may lack them. */
+  memberAnchor?: string
+  memberOp?: string
   /** the holder's Access view of the group, until membership graduates */
   membership: Json | null
 }
@@ -267,8 +295,39 @@ export interface OwnProfile { body: Json | null, revision: Dec }
 
 // ── Delivery: effects and outbox ───────────────────────────────────────
 
-/** A completed effect with its retained ack (null for a terminal document). */
-export interface Effect { ack: Json | null, expiresAt: Millis }
+/** A completed effect with its retained ack (null for a terminal
+ *  document): the cache entry and the ack commit together at stage 9 and
+ *  expire together at expiresAt = commit + key-retention (Delivery 4.2, §7). */
+export interface Effect { ack: StoredAck | null, expiresAt: Millis }
+
+/**
+ * The acknowledgement of a completed effect, sealed once inside the
+ * effect's transaction and re-sent byte-identical on every duplicate
+ * (Delivery 4.2, 6.2 stage 4). Acks are outbox-less: no trias. Until the
+ * app reports the ack's digest (any DeliveryReport status) it is unsent
+ * and resume re-offers it on the retry policy like an outbox item
+ * (attempt, nextAttemptAt, backoff), which covers a restart between the
+ * receive commit and the send. At the horizon (at + horizonMs) the holder
+ * stops offering it: `sent` with `sentBy: 'horizon'`; a redelivery of the
+ * document still earns it (duplicate-known).
+ */
+export interface StoredAck {
+  /** the ack document's digest; report() on it marks the ack sent */
+  digest: string
+  /** sealed to recipient.keyAgreement, as first emitted */
+  envelope: Envelope
+  threadId: string
+  recipient: Recipient
+  /** commit time of the effect, the first emission; the horizon counts from it */
+  at: Millis
+  /** emissions on the retry schedule so far (duplicates' re-sends excluded) */
+  attempt: number
+  /** next re-offer while unsent */
+  nextAttemptAt?: Millis
+  sent: boolean
+  /** why it counts as sent: the app reported it, or the horizon passed */
+  sentBy?: 'report' | 'horizon'
+}
 
 export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'
 
@@ -300,17 +359,20 @@ export interface OutboxItem {
 
 /** Re-issue of the anchor mapping after a rotation (6370): due now, or
  *  waiting until the relationship presents `awaitHead` (6596). */
-export interface ReissueMappingDuty { kind: 'reissue-mapping', v: 1, id: string, contactId: string, relId: string, awaitHead: string | null }
+export interface ReissueMappingDuty { kind: 'reissue-mapping', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, awaitHead: string | null }
 /** Send a class's current artifact on a relationship it turned on for (2850). */
-export interface ClassOnDuty { kind: 'class-on', v: 1, id: string, contactId: string, relId: string, cls: TrustClass }
+export interface ClassOnDuty { kind: 'class-on', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, cls: TrustClass }
 /** Deliver profile revision `rev` on a relationship (6455). */
-export interface ProfileDuty { kind: 'profile', v: 1, id: string, contactId: string, relId: string, rev: Dec }
+export interface ProfileDuty { kind: 'profile', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, rev: Dec }
 /** Continuity resend on a tuple (6830–6850). */
-export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, relId: string, tuple: string, step: 'probe' | 'mapping' }
+export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping' }
 
 /** The persisted continuation of a merge (2230): the verification has
  *  committed; these entries merge in one later atomic step. */
-export interface MergeDuty { kind: 'merge', v: 1, id: string, entryIds: string[], relId: string }
+export interface MergeDuty { kind: 'merge', v: 1, id: string, dueAt?: Millis, entryIds: string[], relId: string }
+
+// Every duty may carry `dueAt`: resume runs it only from then on and
+// counts it into nextDueAt (engine.ts).
 
 export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty
 /** A duty of a kind (or version) this library does not know: kept as is. */
@@ -341,6 +403,8 @@ export interface Rotation {
 }
 
 export type PromptKind = 'encounter-confirm' | 'group-invite' | 'introduction'
+/** The human's answer to a prompt (prompts.ts). */
+export type PromptChoice = 'accept' | 'decline'
 
 export interface Prompt {
   id: string
@@ -370,6 +434,16 @@ export interface EncounterState {
   challenges: Record<string, Json>
   records: Record<string, Json>
   introductions: Record<string, Json>
+}
+
+/** An outbox item's trias position (Delivery §6.1): its last step that is
+ *  not pre-transport, `submitted` before any. */
+export function triasOf (item: Readonly<OutboxItem>): OutboxStatus {
+  for (let i = item.history.length - 1; i >= 0; i--) {
+    const s = item.history[i].status
+    if (s !== 'awaiting-transport') return s
+  }
+  return 'submitted'
 }
 
 /** A fresh holder's state. */

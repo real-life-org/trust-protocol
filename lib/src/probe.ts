@@ -1,5 +1,9 @@
 // @real-life/trust-protocol/probe — the layers still being cast.
 //
+// @deprecated (lib Stage 2): apps use createHolder. This entry point stays
+// until its consumers (apps/gesamtsimulator, the simulator shims) move in
+// PR 7, then it is removed; nothing new is added to it.
+//
 // ┌──────────────────────────────────────────────────────────────────┐
 // │  NOT WIRE-NORMATIVE. These forms are probes: they exercise the   │
 // │  converged semantics of their layer, but their transport shapes  │
