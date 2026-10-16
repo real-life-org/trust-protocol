@@ -23,7 +23,8 @@
 //   delivery          the sealed envelope and the generic receive stages 1–4
 //   carrier-identity  the carrier-relationship principal (Identity §7a)
 //   carrier           the carrier side of the port (Delivery §4.4 + §5a)
-//   holder            the holder side: proofs, verdicts, recovery (§5a, §9.3)
+//   carrier-holder    the holder side of the carrier port: proofs, verdicts,
+//                     recovery (§5a, §9.3)
 //   visibility        Trust Layer 0.31 on Delivery 0.81 — the trust
 //                     act, the blinded star, the group star, the community
 //                     anchor's rotation with pre-rotation (Identity 0.54
@@ -36,6 +37,21 @@
 //                     model, enactment record, 5.6 acceptance, both
 //                     paths of 5.8 (graduated from /probe on 05.09.2026)
 //
+// The Stage-2 holder (contract, engine core and facade):
+//
+//   holder-api        createHolder — the facade: act, tick, resume, report,
+//                     subscribe, snapshot (receive follows in PR 3)
+//   engine            the act in four steps over a CAS store, the act
+//                     journal, module registration (HolderModule types)
+//   keys-seed         seedKeys — the default KeyProvider over a root seed
+//   state             HolderState — the holder's whole state as JSON
+//   codec             decodeState / encodeState under the codec version
+//   ports             Store, KeyProvider, Log, Access, DeliveryReport, Outbound
+//   results, events   ActResult, ReceiveResult, InfraError, HolderEvent
+//   entropy           the Entropy port by closed purpose
+//   ./testing         InMemoryStore, scriptedEntropy, storeContract, emptyState,
+//                     freezeDeep
+//
 // Specification, schemas and vectors: https://trust-protocol.real-life.org
 export * from './core.js';
 export * from './crypto.js';
@@ -44,6 +60,12 @@ export * from './encounter.js';
 export * from './delivery.js';
 export * from './carrier-identity.js';
 export * from './carrier.js';
-export * from './holder.js';
+export * from './carrier-holder.js';
 export * as visibility from './visibility.js';
 export * as ceremony from './ceremony.js';
+export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
+export { InfraError, CryptoUnavailableError } from './results.js';
+export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js';
+export { storeContract } from './store-contract.js';
+export { seedKeys } from './keys-seed.js';
+export { createHolder } from './holder-api.js';

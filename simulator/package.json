@@ -1,0 +1,9 @@
+{
+  "name": "trust-protocol-simulator",
+  "private": true,
+  "type": "module",
+  "description": "Buildless RLTP simulators on the frozen library copy (lib/); tests need lib/dist built",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}

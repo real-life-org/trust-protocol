@@ -24,9 +24,10 @@ import { jcs, makeValidator } from '../core.js';
 import { SCHEMAS } from '../schemas.js';
 import { b64uOf, fromB64u, xRawOfMk, ecdh, hkdf, rand as cryptoRand } from '../crypto.js';
 import { macU } from './anchor.js';
+import { platformSubtle } from '../crypto.js';
 const te = new TextEncoder();
 const td = new TextDecoder('utf-8', { fatal: true });
-const S = globalThis.crypto.subtle;
+const S = platformSubtle;
 const VAL = makeValidator(SCHEMAS);
 const schemaOk = (file, data) => VAL.validate(data, SCHEMAS[file], SCHEMAS[file]).length === 0;
 /** Entries are padded to the next positive multiple of this (§5.2b). */
@@ -58,8 +59,8 @@ export async function groupSealKey(own, peerKeyAgreement, sender, recipient, sal
 }
 // ── AEAD (§2.1): AES-256-GCM, 128-bit tag, 96-bit nonce; u + base64url(nonce || ct || tag) ──
 async function seal(key, aad, plaintext, nonce) {
-    const k = await S.importKey('raw', key, 'AES-GCM', false, ['encrypt']);
-    const ct = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: nonce, additionalData: te.encode(aad), tagLength: 128 }, k, te.encode(plaintext)));
+    const k = await S().importKey('raw', key, 'AES-GCM', false, ['encrypt']);
+    const ct = new Uint8Array(await S().encrypt({ name: 'AES-GCM', iv: nonce, additionalData: te.encode(aad), tagLength: 128 }, k, te.encode(plaintext)));
     const out = new Uint8Array(NONCE + ct.length);
     out.set(nonce);
     out.set(ct, NONCE);
@@ -70,8 +71,8 @@ async function open(key, aad, c) {
         const raw = fromB64u(c.slice(1));
         if (raw.length <= NONCE + TAG)
             return null;
-        const k = await S.importKey('raw', key, 'AES-GCM', false, ['decrypt']);
-        const pt = await S.decrypt({ name: 'AES-GCM', iv: raw.subarray(0, NONCE), additionalData: te.encode(aad), tagLength: 128 }, k, raw.subarray(NONCE));
+        const k = await S().importKey('raw', key, 'AES-GCM', false, ['decrypt']);
+        const pt = await S().decrypt({ name: 'AES-GCM', iv: raw.subarray(0, NONCE), additionalData: te.encode(aad), tagLength: 128 }, k, raw.subarray(NONCE));
         return td.decode(pt);
     }
     catch {

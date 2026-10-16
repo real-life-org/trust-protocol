@@ -32,9 +32,10 @@ const VAL = makeValidator(SCHEMAS)
 import * as C from './deps.js'
 import type { Person } from './deps.js'
 import { snapshotPriors } from './continuity.js'
+import { platformSubtle } from '../crypto.js'
 
 const te = new TextEncoder(), td = new TextDecoder()
-const S = globalThis.crypto.subtle
+const S = platformSubtle
 
 // ── people ──────────────────────────────────────────────────────────────
 export function createPerson (name: string, rootIkm?: Uint8Array): Person {
@@ -99,16 +100,16 @@ export function createDrop () {
   }
 }
 const dropTopic = async (secret: Uint8Array, dir: string) => C.b64uOf(await C.hkdf(secret, 'rltp/introduce/topic/' + dir))
-const dropKey = async (secret: Uint8Array, dir: string) => S.importKey('raw', await C.hkdf(secret, 'rltp/introduce/key/' + dir), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+const dropKey = async (secret: Uint8Array, dir: string) => S().importKey('raw', await C.hkdf(secret, 'rltp/introduce/key/' + dir), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
 async function dropSeal (secret: Uint8Array, dir: string, obj: any, nonce: Uint8Array | undefined) {
   const n = nonce ?? C.rand(12)
-  const ct = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: n }, await dropKey(secret, dir), te.encode(jcs(obj))))
+  const ct = new Uint8Array(await S().encrypt({ name: 'AES-GCM', iv: n }, await dropKey(secret, dir), te.encode(jcs(obj))))
   return C.b64uOf(C.cat(n, ct))
 }
 async function dropOpen (secret: Uint8Array, dir: string, blob: string) {
   try {
     const raw = C.fromB64u(blob)
-    const pt = await S.decrypt({ name: 'AES-GCM', iv: raw.subarray(0, 12) }, await dropKey(secret, dir), raw.subarray(12))
+    const pt = await S().decrypt({ name: 'AES-GCM', iv: raw.subarray(0, 12) }, await dropKey(secret, dir), raw.subarray(12))
     return JSON.parse(td.decode(new Uint8Array(pt)))
   } catch { return null }
 }

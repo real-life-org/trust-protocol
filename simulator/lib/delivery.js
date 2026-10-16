@@ -19,8 +19,9 @@
 // produces a second effect. receive() honors such a cache when given one.
 import { jcs, b64uOf, fromB64u } from './core.js';
 import { hkdf, xFromSeed, xRawOfMk, ecdh, digestDoc, rand } from './crypto.js';
+import { platformSubtle } from './crypto.js';
 const te = new TextEncoder();
-const S = globalThis.crypto.subtle;
+const S = platformSubtle;
 // canonical base64url or nothing — a second spelling of the same bytes
 // is a different string, and dedup digests are computed over strings
 const canonicalB64u = (s) => {
@@ -41,7 +42,7 @@ const canonicalB64u = (s) => {
 const aesKey = async (shared, usage) => {
     if (shared.every((b) => b === 0))
         throw new Error('all-zero shared secret');
-    return S.importKey('raw', await hkdf(shared, 'rltp/v1/seal'), { name: 'AES-GCM' }, false, [usage]);
+    return S().importKey('raw', await hkdf(shared, 'rltp/v1/seal'), { name: 'AES-GCM' }, false, [usage]);
 };
 export async function seal(document, recipientKeyAgreement, { ephSeed, nonce } = {}) {
     // a producer API never emits what the contract rejects (B-3): the only
@@ -59,7 +60,7 @@ export async function seal(document, recipientKeyAgreement, { ephSeed, nonce } =
     const plaintext = te.encode(jcs(document));
     if (plaintext.length > 65536)
         throw new Error('oversize');
-    const ct = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: n }, key, plaintext));
+    const ct = new Uint8Array(await S().encrypt({ name: 'AES-GCM', iv: n }, key, plaintext));
     return { rkid: recipientKeyAgreement, epk: b64uOf(eph.pubRaw), nonce: b64uOf(n), ciphertext: b64uOf(ct) };
 }
 export async function unseal(env, xPriv) {
@@ -81,7 +82,7 @@ export async function unseal(env, xPriv) {
     }
     let bytes;
     try {
-        bytes = await S.decrypt({ name: 'AES-GCM', iv: nonce }, key, raw);
+        bytes = await S().decrypt({ name: 'AES-GCM', iv: nonce }, key, raw);
     }
     catch {
         return { error: 'decryption-failed' };

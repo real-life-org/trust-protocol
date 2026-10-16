@@ -42,20 +42,21 @@ import { SCHEMAS } from '../schemas.js'
 import { base58, fromBase58, edRawOfAnchor, xRawOfMk, ecdh, hkdf, b64uOf, digestBytes } from '../crypto.js'
 import { communityLabel } from '../identity.js'
 import type { Context } from '../identity.js'
+import { platformSubtle } from '../crypto.js'
 
 const te = new TextEncoder()
-const S = globalThis.crypto.subtle
+const S = platformSubtle
 const VAL = makeValidator(SCHEMAS)
 const schemaOk = (file: string, data: unknown): boolean => VAL.validate(data, SCHEMAS[file]!, SCHEMAS[file]!).length === 0
 
 /** HMAC-SHA-256 over the UTF-8 bytes of msg, in the mac encoding (`u` + base64url). */
 export async function macU (keyBytes: Uint8Array, msg: string): Promise<string> {
-  const k = await S.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  return 'u' + b64uOf(new Uint8Array(await S.sign('HMAC', k, te.encode(msg))))
+  const k = await S().importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return 'u' + b64uOf(new Uint8Array(await S().sign('HMAC', k, te.encode(msg))))
 }
 /** Raw Ed25519 over JCS(body), `z` + base58btc — the abbreviated proof form of Trust §2.1 (no DI suite). */
 export async function signRaw (ctx: Pick<Context, 'ed'>, body: unknown): Promise<string> {
-  return 'z' + base58(new Uint8Array(await S.sign({ name: 'Ed25519' }, ctx.ed.priv, te.encode(jcs(body)))))
+  return 'z' + base58(new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.ed.priv, te.encode(jcs(body)))))
 }
 /** Verifies a raw Ed25519 proofValue over JCS(body) under a did:key anchor: exactly 64 bytes, canonical base58btc. */
 export async function verifyRaw (did: unknown, body: unknown, proofValue: unknown): Promise<boolean> {
@@ -64,8 +65,8 @@ export async function verifyRaw (did: unknown, body: unknown, proofValue: unknow
     const raw = edRawOfAnchor(did)
     const sig = fromBase58(proofValue.slice(1))
     if (!raw || !sig || sig.length !== 64 || 'z' + base58(sig) !== proofValue) return false
-    const key = await S.importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
-    return await S.verify({ name: 'Ed25519' }, key, sig, te.encode(jcs(body)))
+    const key = await S().importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
+    return await S().verify({ name: 'Ed25519' }, key, sig, te.encode(jcs(body)))
   } catch { return false }
 }
 

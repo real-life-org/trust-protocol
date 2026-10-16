@@ -22,16 +22,17 @@ import { jcs, makeValidator } from '../core.js'
 import { SCHEMAS } from '../schemas.js'
 import * as C from './deps.js'
 import type { Person } from './deps.js'
+import { platformSubtle } from '../crypto.js'
 
 const te = new TextEncoder()
-const S = globalThis.crypto.subtle
+const S = platformSubtle
 export const ACK_TYPE = 'https://real-life.org/trust-tasks/delivery-ack/0.1'
 
 const V = makeValidator(SCHEMAS)
 const schemaOk = (file: string, data: any) => V.validate(data, SCHEMAS[file], SCHEMAS[file]).length === 0
 const hmacU = async (key: Uint8Array, msg: string) => {
-  const k = await S.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  return 'u' + C.b64uOf(new Uint8Array(await S.sign('HMAC', k, te.encode(msg))))
+  const k = await S().importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return 'u' + C.b64uOf(new Uint8Array(await S().sign('HMAC', k, te.encode(msg))))
 }
 const contactKeyOf = (p: Person, contact: any) => {
   for (const [k, c] of p.contacts) if (c === contact) return k

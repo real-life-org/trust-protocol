@@ -18,9 +18,10 @@
 import { jcs, b64uOf, fromB64u } from './core.js'
 import type { Json } from './core.js'
 import { hkdf, xFromSeed, xRawOfMk, ecdh, digestDoc, rand } from './crypto.js'
+import { platformSubtle } from './crypto.js'
 
 const te = new TextEncoder()
-const S = globalThis.crypto.subtle
+const S = platformSubtle
 
 // canonical base64url or nothing — a second spelling of the same bytes
 // is a different string, and dedup digests are computed over strings
@@ -36,7 +37,7 @@ const canonicalB64u = (s: unknown): Uint8Array | null => {
 // 16-byte tag appended). Entropy is caller-suppliable for replay.
 const aesKey = async (shared: Uint8Array, usage: 'encrypt' | 'decrypt'): Promise<CryptoKey> => {
   if (shared.every((b) => b === 0)) throw new Error('all-zero shared secret')
-  return S.importKey('raw', await hkdf(shared, 'rltp/v1/seal'), { name: 'AES-GCM' }, false, [usage])
+  return S().importKey('raw', await hkdf(shared, 'rltp/v1/seal'), { name: 'AES-GCM' }, false, [usage])
 }
 /** A sealed envelope as it travels: recipient key id, ephemeral public key, nonce, ciphertext. */
 export interface Envelope { rkid: string, epk: string, nonce: string, ciphertext: string }
@@ -57,7 +58,7 @@ export async function seal (
   const n = nonce ?? rand(12)
   const plaintext = te.encode(jcs(document))
   if (plaintext.length > 65536) throw new Error('oversize')
-  const ct = new Uint8Array(await S.encrypt({ name: 'AES-GCM', iv: n }, key, plaintext))
+  const ct = new Uint8Array(await S().encrypt({ name: 'AES-GCM', iv: n }, key, plaintext))
   return { rkid: recipientKeyAgreement, epk: b64uOf(eph.pubRaw), nonce: b64uOf(n), ciphertext: b64uOf(ct) }
 }
 
@@ -74,7 +75,7 @@ export async function unseal (env: Envelope, xPriv: CryptoKey): Promise<Unsealed
   let key
   try { key = await aesKey(await ecdh(xPriv, epkRaw), 'decrypt') } catch { return { error: 'decryption-failed' } }
   let bytes
-  try { bytes = await S.decrypt({ name: 'AES-GCM', iv: nonce }, key, raw) } catch { return { error: 'decryption-failed' } }
+  try { bytes = await S().decrypt({ name: 'AES-GCM', iv: nonce }, key, raw) } catch { return { error: 'decryption-failed' } }
   // from here the cryptography has SPOKEN — everything below is form:
   // authenticated invalid UTF-8 and unparseable JSON are 'malformed'
   // (stage 4 in the receive chain), never a crypto failure (review 3, M-2)

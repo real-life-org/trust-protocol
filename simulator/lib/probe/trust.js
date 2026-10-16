@@ -56,8 +56,9 @@ import { SCHEMAS } from '../schemas.js';
 import * as C from './deps.js';
 import { buildAck, verifyAck, ACK_TYPE } from './acks.js';
 import { makeSelfCard, makeAnchorRotation, buildAnchorMapping, verifyAnchorMapping, classifyMapping, mappingAnchors, mappingBindings, lineageLinks, LINEAGE_MAX } from './anchor.js';
+import { platformSubtle } from '../crypto.js';
 const te = new TextEncoder();
-const S = globalThis.crypto.subtle;
+const S = platformSubtle;
 const TT = 'https://real-life.org/trust-tasks/';
 const say = (p, m) => p.log.push(m);
 const uuid = (ent) => ent ?? globalThis.crypto.randomUUID();
@@ -72,8 +73,8 @@ const TASK_VERSION = { 'anchor-mapping': '0.3', 'star': '0.2' };
 const taskOf = (slug) => slug + '/' + (TASK_VERSION[slug] ?? '0.1');
 // ── Primitiven ──────────────────────────────────────────────────────────
 export async function hmac(keyBytes, msg) {
-    const k = await S.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    return C.b64uOf(new Uint8Array(await S.sign('HMAC', k, te.encode(msg))));
+    const k = await S().importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    return C.b64uOf(new Uint8Array(await S().sign('HMAC', k, te.encode(msg))));
 }
 export const hmacU = async (keyBytes, msg) => 'u' + await hmac(keyBytes, msg);
 /** Der Gemeinschaftsanker in seiner AKTUELLEN Generation (Identity §5.4). */

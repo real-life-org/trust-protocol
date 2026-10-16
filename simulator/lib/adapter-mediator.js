@@ -82,8 +82,8 @@ export class MediatorCarrierAdapter {
         // ONE tuple, snapshotted at entry: a caller mutating its buffers
         // between the three awaited derivations must not be able to mix
         // identities from two tuples (R8-B2)
-        const ikm = rootIkm.slice();
-        const n = nonce.slice();
+        const ikm = new Uint8Array(rootIkm);
+        const n = new Uint8Array(nonce);
         const principal = await carrierPrincipal(ikm, carrier, n);
         const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection');
         const egress = await carrierScopedIdentity(ikm, carrier, n, 'egress');
