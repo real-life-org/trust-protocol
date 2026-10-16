@@ -31,14 +31,23 @@
 //   and, from trust/star.ts and trust/group-star.ts (PR 4b): the tasks
 //             star/0.2 and group-star/0.1, the sweeps trust.star and
 //             trust.groupStar run by resume, and their ack handlers
+//   and, from trust/entries.ts (PR 4c): the commands trust.merge and
+//             trust.depart and the duty merge/1; from trust/continuity.ts
+//             (PR 4c): the tasks continuity-probe/0.1 and
+//             continuity-mapping/0.1, the duty continuity/1, their ack and
+//             failure handlers
 //
 // Choices this file makes where note and spec leave them open:
-//   - a relationship maps to exactly one entry here: the contact its active
-//     tuple's entryId names (2145), else its contactId. Merge, split and
-//     chaining are PR 4c. An entry whose relationships hold incomparable
-//     anchor heads (a manual merge, 6640, before its split) keeps its
-//     anchor head where it is among the newest, else takes the verifying
-//     relationship's head
+//   - a relationship's verifications go to the entry its active tuple's
+//     entryId names (2145), else the one its identity (contactId) names
+//     (trust/state.ts entryOf); it sends under that entry's settings
+//     (2146). An entry whose relationships hold incomparable anchor heads
+//     (a manual merge, 6640, before its split) keeps its anchor head where
+//     it is among the newest, else takes the verifying relationship's head
+//   - an accepted mapping runs, in order: the split of 2080 (the first
+//     mapping on a hand-merged relationship that shares no anchor with
+//     the entry), the entry commit, and the merge duties of the net and of
+//     2145 (trust/entries.ts), which merge after this commit (2230)
 //   - mappingIn.body and mappingOut.body hold the mapping's body (the
 //     artifact without its MACs): the revision rule compares bodies (6270),
 //     6310 compares the issued body
@@ -54,12 +63,9 @@
 //     re-commit of trust.recover (no verification) announces nothing
 //   - the admission bound is the constant 10¹⁸−1 (2050); trustModule takes
 //     another bound for tests only, as the probe's admissionBound did
-//   - 2250/2260 in part: an entry committed at a full set is
-//     deliverable-pending, and trust.recover admits pending entries in
-//     position order while the set has room. Admission when a departure or
-//     a merge frees a slot, and the removal of a pending entry with its
-//     relationship's departure (2260), arrive with departure and merge in
-//     PR 4c (TODO(4c) in recommitEntries); this module claims neither
+//   - an entry committed at a full set is deliverable-pending (2250);
+//     trust.recover, a merge and a departure admit pending entries in
+//     position order while the set has room (trust/entries.ts)
 //   - the entry commit of 2240 runs on trust.recover and on any accepted
 //     mapping of the relationship, the repeat included
 //   - issuance needs a community anchor (register.community): without one
@@ -98,9 +104,11 @@ import { communityLabel } from '../identity.js';
 import { SCHEMAS } from '../schemas.js';
 import { LINEAGE_MAX, MAPPING_CONDITION_RULE, assembleAnchorMapping, bindingOf, classifyMapping, lineageLinks, mappingBindings, rawProofValue, verifyAnchorMappingWith, } from '../anchor.js';
 import { tupleByRkid } from '../receive.js';
-import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryRelationships, findContact, lags, newestHeads, } from './state.js';
+import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel, unionBindings, } from './state.js';
+import { admitPending, classOnDuty, owedOn, entryCommands, mergeDutiesAfter, mergeDuty, settleHead, splitIfUnlinked } from './entries.js';
 import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js';
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js';
+import { continuityParts } from './continuity.js';
 const te = new TextEncoder();
 const V = makeValidator(SCHEMAS);
 const mappingSchemaOk = (m) => V.validate(m, SCHEMAS['visibility-anchor-mapping.schema.json'], SCHEMAS['visibility-anchor-mapping.schema.json']).length === 0;
@@ -145,6 +153,8 @@ function issuable(state, contactId, relId, lagMatters) {
     const rel = Object.hasOwn(state.relationships, relId) ? state.relationships[relId] : undefined;
     if (!contact || !rel || rel.chainedInto !== null || !contact.relIds.includes(rel.id))
         return { ok: false, why: 'gone' };
+    if (entryOf(state, rel)?.id !== contact.id)
+        return { ok: false, why: 'gone' }; // 2146: it sends under the other entry
     if (!classOnToward(contact, 'anchorMapping'))
         return { ok: false, why: 'off' }; // 6410
     const tuple = activeTuple(rel);
@@ -202,9 +212,6 @@ async function prepareIssue(ctx, contactId, relId, lagMatters) {
         },
     };
 }
-/** Is this duty an anchor-mapping duty owed on `relId`? */
-const owedOn = (d, relId) => (d.kind === 'reissue-mapping' && d.relId === relId) ||
-    (d.kind === 'class-on' && d.cls === 'anchorMapping' && d.relId === relId);
 /** The issuance's commit: revision and body persisted in one step (6300),
  *  the earliest anchor (2285), every duty the delivery meets (6596); null
  *  where the scope moved since the preparation. */
@@ -228,23 +235,6 @@ function commitIssue(state, p) {
     };
 }
 // ── the entry commit (Section 2) ───────────────────────────────────────
-/** The entry a relationship's verifications go to (2145): its active
- *  tuple's entryId, by id or alias, else its contact. */
-const entryOf = (state, rel) => {
-    const t = activeTuple(rel);
-    return (t && findContact(state, t.entryId)) ?? state.contacts[rel.contactId];
-};
-const liveRel = (r) => {
-    const t = activeTuple(r);
-    return r.chainedInto === null && t !== undefined && !t.deactivated;
-};
-/** A class-on duty of the anchor mapping on `rel`, unless one is open. */
-const classOnDuty = (state, contactId, relId, extra) => {
-    const id = `class-on:anchorMapping:${relId}`;
-    if (Object.hasOwn(state.duties, id) || extra.some((d) => d.id === id))
-        return [];
-    return [{ kind: 'class-on', v: 1, id, contactId, relId, cls: 'anchorMapping' }];
-};
 /**
  * After a verified mapping on `relId` (or on recovery): the entry commit
  * where the entry has none (2060: next position, admitted, or pending at
@@ -254,6 +244,8 @@ const classOnDuty = (state, contactId, relId, extra) => {
 function commitEntry(before, state, relId, bound) {
     const rel = state.relationships[relId];
     const c0 = entryOf(state, rel);
+    if (!c0)
+        throw new Error(`trust: relationship ${relId} maps to no entry`);
     let c = { ...c0 };
     let entryOrder = state.entryOrder;
     let committed = null;
@@ -264,12 +256,9 @@ function commitEntry(before, state, relId, bound) {
         committed = c;
     }
     const rels = entryRelationships(state, c);
-    const newest = newestHeads(rels);
-    const head = newest.length === 1 ? newest[0]
-        : c.anchorHead !== null && newest.includes(c.anchorHead) ? c.anchorHead
-            : rel.heldCounterpartHead;
-    c = { ...c, anchorHead: head };
-    const next = { ...state, contacts: { ...state.contacts, [c.id]: c }, entryOrder };
+    const s1 = { ...state, contacts: { ...state.contacts, [c.id]: c }, entryOrder };
+    c = settleHead(s1, c, rel.heldCounterpartHead);
+    const next = { ...s1, contacts: { ...s1.contacts, [c.id]: c } };
     // 2850: a relationship that ceased to lag gets the classes on toward the contact
     const duties = [];
     if (classOnToward(c, 'anchorMapping')) {
@@ -281,21 +270,6 @@ function commitEntry(before, state, relId, bound) {
         }
     }
     return { state: next, committed, contact: c, duties };
-}
-/** 2250: pending entries join the set in position order while it has room. */
-function admitPending(state, bound) {
-    let admitted = BigInt(Object.values(state.contacts).filter((x) => x.status === 'admitted').length);
-    const pending = Object.values(state.contacts).filter((x) => x.status === 'pending' && x.pos !== null)
-        .sort((a, b) => { const x = BigInt(a.pos), y = BigInt(b.pos); return x < y ? -1 : x > y ? 1 : 0; });
-    let contacts = null;
-    for (const c of pending) {
-        if (admitted >= bound)
-            break;
-        contacts ??= { ...state.contacts };
-        contacts[c.id] = { ...c, status: 'admitted' };
-        admitted += 1n;
-    }
-    return contacts ? { ...state, contacts } : state;
 }
 /** First, pending entries are admitted in position order while the set
  *  has room (2250): they hold earlier positions than any re-commit. Then
@@ -311,13 +285,10 @@ export function recommitEntries(state, bound = ADMISSION_BOUND) {
     let cur = admitPending(state, bound);
     for (const id of order) {
         const rel = cur.relationships[id];
-        if (!rel.tuples.some((t) => t.mappingIn.body !== null) || entryOf(cur, rel).pos !== null)
+        if (!rel.tuples.some((t) => t.mappingIn.body !== null) || entryOf(cur, rel)?.pos !== null)
             continue;
         cur = commitEntry(cur, cur, id, bound).state;
     }
-    // TODO(4c): the same admission step runs atomically with every departure
-    // and merge that frees a slot (2150, 2250, 5860), and a pending entry
-    // leaves with its relationship's departure (2260)
     return { state: cur };
 }
 // ── reception (6.3, Section 2) ─────────────────────────────────────────
@@ -348,10 +319,17 @@ function mappingTask(bound) {
                 return refuse('validation-failed', 'RLTP-TRU-6240');
             const S = ctx.crypto.subtle;
             const own = await ctx.keys.anchorOf(at.tuple.ownPairLabel);
+            // 6118 against every binding held: an anchor the chain holds two
+            // bindings for (6610) admits no card and no successor, since none
+            // can meet both
+            const b0 = doc.payload.body;
+            const conflicted = new Set(Object.entries(at.rel.bindings).filter(([, v]) => v.length > 1).map(([k]) => k));
+            if (conflicted.has(b0.card.body.anchor) || b0.lineage.some((r) => conflicted.has(r.body.prev)))
+                return refuse('validation-failed', 'RLTP-TRU-6118');
             let infra = null;
             const v = await verifyAnchorMappingWith(doc.payload, {
                 ownAnchor: own.anchor, pair: at.tuple.counterpartAnchor, pairKeyAgreement: at.tuple.counterpartKeyAgreement,
-                held: new Map(Object.entries(at.rel.bindings)),
+                held: new Map(Object.entries(at.rel.bindings).filter(([, x]) => x.length === 1).map(([k, x]) => [k, x[0]])),
                 agree: async (theirX) => {
                     try {
                         const a = await ctx.keys.agree(at.tuple.rkid, theirX, ctx.release);
@@ -386,7 +364,7 @@ function mappingTask(bound) {
                 if (t.mappingIn.body === null || jcs(b) !== jcs(t.mappingIn.body))
                     return refuse('validation-failed', 'RLTP-TRU-6270');
                 // a repeat: ignored, except an entry lost with state loss re-commits (2240)
-                return entryOf(state, rel).pos === null ? { state: commitEntry(state, state, rel.id, bound).state } : { state: state };
+                return entryOf(state, rel)?.pos === null ? { state: commitEntry(state, state, rel.id, bound).state } : { state: state };
             }
             if (rev < cur)
                 return refuse('validation-failed', 'RLTP-TRU-6270');
@@ -402,16 +380,29 @@ function mappingTask(bound) {
                 if (!links.some((l) => l.prev === prev && l.next === next))
                     links.push({ prev, next });
             const nextRel = {
-                ...rel, tuples, links, bindings: { ...rel.bindings, ...prepared.value.bindings }, heldCounterpartHead: b.self,
+                ...rel, tuples, links, bindings: unionBindings(rel.bindings, Object.fromEntries(Object.entries(prepared.value.bindings).map(([k, x]) => [k, [x]]))), heldCounterpartHead: b.self,
+                // 2190: the verification commit's place in the one total order
+                firstVerified: rel.firstVerified ?? inc(state.commitSeq),
             };
-            const mid = { ...state, relationships: { ...state.relationships, [rel.id]: nextRel } };
-            const e = commitEntry(state, mid, rel.id, bound);
+            let mid = { ...state, relationships: { ...state.relationships, [rel.id]: nextRel } };
             const events = [];
+            // 2080: a manual merge the first mapping contradicts splits, atomically
+            const split = splitIfUnlinked(state, mid, rel.id);
+            if (split) {
+                mid = split.state;
+                events.push(split.event);
+            }
+            const e = commitEntry(state, mid, rel.id, bound);
             if (e.committed)
                 events.push({ type: 'trust.received', contactId: e.contact.id });
             events.push({ type: 'contact.verified', contactId: e.contact.id, relationshipId: rel.id });
             // 6160: stars already accepted are tested against the anchors now held
-            return { state: rematchStars(e.state, e.contact.id, prepared.value.stars), events, ...(e.duties.length ? { duties: e.duties } : {}) };
+            // the net (6520–6605) and 2145: a merge this verification admits runs
+            // after its commit, as a persisted continuation (2230)
+            const m = mergeDutiesAfter(state, rematchStars(e.state, e.contact.id, prepared.value.stars), rel.id, { net: true });
+            const after = m.state;
+            const duties = [...e.duties, ...m.duties];
+            return { state: after, events, ...(duties.length ? { duties } : {}), ...(split?.renames.length ? { renames: split.renames } : {}) };
         },
     };
 }
@@ -583,24 +574,32 @@ export function trustModule(opts = {}) {
     const limit = opts.assemblyLimit;
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1))
         throw new RangeError('assemblyLimit must be a positive integer');
+    const cont = continuityParts(bound, limit ?? ASSEMBLY_LIMIT.probe);
     return Object.freeze({
         name: 'trust',
         commands: Object.freeze({
             ...commands,
+            ...entryCommands(bound),
             [TRUST_COMMANDS.recover]: { human: false, apply: (state) => recommitEntries(state, bound) },
         }),
         tasks: Object.freeze({
             [ANCHOR_MAPPING_TYPE]: mappingTask(bound),
             [STAR_TYPE]: taskOf(STAR, limit ?? ASSEMBLY_LIMIT.star),
             [GROUP_STAR_TYPE]: taskOf(GROUP_STAR, limit ?? ASSEMBLY_LIMIT.groupStar),
+            ...cont.tasks,
         }),
         duties: Object.freeze({
             'class-on': issueDuty(true),
             'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
+            merge: mergeDuty(bound),
+            ...cont.duties,
         }),
         // 5.4: the star first, then the group star, each its own scope (5730)
         sweeps: Object.freeze({ 'trust.star': sweepOf(STAR), 'trust.groupStar': sweepOf(GROUP_STAR) }),
-        acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR) }),
+        acks: Object.freeze({ [STAR_TYPE]: ackOf(STAR), [GROUP_STAR_TYPE]: ackOf(GROUP_STAR), ...cont.acks }),
+        failures: Object.freeze({ ...cont.failures }),
+        ownRetries: cont.ownRetries,
+        keepKeys: cont.keepKeys,
         // in-flight deliveries whose outbox items are all gone leave on tick
         retain: (state) => retainInflight(state),
     });

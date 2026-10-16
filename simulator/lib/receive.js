@@ -87,6 +87,7 @@ import { receiveByAgreement, seal } from './delivery.js';
 import { ACK_TYPE, ackDocument, ackKeyOf, macAck, macAckForm, macAckValid } from './ack.js';
 import { SCHEMAS } from './schemas.js';
 import { triasOf } from './state.js';
+import { entryOf } from './trust/state.js';
 import { InfraError } from './results.js';
 export const isTaskDiscarded = (x) => x !== null && typeof x === 'object' && x.discarded === true;
 /** A sealed ack as the outbound the app sends, at the given attempt. */
@@ -201,7 +202,8 @@ export async function prepareReceive(ctx, env, tasks) {
     const envelope = await seal(ackDoc, at.tuple.counterpartKeyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S);
     const ack = {
         digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-        recipient: { contactId: at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
+        // the entry the arrival's relationship sends under (2146), by its current id
+        recipient: { contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
     };
     return { kind: 'task', digest, type: doc.type, doc: rdoc, arrival, value, ack };
 }

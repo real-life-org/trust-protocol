@@ -146,9 +146,9 @@ const tuple = obj({
     ownPairLabel: str, counterpartAnchor: str, counterpartKeyAgreement: str, rkid: str, entryId: str,
     priorCandidates: arr(obj({ ownPairLabel: str, counterpartAnchor: str })),
     starOut, starIn, groupStarOut, groupStarIn,
-    probeOut: obj({ seq: dec }),
+    probeOut: obj({ seq: dec, inflight: rec(obj({ digests: arr(str), acked: arr(str) })), done: bool }),
     probeIn: obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly) }),
-    continuityOut: obj({ rev: dec, body: json, chosen: nullable(str), reported: nullable(str), aligned: bool, due: nullable(continuityDue) }),
+    continuityOut: obj({ rev: dec, body: json, proof: json, sent: arr(str), align: bool, chosen: nullable(str), reported: nullable(str), aligned: bool, due: nullable(continuityDue) }),
     continuityIn: obj({ rev: dec, body: json, recordPrior: nullable(str) }),
     mappingOut: obj({ rev: dec, body: json, underAnchor: nullable(str) }),
     mappingIn: obj({ rev: dec, body: json, self: nullable(str), card: json }),
@@ -157,9 +157,9 @@ const tuple = obj({
 });
 const relationship = obj({
     id: str, contactId: str, tuples: arr(tuple), activeHead: str, earliestAnchor: nullable(str),
-    links: arr(obj({ prev: str, next: str })), bindings: rec(str), heldCounterpartHead: nullable(str),
+    links: arr(obj({ prev: str, next: str })), bindings: rec(set(str)), heldCounterpartHead: nullable(str),
     memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str }),
-    chainedInto: nullable(str),
+    chainedInto: nullable(str), firstVerified: nullable(dec),
 });
 const contact = obj({
     id: str, pos: nullable(dec), status: lit('none', 'admitted', 'pending'), aliases: set(str), relIds: set(str),
@@ -204,8 +204,8 @@ const KNOWN_DUTIES = {
     'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
     'class-on': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, cls: trustClass }, DUE) },
     profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }, DUE) },
-    continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, DUE) },
-    merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str }, DUE) },
+    continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural, lastAt: millis }) },
+    merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str, witness: obj({ heads: rec(str), superseded: rec(set(str)) }) }, DUE) },
 };
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
 export const isKnownDuty = (d) => Object.hasOwn(KNOWN_DUTIES, d.kind) && KNOWN_DUTIES[d.kind].v === d.v;
@@ -222,7 +222,10 @@ const duty = (x, p) => {
 const EVENT_FIELDS = {
     'contact.added': [{ contactId: str }],
     'contact.verified': [{ contactId: str, relationshipId: str }],
-    'contact.chained': [{ contactId: str, relationshipId: str }],
+    'contact.chained': [{ contactId: str, from: str, into: str }],
+    'contact.merged': [{ contactId: str, merged: arr(str) }],
+    'contact.split': [{ contactId: str, leaver: str, relationshipId: str }],
+    'contact.departed': [{ contactId: str, relationshipIds: arr(str), removed: bool }],
     'trust.given': [{ contactId: str }],
     'trust.received': [{ contactId: str }],
     'trust.paused': [{ contactId: str, paused: bool }],

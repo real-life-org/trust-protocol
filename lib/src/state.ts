@@ -150,15 +150,25 @@ export interface Relationship {
   earliestAnchor: string | null
   /** links held from verified lineages (6610) */
   links: Array<{ prev: string, next: string }>
-  /** anchor → pre-rotation binding held for it (6610) */
-  bindings: Record<string, string>
+  /** anchor → every pre-rotation binding held for it, sorted (6610: the
+   *  union over the mappings verified on any tuple of the chain; two where
+   *  a chaining joined tuples that disagree, a conflict the binding rule
+   *  sees, 6605) */
+  bindings: Record<string, string[]>
   /** the counterpart's anchor head as last verified */
   heldCounterpartHead: string | null
   /** contact memory and evidence (2280) */
   memory: Record<string, Json>
   provenance: { kind: 'ceremony' | 'introduced', via?: string, at: Millis }
-  /** set when this chain was appended into another (6a.4) */
+  /** set when this chain was appended into another (6a.4): the fresh
+   *  relationship whose tuple a chaining appended to `chainedInto` stays as
+   *  a husk without tuples, its id resolving to the chain and its contactId
+   *  a chain alias of it (2090) */
   chainedInto: string | null
+  /** commitSeq of the first verification commit on this relationship
+   *  (2190): its place in entry-commit order among the relationships of
+   *  one entry (2100); null before any */
+  firstVerified: Dec | null
 }
 
 /** One pair context toward one counterpart: per-tuple state (2280). */
@@ -180,7 +190,9 @@ export interface Tuple {
   /** the group star's own scope and domain (5730) */
   groupStarOut: GroupStarOut
   groupStarIn: GroupStarIn
-  probeOut: { seq: Dec }
+  /** 6a.2: the own probe sequence of this tuple direction (6680), the
+   *  probes in flight and whether one completed (its delivery acked) */
+  probeOut: ProbeOut
   probeIn: { hwm: Dec, lowerBound: Dec, assembly: Assembly | null }
   /** 6a.4: own continuity-mapping issuance (6300) and the open work on it */
   continuityOut: ContinuityOut
@@ -206,10 +218,30 @@ export type ContinuityDue =
   | { kind: 'report', prior: string }
   | { kind: 'align', prior: string }
 
+/** A probe's sender state (6680, 6830). */
+export interface ProbeOut {
+  /** last assigned probe sequence, "0" before the first */
+  seq: Dec
+  /** probe → its chunks' digests and those acked */
+  inflight: Record<string, { digests: string[], acked: string[] }>
+  /** a probe completed: the standing probe duty ends (6830) */
+  done: boolean
+}
+
 export interface ContinuityOut {
   /** last issued revision and body (6300/6310) */
   rev: Dec
   body: Json | null
+  /** the MACs of the last issued body: a resend (6840) re-seals the same
+   *  artifact without the prior tuple's key */
+  proof: Json | null
+  /** digests of the documents that carried the last issued body: this
+   *  issuance's alone, reset by the next (an ack of an earlier issuance
+   *  completes nothing of a later one) */
+  sent: string[]
+  /** the last issuance is the non-record side's alignment: issued after
+   *  the record side's mapping was verified (6930) */
+  align: boolean
   /** record side: the prior it chose, final once set (contChosen) */
   chosen: string | null
   /** non-record side: the match it reported (contReported) */
@@ -365,11 +397,24 @@ export interface ClassOnDuty { kind: 'class-on', v: 1, id: string, dueAt?: Milli
 /** Deliver profile revision `rev` on a relationship (6455). */
 export interface ProfileDuty { kind: 'profile', v: 1, id: string, dueAt?: Millis, contactId: string, relId: string, rev: Dec }
 /** Continuity resend on a tuple (6830–6850). */
-export interface ContinuityDuty { kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping' }
+export interface ContinuityDuty {
+  kind: 'continuity', v: 1, id: string, dueAt?: Millis, relId: string, tuple: string, step: 'probe' | 'mapping'
+  /** sends so far under this standing duty (the issuance counts) */
+  attempt?: number
+  /** when the last of them was sent: the next is due no earlier than
+   *  lastAt + backoff(attempt), a failure included */
+  lastAt?: Millis
+}
 
 /** The persisted continuation of a merge (2230): the verification has
  *  committed; these entries merge in one later atomic step. */
-export interface MergeDuty { kind: 'merge', v: 1, id: string, dueAt?: Millis, entryIds: string[], relId: string }
+export interface MergeDuty {
+  kind: 'merge', v: 1, id: string, dueAt?: Millis, entryIds: string[], relId: string
+  /** what the merge was admitted against (6540, 6550, 6605): each entry's
+   *  anchor head, and per entry the other entries' heads it then held as
+   *  superseded. The duty runs only while this still holds */
+  witness: { heads: Record<string, string>, superseded: Record<string, string[]> }
+}
 
 // Every duty may carry `dueAt`: resume runs it only from then on and
 // counts it into nextDueAt (engine.ts).

@@ -43,9 +43,12 @@
 //                     deliveryStatus. Built in: the trust module (Trust
 //                     Layer 2a, 6.1–6.5, Section 2) — the human acts
 //                     trust.set, trust.setClass, trust.setGroupClass,
-//                     trust.pause, the anchor mapping's issuance and
-//                     reception, the entry commit, the star and the group
-//                     star (5.2–5.4) reconciled on resume and received
+//                     trust.pause, trust.merge, trust.depart, the anchor
+//                     mapping's issuance and reception, the entry commit,
+//                     merge and split (Section 2, 6a.1), the star and the
+//                     group star (5.2–5.4) reconciled on resume and
+//                     received, continuity (§6a: probe, continuity
+//                     mapping, chaining)
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters
@@ -99,6 +102,6 @@ export { storeContract } from './store-contract.js'
 export { seedKeys } from './keys-seed.js'
 export { createHolder } from './holder-api.js'
 export type { Holder, HolderOptions, HolderSnapshot } from './holder-api.js'
-export type { ContactView, ClassView, ContactProfileView, GroupView, ProfileView, PromptView, DeliveryItemView, DeliveryStatusView } from './views.js'
+export type { ContactView, RelationshipView, ClassView, ContactProfileView, GroupView, ProfileView, PromptView, DeliveryItemView, DeliveryStatusView } from './views.js'
 export type { EnginePorts, CommitListener, CryptoHandle } from './engine.js'
 export type { ContractHarness } from './store-contract.js'

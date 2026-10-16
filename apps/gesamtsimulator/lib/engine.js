@@ -118,10 +118,29 @@
 //     operation left all of them untouched (by reference)
 //   - a verified delivery-ack runs the ack handler registered for the
 //     acknowledged item's type in its own transaction; a report never does
+//   - an outbox item that turns failed (a failed report, or the holder's
+//     own give-up at the horizon inside resume) runs the failure handler
+//     registered for its type in that same transaction, once, at the
+//     transition; duties it opens are folded into the state there (so two
+//     failures of one resume cannot open one duty twice) and count into
+//     nextDueAt like any new duty. A late delivered after failed runs the
+//     ack handler as usual, never the failure handler again
 //   - a task handler's refusal commits nothing; its TaskDiscarded (an
 //     assembly discarded at a resource limit or rejected, Trust 5365/5366)
 //     commits its state and nothing else: disposition `discarded` with the
 //     reason, no cache entry, no ack, no event
+//   - a transition's `renames` (Applied) are followed in the effect cache by
+//     the engine after the transition: each stored ack's recipient.contactId
+//     that a rename names moves to its new id; the envelope, sealed to the
+//     key agreement, is untouched (an ack re-sent is byte-identical)
+//   - a module's ownRetries are task types it re-issues itself: resume
+//     never re-emits their outbox items (the horizon still gives them up);
+//     its keepKeys name own rkids tick must not tombstone though no live
+//     tuple carries them. Both trust the registered modules: no ownership
+//     of a type or a key is checked (modules are the library's own, not
+//     app plug-ins)
+//   - a failure handler gets the retry backoff, so a failure can make work
+//     due no earlier than its schedule allows
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
@@ -255,6 +274,22 @@ const releaseOf = (state) => (rkid) => {
     return k.retiredAt !== undefined ? { status: 'retired' } : { status: 'live', label: k.label };
 };
 const isRefusal = (r) => r?.ok === false;
+/** The effect cache with the stored acks' recipients renamed. */
+function renameAcks(effects, renames) {
+    let out = null;
+    for (const [d, e] of Object.entries(effects)) {
+        let a = e.ack;
+        if (!a)
+            continue;
+        for (const r of renames) {
+            if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.rkid)))
+                a = { ...a, recipient: { ...a.recipient, contactId: r.to } };
+        }
+        if (a !== e.ack)
+            (out ??= { ...effects })[d] = { ...e, ack: a };
+    }
+    return out ?? effects;
+}
 const checkWhen = (when) => {
     if (!Number.isSafeInteger(when) || when < 0)
         throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`);
@@ -291,6 +326,9 @@ class HolderEngine {
     #duties;
     #sweeps;
     #acks;
+    #failures;
+    #ownRetries;
+    #keepKeys;
     #retain;
     #builtins;
     #listeners = new Set();
@@ -333,6 +371,9 @@ class HolderEngine {
         const duties = new Map();
         const sweeps = new Map();
         const acks = new Map();
+        const failures = new Map();
+        const ownRetries = new Set();
+        const keepKeys = [];
         const retain = [];
         const names = new Set();
         for (const m of modules) {
@@ -390,6 +431,25 @@ class HolderEngine {
                     throw new TypeError(`ack handler ${uri} (module ${m.name}) must be a function`);
                 acks.set(uri, h);
             }
+            for (const [uri, h] of Object.entries(m.failures ?? {})) {
+                if (!TASK_URI.test(uri))
+                    throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`);
+                if (failures.has(uri))
+                    throw new Error(`duplicate failure handler ${uri} (module ${m.name})`);
+                if (typeof h !== 'function')
+                    throw new TypeError(`failure handler ${uri} (module ${m.name}) must be a function`);
+                failures.set(uri, h);
+            }
+            for (const uri of m.ownRetries ?? []) {
+                if (!TASK_URI.test(uri))
+                    throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`);
+                ownRetries.add(uri);
+            }
+            if (m.keepKeys !== undefined) {
+                if (typeof m.keepKeys !== 'function')
+                    throw new TypeError(`keepKeys (module ${m.name}) must be a function`);
+                keepKeys.push(m.keepKeys);
+            }
             if (m.retain !== undefined) {
                 if (typeof m.retain !== 'function')
                     throw new TypeError(`retain (module ${m.name}) must be a function`);
@@ -401,6 +461,9 @@ class HolderEngine {
         this.#duties = duties;
         this.#sweeps = sweeps;
         this.#acks = acks;
+        this.#failures = failures;
+        this.#ownRetries = ownRetries;
+        this.#keepKeys = Object.freeze(keepKeys);
         this.#retain = Object.freeze(retain);
         this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
@@ -510,7 +573,7 @@ class HolderEngine {
             // work it opened or unblocked, the app's cue to call resume
             const wake = r.nextDueAt ?? (def === this.#builtins.resume ? undefined : this.#wake(state, r.state, newDuties, at));
             const extra = { ...(wake !== undefined ? { nextDueAt: wake } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
-            if (!def.human && r.state === state && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
+            if (!def.human && r.state === state && !r.renames?.length && at === state.lastWhen && !drafts.length && !eventDrafts.length && !newDuties.length && !emit.length) {
                 return { ok: true, outbound: [...release], events: [], ...extra };
             }
             const seq = inc(state.commitSeq);
@@ -535,7 +598,8 @@ class HolderEngine {
             const acts = def.human
                 ? { ...r.state.acts, [actId]: { actId: actId, inputHash: inputHash, commitSeq: seq, outboundDigests: outbound.map((o) => o.digest), events, at } }
                 : r.state.acts;
-            const next = { ...r.state, commitSeq: seq, lastWhen: at, outbox, duties, acts };
+            const effects = r.renames?.length ? renameAcks(r.state.effects, r.renames) : r.state.effects;
+            const next = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts };
             const text = encodeState(next); // validates; an invalid next state is a programming error
             let res;
             try {
@@ -588,6 +652,32 @@ class HolderEngine {
         }
         return wake;
     }
+    /** The failure handlers of the items `digests` (each just turned
+     *  failed), in order, on `state`; their duties folded into the state. */
+    #failed(state, digests, when) {
+        let cur = state;
+        const events = [];
+        for (const digest of digests) {
+            const h = this.#failures.get(cur.outbox[digest].type);
+            if (!h)
+                continue;
+            const r = h(cur, digest, when, { backoff: this.#policy.backoff });
+            if (r.state.effects !== cur.effects)
+                throw new Error(`engine: the failure handler of ${cur.outbox[digest].type} wrote the effect cache`);
+            if (r.outbound?.length)
+                throw new Error(`engine: the failure handler of ${cur.outbox[digest].type} issued documents; it opens duties`);
+            cur = r.state;
+            events.push(...(r.events ?? []));
+            if (r.duties?.length) {
+                const duties = { ...cur.duties };
+                for (const d of r.duties)
+                    if (!Object.hasOwn(duties, d.id))
+                        duties[d.id] = d;
+                cur = { ...cur, duties };
+            }
+        }
+        return { state: cur, events };
+    }
     #itemOf(state, digest) {
         if (!Object.hasOwn(state.outbox, digest))
             throw new Error(`engine: journaled outbound ${digest} is missing from the outbox`);
@@ -601,6 +691,7 @@ class HolderEngine {
     #tickDef() {
         const policy = () => this.#policy;
         const retainers = () => this.#retain;
+        const keepers = () => this.#keepKeys;
         return {
             human: false,
             apply(state, _p, _input, when) {
@@ -639,6 +730,10 @@ class HolderEngine {
                     for (const t of r.tuples)
                         if (!t.deactivated)
                             live.add(t.rkid);
+                // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
+                for (const k of keepers())
+                    for (const rkid of k(state))
+                        live.add(rkid);
                 const tombstones = [...state.addresses.tombstones];
                 const keys = keep(state.addresses.keys, (k, rkid) => {
                     if (k.lastShown + retention > when || live.has(rkid))
@@ -685,6 +780,8 @@ class HolderEngine {
         const plan = (state, when) => this.#dutyPlan(state, when);
         const handlers = () => this.#duties;
         const sweeps = () => this.#sweeps;
+        const failed = (st, digests, when) => this.#failed(st, digests, when);
+        const ownRetries = () => this.#ownRetries;
         return {
             human: false,
             // the due duties' and the sweeps' preparations, against the snapshot apply will see
@@ -703,6 +800,7 @@ class HolderEngine {
                 const outbox = { ...state.outbox };
                 const emit = [];
                 const events = [];
+                const gaveUp = [];
                 let nextDueAt;
                 const due = (t) => { nextDueAt = nextDueAt === undefined ? t : Math.min(nextDueAt, t); };
                 // 1 — the outbox, by due time, then digest
@@ -719,12 +817,16 @@ class HolderEngine {
                         const { nextAttemptAt: _, ...rest } = it;
                         outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'expired-by-adapter-policy' }] };
                         events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' });
+                        gaveUp.push(digest);
                         continue;
                     }
                     due(expiry);
                     // never re-emitted: an accepted item (the service has it) and one the
                     // adapter holds (awaiting-transport, until it reports again)
                     if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport')
+                        continue;
+                    // a type its module re-issues itself is never reproduced (Trust 6710)
+                    if (ownRetries().has(it.type))
                         continue;
                     if (it.nextAttemptAt !== undefined && it.nextAttemptAt > when) {
                         due(it.nextAttemptAt);
@@ -746,8 +848,15 @@ class HolderEngine {
                     events.push({ type: 'duty.unsupported', dutyId: d.id, kind: d.kind, v: d.v });
                 // the outbox changed only by a re-emission or a give-up (an event so far)
                 let cur = !emit.length && !events.length ? state : { ...state, outbox };
+                // the failure handlers of the items given up, in the give-up's transaction
+                if (gaveUp.length) {
+                    const f = failed(cur, gaveUp, when);
+                    cur = f.state;
+                    events.push(...f.events);
+                }
                 const drafts = [];
                 const duties = [];
+                const renames = [];
                 // ran and stayed (not-due, refused): id → its record as it ran
                 const kept = new Map();
                 const { duties: values, sweeps: swept } = prepared.value;
@@ -760,7 +869,7 @@ class HolderEngine {
                         continue; // the final pass sets its timer
                     if (h.prepare && jcs(now) !== jcs(duty))
                         continue; // prepared on other data
-                    const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }) }), when);
+                    const r = h.apply(cur, now, Object.freeze({ prepared: Object.freeze({ value: values[duty.id], version: prepared.version, commitSeq: prepared.commitSeq }), backoff: p.backoff }), when);
                     if (r === 'not-due' || isRefusal(r)) {
                         kept.set(duty.id, jcs(now));
                         continue;
@@ -771,6 +880,7 @@ class HolderEngine {
                     drafts.push(...(r.outbound ?? []));
                     events.push(...(r.events ?? []));
                     duties.push(...(r.duties ?? []));
+                    renames.push(...(r.renames ?? []));
                 }
                 // 2b — the sweeps, on the state the duties left; a prepared piece
                 // whose inputs moved is skipped and due again at once
@@ -845,12 +955,14 @@ class HolderEngine {
                     cur = { ...cur, effects };
                 return {
                     state: cur, emit, events, outbound: drafts, duties, release,
+                    ...(renames.length ? { renames } : {}),
                     ...(nextDueAt !== undefined ? { nextDueAt } : {}),
                 };
             },
         };
     }
     #reportDef() {
+        const failed = (st, digests, when) => this.#failed(st, digests, when);
         return {
             human: false,
             apply(state, _p, report, when) {
@@ -906,6 +1018,10 @@ class HolderEngine {
                 const events = step.status === 'awaiting-transport' ? [] : [{
                         type: 'delivery.status', digest: report.digest, threadId: it.threadId, status: step.status,
                     }];
+                if (step.status === 'failed') {
+                    const f = failed({ ...state, outbox }, [report.digest], when);
+                    return { state: f.state, events: [...events, ...f.events] };
+                }
                 return { state: { ...state, outbox }, events };
             },
         };
@@ -966,6 +1082,7 @@ class HolderEngine {
                             ...(r.outbound ? { outbound: r.outbound } : {}),
                             ...(r.events ? { events: r.events } : {}),
                             ...(r.duties ? { duties: r.duties } : {}),
+                            ...(r.renames ? { renames: r.renames } : {}),
                             release: [ackOutbound(plan.ack, 1)],
                             detail: { disposition: 'unique', digest: plan.digest, type: plan.type },
                         };
