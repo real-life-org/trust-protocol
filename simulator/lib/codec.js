@@ -147,7 +147,7 @@ const logHead = (x, p) => {
 };
 const tuple = obj({
     ownPairLabel: str, counterpartAnchor: str, counterpartKeyAgreement: str, rkid: str, entryId: str,
-    priorCandidates: arr(obj({ ownPairLabel: str, counterpartAnchor: str })),
+    priorCandidates: arr(obj({ ownPairLabel: str, counterpartAnchor: str }, { replaces: arr(str) })),
     starOut, starIn, groupStarOut, groupStarIn,
     probeOut: obj({ seq: dec, inflight: rec(obj({ digests: arr(str), acked: arr(str) })), done: bool }),
     probeIn: obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly) }),
