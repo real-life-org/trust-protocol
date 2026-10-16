@@ -86,7 +86,12 @@ export type LogHead =
   | { genesis: string, entryId: string, gen: number, next: string, commit: string }
   | { genesis: string, empty: true }
 
-/** Idempotent over exactly (entry, overHead): a restart sees `exists`. */
+/** One entry of the lineage: the one that introduced a generation. */
+export interface LogEntryRef { entryId: string, next: string, commit: string }
+
+/** Idempotent over exactly (entry, overHead): the same closure again
+ *  answers `exists` (a restart's repeat); the same entry over another head
+ *  is `head-conflict` (read the head, and at(), again). */
 export type AppendResult =
   | { status: 'appended', head: LogHead }
   | { status: 'exists', head: LogHead }
@@ -97,6 +102,11 @@ export type AppendResult =
  *  holder needs no dummy. */
 export interface Log {
   head (): Promise<LogHead>
+  /** the entry of the lineage the head stands on that introduced
+   *  generation `gen` (≥ 2), or null where the log holds none: lets a
+   *  rotation whose append answer was lost recognize its entry after the
+   *  log moved on, and tell that from a fork */
+  at (gen: number): Promise<LogEntryRef | null>
   /** `overHead` is the entryId the entry extends, null over an empty log */
   append (entry: Json, overHead: string | null): Promise<AppendResult>
 }

@@ -373,7 +373,7 @@ class HolderEngine {
             carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
         });
         if (ports.log)
-            this.#log = guard(ports.log, ['head', 'append'], 'log');
+            this.#log = guard(ports.log, ['head', 'at', 'append'], 'log');
         if (ports.access)
             this.#access = guard(ports.access, ['memberships', 'membership'], 'access');
         const commands = new Map();
@@ -616,7 +616,7 @@ class HolderEngine {
                 const pick = (k) => (d[k] !== undefined ? { [k]: d[k] } : {});
                 this.#check(state, next, op.kind === 'receive' ? { kind: 'receive', ...pick('disposition'), ...pick('digest'), ...pick('type'), ...pick('ref'), ...pick('rkid') }
                     : op.kind === 'resume' ? { kind: 'resume', fulfilled: d.fulfilled ?? [] }
-                        : op);
+                        : op.kind === 'act' ? { ...op, events } : op);
             }
             let res;
             try {

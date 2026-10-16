@@ -5,6 +5,7 @@
 // continuityTestModule opens fresh tuples (continuity.newTuple) until
 // the encounter graduates (PR 7).
 export { InMemoryStore } from './store-memory.js';
+export { memoryLog } from './log-memory.js';
 export { scriptedEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
 export { emptyState } from './state.js';

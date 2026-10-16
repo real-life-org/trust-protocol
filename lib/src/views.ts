@@ -94,9 +94,9 @@ export interface ContactView {
    *  fresh relationships chained into it (6a.4); a relationship that
    *  stands behind two entries (2145) is listed under both */
   relationships: RelationshipView[]
-  /** the verified profile's name. Before profile@1 graduates (PR 6) no
-   *  profile is verified, and the ceremony card's name enters the state
-   *  only when Encounter graduates (PR 7); until then mostly undefined. */
+  /** the verified profile's name (6425); the ceremony card's name enters
+   *  the state only when Encounter graduates (PR 7), so without a profile
+   *  it is undefined */
   displayName?: string
   provenance: 'ceremony' | 'introduced'
   /** the introducer, for an introduced contact */

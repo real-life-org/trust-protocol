@@ -629,7 +629,7 @@ class HolderEngine implements Engine {
       anchorOf: base.anchorOf, sign: base.sign, agree: base.agree,
       carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
     })
-    if (ports.log) this.#log = guard(ports.log, ['head', 'append'], 'log')
+    if (ports.log) this.#log = guard(ports.log, ['head', 'at', 'append'], 'log')
     if (ports.access) this.#access = guard(ports.access, ['memberships', 'membership'], 'access')
 
     const commands = new Map<string, InternalDef>()
@@ -833,7 +833,7 @@ class HolderEngine implements Engine {
         this.#check(state, next,
           op.kind === 'receive' ? { kind: 'receive', ...pick('disposition'), ...pick('digest'), ...pick('type'), ...pick('ref'), ...pick('rkid') }
             : op.kind === 'resume' ? { kind: 'resume', fulfilled: d.fulfilled ?? [] }
-              : op)
+              : op.kind === 'act' ? { ...op, events } : op)
       }
       let res
       try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {

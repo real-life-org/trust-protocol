@@ -151,6 +151,7 @@ const tuple = obj({
   continuityIn: obj({ rev: dec, body: json, recordPrior: nullable(str) }),
   mappingOut: obj({ rev: dec, body: json, underAnchor: nullable(str) }),
   mappingIn: obj({ rev: dec, body: json, self: nullable(str), card: json }),
+  profileOut: obj({ rev: dec }),
   profileIn: obj({ rev: dec, body: json, verifiedSeq: dec }),
   deactivated: bool,
 })
@@ -208,6 +209,7 @@ const KNOWN_DUTIES: Record<KnownDuty['kind'], { v: number, shape: V }> = {
   profile: { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, rev: dec }, DUE) },
   continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural, lastAt: millis }) },
   merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str, witness: obj({ heads: rec(str), superseded: rec(set(str)) }) }, DUE) },
+  rotation: { v: 1, shape: obj({ kind: str, v: positive, id: str, rotationId: str }, { ...DUE, attempt: natural, lastAt: millis }) },
 }
 
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
@@ -237,6 +239,8 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
   'profile.updated': [{ contactId: nullable(str) }],
   'anchor.rotated': [{ generation: dec }],
+  'device.added': [{ name: str }],
+  'device.revoked': [{ name: str }],
   'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
   'star.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
   'groupStar.accepted': [{ contactId: str, relationshipId: str, salt: dec }],

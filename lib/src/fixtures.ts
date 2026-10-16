@@ -62,6 +62,7 @@ const tuple = (t: TupleSpec): Tuple => ({
   mappingIn: t.self
     ? { rev: '1', body: { type: 'anchor-mapping@4', placeholder: true }, self: t.self, card: { type: 'self-card@2', anchor: t.self } }
     : { rev: '0', body: null, self: null, card: null },
+  profileOut: { rev: '0' },
   profileIn: t.profile
     ? { rev: t.profile.rev, body: { type: 'profile@1', revision: t.profile.rev, name: t.profile.name, ...(t.profile.text ? { text: t.profile.text } : {}) }, verifiedSeq: '4' }
     : { rev: '0', body: null, verifiedSeq: '0' },

@@ -3,13 +3,14 @@
 // holder-api — createHolder, the facade over the engine (lib Stage 2,
 // note §4.1, §4.5). Domain modules (identity, encounter, trust, continuity,
 // membership, profile) register with the engine as they graduate; today
-// the facade carries the engine's built-ins, the prompts module, the trust
+// the facade carries the engine's built-ins, the prompts module, the
+// identity module (identity-state.ts: device names, the rotation), the trust
 // module (trust/mapping.ts: the Trust act, the class settings, the anchor
 // mapping's issuance and reception, the entry commit; trust/star.ts and
 // trust/group-star.ts: the star and the group star, reconciled on resume
 // and received with their assemblies; trust/entries.ts: merge, split and
 // departure; trust/continuity.ts: the probe, the continuity mapping and
-// the chaining) and the modules given.
+// the chaining; trust/profile.ts: profile@1) and the modules given.
 //
 // The human acts (note §4.2) are typed methods with an options object
 // `{when, actId}`; actId is required, minted by the app when the human
@@ -25,7 +26,13 @@
 //   merge(contactIds, opts)                   trust.merge               human
 //   depart(contactId, opts{relationshipId?})  trust.depart              human
 //   decide(promptId, choice, opts)            prompt.decide             human
+//   addDevice(name, opts)                     identity.addDevice        human
+//   revokeDevice(name, opts)                  identity.revokeDevice     human
+//   rotateAnchor(opts)                        identity.rotate           human
+//   setProfile({name, image?, text?}, opts)   profile.set               human
 //   recover({when})                           trust.recover          not human
+// and the read deviceKey(name, contextLabel): the device key of a held,
+// unrevoked name under an own anchor context (identity-state.ts).
 // A missing actId is refused at runtime as actid-missing.
 //
 // Reading: the views (views.ts) over one snapshot each, carrying its
@@ -44,6 +51,8 @@ import { InfraError } from './results.js';
 import { commitViolations } from './invariants.js';
 import { toOpaque } from './state.js';
 import { trustModule } from './trust/mapping.js';
+import { IDENTITY_COMMANDS, deviceKeyOf, identityModule } from './identity-state.js';
+import { PROFILE_SET } from './trust/profile.js';
 import { TRUST_COMMANDS } from './trust/mapping.js';
 import { ENTRY_COMMANDS } from './trust/entries.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
@@ -52,7 +61,7 @@ import { contactView, contactsView, deliveryStatusView, groupsView, profileView,
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
-    const modules = [trustModule(), ...(opts.modules ?? [])];
+    const modules = [identityModule(), trustModule(), ...(opts.modules ?? [])];
     const check = opts.invariants === true
         ? (before, after, op) => {
             const v = commitViolations(before, after, op);
@@ -75,6 +84,11 @@ export async function createHolder(ports, opts = {}) {
         merge: (contactIds, o) => human(ENTRY_COMMANDS.merge, { contactIds }, o),
         depart: (contactId, o) => human(ENTRY_COMMANDS.depart, o?.relationshipId === undefined ? { contactId } : { contactId, relationshipId: o.relationshipId }, o),
         recover: (o) => engine.act(TRUST_COMMANDS.recover, {}, o?.when),
+        rotateAnchor: (o) => human(IDENTITY_COMMANDS.rotate, {}, o),
+        setProfile: (content, o) => human(PROFILE_SET, content, o),
+        addDevice: (name, o) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
+        revokeDevice: (name, o) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
+        deviceKey: async (name, contextLabel) => deviceKeyOf(await read(), ports.keys, name, contextLabel),
         tick: (when) => engine.tick(when),
         resume: (when) => engine.resume(when),
         report: (report, when) => engine.report(report, when),

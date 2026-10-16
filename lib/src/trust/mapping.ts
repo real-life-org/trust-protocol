@@ -26,11 +26,13 @@
 //   duties    class-on/1 (2850) and reissue-mapping/1 (6370, 6596): issue
 //             the current anchor-mapping@4 on one relationship; class-on of
 //             the star classes is discharged by the reconciliation (5.4);
-//             class-on of the profile and profile/1 (6455) wait for PR 6
-//             (trust/duties.ts)
+//             class-on of the profile and profile/1 (6455) issue profile@1
+//             (trust/profile.ts, PR 6)
 //   and, from trust/star.ts and trust/group-star.ts (PR 4b): the tasks
 //             star/0.2 and group-star/0.1, the sweeps trust.star and
 //             trust.groupStar run by resume, and their ack handlers
+//   and, from trust/profile.ts (PR 6): the command profile.set (human),
+//             the task profile/0.1 and the profile's duties
 //   and, from trust/entries.ts (PR 4c): the commands trust.merge and
 //             trust.depart and the duty merge/1; from trust/continuity.ts
 //             (PR 4c): the tasks continuity-probe/0.1 and
@@ -88,8 +90,8 @@
 //     change through its view, so changing their settings opens no class-on
 //     duty; a class-on duty of one of them (from elsewhere) is fulfilled
 //     without sending, since the sweep runs in the same resume after the
-//     duties. The profile's class-on and revision duties wait ('not-due')
-//     for profile@1 (PR 6)
+//     duties. The profile's class-on and revision duties issue profile@1
+//     (trust/profile.ts)
 //   - trust.pause sets star and blinded group star `off`, unpausing back to
 //     `default`; it needs no trust (2780), unlike the probe's setTrustPaused
 //   - setGroupClass to `default` removes the per-group entry; turning the
@@ -115,7 +117,8 @@ import {
   ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel, unionBindings,
 } from './state.js'
 import { admitPending, entryCommands, mergeDutiesAfter, mergeDuty, settleHead, splitIfUnlinked } from './entries.js'
-import { classOnHandler, followClasses, owedOn, profileDuty } from './duties.js'
+import { classOnHandler, followClasses, owedOn } from './duties.js'
+import { profileIssueDuty, profileParts } from './profile.js'
 import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, starBlinds, sweepOf, taskOf } from './star.js'
 import type { StarBlinds } from './star.js'
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js'
@@ -577,20 +580,22 @@ export function trustModule (opts: TrustModuleOptions = {}): HolderModule {
     commands: Object.freeze({
       ...commands,
       ...entryCommands(bound),
+      ...profileParts.commands,
       [TRUST_COMMANDS.recover]: { human: false, apply: (state: Readonly<HolderState>) => recommitEntries(state, bound) } satisfies CommandDef<unknown>,
     }),
     tasks: Object.freeze({
       [ANCHOR_MAPPING_TYPE]: mappingTask(bound),
       [STAR_TYPE]: taskOf(STAR, limit ?? ASSEMBLY_LIMIT.star),
       [GROUP_STAR_TYPE]: taskOf(GROUP_STAR, limit ?? ASSEMBLY_LIMIT.groupStar),
+      ...profileParts.tasks,
       ...cont.tasks,
     }),
     duties: Object.freeze({
-      // 2850: per class — the anchor mapping issues, the reconciled classes
-      // go by their sweep, the profile waits for PR 6 (trust/duties.ts)
-      'class-on': classOnHandler({ anchorMapping: issueDuty(true) }),
+      // 2850: per class — the anchor mapping and the profile issue, the
+      // reconciled classes go by their sweep (trust/duties.ts)
+      'class-on': classOnHandler({ anchorMapping: issueDuty(true), profile: profileIssueDuty }),
       'reissue-mapping': { ...issueDuty(false), awaitHolds: reissueAwaits },
-      profile: profileDuty,
+      profile: profileIssueDuty,
       merge: mergeDuty(bound),
       ...cont.duties,
     }),

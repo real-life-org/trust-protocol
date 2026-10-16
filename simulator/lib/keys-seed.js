@@ -7,7 +7,9 @@
 // and the same info strings — so the shipped vectors stay valid:
 //
 //   anchor of a label   'rltp/anchor/ed/' + label, 'rltp/anchor/x/' + label
-//                       under the closed registry (Identity §6.1)
+//                       under the closed registry (Identity §6.1); a
+//                       device key is the anchor of its device label
+//                       device/<n>/<c> (§5.5, identity.ts deviceLabel)
 //   carrier principal   CARRIER_INFO_PREFIX + Dc + Dn (Identity §7a.4)
 //
 // The provider reads no state. agree() asks the engine's release
