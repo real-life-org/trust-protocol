@@ -149,9 +149,21 @@
 //     app plug-ins)
 //   - a failure handler gets the retry backoff, so a failure can make work
 //     due no earlier than its schedule allows
+//   - the timer contract: tick does the time-driven work (expiry,
+//     retention, the modules' `retain`), resume the delivery work (retries,
+//     due duties, sweeps, acks). nextDueAt names the earliest of both: on
+//     resume, the earliest future deadline of the expiry work (prompt
+//     expiresAt, effect expiry, the act journal's, a terminal outbox item's
+//     and an address key's retention, every module's `deadlines`); on an
+//     act or receive, also a deadline the commit newly introduced. The app
+//     sets one timer on it and, when it fires, calls tick and then resume
+//     (README "The holder")
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
-//     outbox items have all been retained away)
+//     outbox items have all been retained away); the address keys' retention
+//     comes last, its live set and keepKeys read on what the hooks left, so
+//     a key whose last claim (an act's pin, 8290) left in this tick leaves in
+//     the same tick and no passed key deadline outlives it
 //   - without an Access port, EngineOptions.accessFrom (createHolder: the
 //     membership module's localAccess) builds one over each preparation's
 //     own snapshot, so it describes exactly the state the commit lands on
@@ -330,7 +342,7 @@ function renameAcks(effects, renames) {
         if (!a)
             continue;
         for (const r of renames) {
-            if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.rkid)))
+            if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.via ?? a.recipient.rkid)))
                 a = { ...a, recipient: { ...a.recipient, contactId: r.to } };
         }
         if (a !== e.ack)
@@ -378,6 +390,7 @@ class HolderEngine {
     #ownRetries;
     #keepKeys;
     #retain;
+    #deadlines;
     #builtins;
     #check;
     #accessFrom;
@@ -431,6 +444,7 @@ class HolderEngine {
         const ownRetries = new Set();
         const keepKeys = [];
         const retain = [];
+        const deadlines = [];
         const names = new Set();
         for (const m of modules) {
             if (!m || typeof m.name !== 'string' || !m.name)
@@ -458,6 +472,8 @@ class HolderEngine {
                     throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`);
                 if (h.channel !== undefined && typeof h.channel !== 'function')
                     throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`);
+                if (h.pinned !== undefined && (h.pinned !== true || h.channel !== undefined))
+                    throw new TypeError(`task ${uri} (module ${m.name}): pinned is true or absent, and only under the tuple binding`);
                 tasks.set(uri, Object.freeze({ ...h }));
             }
             for (const [kind, h] of Object.entries(m.duties ?? {})) {
@@ -511,6 +527,11 @@ class HolderEngine {
                     throw new TypeError(`retain (module ${m.name}) must be a function`);
                 retain.push(m.retain);
             }
+            if (m.deadlines !== undefined) {
+                if (typeof m.deadlines !== 'function')
+                    throw new TypeError(`deadlines (module ${m.name}) must be a function`);
+                deadlines.push(m.deadlines);
+            }
         }
         this.#commands = commands;
         this.#tasks = tasks;
@@ -520,6 +541,7 @@ class HolderEngine {
         this.#failures = failures;
         this.#ownRetries = ownRetries;
         this.#keepKeys = Object.freeze(keepKeys);
+        this.#deadlines = Object.freeze(deadlines);
         this.#retain = Object.freeze(retain);
         this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
@@ -704,8 +726,44 @@ class HolderEngine {
     }
     /** The work an operation opened or unblocked: its duty work (#dutyWake),
      *  or `when` where a sweep's pending keys gained one. */
+    /** Every time at which tick's expiry and retention change `state`: the
+     *  engine's own and the modules' `deadlines` (the timer contract). */
+    #expiries(state) {
+        const retention = this.#policy.retentionMs;
+        const out = [];
+        for (const p of Object.values(state.prompts))
+            if (p.expiresAt !== undefined)
+                out.push(p.expiresAt);
+        for (const e of Object.values(state.effects))
+            out.push(e.expiresAt);
+        for (const a of Object.values(state.acts))
+            out.push(a.at + retention);
+        for (const it of Object.values(state.outbox)) {
+            const t = triasOf(it);
+            if ((t === 'delivered' || t === 'failed') && it.history.length)
+                out.push(it.history[it.history.length - 1].at + retention);
+        }
+        for (const k of Object.values(state.addresses.keys))
+            out.push(k.lastShown + retention);
+        for (const f of this.#deadlines)
+            for (const t of f(state))
+                out.push(t);
+        return out.filter((t) => Number.isSafeInteger(t));
+    }
+    /** The earliest expiry deadline after `when`, among those `only` admits. */
+    #nextExpiry(state, when, only = () => true) {
+        let next;
+        for (const t of this.#expiries(state))
+            if (t > when && only(t) && (next === undefined || t < next))
+                next = t;
+        return next;
+    }
     #wake(before, after, added, when) {
-        const d = this.#dutyWake(before, after, added, when);
+        const d0 = this.#dutyWake(before, after, added, when);
+        // a deadline the commit introduced (a prompt opened, an act started, …)
+        const had = before === after ? null : new Set(this.#expiries(before));
+        const x = had === null ? undefined : this.#nextExpiry(after, when, (t) => !had.has(t));
+        const d = d0 === undefined ? x : x === undefined ? d0 : Math.min(d0, x);
         if (d === when || before === after)
             return d;
         for (const sw of this.#sweeps.values()) {
@@ -807,30 +865,7 @@ class HolderEngine {
                     const last = it.history.length ? it.history[it.history.length - 1].at : 0;
                     return last + retention > when || journaled.has(digest);
                 });
-                // addresses (Delivery §5): a key not shown for the retention, and the
-                // own rkid of no live tuple, becomes a tombstone — its id alone, kept
-                // forever; tombstones never shrink
-                const live = new Set();
-                for (const r of Object.values(state.relationships))
-                    for (const t of r.tuples)
-                        if (!t.deactivated)
-                            live.add(t.rkid);
-                // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
-                for (const k of keepers())
-                    for (const rkid of k(state))
-                        live.add(rkid);
-                const tombstones = [...state.addresses.tombstones];
-                const keys = keep(state.addresses.keys, (k, rkid) => {
-                    if (k.lastShown + retention > when || live.has(rkid))
-                        return true;
-                    // a member key (group/…) is an identity context, not a delivery
-                    // address of Delivery §5: it leaves without a tombstone, so the same
-                    // derivation can serve the same group again (a re-invitation)
-                    if (!k.label.startsWith('group/') && !tombstones.includes(rkid))
-                        tombstones.push(rkid);
-                    return false;
-                });
-                let next = dropped ? { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } : state;
+                let next = dropped ? { ...state, effects, prompts, acts, outbox } : state;
                 // the modules' own retention, on what the engine's left
                 for (const r of retainers()) {
                     const after = r(next, when);
@@ -838,6 +873,37 @@ class HolderEngine {
                         throw new Error('engine: a module\'s retain wrote the effect cache');
                     next = after;
                 }
+                // addresses (Delivery §5), on what the retention left, so a key whose
+                // last claim left in this tick leaves with it: a key not shown for the
+                // retention, and the own rkid of no live tuple, becomes a tombstone —
+                // its id alone, kept forever; tombstones never shrink
+                const held = next;
+                const live = new Set();
+                for (const r of Object.values(held.relationships))
+                    for (const t of r.tuples)
+                        if (!t.deactivated)
+                            live.add(t.rkid);
+                // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
+                for (const k of keepers())
+                    for (const rkid of k(held))
+                        live.add(rkid);
+                const tombstones = [...held.addresses.tombstones];
+                let gone = false;
+                const keys = {};
+                for (const [rkid, k] of Object.entries(held.addresses.keys)) {
+                    if (k.lastShown + retention > when || live.has(rkid)) {
+                        keys[rkid] = k;
+                        continue;
+                    }
+                    gone = true;
+                    // a member key (group/…) is an identity context, not a delivery
+                    // address of Delivery §5: it leaves without a tombstone, so the same
+                    // derivation can serve the same group again (a re-invitation)
+                    if (!k.label.startsWith('group/') && !tombstones.includes(rkid))
+                        tombstones.push(rkid);
+                }
+                if (gone)
+                    next = { ...held, addresses: { keys, tombstones } };
                 return { state: next }; // unchanged: the engine still commits a raised lastWhen
             },
         };
@@ -864,6 +930,7 @@ class HolderEngine {
         return { run, unsupported };
     }
     #resumeDef() {
+        const expiryAfter = (st, w) => this.#nextExpiry(st, w);
         const policy = () => this.#policy;
         const plan = (state, when) => this.#dutyPlan(state, when);
         const handlers = () => this.#duties;
@@ -1054,6 +1121,10 @@ class HolderEngine {
                 }
                 if (effects && jcs(effects) !== jcs(cur.effects))
                     cur = { ...cur, effects };
+                // the expiry work tick does (the timer contract, the header)
+                const ex = expiryAfter(cur, when);
+                if (ex !== undefined)
+                    due(ex);
                 return {
                     state: cur, emit, events, outbound: drafts, release, detail: { fulfilled },
                     ...(renames.length ? { renames } : {}),

@@ -114,7 +114,8 @@ export async function diSignWith<T extends Record<string, any>> (
   if (!(sig instanceof Uint8Array) || sig.length !== 64) throw new Error('diSignWith: the signer must answer a 64-byte Ed25519 signature')
   return { ...doc, proof: { ...cfg, proofValue: 'z' + base58(sig) } }
 }
-export async function diVerify (doc: any, expectedAnchor?: string): Promise<boolean> {
+/** `subtle`: the holder's resolved handle; without one the platform's, at call time. */
+export async function diVerify (doc: any, expectedAnchor?: string, subtle?: SubtleCrypto): Promise<boolean> {
   const { proof, ...rest } = doc ?? {}
   if (typeof proof?.proofValue !== 'string' || typeof proof?.verificationMethod !== 'string') return false
   // M-3 (review 1): this predicate verifies THE RLTP proof, not any
@@ -136,8 +137,9 @@ export async function diVerify (doc: any, expectedAnchor?: string): Promise<bool
   // exactly 64 bytes, canonical base58btc — no left-pad repair (Encounter 2.3)
   if (!sig || sig.length !== 64 || 'z' + base58(sig) !== zsig) return false
   const { proofValue, ...cfg } = proof
-  const hashData = cat(await sha(te.encode(jcs(cfg))), await sha(te.encode(jcs(rest))))
-  const pub = await S().importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
-  return S().verify({ name: 'Ed25519' }, pub, sig, hashData)
+  const SS = subtle ?? S()
+  const hashData = cat(await sha(te.encode(jcs(cfg)), SS), await sha(te.encode(jcs(rest)), SS))
+  const pub = await SS.importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
+  return SS.verify({ name: 'Ed25519' }, pub, sig, hashData)
 }
 

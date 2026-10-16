@@ -23,11 +23,14 @@
 //             ASSEMBLY_LIMIT and discardAssemblies (5360); the entries
 //             (trust/entries.ts: merge, split, departure, the identity
 //             rewrite) and continuity (trust/continuity.ts: openTuple,
-//             chainTuple, the task types); the class duties (trust/duties.ts:
-//             onFor, the follow rule, the move at a chaining, the handlers)
+//             chainTuple, substitutePrior, the task types); the class
+//             duties (trust/duties.ts: onFor, the follow rule, the move at
+//             a chaining, the handlers)
 //   freeze    freezeDeep
 //   invariants  the predicates of invariants.ts over a state and a commit
 export type * from './state.js'
+// the projection of the non-normative lib/schemas/holder-state-v1.schema.json
+export type { HolderStateV1 } from './holder-state-v1.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
 export type { StateCodecErrorCode, StateValidator } from './codec.js'
@@ -46,7 +49,7 @@ export {
 } from './trust/state.js'
 export { STAR_TYPE, ASSEMBLY_LIMIT, starView, viewDigest, heldAnchors, discardAssemblies, rematchStars, retainInflight } from './trust/star.js'
 export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js'
-export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple } from './trust/continuity.js'
+export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple, substitutePrior } from './trust/continuity.js'
 export type { NewTupleInput } from './trust/continuity.js'
 export {
   ENTRY_COMMANDS, mergeEntries, mergeDutiesAfter, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending,

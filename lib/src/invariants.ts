@@ -21,8 +21,11 @@
 //               every relationship's contactId resolves (2090, 2140);
 //               an id or alias names one contact only, never itself as an
 //               alias (2140); every live relationship belongs to the entry
-//               its identity resolves to, and to at most one other, the
-//               entry its active tuple feeds (2145); a position exactly
+//               its identity resolves to and to the entry its active tuple
+//               feeds, and otherwise only to entries one of its tuples
+//               names: an earlier appended tuple's entry stays behind the
+//               chain after a later re-encounter appended another, until a
+//               merge duty merges them (2145, 2146); a position exactly
 //               where the status is not `none` (2060, 2250); the matches
 //               of an accepted star name contacts (6160);
 //               entry positions are distinct and below nextPos (2120);
@@ -332,7 +335,8 @@ export function stateViolations (state: Readonly<HolderState>): Violation[] {
       const holders = holdersOf.get(r.id) ?? []
       const own = findContact(state, r.contactId)?.id
       const fed = entryOf(state, r)?.id
-      const ok = own !== undefined && holders.includes(own) && holders.every((h) => h === own || h === fed) && (fed === undefined || holders.includes(fed))
+      const named = new Set(r.tuples.map((t) => findContact(state, t.entryId)?.id).filter((x): x is string => x !== undefined))
+      const ok = own !== undefined && holders.includes(own) && holders.every((h) => h === own || h === fed || named.has(h)) && (fed === undefined || holders.includes(fed))
       if (!ok) v.push({ invariant: 'entries', detail: `${r.id}: held by ${jcs(holders)}, its identity resolves to ${own}, its active tuple feeds ${fed}` })
     }
     for (const t of r.tuples) {

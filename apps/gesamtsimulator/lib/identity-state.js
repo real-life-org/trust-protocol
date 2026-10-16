@@ -214,8 +214,12 @@ function afterLog(state, rotationId, o, when) {
             const held = Object.hasOwn(state.duties, id) ? state.duties[id] : { kind: 'rotation', v: 1, id, rotationId: r.id };
             const { dueAt: _, ...rest } = held;
             const duty = { ...rest, lastAt: when };
+            // single path: the duty leaves the state and comes back as Applied.duties,
+            // on the act path and in resume alike
+            const left = { ...state.duties };
+            delete left[id];
             return {
-                state: { ...state, rotations: { ...state.rotations, [r.id]: { ...r, overHead: o.head } }, duties: { ...state.duties, [id]: duty } },
+                state: { ...state, rotations: { ...state.rotations, [r.id]: { ...r, overHead: o.head } }, duties: left },
                 duties: [duty],
             };
         }

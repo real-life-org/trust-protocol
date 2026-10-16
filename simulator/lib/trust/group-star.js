@@ -103,13 +103,8 @@ export const GROUP_STAR = {
                 return a.status === 'available' ? a.shared : null;
             },
         });
-        const S = ctx.crypto.subtle;
-        const kg = await groupStarKeyOf(p.shared, p.from, p.own, p.salt, S);
         const hits = results.filter((r) => r.hit).map((r) => r.group).sort();
-        const hitD = new Set();
-        for (const g of hits)
-            hitD.add(await macU(kg, g, S));
-        const entries = union.filter((e) => hitD.has(e.d));
+        const entries = union;
         const pairs = results.filter((r) => r.accepted);
         let memory;
         if (pairs.length) {
@@ -123,3 +118,72 @@ export const GROUP_STAR = {
         return { ok: true, accepted: { salt: p.salt, entries, groups: hits }, ...(memory ? { memory } : {}) };
     },
 };
+/**
+ * 5520–5580 for a group the holder joins, over the group stars it already
+ * accepted: d = HMAC(k_g, G) tested against each stored union, and on a
+ * hit the sealed pair opened and checked in the order of 5530–5570
+ * against `membership` (the joined group's roster as the welcome carries
+ * it), exactly as at a star's completion. k_g and k_e are the accepted
+ * star's (its sender, this holder's pair anchor, its salt), through the
+ * KeyProvider under the engine's release. Async: the caller prepares it
+ * and applies withGroupHits in its commit.
+ */
+export async function groupStarRematch(ctx, membership) {
+    const out = [];
+    for (const r of Object.values(ctx.snapshot.relationships)) {
+        for (const t of r.tuples) {
+            const acc = t.groupStarIn.accepted;
+            if (!acc || acc.groups.includes(membership.group))
+                continue;
+            const x = xRawOfMk(t.counterpartKeyAgreement);
+            if (!x)
+                continue;
+            const a = await ctx.keys.agree(t.rkid, x, ctx.release);
+            if (a.status !== 'available')
+                continue;
+            const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor;
+            const [res] = await openGroupStarWith({
+                shared: a.shared, from: t.counterpartAnchor, own, salt: acc.salt, entries: acc.entries, memberships: [membership], subtle: ctx.crypto.subtle,
+                agreeMember: async (keyAgreement) => {
+                    const mx = xRawOfMk(keyAgreement);
+                    if (!mx)
+                        return null;
+                    const m = await ctx.keys.agree(t.rkid, mx, ctx.release);
+                    return m.status === 'available' ? m.shared : null;
+                },
+            });
+            if (!res?.hit)
+                continue;
+            out.push(res.accepted ? { label: t.ownPairLabel, member: res.member, memberOp: res.memberOp } : { label: t.ownPairLabel });
+        }
+    }
+    return out.sort((p, q) => cmp(p.label, q.label));
+}
+/** The re-match committed: `group` joins the accepted groups of the hit
+ *  tuples, and an accepted pair is merged into its relationship's memory
+ *  under `groupMembers` (class V, 5580), as at a star's completion. */
+export function withGroupHits(state, hits, group) {
+    if (!hits.length)
+        return state;
+    const byLabel = new Map(hits.map((h) => [h.label, h]));
+    const relationships = {};
+    for (const [id, r] of Object.entries(state.relationships)) {
+        if (!r.tuples.some((t) => byLabel.has(t.ownPairLabel))) {
+            relationships[id] = r;
+            continue;
+        }
+        let memory = r.memory;
+        const tuples = r.tuples.map((t) => {
+            const h = byLabel.get(t.ownPairLabel);
+            if (!h || !t.groupStarIn.accepted || t.groupStarIn.accepted.groups.includes(group))
+                return t;
+            if (h.member !== undefined) {
+                const held = (memory.groupMembers ?? {});
+                memory = { ...memory, groupMembers: { ...held, [group]: { member: h.member, memberOp: h.memberOp } } };
+            }
+            return { ...t, groupStarIn: { ...t.groupStarIn, accepted: { ...t.groupStarIn.accepted, groups: [...t.groupStarIn.accepted.groups, group].sort() } } };
+        });
+        relationships[id] = { ...r, tuples, memory };
+    }
+    return { ...state, relationships };
+}

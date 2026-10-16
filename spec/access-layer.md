@@ -5884,12 +5884,13 @@ is.
 | Canonical form, digest equality over decoded bytes, canonical `u` rendering (2.3, 3.2) | `core` | `jcs`, `toU`, `sameDigest` |
 | Digests, `eddsa-jcs-2022` proofs for the vouch and the cards (2.3, 5.3), HKDF and ECDH primitives | `crypto` | `digestDoc`, `diSign`, `diVerify`, `hkdf`, `ecdh`, `anchorOfEd`, `mkOfX` |
 | Member anchor from `group/<genesis digest>` and the founder's pair context (5.1, 3.4.1); community anchor (Identity §5.4) | `identity` | `labeledContext`, `pairContext`, `communityContext` |
-| Wire shapes of this layer — envelope, material, view, registration, key delivery, removal notice, vouch (Sections 3, 7, 9, 10; 5.3) | `schemas`, `wire` | `SCHEMAS`, the generated types `AccessOperationEnvelope`, `AccessMaterial`, `AuthorizationView`, `AccessRegistration`, `PayloadKeyDelivery`, `PayloadRemovalNotice`, `AccessVouch`, `PayloadAccessOperation` |
-| Founding, the invitation prelude, invite, accept, the pair-internal admission checks of 5.3 (path convention, time window, size budget, card enclosure), `vouch@2` issuance | `/probe` `membership` | `foundGroup`, `memberContext`, `preludeRequest`, `buildInvite`, `acceptInvite`, `receiveDoc`, `vouchFor` |
+| Wire shapes of this layer — envelope, material, view, registration, key delivery, removal notice, vouch (Sections 3, 7, 9, 10; 5.3) | `schemas`, `wire`, on the `./testing` entry point | `SCHEMAS`, the generated types `AccessOperationEnvelope`, `AccessMaterial`, `AuthorizationView`, `AccessRegistration`, `PayloadKeyDelivery`, `PayloadRemovalNotice`, `AccessVouch`, `PayloadAccessOperation` |
+| Founding, the invitation prelude, invite, accept, the pair-internal admission checks of 5.3 (path convention, time window, size budget, card enclosure), `vouch@2` issuance | `membership`, `membership/holder` (holder) | `createHolder`: `foundGroup`, `invite`, `decide` on the `group-invite` prompt, `vouchFor`, `receive`; the pure checks `membershipSchemaOk`, `withinBudget`, `oidOf`, `memberLabelOf` |
 
-The `/probe` entry point is not wire-normative: its transport shapes
-carry `@probe` and will change, while the checks it runs are those of
-5.3. The generated `wire` types and the `SCHEMAS` bundle track the
+The holder's prelude and welcome are experimental forms of the library
+(`x-membership-prelude-request/0.1`, `x-membership-prelude-reply/0.1`,
+`x-membership-welcome/0.1`), while the checks it runs are those of
+5.3. The generated `wire` types and the `SCHEMAS` bundle (on `./testing`) track the
 schemas in the repository and change with them.
 
 Not in the library: the operation envelope with `oid`, `prev`, and

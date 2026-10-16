@@ -10,7 +10,7 @@ export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recom
 export { ADMISSION_BOUND, CLASSES, classOn, classOnToward, trusted, lags, newestHeads, newestOf, entryRelationships, activeTuple, findContact, entryOf, feeding, conflicts, joins, supersededIn, anchorSet, tupleByLabel, liveRel, } from './trust/state.js';
 export { STAR_TYPE, ASSEMBLY_LIMIT, starView, viewDigest, heldAnchors, discardAssemblies, rematchStars, retainInflight } from './trust/star.js';
 export { GROUP_STAR_TYPE, groupStarView, sealedOn } from './trust/group-star.js';
-export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple } from './trust/continuity.js';
+export { CONTINUITY_PROBE_TYPE, CONTINUITY_MAPPING_TYPE, NEW_TUPLE, openTuple, chainTuple, substitutePrior } from './trust/continuity.js';
 export { ENTRY_COMMANDS, mergeEntries, mergeDutiesAfter, mergeable, mergeSettings, rewriteIdentity, splitOff, depart, chainAliases, settleHead, admitPending, } from './trust/entries.js';
 export { DUTY_CLASSES, RECONCILED, classOnId, profileDutyId, classOfDuty, owedOn, onFor, onRelationships, classOnDuty, dropOff, followClasses, moveDuties, afterChain, classOnHandler, } from './trust/duties.js';
 export { promptsModule, collectDecisions } from './prompts.js';

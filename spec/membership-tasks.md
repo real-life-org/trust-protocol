@@ -35,9 +35,12 @@
 ## Status of This Document
 
 This is an Editor's Draft with no standing beyond its own argument.
-The reference library implements its payload schemas and the welcome
-seal; the bootstrap lifecycle it references is the Access layer's
-and is exercised there. The next expected changes are the carrier
+The reference library implements its forms and, on its holder, the
+flow from founding through prelude, invite, accept and admission to
+the vouch; it sends the welcome in a form of its own instead of the
+Access envelope (3.3), and a holder's roster is what it admitted and
+what its welcome carried, not a replicated one. The bootstrap
+lifecycle it references is the Access layer's and is exercised there. The next expected changes are the carrier
 for a bootstrap under the experimental adapter `beekem/0.1` (MO-7)
 and the move to Trust Tasks framework 0.7.0 together with the Access
 layer and the Delivery Contract; each is a new version. Open

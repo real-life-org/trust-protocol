@@ -1,135 +1,126 @@
 #!/usr/bin/env node
-// continuity-test — rltp-visibility §6a im Simulator: Re-Verifikation
-// (zweite Zeremonie derselben Menschen) und Vorstellungs-Dublette werden
-// über Probe + Mapping erkannt und GEKETTET statt dupliziert; wer die
-// Probe nicht beantworten kann, ist ehrlich eine neue Beziehung.
-import * as I from './introduce.mjs'
-import * as CN from './continuity.mjs'
-import * as C from './rltp-crypto.mjs'
-import { jcs } from './rltp-core.mjs'
-import { hmac } from './trust.mjs'
+// continuity-test — Trust §6a on the holder: a re-verification (a second
+// ceremony of the same two people) and an introduction duplicate are
+// recognised through the probe and the continuity mapping and CHAINED
+// instead of duplicated; whoever cannot answer the probe is honestly a new
+// relationship. The probes and mappings are the holders' own duties: they
+// go out on resume, as an app's timer would call it.
+import { createPerson, createNetwork, meet, at, decideAll, contactNamed, labeledContext, ecdh, xRawOfMk, seal, iso, TYPES } from './holder.mjs'
+import { assembleContinuityMapping, isRecordSide } from './lib/continuity.js'
 
 let pass = 0, fail = 0
 const check = (c, m) => { if (c) { pass++; console.log(`  ok    ${m}`) } else { fail++; console.error(`  FAIL  ${m}`) } }
 const T0 = Date.parse('2026-08-28T10:00:00Z')
-const active = (p) => [...p.contacts.values()].filter((c) => !c.deactivated)
+const MIN = 60_000
+const named = (p, name) => p.view.contacts.filter((c) => c.displayName === name)
+// relationships by creation (the state's records are keyed by id, not ordered)
+const tuples = (p) => Object.values(p.view.state.relationships).sort((x, y) => x.provenance.at - y.provenance.at).flatMap((r) => r.tuples)
+const people = async (...names) => Promise.all(names.map((n) => createPerson(n, { when: T0 })))
+async function introduce (net, m, r, t, label, when) {
+  const a = await m.h.introduce(contactNamed(m.view.contacts, r.name).id, contactNamed(m.view.contacts, t.name).id, at(when, { label }))
+  await net.send(m, a.outbound, when)
+  await decideAll(net, r, 'introduction', 'accept', when + 1000)
+  await decideAll(net, t, 'introduction', 'accept', when + 2000)
+}
 
-// Probe-/Mapping-Verkehr zwischen zwei Personen komplett ausspielen
-async function runContinuity (a, b, keyAtA, keyAtB, when) {
-  const q = []
-  for (const out of (await CN.buildProbe(a, keyAtA, T0 + 61_000)) ?? []) q.push([b, out.env])
-  for (const out of (await CN.buildProbe(b, keyAtB, T0 + 61_000)) ?? []) q.push([a, out.env])
-  while (q.length) {
-    const [to, env] = q.shift()
-    const r = await CN.receiveContinuity(to, env, when)
-    for (const out of r.outbound ?? []) q.push([to === a ? b : a, out.env])
+// ── 1. re-verification: a second ceremony of the same two people ────────
+{
+  const [a, b] = await people('Anton', 'Berta')
+  const net = createNetwork([a, b])
+  await meet(net, a, b, T0)
+  await meet(net, a, b, T0 + MIN, { settle: false })   // they meet again: a fresh tuple, as the spec demands
+  check(a.view.contacts.length === 2 && b.view.contacts.length === 2, 'before the probe: honestly two contacts (fresh-always, Encounter 4.4)')
+  const w = net.wire.length
+  await net.settle(T0 + 2 * MIN)
+  check(net.wire.slice(w).some((x) => x.type === TYPES.probe) && net.wire.slice(w).some((x) => x.type === TYPES.continuityMapping), 'the probes cross, the record side answers with a continuity mapping')
+  check(a.view.contacts.length === 1 && b.view.contacts.length === 1, 'after probe + mapping: ONE contact on each side')
+  const [hA] = a.view.contacts, [hB] = b.view.contacts
+  check(hA.relationships.length === 1 && hA.relationships[0].tuples === 2 && hB.relationships[0].tuples === 2, 'the relationship\'s chain holds both enactments — evidence accumulates')
+  check(hA.verification === 'mutual' && hA.relationships[0].chainedFrom.length === 1, 'the fresh relationship is chained into the old one; the contact stays mutual')
+  const rel = a.view.state.relationships[hA.relationships[0].id]
+  check(rel.tuples.filter((t) => t.deactivated).length === 1 && rel.activeHead === rel.tuples.find((t) => !t.deactivated).ownPairLabel, 'the old tuple is deactivated; the active head is the FRESH one (one relationship, one head)')
+  await net.settle(T0 + 3 * MIN)
+  check(a.view.contacts.length + b.view.contacts.length === 2, 'repetition: idempotent, no double chain')
+}
+
+// ── 2. the introduction duplicate (Anton's screenshot case) ─────────────
+{
+  const [j, a, e] = await people('Jonathan', 'Anton', 'Emil')
+  const net = createNetwork([j, a, e])
+  await meet(net, a, j, T0)
+  await meet(net, e, j, T0 + MIN)
+  await meet(net, a, e, T0 + 2 * MIN)      // Anton and Emil know each other ALREADY
+  await introduce(net, j, a, e, 'Emil', T0 + 10 * MIN)
+  for (const p of [a, e]) await p.refresh()
+  check(named(a, 'Emil').length === 2, 'after the introduction, before the probe: the duplicate exists (two Emils at Anton)')
+  await net.settle(T0 + 11 * MIN)
+  check(named(a, 'Emil').length === 1 && named(e, 'Anton').length === 1, 'the probe recognises the existing relationship: the duplicate is chained, NO second Emil')
+  const em = named(a, 'Emil')[0]
+  check(em.provenance === 'ceremony' && em.verification === 'mutual', 'evidence accumulates: the contact stays met and mutually verified; the introduction is a link of its chain')
+  check(em.relationships[0].chainedFrom.length === 1, 'the introduced relationship is a husk chained into the met one')
+}
+
+// ── 3. no match = honestly a new relationship (a name is not an identity)
+{
+  const [m, a, e1, e2] = await people('Mira', 'Anton', 'Emil', 'Emil')
+  const net = createNetwork([m, a, e1, e2])
+  await meet(net, a, m, T0)
+  await meet(net, e2, m, T0 + MIN)
+  await meet(net, a, e1, T0 + 2 * MIN)     // Anton knows the FIRST Emil
+  const a1 = await m.h.introduce(contactNamed(m.view.contacts, 'Anton').id, m.view.contacts.find((c) => c.displayName === 'Emil').id, at(T0 + 10 * MIN, { label: 'Emil' }))   // Mira means the SECOND
+  await net.send(m, a1.outbound, T0 + 10 * MIN)
+  await decideAll(net, a, 'introduction', 'accept', T0 + 10 * MIN + 1000)
+  await decideAll(net, e2, 'introduction', 'accept', T0 + 10 * MIN + 2000)
+  await net.settle(T0 + 11 * MIN)
+  check(named(a, 'Emil').length === 2, 'another person, the same name: no match — honestly TWO Emils (names are words)')
+}
+
+// ── 4. mapping negatives: every check at its point ──────────────────────
+{
+  const [a, b] = await people('Anton', 'Berta')
+  const net = createNetwork([a, b])
+  await meet(net, a, b, T0)
+  await meet(net, a, b, T0 + MIN, { settle: false })
+  // the fresh tuples and the old ones, on both sides
+  const fresh = (p) => tuples(p).at(-1), old = (p) => tuples(p)[0]
+  const aNew = fresh(a), bNew = fresh(b), aOld = old(a), bOld = old(b)
+  // the record side issues the choice; it crafts the mappings here: prior
+  // is its own anchor of the old relationship, next its fresh one
+  const [R, N, rNew, rOld] = isRecordSide(bNew.counterpartAnchor, aNew.counterpartAnchor) ? [a, b, aNew, aOld] : [b, a, bNew, bOld]
+  const own = await labeledContext(R.seed, rNew.ownPairLabel), ownOld = await labeledContext(R.seed, rOld.ownPairLabel)
+  const shNew = await ecdh(own.x.priv, xRawOfMk(rNew.counterpartKeyAgreement))
+  const shOld = await ecdh(ownOld.x.priv, xRawOfMk(rOld.counterpartKeyAgreement))
+  const send = async (prior, k1, k2, when) => {
+    const body = { type: 'continuity-mapping@1', prior, next: own.anchor, to: rNew.counterpartAnchor, revision: '1', issuedAt: iso(when) }
+    const m = await assembleContinuityMapping(body, k1, k2)
+    const doc = { id: crypto.randomUUID(), type: TYPES.continuityMapping, issuer: own.anchor, recipient: rNew.counterpartAnchor, threadId: crypto.randomUUID(), issuedAt: iso(when), payload: m }
+    return N.h.receive(await seal(doc, rNew.counterpartKeyAgreement), when)
   }
+  const self = await send(own.anchor, shNew, shNew, T0 + 2 * MIN)
+  check(self.disposition === 'failed' && self.stage === 8 && self.ref === 'RLTP-TRU-6960', `the fresh tuple itself as prior: refused (${self.ref}) — never chained onto itself`)
+  const wrongKey = await send(ownOld.anchor, shNew, shNew, T0 + 2 * MIN + 1000)
+  check(wrongKey.disposition === 'failed' && wrongKey.stage === 8 && wrongKey.ref === 'RLTP-TRU-6970', `mac1 under the wrong key (the new relationship's instead of the old one's): refused (${wrongKey.ref}) — only the holder of BOTH relationships can make both MACs`)
+  const right = await send(ownOld.anchor, shOld, shNew, T0 + 2 * MIN + 2000)
+  check(right.disposition === 'unique', `the same body under both right keys is taken (${right.disposition} ${right.ref ?? ''})`)
+  await N.refresh()
+  check(N.view.contacts.length === 1, 'and the non-record side chains: one contact')
 }
 
-// ── 1. Re-Verifikation: zweite Zeremonie derselben zwei Menschen ────────
+// ── 5. the continuity ascent: introduced first, then met ────────────────
 {
-  const a = I.createPerson('Anton'), b = I.createPerson('Berta')
-  const c1 = await I.ceremony(a, b, T0)
-  const c2 = await I.ceremony(a, b, T0 + 60_000) // Wiedersehen — frisches Tupel, wie es die Spec verlangt
-  check(active(a).length === 2 && active(b).length === 2, 'vor der Probe: ehrlich zwei Tupel (fresh-always, Encounter 4.4)')
-  await runContinuity(a, b, c2.ctxB.anchor, c2.ctxA.anchor, T0 + 61_000)
-  check(active(a).length === 1 && active(b).length === 1, 'nach Probe+Mapping: EINE aktive Beziehung auf beiden Seiten')
-  const hA = active(a)[0], hB = active(b)[0]
-  check(hA.chain?.length === 1 && hA.state === '✓' && hB.chain?.length === 1, 'das neue Tupel ist Kopf, das alte gekettet — Evidenz akkumuliert (✓, 2 Enactments)')
-  check(a.contacts.get(c1.ctxB.anchor)?.deactivated === true, 'das alte Tupel ist deaktiviert, per Kette erreichbar')
-  check(hA.channel.own.anchor === c2.ctxA.anchor, 'der aktive Kanal ist der FRISCHE (eine Beziehung, ein aktiver Kopf)')
-  // Wahl der Record-Seite ist eingefroren: dasselbe Mapping nochmal = idempotent
-  const before = active(a).length + active(b).length
-  await runContinuity(a, b, c2.ctxB.anchor, c2.ctxA.anchor, T0 + 62_000)
-  check(active(a).length + active(b).length === before, 'Wiederholung: idempotent, keine Doppel-Kette')
-}
-
-// ── 2. die Vorstellungs-Dublette (Antons Screenshot-Fall) ───────────────
-{
-  const j = I.createPerson('Jonathan'), a = I.createPerson('Anton'), e = I.createPerson('Emil')
-  await I.ceremony(j, a, T0)
-  await I.ceremony(j, e, T0 + 1000)
-  await I.ceremony(a, e, T0 + 2000)   // Anton und Emil kennen sich BEREITS
-  const keyOf = (p, name) => [...p.contacts.entries()].find(([, c]) => c.name === name)[0]
-  const drop = I.createDrop()
-  const intro = await I.introduce(j, keyOf(j, 'Anton'), keyOf(j, 'Emil'), T0 + 10_000)
-  const rA = await I.receiveOffer(a, intro.offers[0].env)
-  const rE = await I.receiveOffer(e, intro.offers[1].env)
-  await I.consent(a, rA.entry, drop, T0 + 11_000)
-  await I.consent(e, rE.entry, drop, T0 + 12_000)
-  await I.checkDrop(a, rA.entry, drop)
-  check(active(a).length === 3 && active(e).length === 3, 'nach der Vorstellung: die Dublette existiert (zwei Emil-Tupel bei Anton)')
-  const newAtA = rA.entry.counterpartAnchor, newAtE = rE.entry.counterpartAnchor
-  await runContinuity(a, e, newAtA, newAtE, T0 + 13_000)
-  check(active(a).length === 2 && active(e).length === 2, 'Probe erkennt die bestehende Beziehung: Dublette gekettet, KEIN doppelter Emil')
-  const em = active(a).find((c) => c.name === 'Emil')
-  check(em.state === '✓' && em.provenance === 'ceremony' && em.chain?.length === 1, 'Evidenz akkumuliert: der Kopf bleibt ✓ verifiziert, die Vorstellung ist ein Kettenglied')
-  check(em.voucher && em.mediatorProvenance, 'die Artefakte der Vorstellung (Voucher, Herkunft) bleiben am Kettenglied-Kopf erhalten')
-}
-
-// ── 3. kein Match = ehrlich neue Beziehung (Namensgleichheit ≠ Identität) ─
-{
-  const m = I.createPerson('Mira'), a = I.createPerson('Anton'), e1 = I.createPerson('Emil'), e2 = I.createPerson('Emil')
-  await I.ceremony(m, a, T0)
-  await I.ceremony(m, e2, T0 + 1000)
-  await I.ceremony(a, e1, T0 + 2000)  // Anton kennt den ERSTEN Emil
-  const keyOf = (p, name) => [...p.contacts.entries()].find(([, c]) => c.name === name)[0]
-  const drop = I.createDrop()
-  const intro = await I.introduce(m, keyOf(m, 'Anton'), keyOf(m, 'Emil'), T0 + 10_000) // Mira meint den ZWEITEN
-  const rA = await I.receiveOffer(a, intro.offers[0].env)
-  const rE = await I.receiveOffer(e2, intro.offers[1].env)
-  await I.consent(a, rA.entry, drop, T0 + 11_000)
-  await I.consent(e2, rE.entry, drop, T0 + 12_000)
-  await I.checkDrop(a, rA.entry, drop)
-  await runContinuity(a, e2, rA.entry.counterpartAnchor, rE.entry.counterpartAnchor, T0 + 13_000)
-  check(active(a).filter((c) => c.name === 'Emil').length === 2, 'anderer Mensch, gleicher Name: kein Match — ehrlich ZWEI Emils (Namen sind Worte)')
-}
-
-// ── 4. Mapping-Negative: jede Prüfung an ihrem Punkt ────────────────────
-{
-  const a = I.createPerson('Anton'), b = I.createPerson('Berta')
-  const c1 = await I.ceremony(a, b, T0)
-  const c2 = await I.ceremony(a, b, T0 + 60_000)
-  // Berta baut ein kohärentes Mapping, nennt aber als prior das FRISCHE Tupel selbst
-  const t = b.contacts.get(c2.ctxA.anchor)
-  const body = { type: 'continuity-mapping@1', prior: c2.ctxB.anchor, next: t.channel.own.anchor, to: c2.ctxA.anchor, revision: '1', issuedAt: C.iso(T0 + 61_000) }
-  const msg = jcs(body)
-  const k1 = await C.hkdf(await C.ecdh(t.channel.own.x.priv, C.xRawOfMk(t.channel.counterpartKa)), 'rltp/visibility/mac/cont1')
-  const k2 = await C.hkdf(await C.ecdh(t.channel.own.x.priv, C.xRawOfMk(t.channel.counterpartKa)), 'rltp/visibility/mac/cont2')
-  const hull = (artifact, id) => ({ id, type: 'https://real-life.org/trust-tasks/continuity-mapping/0.1', issuer: t.channel.own.anchor, recipient: c2.ctxA.anchor, threadId: '7b1c9c1e-4d5a-4a4a-9d5e-0000000000d1', issuedAt: C.iso(T0 + 61_000), payload: artifact })
-  const hmacU = async (k, m2) => 'u' + await hmac(k, m2)
-  const evil = hull({ body, proof: { mac1: await hmacU(k1, msg), mac2: await hmacU(k2, msg) } }, '7b1c9c1e-4d5a-4a4a-9d5e-0000000000d2')
-  const rSelf = await CN.receiveContinuity(a, await C.seal(evil, t.channel.counterpartKa), T0 + 62_000)
-  check(rSelf.error === 'prior = frisches Tupel (§6a)', 'Selbst-Referenz als prior: stirbt am expliziten Selbst-Ketten-Schutz (nie das frische Tupel)')
-  // mac1 unter dem falschen Schlüssel (neuer statt alter Beziehung): stirbt an mac1
-  const body2 = { ...body, prior: c1.ctxB.anchor }
-  const msg2 = jcs(body2)
-  const evil2 = hull({ body: body2, proof: { mac1: await hmacU(k1, msg2), mac2: await hmacU(k2, msg2) } }, '7b1c9c1e-4d5a-4a4a-9d5e-0000000000d3')
-  const rMac = await CN.receiveContinuity(a, await C.seal(evil2, t.channel.counterpartKa), T0 + 63_000)
-  check(rMac.error === 'mac1 (alter Beziehungs-Schlüssel)', 'mac1 unter falschem Schlüssel: nur der Inhaber BEIDER Beziehungen kann beide MACs')
-}
-
-// ── 5. der Kontinuitäts-Aufstieg (Kapitel 2): erst vorgestellt, dann getroffen ─
-{
-  const m = I.createPerson('Mira'), a = I.createPerson('Anton'), b = I.createPerson('Berta')
-  await I.ceremony(m, a, T0)
-  await I.ceremony(m, b, T0 + 1000)
-  const keyOf = (p, name) => [...p.contacts.entries()].find(([, c]) => c.name === name)[0]
-  const drop = I.createDrop()
-  const intro = await I.introduce(m, keyOf(m, 'Anton'), keyOf(m, 'Berta'), T0 + 10_000)
-  const rA = await I.receiveOffer(a, intro.offers[0].env)
-  const rB = await I.receiveOffer(b, intro.offers[1].env)
-  await I.consent(a, rA.entry, drop, T0 + 11_000)
-  await I.consent(b, rB.entry, drop, T0 + 12_000)
-  await I.checkDrop(a, rA.entry, drop)
-  check(active(a).some((c) => c.name === 'Berta' && c.state === '⇄'), 'Ausgangslage: ⇄ vorgestellt (unverifiziert)')
-  const c2 = await I.ceremony(a, b, T0 + 100_000)  // das erste ECHTE Treffen
-  await runContinuity(a, b, c2.ctxB.anchor, c2.ctxA.anchor, T0 + 101_000)
-  const head = active(a).find((c) => c.name === 'Berta')
-  check(active(a).filter((c) => c.name === 'Berta').length === 1 && head.state === '✓' && head.chain?.length === 1, 'das erste echte Treffen stuft hoch: ⇄ → ✓ per Kette, EIN Kontakt (Kapitel 2)')
-  check(head.since === rA.entry.offer.issuedAt || head.since <= C.iso(T0 + 100_000), 'die Beziehungsgeschichte beginnt bei der Vorstellung — since wandert mit')
+  const [m, a, b] = await people('Mira', 'Anton', 'Berta')
+  const net = createNetwork([m, a, b])
+  await meet(net, a, m, T0)
+  await meet(net, b, m, T0 + MIN)
+  await introduce(net, m, a, b, 'Berta', T0 + 10 * MIN)
+  await net.settle(T0 + 11 * MIN)
+  check(named(a, 'Berta')[0]?.provenance === 'introduced' && named(a, 'Berta')[0].verification === 'met', 'the starting point: introduced (unverified)')
+  await meet(net, a, b, T0 + 100 * MIN)      // the first REAL meeting
+  const bs = named(a, 'Berta')
+  check(bs.length === 1 && bs[0].verification === 'mutual' && bs[0].relationships[0].chainedFrom.length === 1, 'the first real meeting lifts it: one contact, now mutually verified, by the chain (chapter 2)')
+  check(bs[0].provenance === 'ceremony' && bs[0].via === undefined, 'the first completed enactment chained onto it sets the provenance to ceremony, never downward — the introducer leaves the contact (RLTP-TRU-8800)')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) { console.error('continuity: FAILED'); process.exit(1) }
-console.log('continuity: §6a hält — Wiedersehen wird gekettet, Fremde bleiben ehrlich fremd.')
+console.log('continuity: §6a holds — a re-encounter is chained, strangers stay honestly strangers.')

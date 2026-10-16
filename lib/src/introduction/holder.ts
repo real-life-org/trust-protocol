@@ -1,9 +1,7 @@
 // introduction/holder — the Introduction Act on the holder (lib Stage 2,
 // PR 7a; Trust Layer 0.31 §8 on Delivery 0.81 §4.4). The pure forms are
-// the root module's (introduction.ts). probe/introduce.ts (the drop model:
-// mediator-initiated offers, a rendezvous drop) stays as it is for the
-// simulators until PR 7b; it is not this act — Trust 0.31 §8 relays the
-// act through the mediator, so no drop is needed or built here.
+// the root module's (introduction.ts). Trust 0.31 §8 relays the act
+// through the mediator; no rendezvous drop is needed or built.
 //
 // The three roles, each its own lifecycle (8320), in
 // state.encounter.introductions under `<role>:<act>`:
@@ -11,7 +9,12 @@
 //              prompt, sends introduction-request/0.1 on its pinned tuple
 //              toward the mediator (8270), with a fresh pair label and card;
 //              sent → acked (the ack) → completed (an accepted reply, 8.2);
-//              failed on the ack timeout (8690) or the reply timeout (8340)
+//              sent or acked → failed at the act's expiry (8340), the
+//              requester waiting for the ack and the reply alike until
+//              then: users are mostly offline, a mediator not online
+//              within ack-delay + act-skew would fail every introduction
+//              (A20, spec follow-up 18: 8690's ack timeout is not applied);
+//              the discard at the absolute lifetime as before (8310)
 //   mediator   received (checks 1–3 of 8410–8430, the ack duty bound),
 //              forwarded (the target resolved, the byte-identical payload
 //              on its tuple, 8440), completed once the ack is produced, the
@@ -22,7 +25,10 @@
 // target's card on an accepted reply, the target toward the requester's
 // card at consent (Trust openTuple, provenance `introduced` via the
 // mediator's contact, 8790); the continuity probe follows on it. A
-// verified voucher marks the relationship's memory `vouchedBy`.
+// verified voucher marks the relationship's memory `vouchedBy`. Both name
+// the mediator with the own pair label toward it the act pinned
+// (provenance.viaPin, memory.vouchedPin), so a split of the mediator's
+// entry moves them with that relationship (2080).
 //
 // What it registers (introductionModule):
 //   human acts  introduction.introduce  the mediator's act (below)
@@ -32,17 +38,23 @@
 //               (signature class: signed acks), -ack/0.1, -voucher/0.1 (DV
 //               class: MAC acks), registry-declaration/0.1 (proof
 //               required) and x-introduction-offer/0.1 (this library's
-//               form, proof required); every one on the tuple binding
+//               form, proof required); every one on the tuple binding,
+//               the active head of a live relationship (receive.ts, 6240),
+//               except the reply, ack and voucher: `pinned`, on the tuple
+//               the act pinned, deactivated or not (8270)
 //   duty        intro-ack/1: the mediator's one ack at t_received + ack-delay
 //   retain      time-driven transitions (8140: the first whole second after
 //               the bound) and the discard at the absolute lifetime (8310)
+//   keepKeys    the own rkids of every pinned tuple of a held act: a
+//               chaining mid-act deactivates it, tick keeps its key (8270,
+//               8290)
 //
 // Choices this file makes where spec and note leave them open:
 //   - who starts: §8 has the requester mint the act and name the target by
 //     the mediator's designator (8.3), but says nothing of how the
 //     requester learns that designator. This library has the mediator's
 //     act `introduce(requester, target, {label?})` (the human who knows
-//     both, as the probe's model had it) send the requester an
+//     both) send the requester an
 //     experimental, signed x-introduction-offer/0.1 with the designator and
 //     at most a label the mediator's human typed in that act — never a
 //     name read from the target's profile (audience: the mediator alone,
@@ -68,7 +80,7 @@
 //     requester's voucher travel on the request's thread, the target's on
 //     the forward's
 //   - an artifact outside its window is refused at stage 8 from its own
-//     bytes (8110); a refusal by a role's lifecycle (a late reply of a
+//     bytes (8110), the offer by its document's issuedAt; a refusal by a role's lifecycle (a late reply of a
 //     failed act, 8350; a reply after the cutoff, 8180) commits only the
 //     document's acknowledgement: the act is unchanged
 //   - the requester's profile in the request is its display name (the own
@@ -78,7 +90,7 @@
 //     relationship's memory as `introducedName`, which the views read until
 //     a profile arrives (self-declared, Encounter 6120)
 import { iso, jcs } from '../core.js'
-import type { Json } from '../core.js'
+import type { Json, JsonObject } from '../core.js'
 import { diSignWith, diVerify, digestBytes, digestDoc, xRawOfMk } from '../crypto.js'
 import { seal } from '../delivery.js'
 import { cardBody } from '../encounter.js'
@@ -172,11 +184,11 @@ const withAct = (state: HolderState, a: IntroAct): HolderState =>
 
 const held = (state: Readonly<HolderState>, role: IntroAct['role'], act: string): IntroAct | undefined => state.encounter.introductions[keyOf(role, act)]
 
-/** The requester's status at `when` (8340, 8690, 8140): a timeout fires at
- *  the first whole second after its bound, whether or not tick ran. */
+/** The requester's status at `when` (8340, 8140): sent or acked, it fails
+ *  at the act's expiry, the first whole second after it, whether or not
+ *  tick ran; no ack timeout (A20, spec follow-up 18, against 8690). */
 function requesterStatus (a: Readonly<IntroAct>, when: Millis): IntroAct['status'] {
-  if (a.status === 'sent' && when >= actFiresAt(a.at + a.ackDelayMs + ACT_SKEW)) return 'failed'
-  if (a.status === 'acked' && when >= actFiresAt(a.at + ACT_EXPIRY)) return 'failed'
+  if ((a.status === 'sent' || a.status === 'acked') && when >= actFiresAt(a.at + ACT_EXPIRY)) return 'failed'
   return a.status
 }
 
@@ -204,11 +216,11 @@ async function freshCard (ctx: PrepareCtx): Promise<{ label: string, nonce: stri
 }
 
 /** The fresh relationship of an act toward the counterpart's card, introduced via the mediator (8790). */
-function openIntroduced (state: Readonly<HolderState>, label: string, nonce: string | undefined, rkid: string, card: Doc, via: string, name: string | undefined, when: Millis): Applied {
+function openIntroduced (state: Readonly<HolderState>, label: string, nonce: string | undefined, rkid: string, card: Doc, viaPin: string, name: string | undefined, when: Millis): Applied {
   const ids = idsOf(label)
   const opened = openTuple(state, {
     relId: ids.relId, contactId: ids.contactId, ownPairLabel: label, counterpartAnchor: card.anchor, counterpartKeyAgreement: card.keyAgreement,
-    provenance: { kind: 'introduced', via }, ...(nonce !== undefined ? { nonce } : {}),
+    provenance: { kind: 'introduced', via: arrivalContact(state, viaPin), viaPin }, ...(nonce !== undefined ? { nonce } : {}),
   }, rkid, when)
   if (name === undefined) return opened
   const rel = opened.state.relationships[ids.relId]
@@ -249,8 +261,8 @@ const introduceDef: CommandDef<IntroduceInput, IntroducePrep> = {
 const declarationTask: TaskHandler<Doc, null> = {
   proof: 'required',
   decode: (p) => (introSchemaOk('payload-registry-declaration.schema.json', p) ? p as Doc : refuse('malformed')),
-  async prepare (_ctx, doc) {
-    if (!(await diVerify(doc, doc.issuer))) return refuse('validation-failed')
+  async prepare (ctx, doc) {
+    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed')
     const d = doc.payload.declaration
     // the registering specification closes names and domains: only the mediator role is known here
     if (d.role !== MEDIATOR_ROLE || mediatorConstants(d.constants) === null) return refuse('validation-failed')
@@ -281,7 +293,12 @@ const offerTask: TaskHandler<Doc, null> = {
       (x.label !== undefined && (typeof x.label !== 'string' || !x.label.length || [...x.label].length > 64)) || Object.keys(x).some((k) => !['target', 'label'].includes(k))) return refuse('malformed')
     return x as Doc
   },
-  async prepare (_ctx, doc) { return (await diVerify(doc, doc.issuer)) ? null : refuse('validation-failed') },
+  async prepare (ctx, doc) {
+    // the act window, like the request's and the forward's (8110): a replay
+    // after the effect cache let the offer go opens no prompt again
+    if (!actWindowHolds(doc.issuedAt, ctx.when)) return refuse('validation-failed', 'RLTP-TRU-8110')
+    return (await diVerify(doc, doc.issuer, ctx.crypto.subtle)) ? null : refuse('validation-failed')
+  },
   apply (state, _p, doc, arr) {
     const a = arrival(state, arr.rkid)!
     const o: IntroOffer = {
@@ -323,8 +340,8 @@ function applyRequest (state: Readonly<HolderState>, o: Readonly<IntroOffer>, p:
   if (held(state, 'requester', p.act)) throw new Error('introduction: the act id is not fresh (8080)')
   if (state.register.labels.includes(p.fresh.label)) throw new Error('introduction: the pair label is not fresh')
   const a: IntroAct = {
-    key: keyOf('requester', p.act), act: p.act, role: 'requester', status: 'sent', issuedAt: tsec(when), request: p.request as unknown as Json,
-    requestCard: p.fresh.card as Json, reply: null, replyCard: null, pins: { mediator: o.pin }, threads: { request: p.doc.threadId },
+    key: keyOf('requester', p.act), act: p.act, role: 'requester', status: 'sent', issuedAt: tsec(when), request: p.request as unknown as JsonObject,
+    requestCard: p.fresh.card as JsonObject, reply: null, replyCard: null, pins: { mediator: o.pin }, threads: { request: p.doc.threadId },
     at: when, ackDelayMs: p.ackDelayMs, ownLabel: p.fresh.label, ack: null, replyForwarded: false, vouchersSent: false,
     pendingVoucher: null, voucher: null, vouched: false, promptId: null, ...(o.label !== undefined ? { peerName: o.label } : {}),
   }
@@ -355,7 +372,7 @@ const requestTask: TaskHandler<RequestPayload, MediatorPrep> = {
     // step 1: an active channel (the pin set at arrival)
     if (!liveRel(a.rel) || a.tuple.deactivated || a.rel.activeHead !== a.label) return refuse('validation-failed', 'RLTP-TRU-8410')
     // step 2: form — schema (decode), digest, signature, the window, the ack cutoff
-    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor))) return refuse('validation-failed', 'RLTP-TRU-8420')
+    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8420')
     if (!(await requestFormOk(doc.payload, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8420')
     if (!actWindowHolds(body.issuedAt, ctx.when) || !requestCutoffHolds(body.issuedAt, ctx.when, ACK_DELAY_MS)) return refuse('validation-failed', 'RLTP-TRU-8160')
     const h = held(s, 'mediator', body.act)
@@ -381,7 +398,7 @@ const requestTask: TaskHandler<RequestPayload, MediatorPrep> = {
     const body = doc.payload.introduction.body
     const act: IntroAct = {
       key: keyOf('mediator', body.act), act: body.act, role: 'mediator', status: p.forward ? 'forwarded' : 'received',
-      issuedAt: Date.parse(body.issuedAt), request: doc.payload.introduction as unknown as Json, requestCard: doc.payload.card as Json,
+      issuedAt: Date.parse(body.issuedAt), request: doc.payload.introduction as unknown as JsonObject, requestCard: doc.payload.card as JsonObject,
       reply: null, replyCard: null, pins: { requester: a.label, ...(p.target ? { target: p.target } : {}) },
       threads: { request: doc.threadId, ...(p.forward ? { forward: p.forward.threadId } : {}) }, at: arr.when, ackDelayMs: ACK_DELAY_MS,
       ownLabel: null, ack: null, replyForwarded: false, vouchersSent: false, pendingVoucher: null, voucher: null, vouched: false, promptId: null,
@@ -401,7 +418,7 @@ const ackDuty: DutyHandler<{ sealed: Sealed, ack: Json } | null> = {
     const key = await pinKey(ctx, a.pins.requester, MAC_ACK_INFO)
     if (!key) return null
     const ack = await introMacArtifact<AckBody>({ type: 'introduction-ack@1', act: a.act }, key, ctx.crypto.subtle)
-    return { sealed: await onTuple(ctx, a.pins.requester, INTRODUCTION_TYPES.ack, { introduction: ack }, a.threads.request), ack: ack as unknown as Json }
+    return { sealed: await onTuple(ctx, a.pins.requester, INTRODUCTION_TYPES.ack, { introduction: ack }, a.threads.request), ack: ack as unknown as JsonObject }
   },
   apply (state, duty, ctx, when) {
     const a = held(state, 'mediator', (duty as IntroAckDuty).act)
@@ -409,7 +426,7 @@ const ackDuty: DutyHandler<{ sealed: Sealed, ack: Json } | null> = {
     // past the lifetime, or the pinned key gone: the duty ends without production (8280)
     if (!a || a.ack || lifetimeOver(a, when) || p === null) return { state: state as HolderState }
     // the ack value as produced, retained for re-delivery (8200, 8230)
-    return { state: withAct(state as HolderState, completedIfDone({ ...a, ack: p.ack })), outbound: [draft(p.sealed)] }
+    return { state: withAct(state as HolderState, completedIfDone({ ...a, ack: p.ack as JsonObject })), outbound: [draft(p.sealed)] }
   },
 }
 
@@ -425,7 +442,7 @@ const forwardTask: TaskHandler<RequestPayload, { known: boolean }> = {
     if (h) return jcs((h.request as Doc).body) === jcs(doc.payload.introduction.body) ? { known: true } : refuse('validation-failed', 'RLTP-TRU-8260')
     // the request signature under the card's anchor, cardDigest, the card (8050)
     if (!(await requestFormOk(doc.payload, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8050')
-    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor))) return refuse('validation-failed', 'RLTP-TRU-8050')
+    if (!introCardShapeOk(doc.payload.card) || !(await diVerify(doc.payload.card, doc.payload.card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-TRU-8050')
     return { known: false }
   },
   // received: the pin at the forward's arrival (8270); the human decides
@@ -437,7 +454,7 @@ const forwardTask: TaskHandler<RequestPayload, { known: boolean }> = {
     const promptId = consentPromptId(body.act)
     const act: IntroAct = {
       key: keyOf('target', body.act), act: body.act, role: 'target', status: 'received', issuedAt: Date.parse(body.issuedAt),
-      request: doc.payload.introduction as unknown as Json, requestCard: doc.payload.card as Json, reply: null, replyCard: null,
+      request: doc.payload.introduction as unknown as JsonObject, requestCard: doc.payload.card as JsonObject, reply: null, replyCard: null,
       pins: { mediator: a.label }, threads: { request: '', forward: doc.threadId }, at: arr.when, ackDelayMs: 0, ownLabel: null, ack: null,
       replyForwarded: false, vouchersSent: false, pendingVoucher: null, voucher: null, vouched: false, promptId,
     }
@@ -469,10 +486,9 @@ async function prepareReply (ctx: PrepareCtx, a: Readonly<IntroAct>): Promise<Re
 function applyConsent (state: Readonly<HolderState>, a: Readonly<IntroAct>, p: ReplyPrep, when: Millis): Applied | Refusal {
   if (a.status !== 'received') return no('unknown-act')
   if (lifetimeOver(a, when)) return no('prompt-expired', 'RLTP-TRU-8280')
-  const via = arrivalContact(state, a.pins.mediator!)
   const name = ((a.request as Doc).body.profile as { displayName?: string }).displayName
-  const opened = openIntroduced(state, p.fresh.label, p.fresh.nonce, p.fresh.rkid, a.requestCard as Doc, via, name, when)
-  const next: IntroAct = { ...a, status: 'consented', reply: p.reply as unknown as Json, replyCard: p.fresh.card as Json, ownLabel: p.fresh.label }
+  const opened = openIntroduced(state, p.fresh.label, p.fresh.nonce, p.fresh.rkid, a.requestCard as Doc, a.pins.mediator!, name, when)
+  const next: IntroAct = { ...a, status: 'consented', reply: p.reply as unknown as JsonObject, replyCard: p.fresh.card as JsonObject, ownLabel: p.fresh.label }
   return { state: withAct(opened.state, next), outbound: [draft(p.doc)], events: opened.events, duties: opened.duties }
 }
 
@@ -512,7 +528,7 @@ const introductionDecision: DecisionDef<RequestPrep | ReplyPrep | Refusal | null
 // ── the reply at the mediator (8480–8540) and at the requester (8550–8600) ─
 
 interface ReplyPayload { introduction: Artifact<ReplyBody>, card: Doc }
-type MediatorReplyPrep = { repeat: boolean, toRequester: Sealed | null, vouchers: Sealed[] }
+type MediatorReplyPrep = { repeat: boolean, toRequester: Sealed | null, vouchers: Sealed[], orphaned?: true }
 type RequesterReplyPrep = { ignore: boolean }
 
 const replyChecks = async (ctx: PrepareCtx, a: Readonly<IntroAct>, payload: ReplyPayload): Promise<string | null> => {
@@ -520,12 +536,14 @@ const replyChecks = async (ctx: PrepareCtx, a: Readonly<IntroAct>, payload: Repl
   if (!(await replyBound(payload, ctx.crypto.subtle))) return a.role === 'mediator' ? 'RLTP-TRU-8500' : 'RLTP-TRU-8560'
   if (r.requestDigest !== await introDigest((a.request as Doc).body, ctx.crypto.subtle)) return a.role === 'mediator' ? 'RLTP-TRU-8510' : 'RLTP-TRU-8570'
   if (r.requesterPair !== (a.requestCard as Doc).anchor) return a.role === 'mediator' ? 'RLTP-TRU-8520' : 'RLTP-TRU-8580'
-  if (!introCardShapeOk(payload.card) || !(await diVerify(payload.card, payload.card.anchor))) return a.role === 'mediator' ? 'RLTP-TRU-8530' : 'RLTP-TRU-8590'
+  if (!introCardShapeOk(payload.card) || !(await diVerify(payload.card, payload.card.anchor, ctx.crypto.subtle))) return a.role === 'mediator' ? 'RLTP-TRU-8530' : 'RLTP-TRU-8590'
   return null
 }
 
 const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPrep> = {
   proof: 'absent',
+  // on the tuple the act pinned, even one a chaining deactivated since (8270)
+  pinned: true,
   decode: (p) => (introSchemaOk('visibility-payload-introduction-reply.schema.json', p) ? p as ReplyPayload : refuse('malformed')),
   async prepare (ctx, doc, arr) {
     const s = ctx.snapshot
@@ -544,6 +562,10 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
       if (!actWindowHolds(issuedAt, ctx.when) || !replyCutoffHolds(issuedAt, ctx.when)) return { repeat: true, toRequester: null, vouchers: [] }   // 8180: dropped silently
       const bad = await replyChecks(ctx, m, doc.payload)
       if (bad) return refuse('validation-failed', bad)
+      // the requester's relationship departed while the act ran: the reply is
+      // taken (an authentic document on the pinned target tuple), the relay
+      // ends as failed; nothing goes to a departed relationship
+      if (!tupleByLabel(s, m.pins.requester!)) return { repeat: false, toRequester: null, vouchers: [], orphaned: true }
       // forward unchanged (8060) and both vouchers (8740)
       const toRequester = await onTuple(ctx, m.pins.requester!, INTRODUCTION_TYPES.reply, doc.payload, m.threads.request)
       const vouchers: Sealed[] = []
@@ -570,14 +592,14 @@ const replyTask: TaskHandler<ReplyPayload, MediatorReplyPrep | RequesterReplyPre
     if ('vouchers' in p) {
       const m = held(state, 'mediator', r.act)!
       if (p.repeat) return { state: state as HolderState }
-      const next = completedIfDone({ ...m, reply: doc.payload.introduction as unknown as Json, replyCard: doc.payload.card as Json, replyForwarded: true, vouchersSent: true })
+      if (p.orphaned) return { state: withAct(state as HolderState, { ...m, status: 'failed', reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject }) }
+      const next = completedIfDone({ ...m, reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject, replyForwarded: true, vouchersSent: true })
       return { state: withAct(state as HolderState, next), outbound: [draft(p.toRequester!), ...p.vouchers.map(draft)] }
     }
     if (p.ignore) return { state: state as HolderState }
     const q = held(state, 'requester', r.act)!
-    const via = arrivalContact(state, q.pins.mediator!)
-    const opened = openIntroduced(state, q.ownLabel!, state.register.pairNonces[q.ownLabel!], rkidOf(state, q.ownLabel!), doc.payload.card, via, q.peerName, arr.when)
-    let next: IntroAct = { ...q, status: 'completed', reply: doc.payload.introduction as unknown as Json, replyCard: doc.payload.card as Json }
+    const opened = openIntroduced(state, q.ownLabel!, state.register.pairNonces[q.ownLabel!], rkidOf(state, q.ownLabel!), doc.payload.card, q.pins.mediator!, q.peerName, arr.when)
+    let next: IntroAct = { ...q, status: 'completed', reply: doc.payload.introduction as unknown as JsonObject, replyCard: doc.payload.card as JsonObject }
     // the pending voucher, re-evaluated (8600, 8770)
     let st = opened.state
     if (q.pendingVoucher) {
@@ -601,6 +623,8 @@ function rkidOf (state: Readonly<HolderState>, label: string): string {
 
 const ackTask: TaskHandler<{ introduction: Artifact<AckBody> }, { ok: boolean }> = {
   proof: 'absent',
+  // on the tuple the act pinned, even one a chaining deactivated since (8270)
+  pinned: true,
   decode: (p) => (introSchemaOk('visibility-payload-introduction-ack.schema.json', p) ? p as { introduction: Artifact<AckBody> } : refuse('malformed')),
   async prepare (ctx, doc, arr) {
     const q = held(ctx.snapshot, 'requester', doc.payload.introduction.body.act)
@@ -634,11 +658,13 @@ function markVouched (state: HolderState, a: Readonly<IntroAct>): HolderState {
   const at = a.ownLabel ? tupleByLabel(state, a.ownLabel) : null
   if (!at) return state
   const rel = at.rel
-  return { ...state, relationships: { ...state.relationships, [rel.id]: { ...rel, memory: { ...rel.memory, vouchedBy: arrivalContact(state, a.pins.mediator!) } } } }
+  return { ...state, relationships: { ...state.relationships, [rel.id]: { ...rel, memory: { ...rel.memory, vouchedBy: arrivalContact(state, a.pins.mediator!), vouchedPin: a.pins.mediator! } } } }
 }
 
 const voucherTask: TaskHandler<{ voucher: Artifact<VoucherBody> }, { role: 'requester' | 'target' }> = {
   proof: 'absent',
+  // on the tuple the act pinned, even one a chaining deactivated since (8270)
+  pinned: true,
   decode: (p) => (introSchemaOk('visibility-payload-introduction-voucher.schema.json', p) ? p as { voucher: Artifact<VoucherBody> } : refuse('malformed')),
   async prepare (ctx, doc, arr) {
     const act = doc.payload.voucher.body.act
@@ -658,9 +684,9 @@ const voucherTask: TaskHandler<{ voucher: Artifact<VoucherBody> }, { role: 'requ
     const a = held(state, prepared.value.role, v.body.act)!
     const kept = (a.voucher ?? a.pendingVoucher) as Doc | null
     if (kept) return jcs(kept.body) === jcs(v.body) ? { state: state as HolderState } : refuse('validation-failed', 'RLTP-TRU-8260')
-    if (a.reply === null) return { state: withAct(state as HolderState, { ...a, pendingVoucher: v as Json }) }   // 8770
+    if (a.reply === null) return { state: withAct(state as HolderState, { ...a, pendingVoucher: v as JsonObject }) }   // 8770
     if (!voucherMatches(a, v)) return refuse('validation-failed', 'RLTP-TRU-8760')
-    const next = { ...a, voucher: v as Json, vouched: true }
+    const next = { ...a, voucher: v as JsonObject, vouched: true }
     return { state: withAct(markVouched(state as HolderState, next), next) }
   },
 }
@@ -688,6 +714,32 @@ function retainActs (state: Readonly<HolderState>, when: Millis): HolderState {
   return { ...state, encounter: { ...state.encounter, introductions: out ?? state.encounter.introductions, offers: kept } }
 }
 
+/** When retainActs changes something: a requester's timeout fires, an
+ *  act's absolute lifetime ends (the timer contract, engine.ts). */
+function actDeadlines (state: Readonly<HolderState>): Millis[] {
+  const out: Millis[] = []
+  for (const a of Object.values(state.encounter.introductions)) {
+    out.push(actFiresAt(a.issuedAt + ACT_EXPIRY + ACT_SKEW))
+    if (a.role === 'requester' && (a.status === 'sent' || a.status === 'acked')) out.push(actFiresAt(a.at + ACT_EXPIRY))
+  }
+  return out
+}
+
+/** The own rkids of every tuple a held act pinned (8270): a chaining
+ *  during the act deactivates such a tuple, but the act's artifacts stay
+ *  on it and verify under its key until the absolute lifetime (8290), when
+ *  retainActs discards the act and with it this claim. */
+function pinnedKeys (state: Readonly<HolderState>): string[] {
+  const out = new Set<string>()
+  for (const a of Object.values(state.encounter.introductions)) {
+    for (const label of [a.pins.requester, a.pins.target, a.pins.mediator]) {
+      const at = label === undefined ? null : tupleByLabel(state, label)
+      if (at) out.add(at.tuple.rkid)
+    }
+  }
+  return [...out]
+}
+
 /** The introduction module createHolder registers. */
 export function introductionModule (): HolderModule {
   return Object.freeze({
@@ -705,5 +757,7 @@ export function introductionModule (): HolderModule {
     duties: Object.freeze({ 'intro-ack': ackDuty }),
     decisions: Object.freeze({ introduction: introductionDecision }),
     retain: retainActs,
+    deadlines: actDeadlines,
+    keepKeys: pinnedKeys,
   })
 }

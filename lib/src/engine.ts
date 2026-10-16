@@ -147,9 +147,21 @@
 //     app plug-ins)
 //   - a failure handler gets the retry backoff, so a failure can make work
 //     due no earlier than its schedule allows
+//   - the timer contract: tick does the time-driven work (expiry,
+//     retention, the modules' `retain`), resume the delivery work (retries,
+//     due duties, sweeps, acks). nextDueAt names the earliest of both: on
+//     resume, the earliest future deadline of the expiry work (prompt
+//     expiresAt, effect expiry, the act journal's, a terminal outbox item's
+//     and an address key's retention, every module's `deadlines`); on an
+//     act or receive, also a deadline the commit newly introduced. The app
+//     sets one timer on it and, when it fires, calls tick and then resume
+//     (README "The holder")
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
-//     outbox items have all been retained away)
+//     outbox items have all been retained away); the address keys' retention
+//     comes last, its live set and keepKeys read on what the hooks left, so
+//     a key whose last claim (an act's pin, 8290) left in this tick leaves in
+//     the same tick and no passed key deadline outlives it
 //   - without an Access port, EngineOptions.accessFrom (createHolder: the
 //     membership module's localAccess) builds one over each preparation's
 //     own snapshot, so it describes exactly the state the commit lands on
@@ -295,6 +307,11 @@ export interface TaskHandler<T = any, P = any> {
    *  contact, from the document itself, or a refusal; absent: the arrival
    *  tuple's binding (Delivery 4.4) */
   channel?: (state: Readonly<HolderState>, doc: ReceivedDocument<T>, rkid: string) => Channel | TaskRefusal
+  /** under the arrival tuple's binding: the document may arrive on a tuple
+   *  a chaining deactivated, because the handler binds it to the tuples an
+   *  act pinned and checks that pin itself (Trust 8270); absent: the arrival
+   *  tuple must be the active head of a live relationship (6190, 6240) */
+  pinned?: true
   prepare?: (ctx: PrepareCtx, doc: ReceivedDocument<T>, arrival: Arrival) => Promise<P | TaskRefusal>
   /** a TaskDiscarded commits its `state` as the disposition `discarded`
    *  (no effect-cache entry, no ack): a resource-limit discard (Trust 5365) */
@@ -412,6 +429,9 @@ export interface HolderModule {
   /** the module's own retention, run by tick after the engine's: pure and
    *  synchronous, returning the same state object where nothing goes */
   retain?: (state: Readonly<HolderState>, when: Millis) => HolderState
+  /** the times at which the module's `retain` (run by tick) changes the
+   *  state: counted into nextDueAt (the timer contract, the header) */
+  deadlines?: (state: Readonly<HolderState>) => Iterable<Millis>
   /** at most one handler per prompt kind across all modules; collected by
    *  createHolder for the prompts module (prompts.ts) */
   decisions?: Partial<Record<PromptKind, DecisionHandler>>
@@ -583,7 +603,7 @@ function renameAcks (effects: HolderState['effects'], renames: readonly Identity
     let a = e.ack
     if (!a) continue
     for (const r of renames) {
-      if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.rkid))) a = { ...a, recipient: { ...a.recipient, contactId: r.to } }
+      if (r.from.includes(a.recipient.contactId) && (r.rkids === null || r.rkids.includes(a.recipient.via ?? a.recipient.rkid))) a = { ...a, recipient: { ...a.recipient, contactId: r.to } }
     }
     if (a !== e.ack) (out ??= { ...effects })[d] = { ...e, ack: a }
   }
@@ -658,6 +678,7 @@ class HolderEngine implements Engine {
   readonly #ownRetries: ReadonlySet<string>
   readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<string>>
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
+  readonly #deadlines: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<Millis>>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #check?: EngineOptions['check']
   readonly #accessFrom?: EngineOptions['accessFrom']
@@ -705,6 +726,7 @@ class HolderEngine implements Engine {
     const ownRetries = new Set<string>()
     const keepKeys: Array<(state: Readonly<HolderState>) => Iterable<string>> = []
     const retain: Array<(state: Readonly<HolderState>, when: Millis) => HolderState> = []
+    const deadlines: Array<(state: Readonly<HolderState>) => Iterable<Millis>> = []
     const names = new Set<string>()
     for (const m of modules) {
       if (!m || typeof m.name !== 'string' || !m.name) throw new TypeError('a module needs a name')
@@ -722,6 +744,7 @@ class HolderEngine implements Engine {
         if (typeof h?.apply !== 'function' || typeof h.decode !== 'function') throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`)
         if (h.proof !== 'absent' && h.proof !== 'required') throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`)
         if (h.channel !== undefined && typeof h.channel !== 'function') throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`)
+        if (h.pinned !== undefined && (h.pinned !== true || h.channel !== undefined)) throw new TypeError(`task ${uri} (module ${m.name}): pinned is true or absent, and only under the tuple binding`)
         tasks.set(uri, Object.freeze({ ...h }))
       }
       for (const [kind, h] of Object.entries(m.duties ?? {})) {
@@ -760,6 +783,10 @@ class HolderEngine implements Engine {
         if (typeof m.retain !== 'function') throw new TypeError(`retain (module ${m.name}) must be a function`)
         retain.push(m.retain)
       }
+      if (m.deadlines !== undefined) {
+        if (typeof m.deadlines !== 'function') throw new TypeError(`deadlines (module ${m.name}) must be a function`)
+        deadlines.push(m.deadlines)
+      }
     }
     this.#commands = commands
     this.#tasks = tasks
@@ -769,6 +796,7 @@ class HolderEngine implements Engine {
     this.#failures = failures
     this.#ownRetries = ownRetries
     this.#keepKeys = Object.freeze(keepKeys)
+    this.#deadlines = Object.freeze(deadlines)
     this.#retain = Object.freeze(retain)
     this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() })
     this.registry = Object.freeze({
@@ -931,8 +959,36 @@ class HolderEngine implements Engine {
 
   /** The work an operation opened or unblocked: its duty work (#dutyWake),
    *  or `when` where a sweep's pending keys gained one. */
+  /** Every time at which tick's expiry and retention change `state`: the
+   *  engine's own and the modules' `deadlines` (the timer contract). */
+  #expiries (state: Readonly<HolderState>): Millis[] {
+    const retention = this.#policy.retentionMs
+    const out: Millis[] = []
+    for (const p of Object.values(state.prompts)) if (p.expiresAt !== undefined) out.push(p.expiresAt)
+    for (const e of Object.values(state.effects)) out.push(e.expiresAt)
+    for (const a of Object.values(state.acts)) out.push(a.at + retention)
+    for (const it of Object.values(state.outbox)) {
+      const t = triasOf(it)
+      if ((t === 'delivered' || t === 'failed') && it.history.length) out.push(it.history[it.history.length - 1].at + retention)
+    }
+    for (const k of Object.values(state.addresses.keys)) out.push(k.lastShown + retention)
+    for (const f of this.#deadlines) for (const t of f(state)) out.push(t)
+    return out.filter((t) => Number.isSafeInteger(t))
+  }
+
+  /** The earliest expiry deadline after `when`, among those `only` admits. */
+  #nextExpiry (state: Readonly<HolderState>, when: Millis, only: (t: Millis) => boolean = () => true): Millis | undefined {
+    let next: Millis | undefined
+    for (const t of this.#expiries(state)) if (t > when && only(t) && (next === undefined || t < next)) next = t
+    return next
+  }
+
   #wake (before: Readonly<HolderState>, after: Readonly<HolderState>, added: readonly Duty[], when: Millis): Millis | undefined {
-    const d = this.#dutyWake(before, after, added, when)
+    const d0 = this.#dutyWake(before, after, added, when)
+    // a deadline the commit introduced (a prompt opened, an act started, …)
+    const had = before === after ? null : new Set(this.#expiries(before))
+    const x = had === null ? undefined : this.#nextExpiry(after, when, (t) => !had.has(t))
+    const d = d0 === undefined ? x : x === undefined ? d0 : Math.min(d0, x)
     if (d === when || before === after) return d
     for (const sw of this.#sweeps.values()) {
       // a sweep whose declared inputs are untouched (by reference) cannot have new pending keys
@@ -1022,29 +1078,34 @@ class HolderEngine implements Engine {
           const last = it.history.length ? it.history[it.history.length - 1].at : 0
           return last + retention > when || journaled.has(digest)
         })
-        // addresses (Delivery §5): a key not shown for the retention, and the
-        // own rkid of no live tuple, becomes a tombstone — its id alone, kept
-        // forever; tombstones never shrink
-        const live = new Set<string>()
-        for (const r of Object.values(state.relationships)) for (const t of r.tuples) if (!t.deactivated) live.add(t.rkid)
-        // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
-        for (const k of keepers()) for (const rkid of k(state)) live.add(rkid)
-        const tombstones = [...state.addresses.tombstones]
-        const keys = keep(state.addresses.keys, (k, rkid) => {
-          if (k.lastShown + retention > when || live.has(rkid)) return true
-          // a member key (group/…) is an identity context, not a delivery
-          // address of Delivery §5: it leaves without a tombstone, so the same
-          // derivation can serve the same group again (a re-invitation)
-          if (!k.label.startsWith('group/') && !tombstones.includes(rkid)) tombstones.push(rkid)
-          return false
-        })
-        let next: HolderState = dropped ? { ...state, effects, prompts, acts, outbox, addresses: { keys, tombstones } } : state as HolderState
+        let next: HolderState = dropped ? { ...state, effects, prompts, acts, outbox } : state as HolderState
         // the modules' own retention, on what the engine's left
         for (const r of retainers()) {
           const after = r(next, when)
           if (after.effects !== next.effects) throw new Error('engine: a module\'s retain wrote the effect cache')
           next = after
         }
+        // addresses (Delivery §5), on what the retention left, so a key whose
+        // last claim left in this tick leaves with it: a key not shown for the
+        // retention, and the own rkid of no live tuple, becomes a tombstone —
+        // its id alone, kept forever; tombstones never shrink
+        const held = next
+        const live = new Set<string>()
+        for (const r of Object.values(held.relationships)) for (const t of r.tuples) if (!t.deactivated) live.add(t.rkid)
+        // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
+        for (const k of keepers()) for (const rkid of k(held)) live.add(rkid)
+        const tombstones = [...held.addresses.tombstones]
+        let gone = false
+        const keys: HolderState['addresses']['keys'] = {}
+        for (const [rkid, k] of Object.entries(held.addresses.keys)) {
+          if (k.lastShown + retention > when || live.has(rkid)) { keys[rkid] = k; continue }
+          gone = true
+          // a member key (group/…) is an identity context, not a delivery
+          // address of Delivery §5: it leaves without a tombstone, so the same
+          // derivation can serve the same group again (a re-invitation)
+          if (!k.label.startsWith('group/') && !tombstones.includes(rkid)) tombstones.push(rkid)
+        }
+        if (gone) next = { ...held, addresses: { keys, tombstones } }
         return { state: next }   // unchanged: the engine still commits a raised lastWhen
       },
     }
@@ -1068,6 +1129,7 @@ class HolderEngine implements Engine {
   }
 
   #resumeDef (): InternalDef {
+    const expiryAfter = (st: Readonly<HolderState>, w: Millis): Millis | undefined => this.#nextExpiry(st, w)
     const policy = (): Policy => this.#policy
     const plan = (state: Readonly<HolderState>, when: Millis) => this.#dutyPlan(state, when)
     const handlers = (): ReadonlyMap<string, DutyHandler> => this.#duties
@@ -1221,6 +1283,9 @@ class HolderEngine implements Engine {
           due(nextAttemptAt)
         }
         if (effects && jcs(effects) !== jcs(cur.effects)) cur = { ...cur, effects }
+        // the expiry work tick does (the timer contract, the header)
+        const ex = expiryAfter(cur, when)
+        if (ex !== undefined) due(ex)
         return {
           state: cur, emit, events, outbound: drafts, release, detail: { fulfilled },
           ...(renames.length ? { renames } : {}),

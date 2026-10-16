@@ -15,3 +15,8 @@ export { freezeDeep } from './util-freeze.js';
 export { sampleState, openPromptModule, OPEN_PROMPT } from './fixtures.js';
 export { continuityTestModule, NEW_TUPLE } from './trust/continuity.js';
 export { stateViolations, transitionViolations, commitViolations } from './invariants.js';
+export { forgeMapping } from './forge.js';
+// the live schema bundle (deep-frozen) and the wire-artifact types generated
+// from the same schemas (wire.ts): they track the repository's castings, so
+// they are test and tooling material, not the pinned root surface
+export { SCHEMAS } from './schemas.js';

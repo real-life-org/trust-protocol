@@ -2,10 +2,9 @@
 // 0.31 §6a, tasks continuity-probe/0.1 and continuity-mapping/0.1): the
 // pure wire constructions over raw X25519 shared secrets (lib Stage 2,
 // PR 4c). The holder's trust module (trust/continuity.ts) builds and
-// verifies through these with secrets from its KeyProvider;
-// probe/continuity.ts keeps its Person-based flow for the simulators until
-// PR 7 and re-exports these names. Byte-compatible with the continuity
-// cases of vectors/visibility.json (test/trust-continuity.test.mjs).
+// verifies through these with secrets from its KeyProvider. Byte-compatible
+// with the continuity cases of vectors/visibility.json
+// (test/trust-continuity.test.mjs).
 //
 //   k_p   = HKDF(X25519(newPairX_sender, newPairX_recipient),
 //                "rltp/visibility/blind/probe/" || senderNewPair || "/" || recipientNewPair)       (6720)
@@ -117,5 +116,8 @@ export const continuityMappingOk = (m: unknown): boolean =>
   schemaOk('visibility-continuity-mapping.schema.json', m) && calOK((m as ContinuityMapping).body.issuedAt)
 
 /** 2290: the record side of a fresh tuple is the party whose new pair
- *  anchor is the smaller by byte order (did:key strings are ASCII). */
+ *  anchor is the smaller by byte order (did:key strings are ASCII). Either
+ *  party can grind its anchor to take either side, so being the record
+ *  side grants nothing: neither side chains without the counterpart's
+ *  mapping verified under the prior key (trust/continuity.ts, follow-up 14). */
 export const isRecordSide = (ownNew: string, counterpartNew: string): boolean => ownNew < counterpartNew

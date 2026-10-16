@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import * as C from './rltp-crypto.mjs'
+import * as C from './holder.mjs'
 import { jcs, makeValidator, toU } from './rltp-core.mjs'
 import { diVerify as nodeDiVerify, SCHEMAS } from '../conformance/lib.mjs'
 

@@ -61,7 +61,11 @@ change; the sealed envelope, the delivery promises and the
 disposition machinery (5, 6) have been stable across many
 castings. Review happens against the converged companion
 documents; the convergence criterion is a review round with no
-blocker-level findings. Feedback belongs in the design journal
+blocker-level findings. The reference library implements the sealed
+envelope, the receive stages of 6.2 with the completed-effect cache,
+the sender's status of 6.1 and the acknowledgement classes of 4.2 on
+its holder, and the carrier port of 4.4 and 5a; transports beyond its
+VTI mediator adapter are not in it. Feedback belongs in the design journal
 of the private workshop repository; the public mirror is
 [`real-life-org/trust-protocol`](https://github.com/real-life-org/trust-protocol).
 

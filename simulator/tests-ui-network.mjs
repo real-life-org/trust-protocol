@@ -1,409 +1,431 @@
-// UI-Durchlauf des Netzwerk-Simulators (Redesign, UI englisch): Home-Posteingang →
-// Vorstellen → Flugmodus → Gruppen/Bürgschaft → Vertrauensakt → Kontinuität →
-// WoT-App-Flow (FAB, Scan-Flug, Vollbild-Prompt, Offline-Two-Way-Scan).
-import { chromium } from '@playwright/test';
-const CHROME = process.env.CHROME_BIN || '/usr/bin/chromium';
-const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
-const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
-page.on('pageerror', e => console.log('[pageerror]', e.message.slice(0, 200)));
-await page.goto('http://localhost:8199/network.html', { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.__probe && window.__probe.ready);
+// UI run of the network simulator (the app on the library's holder API):
+// home inbox → introduce (the mediator offline: the act waits for him) →
+// groups over the introduced channel → the trust act → continuity → the
+// WoT app flow (FAB, scan flight, full-screen prompt, offline two-way scan)
+// → delivery stages and faults → the sim clock.
+//
+//   CHROME_BIN=/path/to/chrome PLAYWRIGHT_CORE=/path/to/playwright-core node simulator/tests-ui-network.mjs
+//
+// Needs playwright-core (PLAYWRIGHT_CORE, else resolvable as 'playwright-core')
+// and a Chrome >= 137 (Ed25519 and X25519 in WebCrypto). Serves the
+// repository root itself. SHOTS_DIR=<dir> saves three screenshots.
+//
+// Ported from the probe-world run; dropped, with the reason:
+//   - "the drop never saw an access by Anton": there is no rendezvous drop
+//     any more (Trust §8 relays the act through the mediator); instead:
+//     nothing reaches Emil while Anton is offline, and the request flows
+//     when he is back
+//   - "Emil holds Jonathan's card ◇ before his decision": the target gets
+//     the request only through the mediator's forward, and the contact only
+//     by consenting; the waiting state is the open prompt
+//   - the candidacy checkbox and the candidacy badge, the vouch on a
+//     candidacy: the library admits under the rule of one at the accept
+//     (foundGroup refuses a stricter rule: threshold-unsupported), so a
+//     group founded in the app never holds a consent pair to vouch for;
+//     the vouch section stays in the page for GroupView.pending
+//   - the star's "1 contact blinded": the star's content is the library's
+//     (asserted: no match is shown that the holder cannot compute)
+import { createServer } from 'node:http'
+import { readFile, mkdir } from 'node:fs/promises'
+import { join, extname, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-let fails = 0;
-const check = (c, m) => { console.log((c ? '✓ ' : '✗ FAIL ') + m); if (!c) fails++; };
-const tab = (id, label) => page.locator(`#dev-${id} .pbtn`, { hasText: label }).click();
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }
+const server = createServer(async (req, res) => {
+  try {
+    const body = await readFile(join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname)))
+    res.writeHead(200, { 'content-type': types[extname(req.url.split('?')[0])] || 'application/octet-stream' }).end(body)
+  } catch { res.writeHead(404).end() }
+}).listen(0)
+const port = server.address().port
 
-check(await page.evaluate(() => window.__probe.A.contacts.size === 2), 'Setup: Anton hält Jonathan und Emil (echte Zeremonien, ✓)');
+const { chromium } = await import(process.env.PLAYWRIGHT_CORE ? join(process.env.PLAYWRIGHT_CORE, 'index.mjs') : 'playwright-core')
+const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/usr/bin/chromium', args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } })
+const errors = []
+page.on('pageerror', (e) => { errors.push(e.message); console.log('[pageerror]', (e.stack ?? e.message).slice(0, 600)) })
 
-// Home ist der Einstieg: KPI-Zeile aus den Gerätedaten, Posteingang leer
-check((await page.locator('#dev-A .kpi .k').count()) === 3, 'Home-Tab ist Default: KPI-Zeile (Contacts · Groups · Open)');
-check((await page.locator('#dev-A .sect', { hasText: 'Waiting for you' }).count()) === 0, 'Home: leerer Posteingang wird ausgeblendet');
-
-// Vorstellen: Antons Phone → Contacts → Emil → Detail → Introduce… → Jonathan
-await tab('A', 'Contacts');
-await page.locator('#dev-A .prow', { hasText: 'Emil' }).click();
-await page.locator('#dev-A .profact button', { hasText: 'Introduce…' }).waitFor();
-check(true, 'Kontakt-Detail: „Introduce…"-Button ist da');
-check((await page.locator('#dev-A .sect', { hasText: 'Shared groups' }).count()) === 0, 'Kontakt-Detail: leere Sektionen ausgeblendet');
-await page.locator('#dev-A .profact button', { hasText: 'Introduce…' }).click();
-await page.locator('#dev-A .phdlg .prow', { hasText: 'Jonathan' }).click();
-await page.locator('#dev-A .phdlg-card', { hasText: 'to each other?' }).waitFor();
-check(true, 'Einweg-Tür: Bestätigungs-Sheet IM Phone');
-await page.locator('#dev-A .phdlg-btns button', { hasText: /^Introduce$/ }).click();
-await page.waitForFunction(() => window.__probe.wire.length === 2);
-check(true, 'Antons EIN Akt: zwei versiegelte Angebote auf dem Draht');
-
-// Flugmodus über den Netz-Toggle
-await page.locator('#dev-A .devctls .devbtn').first().click();
-await page.waitForFunction(() => window.__probe.A.online === false);
-check((await page.locator('#dev-A .phone-screen.off').count()) === 1, 'Anton im Flugmodus (Screen zeigt ✈ offline)');
-
-// Jonathan: eingehende Vorstellung im HOME-Posteingang → Connect
-await page.locator('#dev-J .incoming .iq', { hasText: 'connect you with Emil' }).waitFor();
-check(true, 'Jonathan sieht die Vorstellung im Home-Posteingang („Waiting for you")');
-await page.locator('#dev-J .incoming .yes').click();
-await page.locator('#dev-J .sentrow', { hasText: 'waiting for the other side' }).waitFor();
-check((await page.locator('#dev-J .sect', { hasText: 'Waiting for them' }).count()) === 1
-  && (await page.locator('#dev-J .sect', { hasText: 'Waiting for you' }).count()) === 0, 'Richtungs-Ehrlichkeit: der Wartezustand steht unter „Waiting for them", nicht „for you"');
-
-// PASSIVER EMPFANG über Emils eigenen Sync-Tick
-await tab('E', 'Contacts');
-await page.locator('#dev-E .prow', { hasText: 'Jonathan' }).waitFor({ timeout: 8000 });
-check(await page.evaluate(() => [...window.__probe.E.contacts.values()].some(c => c.name === 'Jonathan' && c.state === '◇')), 'Emil hält Jonathans Karte ◇ VOR seiner Entscheidung (Sync-Tick)');
-await tab('E', 'Home');
-check((await page.locator('#dev-E .incoming .iq').count()) === 1, 'Emils Prompt ist dabei weiter offen — Empfangen ≠ Zustimmen');
-
-// Emil: Connect → beidseitig ⇄
-await page.locator('#dev-E .incoming .yes').click();
-await page.waitForFunction(() => [...window.__probe.J.contacts.values()].some(c => c.state === '⇄')
-  && [...window.__probe.E.contacts.values()].some(c => c.state === '⇄'));
-check(true, 'beide halten einander: ⇄ vorgestellt via Anton');
-
-check(await page.evaluate(() => window.__probe.A.online === false), 'Anton war die ganze Zeit offline');
-check(await page.evaluate(() => window.__probe.drop.log.every(e => e.by !== 'Anton')), 'der Drop sah NIE einen Zugriff von Anton');
-check(await page.evaluate(() => {
-  const jc = [...window.__probe.J.contacts.values()].find(c => c.state === '⇄');
-  return jc && jc.voucher && !window.__probe.A.contacts.has(jc.card.anchor);
-}), 'Voucher liegt bei; die gekreuzten Anker sind frisch (Anton kennt sie nicht)');
-
-// 🗂 Wallet in der App: Profile → „My data"
-await page.locator('#dev-J .wcat button', { hasText: 'Introductions' }).click();
-await page.locator('#dev-J .witem .wtitle', { hasText: 'voucher · about Emil' }).waitFor();
-check(true, 'Artefakt-Panel unter dem Gerät: Introductions öffnet — Voucher über Emil mit JSON');
-check((await page.locator('#dev-J .witem .wtitle', { hasText: 'released card · for Emil' }).count()) === 1, 'Wallet: die freigegebene eigene Karte liegt unter Sent');
-await page.locator('#dev-J .wchip', { hasText: 'Sent' }).click();
-check((await page.locator('#dev-J .witem .wtitle', { hasText: 'voucher' }).count()) === 0, 'Wallet-Filter Sent: empfangene Artefakte ausgeblendet');
-await page.locator('#dev-J .wchip', { hasText: 'All' }).click();
-check(true, 'Artefakt-Ebene liegt außerhalb des Geräts — kein Navigieren nötig');
-
-// Kontakt-Detail des vorgestellten Kontakts: Meta-Zeile Rang 2 + Voucher
-await tab('J', 'Contacts');
-await page.locator('#dev-J .prow', { hasText: 'Emil' }).click();
-await page.locator('#dev-J .pmeta', { hasText: 'introduced via Anton' }).waitFor();
-check((await page.locator('#dev-J .pmeta', { hasText: 'not yet verified' }).count()) >= 1, 'Meta-Zeile Rang 2: Zustandserklärung mit Kontinuitäts-Pfad');
-check((await page.locator('#dev-J .profmeta', { hasText: 'introduction-voucher@2' }).count()) === 1, 'Kontakt-Detail: Akt-Voucher sichtbar');
-check((await page.locator('#dev-J .profact button', { hasText: 'Invite to group' }).count()) === 1, 'Kontakt-Detail: „Invite to group…"-Aktion vorhanden');
-
-// ⇄ vorgestellt: Vertrauensakt erlaubt — Sheet nennt die Vermittler-Abhängigkeit
-await page.locator('#dev-J .profact button.trust', { hasText: 'Trust…' }).click();
-await page.locator('#dev-J .phdlg-card', { hasText: 'Not yet verified' }).waitFor();
-check((await page.locator('#dev-J .phdlg-card', { hasText: 'introduced via Anton' }).count()) === 1, '⇄ vorgestellt: Akt erlaubt, Sheet benennt die Vermittler-Abhängigkeit');
-await page.locator('#dev-J .phdlg-btns button', { hasText: 'Cancel' }).click();
-
-// Badge-Grammatik
-await page.locator('#dev-J .backbtn').click();
-await tab('A', 'Contacts');
-check((await page.locator('#dev-A .pbadge.mutual', { hasText: '⇄ verified' }).count()) === 2, 'Antons Zeremonie-Kontakte tragen das blaue ⇄-verified-Badge');
-check((await page.locator('#dev-J .pbadge.byme', { hasText: '⇄ introduced' }).count()) === 1, 'Jonathans Emil trägt das amber ⇄-introduced-Badge');
-check((await page.locator('#dev-J .pmeta', { hasText: 'first real meeting' }).count()) >= 1, 'Meta-Zeile benennt den Kontinuitäts-Pfad zu ✓');
-
-// Tabs + Statusleiste
-// Anton ist hier im Flugmodus: seine Zeile sagt das, statt den Namen zu
-// überlagern — bei einem Online-Gerät steht dort der Inhaber
-check((await page.locator('#dev-J .phone-status .st-owner').textContent()) === 'Jonathan'
-  && (await page.locator('#dev-A .phone-status .st-owner').textContent()).includes('offline'),
-  'Statusleiste oben rechts: Inhabername — offline ERSETZT ihn, statt ihn zu überlagern');
-await tab('J', 'Profile');
-await page.locator('#dev-J .profhead .pname', { hasText: 'Jonathan' }).waitFor();
-check((await page.locator('#dev-J .sentrow', { hasText: 'root seed' }).count()) === 1, 'Profil-Tab: eigene Identität aus den Gerätedaten (Anker + Backup-Zeile)');
-await tab('J', 'Groups');
-check((await page.locator('#dev-J .pempty', { hasText: 'no groups yet' }).count()) === 1, 'Gruppen-Tab: ehrlich leer');
-await tab('J', 'Contacts');
-await page.locator('#dev-J .prow', { hasText: 'Emil' }).waitFor();
-check(true, 'Kontakte-Tab: zurück zur Kontaktliste');
-
-// ── Stage C: Jonathan gründet die Untergruppe und lädt Emil ein ─────────
-await tab('J', 'Groups');
-await page.locator('#dev-J .profact button', { hasText: 'Found a group' }).click();
-await page.locator('#gname-J').fill('Orga-Untergruppe');
-await page.locator('#dev-J .phdlg-btns button', { hasText: /^Found$/ }).click();
-await page.locator('#dev-J .prow .pname2', { hasText: 'Orga-Untergruppe' }).waitFor();
-check(await page.evaluate(() => window.__probe.J.groups.size === 1), 'Gründung: Genesis + Founder-Member-Anker, Gruppe im Tab');
-
-await page.locator('#dev-J .prow', { hasText: 'Orga-Untergruppe' }).click();
-await page.locator('#dev-J .profact button', { hasText: 'Invite a member' }).click();
-await page.locator('#dev-J .phdlg .prow', { hasText: 'Emil' }).click();
-// Prelude → Reply → Invite laufen automatisch über die Kanäle
-await tab('E', 'Home');
-await page.locator('#dev-E .incoming .iq', { hasText: 'invites you to "Orga-Untergruppe"' }).waitFor({ timeout: 8000 });
-check(true, 'Emil sieht die geprüfte Einladung im Home-Posteingang (Prelude-Roundtrip automatisch)');
-
-// Beitritts-Sheet: informierte Entscheidung + Kandidatur-Toggle
-await page.locator('#dev-E .incoming .yes', { hasText: 'Join…' }).click();
-await page.locator('#dev-E .phdlg-card', { hasText: 'Join "Orga-Untergruppe"?' }).waitFor();
-check((await page.locator('#dev-E .phdlg-card', { hasText: 'permanently' }).count()) === 1, 'Beitritts-Sheet: Einweg-Tür benannt („permanently")');
-check(await page.evaluate(() => document.getElementById('cand-E')?.checked === true), 'Kandidatur-Toggle: an per Default, abwählbar');
-await page.locator('#dev-E .phdlg-btns button', { hasText: /^Join$/ }).click();
-await page.waitForFunction(() => window.__probe.E.groups.size === 1
-  && [...window.__probe.J.groups.values()][0].roster.size === 2);
-check(true, 'Accept → Admission → Welcome: beide halten die Gruppe, Roster = 2');
-check(await page.evaluate(() => {
-  const g = [...window.__probe.J.groups.values()][0];
-  return [...g.roster.values()].some(m => m.candidacy === true);
-}), 'Kandidatur = echtes Protokollfeld: candidacy=true liegt in Jonathans Roster');
-
-await tab('E', 'Groups');
-await page.locator('#dev-E .prow', { hasText: 'Orga-Untergruppe' }).click();
-await page.locator('#dev-E .prow .pname2', { hasText: 'Jonathan' }).waitFor();
-check((await page.locator('#dev-E .pbadge.trustb', { hasText: 'founder' }).count()) >= 1, 'Emils Gruppen-Detail: Roster mit Founder-Badge');
-check((await page.locator('#dev-E .pbadge.byme', { hasText: 'candidacy' }).count()) >= 1, 'Roster zeigt die Kandidatur (amber ⏳)');
-check(await page.evaluate(() => {
-  const g = [...window.__probe.E.groups.values()][0]
-  const rel = [...window.__probe.E.contacts.values()].find(c => c.name === 'Jonathan')
-  return g.myMemberCtx.anchor !== rel.channel.own.anchor
-}), 'Member-Anker ≠ Beziehungs-Anker (Kontext-Trennung sichtbar in den Daten)');
-
-// Gemeinsame Gruppen: aus den Admission-/Welcome-Daten, beidseitig
-await tab('E', 'Contacts');
-await page.locator('#dev-E .prow', { hasText: 'Jonathan' }).click();
-await page.locator('#dev-E .sect', { hasText: 'Shared groups' }).waitFor();
-check((await page.locator('#dev-E .prow', { hasText: 'Orga-Untergruppe' }).count()) === 1, 'Kontakt-Detail (Emil→Jonathan): gemeinsame Gruppe sichtbar');
-check(await page.evaluate(() => {
-  const jc = [...window.__probe.J.contacts.values()].find(c => c.name === 'Emil');
-  return Array.isArray(jc.sharedGroups) && jc.sharedGroups.length === 1;
-}), 'Und die Gegenseite: Jonathans Emil trägt dieselbe gemeinsame Gruppe');
-
-// Wallet: Membership-Kategorie mit Genesis
-await page.locator('#dev-J .wcat button', { hasText: 'Membership' }).click();
-await page.locator('#dev-J .witem .wtitle', { hasText: 'genesis · Orga-Untergruppe' }).waitFor();
-check(true, 'Wallet (Jonathan): Genesis unter Membership');
-check(await page.evaluate(() => window.__probe.A.groups.size === 0), 'Anton (Vermittler) hält NICHTS von der Gruppe');
-
-// ── Stufe 2: der explizite Vertrauensakt (Einweg-Tür, DV) ───────────────
-await page.locator('#dev-A .devctls .devbtn').first().click(); // Anton zurück ans Netz
-await page.waitForFunction(() => window.__probe.A.online === true);
-
-await tab('A', 'Contacts');
-await page.locator('#dev-A .prow', { hasText: 'Jonathan' }).click();
-await page.locator('#dev-A .profact button.trust', { hasText: 'Trust…' }).waitFor();
-check(true, 'Kontakt-Detail (✓): grüner „Trust…"-Button');
-await page.locator('#dev-A .profact button.trust').click();
-await page.locator('#dev-A .phdlg-card', { hasText: 'Trust Jonathan permanently?' }).waitFor();
-check((await page.locator('#dev-A .phdlg-card', { hasText: 'one way' }).count()) === 1, 'Vertrauens-Sheet: Einweg-Tür + Abstreitbarkeit benannt');
-await page.locator('#dev-A .phdlg-btns button', { hasText: /^Trust$/ }).click();
-await page.locator('#dev-J .toast', { hasText: 'trusts you now' }).waitFor({ timeout: 6000 });
-check(true, 'Toast-Konzept: passives Ereignis („Anton trusts you now") als Toast, keine Entscheidung nötig');
-await page.waitForFunction(() => {
-  const j = [...window.__probe.J.contacts.values()].find(c => c.name === 'Anton');
-  return j && j.trustReceived && j.selfAnchor;
-});
-check(true, 'Jonathan hält Antons stabilen Anker — Mapping mit eigenen Geheimnissen VERIFIZIERT');
-check((await page.locator('#dev-A .pbadge.trustb', { hasText: '→ you trust' }).count()) === 1, 'Antons Badge: → you trust (Richtung, einseitig)');
-await tab('J', 'Contacts');
-check((await page.locator('#dev-J .pbadge.trustb', { hasText: '← trusts you' }).count()) === 1, 'Jonathans Badge: ← trusts you (empfangen ≠ erwidert)');
-
-// Jonathan erwidert → beidseitig + Sterne fließen
-await page.locator('#dev-J .prow', { hasText: '⇄ verified' }).click(); // Antons Zeile
-await page.locator('#dev-J .profact button.trust').click();
-await page.locator('#dev-J .phdlg-btns button', { hasText: /^Trust$/ }).click();
-await page.waitForFunction(() => {
-  const a = [...window.__probe.A.contacts.values()].find(c => c.name === 'Jonathan');
-  return a && a.trustGiven && a.trustReceived && a.starReceived;
-});
-check((await page.locator('#dev-A .pbadge.trustb', { hasText: '⇆ trust' }).count()) === 1, 'beidseitig: ⇆ trust — zwei einseitige Akte, keine Automatik');
-
-// Gemeinsame Kontakte: ohne Match bleibt die Sektion ausgeblendet
-check((await page.locator('#dev-A .sect', { hasText: 'Mutual contacts' }).count()) === 0, 'keine gemeinsamen prüfbar → Sektion ausgeblendet, nichts gefakt');
-check(await page.evaluate(() => {
-  const j = [...window.__probe.A.contacts.values()].find(c => c.name === 'Jonathan');
-  return j.starInfo && Number(j.starInfo.count) === 1 && j.starInfo.knownNames.length === 0;
-}), 'Stern-Daten ehrlich: 1 Kontakt geblendet erhalten, 0 legitim prüfbar');
-
-// Einstellungen: Updates pausieren
-await page.locator('#dev-A .sect', { hasText: 'Settings' }).waitFor();
-await page.locator('#dev-A .plist .toggle').click();
-await page.locator('#dev-A .pmeta', { hasText: 'paused — what was delivered stays' }).waitFor();
-check(await page.evaluate(() => [...window.__probe.A.contacts.values()].find(c => c.name === 'Jonathan').trustPaused === true), 'Kontakt-Updates pausiert — Einweg-Tür bleibt offen, nur das Abo stoppt');
-
-// ── Stufe 2: die Bürgschaft (vouch@2, accept-gebunden) ──────────────────
-await tab('J', 'Groups');
-await page.locator('#dev-J .prow', { hasText: 'Orga-Untergruppe' }).click();
-await page.locator('#dev-J .sect', { hasText: 'Candidacies' }).waitFor();
-check((await page.locator('#dev-J .pmeta', { hasText: 'your basis: introduced to you' }).count()) === 1, 'Bürgen-Zeile: Herkunft aus dem Kontaktzustand vorbelegt');
-await page.locator('#dev-J button', { hasText: /^Vouch$/ }).click();
-await page.waitForFunction(() => {
-  const g = [...window.__probe.E.groups.values()][0];
-  return g && g.candidacyFulfilled === true;
-});
-check(true, 'Kandidat prüft die Bürgschaft (Roster, accept-Bindung, Proofs) — Schwelle erreicht');
-await page.locator('#dev-J .sentrow', { hasText: 'you vouched for Emil (introduced)' }).waitFor();
-check(true, 'Bürgen-Journal mit selbst-attestierter Herkunft');
-await tab('E', 'Groups');
-await page.locator('#dev-E .prow', { hasText: 'Orga-Untergruppe' }).click();
-await page.locator('#dev-E .prow .pname2', { hasText: 'Jonathan' }).waitFor();
-check((await page.locator('#dev-E .pbadge.byme', { hasText: 'candidacy' }).count()) === 0, 'Kandidatur erfüllt — das Warte-Badge fällt');
-
-// Wallet: Trust-Kategorie
-await page.locator('#dev-J .wcat button', { hasText: 'Trust' }).click();
-await page.locator('#dev-J .witem .wtitle', { hasText: 'anchor-mapping · from Anton' }).waitFor();
-check((await page.locator('#dev-J .witem .wtitle', { hasText: 'contact update · from Anton' }).count()) === 1, 'Wallet Trust: Mapping (abstreitbar) + geblendeter Stern');
-
-// ── Kontinuität (§6a): die Vorstellungs-Dublette wird GEKETTET ──────────
-await tab('J', 'Contacts');
-await page.locator('#dev-J .prow', { hasText: '⇄ introduced' }).click(); // Emils Zeile
-await page.locator('#dev-J .profact button', { hasText: 'Introduce…' }).click();
-await page.locator('#dev-J .phdlg .prow', { hasText: 'Anton' }).click();
-await page.locator('#dev-J .phdlg-btns button', { hasText: /^Introduce$/ }).click();
-
-// Antons Prompt trägt die Herkunft des Vermittlers
-await tab('A', 'Home');
-await page.locator('#dev-A .incoming .iq', { hasText: 'connect you with Emil' }).waitFor({ timeout: 8000 });
-check((await page.locator('#dev-A .incoming .ih b', { hasText: 'only introduced to' }).count()) === 1, 'Ketten-Offerte: Herkunft des Vermittlers sichtbar');
-await page.locator('#dev-A .incoming .yes').click();
-await tab('E', 'Home');
-await page.locator('#dev-E .incoming .iq', { hasText: 'connect you with Anton' }).waitFor({ timeout: 8000 });
-await page.locator('#dev-E .incoming .yes').click();
-
-await page.waitForFunction(() => {
-  const act = (p) => [...p.contacts.values()].filter(c => !c.deactivated);
-  const aE = act(window.__probe.A).find(c => c.name === 'Emil');
-  const eA = act(window.__probe.E).find(c => c.name === 'Anton');
-  return act(window.__probe.A).length === 2 && act(window.__probe.E).length === 2
-    && aE?.chain?.length === 1 && eA?.chain?.length === 1 && aE.state === '✓';
-}, { timeout: 15000 });
-check(true, 'Probe + Mapping: Dublette gekettet — beide halten GENAU EINEN Kontakt füreinander');
-await tab('A', 'Contacts');
-check((await page.locator('#dev-A .prow .pname2', { hasText: 'Emil' }).count()) === 1, 'Antons Liste: ein Emil, ✓ bleibt ✓');
-await page.locator('#dev-A .prow', { hasText: 'Emil' }).click();
-await page.locator('#dev-A .profmeta', { hasText: 'continuity: 2 enactments' }).waitFor();
-check(true, 'Kontakt-Detail: die Kette ist Beziehungsgeschichte');
-check(await page.evaluate(() => window.__probe.wire.some(w => w.kind.startsWith('continuity-probe/0.1'))
-  && window.__probe.wire.some(w => w.kind.startsWith('continuity-mapping/0.1'))), 'auf dem Draht: geblendete Probe + Doppel-MAC-Mapping, versiegelt');
-
-// ── Der WoT-App-Flow: FAB → Connect-Screen → Scan-Flug → Vollbild-Prompt ─
-// Negativ zuerst: scannen, wenn niemand einen Code zeigt
-await page.locator('#dev-J .fab').click();
-await page.locator('#dev-J .phone-screen', { hasText: 'Show your code or scan' }).waitFor();
-check(true, 'FAB öffnet den Connect-Screen (Live-App-Layout): eigener Code + Scan');
-await page.locator('#dev-J .phone-screen button', { hasText: 'Scan code' }).click();
-await page.locator('#dev-J .phdlg-card', { hasText: 'No code in view' }).waitFor();
-check(true, 'Scannen ohne gezeigten Code: ehrlicher Leerlauf');
-await page.locator('#dev-J .phdlg-btns button', { hasText: 'Ok' }).click();
-
-// Emil zeigt seinen Code, Jonathan scannt — das Phone fliegt und kehrt zurück
-await page.locator('#dev-E .fab').click();
-await page.locator('#dev-E .phone-screen', { hasText: 'Show your code or scan' }).waitFor();
-await page.locator('#dev-J .phone-screen button', { hasText: 'Scan code' }).click();
-await page.locator('#dev-J .phone-screen', { hasText: 'camera — carries no traffic' }).waitFor();
-check(true, 'Scanner läuft: Durchguck-Sucher, Kamera erkennt automatisch');
-await page.locator('#dev-J .phone-screen', { hasText: 'Are you standing in front of this person?' }).waitFor({ timeout: 10000 });
-check((await page.locator('#dev-J .phone-screen', { hasText: 'Emil' }).count()) >= 1, 'nach dem Rückflug: die gescannte Person wird angezeigt');
-await page.locator('#dev-J .phone-screen button', { hasText: /^Confirm$/ }).click();
-await page.locator('#dev-J .phone-screen', { hasText: 'device acknowledged' }).waitFor({ timeout: 8000 });
-check(await page.evaluate(() => {
-  const em = [...window.__probe.J.contacts.values()].filter(c => !c.deactivated).find(c => c.name === 'Emil' && c.state === '→');
-  return !!em;
-}), 'Jonathans Bestätigung: Credential ausgestellt + zugestellt — Zustand ehrlich → (einseitig)');
-
-// Emil bekommt den VOLLBILD-Prompt (wie App + Zeremonie-Sim), keinen Toast
-await page.locator('#dev-E .phone-screen', { hasText: 'Verify Jonathan back?' }).waitFor({ timeout: 8000 });
-check((await page.locator('#dev-E .phone-screen', { hasText: 'Arrival is not acceptance' }).count()) === 1, 'Vollbild-Prompt beim Empfänger: „Verify Jonathan back?" — Ankunft ≠ Annahme');
-await page.locator('#dev-E .phone-screen button', { hasText: /^Confirm$/ }).click();
-await page.locator('#dev-J .cdlg', { hasText: 'You and Emil have now verified each other' }).waitFor({ timeout: 8000 });
-check((await page.locator('#dev-J .cdlg .avpair .av').count()) === 2, 'Feier-Dialog MITTIG: beide Avatare + „verified each other" — nicht „friends"');
-await page.waitForFunction(() => {
-  const act = (p) => [...p.contacts.values()].filter(c => !c.deactivated);
-  const em = act(window.__probe.J).find(c => c.name === 'Emil');
-  const jo = act(window.__probe.E).find(c => c.name === 'Jonathan');
-  return em?.state === '✓' && jo?.state === '✓' && em.chain?.length === 1 && act(window.__probe.J).length === 2;
-}, { timeout: 15000 });
-check(true, 'Kapitel 2 live: ⇄ vorgestellt → ✓ verifiziert, §6a-Probe kettet — EIN Emil');
-
-// Der Vertrauensakt wird im Erfolgsmoment ANGEBOTEN, nie automatisch
-await page.locator('#dev-J .cdlg button', { hasText: 'Trust…' }).click();
-await page.locator('#dev-J .phdlg-card', { hasText: 'Trust Emil permanently?' }).waitFor();
-check((await page.locator('#dev-J .phdlg-card', { hasText: 'Not yet verified' }).count()) === 0, 'Vertrauens-Sheet ohne Vermittler-Hinweis — jetzt verifiziert');
-await page.locator('#dev-J .phdlg-btns button', { hasText: /^Trust$/ }).click();
-await page.waitForFunction(() => {
-  const eJ = [...window.__probe.E.contacts.values()].filter(c => !c.deactivated).find(c => c.name === 'Jonathan');
-  return eJ && eJ.trustReceived && eJ.selfAnchor;
-});
-await page.locator('#dev-E .cdlg button', { hasText: 'Later' }).click(); // Emils Feier-Dialog: Later merkt nichts vor
-await tab('E', 'Contacts');
-check((await page.locator('#dev-E .pbadge.trustb', { hasText: '← trusts you' }).count()) === 1, 'und Emil sieht es: ← trusts you — der Kreis ist geschlossen');
-
-// ── Offline: der automatische Two-Way-Scan (Re-Verifikation J ⇠⇢ A) ────
-await page.locator('#dev-A .devctls .devbtn').first().click(); // Anton in den Flugmodus
-await page.waitForFunction(() => window.__probe.A.online === false);
-await page.locator('#dev-A .fab').click();            // Anton zeigt (optisch geht offline)
-await page.locator('#dev-A .phone-screen', { hasText: 'Show your code or scan' }).waitFor();
-await page.locator('#dev-J .fab').click();
-await page.locator('#dev-J .phone-screen button', { hasText: 'Scan code' }).click();
-await page.locator('#dev-J .phone-screen', { hasText: 'Are you standing in front of this person?' }).waitFor({ timeout: 10000 });
-await page.locator('#dev-J .phone-screen button', { hasText: /^Confirm$/ }).click();
-await page.locator('#dev-J .phone-screen', { hasText: 'Sent to Anton' }).waitFor({ timeout: 8000 });
-check(true, 'Gegenseite offline: Zustellung wartet — Zustellzeit unbeschränkt');
-await page.locator('#dev-J .phone-screen', { hasText: 'Show this code to Anton' }).waitFor({ timeout: 12000 });
-check(true, 'Ack-Wartezeit verstrichen: automatischer Wechsel auf den Two-Way-Scan');
-await page.locator('#dev-A .phone-screen button', { hasText: 'Scan code' }).click();
-await page.locator('#dev-A .phone-screen', { hasText: 'Verify Jonathan back?' }).waitFor({ timeout: 10000 });
-check((await page.locator('#dev-A .phone-screen', { hasText: 'two-way scan' }).count()) >= 1, 'Anton scannt das Bundle: Vollbild-Prompt, dieselbe Begegnung optisch übernommen');
-await page.locator('#dev-A .phone-screen button', { hasText: /^Confirm$/ }).click();
-await page.waitForFunction(() =>
-  [...window.__probe.A.contacts.values()].some(c => !c.deactivated && c.name === 'Jonathan' && c.state === '→')
-  && [...window.__probe.A.contacts.values()].some(c => c.name === 'Jonathan' && c.credential && c.counterDocPending), { timeout: 8000 });
-check(true, 'offline bestätigt: ehrlich einseitig, Gegen-Credential ausgestellt — das Zustelldokument wartet auf den Bundle-Thread (4.3 step counter)');
-await page.locator('#dev-A .devctls .devbtn').first().click(); // Anton zurück ans Netz
-await page.waitForFunction(() => {
-  const act = (p) => [...p.contacts.values()].filter(c => !c.deactivated);
-  const jo = act(window.__probe.A).find(c => c.name === 'Jonathan');
-  const an = act(window.__probe.J).find(c => c.name === 'Anton');
-  return jo?.state === '✓' && an?.state === '✓' && act(window.__probe.A).length === 2 && act(window.__probe.J).length === 2;
-}, { timeout: 20000 });
-check(true, 'Netz zurück: Credentials fließen nach, Probe kettet die Re-Verifikation — beidseitig ✓, keine Dublette');
-
-// ── Baustein 7: Delivery-Stufen sichtbar + Fault-Injection ──────────────
-check(await page.evaluate(() => window.__probe.wire.some(w => (w.stages?.length ?? 0) >= 5 && w.disp === 'unique')),
-  'Draht-Panel: jede Zustellung trägt die Contract-Stufen 1–4 + Dispatch (Port aus dem Zeremonie-Sim)');
-check((await page.locator('.fbtn').count()) === 4, 'Fault-Panel: hold · dup · tamper · lose');
-
-// dup-Fault: A vertraut Emil — die Zustellung läuft doppelt, der
-// completed-effect-Cache antwortet duplicate-known (kein zweiter Effekt)
-await page.locator('.fbtn', { hasText: 'Deliver everything twice' }).click();
-await page.locator('#dev-A .cdlg button', { hasText: 'Done' }).click(); // Feier-Dialog der Re-Verifikation schließen
-await tab('A', 'Contacts');
-await page.locator('#dev-A .prow', { hasText: 'Emil' }).click();
-await page.locator('#dev-A .profact button.trust').click();
-await page.locator('#dev-A .phdlg-btns button', { hasText: /^Trust$/ }).click();
-await page.waitForFunction(() => window.__probe.wire.some(w => w.kind.includes('DUPLICATE (fault)') && w.disp === 'duplicate-known'), { timeout: 8000 });
-check(true, 'dup-Fault: zweite Zustellung → duplicate-known, prior outcome applies — kein zweiter Effekt');
-check(await page.evaluate(() => {
-  const e = [...window.__probe.E.contacts.values()].filter(c => !c.deactivated).find(c => c.name === 'Anton');
-  return e && e.trustReceived && e.selfAnchor;
-}), 'der Effekt selbst kam genau einmal an: Emil hält Antons Offenlegung');
-await page.locator('.fbtn', { hasText: 'Deliver everything twice' }).click();
-
-// ── Baustein 8: die Sim-Uhr — laufen, altern, driften ───────────────────
-check((await page.locator('.clockbar .rbtn').count()) === 4
-  && (await page.locator('.devctls .devbtn').count()) === 6, 'Zeitsteuerung aufgeteilt: Weltzeit + Raffer im Kopf, Drift-Knopf an JEDEM Gerät');
-check((await page.locator('.stored').count()) === 3, 'Artefakt-Ebene: ein Panel unter jedem Gerät (außerhalb der App)');
-
-// Skew ist geräte-relativ und sofort in der Statusleiste sichtbar
-const clockOf = (id) => page.locator(`#dev-${id} .phone-status span`).first().textContent();
-const beforeSkew = await clockOf('A');
-await page.locator('#dev-A .devctls .devbtn:last-child').click();
-check((await clockOf('A')) !== beforeSkew && (await clockOf('A')) !== (await clockOf('J')),
-  'Skew: Antons Gerät liest eine andere Uhr als Jonathans — Drift ist der Normalfall');
-await page.locator('#dev-A .devctls .devbtn:last-child').click();
-await page.locator('#dev-A .devctls .devbtn:last-child').click(); // zurück auf ±0 (zyklisch wie im Zeremonie-Sim)
-
-// Alterung wird echt: der gezeigte Code rotiert bei PT5M von selbst
-// (offene Dialoge zuerst schließen — der FAB weicht ihnen)
-for (const sel of ['#dev-J .cdlg button', '#dev-J .phdlg-btns button']) {
-  const b = page.locator(sel).first();
-  if (await b.count()) await b.click();
+let fails = 0
+const check = (c, m) => { console.log((c ? '✓ ' : '✗ FAIL ') + m); if (!c) fails++ }
+const tab = (id, label) => page.locator(`#dev-${id} .pbtn`, { hasText: label }).click()
+const ev = (fn, arg) => page.evaluate(fn, arg)
+const until = (fn, arg, timeout = 10000) => page.waitForFunction(fn, arg, { timeout })
+const shot = async (name) => {
+  if (!process.env.SHOTS_DIR) return
+  await mkdir(process.env.SHOTS_DIR, { recursive: true })
+  await page.screenshot({ path: join(process.env.SHOTS_DIR, name), fullPage: true })
 }
-await page.locator('#dev-J .fab').waitFor({ timeout: 8000 });
-await page.locator('#dev-J .fab').click();
-const shown = await page.evaluate(() => window.__probe.shows.J.ctx.anchor);
-await page.locator('.rbtn', { hasText: '600×' }).click();
-await page.waitForFunction((a) => window.__probe.shows?.J?.ctx.anchor !== a, shown, { timeout: 20000 });
-check(await page.evaluate(() => window.__probe.J.log.some(l => l.includes('rotated by itself'))),
-  'laufende Zeit: der gezeigte Code erreicht PT5M und prägt sich neu — Anzeige rotiert, Retention bleibt');
-await page.locator('.rbtn', { hasText: 'paused' }).click();
-check(await page.evaluate(() => window.__probe.J.challenges.size >= 2),
-  'das Challenge-Modell hält beide Werte (5.3: rotation changes what is displayed, never what is retained — der gealterte trägt den Latch)');
+const closeDialogs = async () => {
+  for (const id of ['J', 'A', 'E']) {
+    for (const sel of [`#dev-${id} .cdlg button`, `#dev-${id} .phdlg-btns button`]) {
+      const b = page.locator(sel).first()
+      if (await b.count()) await b.click()
+    }
+  }
+}
 
-console.log(fails ? `\n${fails} FAILED` : '\nNETZWERK-UI-DURCHLAUF (APP-FLOW + DELIVERY + SIM-UHR) BESTANDEN');
-await browser.close();
-process.exit(fails ? 1 : 0);
+try {
+  await page.goto(`http://localhost:${port}/simulator/network.html`, { waitUntil: 'domcontentloaded' })
+  await until(() => window.__net?.state?.ready, null, 60000)
+  // page-side readers over the device views (the cache each refresh fills)
+  await ev(() => {
+    const P = (id) => window.__net.people[id]
+    window.__t = {
+      P,
+      named: (id, name) => P(id).view.contacts.filter((c) => c.displayName === name),
+      intros: (id) => Object.values(P(id).view.state.encounter.introductions),
+      counterparts: (id) => Object.values(P(id).view.state.relationships).flatMap((r) => r.tuples).map((t) => t.counterpartAnchor),
+      wire: () => window.__net.net.wire,
+    }
+  })
+
+  // ── setup ──────────────────────────────────────────────────────────────
+  check(await ev(() => {
+    const { P } = window.__t
+    return P('A').view.contacts.length === 2 && P('J').view.contacts.length === 1 && P('E').view.contacts.length === 1 &&
+      [...P('A').view.contacts, ...P('J').view.contacts, ...P('E').view.contacts].every((c) => c.provenance === 'ceremony' && c.verification === 'mutual')
+  }), 'Setup: Anton holds Jonathan and Emil, each of them holds Anton (real ceremonies, ⇄ mutual)')
+  check((await page.locator('#dev-A .kpi .k').count()) === 3, 'Home tab is the default: KPI row (Contacts · Groups · Open)')
+  check((await page.locator('#dev-A .sect', { hasText: 'Waiting for you' }).count()) === 0, 'Home: an empty inbox is hidden')
+  await shot('1-setup.png')
+
+  // ── introduce: Anton's phone → Contacts → Emil → Introduce… → Jonathan ─
+  await tab('A', 'Contacts')
+  await page.locator('#dev-A .prow', { hasText: 'Emil' }).click()
+  await page.locator('#dev-A .profact button', { hasText: 'Introduce…' }).waitFor()
+  check((await page.locator('#dev-A .sect', { hasText: 'Shared groups' }).count()) === 0, 'contact detail: empty sections are hidden')
+  await page.locator('#dev-A .profact button', { hasText: 'Introduce…' }).click()
+  await page.locator('#dev-A .phdlg .prow', { hasText: 'Jonathan' }).click()
+  await page.locator('#dev-A .phdlg-card', { hasText: 'to each other?' }).waitFor()
+  check((await page.locator('#dev-A .phdlg-card', { hasText: 'while you are offline, it waits for you' }).count()) === 1, 'one-way door: the confirm sheet IN the phone says the act is relayed by the introducer')
+  await page.locator('#dev-A .phdlg-btns button', { hasText: /^Introduce$/ }).click()
+  await until(() => window.__t.wire().some((w) => w.kind === 'x-introduction-offer/0.1' && w.from === 'Anton' && w.to === 'Jonathan' && w.disp === 'unique'))
+  check(true, 'Anton\'s ONE act: the offer, sealed to Jonathan (with his ack-delay declaration)')
+
+  // airplane mode via the network toggle
+  await page.locator('#dev-A .devctls .devbtn').first().click()
+  await until(() => window.__t.P('A').online === false)
+  check((await page.locator('#dev-A .phone-screen.off').count()) === 1 && (await page.locator('#dev-A .phone-status .st-owner').textContent()).includes('offline'),
+    'Anton in airplane mode: the screen and the status bar say ✈ offline (it replaces the owner name)')
+
+  // Jonathan: the offer in the HOME inbox → Connect
+  await page.locator('#dev-J .incoming .iq', { hasText: 'wants to connect you with Emil' }).waitFor()
+  check(true, 'Jonathan sees the offer in the Home inbox ("Waiting for you")')
+  await page.locator('#dev-J .incoming .yes').click()
+  await page.locator('#dev-J .sentrow', { hasText: 'waiting for Anton to relay' }).waitFor()
+  check((await page.locator('#dev-J .sect', { hasText: 'Waiting for them' }).count()) === 1 &&
+    (await page.locator('#dev-J .sect', { hasText: 'Waiting for you' }).count()) === 0, 'direction honesty: the waiting state stands under "Waiting for them", not "for you"')
+  check(await ev(() => window.__net.net.channel.transit.get('Anton')?.length === 1), 'Anton is offline: Jonathan\'s request waits in transit at the relay')
+  check(await ev(() => window.__t.intros('J')[0]?.role === 'requester' && window.__t.intros('J')[0].status === 'sent'), 'Jonathan\'s act stands as sent')
+  await page.waitForTimeout(2000)   // a few sync rounds pass
+  check(await ev(() => window.__t.P('E').view.prompts.length === 0 && !window.__t.wire().some((w) => w.kind === 'introduction-forward/0.1')),
+    'nothing reaches Emil while Anton is away — the act is relayed by the mediator, not by a drop')
+
+  // Anton back online: his device takes the request and forwards it
+  await page.locator('#dev-A .devctls .devbtn').first().click()
+  await until(() => window.__t.P('A').online === true)
+  await until(() => window.__t.wire().some((w) => w.kind === 'introduction-forward/0.1' && w.from === 'Anton' && w.to === 'Emil' && w.disp === 'unique'))
+  check(true, 'Anton back online: the request flows from transit, his device forwards it to Emil')
+  await page.locator('#dev-E .incoming .iq', { hasText: 'relays a request: Jonathan wants to connect with you' }).waitFor()
+  check(await ev(() => window.__t.P('E').view.prompts[0]?.kind === 'introduction'), 'Emil: a consent prompt — receiving is not consenting')
+  await page.locator('#dev-E .incoming .yes').click()
+  await until(() => window.__t.named('J', 'Emil').some((c) => c.provenance === 'introduced') && window.__t.named('E', 'Jonathan').some((c) => c.provenance === 'introduced'))
+  check(true, 'Emil consents: the reply goes back via Anton — both hold each other, introduced')
+  check(await ev(() => {
+    const { P, named } = window.__t
+    const jc = named('J', 'Emil')[0], ec = named('E', 'Jonathan')[0]
+    return P('J').view.contacts.find((c) => c.id === jc.via)?.displayName === 'Anton' && P('E').view.contacts.find((c) => c.id === ec.via)?.displayName === 'Anton'
+  }), 'both introduced via their own Anton contact')
+  check(await ev(() => {
+    const { P, counterparts } = window.__t
+    const jE = counterparts('J').filter((a) => P('E').owns(a)), eJ = counterparts('E').filter((a) => P('J').owns(a))
+    const anton = counterparts('A')
+    return jE.length > 0 && eJ.length > 0 && ![...jE, ...eJ].some((a) => anton.includes(a))
+  }), 'the crossed anchors are fresh — Anton holds neither (nothing was transferred)')
+  check(await ev(() => window.__t.intros('J')[0].vouched && window.__t.intros('E')[0].vouched), 'vouchers verified on both sides (act-bound, from the mediator)')
+  await tab('J', 'Contacts'); await tab('E', 'Contacts')
+  await shot('2-introduced.png')
+
+  // 🗂 the wallet below the device
+  await page.locator('#dev-J .wcat button', { hasText: 'Introductions' }).click()
+  await page.locator('#dev-J .witem .wtitle', { hasText: 'voucher · about Emil' }).waitFor()
+  check(true, 'wallet: Introductions opens — the voucher about Emil with its JSON')
+  check((await page.locator('#dev-J .witem .wtitle', { hasText: 'request · for Emil' }).count()) === 1, 'wallet: the own request (with the fresh card) is there')
+  await page.locator('#dev-J .wchip', { hasText: 'Sent' }).click()
+  check((await page.locator('#dev-J .witem .wtitle', { hasText: 'voucher' }).count()) === 0 &&
+    (await page.locator('#dev-J .witem .wtitle', { hasText: 'request · for Emil' }).count()) === 1, 'wallet filter Sent: received artefacts hidden')
+  await page.locator('#dev-J .wchip', { hasText: 'All' }).click()
+  await page.locator('#dev-J .wcat button', { hasText: 'Introductions' }).click()
+
+  // the introduced contact's detail
+  await page.locator('#dev-J .prow', { hasText: 'Emil' }).click()
+  await page.locator('#dev-J .pmeta', { hasText: 'introduced via Anton' }).waitFor()
+  check((await page.locator('#dev-J .pmeta', { hasText: 'not yet verified' }).count()) >= 1, 'meta line: the state explained, with the continuity path')
+  check((await page.locator('#dev-J .profmeta', { hasText: 'introduction-voucher' }).count()) === 1, 'contact detail: the act voucher')
+  check((await page.locator('#dev-J .profact button', { hasText: 'Invite to group' }).count()) === 1, 'contact detail: "Invite to group…"')
+  await page.locator('#dev-J .profact button.trust', { hasText: 'Trust…' }).click()
+  await page.locator('#dev-J .phdlg-card', { hasText: 'Not yet verified' }).waitFor()
+  check((await page.locator('#dev-J .phdlg-card', { hasText: 'introduced via Anton' }).count()) === 1, 'introduced: the trust act is allowed, the sheet names the reliance on the introducer')
+  await page.locator('#dev-J .phdlg-btns button', { hasText: 'Cancel' }).click()
+
+  // badge grammar
+  await page.locator('#dev-J .backbtn').click()
+  await tab('A', 'Contacts')
+  check((await page.locator('#dev-A .pbadge.mutual', { hasText: '⇄ verified' }).count()) === 2, 'Anton\'s ceremony contacts carry the blue ⇄ verified badge')
+  check((await page.locator('#dev-J .pbadge.byme', { hasText: '⇄ introduced' }).count()) === 1, 'Jonathan\'s Emil carries the amber ⇄ introduced badge')
+  check((await page.locator('#dev-J .pmeta', { hasText: 'first real meeting' }).count()) >= 1, 'the meta line names the continuity path to ✓')
+
+  // tabs and status bar
+  check((await page.locator('#dev-J .phone-status .st-owner').textContent()) === 'Jonathan', 'status bar top right: the owner name')
+  await tab('J', 'Profile')
+  await page.locator('#dev-J .profhead .pname', { hasText: 'Jonathan' }).waitFor()
+  check((await page.locator('#dev-J .sentrow', { hasText: 'root seed' }).count()) === 1, 'profile tab: the own identity from the device data (anchors + backup line)')
+  await tab('J', 'Groups')
+  check((await page.locator('#dev-J .pempty', { hasText: 'no groups yet' }).count()) === 1, 'groups tab: honestly empty')
+
+  // ── Jonathan founds the subgroup and invites Emil (introduced channel) ─
+  await page.locator('#dev-J .profact button', { hasText: 'Found a group' }).click()
+  await page.locator('#gname-J').fill('Orga-Untergruppe')
+  await page.locator('#dev-J .phdlg-btns button', { hasText: /^Found$/ }).click()
+  await page.locator('#dev-J .prow .pname2', { hasText: 'Orga-Untergruppe' }).waitFor()
+  check(await ev(() => window.__t.P('J').view.groups.length === 1 && window.__t.P('J').view.groups[0].members.length === 1), 'founding: genesis + the founder\'s member anchor, the group in the tab')
+  await page.locator('#dev-J .prow', { hasText: 'Orga-Untergruppe' }).click()
+  await page.locator('#dev-J .profact button', { hasText: 'Invite a member' }).click()
+  await page.locator('#dev-J .phdlg .prow', { hasText: 'Emil' }).click()
+  await tab('E', 'Home')
+  await page.locator('#dev-E .incoming .iq', { hasText: 'invites you to "Orga-Untergruppe"' }).waitFor()
+  check(await ev(() => ['x-membership-prelude-request/0.1', 'x-membership-prelude-reply/0.1', 'membership-invite/0.2'].every((k) => window.__t.wire().some((w) => w.kind === k && w.disp === 'unique'))),
+    'Emil sees the checked invitation in his Home inbox (prelude → reply → invite ran by themselves)')
+  await page.locator('#dev-E .incoming .yes', { hasText: 'Join…' }).click()
+  await page.locator('#dev-E .phdlg-card', { hasText: 'Join "Orga-Untergruppe"?' }).waitFor()
+  check((await page.locator('#dev-E .phdlg-card', { hasText: 'permanently' }).count()) === 1 && (await page.locator('#cand-E').count()) === 0,
+    'join sheet: the one-way door named ("permanently"), no candidacy toggle')
+  await page.locator('#dev-E .phdlg-btns button', { hasText: /^Join$/ }).click()
+  await until(() => window.__t.P('E').view.groups.length === 1 && window.__t.P('J').view.groups[0].members.length === 2)
+  check(await ev(() => ['membership-accept/0.2', 'x-membership-welcome/0.1'].every((k) => window.__t.wire().some((w) => w.kind === k && w.disp === 'unique'))),
+    'accept → admission → welcome: both hold the group, roster = 2')
+  await tab('E', 'Groups')
+  await page.locator('#dev-E .prow', { hasText: 'Orga-Untergruppe' }).click()
+  await page.locator('#dev-E .prow .pname2', { hasText: 'Jonathan' }).waitFor()
+  check((await page.locator('#dev-E .pbadge.trustb', { hasText: 'founder' }).count()) >= 1, 'Emil\'s group detail: the roster with the founder badge')
+  check(await ev(() => {
+    const { P, counterparts } = window.__t
+    const g = P('E').view.groups[0]
+    const self = g.members.find((m) => m.self).anchor
+    return P('E').view.state.groups[g.id].memberLabel === 'group/' + g.id && !counterparts('J').includes(self)
+  }), 'member anchor ≠ relationship anchor (context separation visible in the data)')
+  // shared groups come from the contact's last group star (5520): Emil's,
+  // sent when he joined, hits at Jonathan; Jonathan's reached Emil before
+  // Emil was a member and is matched again when Emil joins
+  await tab('J', 'Contacts')
+  await page.locator('#dev-J .prow', { hasText: 'Emil' }).click()
+  await page.locator('#dev-J .sect', { hasText: 'Shared groups' }).waitFor()
+  check((await page.locator('#dev-J .prow', { hasText: 'Orga-Untergruppe' }).count()) === 1, 'contact detail (Jonathan→Emil): the shared group, from Emil\'s group star')
+  check(await ev(() => window.__t.named('J', 'Emil')[0].sharedGroups?.length === 1), 'Jonathan\'s Emil carries the shared group (the contact\'s claim, 5.2)')
+  check(await ev(() => window.__t.named('E', 'Jonathan')[0].sharedGroups?.length === 1), 'Emil\'s Jonathan carries it too: the group star Emil held from before his join, matched again on joining')
+  await page.locator('#dev-J .backbtn').click()
+  await page.locator('#dev-J .wcat button', { hasText: 'Membership' }).click()
+  await page.locator('#dev-J .witem .wtitle', { hasText: 'genesis · Orga-Untergruppe' }).waitFor()
+  check(true, 'wallet (Jonathan): the genesis under Membership')
+  check(await ev(() => window.__t.P('A').view.groups.length === 0), 'Anton (the mediator) holds NOTHING of the group')
+  await shot('3-group.png')
+  await page.locator('#dev-J .wcat button', { hasText: 'Membership' }).click()
+
+  // ── the trust act (one-way door, designated verifier) ─────────────────
+  await tab('A', 'Contacts')
+  await page.locator('#dev-A .prow', { hasText: 'Jonathan' }).click()
+  await page.locator('#dev-A .profact button.trust', { hasText: 'Trust…' }).click()
+  await page.locator('#dev-A .phdlg-card', { hasText: 'Trust Jonathan permanently?' }).waitFor()
+  check((await page.locator('#dev-A .phdlg-card', { hasText: 'one way' }).count()) === 1, 'trust sheet: one-way door + deniability named')
+  await page.locator('#dev-A .phdlg-btns button', { hasText: /^Trust$/ }).click()
+  await page.locator('#dev-J .toast', { hasText: 'trusts you now' }).waitFor({ timeout: 6000 })
+  check(true, 'toast: a passive event ("Anton trusts you now"), no decision needed')
+  check(await ev(() => {
+    const j = window.__t.named('J', 'Anton')[0]
+    const t = Object.values(window.__t.P('J').view.state.relationships).flatMap((r) => r.tuples).find((x) => x.entryId === j.id && x.mappingIn.self)
+    return j.trust.received && t?.mappingIn.self === window.__t.P('A').community
+  }), 'Jonathan holds Anton\'s stable (community) anchor — the mapping VERIFIED')
+  check((await page.locator('#dev-A .pbadge.trustb', { hasText: '→ you trust' }).count()) === 1, 'Anton\'s badge: → you trust (direction, one-sided)')
+  await tab('J', 'Contacts')
+  check((await page.locator('#dev-J .pbadge.trustb', { hasText: '← trusts you' }).count()) === 1, 'Jonathan\'s badge: ← trusts you (received ≠ returned)')
+  await page.locator('#dev-J .prow', { hasText: '⇄ verified' }).click()   // Anton's row
+  await page.locator('#dev-J .profact button.trust').click()
+  await page.locator('#dev-J .phdlg-btns button', { hasText: /^Trust$/ }).click()
+  await until(() => { const a = window.__t.named('A', 'Jonathan')[0]; return a.trust.given && a.trust.received })
+  await page.locator('#dev-A .pbadge.trustb', { hasText: '⇆ trust' }).waitFor()
+  check(true, 'both ways: ⇆ trust — two one-sided acts, nothing automatic')
+  check((await page.locator('#dev-A .sect', { hasText: 'Mutual contacts' }).count()) === 0 &&
+    await ev(() => { const P = window.__t.P; const c = window.__t.named('A', 'Jonathan')[0]; return Object.values(P('A').view.state.relationships).flatMap((r) => r.tuples).filter((t) => t.entryId === c.id).every((t) => !(t.starIn.accepted?.matches.length)) }),
+    'no mutual contact checkable → the section stays hidden, nothing faked')
+  await page.locator('#dev-A .sect', { hasText: 'Settings' }).waitFor()
+  await page.locator('#dev-A .plist .toggle').click()
+  await page.locator('#dev-A .pmeta', { hasText: 'paused — what was delivered stays' }).waitFor()
+  check(await ev(() => window.__t.named('A', 'Jonathan')[0].trust.paused === true), 'contact updates paused — the door stays open, only the subscription stops')
+
+  // ── continuity (§6a): the introduction duplicate is CHAINED ───────────
+  await tab('J', 'Contacts')
+  await page.locator('#dev-J .prow', { hasText: '⇄ introduced' }).click()   // Emil's row
+  await page.locator('#dev-J .profact button', { hasText: 'Introduce…' }).click()
+  await page.locator('#dev-J .phdlg .prow', { hasText: 'Anton' }).click()
+  await page.locator('#dev-J .phdlg-btns button', { hasText: /^Introduce$/ }).click()
+  await tab('A', 'Home')
+  await page.locator('#dev-A .incoming .iq', { hasText: 'wants to connect you with Emil' }).waitFor()
+  await page.locator('#dev-A .incoming .yes').click()
+  await tab('E', 'Home')
+  await page.locator('#dev-E .incoming .iq', { hasText: 'Anton wants to connect with you' }).waitFor()
+  check(true, 'a chain introduction: Jonathan, who knows Emil only by introduction, introduces Anton to him')
+  await page.locator('#dev-E .incoming .yes').click()
+  await until(() => {
+    const { named, P } = window.__t
+    const aE = named('A', 'Emil'), eA = named('E', 'Anton')
+    return aE.length === 1 && eA.length === 1 && P('A').view.contacts.length === 2 && P('E').view.contacts.length === 2 &&
+      aE[0].relationships[0].chainedFrom.length === 1 && aE[0].verification === 'mutual' && eA[0].relationships[0].chainedFrom.length === 1
+  }, null, 15000)
+  check(true, 'probe + continuity mapping: the duplicate is chained — each holds EXACTLY ONE contact for the other')
+  await tab('A', 'Contacts')
+  check((await page.locator('#dev-A .prow .pname2', { hasText: 'Emil' }).count()) === 1, 'Anton\'s list: one Emil, still ⇄ verified')
+  await page.locator('#dev-A .prow', { hasText: 'Emil' }).click()
+  await page.locator('#dev-A .profmeta', { hasText: 'continuity: 2 enactments' }).waitFor()
+  check(true, 'contact detail: the chain is relationship history')
+  check(await ev(() => window.__t.wire().some((w) => w.kind === 'continuity-probe/0.1') && window.__t.wire().some((w) => w.kind === 'continuity-mapping/0.1')),
+    'on the wire: the blinded probe and the double-MAC continuity mapping, sealed')
+  await page.locator('#dev-A .backbtn').click()
+
+  // ── the WoT app flow: FAB → connect screen → scan flight → prompt ─────
+  await page.locator('#dev-J .fab').click()
+  await page.locator('#dev-J .phone-screen', { hasText: 'Show your code or scan' }).waitFor()
+  check(true, 'the FAB opens the connect screen: own code + scan')
+  await page.locator('#dev-J .phone-screen button', { hasText: 'Scan code' }).click()
+  await page.locator('#dev-J .phdlg-card', { hasText: 'No code in view' }).waitFor()
+  check(true, 'scanning while nobody shows a code: an honest no-op')
+  await page.locator('#dev-J .phdlg-btns button', { hasText: 'Ok' }).click()
+  await page.locator('#dev-E .fab').click()
+  await page.locator('#dev-E .phone-screen', { hasText: 'Show your code or scan' }).waitFor()
+  await page.locator('#dev-J .phone-screen button', { hasText: 'Scan code' }).click()
+  await page.locator('#dev-J .phone-screen', { hasText: 'camera — carries no traffic' }).waitFor()
+  check(true, 'scanner running: see-through viewfinder, the camera recognizes by itself')
+  await page.locator('#dev-J .phone-screen', { hasText: 'Are you standing in front of this person?' }).waitFor()
+  check((await page.locator('#dev-J .phone-screen', { hasText: 'Emil' }).count()) >= 1, 'after the return flight: the scanned person is shown')
+  await page.locator('#dev-J .phone-screen button', { hasText: /^Confirm$/ }).click()
+  await page.locator('#dev-J .phone-screen', { hasText: 'device acknowledged' }).waitFor()
+  check(await ev(() => window.__t.named('J', 'Emil').some((c) => c.verification === 'outgoing')), 'Jonathan\'s confirmation: delivered only by the ack — the edge honestly → (one-sided)')
+  await page.locator('#dev-E .phone-screen', { hasText: 'Verify Jonathan back?' }).waitFor()
+  check((await page.locator('#dev-E .phone-screen', { hasText: 'Arrival is not acceptance' }).count()) === 1, 'full-screen prompt at the receiver (encounter-confirm): arrival ≠ acceptance')
+  await page.locator('#dev-E .phone-screen button', { hasText: /^Confirm$/ }).click()
+  await page.locator('#dev-J .cdlg', { hasText: 'You and Emil have now verified each other' }).waitFor()
+  check((await page.locator('#dev-J .cdlg .avpair .av').count()) === 2, 'the celebration dialog CENTRED: both avatars + "verified each other"')
+  await until(() => {
+    const { named, P } = window.__t
+    const em = named('J', 'Emil'), jo = named('E', 'Jonathan')
+    return em.length === 1 && jo.length === 1 && em[0].verification === 'mutual' && jo[0].verification === 'mutual' &&
+      em[0].relationships[0].chainedFrom.length === 1 && P('J').view.contacts.length === 2
+  }, null, 15000)
+  check(await ev(() => { const [em] = window.__t.named('J', 'Emil'); return em.provenance === 'ceremony' && em.via === undefined }), 'chapter 2 live: introduced → verified by the chain, ONE Emil; the meeting sets the provenance to ceremony (RLTP-TRU-8800)')
+  await page.locator('#dev-J .cdlg button', { hasText: 'Trust…' }).click()
+  await page.locator('#dev-J .phdlg-card', { hasText: 'Trust Emil permanently?' }).waitFor()
+  check((await page.locator('#dev-J .phdlg-card', { hasText: 'Not yet verified' }).count()) === 0, 'the trust sheet without the introducer note — verified now')
+  await page.locator('#dev-J .phdlg-btns button', { hasText: /^Trust$/ }).click()
+  await until(() => window.__t.named('E', 'Jonathan')[0]?.trust.received)
+  const later = page.locator('#dev-E .cdlg button', { hasText: 'Later' })
+  if (await later.count()) await later.click()
+  await tab('E', 'Contacts')
+  check((await page.locator('#dev-E .pbadge.trustb', { hasText: '← trusts you' }).count()) === 1, 'and Emil sees it: ← trusts you')
+
+  // ── offline: the two-way scan (re-verification Jonathan ⇠⇢ Anton) ─────
+  await closeDialogs()
+  await page.locator('#dev-A .devctls .devbtn').first().click()
+  await until(() => window.__t.P('A').online === false)
+  await page.locator('#dev-A .fab').click()
+  await page.locator('#dev-A .phone-screen', { hasText: 'Show your code or scan' }).waitFor()
+  await page.locator('#dev-J .fab').click()
+  await page.locator('#dev-J .phone-screen button', { hasText: 'Scan code' }).click()
+  await page.locator('#dev-J .phone-screen', { hasText: 'Are you standing in front of this person?' }).waitFor()
+  await page.locator('#dev-J .phone-screen button', { hasText: /^Confirm$/ }).click()
+  await page.locator('#dev-J .phone-screen', { hasText: 'Sent to Anton' }).waitFor()
+  check(await ev(() => window.__net.net.channel.transit.get('Anton')?.length >= 1), 'the other side offline: the bundle waits in transit — delivery time unbounded')
+  await page.locator('#dev-J .phone-screen', { hasText: 'Show this code to Anton' }).waitFor({ timeout: 12000 })
+  check(true, 'ack-wait elapsed: automatic switch to the two-way scan (the sent card as QR)')
+  await page.locator('#dev-A .phone-screen button', { hasText: 'Scan code' }).click()
+  await page.locator('#dev-A .phone-screen', { hasText: 'Verify Jonathan back?' }).waitFor()
+  check((await page.locator('#dev-A .phone-screen', { hasText: 'two-way scan' }).count()) >= 1, 'Anton captures the sent card: full-screen prompt, the same encounter taken over optically')
+  await page.locator('#dev-A .phone-screen button', { hasText: /^Confirm$/ }).click()
+  await until(() => window.__t.named('A', 'Jonathan').some((c) => c.verification === 'outgoing'))
+  check(true, 'confirmed offline: honestly one-sided, the counter-credential issued — its delivery waits for the bundle\'s thread (4.3 step counter)')
+  await page.locator('#dev-A .devctls .devbtn').first().click()
+  await until(() => {
+    const { named, P } = window.__t
+    const jo = named('A', 'Jonathan'), an = named('J', 'Anton')
+    return jo.length === 1 && an.length === 1 && jo[0].verification === 'mutual' && an[0].verification === 'mutual' &&
+      P('A').view.contacts.length === 2 && P('J').view.contacts.length === 2 && jo[0].relationships[0].tuples === 2
+  }, null, 20000)
+  check(true, 'network back: the bundle and the counter-credential flow, the probe chains the re-verification — both ⇄, no duplicate')
+
+  // ── delivery stages + fault injection ──────────────────────────────────
+  check(await ev(() => window.__t.wire().some((w) => (w.stages?.length ?? 0) === 9 && w.disp === 'unique')), 'wire panel: every delivery carries the receiver\'s stages 1–9 (Delivery §6.2)')
+  check((await page.locator('.fbtn').count()) === 4, 'fault panel: hold · dup · tamper · lose')
+  await closeDialogs()
+  await page.locator('.fbtn', { hasText: 'Deliver everything twice' }).click()
+  await tab('A', 'Contacts')
+  await page.locator('#dev-A .prow', { hasText: 'Emil' }).click()
+  await page.locator('#dev-A .profact button.trust').click()
+  await page.locator('#dev-A .phdlg-btns button', { hasText: /^Trust$/ }).click()
+  await until(() => window.__t.wire().some((w) => w.kind.includes('DUPLICATE (fault)') && w.disp === 'duplicate-known'))
+  check(true, 'dup fault: the second delivery → duplicate-known, the prior outcome applies — no second effect')
+  await until(() => window.__t.named('E', 'Anton')[0]?.trust.received)
+  check(await ev(() => window.__t.P('E').events.filter((e) => e.type === 'trust.received').length === 2), 'the effect arrived exactly once: Emil holds Anton\'s disclosure (one trust.received from Anton, one from Jonathan before)')
+  await page.locator('.fbtn', { hasText: 'Deliver everything twice' }).click()
+  await page.locator('.fbtn', { hasText: 'Flip one ciphertext bit' }).click()
+  await tab('E', 'Contacts')
+  await page.locator('#dev-E .prow', { hasText: 'Anton' }).click()
+  await page.locator('#dev-E .profact button.trust').click()
+  await page.locator('#dev-E .phdlg-btns button', { hasText: /^Trust$/ }).click()
+  await until(() => window.__t.wire().some((w) => w.disp === 'failed(decryption-failed)'))
+  check(true, 'tamper fault: one flipped bit — stage 3 (the AES-GCM tag) refuses, failed(decryption-failed)')
+  await page.locator('.fbtn', { hasText: 'Flip one ciphertext bit' }).click()
+
+  // ── the sim clock: run, age, drift ─────────────────────────────────────
+  check((await page.locator('.clockbar .rbtn').count()) === 4 && (await page.locator('.devctls .devbtn').count()) === 6, 'time controls: world time + rate in the header, a drift button on EVERY device')
+  check((await page.locator('.stored').count()) === 3, 'artefact layer: one panel below each device (outside the app)')
+  const clockOf = (id) => page.locator(`#dev-${id} .phone-status span`).first().textContent()
+  const beforeSkew = await clockOf('A')
+  await page.locator('#dev-A .devctls .devbtn:last-child').click()
+  check((await clockOf('A')) !== beforeSkew && (await clockOf('A')) !== (await clockOf('J')), 'skew: Anton\'s device reads another clock than Jonathan\'s — drift is the normal case')
+  await page.locator('#dev-A .devctls .devbtn:last-child').click()
+  await page.locator('#dev-A .devctls .devbtn:last-child').click()   // back to ±0 (cyclic)
+  // a lost delivery: the sender's resume re-offers it after its backoff
+  await closeDialogs()
+  await page.locator('.fbtn', { hasText: 'Lose deliveries' }).click()
+  await tab('A', 'Contacts')
+  await page.locator('#dev-A .prow', { hasText: 'Jonathan' }).click()
+  await page.locator('#dev-A .plist .toggle').click()   // unpause: the star flows again (5.4)
+  await until(() => window.__t.wire().some((w) => /^lost/.test(w.disp ?? '')))
+  await page.locator('.fbtn', { hasText: 'Lose deliveries' }).click()
+  await page.locator('.rbtn', { hasText: /^60×$/ }).click()
+  await until(() => window.__t.wire().some((w) => w.attempt === 2 && w.disp === 'unique'), null, 20000)
+  await page.locator('.rbtn', { hasText: 'paused' }).click()
+  check(true, 'lose fault: no sign on the channel; with the clock running the sender\'s resume re-offers it (attempt 2) and it lands')
+  // ageing becomes real: the displayed code rotates at PT5M by itself
+  await closeDialogs()
+  await page.locator('#dev-J .fab').waitFor()
+  await page.locator('#dev-J .fab').click()
+  await page.locator('#dev-J .phone-screen', { hasText: 'Show your code or scan' }).waitFor()
+  const shown = await ev(() => window.__net.shows.J.card.anchor)
+  const heldBefore = await ev(() => Object.keys(window.__t.P('J').view.state.encounter.challenges).length)
+  await page.locator('.rbtn', { hasText: '60×' }).click()
+  await until((a) => window.__net.shows.J?.card.anchor !== a, shown, 20000)
+  await page.locator('.rbtn', { hasText: 'paused' }).click()
+  check(await ev(() => window.__t.P('J').log.some((l) => l.includes('rotated by itself'))), 'running time: the displayed code reaches PT5M and is shown afresh — a fresh pair anchor')
+  check(await ev((n) => Object.keys(window.__t.P('J').view.state.encounter.challenges).length > n, heldBefore),
+    'rotation changes what is displayed, never what is retained: the holder keeps the aged challenge beside the fresh one (5.3)')
+  check(errors.length === 0, `no page errors (${errors.length})`)
+} catch (e) {
+  fails++
+  console.log('✗ FAIL', e.message.split('\n')[0])
+  await shot('fail.png').catch(() => {})
+} finally {
+  await browser.close()
+  server.close()
+}
+console.log(fails ? `\n${fails} FAILED` : '\nNETWORK UI RUN (APP FLOW + DELIVERY + SIM CLOCK) PASSED')
+process.exit(fails ? 1 : 0)

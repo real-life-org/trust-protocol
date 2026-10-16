@@ -1,10 +1,7 @@
 // trust/entries — the entries of the deliverable set on the holder (lib
 // Stage 2, PR 4c; Trust Section 2, 6a.1): merge, split, departure, the
 // pending admission that goes with them, and the identity rewrite they
-// need. Graduated from probe/trust.ts (mergeEntries, admitPending,
-// departMember, reidentify, converge and promotionCommit's split,
-// chainAdmission) onto HolderState; probe/trust.ts stays as it is for the
-// simulators until PR 7.
+// need, on HolderState.
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //
@@ -65,6 +62,15 @@
 //     the star baselines' members, so a rename alone diverges nothing; the
 //     introducer a relationship names (provenance.via) follows both; the
 //     stored acks follow through the engine (Applied.renames)
+//   - a split (2080) moves a contact reference with the relationship it
+//     was made on, never with the entry it was filed under: membership
+//     records keep the own rkid of the tuple their prelude went or arrived
+//     on (joining preludes and invites, groups' preludes and invitations,
+//     the roster entry an invitation became, and as Recipient.via the
+//     outbox items and stored acks of documents on a member key), introduction records the own
+//     pair label toward the mediator (an offer's pin, the introducer's
+//     provenance.viaPin, the voucher mark's memory.vouchedPin); a prompt
+//     follows the record it asks about
 //   - head rule (b) for the incoming relationship is read by the rationale
 //     under 6590 ("only knowledge the committed mapping newly carries
 //     connects … stale knowledge … must not create a merge"): (b) is
@@ -77,14 +83,25 @@
 //     merge of unmapped relationships at the first mapping; open point for
 //     Trust 0.32. A relationship whose entry's other relationships hold no
 //     anchor yet stays
+//
+// Open point for Trust 0.32: 6540/6580/6590 in the rotation direction;
+// today's behaviour is pinned, not justified normatively. The incoming
+// relationship is joined against the links its entry held before the
+// verification (the 6590 rationale, mergeDutiesAfter), the 6580 direction
+// (an entry's anchor head changed) against the other entry's current
+// links; so a relationship rotating up to a head another entry's lineage
+// extends opens no merge, while the same relationships arriving the other
+// way round can (test/trust-ported.test.mjs, "the other direction").
 import type { CommandDef, DutyHandler, EventDraft, IdentityRename, Refusal, Applied } from '../engine.js'
-import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
+import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, Prompt, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
 import {
   CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn,
 } from './state.js'
 import { viewDigest } from './star.js'
 import { dropOff, followClasses } from './duties.js'
 import { isKnownDuty } from '../codec.js'
+import { jcs } from '../core.js'
+const jcsEq = (a: unknown, b: unknown): boolean => jcs(a) === jcs(b)
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 const cmpDec = (a: Dec, b: Dec): number => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0 }
@@ -180,12 +197,36 @@ function renameBaselines (t: Tuple, from: (id: string) => boolean, to: string): 
   return changed ? { ...t, starOut: { ...o, snapshot, snapshotDigest, inflight } } : t
 }
 
+/** The tuple the record a prompt asks about was made on: a group-invite's
+ *  invite by its own rkid, an introduction's offer or the target's act by
+ *  its pin toward the mediator; null where none is held (an
+ *  encounter-confirm names the fresh relationship's own identity). */
+function promptTuple (state: Readonly<HolderState>, p: Readonly<Prompt>): { rkid: string } | { label: string } | null {
+  if (p.kind === 'group-invite') {
+    const i = Object.values(state.joining.invites).find((x) => x.promptId === p.id)
+    return i ? { rkid: i.rkid } : null
+  }
+  if (p.kind === 'introduction') {
+    if (Object.hasOwn(state.encounter.offers, p.id)) return { label: state.encounter.offers[p.id].pin }
+    const a = Object.values(state.encounter.introductions).find((x) => x.role === 'target' && x.promptId === p.id)
+    return a?.pins.mediator !== undefined ? { label: a.pins.mediator } : null
+  }
+  return null
+}
+
 /**
  * Every holder-local key that resolved through an identity in `ids` now
  * resolves through `to` (2100, 2140), within `opts`: tuples' entryId,
  * duties, the recipients of issued documents, and with `global` the
- * introducers of relationships (provenance.via), the matches of accepted
- * stars, prompts and merge duties. Contacts are the caller's: their ids
+ * matches of accepted stars and merge duties; and the contact references
+ * of the membership and introduction state and of prompts, each with the
+ * relationship of the tuple it was made on (2080): by the own rkid it
+ * arrived or went on (joining preludes and invites, groups' preludes,
+ * invitations and roster) or the own pair label toward the mediator
+ * (encounter.offers by their pin, the introducer provenance.via by
+ * viaPin, memory.vouchedBy by memory.vouchedPin), a prompt with the
+ * record it asks about; one that names no tuple follows with `global`.
+ * Contacts are the caller's: their ids
  * and aliases are what the rewrite follows. The stored acks follow
  * through the engine (opts.renames): only the core writes the effect
  * cache, and their sealed envelopes stay as they are. Parts without a
@@ -194,13 +235,19 @@ function renameBaselines (t: Tuple, from: (id: string) => boolean, to: string): 
 export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly string[], to: string, opts: RewriteOpts = {}): HolderState {
   const from = (x: string): boolean => ids.includes(x)
   const inRel = opts.rels ?? (() => true)
-  const rkids = new Set<string>()
+  // the own rkids and pair labels of the tuples within `opts`
+  const rkids = new Set<string>(), labels = new Set<string>()
+  for (const [id, r] of Object.entries(state.relationships)) {
+    if (inRel(id)) for (const t of r.tuples) { rkids.add(t.rkid); labels.add(t.ownPairLabel) }
+  }
+  const byRkid = (rkid: string | undefined): boolean => (rkid === undefined ? !!opts.global : !opts.rels || rkids.has(rkid))
+  const byLabel = (label: unknown): boolean => (typeof label !== 'string' ? !!opts.global : !opts.rels || labels.has(label))
+  const re = (x: string | undefined, tied: boolean): boolean => x !== undefined && from(x) && tied
   let relationships: HolderState['relationships'] | null = null
   for (const [id, r] of Object.entries(state.relationships)) {
     const mine = inRel(id)
     let changed = false
     const tuples = r.tuples.map((t) => {
-      if (mine) rkids.add(t.rkid)
       let x = t
       if (mine && from(t.entryId)) x = { ...x, entryId: to }
       const acc = x.starIn.accepted
@@ -211,8 +258,8 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
       if (x !== t) changed = true
       return x
     })
-    const via = r.provenance.via
-    const provenance = opts.global && via !== undefined && from(via) ? { ...r.provenance, via: to } : r.provenance
+    // the introducer with the relationship toward it the act was pinned to
+    const provenance = re(r.provenance.via, byLabel(r.provenance.viaPin)) ? { ...r.provenance, via: to } : r.provenance
     if (changed || provenance !== r.provenance) (relationships ??= { ...state.relationships })[id] = { ...r, tuples, provenance }
   }
   opts.renames?.push({ from: [...ids], to, rkids: opts.rels ? [...rkids].sort() : null })
@@ -228,18 +275,53 @@ export function rewriteIdentity (state: Readonly<HolderState>, ids: readonly str
     }
     if (nd !== d) (duties ??= { ...state.duties })[id] = nd
   }
+  // membership, introduction and prompts: each contact reference with the
+  // relationship of the tuple it was made on, where it names one (2080)
   let prompts: HolderState['prompts'] | null = null
-  if (opts.global) {
-    for (const [id, p] of Object.entries(state.prompts)) if (p.contactId !== undefined && from(p.contactId)) (prompts ??= { ...state.prompts })[id] = { ...p, contactId: to }
+  for (const [id, p] of Object.entries(state.prompts)) {
+    const at = promptTuple(state, p)
+    const tied = at === null ? !!opts.global : 'rkid' in at ? byRkid(at.rkid) : byLabel(at.label)
+    if (re(p.contactId, tied)) (prompts ??= { ...state.prompts })[id] = { ...p, contactId: to }
+  }
+  let joining: HolderState['joining'] | null = null
+  for (const [k, p] of Object.entries(state.joining.preludes)) {
+    if (re(p.contactId, byRkid(p.rkid))) (joining ??= { ...state.joining, preludes: { ...state.joining.preludes } }).preludes[k] = { ...p, contactId: to }
+  }
+  for (const [k, i] of Object.entries(state.joining.invites)) {
+    if (re(i.contactId, byRkid(i.rkid))) {
+      joining ??= { ...state.joining, preludes: { ...state.joining.preludes } }
+      joining.invites = { ...joining.invites, [k]: { ...i, contactId: to } }
+    }
+  }
+  let groups: HolderState['groups'] | null = null
+  for (const [gid, g] of Object.entries(state.groups)) {
+    const preludes = Object.fromEntries(Object.entries(g.preludes).map(([k, p]) => [k, re(p.contactId, byRkid(p.rkid)) ? { ...p, contactId: to } : p]))
+    const invitations = Object.fromEntries(Object.entries(g.invitations).map(([k, i]) => [k, re(i.contactId, byRkid(i.rkid)) ? { ...i, contactId: to } : i]))
+    const roster = Object.fromEntries(Object.entries(g.roster).map(([k, m]) => [k, re(m.contactId, byRkid(m.rkid)) ? { ...m, contactId: to } : m]))
+    if (jcsEq(preludes, g.preludes) && jcsEq(invitations, g.invitations) && jcsEq(roster, g.roster)) continue
+    ;(groups ??= { ...state.groups })[gid] = { ...g, preludes, invitations, roster }
+  }
+  let encounter: HolderState['encounter'] | null = null
+  for (const [k, o] of Object.entries(state.encounter.offers)) {
+    if (re(o.mediatorContactId, byLabel(o.pin))) (encounter ??= { ...state.encounter, offers: { ...state.encounter.offers } }).offers[k] = { ...o, mediatorContactId: to }
+  }
+  // the voucher mark names the mediator that vouched: it follows the
+  // relationship toward that mediator the voucher came on (memory.vouchedPin),
+  // not the entry it was filed under
+  for (const [id, r] of Object.entries(relationships ?? state.relationships)) {
+    const v = r.memory.vouchedBy
+    if (typeof v === 'string' && re(v, byLabel(r.memory.vouchedPin))) (relationships ??= { ...state.relationships })[id] = { ...r, memory: { ...r.memory, vouchedBy: to } }
   }
   let outbox: HolderState['outbox'] | null = null
   for (const [d, it] of Object.entries(state.outbox)) {
-    if (from(it.recipient.contactId) && rkids.has(it.recipient.rkid)) (outbox ??= { ...state.outbox })[d] = { ...it, recipient: { ...it.recipient, contactId: to } }
+    // a document on a member key follows the tuple its contact was named through (Recipient.via)
+    if (from(it.recipient.contactId) && rkids.has(it.recipient.via ?? it.recipient.rkid)) (outbox ??= { ...state.outbox })[d] = { ...it, recipient: { ...it.recipient, contactId: to } }
   }
-  if (!relationships && !duties && !prompts && !outbox) return state as HolderState
+  if (!relationships && !duties && !prompts && !outbox && !joining && !groups && !encounter) return state as HolderState
   return {
     ...state,
     ...(relationships ? { relationships } : {}), ...(duties ? { duties } : {}), ...(prompts ? { prompts } : {}), ...(outbox ? { outbox } : {}),
+    ...(joining ? { joining } : {}), ...(groups ? { groups } : {}), ...(encounter ? { encounter } : {}),
   }
 }
 

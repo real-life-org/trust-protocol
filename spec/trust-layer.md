@@ -54,16 +54,17 @@ Everything else convinces exactly its addressee and no one further.
 ## Status of This Document
 
 This is an Editor's Draft with no standing beyond its own argument.
-Its artifacts other than `profile@1` are implemented in the reference
-library, the introduction act under its `/probe` subpath, whose
-transport shapes are not yet stable. Three parts are specified here
-and not yet implemented: the profile, the trust classes of Section 2a,
-and what a relationship that lags is not sent (6595, 6596); the
-library's send paths withhold nothing on such a relationship, the
-re-issue after a rotation included. The profile has conformance
-vectors (`vectors/profile.json`). The next expected changes are the
-implementation of these three in the reference library. The
-attestation is a documented option without an artifact (Section 9).
+The reference library implements on its holder the deliverable set
+and its admission (Section 2), the trust classes (2a), the blinded and
+the group star (5), the anchor mapping and the rotation it follows
+(6), continuity (6a), the profile (6b) and the introduction act (8);
+a holder reads group membership from its own groups, not from a
+replicated Access roster, and one writer per holder stands in for
+several devices. The profile has conformance vectors
+(`vectors/profile.json`). The next expected changes are the points the
+implementation raised for the next casting, among them how a requester
+learns the mediator's designator (8.3). The attestation is a
+documented option without an artifact (Section 9).
 Open points are listed in Section 9, and feedback is welcome via the
 issues of the publication repository
 (github.com/real-life-org/trust-protocol).

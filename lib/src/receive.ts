@@ -94,7 +94,7 @@
 // counterpart's key agreement the ack is sealed to and the contact it is
 // filed under, or refuses (stage 7 for malformed, else 8). Every other
 // handler keeps the tuple binding of Delivery 4.4.
-import { calOK, iso, makeValidator } from './core.js'
+import { calOK, iso, makeValidator, toU } from './core.js'
 import type { Json } from './core.js'
 import { diSignWith, diVerify, digestDoc, xRawOfMk } from './crypto.js'
 import { receiveByAgreement, seal } from './delivery.js'
@@ -102,7 +102,7 @@ import type { KeyAnswer } from './delivery.js'
 import { ACK_TYPE, ackDocument, ackKeyOf, ackProofForm, macAck, macAckForm, macAckValid, signedAckForm } from './ack.js'
 import { SCHEMAS } from './schemas.js'
 import { triasOf } from './state.js'
-import { entryOf } from './trust/state.js'
+import { entryOf, liveRel } from './trust/state.js'
 import type { HolderState, Millis, OutboxItem, Relationship, StoredAck, Tuple } from './state.js'
 
 /** An ack as sealed in the preparation; the engine adds its schedule. */
@@ -191,7 +191,10 @@ export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([
 
 /** The counterpart a `channel` binding names: the key agreement the ack
  *  is sealed to and the contact it is filed under. */
-export interface Channel { keyAgreement: string, contactId: string }
+/** The binding a document arrives under: the counterpart's key and the
+ *  contact; `via`, where the arrival key is no tuple's (a member key), the
+ *  own rkid of the tuple the contact was named through (Recipient.via). */
+export interface Channel { keyAgreement: string, contactId: string, via?: string }
 
 export const isTaskRefusal = (x: unknown): x is TaskRefusal =>
   x !== null && typeof x === 'object' && (x as TaskRefusal).ok === false && typeof (x as TaskRefusal).reason === 'string'
@@ -212,6 +215,8 @@ export interface TaskEntry {
   proof: 'absent' | 'required'
   decode (payload: unknown): unknown
   channel? (state: Readonly<HolderState>, doc: ReceivedDocument, rkid: string): Channel | TaskRefusal
+  /** may arrive on a deactivated tuple an act pinned (engine TaskHandler) */
+  pinned?: true
   prepare? (ctx: PrepareCtx, doc: ReceivedDocument, arrival: Arrival): Promise<unknown>
 }
 
@@ -277,17 +282,19 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
     // that thread, sent from the arrival rkid, of the class the proof form
     // claims; the issuer its recipient (the tuple's counterpart, or the
     // anchor it went to where no tuple carried it)
-    const item: OutboxItem | undefined = Object.hasOwn(state.outbox, f.ref) ? state.outbox[f.ref] : undefined
+    // the ref in either rendering (u or z, 4.2) names the outbox item by its digest bytes
+    const ref = toU(f.ref) ?? f.ref
+    const item: OutboxItem | undefined = Object.hasOwn(state.outbox, ref) ? state.outbox[ref] : undefined
     if (!item || item.threadId !== f.threadId || item.recipient.rkid !== rkid || SIGNATURE_CLASS.has(item.type) !== signed) return failed('validation-failed', 8, { digest })
     const expected = at ? at.tuple.counterpartAnchor : item.recipient.anchor
     if (expected === undefined || doc.issuer !== expected) return failed('validation-failed', 8, { digest })
     if (signed) {
-      if (!(await diVerify(doc, doc.issuer as string))) return failed('validation-failed', 8, { digest })
+      if (!(await diVerify(doc, doc.issuer as string, S))) return failed('validation-failed', 8, { digest })
     } else {
       const key = await ackKey(ctx, rkid, item.recipient.keyAgreement, doc.issuer as string, doc.recipient as string)
       if (!key || !(await macAckValid(doc, key, S))) return failed('validation-failed', 8, { digest })
     }
-    return { kind: 'ack', digest, ref: f.ref }
+    return { kind: 'ack', digest, ref }
   }
   // 6 — the task register, by the full type URI (no prefix, no fallback)
   const h = tasks.get(doc.type as string)
@@ -307,6 +314,10 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
     peer = c
   } else {
     if (!at || doc.issuer !== at.tuple.counterpartAnchor) return failed('validation-failed', 8, { digest })
+    // a deactivated tuple takes nothing new (6190, 6240): the arrival tuple is
+    // the active head of a live relationship, unless the handler binds its
+    // artifacts to the tuples an act pinned before a chaining (8270)
+    if (!h.pinned && (!liveRel(at.rel) || at.rel.activeHead !== at.tuple.ownPairLabel)) return failed('validation-failed', 8, { digest, ref: 'RLTP-TRU-6240' })
     // the entry the arrival's relationship sends under (2146), by its current id
     peer = { keyAgreement: at.tuple.counterpartKeyAgreement, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId }
   }
@@ -331,7 +342,7 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   const envelope = await seal(ackDoc, peer.keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S)
   const ack: SealedAck = {
     digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-    recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement },
+    recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement, ...(peer.via !== undefined ? { via: peer.via } : {}) },
   }
   return { kind: 'task', digest, type: doc.type as string, doc: rdoc, arrival, value, ack }
 }

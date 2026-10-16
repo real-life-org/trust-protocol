@@ -1,9 +1,8 @@
 // trust/group-star — the group star on the holder (lib Stage 2, PR 4b):
 // group-star@1 as the registered task group-star/0.1 (5.2b), reconciled
 // per recipient over its own domain, baseline and salt sequence (5730,
-// 5740), on the machinery of trust/star.ts. Graduated from
-// probe/group-star.ts (whose pure parts moved to the root group-star.ts);
-// probe/* stays as it is for the simulators until PR 7.
+// 5740), on the machinery of trust/star.ts; the pure forms are the root
+// module's (group-star.ts).
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //
@@ -40,9 +39,14 @@
 //     holder's current groups); steps 4 and 5 of 5560/5570 resolve through
 //     the Access port. Without an Access port, or where it does not know
 //     the group, a hit is recorded but no pair is accepted
-//   - `accepted` keeps the {d, c} entries that hit one of the holder's
-//     groups and those groups (sharedGroups of the contact view); the
-//     filler and the groups the holder is not in are not retained
+//   - `accepted` keeps the whole assembled union of {d, c} entries and the
+//     groups among the holder's that hit (sharedGroups of the contact
+//     view). The union stays so a group the holder joins later is matched
+//     against the stars it already accepted (groupStarRematch, called by
+//     the welcome): the hit, and a sealed pair opened and checked by
+//     5530–5570 against the joined group as at completion; a late joiner
+//     sees the groups it shares with existing contacts, and their members,
+//     without a new star, which the sender has no reason to send
 //   - an accepted pair is class V (5580): merged into the relationship's
 //     holder-local memory under `groupMembers` as { [G]: { member,
 //     memberOp } }, a later accepted pair for G replacing it (5770); it is
@@ -54,6 +58,7 @@ import type { GroupMembership } from '../group-star.js'
 import { macU } from '../anchor.js'
 import { jcs } from '../core.js'
 import type { KeyRelease } from '../ports.js'
+import type { PrepareCtx } from '../engine.js'
 import type { Contact, Dec, Group, GroupStarItem, HolderState, Relationship, SeqIn } from '../state.js'
 import { classOnToward, entryRelationships, lags } from './state.js'
 import type { Artifact } from './star.js'
@@ -154,12 +159,8 @@ export const GROUP_STAR: Artifact<GroupStarItem, GroupAccepted> = {
         return a.status === 'available' ? a.shared : null
       },
     })
-    const S = ctx.crypto.subtle
-    const kg = await groupStarKeyOf(p.shared, p.from, p.own, p.salt, S)
     const hits = results.filter((r) => r.hit).map((r) => r.group).sort()
-    const hitD = new Set<string>()
-    for (const g of hits) hitD.add(await macU(kg, g, S))
-    const entries = union.filter((e) => hitD.has(e.d))
+    const entries = union
     const pairs = results.filter((r) => r.accepted)
     let memory: Record<string, Json> | undefined
     if (pairs.length) {
@@ -171,4 +172,68 @@ export const GROUP_STAR: Artifact<GroupStarItem, GroupAccepted> = {
     }
     return { ok: true, accepted: { salt: p.salt, entries, groups: hits }, ...(memory ? { memory } : {}) }
   },
+}
+
+/** One tuple's outcome of the re-match: the hit, and the accepted pair if one opened. */
+export interface GroupStarRehit { label: string, member?: string, memberOp?: string }
+
+/**
+ * 5520–5580 for a group the holder joins, over the group stars it already
+ * accepted: d = HMAC(k_g, G) tested against each stored union, and on a
+ * hit the sealed pair opened and checked in the order of 5530–5570
+ * against `membership` (the joined group's roster as the welcome carries
+ * it), exactly as at a star's completion. k_g and k_e are the accepted
+ * star's (its sender, this holder's pair anchor, its salt), through the
+ * KeyProvider under the engine's release. Async: the caller prepares it
+ * and applies withGroupHits in its commit.
+ */
+export async function groupStarRematch (ctx: PrepareCtx, membership: GroupMembership): Promise<GroupStarRehit[]> {
+  const out: GroupStarRehit[] = []
+  for (const r of Object.values(ctx.snapshot.relationships)) {
+    for (const t of r.tuples) {
+      const acc = t.groupStarIn.accepted
+      if (!acc || acc.groups.includes(membership.group)) continue
+      const x = xRawOfMk(t.counterpartKeyAgreement)
+      if (!x) continue
+      const a = await ctx.keys.agree(t.rkid, x, ctx.release)
+      if (a.status !== 'available') continue
+      const own = (await ctx.keys.anchorOf(t.ownPairLabel)).anchor
+      const [res] = await openGroupStarWith({
+        shared: a.shared, from: t.counterpartAnchor, own, salt: acc.salt, entries: acc.entries, memberships: [membership], subtle: ctx.crypto.subtle,
+        agreeMember: async (keyAgreement) => {
+          const mx = xRawOfMk(keyAgreement)
+          if (!mx) return null
+          const m = await ctx.keys.agree(t.rkid, mx, ctx.release)
+          return m.status === 'available' ? m.shared : null
+        },
+      })
+      if (!res?.hit) continue
+      out.push(res.accepted ? { label: t.ownPairLabel, member: res.member!, memberOp: res.memberOp! } : { label: t.ownPairLabel })
+    }
+  }
+  return out.sort((p, q) => cmp(p.label, q.label))
+}
+
+/** The re-match committed: `group` joins the accepted groups of the hit
+ *  tuples, and an accepted pair is merged into its relationship's memory
+ *  under `groupMembers` (class V, 5580), as at a star's completion. */
+export function withGroupHits (state: HolderState, hits: readonly GroupStarRehit[], group: string): HolderState {
+  if (!hits.length) return state
+  const byLabel = new Map(hits.map((h) => [h.label, h]))
+  const relationships: Record<string, Relationship> = {}
+  for (const [id, r] of Object.entries(state.relationships)) {
+    if (!r.tuples.some((t) => byLabel.has(t.ownPairLabel))) { relationships[id] = r; continue }
+    let memory = r.memory
+    const tuples = r.tuples.map((t) => {
+      const h = byLabel.get(t.ownPairLabel)
+      if (!h || !t.groupStarIn.accepted || t.groupStarIn.accepted.groups.includes(group)) return t
+      if (h.member !== undefined) {
+        const held = (memory.groupMembers ?? {}) as Record<string, Json>
+        memory = { ...memory, groupMembers: { ...held, [group]: { member: h.member, memberOp: h.memberOp! } } }
+      }
+      return { ...t, groupStarIn: { ...t.groupStarIn, accepted: { ...t.groupStarIn.accepted, groups: [...t.groupStarIn.accepted.groups, group].sort() } } }
+    })
+    relationships[id] = { ...r, tuples, memory }
+  }
+  return { ...state, relationships }
 }

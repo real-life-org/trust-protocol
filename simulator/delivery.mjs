@@ -1,81 +1,80 @@
-// delivery.mjs — der Zustellkanal der Werkbank. Seit Faden 3
-// (29.08.2026) urteilt hier NUR die Bibliothek: die generischen
-// Empfangs-Stufen 1–4 sind lib/src/delivery.ts receive() (→
-// ./lib/delivery.js, eingefroren via scripts/build-simulator-lib.mjs,
-// CI-frischegeprüft); openEnvelope/effectDone sind Re-Exporte der
-// Probe-Brücke. Sim-eigen bleibt die WERKBANK-Ebene: der beobachtbare
-// Kanal mit Offline-Transit und Hold/Dup/Tamper/Lose-Faults, und die
-// Inspektion, die die Stufen der Bibliothek als aufklappbare Zeilen
-// ausgibt, ohne selbst zu urteilen.
-//
-// Bekannte, benannte Kostenstelle (lib-Review 6, M-1): eine Zustellung
-// durchläuft receive() zweimal — einmal in deliver() (Kanal-Anzeige),
-// einmal im Typ-Dispatch des Empfängers (openEnvelope). Das ist der
-// Preis der Beobachtbarkeit; der completed-effect-Cache macht es
-// semantisch folgenlos.
-import { receive } from './lib/delivery.js'
-import { fromB64u, b64uOf } from './lib/crypto.js'
+// delivery.mjs — the observable channel of the simulators. The receiver's
+// verdict is the library's alone: every envelope that reaches a device goes
+// through ONE call, holder.receive(env, when) (Delivery §6.2 stages 1–9 in
+// the library's receive core and task register). Simulator-own is only the
+// channel itself: offline transit, the hold/dup/tamper/lose faults, and the
+// inspection that renders the library's disposition as stage rows.
 
-export { openEnvelope, effectDone } from './lib/probe/deps.js'
+// Delivery Contract 6.2: the receiver's stages, in mandatory order
+export const STAGES = [
+  '1 sealed size within bounds',
+  '2 envelope form · rkid known',
+  '3 AES-256-GCM open · tag verified',
+  '4 parse · digest · duplicate cache',
+  '5 document profile · recipient is me',
+  '6 type registered',
+  '7 payload schema',
+  '8 type checks before the commit',
+  '9 effect committed',
+]
+
+/** The stage rows of one ReceiveResult: every stage passed up to where it ended. */
+export function stagesOf (r) {
+  const ok = (k) => STAGES.slice(0, k).map((label) => ({ label, ok: true }))
+  if (r.disposition === 'unique') return ok(9)
+  if (r.disposition === 'duplicate-known') return [...ok(4), { label: '  → duplicate-known · the prior outcome applies, no second effect', ok: true }]
+  if (r.disposition === 'discarded') return [...ok(8), { label: STAGES[8] + ' — discarded (' + r.reason + ')', ok: false }]
+  const k = r.stage ?? 1
+  return [...ok(k - 1), { label: STAGES[k - 1], ok: false }]
+}
+
+/** The disposition as one short string: unique, duplicate-known, failed(reason). */
+export const dispOf = (r) => r.disposition === 'failed' ? `failed(${r.reason})`
+  : r.disposition === 'discarded' ? `discarded(${r.reason})` : r.disposition
 
 export function createChannel () {
   return {
     faults: { hold: false, dup: false, tamper: false, lose: false },
-    held: [],                 // Zustellungen, die der hold-Fault parkt
-    transit: new Map(),       // name -> [env] für Offline-Geräte
+    held: [],                 // deliveries the hold fault parks
+    transit: new Map(),       // name -> [env] for devices that are offline
   }
 }
 
-// die generischen Stufen — reine Inspektion, konsumiert nichts (der
-// Cache wird nur GELESEN; geschrieben wird er von deliver()/effectDone)
-export async function inspect (toPerson, env) {
-  const r = await receive(env,
-    (rkid) => toPerson.contexts.get(rkid)?.x.priv,
-    (toPerson.deliveryCache ??= new Set()))
-  const st = r.stages.map((s) => ({ label: `${s.stage} ${s.label}`, ok: s.ok }))
-  if (r.disposition === 'duplicate-known') {
-    st.push({ label: '  → duplicate-known · prior outcome applies, no second effect', ok: true })
-    return { st, disp: 'duplicate-known', digest: r.digest, doc: r.document }
-  }
-  if (r.disposition !== 'unique') return { st, disp: r.disposition }
-  return { st, disp: null, digest: r.digest, doc: r.document }
+/** One bit flipped in the ciphertext: the AES-GCM tag must catch it (stage 3). */
+export function tamper (env) {
+  const c = String(env.ciphertext ?? '')
+  const i = Math.floor(c.length / 2)
+  const ch = c[i] === 'A' ? 'B' : 'A'
+  return { ...env, ciphertext: c.slice(0, i) + ch + c.slice(i + 1) }
 }
 
-// eine Zustellung: Faults → Transit → Stufen → App-Dispatch → Cache.
-// dispatch(env) ist die typ-spezifische Kette des Aufrufers; ihr Ergebnis
-// ({handled, error?}) wird als Abschluss-Stufe notiert.
-// Rückgabe: { arrived, disp, stages } — arrived = Ankunft auf dem Gerät
-// (Ack-Semantik: Ankunft, nie Annahme).
-export async function deliver (ch, toPerson, env, dispatch, opts = {}) {
+/**
+ * One delivery: faults → transit → the receiver's holder. `to` is a
+ * simulator person ({name, online, h}). Returns
+ * { arrived, disp, stages, result } — arrived = the envelope reached the
+ * device (the ack semantics: arrival, never acceptance); result the
+ * library's ReceiveResult.
+ */
+export async function deliver (ch, to, env, when, opts = {}) {
   if (ch.faults.lose && !opts.replay) {
     return { arrived: false, disp: 'lost (fault) — the channel gives no sign; only the missing ack tells', stages: [] }
   }
-  if (ch.faults.tamper && !opts.replay) {
-    const raw = fromB64u(env.ciphertext)
-    raw[Math.floor(raw.length / 2)] ^= 0x01
-    env = { ...env, ciphertext: b64uOf(raw) } // ein gekipptes Bit — der AES-GCM-Tag muss es fangen
-  }
+  if (ch.faults.tamper && !opts.replay) env = tamper(env)
   if (ch.faults.hold && !opts.replay) {
-    ch.held.push({ toName: toPerson.name, env, kind: opts.kind })
+    ch.held.push({ toName: to.name, env, kind: opts.kind, meta: opts.meta })
     return { arrived: false, disp: 'held (fault) — parked on the channel', stages: [] }
   }
-  if (!toPerson.online) {
-    const q = ch.transit.get(toPerson.name) ?? []
+  if (!to.online) {
+    const q = ch.transit.get(to.name) ?? []
     q.push(env)
-    ch.transit.set(toPerson.name, q)
+    ch.transit.set(to.name, q)
     return { arrived: false, disp: 'transit — device offline, delivery time is unbounded', stages: [] }
   }
-  const insp = await inspect(toPerson, env)
-  if (insp.disp) return { arrived: insp.disp === 'duplicate-known', disp: insp.disp, stages: insp.st }
-  const r = (await dispatch(env)) ?? {}
-  insp.st.push({ label: `5 dispatch → ${r.error ? 'rejected: ' + r.error : r.handled === false ? 'no handler took it' : 'effect applied'}`, ok: !r.error })
-  // nur ABGESCHLOSSENE Effekte wandern in den Cache (Ablehnungen sind
-  // wiederholbar — der Contract cached Effekte, keine Fehlversuche)
-  if (!r.error) toPerson.deliveryCache.add(insp.digest)
-  return { arrived: true, disp: r.error ? `failed(${r.error})` : 'unique', stages: insp.st, result: r }
+  const result = await to.h.receive(env, when)
+  return { arrived: true, disp: dispOf(result), stages: stagesOf(result), result }
 }
 
-// hold-Fault gelöst / Gerät wieder online: Geparktes nachliefern
+// the hold fault released / a device back online: what was parked
 export function drainHeld (ch) { return ch.held.splice(0) }
 export function drainTransit (ch, name) {
   const q = ch.transit.get(name) ?? []

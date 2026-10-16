@@ -1,9 +1,9 @@
 // ack — the delivery acknowledgement's pure parts (Delivery §4.2, the
 // acknowledgement class rule of §4.4): the type, the deniable MAC form's
 // channel-keyed derivation, the MAC, and the context-free form checks of
-// a received ack. Shared by the holder's receive core (engine.ts) and the
-// probe world (probe/acks.ts); byte-compatible with
-// vectors/delivery-ack.json (lib/test/vectors4.test.mjs).
+// a received ack. Used by the holder's receive core (engine.ts);
+// byte-compatible with vectors/delivery-ack.json
+// (lib/test/vectors4.test.mjs).
 //
 //   k     = HKDF-SHA-256(ikm = X25519(pairX_issuer, pairX_recipient),
 //                        salt = empty, info = "rltp/v1/delivery/mac/ack/"
@@ -14,7 +14,7 @@
 // Deniable by construction: either party of the tuple derives k, so for a
 // designated-verifier payload the ack is evidence to its sender alone,
 // never an attestation (4.2). The key agreement itself is the caller's:
-// the holder asks its KeyProvider, the probe its context's private key.
+// the holder asks its KeyProvider.
 import { jcs, b64uOf, calOK, makeValidator } from './core.js'
 import type { Json } from './core.js'
 import { hkdf, platformSubtle } from './crypto.js'

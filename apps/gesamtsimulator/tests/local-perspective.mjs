@@ -33,9 +33,9 @@ try {
 
   const seen = await page.evaluate(() => {
     const wb = globalThis.__wb
-    const label = (gid) => [...wb.person('Peter').groups.values()].find((g) => g.genesisDigest === gid)?.label
-    // what Peter's own device holds, per group
-    const held = Object.fromEntries([...wb.person('Peter').groups.values()].map((g) => [g.label, g.roster.size]))
+    const label = (gid) => wb.person('Peter').v.groups.find((g) => g.id === gid)?.name
+    // what Peter's own device holds, per group (its group view's members)
+    const held = Object.fromEntries(wb.person('Peter').v.groups.map((g) => [g.name, g.members.length]))
     // the person camera on Peter
     wb.state.view = 'Peter'
     const scene = wb.buildScene()
@@ -60,14 +60,14 @@ try {
   // the founder, who admitted the members over relationships, sees them named
   const later = await page.evaluate(async () => {
     const wb = globalThis.__wb
-    const choir = [...wb.person('Anna').groups.values()].find((g) => g.label === 'Choir').genesisDigest
+    const choir = wb.person('Anna').v.groups.find((g) => g.name === 'Choir').id
     await wb.joinGroup('Frida', choir, {})
-    const peterChoir = () => [...wb.person('Peter').groups.values()].find((g) => g.label === 'Choir').roster.size
+    const peterChoir = () => wb.person('Peter').v.groups.find((g) => g.name === 'Choir').members.length
     const count = (who) => {
       wb.state.view = who
       return wb.buildScene().edges.filter((e) => e.member && e.a === 'g:' + choir).map((e) => e.b)
     }
-    return { peterHolds: peterChoir(), peter: count('Peter'), anna: count('Anna'), annaHolds: [...wb.person('Anna').groups.values()].find((g) => g.label === 'Choir').roster.size }
+    return { peterHolds: peterChoir(), peter: count('Peter'), anna: count('Anna'), annaHolds: wb.person('Anna').v.groups.find((g) => g.name === 'Choir').members.length }
   })
   assert.equal(later.peterHolds, 2, 'Peter received no new roster')
   assert.equal(later.peter.length, 2, `Peter still sees 2 Choir members after Frida joined (got ${later.peter.length})`)

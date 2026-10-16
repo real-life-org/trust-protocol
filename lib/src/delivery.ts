@@ -17,7 +17,7 @@
 // produces a second effect. receive() honors such a cache when given one.
 //
 // Two ways to name the receiver's key: receive() takes a resolver to the
-// private CryptoKey (the probe world's contexts); receiveByAgreement()
+// private CryptoKey (an identity Context's); receiveByAgreement()
 // takes an asynchronous key agreement that answers with the shared secret
 // or why not (the holder's KeyProvider, which never hands out a key).
 // Both run the same stages. Every function here takes an optional

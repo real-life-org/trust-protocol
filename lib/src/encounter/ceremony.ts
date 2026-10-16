@@ -82,11 +82,11 @@
 //     trigger): the app shows the sent card (encounter.scanned) when it
 //     sees the bundle undelivered (deliveryStatus)
 import { b64uOf, iso, jcs, makeValidator, sameDigest } from '../core.js'
-import type { Json } from '../core.js'
+import type { Json, JsonObject } from '../core.js'
 import { diSignWith, diVerify, digestBytes, digestDoc } from '../crypto.js'
 import { seal } from '../delivery.js'
 import {
-  BUNDLE_TYPE, CEREMONY, DELIVERY_TYPE, acceptTail, bundleForm, cardBody, cardOk, challengeAged, challengeOf, credHead,
+  BUNDLE_TYPE, CEREMONY, CHALLENGE_MAX_AGE, SKEW_TOLERANCE, DELIVERY_TYPE, acceptTail, bundleForm, cardBody, cardOk, challengeAged, challengeOf, credHead,
   credentialBody, deliveryForm, dispositionOf, futureOk, issuanceEnd, issuanceOpen, windowOk,
 } from '../encounter.js'
 import type { CredError, RecordFacts } from '../encounter.js'
@@ -95,7 +95,7 @@ import { withPairNonce } from '../identity-state.js'
 import { tupleByRkid } from '../receive.js'
 import type { Channel, TaskRefusal } from '../receive.js'
 import type { Applied, CommandDef, DecisionDef, EventDraft, HolderModule, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
-import type { EnactmentRecord, HolderState, Millis, Prompt } from '../state.js'
+import type { EnactmentRecord, HeldCredential, HolderState, Millis, Prompt } from '../state.js'
 import { openTuple } from '../trust/continuity.js'
 import { entryOf, findContact, tupleByLabel } from '../trust/state.js'
 
@@ -234,9 +234,9 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
         // 4110: the label in the register before the card is displayed
         register: withPairNonce(state.register, p.label, p.nonce),
         addresses: { ...state.addresses, keys: { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: when } } },
-        encounter: { ...state.encounter, challenges: { ...state.encounter.challenges, [p.value]: { value: p.value, tCh: when, label: p.label, card: p.card } } },
+        encounter: { ...state.encounter, challenges: { ...state.encounter.challenges, [p.value]: { value: p.value, tCh: when, label: p.label, card: p.card as JsonObject } } },
       },
-      events: [{ type: 'encounter.shown', challenge: p.value, card: p.card }],
+      events: [{ type: 'encounter.shown', challenge: p.value, card: p.card as JsonObject }],
     }
   },
 }
@@ -254,7 +254,7 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
   human: true,
   async prepare (ctx, input) {
     const peer = input?.card as Card
-    if ((await cardOk(peer)) !== null) return no('card-invalid', 'RLTP-ENC-6010')
+    if ((await cardOk(peer, ctx.crypto.subtle)) !== null) return no('card-invalid', 'RLTP-ENC-6010')
     // a displayed card carries neither sentTo nor boundTo (6070)
     if (peer.sentTo !== undefined || peer.boundTo !== undefined) return no('card-invalid', 'RLTP-ENC-6070')
     const S = ctx.crypto.subtle
@@ -296,9 +296,9 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
       counterpartKeyAgreement: p.peer.keyAgreement, provenance: { kind: 'ceremony' }, nonce: p.nonce,
     }, p.rkid, when)
     const record: EnactmentRecord = {
-      ceremony: CEREMONY, own: p.own, tCh: when, peer: peerValue, counterpart: p.peer.anchor, card: p.peer as Json, bind: p.bind,
-      at: when, label: p.label, relId: ids.relId, role: 'scanner', out: { digest: p.credDigest, credential: p.credential }, in: null,
-      thread: p.threadId, bundleDigest: p.doc.digest, threads: {}, sentCard: p.sentCard, counterPending: false,
+      ceremony: CEREMONY, own: p.own, tCh: when, peer: peerValue, counterpart: p.peer.anchor, card: p.peer as JsonObject, bind: p.bind,
+      at: when, label: p.label, relId: ids.relId, role: 'scanner', out: { digest: p.credDigest, credential: p.credential as JsonObject }, in: null,
+      thread: p.threadId, bundleDigest: p.doc.digest, threads: {}, sentCard: p.sentCard as JsonObject | null, counterPending: false,
     }
     return {
       state: withRecord(opened.state, record),
@@ -309,7 +309,7 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
       events: [
         ...(opened.events ?? []),
         { type: 'encounter.recorded', contactId: ids.contactId, relationshipId: ids.relId, role: 'scanner' },
-        { type: 'encounter.scanned', contactId: ids.contactId, card: p.sentCard },
+        { type: 'encounter.scanned', contactId: ids.contactId, card: p.sentCard as JsonObject },
       ],
       duties: opened.duties,
     }
@@ -324,7 +324,7 @@ const captureDef: CommandDef<CaptureInput, CapturePrep> = {
   human: true,
   async prepare (ctx, input) {
     const card = input?.card as Card
-    if ((await cardOk(card)) !== null) return no('card-invalid', 'RLTP-ENC-6010')
+    if ((await cardOk(card, ctx.crypto.subtle)) !== null) return no('card-invalid', 'RLTP-ENC-6010')
     if (typeof card.sentTo !== 'string' || typeof card.boundTo !== 'string') return no('card-invalid', 'RLTP-ENC-6030')
     if (card.challenge.value === card.boundTo) return no('card-invalid', 'RLTP-ENC-5160')
     // sentTo = the own anchor that displayed boundTo (6050, 4.4)
@@ -376,8 +376,8 @@ function recordCreating (state: Readonly<HolderState>, x: {
     counterpartKeyAgreement: x.card.keyAgreement, provenance: { kind: 'ceremony' }, ...(nonce !== undefined ? { nonce } : {}),
   }, x.rkid, x.when)
   const record: EnactmentRecord = {
-    ceremony: CEREMONY, own: x.own, tCh: x.tCh, peer: x.card.challenge.value, counterpart: x.card.anchor, card: x.card as Json, bind: x.bind,
-    at: x.when, label: x.label, relId: ids.relId, role: 'displayer', out: null, in: x.in, thread: x.thread, bundleDigest: x.digest,
+    ceremony: CEREMONY, own: x.own, tCh: x.tCh, peer: x.card.challenge.value, counterpart: x.card.anchor, card: x.card as JsonObject, bind: x.bind,
+    at: x.when, label: x.label, relId: ids.relId, role: 'displayer', out: null, in: x.in as HeldCredential | null, thread: x.thread, bundleDigest: x.digest,
     threads: {}, sentCard: null, counterPending: false,
   }
   const challenges = { ...opened.state.encounter.challenges }
@@ -448,7 +448,7 @@ function applyCounter (state: Readonly<HolderState>, p: CounterPrep, when: Milli
   if (!issuanceOpen(Date.parse((r.card as Card).challenge.issuedAt), when)) return no('stale-issuance', 'RLTP-ENC-5530')
   if ((p.doc === null) !== (r.thread === null)) throw new Error('encounter.counter: prepared on another thread state')
   const place = placeOf(state, r)
-  let next = withRecord(state as HolderState, { ...r, out: { digest: p.digest, credential: p.credential }, counterPending: p.doc === null })
+  let next = withRecord(state as HolderState, { ...r, out: { digest: p.digest, credential: p.credential as JsonObject }, counterPending: p.doc === null })
   const events: EventDraft[] = []
   const pid = confirmPromptId(r.own)
   if (closePrompt && Object.hasOwn(next.prompts, pid)) {
@@ -528,8 +528,8 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
   // held, checks 5–6 at stage 8 (an unknown value goes to stage 9)
   async prepare (ctx, doc, arrival) {
     const { card, credential } = doc.payload
-    if (!(await diVerify(card, card.anchor))) return refuse('validation-failed', 'RLTP-ENC-6020')
-    const h = await credHead(credential, doc.recipient, false)
+    if (!(await diVerify(card, card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-ENC-6020')
+    const h = await credHead(credential, doc.recipient, false, ctx.crypto.subtle)
     if (h) return refuse(dispositionOf(h), errRef(h))
     const S = ctx.crypto.subtle
     const own = credential.credentialSubject.challenge as string
@@ -582,7 +582,7 @@ const bundleTask: TaskHandler<BundlePayload, BundlePrep> = {
     const thread = r.thread ?? doc.threadId
     const next: EnactmentRecord = {
       ...r,
-      in: r.in ?? { digest: p.credDigest, credential: credential as Json },
+      in: r.in ?? { digest: p.credDigest, credential: credential as JsonObject },
       thread,
       bundleDigest: r.bundleDigest ?? arrival.digest,
       threads: thread === doc.threadId ? r.threads : { ...r.threads, [doc.threadId]: arrival.digest },
@@ -610,6 +610,11 @@ interface DeliveryPrep { verdict: CredError | null, credDigest: string }
 
 const deliveryTask: TaskHandler<DeliveryPayload, DeliveryPrep> = {
   proof: 'absent',
+  // bound to the enactment record on its tuple (below): a late counter
+  // credential is taken against the record even where a chaining has
+  // deactivated that tuple since (4.2; encounter review 2/14); no new
+  // issuance goes out on it
+  pinned: true,
   decode: (payload) => (schemaOk('payload-encounter-credential-delivery.schema.json', payload) ? payload as DeliveryPayload : refuse('malformed')),
   async prepare (ctx, doc, arrival) {
     const f = deliveryForm(doc)
@@ -618,7 +623,7 @@ const deliveryTask: TaskHandler<DeliveryPayload, DeliveryPrep> = {
     const at = tupleByRkid(ctx.snapshot, arrival.rkid)
     if (!at || !recordOfLabel(ctx.snapshot, at.tuple.ownPairLabel)) return refuse('validation-failed')
     // 5.6 steps 1–3, no state touched; the rest runs in the transaction
-    return { verdict: await credHead(doc.payload.credential, doc.recipient), credDigest: await digestDoc(doc.payload.credential, ctx.crypto.subtle) }
+    return { verdict: await credHead(doc.payload.credential, doc.recipient, true, ctx.crypto.subtle), credDigest: await digestDoc(doc.payload.credential, ctx.crypto.subtle) }
   },
   apply (state, prepared, doc, arrival) {
     const at = tupleByRkid(state, arrival.rkid)!
@@ -639,7 +644,7 @@ const deliveryTask: TaskHandler<DeliveryPayload, DeliveryPrep> = {
     let next: EnactmentRecord = inBundle ? r : { ...r, threads: { ...r.threads, [doc.threadId]: arrival.digest } }
     const events: EventDraft[] = []
     if (!e && !r.in) {
-      next = { ...next, in: { digest: p.credDigest, credential: cred as Json } }
+      next = { ...next, in: { digest: p.credDigest, credential: cred as JsonObject } }
       const place = placeOf(state, r)
       events.push({ type: 'encounter.accepted', contactId: place.contactId, relationshipId: place.relationshipId, mutual: r.out !== null })
     }
@@ -657,6 +662,11 @@ function retainChallenges (state: Readonly<HolderState>, when: Millis): HolderSt
   return { ...state, encounter: { ...state.encounter, challenges } }
 }
 
+/** When retainChallenges drops an aged challenge (5.3): the first whole
+ *  second past its maximum age and the skew (the timer contract, engine.ts). */
+const challengeDeadlines = (state: Readonly<HolderState>): Millis[] =>
+  Object.values(state.encounter.challenges).map((c) => (Math.floor(c.tCh / 1000) + (CHALLENGE_MAX_AGE + SKEW_TOLERANCE) / 1000 + 1) * 1000)
+
 /** The encounter module createHolder registers. */
 export function encounterModule (): HolderModule {
   return Object.freeze({
@@ -670,5 +680,6 @@ export function encounterModule (): HolderModule {
     tasks: Object.freeze({ [BUNDLE_TYPE]: bundleTask, [DELIVERY_TYPE]: deliveryTask }),
     decisions: Object.freeze({ 'encounter-confirm': confirmDecision }),
     retain: retainChallenges,
+    deadlines: challengeDeadlines,
   })
 }

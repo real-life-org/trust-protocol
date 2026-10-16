@@ -20,3 +20,10 @@ export type { NewTupleInput } from './trust/continuity.js'
 export type { OpenPromptInput } from './fixtures.js'
 export { stateViolations, transitionViolations, commitViolations } from './invariants.js'
 export type { CommitOp, Violation } from './invariants.js'
+export { forgeMapping } from './forge.js'
+export type { ForgeMappingInput } from './forge.js'
+// the live schema bundle (deep-frozen) and the wire-artifact types generated
+// from the same schemas (wire.ts): they track the repository's castings, so
+// they are test and tooling material, not the pinned root surface
+export { SCHEMAS } from './schemas.js'
+export type * as wire from './wire.js'

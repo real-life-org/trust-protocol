@@ -13,12 +13,15 @@
 // versions and the codec are independent; a migration never re-issues
 // stored documents, outbound or acks.
 //
-// Codec 0 is unstable until 0.4.0: persistence across library versions
-// is not supported before then. From 0.4.0 every codec gets a golden
-// fixture and a migration test.
+// Codec 1 is the format of 0.4.0: its golden fixtures are
+// lib/test/fixtures/*.json (deterministic runs, test/fixtures/gen-state-v1.mjs),
+// decoded and re-encoded byte-identically by test/codec-fixture.test.mjs.
+// The rule: codec 1 is read; a newer codec is codec-newer; a codec without
+// a validator is codec-unknown. Every later codec adds its validator, a
+// migration from the one before, and its own fixture with a migration test.
 import { jcs } from './core.js';
 /** The codec this library writes. */
-export const CODEC = 0;
+export const CODEC = 1;
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
@@ -104,7 +107,7 @@ const keyed = (v, idField) => (x, p) => {
 // ── the HolderState shape (state.ts) ───────────────────────────────────
 const setting = lit('default', 'on', 'off');
 const trustClass = lit('star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 'profile');
-const recipient = obj({ contactId: str, rkid: str, keyAgreement: str }, { anchor: str });
+const recipient = obj({ contactId: str, rkid: str, keyAgreement: str }, { anchor: str, via: str });
 const envelope = obj({ rkid: str, epk: str, nonce: str, ciphertext: str });
 const assembly = obj({ salt: dec, chunks: rec(json) });
 const seqOutShape = (item) => obj({
@@ -144,7 +147,7 @@ const logHead = (x, p) => {
 };
 const tuple = obj({
     ownPairLabel: str, counterpartAnchor: str, counterpartKeyAgreement: str, rkid: str, entryId: str,
-    priorCandidates: arr(obj({ ownPairLabel: str, counterpartAnchor: str })),
+    priorCandidates: arr(obj({ ownPairLabel: str, counterpartAnchor: str }, { replaces: arr(str) })),
     starOut, starIn, groupStarOut, groupStarIn,
     probeOut: obj({ seq: dec, inflight: rec(obj({ digests: arr(str), acked: arr(str) })), done: bool }),
     probeIn: obj({ hwm: dec, lowerBound: dec, assembly: nullable(assembly) }),
@@ -159,7 +162,7 @@ const tuple = obj({
 const relationship = obj({
     id: str, contactId: str, tuples: arr(tuple), activeHead: str, earliestAnchor: nullable(str),
     links: arr(obj({ prev: str, next: str })), bindings: rec(set(str)), heldCounterpartHead: nullable(str),
-    memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str }),
+    memory: rec(json), provenance: obj({ kind: lit('ceremony', 'introduced'), at: millis }, { via: str, viaPin: str }),
     chainedInto: nullable(str), firstVerified: nullable(dec),
 });
 const contact = obj({
@@ -260,8 +263,8 @@ const event = (x, p) => {
     const [req, opt = {}] = EVENT_FIELDS[t];
     obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
 };
-const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str });
-const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis });
+const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str, rkid: str });
+const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, rkid: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis });
 const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at: millis });
 const groupShape = obj({
     id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
@@ -292,8 +295,8 @@ const introAct = obj({
     at: millis, ackDelayMs: natural, ownLabel: nullable(str), ack: nullable(anyObj), replyForwarded: bool, vouchersSent: bool,
     pendingVoucher: nullable(anyObj), voucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
 }, { peerName: str });
-const codec0 = obj({
-    codec: lit(0),
+const codec1 = obj({
+    codec: lit(1),
     commitSeq: dec,
     lastWhen: millis,
     register: obj({
@@ -327,16 +330,16 @@ const codec0 = obj({
         declarations: rec(obj({ issuer: str, role: str, revision: dec, constants: rec(str), at: millis })),
     }),
     joining: obj({
-        preludes: rec(obj({ group: str, inviter: str, contactId: str, memberLabel: str, at: millis })),
+        preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
         invites: keyed(obj({
-            credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+            credDigest: str, group: str, name: str, contactId: str, rkid: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
             status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
         }, { acceptDigest: str }), 'credDigest'),
     }),
 });
 /** Structural validators per codec version; every readable codec has one. */
 export const VALIDATORS = Object.freeze({
-    0: (raw) => codec0(raw, '$'),
+    1: (raw) => codec1(raw, '$'),
 });
 // ── the codec ──────────────────────────────────────────────────────────
 /** Canonical JSON text of a JSON-pure value, or not-json. */

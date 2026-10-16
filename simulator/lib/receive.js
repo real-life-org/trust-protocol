@@ -96,13 +96,13 @@
 // counterpart's key agreement the ack is sealed to and the contact it is
 // filed under, or refuses (stage 7 for malformed, else 8). Every other
 // handler keeps the tuple binding of Delivery 4.4.
-import { calOK, iso, makeValidator } from './core.js';
+import { calOK, iso, makeValidator, toU } from './core.js';
 import { diSignWith, diVerify, digestDoc, xRawOfMk } from './crypto.js';
 import { receiveByAgreement, seal } from './delivery.js';
 import { ACK_TYPE, ackDocument, ackKeyOf, ackProofForm, macAck, macAckForm, macAckValid, signedAckForm } from './ack.js';
 import { SCHEMAS } from './schemas.js';
 import { triasOf } from './state.js';
-import { entryOf } from './trust/state.js';
+import { entryOf, liveRel } from './trust/state.js';
 import { InfraError } from './results.js';
 export const isTaskDiscarded = (x) => x !== null && typeof x === 'object' && x.discarded === true;
 /** A sealed ack as the outbound the app sends, at the given attempt. */
@@ -203,14 +203,16 @@ export async function prepareReceive(ctx, env, tasks) {
         // that thread, sent from the arrival rkid, of the class the proof form
         // claims; the issuer its recipient (the tuple's counterpart, or the
         // anchor it went to where no tuple carried it)
-        const item = Object.hasOwn(state.outbox, f.ref) ? state.outbox[f.ref] : undefined;
+        // the ref in either rendering (u or z, 4.2) names the outbox item by its digest bytes
+        const ref = toU(f.ref) ?? f.ref;
+        const item = Object.hasOwn(state.outbox, ref) ? state.outbox[ref] : undefined;
         if (!item || item.threadId !== f.threadId || item.recipient.rkid !== rkid || SIGNATURE_CLASS.has(item.type) !== signed)
             return failed('validation-failed', 8, { digest });
         const expected = at ? at.tuple.counterpartAnchor : item.recipient.anchor;
         if (expected === undefined || doc.issuer !== expected)
             return failed('validation-failed', 8, { digest });
         if (signed) {
-            if (!(await diVerify(doc, doc.issuer)))
+            if (!(await diVerify(doc, doc.issuer, S)))
                 return failed('validation-failed', 8, { digest });
         }
         else {
@@ -218,7 +220,7 @@ export async function prepareReceive(ctx, env, tasks) {
             if (!key || !(await macAckValid(doc, key, S)))
                 return failed('validation-failed', 8, { digest });
         }
-        return { kind: 'ack', digest, ref: f.ref };
+        return { kind: 'ack', digest, ref };
     }
     // 6 — the task register, by the full type URI (no prefix, no fallback)
     const h = tasks.get(doc.type);
@@ -244,6 +246,11 @@ export async function prepareReceive(ctx, env, tasks) {
     else {
         if (!at || doc.issuer !== at.tuple.counterpartAnchor)
             return failed('validation-failed', 8, { digest });
+        // a deactivated tuple takes nothing new (6190, 6240): the arrival tuple is
+        // the active head of a live relationship, unless the handler binds its
+        // artifacts to the tuples an act pinned before a chaining (8270)
+        if (!h.pinned && (!liveRel(at.rel) || at.rel.activeHead !== at.tuple.ownPairLabel))
+            return failed('validation-failed', 8, { digest, ref: 'RLTP-TRU-6240' });
         // the entry the arrival's relationship sends under (2146), by its current id
         peer = { keyAgreement: at.tuple.counterpartKeyAgreement, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId };
     }
@@ -271,7 +278,7 @@ export async function prepareReceive(ctx, env, tasks) {
     const envelope = await seal(ackDoc, peer.keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S);
     const ack = {
         digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-        recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement },
+        recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement, ...(peer.via !== undefined ? { via: peer.via } : {}) },
     };
     return { kind: 'task', digest, type: doc.type, doc: rdoc, arrival, value, ack };
 }

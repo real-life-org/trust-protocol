@@ -4,11 +4,7 @@
 // registered task star/0.2 (5.1–5.2a), reconciled per recipient (5.4),
 // and the machinery the group star (trust/group-star.ts) shares with it:
 // the sender's salt scope, baseline automaton and in-flight deliveries,
-// and the receiver's assembly per (tuple, salt). Graduated from
-// probe/trust.ts (viewOf, buildStar, reconcile, starRefreshAll,
-// refreshStarInfo, the star branch of receiveTrustDoc, the star branch of
-// receiveAckInner) onto HolderState; probe/trust.ts stays as it is for the
-// simulators until PR 7.
+// and the receiver's assembly per (tuple, salt), on HolderState.
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //

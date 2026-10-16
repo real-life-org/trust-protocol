@@ -9,7 +9,7 @@
 //
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md);
 // Identity §n is identity-layer.md, Delivery §n delivery-contract.md.
-import type { Json } from './core.js'
+import type { Json, JsonObject } from './core.js'
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
 import type { DeliveryFailure, LogHead, PreTransportReason, ReceiverRefusalCode, Recipient } from './ports.js'
@@ -91,7 +91,7 @@ export interface Register {
 }
 
 /** A signed anchor-rotation@2 artifact (Trust §6.5). */
-export type AnchorRotation = { [field: string]: Json }
+export type AnchorRotation = JsonObject
 
 export interface CarrierNonce { nonce: B64u, generation: Dec }
 
@@ -162,7 +162,9 @@ export interface Relationship {
   heldCounterpartHead: string | null
   /** contact memory and evidence (2280) */
   memory: Record<string, Json>
-  provenance: { kind: 'ceremony' | 'introduced', via?: string, at: Millis }
+  /** via: the introducer's contact; viaPin: the own pair label toward it
+   *  the act was pinned to (8270), which a split follows (2080) */
+  provenance: { kind: 'ceremony' | 'introduced', via?: string, viaPin?: string, at: Millis }
   /** set when this chain was appended into another (6a.4): the fresh
    *  relationship whose tuple a chaining appended to `chainedInto` stays as
    *  a husk without tuples, its id resolving to the chain and its contactId
@@ -213,8 +215,11 @@ export interface Tuple {
   deactivated: boolean
 }
 
-/** A frozen reference to one tuple: its own pair label and the counterpart anchor. */
-export interface TupleRef { ownPairLabel: string, counterpartAnchor: string }
+/** A frozen reference to one tuple: its own pair label and the counterpart
+ *  anchor; in a prior-candidate set, `replaces` holds the counterpart
+ *  anchors of the candidates it took the place of in this tuple's flow
+ *  (spec follow-up 17), transitively, absent where none */
+export interface TupleRef { ownPairLabel: string, counterpartAnchor: string, replaces?: string[] }
 
 /** Continuity work the tuple still owes (today's contMappingDue): the
  *  record side's choice (with the remaining alternatives), the non-record
@@ -300,8 +305,9 @@ export type GroupStarItem =
   | { group: string, mode: 'sealed', member: string, memberOp: string }
 export type GroupStarOut = SeqOut<GroupStarItem>
 /** A completed group star as the receiver keeps it (trust/group-star.ts):
- *  its salt, the entries {d, c} whose d hit one of the holder's own
- *  groups (5520), and those groups, sorted. */
+ *  its salt, the whole assembled union of entries {d, c}, and the holder's
+ *  groups whose d it holds (5520), sorted; a group joined later is matched
+ *  against the union (groupStarRematch). */
 export type GroupStarIn = SeqIn<{ salt: Dec, entries: Array<{ d: string, c: string }>, groups: string[] }>
 
 /** A chunked document under assembly: chunk index → chunk. */
@@ -317,7 +323,7 @@ export interface Group {
   /** the group DID, its address, never its identity (Membership 2.3) */
   did?: string
   /** the signed genesis, as founded or as the welcome carried it */
-  genesis?: Json
+  genesis?: JsonObject
   /** own member context label in this group: the founding pair label for
    *  the founder (Access 3.4.1), group/<digest> for a member (5.1) */
   memberLabel: string
@@ -362,6 +368,9 @@ export interface RosterEntry {
   addedAt: Millis
   /** the contact this holder knows the member as, where it does */
   contactId?: string
+  /** with contactId: the own rkid of the tuple that named the member as
+   *  that contact (its invitation's prelude), which a split follows (2080) */
+  rkid?: string
 }
 
 /** An invitation issued (Membership 3.1): the invite document as sent. */
@@ -371,20 +380,22 @@ export interface OpenInvitation {
   /** the invitee's member key agreement, from the prelude */
   keyAgreement: string
   contactId: string
+  /** the own rkid of the tuple the prelude went on, which a split follows (2080) */
+  rkid: string
   threadId: string
   /** the invitation's identity: its credential digest (RLTP-MT-2180) */
   credDigest: string
-  invite: Json
+  invite: JsonObject
   validUntil: Millis
 }
 
 /** A consent pair held toward an admission (Membership 3.4). */
 export interface Evidence {
   /** the invite and the accept documents, complete */
-  invite: Json
-  accept: Json
+  invite: JsonObject
+  accept: JsonObject
   /** vouch@2 credentials for this accept, at most 16 (3805) */
-  vouches: Json[]
+  vouches: JsonObject[]
   at: Millis
 }
 
@@ -393,7 +404,9 @@ export interface Joining {
   /** preludes answered, by `<genesis digest> <inviter member anchor>`:
    *  which contact asked as which inviter, so the invite that follows from
    *  that anchor is surfaced as that contact's */
-  preludes: Record<string, { group: string, inviter: string, contactId: string, memberLabel: string, at: Millis }>
+  /** by (group, inviter): the contact and the own rkid of the tuple the
+   *  prelude arrived on, the binding a later prelude is held against */
+  preludes: Record<string, { group: string, inviter: string, contactId: string, rkid: string, memberLabel: string, at: Millis }>
   /** invitations received, by credential digest */
   invites: Record<string, ReceivedInvite>
 }
@@ -405,9 +418,11 @@ export interface ReceivedInvite {
   group: string
   name: string
   contactId: string
+  /** the own rkid of the tuple its prelude arrived on, which a split follows (2080) */
+  rkid: string
   memberLabel: string
   /** the invite document, complete */
-  invite: Json
+  invite: JsonObject
   promptId: string
   validUntil: Millis
   status: 'open' | 'accepted' | 'declined' | 'joined'
@@ -612,10 +627,10 @@ export interface IntroAct {
   /** the request's issuedAt: the act's lifetime datum (8090) */
   issuedAt: Millis
   /** the request artifact and its card; the reply and its card (8200) */
-  request: Json
-  requestCard: Json
-  reply: Json | null
-  replyCard: Json | null
+  request: JsonObject
+  requestCard: JsonObject
+  reply: JsonObject | null
+  replyCard: JsonObject | null
   /** the pinned tuples, by own pair label (8270): the requester's and the
    *  target's toward the mediator, the mediator's toward each side */
   pins: { requester?: string, target?: string, mediator?: string }
@@ -628,15 +643,15 @@ export interface IntroAct {
   /** the own fresh pair label of the act (requester, target) */
   ownLabel: string | null
   /** mediator: the one ack value produced (8640) */
-  ack: Json | null
+  ack: JsonObject | null
   /** mediator: the reply forwarded and the vouchers sent (8360) */
   replyForwarded: boolean
   vouchersSent: boolean
   /** requester, target: a voucher held pending its reply (8770) */
-  pendingVoucher: Json | null
+  pendingVoucher: JsonObject | null
   /** requester, target: the accepted voucher, retained until the absolute
    *  lifetime for the duplicate rule (8200, 8260) */
-  voucher: Json | null
+  voucher: JsonObject | null
   vouched: boolean
   /** target: the prompt asking for consent */
   promptId: string | null
@@ -669,11 +684,11 @@ export interface OwnChallenge {
   /** the fresh pair label the card is shown under (4.4) */
   label: string
   /** the displayed card: the optical payload */
-  card: Json
+  card: JsonObject
 }
 
 /** A step credential with its credential digest (5.6 step 8). */
-export interface HeldCredential { digest: string, credential: Json }
+export interface HeldCredential { digest: string, credential: JsonObject }
 
 /** The enactment record (5.5), keyed by the own challenge value. Its
  *  tuple is the relationship `relId` under the own pair label `label`. */
@@ -686,7 +701,7 @@ export interface EnactmentRecord {
   peer: string
   /** the counterparty anchor and its card as received */
   counterpart: string
-  card: Json
+  card: JsonObject
   /** the enactment binding (5.4) */
   bind: string
   /** local time of the enactment */
@@ -707,7 +722,7 @@ export interface EnactmentRecord {
    *  digest) or a standalone delivery's, threadId → document digest */
   threads: Record<string, string>
   /** the scanner's sent card: the optical leg's payload (5.8) */
-  sentCard: Json | null
+  sentCard: JsonObject | null
   /** the displayer issued its counter credential on the optical leg
    *  before the bundle landed: its document waits for the thread (5780) */
   counterPending: boolean

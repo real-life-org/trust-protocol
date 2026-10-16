@@ -3,9 +3,8 @@
 // star — star@2, the blinded star with its 5.2a chunks (Trust Layer 0.31
 // §5.1–5.2a, task star/0.2): the pure wire constructions over a raw
 // X25519 shared secret (lib Stage 2, PR 4b). The holder's trust module
-// (trust/star.ts) builds and receives through these; probe/trust.ts keeps
-// its own copy for the simulators until PR 7. Byte-compatible with the
-// star of vectors/visibility.json (vectors3.test.mjs).
+// (trust/star.ts) builds and receives through these. Byte-compatible with
+// the star of vectors/visibility.json (vectors3.test.mjs).
 //
 //   k     = HKDF(X25519(pairX_sender, pairX_recipient),
 //                "rltp/visibility/blind/star/" || senderPair || "/" || recipientPair || "/" || salt)   (5160)

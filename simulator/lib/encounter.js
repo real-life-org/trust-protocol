@@ -79,12 +79,10 @@ export async function issueCredential(ctx, subjectAnchor, ceremony, subjectChall
     return diSign(ctx, credentialBody(ctx.anchor, subjectAnchor, ceremony, subjectChallenge, enactmentBinding, whenIso), whenIso);
 }
 // ── the ceremony's pure checks (Encounter 0.31 §5–§7, Delivery 4.1/4.3) ──
-// Graduated from probe/encounter.ts (which imports them from here): the
-// task types, the §9 constants, the whole-second time rules, the card
+// The task types, the §9 constants, the whole-second time rules, the card
 // check, the 5.6 credential checks in their normative order, and the
 // outer/inner forms of the two carriers. State-free: what needs the
-// own-challenge state or the records is the holder's (encounter/ceremony.ts)
-// or the probe's.
+// own-challenge state or the records is the holder's (encounter/ceremony.ts).
 const TT = 'https://real-life.org/trust-tasks/';
 /** The scanner's sent card and step credential (Delivery 4.1). */
 export const BUNDLE_TYPE = TT + 'encounter-bundle/0.1';
@@ -118,7 +116,7 @@ export const CARD_SCHEMA = 'contact-card-0.25.schema.json';
 /** A card for an enactment (Encounter 6): schema-valid, its version known,
  *  a challenge, calendar-valid times, keys that decode, the proof under the
  *  anchor. null when it passes, else the reason. */
-export async function cardOk(card) {
+export async function cardOk(card, subtle) {
     if (!schemaOk(CARD_SCHEMA, card))
         return 'card fails contact-card-0.25 schema';
     if (card.version !== CARD_VERSION)
@@ -129,7 +127,7 @@ export async function cardOk(card) {
         return 'card: calendar-invalid timestamp';
     if (!xRawOfMk(card.keyAgreement) || !edRawOfAnchor(card.anchor))
         return 'card keyAgreement does not decode (x25519-pub + 32 bytes, 2.3)';
-    if (!(await diVerify(card, card.anchor)))
+    if (!(await diVerify(card, card.anchor, subtle)))
         return 'card proof';
     return null;
 }
@@ -156,11 +154,11 @@ export function credFormat(cred, ceremonyHere = true) {
     return null;
 }
 /** 5.6 steps 1–3: format, signature, addressee (`localAnchor`). */
-export async function credHead(cred, localAnchor, ceremonyHere = true) {
+export async function credHead(cred, localAnchor, ceremonyHere = true, subtle) {
     const f = credFormat(cred, ceremonyHere);
     if (f)
         return f;
-    if (!(await diVerify(cred, cred.issuer)))
+    if (!(await diVerify(cred, cred.issuer, subtle)))
         return 'ERR_SIG';
     if (cred.credentialSubject.id !== localAnchor)
         return 'ERR_ADDRESSEE';

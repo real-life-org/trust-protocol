@@ -1,12 +1,23 @@
 #!/usr/bin/env node
-// introduce-test — the Jonathan/Anton/Emil script as executable assertions.
-// Proves the probe's four claims: mediator-initiated, independent release,
-// airplane-mode mediator (drop port, no ferry), one-sidedness first-class.
+// introduce-test — the Jonathan/Anton/Emil script as executable assertions,
+// on the holder (Trust Layer 0.31 §8): Anton's one act (the offer to
+// Jonathan), Jonathan's request, Anton's forward, Emil's consent, the reply
+// relayed back, the vouchers, and an introduced relationship on both sides
+// under fresh anchors Anton never holds.
+//
+// CHANGED in lib Stage 2 (PR 7b): the scenario "mediator in airplane mode"
+// (the probe's rendezvous drop: the parties fetched each other's cards from
+// a drop while the mediator stayed offline) is now "mediator offline: the
+// act waits until the mediator is back and relays". Trust §8 relays the act
+// through the mediator; there is no rendezvous drop any more, so the request
+// waits in transit while Anton is away, and his device forwards it when it
+// is back. The requester waits for the ack and the reply until the act's
+// expiry (8340; A20, spec follow-up 18): away past it, the act fails.
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { makeValidator } from './rltp-core.mjs'
-import * as I from './introduce.mjs'
+import { createPerson, createNetwork, meet, at, decideAll, TYPES } from './holder.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCHEMAS = {}
@@ -16,147 +27,132 @@ const V = makeValidator(SCHEMAS)
 let pass = 0, fail = 0
 const check = (c, m) => { if (c) { pass++; console.log(`  ok    ${m}`) } else { fail++; console.error(`  FAIL  ${m}`) } }
 const T0 = Date.parse('2026-08-25T15:00:00Z')
+const MIN = 60_000
 
-// ── setup: Anton kennt Jonathan und Emil (echte Zeremonien) ─────────────
-const anton = I.createPerson('Anton'), jonathan = I.createPerson('Jonathan'), emil = I.createPerson('Emil')
-const cJ = await I.ceremony(anton, jonathan, T0)
-const cE = await I.ceremony(anton, emil, T0 + 1000)
-check(anton.contacts.size === 2 && jonathan.contacts.size === 1 && emil.contacts.size === 1, 'Setup: Anton hält beide, die beiden halten nur Anton')
-check(![...jonathan.contacts.keys()].some((a) => emil.contexts.has(a)), 'Jonathan hält KEINEN Anker von Emil (nicht verbunden)')
+/** M has met R and T; M introduces R (the requester) to T (the target). */
+async function triangle (names, t) {
+  const [M, R, Tt] = await Promise.all(names.map((n) => createPerson(n, { when: t })))
+  const net = createNetwork([M, R, Tt])
+  const mr = await meet(net, R, M, t)              // R scans M's code
+  const mt = await meet(net, Tt, M, t + 10_000)    // T scans M's code
+  return { M, R, T: Tt, net, mr, mt }
+}
+const typesOf = (net, from) => net.wire.slice(from).map((w) => w.type)
 
-// ── Antons EIN Akt, dann Flugmodus ──────────────────────────────────────
-const drop = I.createDrop()
-const { act, offers } = await I.introduce(anton, cJ.ctxB.anchor, cE.ctxB.anchor, T0 + 5000)
-await I.setOnline(anton, false, drop)
-check(anton.online === false, 'Anton ist im Flugmodus')
+// ── setup: Anton has met Jonathan and Emil (real ceremonies) ────────────
+const { M: anton, R: jonathan, T: emil, net, mr, mt } = await triangle(['Anton', 'Jonathan', 'Emil'], T0)
+check(anton.view.contacts.length === 2 && jonathan.view.contacts.length === 1 && emil.view.contacts.length === 1, 'setup: Anton holds both, each of them holds only Anton')
+check(mr.atScanner.verification === 'mutual' && mt.atScanner.verification === 'mutual', 'both ceremonies are mutual (⇄ verified)')
+check(![...emil.anchors.keys()].some((a) => jonathan.view.state && JSON.stringify(jonathan.view.state.relationships).includes(a)), 'Jonathan holds NO anchor of Emil (not connected)')
 
-// Angebote kommen an (über die bestehenden Kanäle, Anton schon offline —
-// sie waren beim Akt bereits versiegelt unterwegs)
-const rJ = await I.receiveOffer(jonathan, offers[0].env) // offers[0] ist an Jonathan adressiert (erste Auswahl im Akt)
-const rE = await I.receiveOffer(emil, offers[1].env)
-check(!rJ.error && rJ.entry.offer.peer.name === 'Emil', 'Jonathan: "Anton möchte dich mit Emil verbinden"')
-check(!rE.error && rE.entry.offer.peer.name === 'Jonathan', 'Emil: "Anton möchte dich mit Jonathan verbinden"')
-check(rJ.entry.offer.rendezvous === rE.entry.offer.rendezvous && rJ.entry.offer.act === act, 'beide Angebote tragen dasselbe Akt-Geheimnis')
+// ── Anton's ONE act: the offer to Jonathan ──────────────────────────────
+const t1 = T0 + 5 * MIN
+const act = await anton.h.introduce(mr.atDisplayer.id, mt.atDisplayer.id, at(t1, { label: 'Emil' }))
+check(act.ok && act.outbound.map((o) => o.type).join() === [TYPES.declaration, TYPES.offer].join(), 'Anton\'s act: his ack-delay declaration and the offer, sealed to Jonathan')
+await net.send(anton, act.outbound, t1)
+await jonathan.refresh()
+const [offerPrompt] = jonathan.view.prompts
+check(offerPrompt?.kind === 'introduction' && offerPrompt.contactId === mr.atScanner.id, 'Jonathan: "Anton offers to introduce you to Emil" — a prompt on his Anton contact')
 
-// ── unabhängige Freigabe: erst Jonathan (einseitig), dann Emil ──────────
-const consJ = await I.consent(jonathan, rJ.entry, drop, T0 + 60_000)
-check(consJ.mutual === false, 'Jonathan freigegeben: ◇ gesendet — noch einseitig, niemand wartet auf niemanden')
-check(V.validate(await cardOf('a'), SCHEMAS['contact-card-0.25.schema.json'], SCHEMAS['contact-card-0.25.schema.json']).length === 0, 'die deponierte Karte ist schema-valide (0.25 displayed form)')
-async function cardOf (dir) { // Testhilfe: liest den Drop mit dem Akt-Geheimnis (wie eine Partei)
-  const secret = Uint8Array.from(Buffer.from(rJ.entry.offer.rendezvous, 'base64url'))
-  const { jcs } = await import('./rltp-core.mjs')
-  const C = await import('./rltp-crypto.mjs')
-  const topic = C.b64uOf(await C.hkdf(secret, 'rltp/introduce/topic/' + dir))
-  const blob = drop.slots.get(topic)
-  const raw = Uint8Array.from(Buffer.from(blob, 'base64url'))
-  const key = await globalThis.crypto.subtle.importKey('raw', await C.hkdf(secret, 'rltp/introduce/key/' + dir), { name: 'AES-GCM' }, false, ['decrypt'])
-  const pt = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.subarray(0, 12) }, key, raw.subarray(12))
-  return JSON.parse(new TextDecoder().decode(new Uint8Array(pt))).card
+// ── mediator offline: the act waits until the mediator is back ──────────
+await net.setOnline(anton, false, t1 + 1000)
+const w0 = net.wire.length
+const [req] = await decideAll(net, jonathan, 'introduction', 'accept', t1 + 2000)
+check(req.ok && req.outbound.map((o) => o.type).join() === TYPES.request, 'Jonathan accepts: the introduction request with his fresh card goes toward Anton')
+check(net.channel.transit.get('Anton')?.length === 1, 'Anton is offline: the request waits in transit at the relay')
+check(!typesOf(net, w0).includes(TYPES.forward) && emil.view.prompts.length === 0, 'nothing reaches Emil while Anton is away — the act is relayed by the mediator, not by a drop')
+const jAct = Object.values((await jonathan.read()).encounter.introductions)[0]
+check(jAct.role === 'requester' && jAct.status === 'sent', 'Jonathan\'s act stands as sent')
+
+const t2 = t1 + 3 * MIN    // back well inside the act's expiry (72 h)
+await net.setOnline(anton, true, t2)
+check(typesOf(net, w0).includes(TYPES.forward), 'Anton back online: his device takes the request and forwards it to Emil')
+await emil.refresh()
+const [consentPrompt] = emil.view.prompts
+check(consentPrompt?.kind === 'introduction' && consentPrompt.contactId === mt.atScanner.id, 'Emil: a consent prompt on his Anton contact')
+const w1 = net.wire.length
+await decideAll(net, emil, 'introduction', 'accept', t2 + 1000)
+check(typesOf(net, w1).filter((t) => t === TYPES.reply).length === 2, 'Emil consents: the reply goes to Anton, who relays it to Jonathan')
+check(typesOf(net, w1).filter((t) => t === TYPES.voucher).length === 2, 'Anton vouches toward both (introduction-voucher, act-bound)')
+await net.settle(t2 + 1000 + 31_000)     // Anton's one ack at t_received + ack-delay
+for (const p of [anton, jonathan, emil]) await p.refresh()
+
+// ── the core claims ─────────────────────────────────────────────────────
+const jc = jonathan.view.contacts.find((c) => c.provenance === 'introduced')
+const ec = emil.view.contacts.find((c) => c.provenance === 'introduced')
+check(jc?.displayName === 'Emil' && jc.via === mr.atScanner.id, 'Jonathan holds Emil: introduced via his Anton contact, under the label Anton typed')
+check(ec?.displayName === 'Jonathan' && ec.via === mt.atScanner.id, 'Emil holds Jonathan: introduced via his Anton contact, under Jonathan\'s own display name')
+const sJ = jonathan.view.state, sE = emil.view.state
+const jAnchors = Object.values(sJ.relationships).flatMap((r) => r.tuples).map((t) => t.counterpartAnchor)
+const eAnchors = Object.values(sE.relationships).flatMap((r) => r.tuples).map((t) => t.counterpartAnchor)
+check(jAnchors.some((a) => emil.owns(a)) && eAnchors.some((a) => jonathan.owns(a)), 'the new relationship: each holds a fresh anchor of the other')
+const antonHolds = Object.values(anton.view.state.relationships).flatMap((r) => r.tuples).map((t) => t.counterpartAnchor)
+check(!jAnchors.filter((a) => emil.owns(a)).some((a) => antonHolds.includes(a)) && !eAnchors.filter((a) => jonathan.owns(a)).some((a) => antonHolds.includes(a)), 'the crossed anchors are fresh — Anton holds neither (nothing was transferred)')
+const intros = (p) => Object.values(p.view.state.encounter.introductions)
+check(intros(jonathan)[0].status === 'completed' && intros(jonathan)[0].vouched, 'Jonathan\'s act: completed, the voucher verified (the evidence behind the introduced contact)')
+check(intros(emil)[0].status === 'consented' && intros(emil)[0].vouched, 'Emil\'s act: consented, vouched')
+check(intros(anton).find((a) => a.role === 'mediator')?.status === 'completed', 'Anton\'s act completed only after his ack went out')
+const card = intros(emil)[0].requestCard
+check(V.validate(card, SCHEMAS['contact-card-0.25.schema.json'], SCHEMAS['contact-card-0.25.schema.json']).length === 0, 'the card Jonathan sent is schema-valid (0.25 card form)')
+check(jc.trust.given === false && ec.trust.given === false, 'an introduction discloses nothing: no trust given on either side')
+
+// ── refusal is local and silent ─────────────────────────────────────────
+{
+  const { M, R, T: Tt, net: n2, mr: r1, mt: r2 } = await triangle(['Mia', 'Rolf', 'Ida'], T0)
+  const a = await M.h.introduce(r1.atDisplayer.id, r2.atDisplayer.id, at(T0 + MIN, { label: 'Ida' }))
+  await n2.send(M, a.outbound, T0 + MIN)
+  await decideAll(n2, R, 'introduction', 'accept', T0 + MIN + 1000)
+  const w = n2.wire.length
+  await decideAll(n2, Tt, 'introduction', 'decline', T0 + MIN + 2000)
+  check(n2.wire.length === w, 'Ida declines: nothing leaves her device')
+  await n2.settle(T0 + MIN + 40_000)
+  check(Object.values(R.view.state.encounter.introductions)[0].status === 'acked', 'Rolf still gets the one uniform ack at the declared delay — refusal and silence look alike (8650)')
+  check(!R.view.contacts.some((c) => c.provenance === 'introduced') && !Tt.view.contacts.some((c) => c.provenance === 'introduced'), 'no relationship on either side')
+  await R.h.tick(T0 + MIN + 1000 + 72 * 3600_000 + 1000); await R.refresh()
+  check(Object.values(R.view.state.encounter.introductions)[0].status === 'failed', 'Rolf\'s act fails on the reply timeout (8340)')
 }
 
-// PASSIVER EMPFANG (Modell C): Emils nächster Sync holt Jonathans Karte,
-// OBWOHL Emil noch gar nicht entschieden hat — wie eine geteilte Nummer
-const passive = await I.checkDrop(emil, rE.entry, drop)
-check(passive.mutual === false, 'Emil (unentschieden) hält Jonathans Karte nach Sync — einseitig ◇')
-const ecPre = [...emil.contacts.values()].find((c) => c.provenance.startsWith('introduced via'))
-check(ecPre?.state === '◇' && ecPre?.name === 'Jonathan', 'Kontaktliste zeigt Jonathan ◇ VOR Emils Entscheidung (UI = Daten)')
-
-const consE = await I.consent(emil, rE.entry, drop, T0 + 120_000)
-check(consE.mutual === true, 'Emil freigegeben: jetzt ⇄ bei Emil (◇ wurde hochgestuft)')
-const lateJ = await I.checkDrop(jonathan, rJ.entry, drop)
-check(lateJ.mutual === true, 'Jonathans nächster Sync holt Emils Karte — ⇄ bei Jonathan')
-
-// ── die Kernaussagen ────────────────────────────────────────────────────
-check(anton.online === false, 'Anton war die GANZE Zeit im Flugmodus')
-check(drop.log.every((e) => e.by !== 'Anton'), 'der Drop hat NIE einen Zugriff von Anton gesehen (kein Fähren-Schritt)')
-const jc = [...jonathan.contacts.values()].find((c) => c.provenance.startsWith('introduced via'))
-const ec = [...emil.contacts.values()].find((c) => c.provenance.startsWith('introduced via'))
-check(jc?.name === 'Emil' && jc?.state === '⇄' && jc?.provenance === 'introduced via Anton', 'Jonathan hält Emil: ⇄ vorgestellt via Anton')
-check(ec?.name === 'Jonathan' && ec?.state === '⇄', 'Emil hält Jonathan: ⇄')
-check(jc.voucher && jc.voucher.act === act, 'der Mediator-Voucher (Akt-gebunden) liegt beim Kontakt — die Evidenz hinter ◇/⇄')
-// die neuen Anker sind FRISCH: in keiner bisherigen Beziehung gesehen
-check(!anton.contacts.has(jc.card.anchor) && !anton.contacts.has(ec.card.anchor), 'die gekreuzten Anker sind frisch — Anton kennt sie nicht (Anker-Regel: nichts wurde transferiert)')
-// ab hier könnte Jonathan den Prelude für seine neue Gruppe fahren (Stage C)
-check(!!jc.channel.counterpartKa && !!jc.channel.own, 'der Kanal für Prelude → Invite → Accept steht (Stage-C-Anschluss)')
-
-// ── Negative ────────────────────────────────────────────────────────────
+// ── a mediator away past the act's expiry ───────────────────────────────
 {
-  // fremdes Geheimnis: Blob unlesbar
-  const fake = JSON.parse(JSON.stringify(rE.entry)); fake.offer = { ...fake.offer, rendezvous: Buffer.from(new Uint8Array(32).fill(9)).toString('base64url') }
-  fake.decided = true; fake.done = false; fake.ownCtx = consE.ctx
-  const r = await I.checkDrop(emil, fake, drop)
-  check(r?.mutual === false || r?.error === 'undecryptable', 'falsches Rendezvous-Geheimnis: nichts lesbar')
-  // Ignorieren blockiert den Empfang NICHT (irreversibles Wissen, ehrlich):
-  const ign = I.createPerson('Ida'), rel = I.createPerson('Rolf'), med2 = I.createPerson('Mia')
-  const y1 = await I.ceremony(med2, ign, T0), y2 = await I.ceremony(med2, rel, T0)
-  const d3 = I.createDrop()
-  const i3 = await I.introduce(med2, y2.ctxB.anchor, y1.ctxB.anchor, T0 + 20_000)
-  const rRel = await I.receiveOffer(rel, i3.offers[0].env)
-  const rIgn = await I.receiveOffer(ign, i3.offers[1].env)
-  rIgn.entry.decided = true; rIgn.entry.ignored = true          // Ida ignoriert
-  await I.consent(rel, rRel.entry, d3, T0 + 30_000)             // Rolf gibt frei
-  const got = await I.checkDrop(ign, rIgn.entry, d3)            // Idas Sync
-  check(got.mutual === false && [...ign.contacts.values()].some((c) => c.name === 'Rolf' && c.state === '◇'), 'Ignorieren: Ida hält Rolfs Karte trotzdem (◇) — ihre eigene Karte bleibt bei ihr')
-  check(![...rel.contacts.values()].some((c) => c.name === 'Ida'), 'Rolf hält NICHTS von Ida (sie hat nie freigegeben)')
-  // Offline-Konsens wird gequeued und beim Online-Gehen ausgeführt
-  const anna = I.createPerson('Anna'), bert = I.createPerson('Bert'), max = I.createPerson('Max')
-  const x1 = await I.ceremony(max, anna, T0), x2 = await I.ceremony(max, bert, T0)
-  const d2 = I.createDrop()
-  const intro2 = await I.introduce(max, x1.ctxB.anchor, x2.ctxB.anchor, T0 + 9000)
-  const ra = await I.receiveOffer(anna, intro2.offers[0].env)
-  await I.setOnline(anna, false, d2)
-  const qa = await I.consent(anna, ra.entry, d2, T0 + 10_000)
-  check(qa.queued === true && d2.log.length === 0, 'offline: Freigabe wird gequeued, nichts erreicht den Drop')
-  await I.setOnline(anna, true, d2)
-  check(d2.log.some((e) => e.op === 'put' && e.by === 'Anna'), 'online: die gequeuete Freigabe wird nachgeholt')
+  const { M, R, net: n3, mr: r1, mt: r2 } = await triangle(['Max', 'Anna', 'Bert'], T0)
+  const a = await M.h.introduce(r1.atDisplayer.id, r2.atDisplayer.id, at(T0 + MIN))
+  await n3.send(M, a.outbound, T0 + MIN)
+  await n3.setOnline(M, false, T0 + MIN)
+  await decideAll(n3, R, 'introduction', 'accept', T0 + MIN + 1000)
+  await n3.settle(T0 + 20 * MIN)          // Max still offline
+  check(Object.values(R.view.state.encounter.introductions)[0].status === 'sent', 'Max offline for 20 minutes: Anna\'s act still waits (A20: no ack timeout)')
+  const expired = T0 + MIN + 1000 + 72 * 3600_000 + 1000
+  await R.h.tick(expired); await R.refresh()
+  check(Object.values(R.view.state.encounter.introductions)[0].status === 'failed', 'no ack and no reply by the act\'s expiry: Anna\'s act fails (8340)')
+  await n3.setOnline(M, true, expired + MIN)
+  await n3.settle(expired + MIN)
+  check(!R.view.contacts.some((c) => c.provenance === 'introduced'), 'the late relay changes nothing at Anna: a failed act stays failed (8350)')
 }
 
-// ── Ketten-Vorstellung (Antons Entscheid 24.08.): ⇄ darf vermitteln, ────
-// die Offerte trägt die Herkunft des Vermittlers sichtbar; ◇ kann nicht.
+// ── a chain introduction: an introduced contact can be introduced on ────
 {
-  const m = I.createPerson('Mira'), u = I.createPerson('Udo'), v = I.createPerson('Vera'), w = I.createPerson('Wim')
-  const c1 = await I.ceremony(m, u, T0), c2 = await I.ceremony(m, v, T0 + 1000)
-  await I.ceremony(u, w, T0 + 2000) // Udo kennt Wim echt — nur fürs Setup unten
-  const d = I.createDrop()
-  // Runde 1: Mira stellt Udo⇠⇢Vera vor (beide met)
-  const i1 = await I.introduce(m, c1.ctxB.anchor, c2.ctxB.anchor, T0 + 10_000)
-  const rU = await I.receiveOffer(u, i1.offers[0].env)
-  check(rU.entry.offer.peer.provenance === 'met', 'Offerte trägt Herkunft: „met" — Mira hat Vera selbst getroffen')
-  const rV = await I.receiveOffer(v, i1.offers[1].env)
-  await I.consent(u, rU.entry, d, T0 + 11_000)
-  await I.consent(v, rV.entry, d, T0 + 12_000)
-  await I.checkDrop(u, rU.entry, d)
-  // Runde 2: Udo stellt Wim⇠⇢Vera vor — Vera kennt er nur VORGESTELLT
-  const veraKey = [...u.contacts.entries()].find(([, c]) => c.name === 'Vera')[0]
-  const wimKey = [...u.contacts.entries()].find(([, c]) => c.name === 'Wim')[0]
-  const i2 = await I.introduce(u, wimKey, veraKey, T0 + 20_000)
-  const rW = await I.receiveOffer(w, i2.offers[0].env)
-  check(rW.entry.offer.peer.provenance === 'introduced', 'Ketten-Offerte an Wim: „Udo hat Vera selbst nur vorgestellt bekommen" — sichtbar')
-  const rV2 = await I.receiveOffer(v, i2.offers[1].env)
-  check(rV2.entry.offer.peer.provenance === 'met', 'Gegenrichtung ehrlich: Wim kennt Udo echt (met)')
-  // der Voucher in VERAS Offerte bürgt für VERA — er reist mit ihrer Karte
-  // zu Wim und trägt Udos Herkunft ZU VERA (introduced)
-  check(rV2.entry.offer.voucherForCounterpart.provenance === 'introduced', 'auch der Akt-Voucher trägt die selbst-attestierte Herkunft (vouch@2-Vokabular)')
-  await I.consent(w, rW.entry, d, T0 + 21_000)
-  await I.consent(v, rV2.entry, d, T0 + 22_000)
-  const gotW = await I.checkDrop(w, rW.entry, d)
-  check(gotW.mutual && [...w.contacts.values()].some((c) => c.name === 'Vera' && c.state === '⇄' && c.mediatorProvenance === 'introduced'), 'Kette steht: Wim ⇄ Vera, Herkunft des Vermittlers am Kontakt festgehalten — amber wäscht nie zu blau')
-  // ◇ kann NICHT vermitteln: Vera hält Xara nur einseitig
-  const x = I.createPerson('Xara'), m2 = I.createPerson('Mona')
-  const z1 = await I.ceremony(m2, v, T0 + 30_000), z2 = await I.ceremony(m2, x, T0 + 31_000)
-  const d2 = I.createDrop()
-  const i3 = await I.introduce(m2, z1.ctxB.anchor, z2.ctxB.anchor, T0 + 32_000)
-  const rV3 = await I.receiveOffer(v, i3.offers[0].env)
-  const rX = await I.receiveOffer(x, i3.offers[1].env)
-  await I.consent(x, rX.entry, d2, T0 + 33_000)      // nur Xara gibt frei
-  await I.checkDrop(v, rV3.entry, d2)                 // Vera hält Xara ◇
-  const xKey = [...v.contacts.entries()].find(([, c]) => c.state === '◇')[0]
-  const someKey = [...v.contacts.entries()].find(([, c]) => c.provenance === 'ceremony')[0]
-  let threw = false
-  try { await I.introduce(v, xKey, someKey, T0 + 34_000) } catch (e) { threw = /mutual channel/.test(e.message) }
-  check(threw, '◇ kann nicht vermitteln: kein beidseitiger Kanal — Vorstellung wirft')
+  const { M, R: U, T: Vv, net: n4, mr: r1, mt: r2 } = await triangle(['Mira', 'Udo', 'Vera'], T0)
+  const a = await M.h.introduce(r1.atDisplayer.id, r2.atDisplayer.id, at(T0 + MIN, { label: 'Vera' }))
+  await n4.send(M, a.outbound, T0 + MIN)
+  await decideAll(n4, U, 'introduction', 'accept', T0 + MIN + 1000)
+  await decideAll(n4, Vv, 'introduction', 'accept', T0 + MIN + 2000)
+  await n4.settle(T0 + 2 * MIN)
+  const W = n4.add(await createPerson('Wim', { when: T0 }))
+  const uw = await meet(n4, W, U, T0 + 3 * MIN)
+  const veraAtUdo = U.view.contacts.find((c) => c.provenance === 'introduced')
+  const i2 = await U.h.introduce(uw.atDisplayer.id, veraAtUdo.id, at(T0 + 4 * MIN, { label: 'Vera' }))
+  check(i2.ok, 'Udo introduces Wim to Vera, whom he knows only by introduction: the act stands on his introduced relationship')
+  await n4.send(U, i2.outbound, T0 + 4 * MIN)
+  await decideAll(n4, W, 'introduction', 'accept', T0 + 4 * MIN + 1000)
+  await decideAll(n4, Vv, 'introduction', 'accept', T0 + 4 * MIN + 2000)
+  await n4.settle(T0 + 5 * MIN)
+  const wv = W.view.contacts.find((c) => c.provenance === 'introduced')
+  check(wv?.displayName === 'Vera' && wv.via === uw.atScanner.id, 'the chain stands: Wim holds Vera, introduced via Udo')
+  check(wv.verification === 'met', 'an introduced contact carries no ceremony credential: never shown as verified')
+  const unknown = await U.h.introduce('no-such-contact', veraAtUdo.id, at(T0 + 6 * MIN))
+  check(!unknown.ok && unknown.code === 'no-own-channel', 'introducing someone without an own channel to them is refused (no-own-channel, 8020)')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) { console.error('introduce: FAILED'); process.exit(1) }
-console.log('introduce: das Jonathan/Anton/Emil-Szenario hält — Vermittler im Flugmodus.')
+console.log('introduce: the Jonathan/Anton/Emil scenario holds — the act waits for the mediator and is relayed by him.')
