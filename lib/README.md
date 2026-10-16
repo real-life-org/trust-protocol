@@ -118,7 +118,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `trust/profile`, `profile` | Trust §6b | `profile@1`: the one revision counter (6450), delivery on the class gates (6455), reception and the image bounds (6475) |
 | `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
 | `membership`, `membership/holder` | Membership Tasks 0.19 on Access 0.57 | founding (Access 3.4.1), the prelude, invite, accept, admission and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
-| `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeouts (8340, 8690) |
+| `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
 | `receive`, `engine` | Delivery 0.81 §5, §6.1, §6.2 | the sealed envelope, stages 1–9 once per envelope, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
 | `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |

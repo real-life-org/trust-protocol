@@ -9,7 +9,12 @@
 //              prompt, sends introduction-request/0.1 on its pinned tuple
 //              toward the mediator (8270), with a fresh pair label and card;
 //              sent → acked (the ack) → completed (an accepted reply, 8.2);
-//              failed on the ack timeout (8690) or the reply timeout (8340)
+//              sent or acked → failed at the act's expiry (8340), the
+//              requester waiting for the ack and the reply alike until
+//              then: users are mostly offline, a mediator not online
+//              within ack-delay + act-skew would fail every introduction
+//              (A20, spec follow-up 18: 8690's ack timeout is not applied);
+//              the discard at the absolute lifetime as before (8310)
 //   mediator   received (checks 1–3 of 8410–8430, the ack duty bound),
 //              forwarded (the target resolved, the byte-identical payload
 //              on its tuple, 8440), completed once the ack is produced, the
@@ -179,11 +184,11 @@ const withAct = (state: HolderState, a: IntroAct): HolderState =>
 
 const held = (state: Readonly<HolderState>, role: IntroAct['role'], act: string): IntroAct | undefined => state.encounter.introductions[keyOf(role, act)]
 
-/** The requester's status at `when` (8340, 8690, 8140): a timeout fires at
- *  the first whole second after its bound, whether or not tick ran. */
+/** The requester's status at `when` (8340, 8140): sent or acked, it fails
+ *  at the act's expiry, the first whole second after it, whether or not
+ *  tick ran; no ack timeout (A20, spec follow-up 18, against 8690). */
 function requesterStatus (a: Readonly<IntroAct>, when: Millis): IntroAct['status'] {
-  if (a.status === 'sent' && when >= actFiresAt(a.at + a.ackDelayMs + ACT_SKEW)) return 'failed'
-  if (a.status === 'acked' && when >= actFiresAt(a.at + ACT_EXPIRY)) return 'failed'
+  if ((a.status === 'sent' || a.status === 'acked') && when >= actFiresAt(a.at + ACT_EXPIRY)) return 'failed'
   return a.status
 }
 
@@ -715,8 +720,7 @@ function actDeadlines (state: Readonly<HolderState>): Millis[] {
   const out: Millis[] = []
   for (const a of Object.values(state.encounter.introductions)) {
     out.push(actFiresAt(a.issuedAt + ACT_EXPIRY + ACT_SKEW))
-    if (a.role === 'requester' && a.status === 'sent') out.push(actFiresAt(a.at + a.ackDelayMs + ACT_SKEW))
-    if (a.role === 'requester' && a.status === 'acked') out.push(actFiresAt(a.at + ACT_EXPIRY))
+    if (a.role === 'requester' && (a.status === 'sent' || a.status === 'acked')) out.push(actFiresAt(a.at + ACT_EXPIRY))
   }
   return out
 }

@@ -11,7 +11,8 @@
 // act waits until the mediator is back and relays". Trust §8 relays the act
 // through the mediator; there is no rendezvous drop any more, so the request
 // waits in transit while Anton is away, and his device forwards it when it
-// is back. Away past the requester's ack window (8690), the act fails.
+// is back. The requester waits for the ack and the reply until the act's
+// expiry (8340; A20, spec follow-up 18): away past it, the act fails.
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -63,7 +64,7 @@ check(!typesOf(net, w0).includes(TYPES.forward) && emil.view.prompts.length === 
 const jAct = Object.values((await jonathan.read()).encounter.introductions)[0]
 check(jAct.role === 'requester' && jAct.status === 'sent', 'Jonathan\'s act stands as sent')
 
-const t2 = t1 + 3 * MIN    // back inside the requester's ack window (ack-delay + act-skew)
+const t2 = t1 + 3 * MIN    // back well inside the act's expiry (72 h)
 await net.setOnline(anton, true, t2)
 check(typesOf(net, w0).includes(TYPES.forward), 'Anton back online: his device takes the request and forwards it to Emil')
 await emil.refresh()
@@ -111,7 +112,7 @@ check(jc.trust.given === false && ec.trust.given === false, 'an introduction dis
   check(Object.values(R.view.state.encounter.introductions)[0].status === 'failed', 'Rolf\'s act fails on the reply timeout (8340)')
 }
 
-// ── a mediator away past the requester's ack window ─────────────────────
+// ── a mediator away past the act's expiry ───────────────────────────────
 {
   const { M, R, net: n3, mr: r1, mt: r2 } = await triangle(['Max', 'Anna', 'Bert'], T0)
   const a = await M.h.introduce(r1.atDisplayer.id, r2.atDisplayer.id, at(T0 + MIN))
@@ -119,9 +120,12 @@ check(jc.trust.given === false && ec.trust.given === false, 'an introduction dis
   await n3.setOnline(M, false, T0 + MIN)
   await decideAll(n3, R, 'introduction', 'accept', T0 + MIN + 1000)
   await n3.settle(T0 + 20 * MIN)          // Max still offline
-  check(Object.values(R.view.state.encounter.introductions)[0].status === 'failed', 'no ack within ack-delay + act-skew: Anna\'s act fails (8690)')
-  await n3.setOnline(M, true, T0 + 21 * MIN)
-  await n3.settle(T0 + 21 * MIN)
+  check(Object.values(R.view.state.encounter.introductions)[0].status === 'sent', 'Max offline for 20 minutes: Anna\'s act still waits (A20: no ack timeout)')
+  const expired = T0 + MIN + 1000 + 72 * 3600_000 + 1000
+  await R.h.tick(expired); await R.refresh()
+  check(Object.values(R.view.state.encounter.introductions)[0].status === 'failed', 'no ack and no reply by the act\'s expiry: Anna\'s act fails (8340)')
+  await n3.setOnline(M, true, expired + MIN)
+  await n3.settle(expired + MIN)
   check(!R.view.contacts.some((c) => c.provenance === 'introduced'), 'the late relay changes nothing at Anna: a failed act stays failed (8350)')
 }
 
