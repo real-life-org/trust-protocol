@@ -31,6 +31,7 @@ export function emptyState(codec) {
         rotations: {},
         prompts: {},
         acts: {},
-        encounter: { challenges: {}, records: {}, introductions: {} },
+        encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
+        joining: { preludes: {}, invites: {} },
     };
 }

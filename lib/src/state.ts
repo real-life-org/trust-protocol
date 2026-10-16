@@ -65,6 +65,9 @@ export interface HolderState {
   /** act journal, keyed by actId (note §4.2) */
   acts: Record<string, ActRecord>
   encounter: EncounterState
+  /** groups on the way in: the preludes answered and the invitations
+   *  received, before a welcome makes them groups (Membership 1.2, 3.1) */
+  joining: Joining
 }
 
 // ── Identity ───────────────────────────────────────────────────────────
@@ -307,9 +310,16 @@ export interface Assembly { salt: Dec, chunks: Record<string, Json> }
 // ── Groups, profile ────────────────────────────────────────────────────
 
 export interface Group {
-  /** genesis digest */
+  /** genesis digest: the group's identity (Access 3.2) */
   id: string
-  /** own member context label in this group */
+  /** the group's name, as its genesis names it */
+  name: string
+  /** the group DID, its address, never its identity (Membership 2.3) */
+  did?: string
+  /** the signed genesis, as founded or as the welcome carried it */
+  genesis?: Json
+  /** own member context label in this group: the founding pair label for
+   *  the founder (Access 3.4.1), group/<digest> for a member (5.1) */
   memberLabel: string
   /** group rules are group state, never entropy (note §3) */
   rules: { vouchThreshold: Dec }
@@ -318,11 +328,92 @@ export interface Group {
   /** the own member anchor in G (the anchor of memberLabel) and the oid
    *  naming its canonical admission, or the genesis where the holder
    *  founded G (5400). Required on a listed group (codec.ts): membership
-   *  sets them on join (PR 4c/7); only an unlisted group may lack them. */
+   *  sets them on join; only an unlisted group may lack them. */
   memberAnchor?: string
   memberOp?: string
-  /** the holder's Access view of the group, until membership graduates */
-  membership: Json | null
+  /** the members this holder knows of, by member anchor: its local view
+   *  (membership/*); the replicated log is the Access port's */
+  roster: Record<string, RosterEntry>
+  /** invitations this holder issued and not yet saw answered, by thread
+   *  (Membership 3.1: the invite opens its thread) */
+  invitations: Record<string, OpenInvitation>
+  /** consent pairs held toward an admission, by the accept document's
+   *  digest, with the vouches for it (Membership 3.4, Access 4.2) */
+  evidence: Record<string, Evidence>
+  /** preludes this holder sent for the group and awaits the answer of, by
+   *  thread: the contact and the own rkid of the tuple it went on */
+  preludes: Record<string, { contactId: string, rkid: string, at: Millis }>
+  /** the own accept's document digest, where the holder joined by one:
+   *  the vouches for it bind it (Access 5.3) */
+  acceptDigest?: string
+}
+
+/** A member as this holder knows it (Membership 2.6: the enclosed card). */
+export interface RosterEntry {
+  /** member anchor */
+  anchor: string
+  /** the oid naming its admission (the accept's digest in this library's
+   *  welcome form), or the genesis digest for the founder */
+  op: string
+  /** its card's key agreement: what a document to it is sealed to */
+  keyAgreement: string
+  /** its card's display name, self-declared (Encounter 6120) */
+  name?: string
+  addedAt: Millis
+  /** the contact this holder knows the member as, where it does */
+  contactId?: string
+}
+
+/** An invitation issued (Membership 3.1): the invite document as sent. */
+export interface OpenInvitation {
+  /** the invitee's member anchor (credentialSubject.id) */
+  invitee: string
+  /** the invitee's member key agreement, from the prelude */
+  keyAgreement: string
+  contactId: string
+  threadId: string
+  /** the invitation's identity: its credential digest (RLTP-MT-2180) */
+  credDigest: string
+  invite: Json
+  validUntil: Millis
+}
+
+/** A consent pair held toward an admission (Membership 3.4). */
+export interface Evidence {
+  /** the invite and the accept documents, complete */
+  invite: Json
+  accept: Json
+  /** vouch@2 credentials for this accept, at most 16 (3805) */
+  vouches: Json[]
+  at: Millis
+}
+
+/** Groups on the way in (Membership 1.2, 3.1, 3.2). */
+export interface Joining {
+  /** preludes answered, by `<genesis digest> <inviter member anchor>`:
+   *  which contact asked as which inviter, so the invite that follows from
+   *  that anchor is surfaced as that contact's */
+  preludes: Record<string, { group: string, inviter: string, contactId: string, memberLabel: string, at: Millis }>
+  /** invitations received, by credential digest */
+  invites: Record<string, ReceivedInvite>
+}
+
+/** An invitation received (Membership 3.1), surfaced as a group-invite prompt. */
+export interface ReceivedInvite {
+  credDigest: string
+  /** genesis digest */
+  group: string
+  name: string
+  contactId: string
+  memberLabel: string
+  /** the invite document, complete */
+  invite: Json
+  promptId: string
+  validUntil: Millis
+  status: 'open' | 'accepted' | 'declined' | 'joined'
+  /** the accept's document digest, once sent */
+  acceptDigest?: string
+  at: Millis
 }
 
 /** The holder's own profile: one revision counter (6450). */
@@ -419,6 +510,9 @@ export interface MergeDuty {
   witness: { heads: Record<string, string>, superseded: Record<string, string[]> }
 }
 
+/** The mediator's one ack of an act, at t_received + ack-delay (Trust 8640). */
+export interface IntroAckDuty { kind: 'intro-ack', v: 1, id: string, dueAt?: Millis, act: string }
+
 /** Step 2 of a running rotation (identity-state.ts): its log append, on
  *  resume, until the log holds the entry; after a failure due again after
  *  the retry backoff (attempt, lastAt). */
@@ -427,7 +521,7 @@ export interface RotationDuty { kind: 'rotation', v: 1, id: string, dueAt?: Mill
 // Every duty may carry `dueAt`: resume runs it only from then on and
 // counts it into nextDueAt (engine.ts).
 
-export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty | RotationDuty
+export type KnownDuty = ReissueMappingDuty | ClassOnDuty | ProfileDuty | ContinuityDuty | MergeDuty | RotationDuty | IntroAckDuty
 /** A duty of a kind (or version) this library does not know: kept as is. */
 export interface UnknownDuty { kind: string, v: number, id: string, [field: string]: Json }
 /** Narrow with isKnownDuty (codec.ts) before switching on `kind`. */
@@ -485,12 +579,138 @@ export interface ActRecord {
   at: Millis
 }
 
-/** Open challenges, records and introduction acts, keyed by id;
- *  opaque until encounter graduates (note §5, PR 7). */
+/** Open challenges, enactment records and introduction acts (note §2.1). */
 export interface EncounterState {
-  challenges: Record<string, Json>
-  records: Record<string, Json>
-  introductions: Record<string, Json>
+  /** own challenge values still held open (Encounter 5.3), by value */
+  challenges: Record<string, OwnChallenge>
+  /** enactment records (5.5), by the own challenge value: the consumed-
+   *  challenge history, kept for the life of the relation (5360) */
+  records: Record<string, EnactmentRecord>
+  /** introduction acts (Trust §8), by `<role>:<act id>`: per role (8320) */
+  introductions: Record<string, IntroAct>
+  /** introductions offered to this holder by a mediator, by prompt id */
+  offers: Record<string, IntroOffer>
+  /** the mediator's target designators (8610): designator → contact id */
+  designators: Record<string, string>
+  /** registry declarations held (Delivery §4.4), by `<issuer> <role>` */
+  declarations: Record<string, HeldDeclaration>
+}
+
+/** The roles of an introduction act (Trust §8). */
+export type IntroRole = 'requester' | 'mediator' | 'target'
+
+/** One role's view of one introduction act (8.1): its own lifecycle,
+ *  its pins and what 8200 retains, until the absolute lifetime (8310). */
+export interface IntroAct {
+  /** `<role>:<act>` */
+  key: string
+  act: string
+  role: IntroRole
+  /** requester: sent, acked, completed, failed; mediator: received,
+   *  forwarded, completed; target: received, consented, refused (8330–8380) */
+  status: 'sent' | 'acked' | 'completed' | 'failed' | 'received' | 'forwarded' | 'consented' | 'refused'
+  /** the request's issuedAt: the act's lifetime datum (8090) */
+  issuedAt: Millis
+  /** the request artifact and its card; the reply and its card (8200) */
+  request: Json
+  requestCard: Json
+  reply: Json | null
+  replyCard: Json | null
+  /** the pinned tuples, by own pair label (8270): the requester's and the
+   *  target's toward the mediator, the mediator's toward each side */
+  pins: { requester?: string, target?: string, mediator?: string }
+  /** the threads: the request's (requester ↔ mediator) and the forward's (mediator ↔ target) */
+  threads: { request: string, forward?: string }
+  /** requester: its send (t_sent); mediator: entering received; target: the forward's arrival */
+  at: Millis
+  /** the ack-delay the role computes with (8.4, Delivery §4.4) */
+  ackDelayMs: number
+  /** the own fresh pair label of the act (requester, target) */
+  ownLabel: string | null
+  /** mediator: the one ack value produced (8640) */
+  ack: Json | null
+  /** mediator: the reply forwarded and the vouchers sent (8360) */
+  replyForwarded: boolean
+  vouchersSent: boolean
+  /** requester, target: a voucher held pending its reply (8770) */
+  pendingVoucher: Json | null
+  /** requester, target: the accepted voucher, retained until the absolute
+   *  lifetime for the duplicate rule (8200, 8260) */
+  voucher: Json | null
+  vouched: boolean
+  /** target: the prompt asking for consent */
+  promptId: string | null
+  /** requester: the target's name as the offer carried it */
+  peerName?: string
+}
+
+/** An introduction offered by a mediator (this library's offer form). */
+export interface IntroOffer {
+  /** the prompt's id */
+  id: string
+  mediatorContactId: string
+  /** the own pair label toward the mediator, pinned at send (8270) */
+  pin: string
+  /** the mediator's opaque designator of the target (8610) */
+  target: string
+  /** a label the mediator's human typed in the introduce act */
+  label?: string
+  at: Millis
+}
+
+/** A registry declaration held for an (issuer, role) (Delivery §4.4). */
+export interface HeldDeclaration { issuer: string, role: string, revision: Dec, constants: Record<string, string>, at: Millis }
+
+/** An own challenge value issued on a displayed card (5.3). */
+export interface OwnChallenge {
+  value: string
+  /** issuance time t_ch */
+  tCh: Millis
+  /** the fresh pair label the card is shown under (4.4) */
+  label: string
+  /** the displayed card: the optical payload */
+  card: Json
+}
+
+/** A step credential with its credential digest (5.6 step 8). */
+export interface HeldCredential { digest: string, credential: Json }
+
+/** The enactment record (5.5), keyed by the own challenge value. Its
+ *  tuple is the relationship `relId` under the own pair label `label`. */
+export interface EnactmentRecord {
+  ceremony: string
+  /** the own challenge value (the record key) and its issuance time */
+  own: string
+  tCh: Millis
+  /** the counterparty's challenge value */
+  peer: string
+  /** the counterparty anchor and its card as received */
+  counterpart: string
+  card: Json
+  /** the enactment binding (5.4) */
+  bind: string
+  /** local time of the enactment */
+  at: Millis
+  label: string
+  relId: string
+  /** who scanned (sent the bundle) and who displayed */
+  role: 'scanner' | 'displayer'
+  /** the own step credential issued, and the counterparty's accepted,
+   *  per direction (5.6 step 8) */
+  out: HeldCredential | null
+  in: HeldCredential | null
+  /** the thread of the bundle that opened the exchange and that bundle's
+   *  digest (Delivery 4.1); null on the displayer until a bundle landed */
+  thread: string | null
+  bundleDigest: string | null
+  /** later threads used under this record: a re-issued bundle's (its
+   *  digest) or a standalone delivery's, threadId → document digest */
+  threads: Record<string, string>
+  /** the scanner's sent card: the optical leg's payload (5.8) */
+  sentCard: Json | null
+  /** the displayer issued its counter credential on the optical leg
+   *  before the bundle landed: its document waits for the thread (5780) */
+  counterPending: boolean
 }
 
 /** An outbox item's trias position (Delivery §6.1): its last step that is
@@ -522,6 +742,7 @@ export function emptyState (codec: number): HolderState {
     rotations: {},
     prompts: {},
     acts: {},
-    encounter: { challenges: {}, records: {}, introductions: {} },
+    encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
+    joining: { preludes: {}, invites: {} },
   }
 }

@@ -104,7 +104,7 @@ const keyed = (v, idField) => (x, p) => {
 // ── the HolderState shape (state.ts) ───────────────────────────────────
 const setting = lit('default', 'on', 'off');
 const trustClass = lit('star', 'groupStar', 'anchorMapping', 'sealedGroupStar', 'profile');
-const recipient = obj({ contactId: str, rkid: str, keyAgreement: str });
+const recipient = obj({ contactId: str, rkid: str, keyAgreement: str }, { anchor: str });
 const envelope = obj({ rkid: str, epk: str, nonce: str, ciphertext: str });
 const assembly = obj({ salt: dec, chunks: rec(json) });
 const seqOutShape = (item) => obj({
@@ -208,6 +208,7 @@ const KNOWN_DUTIES = {
     continuity: { v: 1, shape: obj({ kind: str, v: positive, id: str, relId: str, tuple: str, step: lit('probe', 'mapping') }, { ...DUE, attempt: natural, lastAt: millis }) },
     merge: { v: 1, shape: obj({ kind: str, v: positive, id: str, entryIds: set(str), relId: str, witness: obj({ heads: rec(str), superseded: rec(set(str)) }) }, DUE) },
     rotation: { v: 1, shape: obj({ kind: str, v: positive, id: str, rotationId: str }, { ...DUE, attempt: natural, lastAt: millis }) },
+    'intro-ack': { v: 1, shape: obj({ kind: str, v: positive, id: str, act: str }, DUE) },
 };
 /** Is this a duty kind and version this library handles? Unknown ones are kept as they are. */
 export const isKnownDuty = (d) => Object.hasOwn(KNOWN_DUTIES, d.kind) && KNOWN_DUTIES[d.kind].v === d.v;
@@ -242,6 +243,13 @@ const EVENT_FIELDS = {
     'duty.unsupported': [{ dutyId: str, kind: str, v: natural }],
     'star.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
     'groupStar.accepted': [{ contactId: str, relationshipId: str, salt: dec }],
+    'encounter.shown': [{ challenge: str, card: anyObj }],
+    'encounter.scanned': [{ contactId: str, card: anyObj }],
+    'encounter.recorded': [{ contactId: str, relationshipId: str, role: lit('scanner', 'displayer') }],
+    'encounter.accepted': [{ contactId: str, relationshipId: str, mutual: bool }],
+    'group.founded': [{ groupId: str }],
+    'group.admitted': [{ groupId: str, member: str }],
+    'group.vouched': [{ groupId: str, member: str }],
 };
 const event = (x, p) => {
     if (!isObj(x))
@@ -252,7 +260,14 @@ const event = (x, p) => {
     const [req, opt = {}] = EVENT_FIELDS[t];
     obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
 };
-const groupShape = obj({ id: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, membership: json }, { memberAnchor: str, memberOp: str });
+const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str });
+const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis });
+const evidence = obj({ invite: anyObj, accept: anyObj, vouches: arr(anyObj), at: millis });
+const groupShape = obj({
+    id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool,
+    roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'threadId'), evidence: rec(evidence),
+    preludes: rec(obj({ contactId: str, rkid: str, at: millis })),
+}, { did: str, genesis: anyObj, memberAnchor: str, memberOp: str, acceptDigest: str });
 /** a listed group carries its member anchor and memberOp: the group star
  *  seals them (Trust 5400, 5430), and their absence is no filler condition */
 const group = (x, p) => {
@@ -263,6 +278,20 @@ const group = (x, p) => {
     if (g.listed && g.memberOp === undefined)
         fail(`${p}.memberOp`, 'missing on a listed group');
 };
+const heldCredential = obj({ digest: str, credential: anyObj });
+const enactmentRecord = obj({
+    ceremony: str, own: str, tCh: millis, peer: str, counterpart: str, card: anyObj, bind: str, at: millis, label: str, relId: str,
+    role: lit('scanner', 'displayer'), out: nullable(heldCredential), in: nullable(heldCredential),
+    thread: nullable(str), bundleDigest: nullable(str), threads: rec(str), sentCard: nullable(anyObj), counterPending: bool,
+});
+const introAct = obj({
+    key: str, act: str, role: lit('requester', 'mediator', 'target'),
+    status: lit('sent', 'acked', 'completed', 'failed', 'received', 'forwarded', 'consented', 'refused'),
+    issuedAt: millis, request: anyObj, requestCard: anyObj, reply: nullable(anyObj), replyCard: nullable(anyObj),
+    pins: obj({}, { requester: str, target: str, mediator: str }), threads: obj({ request: str }, { forward: str }),
+    at: millis, ackDelayMs: natural, ownLabel: nullable(str), ack: nullable(anyObj), replyForwarded: bool, vouchersSent: bool,
+    pendingVoucher: nullable(anyObj), voucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
+}, { peerName: str });
 const codec0 = obj({
     codec: lit(0),
     commitSeq: dec,
@@ -289,7 +318,21 @@ const codec0 = obj({
     }), 'id'),
     prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
     acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
-    encounter: obj({ challenges: rec(json), records: rec(json), introductions: rec(json) }),
+    encounter: obj({
+        challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
+        records: keyed(enactmentRecord, 'own'),
+        introductions: keyed(introAct, 'key'),
+        offers: keyed(obj({ id: str, mediatorContactId: str, pin: str, target: str, at: millis }, { label: str }), 'id'),
+        designators: rec(str),
+        declarations: rec(obj({ issuer: str, role: str, revision: dec, constants: rec(str), at: millis })),
+    }),
+    joining: obj({
+        preludes: rec(obj({ group: str, inviter: str, contactId: str, memberLabel: str, at: millis })),
+        invites: keyed(obj({
+            credDigest: str, group: str, name: str, contactId: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+            status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
+        }, { acceptDigest: str }), 'credDigest'),
+    }),
 });
 /** Structural validators per codec version; every readable codec has one. */
 export const VALIDATORS = Object.freeze({

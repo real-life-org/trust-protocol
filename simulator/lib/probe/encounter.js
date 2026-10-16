@@ -47,20 +47,11 @@ import { buildAck } from './acks.js';
 const say = (p, m) => p.log.push(m);
 const V = makeValidator(SCHEMAS);
 const schemaOk = (file, data) => V.validate(data, SCHEMAS[file], SCHEMAS[file]).length === 0;
-const TT = 'https://real-life.org/trust-tasks/';
-export const BUNDLE_TYPE = TT + 'encounter-bundle/0.1';
-export const DELIVERY_TYPE = TT + 'encounter-credential-delivery/0.1';
-// Encounter §9 operational constants (ms)
-export const CHALLENGE_MAX_AGE = 5 * 60_000; // PT5M
-export const ISSUANCE_WINDOW = 24 * 3_600_000; // PT24H
-export const SKEW_TOLERANCE = 5 * 60_000; // PT5M
+// the pure checks live in the root module (encounter.ts); re-exported here
+export { BUNDLE_TYPE, DELIVERY_TYPE, CHALLENGE_MAX_AGE, ISSUANCE_WINDOW, SKEW_TOLERANCE } from '../encounter.js';
+import { BUNDLE_TYPE, DELIVERY_TYPE, CHALLENGE_MAX_AGE, SKEW_TOLERANCE, futureOk, issuanceOpen, uuidOk, cardOk, credFormat, credHead as credHeadAt, windowOk, acceptTail } from '../encounter.js';
 const sec = (ms) => Math.floor(ms / 1000); // 2.3: whole seconds
-// producer-side profile discipline (Delivery 3 / Encounter 6): UUID v4 ids and
-// threads, a display name inside the card schema's bound (200 characters)
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const uuidOk = (v) => typeof v === 'string' && UUID_V4.test(v);
 const displayName = (p) => String(p.name ?? '').slice(0, 200);
-const secIso = (iso) => Math.floor(Date.parse(iso) / 1000);
 // ── 5.3 the own-challenge state model ───────────────────────────────────
 // p.challenges: value → { tCh (ms), ctxAnchor, aged? } — every issued
 // value is RETAINED until recorded or aged (retention is mandatory).
@@ -82,9 +73,6 @@ export function resolve(p, value, now) {
     } // latch
     return 'open';
 }
-const futureOk = (tCh, now) => sec(tCh) <= sec(now) + SKEW_TOLERANCE / 1000; // 5.5 explicit future check
-// the producer's mirror of 5.6 step 6: may a credential binding a challenge issued at tChMs still be issued now?
-const issuanceOpen = (tChMs, now) => { const skew = SKEW_TOLERANCE / 1000; return sec(now) >= sec(tChMs) - skew && sec(now) <= sec(tChMs) + (CHALLENGE_MAX_AGE + ISSUANCE_WINDOW) / 1000 + skew; };
 const lockState = (p) => (p.lockSet ??= { held: new Set(), waiters: [] });
 const release = (L, keys) => { for (const k of keys)
     L.held.delete(k); const w = L.waiters; L.waiters = []; for (const r of w)
@@ -146,23 +134,6 @@ async function effect(p, keys, e, fail) {
     }
 }
 const failed = (err) => ({ handled: true, error: err });
-// ── cards (Encounter 6): schema-valid, decoded keys, proof under the anchor
-const CARD_SCHEMA = 'contact-card-0.25.schema.json';
-async function cardOk(card) {
-    if (!schemaOk(CARD_SCHEMA, card))
-        return 'card fails contact-card-0.25 schema';
-    if (card.version !== C.CARD_VERSION)
-        return 'card version unknown';
-    if (!card.challenge)
-        return 'card without challenge (enactment use requires one)';
-    if (!C.calOK(card.challenge.issuedAt) || !C.calOK(card.proof?.created))
-        return 'card: calendar-invalid timestamp';
-    if (!C.xRawOfMk(card.keyAgreement) || !C.edRawOfAnchor(card.anchor))
-        return 'card keyAgreement does not decode (x25519-pub + 32 bytes, 2.3)';
-    if (!(await C.diVerify(card, card.anchor)))
-        return 'card proof';
-    return null;
-}
 // ── show: a displayed card (5.3 displayed challenge) ─────────────────────
 export async function show(p, when, ent = {}) {
     const ctx = await C.pairContext(p.rootIkm, ent.nonce ?? C.rand(32));
@@ -570,64 +541,9 @@ function reAck(p, digest) {
     }
     return { handled: true, duplicate: true };
 }
-// ── the credential checks, in normative order ───────────────────────────
-// 5.6 step 1 — FORMAT: a KNOWN format validated against ITS schema (0.26,
-// or a held 0.25 — 7.3, 12), ceremony AND version KNOWN (registered:
-// encounter-scan@0.25 only), calendar-valid timestamps, digest parsed as a
-// multihash, keys decode (2.3) — else ERR_VERSION
-function credFormat(cred, ceremonyHere = true) {
-    const schema = C.credentialSchemaOf(cred);
-    if (schema === null || !schemaOk(schema, cred))
-        return 'ERR_VERSION';
-    // 5.6 step 1 knows the ceremony here; Delivery 4.1 places the ceremony
-    // equality at its step 5 (after card proof, credential proof, addressee)
-    if (ceremonyHere && cred.credentialSubject.ceremony !== C.CEREMONY)
-        return 'ERR_VERSION';
-    if (!C.calOK(cred.validFrom) || !C.calOK(cred.proof?.created))
-        return 'ERR_VERSION';
-    if (!sameDigest(cred.credentialSubject.enactmentBinding, cred.credentialSubject.enactmentBinding))
-        return 'ERR_VERSION';
-    if (!C.edRawOfAnchor(cred.issuer) || !C.edRawOfAnchor(cred.credentialSubject.id))
-        return 'ERR_VERSION';
-    const vm = String(cred.proof?.verificationMethod ?? ''), hash = vm.indexOf('#');
-    if (hash < 0 || !C.edRawOfAnchor(vm.slice(0, hash)) || !C.edRawOfAnchor('did:key:' + vm.slice(hash + 1)))
-        return 'ERR_VERSION';
-    return null;
-}
-// steps 1–3: format · signature · addressee
-async function credHead(cred, ctx, ceremonyHere = true) {
-    const f = credFormat(cred, ceremonyHere);
-    if (f)
-        return f;
-    if (!(await C.diVerify(cred, cred.issuer)))
-        return 'ERR_SIG';
-    if (cred.credentialSubject.id !== ctx.anchor)
-        return 'ERR_ADDRESSEE';
-    return null;
-}
-// step 6: the issuance window, whole seconds, inclusive, skew widens
-function windowOk(cred, tChMs) {
-    const tCh = sec(tChMs), vf = secIso(cred.validFrom), cr = secIso(cred.proof.created), skew = SKEW_TOLERANCE / 1000;
-    const lo = tCh - skew, hi = tCh + (CHALLENGE_MAX_AGE + ISSUANCE_WINDOW) / 1000 + skew;
-    return !(vf < lo || vf > hi || cr < lo || cr > hi || cr < vf - skew);
-}
-// steps 4–7 against a record (SYNCHRONOUS — usable inside verify). `order`:
-//   'credential' — 5.6: record · ceremony · WINDOW · BINDING
-//   'bundle'     — Delivery 4.1 pre-lock: record · ceremony · BINDING · WINDOW
-function acceptTail(cred, rec, order) {
-    if (!rec || rec.counterpart !== cred.issuer)
-        return 'ERR_NO_RECORD';
-    if (cred.credentialSubject.ceremony !== rec.ceremony)
-        return 'ERR_CEREMONY';
-    const bindOk = sameDigest(cred.credentialSubject.enactmentBinding, rec.bind);
-    if (order === 'bundle' && !bindOk)
-        return 'ERR_BINDING';
-    if (!windowOk(cred, rec.tCh))
-        return 'ERR_STALE_ISSUANCE';
-    if (!bindOk)
-        return 'ERR_BINDING';
-    return null;
-}
+// the credential checks, in normative order, are the root module's
+// (encounter.ts); credHead takes the local context here
+const credHead = (cred, ctx, ceremonyHere = true) => credHeadAt(cred, ctx.anchor, ceremonyHere);
 const disposition = (e) => e === 'ERR_STALE_ISSUANCE' ? 'stale-issuance' : `validation-failed (${e})`;
 // ── bundles ─────────────────────────────────────────────────────────────
 // stages 7–8 for a bundle (stage 5 ran in receiveEncounter): the pre-lock

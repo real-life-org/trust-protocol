@@ -92,6 +92,35 @@ export function macAckForm (doc: unknown): { ok: true, ref: string, threadId: st
   return { ok: true, ref: d.payload.ref, threadId: d.threadId }
 }
 
+/**
+ * The context-free checks of a received SIGNED ack (the class rule's
+ * form for a signature-class payload, 4.2/4.4), in stage order: 5 the
+ * document profile, 7 the payload schema, 8 the proof form (an
+ * eddsa-jcs-2022 DataIntegrityProof, no `mac`, calendar-valid), no
+ * enactment, `meaning`. The signature itself (under `issuer`) and the
+ * consistency against what the holder sent stay the caller's.
+ */
+export function signedAckForm (doc: unknown): { ok: true, ref: string, threadId: string } | ({ ok: false } & AckFormFailure) {
+  const d = doc as Record<string, any>
+  if (!schemaOk('rltp-delivery-document.schema.json', d) || d?.type !== ACK_TYPE) return { ok: false, stage: 5, reason: 'malformed' }
+  if (Object.keys(d).some((k) => !ACK_FIELDS.has(k)) || !calOK(d.issuedAt)) return { ok: false, stage: 5, reason: 'malformed' }
+  if (!schemaOk('payload-delivery-ack.schema.json', d.payload)) return { ok: false, stage: 7, reason: 'malformed' }
+  const p = d.proof as Record<string, Json> | undefined
+  if (p === null || typeof p !== 'object' || p.mac !== undefined || p.type !== 'DataIntegrityProof' || p.cryptosuite !== 'eddsa-jcs-2022' || !calOK(p.created)) {
+    return { ok: false, stage: 8, reason: 'validation-failed' }
+  }
+  if (d.ceremony?.enactment !== undefined) return { ok: false, stage: 8, reason: 'validation-failed' }
+  if (d.payload.meaning !== 'received') return { ok: false, stage: 8, reason: 'validation-failed' }
+  return { ok: true, ref: d.payload.ref, threadId: d.threadId }
+}
+
+/** The proof form a received ack carries: the MAC object, a signature, or neither. */
+export const ackProofForm = (doc: unknown): 'mac' | 'signed' | null => {
+  const p = (doc as { proof?: Record<string, unknown> } | null)?.proof
+  if (p === null || typeof p !== 'object') return null
+  return typeof p.mac === 'string' ? 'mac' : typeof p.proofValue === 'string' ? 'signed' : null
+}
+
 /** Does the ack's MAC verify under `key`? (4.2; over JCS of the document without proof) */
 export async function macAckValid (doc: { proof?: { mac?: unknown } } & Record<string, unknown>, key: Uint8Array, subtle?: SubtleCrypto): Promise<boolean> {
   const { proof, ...rest } = doc

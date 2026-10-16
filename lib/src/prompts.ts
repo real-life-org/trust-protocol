@@ -23,7 +23,13 @@
 // (engine.ts, built-in tick). An id without an open prompt is
 // unknown-prompt. A malformed input (a promptId that is no string, a
 // choice other than accept or decline) is a programming error and throws.
-import type { Applied, CommandDef, DecisionHandler, EventDraft, HolderModule, Refusal } from './engine.js'
+//
+// A handler that signs or seals (PR 7: the counter-step, the membership
+// accept, the introduction's consent) is the prepared form {prepare?,
+// apply}: its preparation runs in the decision's own preparation, against
+// the snapshot its apply then sees (engine.ts, step 2).
+import type { Applied, CommandDef, DecisionDef, DecisionHandler, EventDraft, HolderModule, Refusal } from './engine.js'
+import { handlerPrepared } from './receive.js'
 import type { HolderState, PromptChoice, PromptKind } from './state.js'
 
 /** The command name of the decision. */
@@ -42,16 +48,30 @@ export function collectDecisions (modules: readonly HolderModule[]): Decisions {
     for (const [kind, h] of Object.entries(m?.decisions ?? {})) {
       if (!(KINDS as readonly string[]).includes(kind)) throw new Error(`unknown prompt kind ${kind} (module ${m.name})`)
       if (out.has(kind as PromptKind)) throw new Error(`duplicate decision handler ${kind} (module ${m.name})`)
-      if (typeof h !== 'function') throw new TypeError(`decision handler ${kind} (module ${m.name}) must be a function`)
+      if (typeof h !== 'function' && (h === null || typeof h !== 'object' || typeof (h as DecisionDef).apply !== 'function' || ((h as DecisionDef).prepare !== undefined && typeof (h as DecisionDef).prepare !== 'function'))) {
+        throw new TypeError(`decision handler ${kind} (module ${m.name}) must be a function or {prepare?, apply}`)
+      }
       out.set(kind as PromptKind, h)
     }
   }
   return out
 }
 
-const decideDef = (decisions: Decisions): CommandDef<DecideInput> => ({
+const validInput = (input: DecideInput): boolean =>
+  input !== null && typeof input === 'object' && typeof input.promptId === 'string' && (input.choice === 'accept' || input.choice === 'decline')
+
+const decideDef = (decisions: Decisions): CommandDef<DecideInput, unknown> => ({
   human: true,
-  apply (state, _prepared, input, when) {
+  // a prepared handler's preparation, against the snapshot apply sees;
+  // nothing for an unknown, expired or malformed decision (apply answers it)
+  async prepare (ctx, input) {
+    if (!validInput(input) || !Object.hasOwn(ctx.snapshot.prompts, input.promptId)) return undefined
+    const p = ctx.snapshot.prompts[input.promptId]
+    if (p.expiresAt !== undefined && p.expiresAt <= ctx.when) return undefined
+    const h = decisions.get(p.kind)
+    return h && typeof h !== 'function' && h.prepare ? h.prepare(ctx, p, input.choice) : undefined
+  },
+  apply (state, prepared, input, when) {
     if (input === null || typeof input !== 'object' || typeof input.promptId !== 'string') throw new TypeError('prompt.decide needs {promptId: string, choice}')
     if (input.choice !== 'accept' && input.choice !== 'decline') throw new TypeError(`prompt.decide: choice must be accept or decline, got ${String(input.choice)}`)
     const { promptId, choice } = input
@@ -59,7 +79,9 @@ const decideDef = (decisions: Decisions): CommandDef<DecideInput> => ({
     const p = state.prompts[promptId]
     if (p.expiresAt !== undefined && p.expiresAt <= when) return { ok: false, code: 'prompt-expired' }
     const handler = decisions.get(p.kind)
-    const r: Applied | Refusal = handler ? handler(state, p, choice, when) : { state: state as HolderState }
+    const r: Applied | Refusal = !handler ? { state: state as HolderState }
+      : typeof handler === 'function' ? handler(state, p, choice, when)
+        : handler.apply(state, p, choice, when, handlerPrepared(prepared, prepared.value))
     if ((r as Refusal).ok === false) return r as Refusal
     const done = r as Applied
     const prompts = { ...done.state.prompts }

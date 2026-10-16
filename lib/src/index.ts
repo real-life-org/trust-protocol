@@ -20,7 +20,12 @@
 //                     device labels device/<n>/<c> (§5.5)
 //   profile           profile@1 (Trust §6b): k_pr, the MAC, the bounds and
 //                     the picture's header read before any decoding
-//   encounter         the ceremony's wire forms: challenges, cards, credentials
+//   encounter         the ceremony's wire forms: challenges, cards, credentials,
+//                     and its pure checks (5.6 acceptance, the bundle's forms)
+//   membership        Membership 0.19's forms and checks: invite, accept,
+//                     evidence, vouch@2, the member label, oids
+//   introduction      Trust §8's artifacts and checks, the act window, the
+//                     registry declaration's ack-delay
 //   delivery          the sealed envelope and the generic receive stages 1–4
 //   carrier-identity  the carrier-relationship principal (Identity §7a)
 //   carrier           the carrier side of the port (Delivery §4.4 + §5a)
@@ -59,7 +64,16 @@
 //                     group star (5.2–5.4) reconciled on resume and
 //                     received, continuity (§6a: probe, continuity
 //                     mapping, chaining), profile@1 (§6b: setProfile,
-//                     delivery on the class gates, reception)
+//                     delivery on the class gates, reception); the
+//                     encounter module (Encounter 0.31 §5–§7: show, scan,
+//                     captureSentCard, counter, the bundle and the
+//                     credential delivery with signed acks, the confirm
+//                     prompt), the membership module (Membership 0.19:
+//                     foundGroup, invite with its prelude, the accept on a
+//                     group-invite prompt, admission and welcome, vouchFor,
+//                     the in-library Access) and the introduction module
+//                     (Trust §8: introduce, the three roles, the uniform
+//                     ack, the vouchers)
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed
 //   state             HolderState — opaque here (note §4.5): store adapters
@@ -82,6 +96,8 @@ export * from './core.js'
 export * from './crypto.js'
 export * from './identity.js'
 export * from './encounter.js'
+export * from './membership.js'
+export * from './introduction.js'
 export * from './delivery.js'
 export * from './carrier-identity.js'
 export * from './carrier.js'

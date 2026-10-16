@@ -54,6 +54,37 @@ export type ActError =
   | 'log-failure'
   /** setProfile: the body breaks 6430/6435 or its image 6475 */
   | 'profile-invalid'
+  /** encounter: a card that fails Encounter 6 (schema, version, challenge,
+   *  keys, proof) or is not of the profile the act needs (displayed for a
+   *  scan, sent and addressed to an own challenge's anchor for a capture) */
+  | 'card-invalid'
+  /** encounter.scan: this displayed code was scanned already: its
+   *  challenge is in a record (5.3, 5170) */
+  | 'already-scanned'
+  /** encounter.capture: the bound challenge resolves unknown (5460) */
+  | 'gate-expired'
+  /** encounter: the own challenge is future-dated beyond the skew (5390) */
+  | 'gate-future'
+  /** encounter.capture: the challenge was consumed by another enactment (5440) */
+  | 'consumed-challenge'
+  /** encounter.capture: the same counterparty with other material (5450) */
+  | 'card-mismatch'
+  /** encounter.counter: no enactment record of the contact to issue on */
+  | 'no-record'
+  /** encounter.counter: the own step credential is issued already */
+  | 'already-issued'
+  /** membership: no such group, or the holder holds no role in it the act needs */
+  | 'unknown-group'
+  /** membership.vouch: no consent pair held for this member (Access 5.3) */
+  | 'no-evidence'
+  /** membership.vouch: the admitting member's own vouch never counts beside its admission */
+  | 'own-admission'
+  /** membership.found: a genesis admits under the rule of one; a stricter rule needs policy.change */
+  | 'threshold-unsupported'
+  /** introduction: no such act, or not in a state that allows the step */
+  | 'unknown-act'
+  /** introduction.request: the mediator's ack-delay declaration is not held (Delivery 4.4) */
+  | 'no-declaration'
 
 export type ActResult =
   /** nextDueAt: duty work this act opened or unblocked is due then (`when`:

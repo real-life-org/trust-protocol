@@ -29,7 +29,7 @@
 //   ent.recipient       not entropy: act input
 export const ENTROPY_PURPOSES = Object.freeze([
     'seal.eph', 'seal.nonce', 'doc.id', 'thread.id', 'ack.id', 'challenge',
-    'group.seed', 'founding.nonce', 'drop.nonce', 'rendezvous.secret', 'groupstar.nonce', 'pad',
+    'group.seed', 'founding.nonce', 'drop.nonce', 'rendezvous.secret', 'intro.act', 'intro.target', 'groupstar.nonce', 'pad',
 ]);
 export class EntropyError extends Error {
     code;

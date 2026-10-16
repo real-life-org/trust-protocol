@@ -75,16 +75,31 @@
 // acknowledged item's type, in the ack's transaction (engine.ts
 // AckHandler): the sender side of 5660, completion by verified acks only.
 //
-// Ack class (4.4): every type a module can register here is of the
-// designated-verifier class and earns the MAC-form ack; registering a
-// signature-class type is refused until the signed-ack path exists (the
-// encounter types, PR 7).
+// Ack class (4.4): the class follows the payload's audience class. The
+// types of SIGNATURE_CLASS carry transferable signatures (the encounter
+// carriers, the membership documents, the signed introduction artifacts,
+// the registry declaration): their ack is SIGNED, an eddsa-jcs-2022 proof
+// under the ack's issuer anchor through the KeyProvider (`sign` with the
+// arrival key's label). Every other type is designated-verifier and earns
+// the MAC form under the channel ack key of the arrival rkid and the
+// counterpart key. A received ack is checked in the form its referenced
+// outbox item's class selects; the other form is validation-failed.
+//
+// The acceptance binding before a tuple exists (PR 7): a handler with a
+// `channel` binds its document itself, from the document, where it may
+// arrive on an own key no tuple carries yet — the encounter bundle on the
+// displayed card's key (Delivery 4.1: the bundle establishes the tuple,
+// its issuer bound to card.anchor = credential.issuer), the membership
+// documents on member keys (Membership 3.1, 3.2). `channel` names the
+// counterpart's key agreement the ack is sealed to and the contact it is
+// filed under, or refuses (stage 7 for malformed, else 8). Every other
+// handler keeps the tuple binding of Delivery 4.4.
 import { calOK, iso, makeValidator } from './core.js'
 import type { Json } from './core.js'
-import { digestDoc, xRawOfMk } from './crypto.js'
+import { diSignWith, diVerify, digestDoc, xRawOfMk } from './crypto.js'
 import { receiveByAgreement, seal } from './delivery.js'
 import type { KeyAnswer } from './delivery.js'
-import { ACK_TYPE, ackDocument, ackKeyOf, macAck, macAckForm, macAckValid } from './ack.js'
+import { ACK_TYPE, ackDocument, ackKeyOf, ackProofForm, macAck, macAckForm, macAckValid, signedAckForm } from './ack.js'
 import { SCHEMAS } from './schemas.js'
 import { triasOf } from './state.js'
 import { entryOf } from './trust/state.js'
@@ -108,8 +123,15 @@ export interface Arrival { rkid: string, threadId: string, digest: string, when:
 export type TaskFailure = 'malformed' | 'validation-failed' | 'stale-issuance' | 'gate-future' | 'consumed-challenge'
 
 /** A handler's refusal: nothing commits, the digest stays uncached and
- *  a redelivery is evaluated afresh (Delivery 6.2 stage 4). */
-export interface TaskRefusal { ok: false, reason: TaskFailure, ref?: string }
+ *  a redelivery is evaluated afresh (Delivery 6.2 stage 4) — with one
+ *  narrow, enumerated exception, the Encounter aging latch: an apply that
+ *  refuses because its authoritative resolution found an own challenge past
+ *  its age bound (Encounter 5260, 5270, 5290; Delivery 4.1 check 5) returns
+ *  `latch`, the state with that challenge removed, and the engine commits
+ *  exactly it (and the raised lastWhen): no cache entry, no ack, no event;
+ *  the disposition stays failed. A latch that touches anything beyond
+ *  encounter.challenges is a programming error and throws (engine.ts). */
+export interface TaskRefusal { ok: false, reason: TaskFailure, ref?: string, latch?: HolderState }
 
 /** A discard at a resource limit (Trust 5365/5366), answered by apply:
  *  `state` commits (assembly dropped, lower bound held), the disposition
@@ -141,11 +163,35 @@ export interface ReceivedDocument<T = unknown> {
 export const ackOutbound = (a: Readonly<SealedAck>, attempt: number): Outbound =>
   structuredClone({ digest: a.digest, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt })
 
-/** Signature-class types: their acks are signed (4.4), not MACed. */
+const TT = 'https://real-life.org/trust-tasks/'
+/** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
+ *  is a transferable signature; their acks are signed, not MACed. The
+ *  `x-` slugs are this library's own experimental, unregistered forms
+ *  for what the specifications leave to the application (the membership
+ *  prelude, Membership 1.2; the welcome until the Access envelope is
+ *  built; the introduction offer that conveys the target designator,
+ *  Trust 8.3): signed documents as well. A receiver that does not know
+ *  them answers unknown-type (Delivery §6.2). */
 export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([
-  'https://real-life.org/trust-tasks/encounter-bundle/0.1',
-  'https://real-life.org/trust-tasks/encounter-credential-delivery/0.1',
+  TT + 'encounter-bundle/0.1',
+  TT + 'encounter-credential-delivery/0.1',
+  TT + 'membership-invite/0.2',
+  TT + 'membership-accept/0.2',
+  TT + 'membership-evidence/0.1',
+  TT + 'membership-evidence/0.2',
+  TT + 'registry-declaration/0.1',
+  TT + 'introduction-request/0.1',
+  TT + 'introduction-forward/0.1',
+  TT + 'introduction-reply/0.1',
+  TT + 'x-membership-prelude-request/0.1',
+  TT + 'x-membership-prelude-reply/0.1',
+  TT + 'x-membership-welcome/0.1',
+  TT + 'x-introduction-offer/0.1',
 ])
+
+/** The counterpart a `channel` binding names: the key agreement the ack
+ *  is sealed to and the contact it is filed under. */
+export interface Channel { keyAgreement: string, contactId: string }
 
 export const isTaskRefusal = (x: unknown): x is TaskRefusal =>
   x !== null && typeof x === 'object' && (x as TaskRefusal).ok === false && typeof (x as TaskRefusal).reason === 'string'
@@ -165,6 +211,7 @@ export type ReceivePlan =
 export interface TaskEntry {
   proof: 'absent' | 'required'
   decode (payload: unknown): unknown
+  channel? (state: Readonly<HolderState>, doc: ReceivedDocument, rkid: string): Channel | TaskRefusal
   prepare? (ctx: PrepareCtx, doc: ReceivedDocument, arrival: Arrival): Promise<unknown>
 }
 
@@ -185,12 +232,12 @@ export function tupleByRkid (state: Readonly<HolderState>, rkid: string): { rel:
   return null
 }
 
-/** The arrival tuple's channel ack key (4.2): X25519 of the own key behind
- *  the tuple's rkid and the counterpart key, HKDF under issuer/recipient. */
-async function ackKey (ctx: PrepareCtx, tuple: Readonly<Tuple>, issuer: string, recipient: string): Promise<Uint8Array | null> {
-  const raw = xRawOfMk(tuple.counterpartKeyAgreement)
+/** The arrival channel's ack key (4.2): X25519 of the own key behind
+ *  `rkid` and the counterpart key, HKDF under issuer/recipient. */
+async function ackKey (ctx: PrepareCtx, rkid: string, counterpartKeyAgreement: string, issuer: string, recipient: string): Promise<Uint8Array | null> {
+  const raw = xRawOfMk(counterpartKeyAgreement)
   if (!raw) return null
-  const a = await ctx.keys.agree(tuple.rkid, raw, ctx.release)
+  const a = await ctx.keys.agree(rkid, raw, ctx.release)
   if (a.status !== 'available') return null
   try { return await ackKeyOf(a.shared, issuer, recipient, ctx.crypto.subtle) } catch { return null }
 }
@@ -221,16 +268,25 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   const own = await ctx.keys.anchorOf(release.label)
   if (doc.recipient !== own.anchor) return failed('wrong-recipient', 5, { digest })
   const at = tupleByRkid(state, rkid)
-  // 6 — the built-in ack path
+  // 6 — the built-in ack path, in the form the acked document's class selects
   if (doc.type === ACK_TYPE) {
-    const f = macAckForm(doc)
+    const signed = ackProofForm(doc) === 'signed'
+    const f = signed ? signedAckForm(doc) : macAckForm(doc)
     if (!f.ok) return failed(f.reason, f.stage, { digest })
-    // 8 — consistency against what this holder sent (4.2)
+    // 8 — consistency against what this holder sent (4.2): the document on
+    // that thread, sent from the arrival rkid, of the class the proof form
+    // claims; the issuer its recipient (the tuple's counterpart, or the
+    // anchor it went to where no tuple carried it)
     const item: OutboxItem | undefined = Object.hasOwn(state.outbox, f.ref) ? state.outbox[f.ref] : undefined
-    if (!at || doc.issuer !== at.tuple.counterpartAnchor || !item || item.threadId !== f.threadId ||
-      item.recipient.rkid !== rkid || SIGNATURE_CLASS.has(item.type)) return failed('validation-failed', 8, { digest })
-    const key = await ackKey(ctx, at.tuple, doc.issuer as string, doc.recipient as string)
-    if (!key || !(await macAckValid(doc, key, S))) return failed('validation-failed', 8, { digest })
+    if (!item || item.threadId !== f.threadId || item.recipient.rkid !== rkid || SIGNATURE_CLASS.has(item.type) !== signed) return failed('validation-failed', 8, { digest })
+    const expected = at ? at.tuple.counterpartAnchor : item.recipient.anchor
+    if (expected === undefined || doc.issuer !== expected) return failed('validation-failed', 8, { digest })
+    if (signed) {
+      if (!(await diVerify(doc, doc.issuer as string))) return failed('validation-failed', 8, { digest })
+    } else {
+      const key = await ackKey(ctx, rkid, item.recipient.keyAgreement, doc.issuer as string, doc.recipient as string)
+      if (!key || !(await macAckValid(doc, key, S))) return failed('validation-failed', 8, { digest })
+    }
     return { kind: 'ack', digest, ref: f.ref }
   }
   // 6 — the task register, by the full type URI (no prefix, no fallback)
@@ -239,26 +295,43 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
   if ((h.proof === 'absent') !== (doc.proof === undefined)) return failed('validation-failed', 6, { digest })
   // 7–8 — decode, the closed acceptance binding, the handler's preparation
   const payload = h.decode(doc.payload)
-  if (isTaskRefusal(payload)) return failed(payload.reason, payload.reason === 'malformed' ? 7 : 8, { digest, ...(payload.ref !== undefined ? { ref: payload.ref } : {}) })
-  if (!at || doc.issuer !== at.tuple.counterpartAnchor) return failed('validation-failed', 8, { digest })
+  const refused = (r: TaskRefusal, stage: ReceiveStageNo): ReceivePlan => failed(r.reason, stage, { digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) })
+  if (isTaskRefusal(payload)) return refused(payload, payload.reason === 'malformed' ? 7 : 8)
   const rdoc = Object.freeze({ ...doc, payload }) as ReceivedDocument
+  // the binding: the arrival tuple (4.4), or the handler's own channel
+  // where its document may arrive before any tuple (4.1, Membership)
+  let peer: Channel
+  if (h.channel) {
+    const c = h.channel(state, rdoc, rkid)
+    if (isTaskRefusal(c)) return refused(c, c.reason === 'malformed' ? 7 : 8)
+    peer = c
+  } else {
+    if (!at || doc.issuer !== at.tuple.counterpartAnchor) return failed('validation-failed', 8, { digest })
+    // the entry the arrival's relationship sends under (2146), by its current id
+    peer = { keyAgreement: at.tuple.counterpartKeyAgreement, contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId }
+  }
   const arrival: Arrival = Object.freeze({ rkid, threadId: doc.threadId as string, digest, when: ctx.when })
   const value = h.prepare ? await h.prepare(ctx, rdoc, arrival) : undefined
-  if (isTaskRefusal(value)) return failed(value.reason, 8, { digest, ...(value.ref !== undefined ? { ref: value.ref } : {}) })
+  if (isTaskRefusal(value)) return refused(value, 8)
   // the ack, sealed before the transaction (4.2: created inside the
-  // effect's transaction — it commits with the cache entry or not at all)
-  const key = await ackKey(ctx, at.tuple, own.anchor, at.tuple.counterpartAnchor)
-  if (!key) return failed('validation-failed', 8, { digest })
-  const ackDoc = await macAck(ackDocument({
-    id: ctx.entropy.id('ack.id'), issuer: own.anchor, recipient: at.tuple.counterpartAnchor,
+  // effect's transaction — it commits with the cache entry or not at all),
+  // in the form the document's class selects (4.4)
+  const base = ackDocument({
+    id: ctx.entropy.id('ack.id'), issuer: own.anchor, recipient: doc.issuer as string,
     threadId: arrival.threadId, issuedAt: iso(ctx.when), ref: digest,
-  }), key, S)
-  const envelope = await seal(ackDoc as unknown as Json, at.tuple.counterpartKeyAgreement,
-    { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S)
+  })
+  let ackDoc: Json
+  if (SIGNATURE_CLASS.has(doc.type as string)) {
+    ackDoc = await diSignWith(own.anchor, (b) => ctx.keys.sign(release.label, b), base as unknown as Record<string, Json>, base.issuedAt, S) as unknown as Json
+  } else {
+    const key = await ackKey(ctx, rkid, peer.keyAgreement, own.anchor, doc.issuer as string)
+    if (!key) return failed('validation-failed', 8, { digest })
+    ackDoc = await macAck(base, key, S) as unknown as Json
+  }
+  const envelope = await seal(ackDoc, peer.keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, S)
   const ack: SealedAck = {
     digest: await digestDoc(ackDoc, S), envelope, threadId: arrival.threadId,
-    // the entry the arrival's relationship sends under (2146), by its current id
-    recipient: { contactId: entryOf(state, at.rel)?.id ?? at.rel.contactId, rkid, keyAgreement: at.tuple.counterpartKeyAgreement },
+    recipient: { contactId: peer.contactId, rkid, keyAgreement: peer.keyAgreement },
   }
   return { kind: 'task', digest, type: doc.type as string, doc: rdoc, arrival, value, ack }
 }

@@ -4,6 +4,13 @@
 // resumable procedure over the Log port (§5.4; Trust 6360–6420, 6596;
 // Access §5.6). Module `identity`, built into createHolder.
 //
+// Labels and addresses: a pair label's key is a delivery address (Delivery
+// §5): retired, it becomes a tombstone for ever. A member label
+// group/<digest> is an identity context (§6.1): one derivation per group,
+// reused whenever the holder is invited to that group again, so its key
+// leaves `addresses` without a tombstone (engine.ts tick). The register
+// keeps every label either way.
+//
 // What the module registers:
 //   commands  identity.addDevice {name}      a device name into the
 //               register (§5.5), before any key derived from it is

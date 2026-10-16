@@ -91,6 +91,24 @@ export async function diSign(ctx, doc, created) {
     const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.ed.priv, hashData));
     return { ...doc, proof: { ...cfg, proofValue: 'z' + base58(sig) } };
 }
+/**
+ * The same eddsa-jcs-2022 proof as diSign, with the signature from a
+ * signing function instead of a private key: the holder signs through
+ * its KeyProvider (`keys.sign(label, bytes)`, raw Ed25519 over the
+ * hashData), so modules never hold a key. Ed25519 is deterministic: for
+ * the same key, document and `created` the result is byte-identical to
+ * diSign's.
+ */
+export async function diSignWith(anchor, sign, doc, created, subtle) {
+    const cfg = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created, verificationMethod: anchor + '#' + anchor.slice(8), proofPurpose: 'assertionMethod' };
+    if ('@context' in doc)
+        cfg['@context'] = doc['@context'];
+    const hashData = cat(await sha(te.encode(jcs(cfg)), subtle), await sha(te.encode(jcs(doc)), subtle));
+    const sig = await sign(hashData);
+    if (!(sig instanceof Uint8Array) || sig.length !== 64)
+        throw new Error('diSignWith: the signer must answer a 64-byte Ed25519 signature');
+    return { ...doc, proof: { ...cfg, proofValue: 'z' + base58(sig) } };
+}
 export async function diVerify(doc, expectedAnchor) {
     const { proof, ...rest } = doc ?? {};
     if (typeof proof?.proofValue !== 'string' || typeof proof?.verificationMethod !== 'string')

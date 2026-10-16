@@ -128,6 +128,11 @@
 //     failures of one resume cannot open one duty twice) and count into
 //     nextDueAt like any new duty. A late delivered after failed runs the
 //     ack handler as usual, never the failure handler again
+//   - the Encounter latch exception (receive.ts TaskRefusal, Refusal):
+//     a refusal carrying `latch` commits exactly that state (checked to
+//     shrink encounter.challenges and touch nothing else) and the raised
+//     lastWhen, with no journal entry, cache entry, ack, outbound or event;
+//     the result stays the refusal (receive: failed at stage 9)
 //   - a task handler's refusal commits nothing; its TaskDiscarded (an
 //     assembly discarded at a resource limit or rejected, Trust 5365/5366)
 //     commits its state and nothing else: disposition `discarded` with the
@@ -147,6 +152,9 @@
 //   - after its own retention, tick runs every module's `retain` hook on
 //     the result (the trust module drops in-flight star deliveries whose
 //     outbox items have all been retained away)
+//   - without an Access port, EngineOptions.accessFrom (createHolder: the
+//     membership module's localAccess) builds one over each preparation's
+//     own snapshot, so it describes exactly the state the commit lands on
 //   - EngineOptions.check (createHolder's `invariants: true`) runs on every
 //     commit after the codec's validation and before the CAS; its throw
 //     aborts the operation, nothing commits
@@ -154,7 +162,12 @@
 //     with their acks at expiresAt; terminal outbox items once the
 //     retention has passed since their last step, unless a kept journal
 //     entry names them; an address key not shown for the retention and
-//     the own rkid of no tuple that is not deactivated becomes a tombstone
+//     the own rkid of no tuple that is not deactivated becomes a tombstone —
+//     except a member key (a group/… label): an identity context of
+//     Identity §6.1 rather than a delivery address of Delivery §5 (one
+//     derivation per group, reused whenever the holder is invited to it
+//     again), it leaves `addresses` without a tombstone (a point for
+//     Delivery 0.82: addresses and identity contexts)
 import { jcs, b64uOf } from './core.js';
 import { CODEC, decodeState, encodeState } from './codec.js';
 import { emptyState, toOpaque, triasOf } from './state.js';
@@ -163,8 +176,37 @@ import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
 import { freezeDeep } from './util-freeze.js';
 import { ACK_TYPE } from './ack.js';
-import { SIGNATURE_CLASS, ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
+import { challengeAged } from './encounter.js';
+import { ackOutbound, handlerPrepared, isTaskRefusal, markDelivered, prepareReceive } from './receive.js';
 import { isTaskDiscarded } from './receive.js';
+/** The Encounter latch exception (receive.ts TaskRefusal): a latch state
+ *  differs from its base in encounter.challenges alone; every challenge it
+ *  keeps is byte-identical, and every one it removes is aged at `when`, the
+ *  commit's authoritative time (Encounter 5190, 5260). Anything else is a
+ *  programming error and throws. */
+function checkLatch(base, latch, when) {
+    for (const k of Object.keys(base)) {
+        if (k === 'encounter')
+            continue;
+        if (base[k] !== latch[k])
+            throw new Error(`engine: an aging latch changed ${k}`);
+    }
+    const e = base.encounter, l = latch.encounter;
+    for (const k of Object.keys(e)) {
+        if (k !== 'challenges' && e[k] !== l[k])
+            throw new Error(`engine: an aging latch changed encounter.${k}`);
+    }
+    for (const [v, c] of Object.entries(l.challenges)) {
+        if (!Object.hasOwn(e.challenges, v))
+            throw new Error('engine: an aging latch added a challenge');
+        if (jcs(c) !== jcs(e.challenges[v]))
+            throw new Error(`engine: an aging latch changed the challenge ${v}`);
+    }
+    for (const [v, c] of Object.entries(e.challenges)) {
+        if (!Object.hasOwn(l.challenges, v) && !challengeAged(c.tCh, when))
+            throw new Error(`engine: an aging latch removed the unaged challenge ${v}`);
+    }
+}
 // ── defaults ───────────────────────────────────────────────────────────
 const DAY = 86_400_000;
 /** Defaults of the retry policy and the retention it implies. */
@@ -338,6 +380,7 @@ class HolderEngine {
     #retain;
     #builtins;
     #check;
+    #accessFrom;
     #listeners = new Set();
     #chain = Promise.resolve();
     /** a commit whose outcome is unknown, settled before the next operation */
@@ -346,6 +389,9 @@ class HolderEngine {
         if (opts.check !== undefined && typeof opts.check !== 'function')
             throw new TypeError('check must be a function');
         this.#check = opts.check;
+        if (opts.accessFrom !== undefined && typeof opts.accessFrom !== 'function')
+            throw new TypeError('accessFrom must be a function');
+        this.#accessFrom = opts.accessFrom;
         this.#store = ports.store;
         this.#ports = ports;
         this.#crypto = crypto;
@@ -404,14 +450,14 @@ class HolderEngine {
                     throw new Error(`not a full task URI with version: ${uri} (module ${m.name})`);
                 if (uri === ACK_TYPE)
                     throw new Error(`${uri} is built in: acks take the common path (module ${m.name})`);
-                if (SIGNATURE_CLASS.has(uri))
-                    throw new Error(`${uri} is signature-class: its signed ack is not built yet (module ${m.name})`);
                 if (tasks.has(uri))
                     throw new Error(`duplicate task ${uri} (module ${m.name})`);
                 if (typeof h?.apply !== 'function' || typeof h.decode !== 'function')
                     throw new TypeError(`task ${uri} (module ${m.name}) needs decode and apply`);
                 if (h.proof !== 'absent' && h.proof !== 'required')
                     throw new TypeError(`task ${uri} (module ${m.name}) needs its proof declaration: 'absent' or 'required'`);
+                if (h.channel !== undefined && typeof h.channel !== 'function')
+                    throw new TypeError(`task ${uri} (module ${m.name}): channel must be a function`);
                 tasks.set(uri, Object.freeze({ ...h }));
             }
             for (const [kind, h] of Object.entries(m.duties ?? {})) {
@@ -563,7 +609,7 @@ class HolderEngine {
             }
             // 2 — prepare, bound to this snapshot
             const ctx = Object.freeze({
-                snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access, log: this.#log,
+                snapshot: state, keys: this.#keys, entropy: this.#entropy, access: this.#access ?? this.#accessFrom?.(state), log: this.#log,
                 crypto: this.#crypto, when: at, release: releaseOf(state),
             });
             const value = def.prepare ? await def.prepare(ctx, input) : undefined;
@@ -572,8 +618,30 @@ class HolderEngine {
             const r = def.apply(state, prepared, input, at);
             if (isHalt(r))
                 return r;
-            if (isRefusal(r))
-                return { ok: false, code: r.code, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+            if (isRefusal(r)) {
+                const refusal = { ok: false, code: r.code, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+                if (!r.latch)
+                    return refusal;
+                // the Encounter latch exception: the latch and lastWhen commit, nothing else
+                checkLatch(state, r.latch, at);
+                const seq = inc(state.commitSeq);
+                const next = { ...r.latch, commitSeq: seq, lastWhen: at };
+                const text = encodeState(next);
+                if (this.#check)
+                    this.#check(state, next, op.kind === 'act' ? { ...op, events: [] } : op);
+                let res;
+                try {
+                    res = await this.#store.commit(version, toOpaque(next));
+                }
+                catch (e) {
+                    this.#unsettled = { text, commitSeq: seq, events: [] };
+                    throw new InfraError('unknown-commit-outcome', undefined, { cause: e });
+                }
+                if (!res.ok)
+                    continue;
+                this.#announce(seq, []);
+                return refusal;
+            }
             const drafts = r.outbound ?? [];
             const eventDrafts = r.events ?? [];
             const newDuties = r.duties ?? [];
@@ -755,7 +823,10 @@ class HolderEngine {
                 const keys = keep(state.addresses.keys, (k, rkid) => {
                     if (k.lastShown + retention > when || live.has(rkid))
                         return true;
-                    if (!tombstones.includes(rkid))
+                    // a member key (group/…) is an identity context, not a delivery
+                    // address of Delivery §5: it leaves without a tombstone, so the same
+                    // derivation can serve the same group again (a re-invitation)
+                    if (!k.label.startsWith('group/') && !tombstones.includes(rkid))
                         tombstones.push(rkid);
                     return false;
                 });
@@ -1097,8 +1168,14 @@ class HolderEngine {
                     case 'task': {
                         const h = tasks().get(plan.type);
                         const r = h.apply(state, handlerPrepared(prepared, plan.value), plan.doc, plan.arrival);
-                        if (isTaskRefusal(r))
-                            return { halt: true, detail: { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) } };
+                        if (isTaskRefusal(r)) {
+                            const failedDetail = { disposition: 'failed', reason: r.reason, stage: 9, digest: plan.digest, ...(r.ref !== undefined ? { ref: r.ref } : {}) };
+                            if (!r.latch)
+                                return { halt: true, detail: failedDetail };
+                            // the Encounter latch exception (receive.ts): only the latch commits
+                            checkLatch(state, r.latch, when);
+                            return { state: r.latch, detail: failedDetail };
+                        }
                         if (isTaskDiscarded(r)) {
                             // a resource-limit discard: its state commits; no cache entry, no ack
                             if (r.state.effects !== state.effects)
@@ -1209,6 +1286,8 @@ class HolderEngine {
                 return r.detail;
             if (!r.ok)
                 throw new Error('engine: receive does not refuse');
+            if (r.detail?.disposition === 'failed')
+                return r.detail; // a latch committed
             const d = r.detail;
             if (d.disposition === 'discarded')
                 return { disposition: 'discarded', digest: d.digest, type: d.type, reason: d.reason, ...(d.ref !== undefined ? { ref: d.ref } : {}) };

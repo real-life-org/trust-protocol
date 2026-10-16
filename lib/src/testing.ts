@@ -1,7 +1,8 @@
 // @real-life/trust-protocol/testing — tools for tests, vectors and
 // adapter authors (lib Stage 2, note §4.6). Not for production holders.
-// continuityTestModule opens fresh tuples (continuity.newTuple) until
-// the encounter graduates (PR 7).
+// continuityTestModule opens a fresh tuple directly (continuity.newTuple),
+// for tests that need one without a ceremony; holders meet through the
+// encounter's acts (show, scan) since PR 7a.
 export { InMemoryStore } from './store-memory.js'
 export { memoryLog } from './log-memory.js'
 export type { MemoryLog } from './log-memory.js'

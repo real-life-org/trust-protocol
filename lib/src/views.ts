@@ -24,10 +24,18 @@
 //     entries. Its heads are the active-head tuples among them of live
 //     relationships (not chained into another), not deactivated; under
 //     2146 the appended tuple's entry takes the chain's active head
-//   - verification is over all of the entry's tuples, deactivated and
-//     older ones included (historical evidence): `outgoing` an anchor
-//     mapping was issued (mappingOut), `incoming` one was verified
-//     (mappingIn), `mutual` both, `met` neither
+//   - verification is the edge of Encounter 4.2 over all of the entry's
+//     tuples, deactivated and older ones included (historical evidence;
+//     one edge per relationship, carried along its chain): `outgoing` an
+//     own step credential was issued, `incoming` the counterparty's was
+//     accepted (5.6), `mutual` both, `met` neither — read from the
+//     enactment records of those tuples (encounter/ceremony.ts). An entry
+//     with no record at all (built without a ceremony: introduced, or a
+//     test state) reads the anchor mappings instead: `outgoing` one was
+//     issued (mappingOut), `incoming` one was verified (mappingIn)
+//   - displayName: the profile's name (6425), else the self-declared name
+//     on the counterparty card of the entry's newest record (Encounter
+//     6120: the app binds its own local name to the anchor)
 //   - trust.given is the anchor mapping class on (the Trust act, 2770);
 //     trust.received a verified anchor mapping from the contact, whose
 //     class has no default recipient (2760); trust.paused the pause of 5.4,
@@ -63,6 +71,7 @@ import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted 
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
 import type {
+  EnactmentRecord,
   Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
 } from './state.js'
 import type { DeliveryFailure, PreTransportReason, ReceiverRefusalCode } from './ports.js'
@@ -121,10 +130,16 @@ export interface GroupView {
   commitSeq: Dec
   /** genesis digest */
   id: string
+  /** the group's name, as its genesis names it */
+  name: string
   /** listed in the blinded group star (5.2b per-group switch) */
   listed: boolean
   vouchThreshold: Dec
-  /** the group's name and members arrive with membership's graduation (PR 7) */
+  /** the members this holder knows of, by member anchor (its roster);
+   *  `self` marks the own one, `contactId` a member it knows as a contact */
+  members: Array<{ anchor: string, name?: string, contactId?: string, self: boolean }>
+  /** consent pairs held toward an admission (Membership 3.4), by subject */
+  pending: Array<{ member: string, name?: string, vouches: number }>
 }
 
 /** The holder's own profile (6450). */
@@ -178,6 +193,15 @@ const profileFields = (body: Json | null): { name?: string, image?: string, text
   return out
 }
 
+/** own pair label → its enactment record (encounter.records) */
+type RecordIndex = Map<string, EnactmentRecord>
+
+const recordIndex = (state: Readonly<HolderState>): RecordIndex => {
+  const ix: RecordIndex = new Map()
+  for (const r of Object.values(state.encounter.records)) ix.set(r.label, r)
+  return ix
+}
+
 /** entry id → the relationships holding a tuple of that entry (2145) */
 type EntryIndex = Map<string, Set<string>>
 
@@ -207,14 +231,18 @@ const relationshipsOf = (state: Readonly<HolderState>, c: Readonly<Contact>, ids
   return { own, all }
 }
 
-const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex): ContactView => {
+const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex, rix: RecordIndex): ContactView => {
   const ids = new Set([c.id, ...c.aliases])
   const { own, all: rels } = relationshipsOf(state, c, ids, ix)
   const mine = (t: Tuple): boolean => ids.has(t.entryId)
   const tuples = rels.flatMap((r) => r.tuples.filter(mine))
   const origin = [...own].sort((a, b) => (a.provenance.at - b.provenance.at) || cmp(a.id, b.id))[0]
-  const out = tuples.some((t) => t.mappingOut.body !== null)
-  const inn = tuples.some((t) => t.mappingIn.body !== null)
+  const records = tuples.map((t) => rix.get(t.ownPairLabel)).filter((r): r is EnactmentRecord => r !== undefined)
+  const out = records.length ? records.some((r) => r.out !== null) : tuples.some((t) => t.mappingOut.body !== null)
+  const inn = records.length ? records.some((r) => r.in !== null) : tuples.some((t) => t.mappingIn.body !== null)
+  const newest = [...records].sort((a, b) => b.at - a.at)[0]
+  const introduced = own.map((r) => r.memory.introducedName).find((n): n is string => typeof n === 'string')
+  const cardName = typeof (newest?.card as { name?: unknown } | undefined)?.name === 'string' ? (newest.card as { name: string }).name : introduced
   const trusted = isTrusted(c)
   const classes = {} as Record<TrustClass, ClassView>
   for (const cls of CLASSES) classes[cls] = { setting: c.settings[cls], on: classOn(cls, c.settings[cls], trusted) }
@@ -250,13 +278,13 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
       id: r.id, tuples: r.tuples.length,
       chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
     })),
-    ...(profile?.name !== undefined ? { displayName: profile.name } : {}),
+    ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
     provenance: origin.provenance.kind,
     ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),
     verification: out && inn ? 'mutual' : out ? 'outgoing' : inn ? 'incoming' : 'met',
     trust: {
       given: trusted,
-      received: inn,
+      received: tuples.some((t) => t.mappingIn.body !== null),
       paused: c.settings.star === 'off' && c.settings.groupStar === 'off',
       pending,
     },
@@ -296,19 +324,27 @@ export function contactsView (state: Readonly<HolderState>): ContactView[] {
     return cmp(a.id, b.id)
   })
   const ix = entryIndex(state)
-  return freezeDeep(order.map((c) => project(state, c, ix)))
+  const rix = recordIndex(state)
+  return freezeDeep(order.map((c) => project(state, c, ix, rix)))
 }
 
 /** One contact by entry id or alias; undefined if there is none. */
 export function contactView (state: Readonly<HolderState>, id: string): ContactView | undefined {
   const c = findContact(state, id)
-  return c ? freezeDeep(project(state, c, entryIndex(state))) : undefined
+  return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state))) : undefined
 }
 
 /** The holder's groups, by genesis digest. */
 export function groupsView (state: Readonly<HolderState>): GroupView[] {
   return freezeDeep(Object.values(state.groups).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
-    commitSeq: state.commitSeq, id: g.id, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
+    commitSeq: state.commitSeq, id: g.id, name: g.name, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
+    members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
+      anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
+    })),
+    pending: Object.values(g.evidence).map((e) => {
+      const acc = (e.accept as { payload?: { accept?: { subject?: string, card?: { name?: string } } } }).payload?.accept
+      return { member: acc?.subject ?? '', ...(typeof acc?.card?.name === 'string' ? { name: acc.card.name } : {}), vouches: e.vouches.length }
+    }).sort((a, b) => cmp(a.member, b.member)),
   })))
 }
 

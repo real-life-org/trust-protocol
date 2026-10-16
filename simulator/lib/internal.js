@@ -2,6 +2,7 @@
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 export { emptyState, triasOf, toOpaque } from './state.js';
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
+export { SIGNATURE_CLASS } from './receive.js';
 export { contactsView, contactView, groupsView, profileView, promptsView, deliveryStatusView } from './views.js';
 export { DECIDE } from './prompts.js';
 export { freezeDeep } from './util-freeze.js';
@@ -17,3 +18,6 @@ export { PROFILE_SET, profileIssueDuty, profileTask, profileParts } from './trus
 export { identityModule, IDENTITY_COMMANDS, GENERATION_LAST, withLabel, withPairNonce, deviceKeyOf, rotationDutyId, reissueId } from './identity-state.js';
 export { stateViolations, transitionViolations, commitViolations, dutyDrops } from './invariants.js';
 export { createEngine } from './engine.js';
+export { encounterModule, ENCOUNTER_COMMANDS, resolve as resolveChallenge, idsOf as encounterIdsOf, confirmPromptId } from './encounter/ceremony.js';
+export { membershipModule, localAccess, MEMBERSHIP_COMMANDS, PRELUDE_REQUEST_TYPE, PRELUDE_REPLY_TYPE, WELCOME_TYPE } from './membership/holder.js';
+export { introductionModule, INTRODUCTION_COMMANDS, OFFER_TYPE, ACK_DELAY } from './introduction/holder.js';
