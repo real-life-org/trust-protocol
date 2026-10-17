@@ -128,9 +128,13 @@ Run from the repository root before proposing a change:
 npm ci && npm run validate
 ```
 
-This runs the script tests, the companion pin check, the schema and vector
-validation, and the vector generators in `--check` mode: each committed
-vector must be reproduced byte for byte.
+This runs the script tests, the companion pin check, the check of links
+into spec sections and of the castings the READMEs name
+(`scripts/check-doc-refs.mjs`), the `specs:` declarations of the site
+pages (`scripts/check-doc-specs.mjs`), the check of this file and `CLAUDE.md`
+against the repository (`scripts/check-agents-md.mjs`),
+the schema and vector validation, and the vector generators in `--check`
+mode: each committed vector must be reproduced byte for byte.
 
 For a change under `lib/`, `simulator/` or `apps/gesamtsimulator/`:
 
@@ -143,7 +147,7 @@ cd simulator && npm test && for t in rltp-crypto-test clock-test introduce-test 
   trust-test groups-test continuity-test delivery-test graph-web-test; do node "$t.mjs"; done
 ```
 
-The simulator's `npm test` covers only `simulator/test/*.test.mjs`; the
+In `simulator/`, `npm test` covers only `simulator/test/*.test.mjs`; the
 eight standalone `*-test.mjs` scripts in the loop are the rest of its suite.
 
 When the library changes, refreeze both copies and commit them in the same
@@ -164,18 +168,26 @@ A new casting of a specification arrives as one pull request. Besides the
 specification text, schemas, vectors, and library, that pull request
 updates everything that describes the specification:
 
-1. **Companion pins** in the other specifications (`npm run validate`
-   warns on stale pins).
+1. **Companion pins** in the other specifications. `npm run validate`
+   warns on stale pins.
 2. **Status line** in `README.md` and the versions named in
-   `lib/README.md`.
+   `lib/README.md`. `npm run validate` fails on a README that names an
+   old casting and warns on a library README that lags one.
 3. **Pages under `apps/site/src/content/docs/`**: every link into a
    renamed or renumbered section, and every statement the casting made
-   untrue. Read the `understand/` pages that cover the layer; do not rely
-   on the links alone.
+   untrue. `npm run validate` fails on a link into a section that no
+   longer exists, here and in the term register. Each page names the
+   specifications it rests on in its `specs:` frontmatter; the
+   `docs-follow` workflow (`.github/workflows/docs-follow.yml`) fails a
+   pull request that edits one of them until the pages are updated or a
+   person has read them and labelled the pull request `docs-checked`. Read the `understand/` pages that
+   cover the layer; the links alone prove nothing about the text.
 4. **Term register** `terms/rltp.skos.jsonld` for terms the casting adds,
    renames, or removes; the glossary follows from it.
 5. **This file and `CLAUDE.md`** when the casting adds a directory, a
-   script, a check, or a workflow.
+   script, a check, or a workflow. `npm run validate` fails when a
+   directory is missing from the layout above, or when a path or an
+   `npm run` script named here does not exist.
 
 ## Conventions
 
