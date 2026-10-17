@@ -1,6 +1,7 @@
 ---
 title: Read the spec
 description: The layer documents of RLTP, where to start and in which order.
+specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
 New to RLTP? Start with [Foundations](/understand/foundations/) and the

@@ -1,6 +1,7 @@
 ---
 title: Encounter
 description: How two people record that they met. The card, the challenge, the one scan, the credential each side holds, and what nobody else can read from it.
+specs: [encounter-layer, trust-layer]
 ---
 
 ## What an encounter records

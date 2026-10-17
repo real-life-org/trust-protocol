@@ -1,6 +1,7 @@
 ---
 title: Groups
 description: How a group holds itself together. A place on its members' devices, rules instead of admins, joining by consent, leaving and removal, people and their devices, and what happens when changes meet.
+specs: [access-layer, membership-tasks]
 ---
 
 ## What a group is

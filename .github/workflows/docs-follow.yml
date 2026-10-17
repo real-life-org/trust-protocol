@@ -1,0 +1,24 @@
+name: docs follow specs
+# A pull request that edits a specification (spec/*.md) must update the
+# site pages that rest on it (their `specs:` frontmatter), or carry the
+# label `docs-checked`: a person has read those pages and they still hold.
+# scripts/check-doc-specs.mjs lists the pages in the job summary.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - env:
+          BASE: ${{ github.base_ref }}
+          CHECKED: ${{ contains(github.event.pull_request.labels.*.name, 'docs-checked') }}
+        run: |
+          if [ "$CHECKED" = true ]; then flag=--checked; else flag=; fi
+          node scripts/check-doc-specs.mjs --since "origin/$BASE" $flag

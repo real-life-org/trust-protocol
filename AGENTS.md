@@ -130,7 +130,8 @@ npm ci && npm run validate
 
 This runs the script tests, the companion pin check, the check of links
 into spec sections and of the castings the READMEs name
-(`scripts/check-doc-refs.mjs`), the check of this file and `CLAUDE.md`
+(`scripts/check-doc-refs.mjs`), the `specs:` declarations of the site
+pages (`scripts/check-doc-specs.mjs`), the check of this file and `CLAUDE.md`
 against the repository (`scripts/check-agents-md.mjs`),
 the schema and vector validation, and the vector generators in `--check`
 mode: each committed vector must be reproduced byte for byte.
@@ -177,9 +178,9 @@ updates everything that describes the specification:
    untrue. `npm run validate` fails on a link into a section that no
    longer exists, here and in the term register. Each page names the
    specifications it rests on in its `specs:` frontmatter; the
-   `docs-follow` workflow fails a pull request that edits one of them
-   until the pages are updated or a person has read them and labelled
-   the pull request `docs-checked`. Read the `understand/` pages that
+   `docs-follow` workflow (`.github/workflows/docs-follow.yml`) fails a
+   pull request that edits one of them until the pages are updated or a
+   person has read them and labelled the pull request `docs-checked`. Read the `understand/` pages that
    cover the layer; the links alone prove nothing about the text.
 4. **Term register** `terms/rltp.skos.jsonld` for terms the casting adds,
    renames, or removes; the glossary follows from it.
