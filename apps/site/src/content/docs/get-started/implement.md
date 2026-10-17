@@ -1,7 +1,7 @@
 ---
 title: Implement
 description: The library on npm, the test vectors, and the conformance runner.
-specs: []
+specs: [trust-layer, membership-tasks]
 ---
 
 ## The library

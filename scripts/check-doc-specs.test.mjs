@@ -2,8 +2,9 @@
 //   usage: node --test scripts/check-doc-specs.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { parseSpecs, checkDeclarations, pendingPages } from './check-doc-specs.mjs'
 
@@ -56,4 +57,29 @@ test('a changed specification makes its pages pending unless the same change tou
 test('no changed specification, nothing pending', () => {
   const root = repo({ 'understand/groups.md': page('[access-layer]') })
   assert.deepEqual(pendingPages(root, ['spec/archive/access-layer-0.56.md', `${DOCS}/understand/groups.md`]), [])
+})
+
+// ── the repository's own mapping ────────────────────────────────────────
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const pendingFor = (spec) => pendingPages(ROOT, [`spec/${spec}.md`]).map((p) => p.file.slice(DOCS.length + 1))
+
+test('pages that state protocol rules are pending when those specifications change', () => {
+  for (const spec of ['encounter-layer', 'identity-layer', 'trust-layer', 'access-layer', 'membership-tasks', 'replication-contract', 'delivery-contract']) {
+    assert.ok(pendingFor(spec).includes('understand/why.mdx'), `why.mdx for ${spec}`)
+  }
+  for (const spec of ['encounter-layer', 'trust-layer', 'access-layer', 'membership-tasks', 'delivery-contract']) {
+    assert.ok(pendingFor(spec).includes('get-started/try-it.md'), `try-it.md for ${spec}`)
+  }
+  assert.ok(pendingFor('membership-tasks').includes('get-started/implement.md'))
+})
+
+test('only the generated glossary rests on no specification', () => {
+  const none = []
+  for (const dir of ['understand', 'get-started', 'reference']) {
+    for (const f of readdirSync(join(ROOT, DOCS, dir))) {
+      if (parseSpecs(readFileSync(join(ROOT, DOCS, dir, f), 'utf8'))?.length === 0) none.push(`${dir}/${f}`)
+    }
+  }
+  assert.deepEqual(none, ['reference/glossary.mdx'])
 })
