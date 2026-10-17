@@ -1,6 +1,7 @@
 ---
 title: Try it
 description: Three simulators in your browser, running the real protocol.
+specs: []
 ---
 
 Three views of the same protocol. Nothing to install, everything runs in your

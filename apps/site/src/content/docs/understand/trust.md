@@ -1,6 +1,7 @@
 ---
 title: Trust
 description: What turns encounters into a network. What you reveal when you trust someone, the blinded star, being introduced, meeting again, vouching inside a group, and what nobody else can read.
+specs: [trust-layer, encounter-layer, identity-layer, access-layer, personhood-predicates]
 ---
 
 ## Trust is a second step

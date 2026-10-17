@@ -1,6 +1,7 @@
 ---
 title: Trust Tasks
 description: "Every registered task type, by layer: where it is registered, what it carries, where the rules are."
+specs: [access-layer, delivery-contract, encounter-layer, membership-tasks, trust-layer]
 ---
 
 Every RLTP message is a Trust Task document of a private, versioned

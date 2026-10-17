@@ -1,6 +1,7 @@
 ---
 title: Group keys and replication
 description: The keys a group encrypts its content with, and who carries them. Two ports, key states instead of epoch numbers, the adapters that produce keys, what the replication service may know, and how a device gets back in.
+specs: [access-layer, membership-tasks, replication-contract]
 ---
 
 ## Two ports
