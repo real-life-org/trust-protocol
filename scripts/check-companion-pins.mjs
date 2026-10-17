@@ -33,7 +33,7 @@ export const SPECS = {
   Predicates: 'personhood-predicates.md',
   Succession: 'succession.md',
 }
-const PIN = new RegExp(`\\b(${Object.keys(SPECS).join('|')})(?:\\s+(?:Layer|Contract|Tasks))?\\s+(\\d+)\\.(\\d+)\\b`, 'g')
+export const PIN = new RegExp(`\\b(${Object.keys(SPECS).join('|')})(?:\\s+(?:Layer|Contract|Tasks))?\\s+(\\d+)\\.(\\d+)\\b`, 'g')
 const PIN_FIELD = /^(companion|position)/i
 
 // The header is everything before the first `## ` heading. A field is a

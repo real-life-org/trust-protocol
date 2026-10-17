@@ -128,8 +128,10 @@ Run from the repository root before proposing a change:
 npm ci && npm run validate
 ```
 
-This runs the script tests, the companion pin check, the check of this
-file and `CLAUDE.md` against the repository (`scripts/check-agents-md.mjs`),
+This runs the script tests, the companion pin check, the check of links
+into spec sections and of the castings the READMEs name
+(`scripts/check-doc-refs.mjs`), the check of this file and `CLAUDE.md`
+against the repository (`scripts/check-agents-md.mjs`),
 the schema and vector validation, and the vector generators in `--check`
 mode: each committed vector must be reproduced byte for byte.
 
