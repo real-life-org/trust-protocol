@@ -1,6 +1,7 @@
 ---
 title: Foundations
 description: What a protocol developer needs to know before reading the RLTP specifications. Identifiers, credentials, trust, Trust Tasks, groups, and the two service ports.
+specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
 ## What RLTP is

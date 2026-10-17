@@ -1,6 +1,7 @@
 ---
 title: Specifications
 description: Every RLTP document, and the artifacts beside them.
+specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
 The normative documents live in
