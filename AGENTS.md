@@ -96,7 +96,16 @@ apps/gesamtsimulator/
                byte-identical copy of simulator/lib (checked in CI)
 apps/site/     the Astro site for trust-protocol.real-life.org; its build
                copies the normative files and the simulators next to the
-               pages (apps/site/scripts/assemble.mjs)
+               pages (apps/site/scripts/assemble.mjs). Its own pages live in
+               apps/site/src/content/docs/:
+                 understand/   explanations of the protocol in plain
+                               language (why, foundations, encounter, trust,
+                               groups, group keys), linking into spec
+                               sections by anchor
+                 get-started/  try the simulators, read the spec, implement
+                 reference/    the list of specifications, the registered
+                               Trust Tasks, and the glossary (generated
+                               from terms/ at build time)
 binding/       dev-only wire binding of the VTI mediator adapter
                (spec/adapter-vti-mediator.md §7) over vti-didcomm-js and
                vti-tsp-js; never a dependency of lib/
@@ -149,6 +158,25 @@ rm -rf apps/gesamtsimulator/lib && cp -r simulator/lib apps/gesamtsimulator/lib
 
 CI (`.github/workflows/validate.yml`) runs the check steps above.
 
+## When a Casting Lands
+
+A new casting of a specification arrives as one pull request. Besides the
+specification text, schemas, vectors, and library, that pull request
+updates everything that describes the specification:
+
+1. **Companion pins** in the other specifications (`npm run validate`
+   warns on stale pins).
+2. **Status line** in `README.md` and the versions named in
+   `lib/README.md`.
+3. **Pages under `apps/site/src/content/docs/`**: every link into a
+   renamed or renumbered section, and every statement the casting made
+   untrue. Read the `understand/` pages that cover the layer; do not rely
+   on the links alone.
+4. **Term register** `terms/rltp.skos.jsonld` for terms the casting adds,
+   renames, or removes; the glossary follows from it.
+5. **This file and `CLAUDE.md`** when the casting adds a directory, a
+   script, a check, or a workflow.
+
 ## Conventions
 
 - **English throughout**, in documents, code comments, and commit messages.
@@ -169,6 +197,11 @@ CI (`.github/workflows/validate.yml`) runs the check steps above.
 - **Releases.** A tag `lib-v<version>` whose version matches
   `lib/package.json` publishes the library with npm provenance
   (`.github/workflows/release.yml`). The tag is pushed by a human.
+- **Site pages state the current protocol, not its history.** No "since
+  casting 0.30", no "previously", no "earlier generation". Explaining how
+  documents converge, as `get-started/read-the-spec.md` does, is content
+  and stays. A heading names its content, the first sentence states a
+  fact, no promotional language.
 - **Dependencies** are updated by Renovate under the shared preset of the
   real-life-org repositories (`renovate.json5`).
 
