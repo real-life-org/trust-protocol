@@ -18,19 +18,33 @@ benennt genau die Pflichten, die hier wohnen.
     Ed25519-Außensignatur des Senders, **Sender = Egress-Identität**
     (§5a.10);
   - `onDeliver` entpackt den TSP-Rahmen, verlangt Rev 3 und genau das
-    Paar (Partner-Egress → eigene Connection-DID), und reicht die
-    **inneren Payload-Bytes wahrheitsgetreu** an den Adapter (M-2) —
+    Paar (Partner-Sender → eigene Connection-DID), und reicht nur bei
+    einer Anwendungsnachricht vom Typ `direct` mit nichtleerer
+    Nutzlast die **inneren Payload-Bytes wahrheitsgetreu** an den
+    Adapter (M-2). Beziehungsrahmen (`XRFI`/`XRFA`/`XRFD`, Referral im
+    Invite), Padding, `nested`/`routed` und leere `direct`-Rahmen
+    gehen nie an den Adapter: sie werden mit Typ und Sender-VID
+    geloggt und geackt, damit sie die Queue nicht blockieren. —
     inklusive der **Ack-Übersetzung** (Payload-Digest ↔ Mediator-
     Queue-ID = sha256 über den qb64-Text);
   - **Delete-to-Ack unter der Hoheit des Adapters**: die 0.12.0-
     Session ackt sonst direkt nach dem Consumer (mit eigenem
     `_seen`-Dedup); die Subclass `RltpMediatorSession` hebt beides
     auf — geackt wird erst, wenn der Adapter `conclude` sagt.
-  - `RLTP_WIRE_DEPOSIT` ist ein **Mess-Schalter**, keine Profil-Option
-    (beide Seiten einer Probe gleich): `egress` (Default, Profil §1),
-    `egress-session` (Egress-Identität authentisiert eine eigene
-    ATM-Session und deponiert über deren Socket), `connection`
-    (Sender = Connection-DID).
+  - `RLTP_WIRE_DEPOSIT` wählt die Sender-Form, keine Profil-Option
+    (beide Seiten einer Probe gleich): `egress-session` (Egress-
+    Identität authentisiert eine eigene ATM-Session und deponiert über
+    deren Socket), `egress` (Profil §1: Egress-Identität als Sender auf
+    dem Socket der Connection-DID), `connection` (Sender =
+    Connection-DID). **Default provisorisch `egress-session` bis zum
+    Entscheid nach E11b; die Spec-Form `egress` wird vom aktuellen
+    Mediator still verworfen (gemessen 17.10.).**
+- `test/wire-demux.test.mjs` — offline (`npm test`): echte Wire,
+  echte `RltpMediatorSession`, echter Adapter über einem Mediator-
+  Double (ATM-HTTP, DID-Auflösung, Socket über `cfg.transport`);
+  XRFI, XRFA, `nested` und leeres `direct` erreichen den Adapter
+  nicht und werden geackt, ein Envelope dahinter kommt bytegleich an
+  und wird erst auf `conclude` geackt.
 - `live-probe.mjs` — env-gated (`RLTP_LIVE_MEDIATOR=1`): zwei
   Beziehungen gegen die öffentliche Dev-Instanz, deposit → deliver
   → conclude in beide Richtungen.
@@ -55,11 +69,11 @@ auf (`SCID in DID … does not match SCID in log 'QmR5xGk8…'`).
 
 ## Messstand 17.10.2026
 
-| Probe | `egress` (Profil) | `egress-session` | `connection` |
+| Probe | `egress-session` (Default) | `egress` (Profil) | `connection` |
 |---|---|---|---|
-| `live-probe.mjs` | **FAIL** — `no delivery within 20s` | PASS | PASS |
-| `live-delivery-probe.mjs` | **FAIL** — `no delivery in 20s` | PASS | PASS |
-| `.sender-hypothesis.mjs` | fremde Sender-VID: nicht zugestellt | eigener Socket: zugestellt | Socket-DID: zugestellt |
+| `live-probe.mjs` | PASS | **FAIL** — `no delivery within 20s` | PASS |
+| `live-delivery-probe.mjs` | PASS | **FAIL** — `no delivery in 20s` | PASS |
+| `.sender-hypothesis.mjs` | eigener Socket: zugestellt | fremde Sender-VID: nicht zugestellt | Socket-DID: zugestellt |
 
 Rahmengrößen (Rev 3 direkt): 64 B Payload → 393 B, 48 B → 375 B,
 681 B versiegeltes Delivery-Dokument → 1008 B, 1224 B Ack → 1551 B.
@@ -92,7 +106,8 @@ Rahmengrößen (Rev 3 direkt): 64 B Payload → 393 B, 48 B → 375 B,
 cd binding && npm install
 RLTP_LIVE_MEDIATOR=1 npm run probe                  # braucht Netz
 RLTP_LIVE_MEDIATOR=1 node live-delivery-probe.mjs
-RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=egress-session npm run probe
+RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=egress npm run probe   # Spec-Form
+npm test                                            # offline, Message-Typ-Demux
 RLTP_WIRE_DEBUG=1 ...                               # Rahmengrößen, Dispatch-Fehler
 MEDIATOR_DID=... npm run probe                      # andere Instanz
 ```
@@ -101,13 +116,15 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
 
 ## Offen
 
-- Welche Sender-Form das Profil festschreibt (Fakt 1): Egress-Identität
-  mit eigener ATM-Session, Connection-DID als Sender, oder Routed-Mode
-  (Outer-Hop an den Mediator).
+- Welche Sender-Form das Profil festschreibt (Fakt 1): Entscheid nach
+  dem Routed-TSP-Experiment E11b (Egress mit eigener ATM-Session,
+  Connection-DID als Sender, oder Routed-Mode mit Outer-Hop an den
+  Mediator).
 - Routed-Mode und der §5a.10-Peer-Wechsel via Rev-3-Referral
   (vti-tsp-js 0.3.0 dekodiert Referrals, komponiert sie nicht).
 - Rev 3 §7.2.2: Endpunkte SOLLEN Anwendungsnachrichten ohne
   TSP-Beziehung (`XRFI`/`XRFA`) verwerfen; die Bindung schickt ohne
-  Beziehungs-Handshake, der Mediator verlangt ihn nicht.
+  Beziehungs-Handshake, der Mediator verlangt ihn nicht; eingehende
+  Beziehungsrahmen werden geloggt und verworfen, nicht beantwortet.
 - Offline-Signal (`wire.offline()`): der Socket-Zustand ist die
   natürliche Quelle; noch nicht verdrahtet.

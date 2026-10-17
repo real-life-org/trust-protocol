@@ -28,7 +28,7 @@ const fail = (m) => { console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live probe: converged adapter × real mediator ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress"} (vti-wire.mjs; default = profile §1)`);
+say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress-session"} (vti-wire.mjs; provisional default egress-session, profile form egress)`);
 
 // Each party: its own relationship root and carrier nonce. The wire
 // derives the identical trio the adapter's factory derives.

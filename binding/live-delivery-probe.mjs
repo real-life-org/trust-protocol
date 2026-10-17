@@ -34,7 +34,7 @@ const fail = (m) => { console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live delivery probe: seal → carry → receive → signed ack → delivered ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress"} (vti-wire.mjs; default = profile §1)`);
+say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress-session"} (vti-wire.mjs; provisional default egress-session, profile form egress)`);
 
 // ── party state: relationship root/nonce (adapter+wire), an rkid
 // (X25519, the seal target), and a signing anchor (the ack issuer)

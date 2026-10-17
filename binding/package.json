@@ -2,10 +2,11 @@
   "name": "@real-life/rltp-binding-vti",
   "private": true,
   "version": "0.1.0",
-  "description": "Wire binding: MediatorWire over vti-didcomm-js 0.12.0 / vti-tsp-js 0.3.0 (TSP Rev 3). Dev-only \u2014 never a dependency of the zero-dependency lib.",
+  "description": "Wire binding: MediatorWire over vti-didcomm-js 0.12.0 / vti-tsp-js 0.3.0 (TSP Rev 3). Dev-only — never a dependency of the zero-dependency lib.",
   "type": "module",
   "scripts": {
-    "probe": "node live-probe.mjs"
+    "probe": "node live-probe.mjs",
+    "test": "node --test test/wire-demux.test.mjs"
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
