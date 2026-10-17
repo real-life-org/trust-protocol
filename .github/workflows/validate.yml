@@ -31,6 +31,9 @@ jobs:
       # the vector generators that run on lib/dist must reproduce their
       # committed vectors byte for byte (the others run in npm run validate)
       - run: npm run check:generators:lib
+      # the code samples on the site and in the library README compile
+      # against this build
+      - run: node scripts/check-code-samples.mjs
       # the workbench carries its own copy so it also runs as a Claude Design
       # project; it must stay byte-identical to the freeze
       - run: diff -r simulator/lib apps/gesamtsimulator/lib

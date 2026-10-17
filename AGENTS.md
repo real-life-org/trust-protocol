@@ -142,6 +142,7 @@ For a change under `lib/`, `simulator/` or `apps/gesamtsimulator/`:
 cd lib && npm ci && npm run build && npm test && cd ..
 node scripts/build-simulator-lib.mjs --check
 npm run check:generators:lib
+node scripts/check-code-samples.mjs
 diff -r simulator/lib apps/gesamtsimulator/lib
 cd simulator && npm test && for t in rltp-crypto-test clock-test introduce-test \
   trust-test groups-test continuity-test delivery-test graph-web-test; do node "$t.mjs"; done
@@ -180,14 +181,34 @@ updates everything that describes the specification:
    specifications it rests on in its `specs:` frontmatter; the
    `docs-follow` workflow (`.github/workflows/docs-follow.yml`) fails a
    pull request that edits one of them until the pages are updated or a
-   person has read them and labelled the pull request `docs-checked`. Read the `understand/` pages that
-   cover the layer; the links alone prove nothing about the text.
+   person has read them and labelled the pull request `docs-checked`.
+   Read the `understand/` pages that cover the layer; the links alone
+   prove nothing about the text.
 4. **Term register** `terms/rltp.skos.jsonld` for terms the casting adds,
    renames, or removes; the glossary follows from it.
 5. **This file and `CLAUDE.md`** when the casting adds a directory, a
    script, a check, or a workflow. `npm run validate` fails when a
    directory is missing from the layout above, or when a path or an
    `npm run` script named here does not exist.
+
+## When the Library Is Released
+
+A release changes the version in `lib/package.json`; the tag follows the
+merge. The pull request that changes the version also updates:
+
+1. **`lib/README.md` and `lib/CHANGELOG.md`**: the exports, the acts, the
+   module table, and what changed.
+2. **The pages that describe the library**, marked `library: true` in
+   their frontmatter (today `get-started/implement.md`). The `docs-follow`
+   workflow fails the pull request until they are updated or labelled
+   `docs-checked`.
+
+The code samples on the site and in `lib/README.md` are compiled
+against every library build (`scripts/check-code-samples.mjs`, in the CI
+library job): a sample that imports an export or an entry point the
+library no longer has, or calls a method a holder no longer offers, fails.
+Pages describe the library briefly and link to `lib/README.md` for the
+lists of exports and modules, so those lists exist once.
 
 ## Conventions
 

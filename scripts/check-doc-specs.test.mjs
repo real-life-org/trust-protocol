@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
-import { parseSpecs, checkDeclarations, pendingPages } from './check-doc-specs.mjs'
+import { parseSpecs, parseLibrary, checkDeclarations, pendingPages } from './check-doc-specs.mjs'
 
 const DOCS = 'apps/site/src/content/docs'
 const page = (specs) => `---\ntitle: T\ndescription: D\n${specs === undefined ? '' : `specs: ${specs}\n`}---\n\nBody with specs: [not, frontmatter]\n`
@@ -71,7 +71,7 @@ test('pages that state protocol rules are pending when those specifications chan
   for (const spec of ['encounter-layer', 'trust-layer', 'access-layer', 'membership-tasks', 'delivery-contract']) {
     assert.ok(pendingFor(spec).includes('get-started/try-it.md'), `try-it.md for ${spec}`)
   }
-  assert.ok(pendingFor('membership-tasks').includes('get-started/implement.md'))
+  assert.ok(pendingFor('encounter-layer').includes('get-started/implement.md'))
 })
 
 test('only the generated glossary rests on no specification', () => {
@@ -82,4 +82,36 @@ test('only the generated glossary rests on no specification', () => {
     }
   }
   assert.deepEqual(none, ['reference/glossary.mdx'])
+})
+
+// ── library releases ────────────────────────────────────────────────────
+
+const libPage = (specs, flag) => page(specs).replace('---\n\n', `library: ${flag}\n---\n\n`)
+
+test('library: true in the frontmatter marks a page that describes the library', () => {
+  assert.equal(parseLibrary(libPage('[]', 'true')), true)
+  assert.equal(parseLibrary(page('[]')), false)
+  const root = repo({ 'get-started/implement.md': libPage('[]', 'yes') })
+  assert.deepEqual(checkDeclarations(root).map((e) => e.msg), ['library: must be true or false'])
+})
+
+test('a library release makes the library pages pending unless the same change touches them', () => {
+  const root = repo({
+    'get-started/implement.md': libPage('[trust-layer]', 'true'),
+    'get-started/other.md': libPage('[]', 'true'),
+    'understand/groups.md': page('[access-layer]'),
+  })
+  const changed = ['lib/package.json', `${DOCS}/get-started/other.md`]
+  assert.deepEqual(pendingPages(root, changed, { release: true }), [
+    { file: `${DOCS}/get-started/implement.md`, specs: [], library: true },
+  ])
+  assert.deepEqual(pendingPages(root, changed, { release: false }), [])
+  assert.deepEqual(pendingPages(root, ['spec/trust-layer.md'], { release: true }), [
+    { file: `${DOCS}/get-started/implement.md`, specs: ['trust-layer'], library: true },
+    { file: `${DOCS}/get-started/other.md`, specs: [], library: true },
+  ])
+})
+
+test('the Implement page follows every library release', () => {
+  assert.ok(pendingPages(ROOT, ['lib/package.json'], { release: true }).some((p) => p.file.endsWith('get-started/implement.md')))
 })
