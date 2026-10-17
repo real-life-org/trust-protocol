@@ -55,8 +55,10 @@ export function checkAgents({ files, tracked, packages, ignored }) {
   for (const file of FILES) {
     const lines = (files[file] ?? '').split('\n')
     lines.forEach((line, i) => {
-      for (const raw of line.split(/[\s`]+/)) {
-        const token = raw.replace(/^[(\["'<]+/, '').replace(/[)\].,;:"'>]+$/, '')
+      // brackets and parentheses split too, so a Markdown link destination
+      // stands alone; a fragment or query is not part of the path
+      for (const raw of line.split(/[\s`()[\]]+/)) {
+        const token = raw.replace(/[#?].*$/, '').replace(/^["'<]+/, '').replace(/[.,;:"'>]+$/, '')
         if (!token.includes('/') || /[$*<>{}]/.test(token)) continue
         if (!top.has(token.split('/')[0])) continue
         if (!exists(token)) errors.push({ file, line: i + 1, msg: `${token} does not exist` })

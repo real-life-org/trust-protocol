@@ -45,3 +45,8 @@ test('npm run names a script of the package it runs in', () => {
     'npm run validate: no such script in lib/package.json',
   ])
 })
+
+test('a path in a Markdown link is checked; a fragment or query after a path is not part of it', () => {
+  const errors = run(layout(FULL) + '\nsee [workflow](.github/workflows/missing.yml) and [ok](scripts/validate.mjs)\nsee `scripts/validate.mjs#intro` and spec/a.md?plain=1\n')
+  assert.deepEqual(errors.map((e) => [e.line, e.msg]), [[11, '.github/workflows/missing.yml does not exist']])
+})
