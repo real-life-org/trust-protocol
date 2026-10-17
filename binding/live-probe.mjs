@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // live-probe.mjs — the converged adapter (profile 0.23) over the real
-// wire binding against the LIVE Dogwood mediator.
+// wire binding against the LIVE VTI mediator.
 //
 // Two independent relationships (Alice, Bob), each: derived identity
 // trio, ATM auth under the connection DID, TSP direct-mode carriage of
@@ -19,7 +19,7 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
 }
 
 const MEDIATOR_DID = process.env.MEDIATOR_DID
-  ?? "did:webvh:QmTS3a3H9Dk4ZMPAZ8jNWGeyPbuKrPbrPZcSbg8CJ6yynD:webvh.storm.ws:mediator";
+  ?? "did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator";
 
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 const now = () => Date.now();
@@ -28,6 +28,7 @@ const fail = (m) => { console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live probe: converged adapter × real mediator ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
+say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress"} (vti-wire.mjs; default = profile §1)`);
 
 // Each party: its own relationship root and carrier nonce. The wire
 // derives the identical trio the adapter's factory derives.
@@ -64,7 +65,7 @@ const id = alice.submit(envelope, now());
 await alice.settle();
 const st = alice.status(id);
 if (st?.state !== "accepted") fail(`submit not accepted: ${JSON.stringify(st)}`);
-say(`  ✓ deposit accepted by the live mediator (egress identity on the envelope)`);
+say(`  ✓ deposit handed to the live mediator socket (TSP Rev 3 direct frame)`);
 
 // give the store-and-forward a moment, then collect at Bob
 const waitFor = async (pred, ms = 20000, step = 250) => {
@@ -104,5 +105,5 @@ say(`  ✓ reply delivered and concluded`);
 
 alice.close(); bob.close();
 wireA.close(); wireB.close();
-console.log("\nLIVE-PROBE PASS — converged adapter exchanged sealed envelopes through the live Dogwood mediator (deposit → deliver → conclude, both directions)");
+console.log("\nLIVE-PROBE PASS — converged adapter exchanged sealed envelopes through the live VTI mediator (deposit → deliver → conclude, both directions)");
 process.exit(0);

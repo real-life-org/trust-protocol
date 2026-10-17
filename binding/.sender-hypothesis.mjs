@@ -1,8 +1,12 @@
+// .sender-hypothesis.mjs — seam measurement: which TSP envelope sender
+// does the mediator relay? Rev 3 direct frames (vti-tsp-js 0.3.0) over
+// the ATM-authenticated WS socket. MEDIATOR_DID overrides the instance.
 import { WebSocket } from "ws";
 import { authenticateToMediator, MediatorSession, multibase, didKey } from "@openvtc/vti-didcomm-js";
 import { pack, unpack } from "@openvtc/vti-tsp-js";
 import { ed25519, x25519 } from "@noble/curves/ed25519.js";
-const MEDIATOR_DID = "did:webvh:QmTS3a3H9Dk4ZMPAZ8jNWGeyPbuKrPbrPZcSbg8CJ6yynD:webvh.storm.ws:mediator";
+const MEDIATOR_DID = process.env.MEDIATOR_DID
+  ?? "did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator";
 const mint = () => {
   const edSecret = ed25519.utils.randomSecretKey ? ed25519.utils.randomSecretKey() : ed25519.utils.randomPrivateKey();
   const edPublic = ed25519.getPublicKey(edSecret);
@@ -34,14 +38,21 @@ const a = await attach(A), b = await attach(B);
 const wait = async (arr, ms) => { const t0 = Date.now(); while (arr.length === 0 && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 200)); return arr.length > 0; };
 
 // case 1: sender = socket DID (ref-04 style)
-const p1 = await pack(new TextEncoder().encode("case1"), A.did, B.did, { senderSigningKey: A.edSecret, senderEncryptionKey: A.xSecret, receiverEncryptionKey: keysOf(B.did).encPub });
+const p1 = await pack(new TextEncoder().encode("case1"), A.did, B.did, { senderSigningKey: A.edSecret, receiverEncryptionKey: keysOf(B.did).encPub });
 a.s.sendBinary(p1.bytes);
 console.log("case1 sender=socketDID delivered:", await wait(b.inbox, 10000));
 
 // case 2: sender = foreign egress DID on A's socket
 b.inbox.length = 0;
-const p2 = await pack(new TextEncoder().encode("case2"), E.did, B.did, { senderSigningKey: E.edSecret, senderEncryptionKey: E.xSecret, receiverEncryptionKey: keysOf(B.did).encPub });
+const p2 = await pack(new TextEncoder().encode("case2"), E.did, B.did, { senderSigningKey: E.edSecret, receiverEncryptionKey: keysOf(B.did).encPub });
 a.s.sendBinary(p2.bytes);
 console.log("case2 sender=egressDID  delivered:", await wait(b.inbox, 10000));
-a.s.close(); b.s.close();
+
+// case 3: sender = egress DID on its OWN authenticated socket
+b.inbox.length = 0;
+const e = await attach(E);
+const p3 = await pack(new TextEncoder().encode("case3"), E.did, B.did, { senderSigningKey: E.edSecret, receiverEncryptionKey: keysOf(B.did).encPub });
+e.s.sendBinary(p3.bytes);
+console.log("case3 sender=egressDID on egress socket delivered:", await wait(b.inbox, 10000));
+a.s.close(); b.s.close(); e.s.close();
 process.exit(0);

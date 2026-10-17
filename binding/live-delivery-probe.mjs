@@ -21,7 +21,7 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
 }
 
 const MEDIATOR_DID = process.env.MEDIATOR_DID
-  ?? "did:webvh:QmTS3a3H9Dk4ZMPAZ8jNWGeyPbuKrPbrPZcSbg8CJ6yynD:webvh.storm.ws:mediator";
+  ?? "did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator";
 
 const te = new TextEncoder();
 const td = new TextDecoder();
@@ -34,6 +34,7 @@ const fail = (m) => { console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live delivery probe: seal → carry → receive → signed ack → delivered ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
+say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress"} (vti-wire.mjs; default = profile §1)`);
 
 // ── party state: relationship root/nonce (adapter+wire), an rkid
 // (X25519, the seal target), and a signing anchor (the ack issuer)
