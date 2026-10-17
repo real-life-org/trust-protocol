@@ -130,12 +130,24 @@ cd lib && npm ci && npm run build && npm test && cd ..
 node scripts/build-simulator-lib.mjs --check
 npm run check:generators:lib
 diff -r simulator/lib apps/gesamtsimulator/lib
-cd simulator && npm test
+cd simulator && npm test && for t in rltp-crypto-test clock-test introduce-test \
+  trust-test groups-test continuity-test delivery-test graph-web-test; do node "$t.mjs"; done
 ```
 
-When the library changes, refreeze both copies with
-`node scripts/build-simulator-lib.mjs` and commit them in the same change.
-CI (`.github/workflows/validate.yml`) runs exactly these steps.
+The simulator's `npm test` covers only `simulator/test/*.test.mjs`; the
+eight standalone `*-test.mjs` scripts in the loop are the rest of its suite.
+
+When the library changes, refreeze both copies and commit them in the same
+change. `scripts/build-simulator-lib.mjs` writes `simulator/lib/` only; the
+workbench copy is replaced wholesale so that modules removed from the
+library do not survive as orphans:
+
+```sh
+node scripts/build-simulator-lib.mjs
+rm -rf apps/gesamtsimulator/lib && cp -r simulator/lib apps/gesamtsimulator/lib
+```
+
+CI (`.github/workflows/validate.yml`) runs the check steps above.
 
 ## Conventions
 
