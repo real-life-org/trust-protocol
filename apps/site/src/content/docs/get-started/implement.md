@@ -1,7 +1,8 @@
 ---
 title: Implement
 description: The library on npm, the test vectors, and the conformance runner.
-specs: [trust-layer, membership-tasks]
+specs: [encounter-layer]
+library: true
 ---
 
 ## The library
@@ -11,33 +12,51 @@ npm i @real-life/trust-protocol
 ```
 
 [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
-is the executable form of the specification, published with provenance.
-Zero dependencies, WebCrypto only (Ed25519, X25519, HKDF, AES-256-GCM). It
-runs in browsers, Node 20 and later, Deno and Bun. It has no DOM, no storage
-and no network: the library computes and verifies, the host decides where
-bytes live.
+is the executable form of the specifications, published with provenance. It
+has no runtime dependencies and uses WebCrypto only (Ed25519, X25519, HKDF,
+AES-256-GCM). It has no DOM, no storage and no network: the library computes
+and verifies, the app stores the state and carries the envelopes. Node 20 is
+the minimum; which runtimes are tested is in the
+[library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md#runtime).
 
-Its modules mirror the documents: `identity`, `encounter`, `delivery`,
-`ceremony`, `visibility`, and beside them `core` and `crypto`.
+## One device, one holder
+
+`createHolder` is one person's device. The app passes a store and the keys
+derived from the person's root seed; the holder keeps its state behind the
+human acts.
 
 ```ts
-import { ceremony, visibility } from '@real-life/trust-protocol'
-import { introduce, membership } from '@real-life/trust-protocol/probe'
+import { createHolder, seedKeys } from '@real-life/trust-protocol'
+import { InMemoryStore } from '@real-life/trust-protocol/testing'
+
+const rootSeed = crypto.getRandomValues(new Uint8Array(32))
+const holder = await createHolder({ store: new InMemoryStore(), keys: seedKeys(rootSeed) })
+
+// a human act: the person shows their contact card
+const shown = await holder.show({ when: Date.now(), actId: crypto.randomUUID() })
+if (shown.ok) {
+  // shown.events: what to display; shown.outbound: the envelopes to deliver
+}
 ```
 
-The `/probe` subpath carries the converged semantics of [introductions](term:Introduction) and
-group membership, but its transport shapes are not wire-normative yet. Do not
-treat them as an interoperability target.
+Every act returns the envelopes to deliver and the events to display, or a
+closed error code. The app delivers each envelope and passes every arriving
+one to `receive`. Acts, receives and resumes name `nextDueAt`, the earliest
+time something is due; the app keeps one timer at the earliest of them, and
+when it fires calls `tick` and then `resume`, delivers what `resume` returns
+and sets the timer anew. `InMemoryStore` is for tests; an app brings its own
+store, which passes the `storeContract` suite.
 
-The [library README](https://github.com/real-life-org/trust-protocol/tree/main/lib)
-lists every module with the document it answers to.
+The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)
+lists every act, every export and entry point, and for each module the
+sections of the specifications it implements.
 
 ## The test vectors
 
-[`vectors/`](https://github.com/real-life-org/trust-protocol/tree/main/vectors)
-holds deterministic test vectors: the sealed envelope, identity derivation,
-encounter cards, DTG credentials, visibility. An implementation must
-reproduce them byte for byte.
+[`vectors/`](https://github.com/real-life-org/trust-protocol/blob/main/vectors/index.md)
+holds deterministic test vectors for every layer, each listed with what it
+covers. An implementation must reproduce them byte for byte; every negative
+must fail at its declared stage.
 
 ## The conformance runner
 
@@ -49,8 +68,9 @@ node conformance/runner.mjs
 
 The runner recomputes every cryptographic claim of the shipped vectors from
 their documented inputs, validates every schema claim against the shipped
-schemas, and checks that every negative fails at its declared stage. Zero
-dependencies.
+schemas, and checks that every negative fails at its declared stage. It needs
+no install.
 
-`npm run validate` runs the publication checks: schemas compile, vectors
-recompute, and the must-fail fixtures fail.
+After `npm ci`, `npm run validate` runs the publication checks: schemas
+compile, vectors recompute, the must-fail fixtures fail, and the references
+from the documentation into the specifications resolve.

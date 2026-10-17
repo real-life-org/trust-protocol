@@ -6,7 +6,9 @@
 //
 //   specs: [access-layer, membership-tasks]
 //
-// (`specs: []` for a page that rests on none). A link check cannot tell
+// (`specs: []` for a page that rests on none). A page that describes the
+// library adds `library: true`; it then also follows every library release,
+// a change of the version in lib/package.json. A link check cannot tell
 // whether a sentence on a page is still true after a new casting; this
 // script makes sure somebody looked:
 //
@@ -14,7 +16,8 @@
 //     is a specification in spec/ — an error otherwise (runs in
 //     npm run validate);
 //   · with --since <ref>: the specifications changed since <ref> (spec/*.md,
-//     not the archive) make every page that names them PENDING, unless the
+//     not the archive) make every page that names them PENDING, and so
+//     does a library release for every `library: true` page, unless the
 //     same change touches that page. Pending pages fail the check, unless
 //     --checked says a person has read them and they still hold (CI passes
 //     it when the pull request carries the label `docs-checked`).
@@ -30,6 +33,15 @@ import { execFileSync } from 'node:child_process'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = 'apps/site/src/content/docs'
 const SPEC = /^spec\/([a-z0-9-]+)\.md$/
+
+const frontmatter = (text) => text.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''
+
+// Whether the page declares `library: true`; null for a value other than
+// true or false.
+export function parseLibrary(text) {
+  const v = frontmatter(text).match(/^library:\s*(.*?)\s*$/m)?.[1]
+  return v === undefined || v === 'false' ? false : v === 'true' ? true : null
+}
 
 // The `specs:` list of a page's frontmatter, or null when it has none.
 export function parseSpecs(text) {
@@ -55,7 +67,9 @@ const pages = (root) => {
 export function checkDeclarations(root) {
   const errors = []
   for (const file of pages(root)) {
-    const specs = parseSpecs(readFileSync(join(root, file), 'utf8'))
+    const text = readFileSync(join(root, file), 'utf8')
+    if (parseLibrary(text) === null) errors.push({ file, msg: 'library: must be true or false' })
+    const specs = parseSpecs(text)
     if (!specs) { errors.push({ file, msg: 'no specs: in the frontmatter (use [] for a page that rests on no specification)' }); continue }
     for (const s of specs) {
       if (!existsSync(join(root, 'spec', `${s}.md`))) errors.push({ file, msg: `specs names ${s}, which is no specification in spec/` })
@@ -64,19 +78,29 @@ export function checkDeclarations(root) {
   return errors
 }
 
-// The pages that rest on a changed specification and that the change does
-// not touch, each with the changed specifications it names.
-export function pendingPages(root, changedFiles) {
+// The pages that rest on a changed specification, or describe the library
+// when the change is a release, and that the change does not touch; each
+// with the changed specifications it names and `library: true` for a page
+// a release makes pending.
+export function pendingPages(root, changedFiles, { release = false } = {}) {
   const changed = new Set(changedFiles.map((f) => f.match(SPEC)?.[1]).filter(Boolean))
-  if (!changed.size) return []
+  if (!changed.size && !release) return []
   const touched = new Set(changedFiles)
   const out = []
   for (const file of pages(root)) {
     if (touched.has(file)) continue
-    const specs = (parseSpecs(readFileSync(join(root, file), 'utf8')) ?? []).filter((s) => changed.has(s))
-    if (specs.length) out.push({ file, specs })
+    const text = readFileSync(join(root, file), 'utf8')
+    const specs = (parseSpecs(text) ?? []).filter((s) => changed.has(s))
+    const library = release && parseLibrary(text) === true
+    if (specs.length || library) out.push(library ? { file, specs, library } : { file, specs })
   }
   return out
+}
+
+// Whether lib/package.json names another version at HEAD than at <since>.
+const released = (since) => {
+  const version = (ref) => { try { return JSON.parse(execFileSync('git', ['show', `${ref}:lib/package.json`], { cwd: ROOT, encoding: 'utf8' })).version } catch { return null } }
+  return version(since) !== version('HEAD')
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
@@ -98,17 +122,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   let pending = []
   if (since) {
     const diff = execFileSync('git', ['diff', '--name-only', `${since}...HEAD`], { cwd: ROOT, encoding: 'utf8' })
-    pending = pendingPages(ROOT, diff.split('\n').filter(Boolean))
+    pending = pendingPages(ROOT, diff.split('\n').filter(Boolean), { release: released(since) })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
-      const msg = `rests on ${p.specs.join(', ')}, which this change edits; update the page, or read it and label the pull request docs-checked`
+      const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : [])].join(', ')
+      const msg = `rests on ${what}${p.specs.length ? ' (edited by this change)' : ''}; update the page, or read it and label the pull request docs-checked`
       if (gh) console.log(`::${level} file=${p.file},line=1::${msg}`)
       console.error(`  ${checked ? 'CHECKED' : 'PENDING'} ${p.file} ${msg}`)
     }
     if (process.env.GITHUB_STEP_SUMMARY && pending.length) {
       appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-        `### Site pages resting on the changed specifications`, '',
-        ...pending.map((p) => `- [${checked ? 'x' : ' '}] \`${p.file}\` (${p.specs.join(', ')})`), '',
+        `### Site pages resting on what this change edits`, '',
+        ...pending.map((p) => `- [${checked ? 'x' : ' '}] \`${p.file}\` (${[...p.specs, ...(p.library ? ['library release'] : [])].join(', ')})`), '',
         checked ? 'Labelled `docs-checked`: read and still true.' : 'Update these pages in this pull request, or read them and add the label `docs-checked`.', '',
       ].join('\n'))
     }
