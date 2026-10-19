@@ -74,6 +74,14 @@ test('pages that state protocol rules are pending when those specifications chan
   assert.ok(pendingFor('encounter-layer').includes('get-started/implement.md'))
 })
 
+test('pages that list registered task types are pending when a registering specification changes', () => {
+  for (const spec of ['delivery-contract', 'membership-tasks', 'message-tasks', 'trust-layer', 'access-layer']) {
+    for (const page of ['understand/foundations.md', 'reference/trust-tasks.md']) {
+      assert.ok(pendingFor(spec).includes(page), `${page} for ${spec}`)
+    }
+  }
+})
+
 test('only the generated glossary rests on no specification', () => {
   const none = []
   for (const dir of ['understand', 'get-started', 'reference']) {

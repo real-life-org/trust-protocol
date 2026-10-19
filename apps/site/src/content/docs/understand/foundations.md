@@ -1,7 +1,7 @@
 ---
 title: Foundations
 description: What a protocol developer needs to know before reading the RLTP specifications. Identifiers, credentials, trust, Trust Tasks, groups, and the two service ports.
-specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
+specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, message-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
 ## What RLTP is
@@ -254,8 +254,9 @@ group's document identical on every member's device for the group's
 lifetime. A letter and a shared table, each with its own contract.
 
 **Delivery.** Eventually, at least once, never silently lost:
-delivery time is unbounded, duplicates and lost receipts are the
-normal case, every effect is idempotent. The envelope is sealed end
+delivery time is unbounded unless a task type bounds the age of its
+own documents, as a message does; duplicates and lost receipts are
+the normal case, every effect is idempotent. The envelope is sealed end
 to end; a carrier holds queues and reads nothing. The sender sees
 `accepted`, `delivered` or `failed`, never a success that was not
 one. An acknowledgement means arrival only. Whether the recipient agrees
