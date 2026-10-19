@@ -111,8 +111,7 @@ const TT = 'https://real-life.org/trust-tasks/';
 /** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
  *  is a transferable signature; their acks are signed, not MACed. The
  *  `x-` slugs are this library's own experimental, unregistered forms
- *  for what the specifications leave to the application (the membership
- *  prelude, Membership 1.2; the welcome until the Access envelope is
+ *  for what the specifications leave to the application (the welcome until the Access envelope is
  *  built; the introduction offer that conveys the target designator,
  *  Trust 8.3): signed documents as well. A receiver that does not know
  *  them answers unknown-type (Delivery §6.2). */
@@ -127,6 +126,11 @@ export const SIGNATURE_CLASS = new Set([
     TT + 'introduction-request/0.1',
     TT + 'introduction-forward/0.1',
     TT + 'introduction-reply/0.1',
+    TT + 'membership-prelude-request/0.1',
+    TT + 'membership-prelude-reply/0.1',
+    // lib 0.4.0's prelude forms: never received any more (unknown-type), kept
+    // for the class of an outbox item a codec-1 state still holds, whose
+    // signed ack may yet arrive
     TT + 'x-membership-prelude-request/0.1',
     TT + 'x-membership-prelude-reply/0.1',
     TT + 'x-membership-welcome/0.1',

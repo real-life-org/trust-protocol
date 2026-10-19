@@ -425,7 +425,7 @@ export interface HolderModule {
   /** own rkids the module still needs although no live tuple carries
    *  them: tick does not tombstone them. Trusted as registered, like
    *  ownRetries: no check that the module has any claim to the keys */
-  keepKeys?: (state: Readonly<HolderState>) => Iterable<string>
+  keepKeys?: (state: Readonly<HolderState>, when: Millis) => Iterable<string>
   /** the module's own retention, run by tick after the engine's: pure and
    *  synchronous, returning the same state object where nothing goes */
   retain?: (state: Readonly<HolderState>, when: Millis) => HolderState
@@ -676,7 +676,7 @@ class HolderEngine implements Engine {
   readonly #acks: ReadonlyMap<string, AckHandler>
   readonly #failures: ReadonlyMap<string, FailureHandler>
   readonly #ownRetries: ReadonlySet<string>
-  readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<string>>
+  readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => Iterable<string>>
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
   readonly #deadlines: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<Millis>>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
@@ -724,7 +724,7 @@ class HolderEngine implements Engine {
     const acks = new Map<string, AckHandler>()
     const failures = new Map<string, FailureHandler>()
     const ownRetries = new Set<string>()
-    const keepKeys: Array<(state: Readonly<HolderState>) => Iterable<string>> = []
+    const keepKeys: Array<(state: Readonly<HolderState>, when: Millis) => Iterable<string>> = []
     const retain: Array<(state: Readonly<HolderState>, when: Millis) => HolderState> = []
     const deadlines: Array<(state: Readonly<HolderState>) => Iterable<Millis>> = []
     const names = new Set<string>()
@@ -1093,7 +1093,8 @@ class HolderEngine implements Engine {
         const live = new Set<string>()
         for (const r of Object.values(held.relationships)) for (const t of r.tuples) if (!t.deactivated) live.add(t.rkid)
         // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
-        for (const k of keepers()) for (const rkid of k(held)) live.add(rkid)
+        // (at this tick's time: a claim that ends now ends in this tick)
+        for (const k of keepers()) for (const rkid of k(held, when)) live.add(rkid)
         const tombstones = [...held.addresses.tombstones]
         let gone = false
         const keys: HolderState['addresses']['keys'] = {}

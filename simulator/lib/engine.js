@@ -884,8 +884,9 @@ class HolderEngine {
                         if (!t.deactivated)
                             live.add(t.rkid);
                 // and the rkids a module still needs (a deactivated prior whose continuity flow is open)
+                // (at this tick's time: a claim that ends now ends in this tick)
                 for (const k of keepers())
-                    for (const rkid of k(held))
+                    for (const rkid of k(held, when))
                         live.add(rkid);
                 const tombstones = [...held.addresses.tombstones];
                 let gone = false;
