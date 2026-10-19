@@ -2856,8 +2856,9 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   the queue and is offered again at each collection, and each offer
   costs the receiver stages 1 to 8 again. For a relationship's own
   address the cost stays inside that relationship's queue (4.4
-  guarantees 4 and 5), and the carrier's give-up horizon and the
-  type's age bound end it. **One queue is shared:** invitations travel
+  guarantees 4 and 5), and the carrier's give-up horizon ends it; a
+  type's age bound ends it earlier only where the type checks the
+  bound before its rate. **One queue is shared:** invitations travel
   to the invitee's member key, the key of an identity context, which
   every inviter to the same group uses. An inviter that sends beyond
   its rate fills that queue up to `max-queue-bytes`, and another
@@ -2883,11 +2884,14 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   once the holder derives the context again for a new invitation, an
   old envelope sealed to the same key, replayed by whoever captured
   it, decrypts again and, after its cache entry has expired, is
-  evaluated afresh. The registering specification's state decides it:
-  an invitation past its life is refused, and a declined one is in the
-  holder's register of declined invitations (Membership Tasks 3.1,
-  Message Tasks 6.4). Forward secrecy is not a property of a key the
-  holder derives again by design.
+  evaluated afresh, and may surface again where the registering
+  specification keeps no record of it. What this contract does not
+  bound, the registering specification does: an accept to an
+  invitation past its window is refused (Membership Tasks
+  RLTP-MT-5050), and where it keeps the register of invitations
+  declined under a block (Message Tasks 6.4), those never surface
+  again. Forward secrecy is not a property of a key the holder
+  derives again by design.
 - **`failed(task-expired)` is the sender's decision, not a recall.** A
   copy an adapter holds may still be delivered and accepted inside the
   receiver's age bound (RLTP-DEL-6110, RLTP-DEL-7010).
