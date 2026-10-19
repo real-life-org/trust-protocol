@@ -195,7 +195,7 @@ try {
   await page.locator('#dev-J .phdlg .prow', { hasText: 'Emil' }).click()
   await tab('E', 'Home')
   await page.locator('#dev-E .incoming .iq', { hasText: 'invites you to "Orga-Untergruppe"' }).waitFor()
-  check(await ev(() => ['x-membership-prelude-request/0.1', 'x-membership-prelude-reply/0.1', 'membership-invite/0.2'].every((k) => window.__t.wire().some((w) => w.kind === k && w.disp === 'unique'))),
+  check(await ev(() => ['membership-prelude-request/0.1', 'membership-prelude-reply/0.1', 'membership-invite/0.2'].every((k) => window.__t.wire().some((w) => w.kind === k && w.disp === 'unique'))),
     'Emil sees the checked invitation in his Home inbox (prelude → reply → invite ran by themselves)')
   await page.locator('#dev-E .incoming .yes', { hasText: 'Join…' }).click()
   await page.locator('#dev-E .phdlg-card', { hasText: 'Join "Orga-Untergruppe"?' }).waitFor()

@@ -47,18 +47,12 @@ invitations, and one surfacing per invitation (3.1).
 
 The reference library implements the forms of this document and, on
 its holder, the flow from founding through prelude, invite, accept
-and admission to the vouch. It carries the prelude in experimental
-forms of its own (`x-membership-prelude-request/0.1`,
-`x-membership-prelude-reply/0.1`, binding `x-membership-inviter@0.1`)
-with the signatures and field bindings of 3.5, and refuses an
-invitation for which it holds no prelude binding. It departs from 3.5
-and 3.1 where it compares genesis digests as strings, keeps a binding
-from another contact entry rather than another relationship until
-the bound tuple is gone, deletes an answered prelude's binding after
-an invitation's lifetime even while its relationship lasts, admits on an accept without the time bound
-of RLTP-MT-3282, and keeps the record of a surfaced invitation only
-until the invitation expires; it does not implement the rate, the
-block or the register of declined invitations; and it
+and admission to the vouch, with the prelude of 3.5 in its registered
+types and its binding per relationship, and the time bound of
+RLTP-MT-3282. It refuses an invitation for which it holds no prelude
+binding, keeps the record of a surfaced invitation only until the
+invitation expires, and does not implement the rate, the block or the
+register of declined invitations (3.1); and it
 sends the welcome in a form of its own instead of the Access envelope
 (3.3), a holder's roster being what it admitted and what its welcome
 carried, not a replicated one. The bootstrap lifecycle it references

@@ -1,5 +1,5 @@
 // membership/holder — groups on the holder (lib Stage 2, PR 7a; Membership
-// Tasks 0.19 on Access 0.57, Delivery 0.81): founding, the prelude and
+// Tasks 0.20 on Access 0.57, Delivery 0.82): founding, the prelude and
 // the invite, the accept, admission and welcome, evidence and vouches, on
 // HolderState and the engine. The pure forms and checks are the root
 // module's (membership.ts).
@@ -10,7 +10,7 @@
 //                                  that context is the founder's member
 //                                  anchor, its memberOp the genesis)
 //               membership.invite  the prelude toward a contact (Membership
-//                                  1.2); the invite follows its answer
+//                                  3.5); the invite follows its answer
 //               membership.vouch   a vouch@2 for a held consent pair
 //                                  (Access 5.3), relayed as evidence
 //   decision    group-invite: accept signs and sends the accept (3.2),
@@ -18,21 +18,24 @@
 //   tasks       membership-invite/0.2 (proof absent), membership-accept/0.2
 //               (proof required), membership-evidence/0.2 and /0.1 (proof
 //               absent): channel bindings on member keys (receive.ts);
-//               x-membership-prelude-request/0.1, x-membership-prelude-
-//               reply/0.1 (tuple binding) and x-membership-welcome/0.1
-//               (channel binding), this library's experimental forms; all
-//               signature-class: signed acks
+//               membership-prelude-request/0.1 and membership-prelude-
+//               reply/0.1 (proof required, tuple binding; Membership 3.5),
+//               and x-membership-welcome/0.1 (channel binding), this
+//               library's experimental form; all signature-class: signed acks
 //   keepKeys    the member keys of held groups and of groups on the way in,
-//               and the tuple rkid of every held prelude (sent or answered)
-//   retain      declined and expired invitations leave `joining`
+//               and the tuple rkid of every prelude sent and held, and of an
+//               answered one while its answer may still travel
+//   retain      declined and expired invitations leave `joining`; a
+//               binding once its relationship ended and no open or accepted
+//               invitation rests on it (RLTP-MT-3945)
 //
 // Choices this file makes where spec and note leave them open:
-//   - the prelude is application-level (Membership 1.2): this library
-//     carries it over the relationship tuple as two experimental, signed
-//     documents; the invitee's holder answers on its own, registering its member label and key first (Identity 6.1),
+//   - the prelude (Membership 3.5) travels over the relationship tuple as
+//     its two registered types; the invitee's holder answers on its own
+//     (3960), registering its member label and key first (Identity 6.1),
 //     with a displayed member card (2.6) whose key the invite is sealed
 //     to. An answer is taken only on a thread whose request this holder
-//     sent (the outbox holds it)
+//     sent and still holds, on its tuple (3965)
 //   - the welcome: Membership 3.3 carries it in access-operation/0.1 with
 //     a member.add envelope and a sealed rltp-welcome/0.1 (Section 4),
 //     Access's materialization deciding; until the Access envelope is
@@ -45,34 +48,37 @@
 //     3.3), a member's the oid of its accept document's digest (a member admitted later is
 //     unknown to earlier members until their port materializes it)
 //   - the admission without a human act at the admitting member: the
-//     invitation is read as the anticipated admission act — the inviter
-//     decided when it invited, so the accept (n = 1) or the evidence that
-//     completes the vouches admits in the same commit. Membership 3280
-//     (the accept grants nothing) and 3800 (evidence grants nothing) can be
-//     read against this; an open spec reading for Membership 0.20, no
-//     admission prompt yet
+//     invitation stands as the inviter's act of admission (RLTP-MT-3282),
+//     so the accept (n = 1) or the evidence that completes the vouches
+//     admits in the same commit — before invite.validUntil +
+//     membership-skew + the longest give-up horizon by the inviter's
+//     clock; later the consent stays as evidence (an admission prompt is
+//     not built)
 //   - founding: the genesis admits under the rule of one (vouchThreshold
 //     "1"); a stricter rule needs policy.change, which is not built, so
 //     found refuses another (threshold-unsupported). A member's own vouch
 //     for its own invitee never counts beside its admission and is refused
 //     (own-admission)
 //   - the prelude is bound both ways: the request names the inviter's
-//     member anchor and the answering holder files the prelude under
-//     (genesis digest, inviter), so an invite surfaces as the contact that
-//     asked as that inviter; the inviter files its request by thread
+//     member anchor and the answering holder keeps the binding under
+//     (genesis digest, inviter) with the arrival tuple (3925), so an invite
+//     surfaces as the contact that asked as that inviter; the inviter files its request by thread
 //     (group, contact, own rkid) and takes an answer only for exactly that
 //     group on exactly that thread and tuple
 //   - invitations are kept per thread: a new invite opens its own thread
 //     beside earlier ones, so an accept signed in time on an earlier thread
 //     still answers it; an accept answers exactly the invitation of its
 //     thread, and an admission answers every invitation to its subject
+//   - the lock keys of 3950–3957 and 3980: the engine serializes every
+//     operation of a holder and commits by CAS over the whole state
+//     (receive.ts), a superset of every key the rules name
 //   - bounded state (tick): an issued invitation leaves past validUntil +
 //     membership-skew + the longest give-up horizon (P90D, RLTP-MT-3090),
 //     as does evidence (an accept signed in time may arrive that late), or
 //     once its subject is on the roster; an outgoing prelude past an
 //     invite's life and the horizon (its answer may travel that long); an
-//     answered prelude no open or accepted invitation rests on past an
-//     invite's life + skew + P90D; an accepted or joined invitation past
+//     answered prelude's binding once its relationship ended and no open
+//     or accepted invitation rests on it (3945); an accepted or joined invitation past
 //     validUntil + skew + two horizons — the accept's delivery and the
 //     welcome's — so the welcome finds the accepted state and the member
 //     key (kept while an invitation is open or accepted); an explicit abort
@@ -83,9 +89,10 @@
 //     under the inviter's member key over (anchor, group, thread, and both
 //     pair anchors of the channel it travels on, checked against the
 //     document's issuer and recipient as stage 8 authenticated them), so
-//     no other contact can replay it on its own channel; the
-//     answering holder never overwrites a binding (group, inviter) held for
-//     another contact. Residue: the binding links the inviter's member
+//     no other contact can replay it on its own channel (3905, 3910); the
+//     answering holder keeps one binding per relationship (3930, 3935):
+//     a request from another relationship is refused while the bound one
+//     is current, whichever entries they feed. Residue: the binding links the inviter's member
 //     anchor to its pair channel transferably (the invite names that
 //     anchor before consent anyway)
 //   - the admission policy: the group rule vouchThreshold n reads as the
@@ -119,8 +126,8 @@ import { anchorOfEd, diSignWith, diVerify, digestBytes, digestDoc } from '../cry
 import { seal } from '../delivery.js'
 import { cardBody } from '../encounter.js'
 import {
-  ACCEPT_TYPE, EVIDENCE_TYPE, EVIDENCE_TYPE_01, INVITE_TYPE, MEMBERSHIP_SKEW, acceptProblem, enclosedCardOk, evidenceProblem,
-  inviteCredentialBody, inviteProblem, memberLabelOf, membershipSchemaOk, oidOf, vouchCredentialBody, vouchProblem, withinBudget,
+  ACCEPT_TYPE, EVIDENCE_TYPE, EVIDENCE_TYPE_01, INVITE_TYPE, MEMBERSHIP_SKEW, PRELUDE_REPLY_TYPE, PRELUDE_REQUEST_TYPE, acceptProblem, enclosedCardOk, evidenceProblem,
+  inviteCredentialBody, inviteProblem, inviterBindingBody, memberLabelOf, membershipSchemaOk, oidOf, preludeRequestProblem, vouchCredentialBody, vouchProblem, withinBudget,
 } from '../membership.js'
 import { withLabel, withPairNonce } from '../identity-state.js'
 import { ED_PKCS8 } from '../keys-seed.js'
@@ -135,11 +142,9 @@ import type { GroupStarRehit } from '../trust/group-star.js'
 import type { GroupMembership } from '../group-star.js'
 
 const TT = 'https://real-life.org/trust-tasks/'
-/** This library's experimental forms (receive.ts SIGNATURE_CLASS). */
-export const PRELUDE_REQUEST_TYPE = TT + 'x-membership-prelude-request/0.1'
-export const PRELUDE_REPLY_TYPE = TT + 'x-membership-prelude-reply/0.1'
+/** This library's experimental form of the welcome (receive.ts SIGNATURE_CLASS). */
 export const WELCOME_TYPE = TT + 'x-membership-welcome/0.1'
-export { INVITE_TYPE, ACCEPT_TYPE, EVIDENCE_TYPE }
+export { INVITE_TYPE, ACCEPT_TYPE, EVIDENCE_TYPE, PRELUDE_REQUEST_TYPE, PRELUDE_REPLY_TYPE }
 
 /** How long an invite is answerable (validUntil − validFrom), as the probe had it. */
 export const INVITE_LIFE = 24 * 3_600_000
@@ -193,6 +198,13 @@ const ownName = (state: Readonly<HolderState>): string | undefined => {
 
 const groupOfLabel = (state: Readonly<HolderState>, label: string | undefined): Group | undefined =>
   label === undefined ? undefined : Object.values(state.groups).find((g) => g.memberLabel === label)
+
+/** RLTP-MT-3282: the inviter admits on its own invitation without a
+ *  further human act only before invite.validUntil + membership-skew +
+ *  the longest give-up horizon, by its own clock; later, the admission
+ *  would wait for a human act, which this library does not offer — the
+ *  consent stays as evidence until its retention lets it go. */
+const admissionOpen = (invite: Json, when: Millis): boolean => untilOf(invite) + MEMBERSHIP_SKEW + HORIZON_MAX >= when
 
 /** The policy (see the header): admitted when vouchThreshold distinct
  *  members stand behind it, the admitting member one of them. */
@@ -294,10 +306,10 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
       id: ctx.entropy.id('doc.id'), type: PRELUDE_REQUEST_TYPE, issuer: own.anchor, recipient: ch.tuple.counterpartAnchor,
       threadId: ctx.entropy.id('thread.id'), issuedAt: at, payload: { genesisDigest: g.id, group: g.did ?? '', name: g.name, inviter: g.memberAnchor, binding: {} as Doc },
     }
-    // the inviter's member anchor proven: signed under it over (anchor, group, thread)
-    body.payload.binding = await signDoc(ctx, g.memberLabel, g.memberAnchor, {
-      type: 'x-membership-inviter@0.1', inviter: g.memberAnchor, genesisDigest: g.id, threadId: body.threadId, from: own.anchor, to: ch.tuple.counterpartAnchor,
-    }, at)
+    // the inviter binding (RLTP-MT-3905): signed under the member anchor
+    // over (inviter, genesis digest, thread, from, to)
+    body.payload.binding = await signDoc(ctx, g.memberLabel, g.memberAnchor,
+      inviterBindingBody({ inviter: g.memberAnchor, genesisDigest: g.id, threadId: body.threadId, from: own.anchor, to: ch.tuple.counterpartAnchor }), at)
     const doc = await signDoc(ctx, ch.tuple.ownPairLabel, own.anchor, body, at)
     return sealed(ctx, doc, { contactId: ch.contact.id, rkid: ch.tuple.rkid, keyAgreement: ch.tuple.counterpartKeyAgreement })
   },
@@ -323,19 +335,18 @@ const preludeKey = (group: string, inviter: string): string => `${group} ${invit
 
 const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, label: string, rkid: string }> = {
   proof: 'required',
+  // stage 7: the payload schema (RLTP-MT-3905)
   decode (p) {
-    const x = p as Record<string, unknown>
-    if (x === null || typeof x !== 'object' || Object.keys(x).length !== 5 || typeof x.genesisDigest !== 'string' || typeof x.group !== 'string' ||
-      typeof x.name !== 'string' || typeof x.inviter !== 'string' || !/^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$/.test(x.inviter) ||
-      x.binding === null || typeof x.binding !== 'object') return refuse('malformed')
-    return memberLabelOf(x.genesisDigest) === null ? refuse('validation-failed') : x as unknown as PreludeRequestPayload
+    if (!membershipSchemaOk('payload-membership-prelude-request.schema.json', p)) return refuse('malformed', 'RLTP-MT-3905')
+    return memberLabelOf((p as PreludeRequestPayload).genesisDigest) === null ? refuse('validation-failed') : p as PreludeRequestPayload
   },
   async prepare (ctx, doc, arr) {
-    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2130')
-    // the claimed inviter proven by its own member key, for this group and thread
-    const b = doc.payload.binding
-    if (b.type !== 'x-membership-inviter@0.1' || b.inviter !== doc.payload.inviter || b.genesisDigest !== doc.payload.genesisDigest ||
-      b.threadId !== doc.threadId || b.from !== doc.issuer || b.to !== doc.recipient || !(await diVerify(b, doc.payload.inviter, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-3020')
+    // the document proof under its issuer, the binding's fields (genesis
+    // digests by their decoded bytes) and its proof under the inviter
+    // (RLTP-MT-3905, 3910); the issuer and recipient are the arrival
+    // tuple's pair anchors by the core's tuple binding (receive.ts)
+    const bad = await preludeRequestProblem(doc, ctx.crypto.subtle)
+    if (bad) return refuse('validation-failed', bad === 'documentProof' ? 'RLTP-MT-3900' : 'RLTP-MT-3905')
     const a = arrival(ctx.snapshot, arr.rkid)!
     const label = memberLabelOf(doc.payload.genesisDigest)!
     const member = await ctx.keys.anchorOf(label)
@@ -352,13 +363,16 @@ const preludeRequestTask: TaskHandler<PreludeRequestPayload, { reply: Sealed, la
   apply (state, prepared, doc, arr) {
     const p = prepared.value
     const a = arrival(state, arr.rkid)!
-    // a binding (group, inviter) held for another contact is never
-    // overwritten: compared by the entries the two arrival tuples feed now
-    // (a merge, a split or a chaining since moves it with them); a binding
-    // whose tuple is gone (a departure) is free
+    // the binding per relationship (RLTP-MT-3925–3935): a request under a
+    // held key from a tuple of the bound tuple's relationship replaces the
+    // tuple (3930); from another relationship it is refused while the bound
+    // one is current, whatever entry either feeds (3935), and replaces the
+    // binding once that one has ended. The relationships are read through
+    // the tuples now (3940): a merge, a split or a chaining moves them
     const bound = state.joining.preludes[preludeKey(toU(doc.payload.genesisDigest)!, doc.payload.inviter)]
-    const was = bound ? arrival(state, bound.rkid) : null
-    if (was && was.contactId !== a.contactId) return refuse('validation-failed', 'RLTP-MT-3030')
+    const was = bound ? tupleByRkid(state, bound.rkid) : null
+    const here = tupleByRkid(state, arr.rkid)!
+    if (was && liveRel(was.rel) && was.rel.id !== here.rel.id) return refuse('validation-failed', 'RLTP-MT-3935')
     const keys = Object.hasOwn(state.addresses.keys, p.rkid) ? state.addresses.keys : { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: arr.when } }
     return {
       state: {
@@ -377,20 +391,20 @@ interface PreludeReplyPayload { genesisDigest: string, card: Doc }
 
 const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: string, credDigest: string, invite: Doc, validUntil: Millis }> = {
   proof: 'required',
+  // stage 7: the payload schema (RLTP-MT-3960)
   decode (p) {
-    const x = p as Record<string, unknown>
-    if (x === null || typeof x !== 'object' || Object.keys(x).length !== 2 || typeof x.genesisDigest !== 'string' || x.card === null || typeof x.card !== 'object') return refuse('malformed')
-    return x as unknown as PreludeReplyPayload
+    return membershipSchemaOk('payload-membership-prelude-reply.schema.json', p) ? p as PreludeReplyPayload : refuse('malformed', 'RLTP-MT-3960')
   },
   async prepare (ctx, doc, arr) {
     const s = ctx.snapshot
-    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2130')
-    // the answer to exactly the prelude this holder sent: its group, thread and tuple
+    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-3960')
+    // the answer to exactly the prelude this holder sent and still holds:
+    // its group (genesis digests by their decoded bytes), thread and tuple (3965)
     const g = s.groups[toU(doc.payload.genesisDigest) ?? '']
     const asked = g?.preludes[doc.threadId]
-    if (!g || g.memberAnchor === undefined || !asked || asked.rkid !== arr.rkid) return refuse('validation-failed', 'RLTP-MT-3030')
+    if (!g || g.memberAnchor === undefined || !asked || asked.rkid !== arr.rkid) return refuse('validation-failed', 'RLTP-MT-3965')
     const card = doc.payload.card
-    if (!(await enclosedCardOk(card, card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2250')
+    if (!(await enclosedCardOk(card, card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-3960')
     const a = arrival(s, arr.rkid)!
     const S = ctx.crypto.subtle
     const at = iso(ctx.when)
@@ -587,7 +601,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
     if (bad) return refuse('validation-failed', bad)
     const acceptDigest = await digestDoc(doc, ctx.crypto.subtle)
     const ev: Evidence = { invite: inv.invite, accept: doc as unknown as JsonObject, vouches: [], at: arr.when }
-    const docs = await admissionDocs(ctx, g, ev, acceptDigest, policyMet(g, ev))
+    const docs = await admissionDocs(ctx, g, ev, acceptDigest, policyMet(g, ev) && admissionOpen(inv.invite, arr.when))
     return { group: g.id, acceptDigest, ...docs }
   },
   // the defined effect: the consent recorded (3280); the admission where
@@ -641,7 +655,7 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
     const merged = mergeVouches(held?.vouches as Doc[] ?? [], vouches)
     const ev: Evidence = { invite, accept, vouches: merged as JsonObject[], at: arr.when }
     // the inviter admits once the policy holds (the header)
-    const admit = invite.payload.invite.issuer === g.memberAnchor && !Object.hasOwn(g.roster, accept.payload.accept.subject) && policyMet(g, ev)
+    const admit = invite.payload.invite.issuer === g.memberAnchor && !Object.hasOwn(g.roster, accept.payload.accept.subject) && policyMet(g, ev) && admissionOpen(invite, arr.when)
     const welcome = admit ? (await admissionDocs(ctx, g, ev, acceptDigest, true)).welcome : null
     return { group: g.id, acceptDigest, vouches, welcome }
   },
@@ -806,7 +820,9 @@ function memberKeys (state: Readonly<HolderState>): string[] {
   // while the prelude is open, and its answer, its acks and the invitation
   // bound to it still arrive under that key
   for (const g of Object.values(state.groups)) for (const p of Object.values(g.preludes)) out.push(p.rkid)
-  for (const p of Object.values(state.joining.preludes)) out.push(p.rkid)
+  // an answered prelude's tuple, while its answer and the acks may still
+  // travel; the binding itself lives longer (3945) and needs no key
+  for (const p of Object.values(state.joining.preludes)) if (p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= state.lastWhen) out.push(p.rkid)
   return out
 }
 
@@ -830,9 +846,13 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
   const late = (i: ReceivedInvite): boolean => i.validUntil + MEMBERSHIP_SKEW + 2 * HORIZON_MAX < when
   const invites = Object.fromEntries(Object.entries(state.joining.invites).filter(([, i]) =>
     !(i.status === 'declined' || (i.status === 'open' && i.validUntil + MEMBERSHIP_SKEW < when) || ((i.status === 'accepted' || i.status === 'joined') && late(i)))))
-  // an answered prelude no open or accepted invitation still rests on, past an invite's life and the horizon
-  const rests = (p: Joining['preludes'][string]): boolean => Object.values(invites).some((i) => i.group === p.group && i.contactId === p.contactId && (i.status === 'open' || i.status === 'accepted'))
-  const preludes = Object.fromEntries(Object.entries(state.joining.preludes).filter(([, p]) => rests(p) || p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= when))
+  // a binding lives while the relationship of its tuple is current or an
+  // invitation attributed to it is open or accepted (RLTP-MT-3945); tick
+  // deletes it in its own serialized commit, deciding on the state it reads
+  // there (3947)
+  const rests = (p: Joining['preludes'][string]): boolean => Object.values(invites).some((i) => i.group === p.group && i.rkid === p.rkid && (i.status === 'open' || i.status === 'accepted'))
+  const current = (p: Joining['preludes'][string]): boolean => { const t = tupleByRkid(state, p.rkid); return t !== null && liveRel(t.rel) }
+  const preludes = Object.fromEntries(Object.entries(state.joining.preludes).filter(([, p]) => current(p) || rests(p)))
   if (Object.keys(invites).length !== Object.keys(state.joining.invites).length || Object.keys(preludes).length !== Object.keys(state.joining.preludes).length) changed = true
   return changed ? { ...state, groups, joining: { preludes, invites } } : state as HolderState
 }
@@ -849,6 +869,7 @@ function membershipDeadlines (state: Readonly<HolderState>): Millis[] {
     if (i.status === 'open') out.push(i.validUntil + MEMBERSHIP_SKEW + 1)
     if (i.status === 'accepted' || i.status === 'joined') out.push(i.validUntil + MEMBERSHIP_SKEW + 2 * HORIZON_MAX + 1)
   }
+  // an answered prelude's tuple key leaves keepKeys then (memberKeys)
   for (const p of Object.values(state.joining.preludes)) out.push(p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
   return out
 }
