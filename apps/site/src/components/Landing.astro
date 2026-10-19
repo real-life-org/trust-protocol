@@ -12,12 +12,6 @@ const REPO = 'https://github.com/real-life-org/trust-protocol'
 const spec = (file: string) => `${REPO}/blob/main/spec/${file}`
 const sim = (file: string) => `/simulator/${file}`
 
-const ways: { title: string; text: string; href: string; icon: IconName; cta: string }[] = [
-  { title: 'Foundations', text: 'What a protocol developer needs first: identifiers, credentials, trust, groups, the ports. Then a primer per layer, then the specifications.', href: '/understand/foundations/', icon: 'layers', cta: 'Start reading →' },
-  { title: 'Simulators', text: 'Three simulators in your browser: the app on three devices, one encounter under the microscope, the graph of who can prove what.', href: '/get-started/try-it/', icon: 'rocket', cta: 'Open a simulator →' },
-  { title: 'Library', text: 'The library on npm, test vectors to reproduce byte for byte, and a conformance runner.', href: '/get-started/implement/', icon: 'wrench', cta: 'npm install →' },
-]
-
 type Card = [IconName, string, string, string]
 const encounter: Card[] = [
   ['wot', 'The ceremony', 'Show, scan, confirm. Connected or fully offline, switching freely.', spec('encounter-layer.md')],
@@ -42,17 +36,11 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
 ]
 ---
 <div class="tp-landing not-content">
-  <section class="tp-ways" id="get-started">
-    <div class="tp-cards three">
-      {ways.map((w, i) => (
-        <a class="tp-card way" href={w.href}>
-          <div class="tp-card-head"><Icon name={w.icon} /><code>0{i + 1}</code></div>
-          <strong>{w.title}</strong>
-          <span>{w.text}</span>
-          <em class="tp-cta">{w.cta}</em>
-        </a>
-      ))}
-    </div>
+  <section class="tp-lib" id="get-started">
+    <a class="tp-lib-bar" href="/get-started/implement/">
+      <code>npm install @real-life/trust-protocol</code>
+      <em class="tp-cta">Implement →</em>
+    </a>
   </section>
 
   <section class="tp-section flip" id="layers">
