@@ -35,14 +35,15 @@ import { jcs } from '../core.js';
 import { sha } from '../crypto.js';
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js';
 // ── Declared constants (profile §2) — promises of THIS casting ──────
-export const DECLARED = {
+// frozen: the declared promises cannot be changed at run time either
+export const DECLARED = Object.freeze({
     giveUpHorizonMs: 72 * 3_600_000,
     statusHorizonMs: 60_000,
     queueFloorCount: 64,
     queueFloorBytes: 1_048_576,
     maxQueueBytes: 16_777_216,
     duplicateWindowMs: 30 * 86_400_000,
-};
+});
 export class WireError extends Error {
     kind;
     constructor(kind, message) {
@@ -76,6 +77,8 @@ export function deliveryReportOf(digest, st) {
 export function concludable(r) {
     return !(r.disposition === 'failed' && r.reason === 'rate-limited');
 }
+/** The adapter's own copy of a wire's token set: the wire keeps no handle on it. */
+const tokenCopy = (t) => ({ accessToken: t.accessToken, accessExpiresAt: t.accessExpiresAt, refreshToken: t.refreshToken, refreshExpiresAt: t.refreshExpiresAt });
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 // construction capability: only create() holds it
 const KEY = Symbol('MediatorCarrierAdapter.create');
@@ -247,7 +250,7 @@ export class MediatorCarrierAdapter {
                     const refreshed = await this.#wire.refresh(this.#tokens.refreshToken);
                     if (this.#closed)
                         throw new Error('retired'); // as on the handshake path (R6-B1)
-                    this.#tokens = refreshed;
+                    this.#tokens = tokenCopy(refreshed);
                     return this.#tokens.accessToken;
                 }
                 catch (e) {
@@ -265,7 +268,7 @@ export class MediatorCarrierAdapter {
             const { challenge, sessionId } = await this.#wire.authChallenge(this.#connectionDid);
             if (this.#closed)
                 throw new Error('retired'); // nothing new starts, not even the answer (R6-B1)
-            this.#tokens = await this.#wire.authenticate({ did: this.#connectionDid, challenge, sessionId });
+            this.#tokens = tokenCopy(await this.#wire.authenticate({ did: this.#connectionDid, challenge, sessionId }));
             return this.#tokens.accessToken;
         })();
         this.#authing = run.finally(() => { this.#authing = null; });
@@ -296,7 +299,7 @@ export class MediatorCarrierAdapter {
                 const token = await this.#ensureAuth(now);
                 if (this.#closed)
                     return;
-                await this.#wire.keylistUpdate(token, wanted);
+                await this.#wire.keylistUpdate(token, [...wanted]); // the wire's own list: `wanted` is compared below
                 // land only if the desire has not moved meanwhile
                 if (!this.#closed && this.#desiredRkids !== null &&
                     wanted.join(' ') === this.#desiredRkids.join(' ')) {
@@ -426,7 +429,7 @@ export class MediatorCarrierAdapter {
         if (!sub)
             return null;
         if (sub.st !== null && sub.st.state !== 'awaiting-transport')
-            return sub.st;
+            return { ...sub.st };
         if (this.#wire.offline?.() === true) {
             return { state: 'awaiting-transport', reason: 'offline' };
         }
@@ -434,7 +437,7 @@ export class MediatorCarrierAdapter {
             this.#clock - sub.attemptStartedAt >= DECLARED.statusHorizonMs) {
             return { state: 'awaiting-transport', reason: 'transport-unreachable' };
         }
-        return sub.st;
+        return sub.st === null ? null : { ...sub.st };
     }
     acknowledged(id) {
         if (this.#closed)
