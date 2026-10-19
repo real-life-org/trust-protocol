@@ -567,20 +567,16 @@ credential digest it holds, whatever relationship or prelude binding
 the invitation arrives under.
 
 **RLTP-MSG-6330** — The stage-9 lock set of every `membership-invite`
-document MUST extend by the holder-wide key of its credential digest,
-whether or not the invitation is attributed to a relationship, and
-the following MUST happen in that one transaction: the check of the
+document MUST include the holder-wide key of its credential digest,
+whether or not the invitation is attributed to a relationship,
+acquired with the rest of the lock set as one acquisition under
+Delivery 6.2, and the following MUST happen in that one transaction: the check of the
 register, the check for an open prompt of the same credential digest,
 and exactly one outcome of three: decline (register entry written,
 an open prompt of that digest closed as declined), surface (a prompt
 opened, only if none is open for that digest and the register holds
 none), or no new effect (the digest is in the register, or a prompt
 is open for it).
-
-**RLTP-MSG-6340** — An implementation that cannot acquire a lock set
-in one acquisition (Delivery 6.2) MUST acquire its keys in the order
-credential-digest key, relationship key, document digest, and release
-all of them before a re-entry at stage 4.
 
 *Rationale.* A prelude binding is renewable and one contact may hold
 several relationships; a record kept with one relationship or one
@@ -592,8 +588,9 @@ invitation anyway. The credential digest is the invitation's identity
 (Membership 2180), so its key is the one every path of one invitation
 shares, and binding the surfacing decision to it makes the outcome one
 of two: no prompt, or one prompt that a later decline under a block
-closes. A fixed order of the keys keeps two such paths from waiting on
-each other. Invitations are rare and a digest is small; a register for
+closes. The key is part of the lock set and acquired with it in one
+acquisition (Delivery 6.2), so two such paths never hold part of a
+set while waiting for the rest. Invitations are rare and a digest is small; a register for
 the life of the holder costs little and closes every path.
 
 ### 6.5 Outbound
@@ -789,7 +786,7 @@ RLTP-MSG-4340 · RLTP-MSG-4350 · RLTP-MSG-4410 · RLTP-MSG-4420 ·
 RLTP-MSG-5010 · RLTP-MSG-5020 · RLTP-MSG-5030 · RLTP-MSG-5110 ·
 RLTP-MSG-5120 · RLTP-MSG-6010 · RLTP-MSG-6020 · RLTP-MSG-6030 ·
 RLTP-MSG-6110 · RLTP-MSG-6210 · RLTP-MSG-6220 · RLTP-MSG-6240 ·
-RLTP-MSG-6310 · RLTP-MSG-6320 · RLTP-MSG-6330 · RLTP-MSG-6340 · RLTP-MSG-6410 · RLTP-MSG-6420 ·
+RLTP-MSG-6310 · RLTP-MSG-6320 · RLTP-MSG-6330 · RLTP-MSG-6410 · RLTP-MSG-6420 ·
 RLTP-MSG-6510.
 
 **Interaction and display** — the rule binds what an application
@@ -816,8 +813,8 @@ conformance notes where it departs from the rules named here.
   entry, no conclusion toward the carrier, re-evaluated in full on
   the next delivery.
 - 6.2 stage 9: the lock set of a `membership-invite` document extends
-  by the holder-wide key of its credential digest (Message Tasks 6330,
-  6340); the lock set of a `message/0.1` document, and of an
+  by the holder-wide key of its credential digest, acquired with the
+  rest of the set as one acquisition (Message Tasks 6330); the lock set of a `message/0.1` document, and of an
   invitation attributed to a relationship, extends by that
   relationship; block changes, chaining, merge and split take the same
   key (Message Tasks 4230, 4240).
