@@ -517,9 +517,10 @@ const inviteTask: TaskHandler<Doc, { credDigest: string }> = {
       const invites = held && held.status === 'open' ? { ...next.joining.invites, [credDigest]: { ...held, status: 'declined' as const } } : next.joining.invites
       return { state: { ...next, prompts, joining: { ...next.joining, invites, declined: sortedWith(next.joining.declined, credDigest) } } }
     }
-    // no new effect: the register holds it (3120), it surfaced before
-    // (3125), or the holder is in the group already
-    if (next.joining.declined.includes(credDigest) || next.joining.surfaced.includes(credDigest) || Object.hasOwn(next.joining.invites, credDigest) || Object.hasOwn(next.groups, gd)) return { state: next }
+    // no new effect: the register holds it (3120), or it surfaced before
+    // (3125). An invitation into a group the holder holds surfaces like any
+    // other: 3125 names no exception, and the person decides
+    if (next.joining.declined.includes(credDigest) || next.joining.surfaced.includes(credDigest) || Object.hasOwn(next.joining.invites, credDigest)) return { state: next }
     // surface (3125): a prompt opened, the digest kept for the holder's life (3130)
     const validUntil = Date.parse(inv.validUntil)
     const r: ReceivedInvite = {

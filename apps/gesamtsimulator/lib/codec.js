@@ -272,11 +272,13 @@ const EVENT_FIELDS = {
     'group.vouched': [{ groupId: str, member: str }],
     'contact.blocked': [{ contactId: str, blocked: bool }],
 };
-const event = (x, p) => {
+/** the event types codec 2 added: codec 1 does not know them */
+const EVENTS_SINCE_2 = new Set(['contact.blocked']);
+const eventOf = (codec) => (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
     const t = x.type;
-    if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t))
+    if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t) || (codec < 2 && EVENTS_SINCE_2.has(t)))
         fail(`${p}.type`, 'unknown event type');
     const [req, opt = {}] = EVENT_FIELDS[t];
     obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
@@ -338,7 +340,7 @@ const fields1 = {
         entry: json, overHead: logHead, awaitHead: rec(nullable(str)),
     }), 'id'),
     prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
-    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
+    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(1)), at: millis }), 'actId'),
     encounter: obj({
         challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
         records: keyed(enactmentRecord, 'own'),
@@ -378,6 +380,7 @@ const receivedInvite2 = (x, p) => {
 const codec2 = obj({
     ...fields1,
     codec: lit(2),
+    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(2)), at: millis }), 'actId'),
     joining: obj({
         preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
         invites: keyed(receivedInvite2, 'credDigest'),
