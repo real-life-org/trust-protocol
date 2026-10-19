@@ -29,8 +29,9 @@
 //   freeze    freezeDeep
 //   invariants  the predicates of invariants.ts over a state and a commit
 export type * from './state.js'
-// the projection of the non-normative lib/schemas/holder-state-v1.schema.json
+// the projections of the non-normative lib/schemas/holder-state-v<n>.schema.json
 export type { HolderStateV1 } from './holder-state-v1.js'
+export type { HolderStateV2 } from './holder-state-v2.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
 export type { StateCodecErrorCode, StateValidator } from './codec.js'

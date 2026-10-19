@@ -32,6 +32,7 @@ export function emptyState(codec) {
         prompts: {},
         acts: {},
         encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
-        joining: { preludes: {}, invites: {} },
+        joining: { preludes: {}, invites: {}, surfaced: [], declined: [] },
+        messages: { blocked: [], rates: {} },
     };
 }

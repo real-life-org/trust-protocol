@@ -85,6 +85,9 @@ export type ActError =
   | 'unknown-act'
   /** introduction.request: the mediator's ack-delay declaration is not held (Delivery 4.4) */
   | 'no-declaration'
+  /** a message, an invitation or the start of an introduction act toward
+   *  a relationship the holder has blocked (Message Tasks RLTP-MSG-6410) */
+  | 'blocked'
 
 export type ActResult =
   /** nextDueAt: duty work this act opened or unblocked is due then (`when`:
@@ -100,7 +103,11 @@ export type ReceiveFailure =
   | 'wrong-recipient'      // stage 5
   | 'unknown-type'         // stage 6
   | 'validation-failed'    // stages 6 (the entry's proof declaration), 8, 9
-  | 'stale-issuance'       // stage 8
+  | 'stale-issuance'       // stages 8, 9
+  /** transient (Delivery RLTP-DEL-5820, 6270, 6280): nothing committed, no
+   *  ack, no cache entry; the carrier keeps the document and the receiver
+   *  evaluates it afresh when it is delivered again — never concluded */
+  | 'rate-limited'         // stage 8
   | 'gate-future'          // stage 9
   | 'consumed-challenge'   // stage 9
 

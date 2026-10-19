@@ -65,6 +65,9 @@
 //               issued at the counter's revision on the active tuple
 //               (profileOut) or a class-on or profile duty open on it
 //
+//   messages    a block names a relationship the holder holds (Message
+//               Tasks 6010)
+//
 // Over one commit (transitionViolations):
 //   commitSeq   strictly +1 per commit; lastWhen never falls (4.7)
 //   register    labels, pair nonces, carriers, device names and revocation
@@ -108,6 +111,10 @@
 //               chaining appended a tuple in this commit (6610, the union of
 //               4c); a relationship's held anchor head moves only along the
 //               links it holds (6150, 6170), except at such a chaining
+//   messages    the record of surfaced invitations and the register of
+//               declined ones only grow (RLTP-MT-3130, RLTP-MSG-6310); a
+//               block is set only by the block act or a merge (6030),
+//               cleared only by the block act or with its relationship
 //   outbox      `accepted` appears only through report; a new item starts
 //               submitted (Delivery §6.1, note §4.3)
 //   effects     a new cache entry only through a unique receive, one, the
@@ -303,6 +310,8 @@ function socialViolations (v: Violation[], state: Readonly<HolderState>): void {
 export function stateViolations (state: Readonly<HolderState>): Violation[] {
   const v: Violation[] = []
   registerViolations(v, state)
+  // a block names a relationship the holder holds (Message Tasks 6010)
+  for (const r of state.messages.blocked) if (!Object.hasOwn(state.relationships, r)) v.push({ invariant: 'messages', detail: `blocked ${r} names no relationship` })
   socialViolations(v, state)
   const contacts = Object.values(state.contacts)
   const positions = new Set<string>()
@@ -641,6 +650,20 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
   // introduction acts leave only past their absolute lifetime (8310)
   for (const [k, a] of Object.entries(before.encounter.introductions)) {
     if (!Object.hasOwn(after.encounter.introductions, k) && after.lastWhen < a.issuedAt + ACT_EXPIRY + ACT_SKEW) v.push({ invariant: 'introductions', detail: `${k} discarded before its lifetime ended` })
+  }
+  // the record of surfaced invitations and the register of declined ones
+  // only grow, for the life of the holder (RLTP-MT-3130, RLTP-MSG-6310)
+  for (const [what, b, a] of [['surfaced', before.joining.surfaced, after.joining.surfaced], ['declined', before.joining.declined, after.joining.declined]] as const) {
+    const gone = superset(a, b)
+    if (gone.length) v.push({ invariant: 'messages', detail: `joining.${what} lost ${jcs(gone)}` })
+  }
+  // a block changes only by the block act, a merge (6030) or a departure
+  // that removes its relationship
+  for (const r of before.messages.blocked) {
+    if (!after.messages.blocked.includes(r) && Object.hasOwn(after.relationships, r) && !(op.kind === 'act' && op.command === 'message.block')) v.push({ invariant: 'messages', detail: `the block of ${r} cleared by ${op.kind}` })
+  }
+  for (const r of after.messages.blocked) {
+    if (!before.messages.blocked.includes(r) && !(op.kind === 'act' && (op.command === 'message.block' || op.command === 'trust.merge')) && op.kind !== 'resume') v.push({ invariant: 'messages', detail: `the block of ${r} set by ${op.kind}` })
   }
   // a member stays on the holder's roster (removal is not built)
   for (const [id, g] of Object.entries(before.groups)) {

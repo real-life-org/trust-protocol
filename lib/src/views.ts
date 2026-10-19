@@ -120,6 +120,10 @@ export interface ContactView {
    *  claimed empty list. */
   sharedGroups?: string[]
   profile?: ContactProfileView
+  /** a block holds on the contact's relationships (Message Tasks 6.1): an
+   *  application shows no content and no offer of it, and shows group
+   *  state and removal notices as without a block (6230) */
+  blocked: boolean
 }
 
 /** One relationship of a contact, as its chain stands. */
@@ -291,6 +295,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
     classes: { ...classes, sealedGroupStar: { ...classes.sealedGroupStar, groups } } as ClassesView,
     ...(sharedGroups ? { sharedGroups } : {}),
     ...(profile ? { profile } : {}),
+    blocked: own.some((r) => state.messages.blocked.includes(r.id)),
   }
 }
 

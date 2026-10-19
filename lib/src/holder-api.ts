@@ -42,6 +42,8 @@
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
+//   block(contactId, opts)                    message.block {blocked: true}   human
+//   unblock(contactId, opts)                  message.block {blocked: false}  human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -78,6 +80,7 @@ import { ENTRY_COMMANDS } from './trust/entries.js'
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js'
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js'
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js'
+import { MESSAGE_COMMANDS, messageModule } from './message/holder.js'
 import type { Json } from './core.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
 import type { ContactView, DeliveryStatusView, GroupView, ProfileView, PromptView } from './views.js'
@@ -163,6 +166,14 @@ export interface Holder {
   /** a vouch@2 for a member anchor whose consent pair this holder holds
    *  (Access 5.3, Membership 3.4); human */
   vouchFor (groupId: string, member: string, opts: HumanActOptions & { provenance?: 'met' | 'introduced' }): Promise<ActResult>
+  /** the block (Message Tasks 6): set on every relationship of the
+   *  contact's entry. Messages, invitations and the holder's own offers on
+   *  them stop; the protocol steps owed continue; the contact observes
+   *  nothing it would not without the block. Event contact.blocked; human */
+  block (contactId: string, opts: HumanActOptions): Promise<ActResult>
+  /** the block cleared on every relationship of the entry: nothing that
+   *  was discarded under it reappears (6510); human */
+  unblock (contactId: string, opts: HumanActOptions): Promise<ActResult>
   /** the device key of a held, unrevoked device name under an own anchor
    *  context (Identity §5.5); reads, changes nothing */
   deviceKey (name: string, contextLabel: string): Promise<DeviceKeyResult>
@@ -190,7 +201,7 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), ...(opts.modules ?? [])]
+  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), messageModule(), ...(opts.modules ?? [])]
   const check = opts.invariants === true
     ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
         const v = commitViolations(before, after, op)
@@ -227,6 +238,8 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
       human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
     introduce: (requesterId: string, targetId: string, o: HumanActOptions & { label?: string }) =>
       human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
+    block: (contactId: string, o: HumanActOptions) => human(MESSAGE_COMMANDS.block, { contactId, blocked: true }, o),
+    unblock: (contactId: string, o: HumanActOptions) => human(MESSAGE_COMMANDS.block, { contactId, blocked: false }, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
     revokeDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
     deviceKey: async (name: string, contextLabel: string) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

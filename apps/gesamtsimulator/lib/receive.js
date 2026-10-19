@@ -55,7 +55,21 @@
 // effect (validated assembly, accepted snapshot, completed-salt advance)
 // commits with the cache entry and the ack in one transaction.
 //
-// A refusal (TaskRefusal) never commits anything, at any stage.
+// The lock keys a registering specification adds (Delivery RLTP-DEL-6210
+// to 6230): the relationship key of a message or an attributed invitation,
+// the holder-wide credential-digest key of every invitation, the
+// (genesis digest, inviter) key of the prelude (Membership 3950–3957,
+// 3980), and the writers that take them (a block, a chaining, a merge or
+// split, a deletion of a completion-record entry or a binding) are all
+// held by the same whole-state serialization.
+//
+// A refusal (TaskRefusal) never commits anything, at any stage. One of
+// them is transient: `rate-limited` (Delivery RLTP-DEL-5820, 6270, 6280),
+// a document beyond a bound its type declares; it earns no ack and no
+// cache entry, the carrier keeps it, and a redelivery is evaluated in
+// full. A rate the type places inside stage 9 is checked here in the
+// handler's preparation (stage 8), against the snapshot stage 9 commits
+// on — the same state, by the CAS above.
 //
 // A handler's apply may answer a TaskDiscarded: the receiver discarded an
 // open assembly and holds its salt as the lower bound (5366), for one of

@@ -76,6 +76,8 @@ export type HolderEvent = EventBase & (
   | { type: 'group.admitted', groupId: string, member: string }
   /** a vouch@2 issued by this holder for a member anchor (Access 5.3) */
   | { type: 'group.vouched', groupId: string, member: string }
+  /** the block of the contact's relationships set or cleared (Message Tasks 6.1) */
+  | { type: 'contact.blocked', contactId: string, blocked: boolean }
 )
 
 export type HolderEventType = HolderEvent['type']

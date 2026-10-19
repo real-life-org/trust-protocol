@@ -67,7 +67,8 @@ The human acts: `show`, `scan`, `captureSentCard`, `counter` (the encounter),
 `decide` (a prompt: confirm an encounter, accept an invitation, take up or
 consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
 `setGroupClass`, `merge`, `depart`, `setProfile`, `foundGroup`, `invite`,
-`vouchFor`, `introduce`, `rotateAnchor`, `addDevice`, `revokeDevice`. Not
+`vouchFor`, `introduce`, `block`, `unblock`, `rotateAnchor`, `addDevice`,
+`revokeDevice`. Not
 human: `receive`, `report`, `resume`, `tick`, `recover`. Reads: `contacts`,
 `contact`, `groups`, `profile`, `prompts`, `deliveryStatus`, `deviceKey`,
 `snapshot`, `subscribe`.
@@ -118,8 +119,9 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `trust/profile`, `profile` | Trust §6b | `profile@1`: the one revision counter (6450), delivery on the class gates (6455), reception and the image bounds (6475) |
 | `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
 | `membership`, `membership/holder` | Membership Tasks 0.20 on Access 0.57 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
+| `message/holder` | Message Tasks 0.1 §6, §4.2 | the block of a relationship (6010–6030, 6510), its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410), the rate per relationship (4115) |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
-| `receive`, `engine` | Delivery 0.82 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the disposition `discarded`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
+| `receive`, `engine` | Delivery 0.82 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
 | `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |
 
@@ -145,22 +147,35 @@ the state as opaque JSON and gives it back; the library decodes it
 (`decodeState`), the adapter never migrates.
 
 - **Codec 1** is the format of 0.4.0, the first stable one. Its golden
-  fixtures (`test/fixtures/state-v1*.json`, deterministic runs of
-  `test/fixtures/gen-state-v1.mjs`, reproduced in `npm test`) cover a
-  settled holder, one with work open (prompts, a joining invite, duties, a
+  fixtures (`test/fixtures/state-v1*.json`, written by lib 0.4.0 with
+  `test/fixtures/gen-state-v1.mjs` and frozen since) cover a settled
+  holder, one with work open (prompts, a joining invite, duties, a
   rotation at step 2) and one with a tombstone, a revoked device and
-  carrier entries; each decodes and re-encodes byte for byte. A later codec brings its validator, a pure migration from the
-  one before, and its own fixture with a migration test.
+  carrier entries. They validate under codec 1 and migrate to codec 2.
+- **Codec 2** is the format of 0.5.0: codec 1 with the block and the
+  rates of Message Tasks 0.1 (`messages`) and the record of surfaced and
+  the register of declined invitations (`joining.surfaced`,
+  `joining.declined`); an invitation may be attributed to no
+  relationship. The migration from codec 1 is pure: no block, no rate,
+  every invitation received counted as surfaced. Its fixtures
+  (`test/fixtures/state-v2*.json`, deterministic runs of
+  `test/fixtures/gen-state-v2.mjs`, reproduced in `npm test`) add a block
+  and a declined invitation to the open holder; each decodes and
+  re-encodes byte for byte. A later codec brings its validator, a pure
+  migration from the one before, and its own fixture with a migration
+  test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
-- `schemas/holder-state-v1.schema.json` describes codec 1 as a
-  non-normative JSON Schema (published with the package). The type
-  `HolderStateV1` (`./internal`) is generated from it
-  (`scripts/build-holder-state-types.mjs`); the build holds it against the
-  library's `HolderState`, and the tests hold the schema against the
-  codec's validator on the fixtures and on mutations of them. Two rules
-  only the codec states: a record's id equals its key, and an envelope's
-  `rkid` equals its recipient's `keyAgreement`.
+- `schemas/holder-state-v1.schema.json` and
+  `schemas/holder-state-v2.schema.json` describe the codecs as
+  non-normative JSON Schemas (published with the package). The types
+  `HolderStateV1` and `HolderStateV2` (`./internal`) are generated from
+  them (`scripts/build-holder-state-types.mjs`); the build holds the
+  current one against the library's `HolderState`, and the tests hold each
+  schema against its codec's validator on the fixtures and on mutations
+  of them. Rules only the codec states: a record's id equals its key, an
+  envelope's `rkid` equals its recipient's `keyAgreement`, and (codec 2) a
+  set of strings is sorted.
 
 **Writing a Store adapter.** Implement `read(): Promise<{state, version}>`
 (a deep, independent copy; `null` state and version for an empty store) and
@@ -201,9 +216,9 @@ This package uses its own semver; the specification uses castings.
 | identity | Identity 0.54 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.31, cards 0.25, credentials 0.26 | — |
 | trust | Trust Layer 0.31 | — |
-| membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an invitation without a prelude binding is refused (3.1, 3100: it would be attributed to no relationship); the invitation rate, the block and the register of declined invitations (3.1); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
+| membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.82 | transport adapters beyond `./adapters/vti-mediator`; `message/0.1` (Message Tasks 0.1), the block, `failed(rate-limited)`, `failed(task-expired)`, the lock keys of 6.2 |
+| delivery | Delivery 0.82 | transport adapters beyond `./adapters/vti-mediator`; `message/0.1` (Message Tasks 0.1) and `failed(task-expired)`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
 ## The contract: the vectors
