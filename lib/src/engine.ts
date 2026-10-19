@@ -439,7 +439,8 @@ export interface HolderModule {
    *  createHolder for the prompts module (prompts.ts) */
   decisions?: Partial<Record<PromptKind, DecisionHandler>>
   /** run in the stage-9 transaction of every document disposed `unique`
-   *  through a task handler, after it, on the state it left: pure and
+   *  (through a task handler, after it; or a verified delivery-ack, after
+   *  its ack handler), on the state it left: pure and
    *  synchronous, returning the same object where nothing changes; it must
    *  not write the effect cache (the readiness of a tuple, Message Tasks
    *  5.1) */
@@ -885,7 +886,16 @@ class HolderEngine implements Engine {
       if (def.human && Object.hasOwn(state.acts, actId!)) {
         const rec = state.acts[actId!]
         if (rec.inputHash !== inputHash) return { ok: false, code: 'actid-conflict' }
-        const live = rec.outboundDigests.filter((d) => { const t = triasOf(this.#itemOf(state, d)); return t !== 'delivered' && t !== 'failed' })
+        // what is still live at `at`: not terminal, and neither past a sender
+        // lifetime nor past the horizon — those resume moves to failed
+        // (Delivery 6110) and nothing hands them out again (6115)
+        const live = rec.outboundDigests.filter((d) => {
+          const it = this.#itemOf(state, d)
+          const t = triasOf(it)
+          if (t === 'delivered' || t === 'failed') return false
+          const first = it.history.length ? it.history[0].at : at
+          return at < first + this.#policy.horizonMs && (it.expiresAt === undefined || at < it.expiresAt)
+        })
         const events: HolderEvent[] = structuredClone(rec.events) as HolderEvent[]
         return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events) }
       }
@@ -1416,6 +1426,12 @@ class HolderEngine implements Engine {
               if (r.state.effects !== next.effects) throw new Error(`engine: the ack handler of ${state.outbox[plan.ref].type} wrote the effect cache`)
               next = r.state
               events.push(...(r.events ?? []))
+            }
+            // a verified ack is an accepted document of its issuer too: the
+            // modules' accepted hooks, in the same transaction
+            for (const hook of acceptedHooks()) {
+              next = hook(next, plan.doc, plan.arrival)
+              if (next.effects !== state.effects) throw new Error('engine: an accepted hook wrote the effect cache')
             }
             return {
               state: { ...next, effects: { ...next.effects, [plan.digest]: cached(null) } },

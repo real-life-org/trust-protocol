@@ -159,8 +159,11 @@ const messageTask = {
         const relId = at.rel.id;
         if (rateCount(s, relId, 'messages', ctx.when) >= MESSAGE_RATE)
             return refuse('rate-limited', 'RLTP-MSG-4110');
+        // the inbox bound is counted before the block too (4130): a new mid
+        // meets the entries held, blocked or not; once it passes, a block
+        // discards it, an entry taken over at once
         const known = s.messages.records[at.tuple.ownPairLabel]?.[doc.payload.body.mid] !== undefined;
-        if (!known && !blockedRel(s, relId) && inboxCount(s, relId) >= INBOX_BOUND)
+        if (!known && inboxCount(s, relId) >= INBOX_BOUND)
             return refuse('rate-limited', 'RLTP-MSG-4110');
         return { bodyDigest: await digestDoc(doc.payload.body, S) };
     },

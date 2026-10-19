@@ -67,8 +67,13 @@
 //   - a rate keeps only the times inside the window, pruned when it is
 //     written; at most the bound's number of entries per relationship
 //   - the inbox bound counts the entries of the relationship the arrival
-//     tuple belongs to now; a message whose mid the record holds adds no
-//     entry and is not refused by it; under a block no entry arises (4130)
+//     tuple belongs to now, before the block (4130); a message whose mid
+//     the record holds adds no entry and is not refused by it; under a
+//     block a message that passed it is discarded, an entry taken over at
+//     once
+//   - readiness (5.1) is marked by the accepted hook for every unique
+//     document of the counterpart on the arrival tuple, its task
+//     documents and its verified delivery-acks alike
 //   - which types a block treats (Delivery RLTP-DEL-6245): message/0.1
 //     (Message Tasks), membership-invite/0.2 and the prelude reply
 //     (Membership 0.20, RLTP-MT-3115, 3975). The Trust Layer types of the
@@ -251,8 +256,11 @@ const messageTask: TaskHandler<MessagePayload, { bodyDigest: string }> = {
     // the bounds (4110), counted before the block (4130): transient (4120)
     const relId = at.rel.id
     if (rateCount(s, relId, 'messages', ctx.when) >= MESSAGE_RATE) return refuse('rate-limited', 'RLTP-MSG-4110')
+    // the inbox bound is counted before the block too (4130): a new mid
+    // meets the entries held, blocked or not; once it passes, a block
+    // discards it, an entry taken over at once
     const known = s.messages.records[at.tuple.ownPairLabel]?.[doc.payload.body.mid] !== undefined
-    if (!known && !blockedRel(s, relId) && inboxCount(s, relId) >= INBOX_BOUND) return refuse('rate-limited', 'RLTP-MSG-4110')
+    if (!known && inboxCount(s, relId) >= INBOX_BOUND) return refuse('rate-limited', 'RLTP-MSG-4110')
     return { bodyDigest: await digestDoc(doc.payload.body, S) }
   },
   // stage 9, on t_ref = arr.when (raised to lastWhen, the mark of 4060)
