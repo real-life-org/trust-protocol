@@ -200,6 +200,29 @@
    "expect": "reject: schema"
   },
   {
+   "name": "sentAt-feb-29-common-year",
+   "note": "sentAt on 29 February 2026, a common year: schema-valid (the pattern admits 02-29 in every year), mac over the mutated body valid; only the calendar check of the verifier rejects it (3030, Trust 2550)",
+   "artifact": {
+    "body": {
+     "type": "message@1",
+     "mid": "6f1c2a9e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+     "sentAt": "2026-02-29T09:14:03Z",
+     "text": "See you at the stall. Bis gleich am Stand.",
+     "replyTo": "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d"
+    },
+    "proof": {
+     "mac": "uxKx1nRA4NECU_tMzUR-wppj6yRzLqA-zoeggxFopl80"
+    }
+   },
+   "expect": "reject: calendar"
+  },
+  {
+   "name": "low-order-recipient-key",
+   "note": "a recipient key-agreement key of u-coordinate 0 (32 zero bytes): X25519 with it yields the all-zero output, and the derivation MUST fail before HKDF (3120)",
+   "recipientKeyAgreementRaw": "uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "expect": "reject: all-zero"
+  },
+  {
    "name": "mid-uppercase",
    "note": "mid in uppercase hexadecimal, mac over the mutated body (3010)",
    "artifact": {

@@ -196,13 +196,28 @@ try {
   if (mac !== mv.output.message.proof.mac) throw new Error('mac mismatch')
   const validate = validators[parsed['schemas/message.schema.json'].$id]
   if (!validate(mv.output.message)) throw new Error(`positive fails message.schema.json: ${ajv.errorsText(validate.errors)}`)
+  if (new Date(body.sentAt).toISOString().replace('.000Z', 'Z') !== body.sentAt) throw new Error('positive sentAt is no calendar date')
   for (const n of mv.negatives) {
     if (n.wrongMac) {
       const [s, r] = n.sender ? [n.sender, n.recipient] : [S.party, R.party]
       if (n.info === info || macU(s, r, n.info, jcs(body)) !== n.wrongMac || n.wrongMac === mac) throw new Error(`negative ${n.name}: the wrong key does not reproduce or coincides with k_msg`)
       continue
     }
+    if (n.expect === 'reject: all-zero') {
+      const raw = Buffer.from(n.recipientKeyAgreementRaw.slice(1), 'base64url')
+      const low = createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b656e032100', 'hex'), raw]), format: 'der', type: 'spki' })
+      let out = null
+      try { out = diffieHellman({ privateKey: xKey(S.party), publicKey: low }) } catch { out = Buffer.alloc(32) }
+      if (!out.every((x) => x === 0)) throw new Error(`negative ${n.name}: the low-order key does not yield the all-zero output`)
+      continue
+    }
     const a = n.artifact
+    if (n.expect === 'reject: calendar') {
+      const t = a.body.sentAt, d = new Date(t)
+      if (!validate(a) || macU(S.party, R.party, info, jcs(a.body)) !== a.proof.mac) throw new Error(`negative ${n.name}: not a schema-valid, mac-valid artifact`)
+      if (!Number.isNaN(d.getTime()) && d.toISOString().replace('.000Z', 'Z') === t) throw new Error(`negative ${n.name}: ${t} is a calendar date`)
+      continue
+    }
     if (n.expect === 'reject: mac' && (!validate(a) || macU(S.party, R.party, info, jcs(a.body)) === a.proof.mac)) throw new Error(`negative ${n.name}: not a schema-valid artifact whose mac fails`)
     if (n.expect === 'reject: schema' && validate(a)) throw new Error(`negative ${n.name}: passes the schema`)
     if (!['reject: mac', 'reject: schema'].includes(n.expect)) throw new Error(`negative ${n.name}: unknown expectation ${n.expect}`)

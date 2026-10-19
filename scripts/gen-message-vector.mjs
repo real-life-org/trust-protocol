@@ -3,7 +3,8 @@
 // (Message Tasks 0.1 §3): the directional key k_msg (3110), the MAC
 // preimage (JCS of the body, Trust 2.1), the expected MAC, and negatives
 // for the direction and the relationship of the key (3110), a tampered
-// body, and the closed body and its bounds (3010, 3020, 3030).
+// body, the closed body and its bounds (3010, 3020, 3030), a calendar
+// date the pattern admits (3030) and a low-order recipient key (3120).
 //
 // Keys: the oracle IKM of vectors/identity-derivation.json; parties A
 // (sender) and B (recipient), and A2 → B2 for another relationship, of
@@ -101,6 +102,8 @@ const vector = {
     { name: 'text-4097', note: 'text of 4097 code points, mac over the mutated body (3020)', artifact: withMac({ ...body, text: 'm'.repeat(4097) }), expect: 'reject: schema' },
     { name: 'sentAt-fraction', note: 'sentAt with fractional seconds, mac over the mutated body (3030)', artifact: withMac({ ...body, sentAt: '2026-10-20T09:14:03.250Z' }), expect: 'reject: schema' },
     { name: 'sentAt-april-31', note: 'sentAt on 31 April, mac over the mutated body (3030)', artifact: withMac({ ...body, sentAt: '2026-04-31T09:14:03Z' }), expect: 'reject: schema' },
+    { name: 'sentAt-feb-29-common-year', note: 'sentAt on 29 February 2026, a common year: schema-valid (the pattern admits 02-29 in every year), mac over the mutated body valid; only the calendar check of the verifier rejects it (3030, Trust 2550)', artifact: withMac({ ...body, sentAt: '2026-02-29T09:14:03Z' }), expect: 'reject: calendar' },
+    { name: 'low-order-recipient-key', note: 'a recipient key-agreement key of u-coordinate 0 (32 zero bytes): X25519 with it yields the all-zero output, and the derivation MUST fail before HKDF (3120)', recipientKeyAgreementRaw: 'u' + Buffer.alloc(32).toString('base64url'), expect: 'reject: all-zero' },
     { name: 'mid-uppercase', note: 'mid in uppercase hexadecimal, mac over the mutated body (3010)', artifact: withMac({ ...body, mid: body.mid.toUpperCase() }), expect: 'reject: schema' },
   ],
 }

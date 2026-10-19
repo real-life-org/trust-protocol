@@ -27,12 +27,11 @@
 
 ## Status of This Document
 
-This is an Editor's Draft with no standing beyond its own argument,
-and the first version of this document. It is expected to change
-together with the next castings of the Delivery Contract and of
-Membership Tasks, which take up the companion changes of Appendix A;
-each change is a new version. The reference library does not yet
-implement it. Open questions are listed in Section 9, and feedback is
+This is an Editor's Draft with no standing beyond its own argument.
+It is expected to change together with the next castings of the
+Delivery Contract, Membership Tasks and the Trust Layer, which take up
+the companion changes of Appendix A. The reference library does not
+implement it; its vector is the MAC vector of 10.2. Open questions are listed in Section 9, and feedback is
 welcome via the issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 
@@ -271,6 +270,10 @@ before the receiver's clock.
 `failed(validation-failed)` a message whose `sentAt` lies more than
 one day (`P1D`) after the receiver's clock.
 
+**RLTP-MSG-4060** — "The receiver's clock" in 4040, 4050 and 4340 MUST
+be `max(now, mark)`, where `mark` is a time the holder persists, never
+lowers, and raises to `now` at every acceptance of a message.
+
 *Rationale.* The outer binding and the MAC tie the message to one
 direction of one tuple. A deactivated tuple accepts nothing new; the
 continuity and introduction exceptions of Trust 6200 and 6210 do not
@@ -280,7 +283,10 @@ accepted, so no record older than `H` is needed to refuse its replay.
 It is a rule of this type and an exception to Delivery 1.1 and 7,
 under which delivery time is unbounded; Appendix A names the change.
 The future bound is wide enough for a wrong clock and only bounds how
-long a record is kept.
+long a record is kept. A clock set back after a record was deleted
+would let the deleted message pass the age bound again; the persisted
+mark keeps the age bound and the deletion on one time that never runs
+backwards.
 
 ### 4.2 Rate and inbox bound
 
@@ -288,13 +294,17 @@ long a record is kept.
 than 500 new `message/0.1` document digests in any 24 hours, and MUST
 NOT hold more than 2000 inbox entries.
 
-**RLTP-MSG-4120** — A document beyond either bound MUST be disposed
+**RLTP-MSG-4115** — Per relationship, a receiver MUST NOT accept more
+than 20 invitations with a credential digest new to it in any 24 hours
+(attribution per 6110).
+
+**RLTP-MSG-4120** — A document beyond a bound of 4110 or 4115 MUST be disposed
 `failed(rate-limited)` at stage 8: nothing is committed, no
 acknowledgement is produced, the digest does not enter the
 completed-effect cache, and the receiver MUST NOT conclude the
 document toward its carrier (Delivery 5a.8).
 
-**RLTP-MSG-4130** — Both bounds MUST be counted before the block of
+**RLTP-MSG-4130** — The bounds MUST be counted before the block of
 Section 6 is applied, and a message discarded under a block MUST count
 toward the inbox bound as an entry taken over at once.
 
@@ -306,8 +316,11 @@ toward the inbox bound as an entry taken over at once.
 contact can make a recipient hold. Counting new digests, not new
 `mid`s, also bounds a known body sent again in fresh envelopes. A
 rate-limited document is not decided: it stays with the carrier and
-is evaluated again later, so the sender loses nothing and the bound
-costs only delay. Counting before the block keeps the bound's
+is evaluated again later. That is a second chance, not a guarantee: a
+document still held back when the carrier's give-up horizon or the
+age bound (4040) is reached fails for good. The invitation bound
+keeps one relationship from filling the register of 6.4 without
+limit. Counting before the block keeps the bound's
 observable behaviour equal for a blocked and an unblocked
 relationship. `rate-limited` is not in the closed failure set of
 Delivery 0.81 and every failure there is terminal; Appendix A names
@@ -324,10 +337,20 @@ the completion record (4.4), and, unless the relationship is blocked
 **RLTP-MSG-4220** — The receiver MUST NOT use a disposition that
 skips the cache entry or the acknowledgement for an accepted message.
 
+**RLTP-MSG-4230** — The stage-9 lock set of a `message/0.1` document
+MUST extend by its arrival tuple, acquired with the digest as one
+acquisition (Delivery 6.2); inside the critical section the receiver
+MUST evaluate 4030, 4110 to 4130, 4310 to 4330 and the block on the
+state it holds then, and a waiter MUST re-enter at stage 4.
+
 *Rationale.* The acknowledgement attests the durable defined effect,
 never display or reading (Delivery 4.2). Writing all of it in one
 transaction leaves no state in which a sender sees "delivered" for a
-message the recipient can lose.
+message the recipient can lose. The digest alone serializes only
+copies of one document: two envelopes of one `mid`, or two documents
+at the last unit of the rate, would otherwise both pass. The tuple
+key serializes every message of one relationship, as the assembly key
+does for the chunks of a star (Delivery 6.2).
 
 ### 4.4 Completion record
 
@@ -450,12 +473,17 @@ relationship for a while (Trust 2145). The rules follow the setting
 **RLTP-MSG-6110** — A document arriving on the tuple path MUST be
 attributed to the relationship of its arrival tuple; an invitation
 arriving on a member key MUST be attributed to the relationship of
-the prelude binding that names its inviter.
+the prelude binding that names its inviter. An implementation that
+holds no such binding for an invitation MUST attribute it to no
+relationship and MUST state in its conformance notes that it cannot
+block invitations.
 
 *Rationale.* A block applies to what one relationship sends. Documents
 on member keys bind their channel themselves (Membership 3.1); for an
 invitation, the binding to the contact that asked as the inviter is
-what says whose offer it is.
+what says whose offer it is. Membership defines the prelude only as
+an application exchange; the binding it needs is a companion change
+(Appendix A).
 
 ### 6.3 Three treatments
 
@@ -470,7 +498,7 @@ each type as the table below states, with stages 1 to 8 unchanged.
 | `introduction-forward/0.1` | **discard**: the act enters `refused` (Trust 8380) | the act with its request digest, kept until the end of acceptance (Trust 8.1); a differing request under the same act id stays an equivocation (Trust 8100, 8240) |
 | `profile/0.1`, `star/0.2`, `group-star/0.1`, `anchor-mapping/0.3` | **process, do not show**: every check and state rule as without block; the application shows nothing of the relationship | the type's own rules (Trust 6270, 6450, 6460, 5340, 5366) |
 | `continuity-probe/0.1`, `continuity-mapping/0.1` | **process** | Trust 6a |
-| `introduction-request/0.1` | **unaffected**: received with its acknowledgement duty bound (Trust 8430), acknowledged at its fixed time (8650); the target counts as unresolvable, so acknowledgement and silence (8440) | Trust 8.1 |
+| `introduction-request/0.1` from a blocked relationship, or from an unblocked one naming a target on a blocked relationship | **unaffected**: received with its acknowledgement duty bound (Trust 8430), acknowledged at its fixed time (8650); the target counts as unresolvable, so acknowledgement and silence (8440) | Trust 8.1 |
 | `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | **unaffected**: steps of a running act | Trust 8.1 |
 | `x-membership-prelude-request/0.1` (library form) | **unaffected**: answered without display; the invitation that follows is discarded | the prelude state |
 | `x-membership-prelude-reply/0.1` (library form), answering the holder's own earlier request | **close**: verified, the waiting prelude closed and acknowledged; no invitation produced or sent | the closed prelude |
@@ -527,12 +555,14 @@ the life of the holder costs little and closes every path.
 ### 6.5 Outbound
 
 **RLTP-MSG-6410** — A holder MUST refuse, toward a blocked
-relationship, a message, an invitation, and an introduction act in
-which that relationship would be requester, target or mediator.
+relationship, a message, an invitation, and the start of an
+introduction act in which that relationship would be requester,
+target or mediator.
 
 **RLTP-MSG-6420** — A holder MUST continue the protocol steps it owes
 on a blocked relationship: acknowledgements, the `introduction-ack` of
-a request it received, continuity.
+a request it received, the steps of an act begun before the block
+(reply, acknowledgement, voucher), continuity.
 
 *Rationale.* A block that let the holder's own offers through would
 invite the answer it is meant to stop. Withholding an owed step would
@@ -583,7 +613,9 @@ decline it was discarded into (6510).
 gets the second refused (4330); the recipient keeps the first.
 
 **Flooding.** A contact can send without limit. The rate and the inbox
-bound (4110) cap what one relationship can make a recipient hold:
+bound (4110) cap what one relationship can make a recipient hold, and
+the invitation bound (4115) caps the register of 6.4 at about 7300
+entries a year per relationship, kept for the life of the holder:
 with the rate exhausted for `H`, about 90 500 completion-record
 entries and, for the cache retention of the Delivery Contract, about
 45 000 cache entries per relationship, plus at most 2000 inbox entries.
@@ -602,6 +634,12 @@ waits without acknowledgement while a blocked sender would not. The
 pause of the star that a blocking application typically applies is
 visible as far as Trust 5.4 makes it visible.
 
+**Clock set back.** A deleted completion-record entry would let its
+message pass the age bound again once the clock runs backwards; the
+persisted mark (4060) closes this for a clock change, not for a
+holder state restored from an older backup, which restores older
+records with it.
+
 **Block across devices.** The block is holder state of one device;
 this version does not synchronize it.
 
@@ -611,7 +649,8 @@ A message is exposed to its recipient only: the carrier sees a sealed
 envelope addressed to a per-relationship key (Delivery 5a.2) and no
 sender (Delivery 5a.4). The recipient holds the text in its inbox and
 history, and a content-free completion record of identifiers, digests
-and send times for at most `H`. There are no read receipts and no
+and send times for at least `H` after each send time (4340), which it
+SHOULD delete then. There are no read receipts and no
 typing indicators: the acknowledgement says arrival, never reading.
 
 The send time is the sender's clock in whole seconds; it tells the
@@ -656,13 +695,19 @@ and recomputed by `scripts/validate.mjs`, holds:
   tampered body (3110);
 - schema negatives: a signature in place of the MAC, a MAC plus a
   signature, an extra member, `text` empty and of 4097 code points,
-  `sentAt` with fractional seconds, an uppercase `mid` (3010, 3020,
-  3030).
+  `sentAt` with fractional seconds and on 31 April, an uppercase `mid`
+  (3010, 3020, 3030);
+- a calendar negative: `sentAt` on 29 February of a common year,
+  schema-valid and MAC-valid, rejected by the calendar check (3030);
+- a low-order negative: a recipient key-agreement key of u-coordinate
+  0, whose derivation MUST fail before HKDF (3120).
 
 Planned, with the reference implementation: a scenario set for the
 reception rules with controlled clock and state (the age and future
-bounds, the rate and inbox bound and the re-evaluation of a
-rate-limited document, the completion record under replay, re-wrap,
+bounds, the persisted clock mark under a clock set back after a
+deletion, the rate, invitation and inbox bounds and the re-evaluation
+of a rate-limited document, concurrent documents of one `mid` and of
+one relationship under the lock set, the completion record under replay, re-wrap,
 equivocation, cache expiry and deletion, the block table row by row,
 the register across two relationships and a renewed prelude, and
 readiness after an introduction).
@@ -670,16 +715,15 @@ readiness after an introduction).
 ### 10.3 Rule coverage
 
 **Vector-checked:** RLTP-MSG-3010 · RLTP-MSG-3020 · RLTP-MSG-3030 ·
-RLTP-MSG-3110 · RLTP-MSG-3120 (by the generator's all-zero check) ·
-RLTP-MSG-4010.
+RLTP-MSG-3110 · RLTP-MSG-3120 · RLTP-MSG-4010.
 
 **State-dependent** — the verdict needs a tuple and relationship
-state, a clock, a cache, a carrier, or an application, and is
-exercised by the scenario set of 10.2: RLTP-MSG-2010 · RLTP-MSG-2020 ·
+state, a clock, a cache, a carrier, or an application; the scenario
+set of 10.2 is planned to exercise it: RLTP-MSG-2010 · RLTP-MSG-2020 ·
 RLTP-MSG-2030 · RLTP-MSG-2040 · RLTP-MSG-3040 · RLTP-MSG-4020 ·
-RLTP-MSG-4030 · RLTP-MSG-4040 · RLTP-MSG-4050 · RLTP-MSG-4110 ·
-RLTP-MSG-4120 · RLTP-MSG-4130 · RLTP-MSG-4140 · RLTP-MSG-4210 ·
-RLTP-MSG-4220 · RLTP-MSG-4310 · RLTP-MSG-4320 · RLTP-MSG-4330 ·
+RLTP-MSG-4030 · RLTP-MSG-4040 · RLTP-MSG-4050 · RLTP-MSG-4060 ·
+RLTP-MSG-4110 · RLTP-MSG-4115 · RLTP-MSG-4120 · RLTP-MSG-4130 · RLTP-MSG-4140 · RLTP-MSG-4210 ·
+RLTP-MSG-4220 · RLTP-MSG-4230 · RLTP-MSG-4310 · RLTP-MSG-4320 · RLTP-MSG-4330 ·
 RLTP-MSG-4340 · RLTP-MSG-4350 · RLTP-MSG-4410 · RLTP-MSG-4420 ·
 RLTP-MSG-5010 · RLTP-MSG-5020 · RLTP-MSG-5030 · RLTP-MSG-5110 ·
 RLTP-MSG-5120 · RLTP-MSG-6010 · RLTP-MSG-6020 · RLTP-MSG-6030 ·
@@ -693,10 +737,11 @@ RLTP-MSG-6230.
 
 ## Appendix A: Companion changes
 
-The block of Section 6 and the disposition of 4120 change rules that
-other documents own. A new document cannot redefine them; these are
-the changes their next castings take up. Until then, the reference
-library deviates at exactly these places and says so.
+The block of Section 6, the bounds of 4.2 and the sender's give-up of
+5110 touch rules that other documents own. A new document cannot
+redefine them; these are the changes their next castings take up. An
+implementation that applies this document before them states in its
+conformance notes where it departs from the rules named here.
 
 **Delivery Contract (next casting):**
 
@@ -709,6 +754,12 @@ library deviates at exactly these places and says so.
   not terminal: nothing committed, no acknowledgement, no cache
   entry, no conclusion toward the carrier, re-evaluated in full on
   the next delivery.
+- 6.2 stage 9: the lock set of a `message/0.1` document extends by its
+  arrival tuple (Message Tasks 4230).
+- 6.1: a sender failure reason `task-expired` for a document whose
+  type declares a lifetime that has run out (Message Tasks 5110); a
+  valid acknowledgement arriving later transitions the status as a
+  late acknowledgement does.
 - 1.1 and 7: a registered type may declare an age bound on a protected
   sender timestamp of its own (Message Tasks 4040, 5110).
 
@@ -716,6 +767,15 @@ library deviates at exactly these places and says so.
 
 - RLTP-MT-3085: the declaration adds "discarded where the inviter's
   relationship is blocked (Message Tasks 6.3)".
+- Prelude (1.2): a normative prelude binding: the authenticated
+  binding of an inviter's member anchor to the relationship it asked
+  on, keyed by `(genesis digest, inviter)`, with its lifetime, the
+  rule for renewal and for a binding asked on another relationship,
+  and its fate at split and chaining; an invitation without a binding
+  is attributed to no relationship (Message Tasks 6110).
+- 3.1: at most 20 invitations with a new credential digest per
+  relationship in 24 hours, beyond that `failed(rate-limited)`
+  (Message Tasks 4115).
 - RLTP-MT-3095: an invitation attributed by its prelude binding to a
   blocked relationship has as its defined effect the silent decline
   of RLTP-MT-7020, its credential digest recorded in the holder-wide
@@ -730,8 +790,10 @@ library deviates at exactly these places and says so.
   block; holding and revisions (6450, 6460) unchanged.
 - RLTP-TRU-8380 and 8440: an `introduction-forward` on a blocked
   relationship is the target's silent refusal; an
-  `introduction-request` from a blocked relationship resolves its
-  target as unresolvable.
+  `introduction-request` from a blocked relationship, or naming a
+  target whose relationship with the mediator is blocked, resolves its
+  target as unresolvable, the acknowledgement duty unchanged (8430,
+  8650); steps of an act begun before a block continue.
 
 ## References
 
