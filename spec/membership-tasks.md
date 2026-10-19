@@ -50,9 +50,14 @@ its holder, the flow from founding through prelude, invite, accept
 and admission to the vouch. It carries the prelude in experimental
 forms of its own (`x-membership-prelude-request/0.1`,
 `x-membership-prelude-reply/0.1`, binding `x-membership-inviter@0.1`)
-with the fields and checks of 3.5, and refuses an invitation for
-which it holds no prelude binding; it does not implement the rate,
-the block or the register of declined invitations of 3.1; and it
+with the signatures and field bindings of 3.5, and refuses an
+invitation for which it holds no prelude binding. It departs from 3.5
+and 3.1 where it compares genesis digests as strings, keeps a binding
+from another contact entry rather than another relationship until
+the bound tuple is gone, admits on an accept without the time bound
+of RLTP-MT-3282, and keeps the record of a surfaced invitation only
+until the invitation expires; it does not implement the rate, the
+block or the register of declined invitations; and it
 sends the welcome in a form of its own instead of the Access envelope
 (3.3), a holder's roster being what it admitted and what its welcome
 carried, not a replicated one. The bootstrap lifecycle it references
@@ -618,11 +623,13 @@ evaluation, and to no relationship where it holds no such binding
 (Message Tasks RLTP-MSG-6110).
 
 **RLTP-MT-3105** — A receiver MUST dispose `failed(rate-limited)`
-(Delivery RLTP-DEL-6270) an invitation attributed to a relationship
-on which it has, in the preceding 24 hours, already accepted 20
-invitations with a credential digest it held in no record before,
-counting before any block is applied (Message Tasks RLTP-MSG-4115,
-RLTP-MSG-4130).
+(Delivery RLTP-DEL-6270) an invitation whose credential digest it
+holds in no record and which is attributed to a relationship on which
+it has, in the preceding 24 hours, already accepted 20 invitations
+with a credential digest new to it, counting before any block is
+applied (Message Tasks RLTP-MSG-4115, RLTP-MSG-4130); an invitation
+whose credential digest it already holds MUST NOT count and MUST NOT
+be refused by this bound.
 
 **RLTP-MT-3110** — Inside its stage-9 critical section, whose lock
 set holds the key of the invitation's credential digest (Delivery
@@ -644,12 +651,11 @@ holds its credential digest, whatever relationship or prelude binding
 it arrives under (Message Tasks RLTP-MSG-6320).
 
 **RLTP-MT-3125** — For any other invitation, the outcome MUST be no
-new effect where a prompt for its credential digest is open or the
-receiver still holds a human answer to it, and surface otherwise.
+new effect where its credential digest was surfaced before, and
+surface otherwise.
 
-**RLTP-MT-3130** — A receiver MUST hold its record of the human
-answer to an invitation at least until `invite.validUntil` plus
-`membership-skew`.
+**RLTP-MT-3130** — A receiver MUST keep, for as long as the holder
+exists, the credential digest of every invitation it surfaced.
 
 *Rationale.* A block acts on the relationship an invitation comes
 from, so the invitation needs one: the prelude binding is the one
@@ -665,10 +671,15 @@ invitation's identity (RLTP-MT-2180), so two envelopes of one
 invitation, under two relationships or under none, meet under its key
 and decide once: a later decline under a block closes the prompt an
 earlier surfacing opened, and a declined digest never surfaces again.
-Holding the human answer until the invitation can no longer be
-answered keeps a redelivered or re-wrapped invitation from asking the
-person a second time; after that, the accept window has closed
-(RLTP-MT-5050) and a prompt would offer nothing.
+Keeping the digest of every surfaced invitation keeps a redelivered
+or re-wrapped invitation from asking the person a second time, after
+an answer, after the prompt expired, or after any record of the
+answer is gone; a time-based record would let a copy surface again
+once it lapsed, and a clock set back would move that point. The cost
+is a digest per surfaced invitation, which the rate bounds per
+relationship. A known digest is never rate-limited, so a copy that
+arrives after a block still reaches the decision that closes an open
+prompt.
 
 
 ### 3.2 `membership-accept/0.2`
@@ -790,7 +801,10 @@ and the accept itself MUST grant nothing.
 that answers its own invitation without a further human act, its
 invitation standing as its deliberate act of admission (RLTP-MT-3800),
 where the group's policy admits on the inviter's signature with the
-vouches it holds.
+vouches it holds and the inviter holds the accept, by its own clock,
+before `invite.validUntil` plus `membership-skew` plus the longest
+adapter give-up horizon; an accept it holds only later MUST wait for
+a human act of admission.
 
 **RLTP-MT-3285** — An accept MUST be consent to one membership: the
 subject is a member once, however many canonical admissions enclose
@@ -1444,13 +1458,15 @@ MUST keep a prelude binding under the key `(genesisDigest, inviter)`,
 holding the arrival tuple.
 
 **RLTP-MT-3930** — A later request under the same key that arrives on
-a tuple of the contact entry the bound tuple feeds MUST replace the
-bound tuple with its own.
+a tuple of the relationship the bound tuple belongs to MUST replace
+the bound tuple with its own.
 
 **RLTP-MT-3935** — A later request under the same key that arrives on
-a tuple of another contact entry MUST be disposed
-`failed(validation-failed)` while the bound tuple is the active head
-of a current relationship, and MUST replace the binding otherwise.
+a tuple of another relationship MUST be disposed
+`failed(validation-failed)` while the relationship of the bound tuple
+is current (Trust Layer 6.4), whatever contact entry either
+relationship feeds, and MUST replace the binding once that
+relationship has ended.
 
 **RLTP-MT-3940** — A binding MUST be kept with its tuple (Trust Layer
 RLTP-TRU-6180) and MUST attribute an invitation to the relationship
@@ -1469,25 +1485,41 @@ of `(genesisDigest, inviter)` (for an invitation: its credential's
 `genesisDigest` and `issuer`), acquired with the rest of the set as
 one acquisition (Delivery 6.2).
 
+**RLTP-MT-3952** — The stage-9 lock set of a prelude request MUST
+also include the relationship key (Delivery RLTP-DEL-6210) of its
+arrival tuple's relationship and, where a binding under its key
+exists, of the bound tuple's relationship.
+
 **RLTP-MT-3955** — An invitation evaluation that finds, inside its
 critical section, its prelude binding attributing it to a relationship
 whose key its lock set does not hold MUST release the set and
 re-enter at Delivery stage 4.
 
+**RLTP-MT-3957** — A prelude request evaluation that finds, inside
+its critical section, a binding or a relationship of its arrival
+tuple other than the ones whose keys its lock set holds MUST release
+the set and re-enter at Delivery stage 4.
+
 *Rationale.* The key names the member who asks and the group it asks
 for, and nothing else; one contact may hold several relationships,
 and one relationship may be split from an entry, so the binding stays
 with the tuple it came on, as every per-tuple state does, and
-attribution follows the tuple wherever the chain takes it. A second
-contact entry cannot take a binding over while the first relationship
-lives: the same member asking through two entries of one person would
-otherwise flip the attribution of its invitations back and forth and
-let one relationship's block be escaped through the other. Once the
-bound tuple is no longer an active head, the key is free, so a person
-whose old relationship ended can be asked again. The lock key makes
-the binding a state that one evaluation reads and no request changes
-under it, and an evaluation that read the binding before its locks
-and finds it moved starts again, as every waiter does. The retention
+attribution follows the tuple wherever the chain takes it. Renewal
+stays inside the relationship that holds the binding: a chaining
+makes a new head of the same relationship, and a request on it
+renews the binding there. Another relationship cannot take the binding
+over while the first one is current, whether or not both feed one
+contact entry: the same member asking through a second relationship
+would otherwise move the attribution of its invitations away from a
+blocked relationship to an unblocked one. Once the bound relationship
+has ended, the key is free, so a person whose old relationship ended
+can be asked again. The lock keys make the binding and the
+relationships it reads one state that no request, merge, split or
+chaining changes under an evaluation; an evaluation that read them
+before its locks and finds them moved starts again, as every waiter
+does. The reply decides under its relationship's key whether an
+invitation follows, so a block set at the same moment either stops
+it or comes after it. The retention
 covers the invitation that follows the request: it is answered within
 the invitation's window and may travel as long as the adapters allow.
 
@@ -1511,6 +1543,11 @@ side effects mutating; exposure recipient-only.
 **RLTP-MT-3975** — An inviter that holds a block on the relationship
 a reply arrives on MUST close the waiting prelude and MUST NOT issue
 the invitation (Message Tasks 6.3, RLTP-MSG-6410).
+
+**RLTP-MT-3980** — The stage-9 lock set of a reply MUST include the
+relationship key of its arrival tuple's relationship, and the block
+check, the closing of the prelude and the decision to issue the
+invitation MUST be one transaction under it.
 
 *Rationale.* The answer is the invitee's application speaking, not
 the person: a member anchor is scoped to one group and reveals no
@@ -2022,10 +2059,11 @@ present it on its own relationship, and cannot make one for an anchor
 whose key it does not hold, so a contact cannot attribute another
 member's invitations to itself, nor its own to a relationship the
 invitee has not blocked. The one party that can bind the same key on
-two relationships is the member itself, asking through two contact
-entries of one person; the first binding holds while its tuple is an
-active head (RLTP-MT-3935), so the member cannot flip attribution to
-escape a block.
+two relationships is the member itself; the first binding holds while
+its relationship is current, whatever contact entries the two
+relationships feed, and a chaining renews it only within that
+relationship (RLTP-MT-3930, RLTP-MT-3935), so the member cannot move
+attribution to escape a block.
 
 **An invitation without a binding reaches no block and no rate.** An
 invitation whose inviter holds no binding is attributed to no
@@ -2049,9 +2087,12 @@ once.
 
 **An inviter's invitation admits.** Where an inviter admits on the
 accept without a further act (RLTP-MT-3282), its decision was made
-when it invited and holds until `validUntil` plus `membership-skew`:
-an accept arriving late in that window, or a backdated one inside it,
-admits a person the inviter may no longer want. No withdrawal of an
+when it invited. The inviter uses it only for an accept it holds
+before `validUntil` plus `membership-skew` plus the longest give-up
+horizon on its own clock; a later accept stays valid (RLTP-MT-5040,
+RLTP-MT-5050) but waits for a human act. Inside that span an accept,
+backdated or not, admits a person the inviter may no longer want, and
+an inviter clock set back widens the span. No withdrawal of an
 invitation exists in this version (MO-8); the inviter's means is a
 short `validUntil`.
 
@@ -3196,7 +3237,7 @@ informative plan and it differ.
 Every rule of this document is in exactly one of the
 state-dependent and interactive set and the vector-checked set; the
 vector-checked set splits into fully proved and partially proved
-rules. The counts are 96 fully proved, 19 partially proved and 101
+rules. The counts are 96 fully proved, 19 partially proved and 104
 state-dependent or interactive.
 
 **State-dependent and interactive set** (RLTP-MT-10080), by reason:
@@ -3204,7 +3245,7 @@ state-dependent or interactive.
 - *State and clock scenarios* — the rule's verdict needs a
   materialized log, a replica, a pending store, a provisional window,
   device bindings, or elapsed time, and is exercised as a scenario
-  with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080 · RLTP-MT-3100 · RLTP-MT-3105 · RLTP-MT-3110 · RLTP-MT-3115 · RLTP-MT-3120 · RLTP-MT-3125 · RLTP-MT-3130 · RLTP-MT-3925 · RLTP-MT-3930 · RLTP-MT-3935 · RLTP-MT-3940 · RLTP-MT-3945 · RLTP-MT-3950 · RLTP-MT-3955 · RLTP-MT-3965 · RLTP-MT-3975.
+  with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080 · RLTP-MT-3100 · RLTP-MT-3105 · RLTP-MT-3110 · RLTP-MT-3115 · RLTP-MT-3120 · RLTP-MT-3125 · RLTP-MT-3130 · RLTP-MT-3925 · RLTP-MT-3930 · RLTP-MT-3935 · RLTP-MT-3940 · RLTP-MT-3945 · RLTP-MT-3950 · RLTP-MT-3955 · RLTP-MT-3965 · RLTP-MT-3975 · RLTP-MT-3952 · RLTP-MT-3957 · RLTP-MT-3980.
 - *Interaction and display* — the rule binds a human decision, an
   application's display, a sender's belief or an optional behaviour
   that no artifact records: RLTP-MT-2300 · RLTP-MT-3095 · RLTP-MT-3400 · RLTP-MT-3700 · RLTP-MT-3740 · RLTP-MT-3765 · RLTP-MT-3780 · RLTP-MT-3785 · RLTP-MT-3790 · RLTP-MT-5010 · RLTP-MT-7010 · RLTP-MT-7020 · RLTP-MT-7050 · RLTP-MT-8070 · RLTP-MT-3282 · RLTP-MT-3915.
