@@ -198,6 +198,11 @@ export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([
   TT + 'introduction-reply/0.1',
   TT + 'membership-prelude-request/0.1',
   TT + 'membership-prelude-reply/0.1',
+  // lib 0.4.0's prelude forms: never received any more (unknown-type), kept
+  // for the class of an outbox item a codec-1 state still holds, whose
+  // signed ack may yet arrive
+  TT + 'x-membership-prelude-request/0.1',
+  TT + 'x-membership-prelude-reply/0.1',
   TT + 'x-membership-welcome/0.1',
   TT + 'x-introduction-offer/0.1',
 ])
