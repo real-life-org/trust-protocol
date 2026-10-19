@@ -12,6 +12,13 @@
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port.
 //
+// Beyond the profile (lib 0.5.0): conclude(collection, now, {keep}) leaves
+// the items whose disposition is transient unconcluded and offers them
+// again (Delivery 0.82 RLTP-DEL-5810, 5820: failed(rate-limited) is never
+// concluded); `concludable(result)` says which receive outcomes are
+// terminal. The profile's §4 concludes a collection whole; its next
+// casting is to take this up.
+//
 // Structural rules (reviews 3+4):
 //   · No port operation ever awaits the mediator — including
 //     register: keylist synchronization is a recorded intent with a
@@ -28,6 +35,7 @@ import { sha } from '../crypto.js'
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js'
 import type { CarrierPrincipal, CarrierScopedIdentity } from '../carrier-identity.js'
 import type { DeliveryReport, Outbound, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
+import type { ReceiveResult } from '../results.js'
 export type { ReceiverRefusalCode } from '../ports.js'
 
 // ── Declared constants (profile §2) — promises of THIS casting ──────
@@ -99,6 +107,15 @@ export function deliveryReportOf (digest: string, st: SubmissionState): Delivery
       ? { digest, status: 'failed', reason: 'rejected-by-receiver', code: st.code }
       : { digest, status: 'failed', reason: st.reason }
   }
+}
+
+/** Whether a receive outcome is terminal and its item may be concluded
+ *  (Delivery 5a.8): every disposition but `failed(rate-limited)`, the one
+ *  failure that is transient (RLTP-DEL-5820). An InfraError of the
+ *  holder's store is transient as well (RLTP-DEL-5810): an item whose
+ *  receive threw is kept, too. */
+export function concludable (r: ReceiveResult): boolean {
+  return !(r.disposition === 'failed' && r.reason === 'rate-limited')
 }
 
 export interface CollectedItem { bytes: Uint8Array, queueId: string }
@@ -532,14 +549,28 @@ export class MediatorCarrierAdapter {
     return { id, items: items.map((i) => ({ ...i })) }
   }
 
-  conclude (collection: { id: string }, rawNow: number): void {
+  /** Concludes a collection (profile §4, Delivery 5a.8): its items'
+   *  digests become ack intent. `keep` names the items whose disposition
+   *  is transient (Delivery RLTP-DEL-5810, 5820: `failed(rate-limited)`,
+   *  or a transaction that could not commit, see `concludable`): they are
+   *  not concluded and not acknowledged, they go back to the buffer and the
+   *  next collect offers them again, and the mediator keeps its copy. */
+  conclude (collection: { id: string }, rawNow: number, opts: { keep?: readonly string[] } = {}): void {
     this.#open()
     const now = this.#now(rawNow)
     const col = this.#outstanding.get(collection.id)
     if (!col) return
     this.#outstanding.delete(collection.id)
+    const keep = new Set(opts.keep ?? [])
     for (const item of col.values()) {
       this.#outstandingBytes -= item.bytes.length
+      if (keep.has(item.queueId)) {
+        // transient: back to the buffer, offered again, never acknowledged
+        this.#inbox.push(item)
+        this.#inboxBytes += item.bytes.length
+        this.#inboxDigests.add(item.queueId)
+        continue
+      }
       this.#concluded.set(item.queueId, now)
       this.#pendingAcks.add(item.queueId)
     }
