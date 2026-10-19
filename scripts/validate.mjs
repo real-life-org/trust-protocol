@@ -168,6 +168,48 @@ try {
   ok(`profile vector reproduces byte-for-byte (X25519, HKDF k_pr, JCS, HMAC mac); schema-valid; header dimensions within 1024 × 1024; ${pv.negatives.length} negatives fail as declared`)
 } catch (e) { err(`profile vector: ${e.message}`) }
 
+// ── 3c. The message@1 vector reproduces byte-for-byte (Message Tasks §3) ──
+// X25519 of the parties' pair keys, HKDF k_msg (3110), JCS preimage, HMAC
+// mac; the positive passes its schema, every negative fails as it declares.
+try {
+  const { createHmac } = await import('node:crypto')
+  const mv = parsed['vectors/message.json'], vis = parsed['vectors/visibility.json']
+  const ikm = Buffer.from(parsed['vectors/identity-derivation.json'].rootIkm, 'hex')
+  const xKey = (name) => {
+    const p = vis.parties[name]
+    const label = 'pair/u' + b64u(Buffer.concat([Buffer.from([0x12, 0x20]), createHash('sha256').update(Buffer.from(p.relationshipNonce, 'hex')).digest()]))
+    if (label !== p.label) throw new Error(`party ${name}: label is not pair/<multihash(nonce)>`)
+    return createPrivateKey({ key: pkcs8(Buffer.from(hkdfSync('sha256', ikm, Buffer.alloc(0), 'rltp/anchor/x/' + label, 32))), format: 'der', type: 'pkcs8' })
+  }
+  const ikmOf = (s, r) => diffieHellman({ privateKey: xKey(s), publicKey: createPublicKey(xKey(r)) })
+  const macU = (s, r, info, preimage) => 'u' + b64u(createHmac('sha256', Buffer.from(hkdfSync('sha256', ikmOf(s, r), Buffer.alloc(0), info, 32))).update(Buffer.from(preimage, 'utf8')).digest())
+  const { sender: S, recipient: R, body } = mv.inputs
+  for (const p of [S, R]) if (jcs({ ...vis.parties[p.party], party: p.party }) !== jcs(p)) throw new Error(`party ${p.party} differs from vectors/visibility.json`)
+  const info = `rltp/v1/message/mac/${S.anchor}/${R.anchor}`
+  const shared = ikmOf(S.party, R.party)
+  if (shared.every((x) => x === 0)) throw new Error('all-zero shared secret')
+  if ('u' + b64u(shared) !== mv.intermediate.sharedSecret) throw new Error('shared secret mismatch')
+  if (info !== mv.intermediate.info) throw new Error('info string mismatch')
+  if ('u' + b64u(Buffer.from(hkdfSync('sha256', shared, Buffer.alloc(0), info, 32))) !== mv.intermediate.kmsg) throw new Error('HKDF k_msg mismatch')
+  if (jcs(body) !== mv.intermediate.preimage || jcs(mv.output.message.body) !== jcs(body)) throw new Error('JCS preimage mismatch')
+  const mac = macU(S.party, R.party, info, jcs(body))
+  if (mac !== mv.output.message.proof.mac) throw new Error('mac mismatch')
+  const validate = validators[parsed['schemas/message.schema.json'].$id]
+  if (!validate(mv.output.message)) throw new Error(`positive fails message.schema.json: ${ajv.errorsText(validate.errors)}`)
+  for (const n of mv.negatives) {
+    if (n.wrongMac) {
+      const [s, r] = n.sender ? [n.sender, n.recipient] : [S.party, R.party]
+      if (n.info === info || macU(s, r, n.info, jcs(body)) !== n.wrongMac || n.wrongMac === mac) throw new Error(`negative ${n.name}: the wrong key does not reproduce or coincides with k_msg`)
+      continue
+    }
+    const a = n.artifact
+    if (n.expect === 'reject: mac' && (!validate(a) || macU(S.party, R.party, info, jcs(a.body)) === a.proof.mac)) throw new Error(`negative ${n.name}: not a schema-valid artifact whose mac fails`)
+    if (n.expect === 'reject: schema' && validate(a)) throw new Error(`negative ${n.name}: passes the schema`)
+    if (!['reject: mac', 'reject: schema'].includes(n.expect)) throw new Error(`negative ${n.name}: unknown expectation ${n.expect}`)
+  }
+  ok(`message vector reproduces byte-for-byte (X25519, HKDF k_msg, JCS, HMAC mac); schema-valid; ${mv.negatives.length} negatives fail as declared`)
+} catch (e) { err(`message vector: ${e.message}`) }
+
 // ── 3b. The pre-rotation bindings reproduce byte-for-byte (Identity 5.4, Trust 6.5) ──
 // commit(g) = "u" || base64url(0x12 0x20 || SHA-256(0xed 0x01 || Ed25519
 // public key of generation g)): the multikey bytes are exactly the bytes
@@ -334,19 +376,19 @@ for (const f of specFiles) {
   }
 }
 
-// ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership, Trust ──
+// ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership, Trust, Message ──
 // Always against the committed manifests conformance/encounter-rule-ids-0.31.txt,
 // conformance/access-rule-ids-0.57.txt, conformance/membership-rule-ids-0.19.txt
-// and conformance/trust-rule-ids-0.31.txt. The private rule inventory of the
+// conformance/trust-rule-ids-0.31.txt and conformance/message-rule-ids-0.1.txt. The private rule inventory of the
 // Encounter, Access and Membership layers is checked additionally when
 // present, and is REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
-// MEMBERSHIP_INVENTORY names it. The Trust trace runs against its manifest
+// MEMBERSHIP_INVENTORY names it. The Trust and Message traces run against their manifests
 // only (the inventory is checked by hand: check-encounter-trace.mjs --layer
 // trust --inventory <file>).
 {
   const { checkTrace, resolveInventory, LAYERS } = await import('./check-encounter-trace.mjs')
-  for (const layer of ['encounter', 'access', 'membership', 'trust']) {
-    const { path: inventory } = layer === 'trust' ? { path: null } : resolveInventory(process.env[LAYERS[layer].env], layer)
+  for (const layer of ['encounter', 'access', 'membership', 'trust', 'message']) {
+    const { path: inventory } = layer === 'trust' || layer === 'message' ? { path: null } : resolveInventory(process.env[LAYERS[layer].env], layer)
     const r = checkTrace({ layer, inventory })
     for (const e of r.errors) err(`${layer} trace: ${e}`)
     if (!r.errors.length) ok(`${layer} trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)
