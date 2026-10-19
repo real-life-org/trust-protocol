@@ -3146,17 +3146,23 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   the same document delivered again under a rate with room →
   evaluated in full and accepted; a rate-limited document concluded
   → nonconformant (RLTP-DEL-5820, RLTP-DEL-6270, RLTP-DEL-6280) ·
-  **block:** each row of the table of Message Tasks 6.3 under a
-  block, stages 1 to 8 unchanged, a discarded message `unique` with
+  **block:** each row of the table of Message Tasks 6.3 whose
+  treatment is in effect (RLTP-DEL-6245) under a block, stages 1 to
+  8 unchanged, a discarded message `unique` with
   its ack; a `delivery-ack` under a block → evaluated as without it;
   a block set between stage 8 and stage 9 → applied on the state read
   in stage 9; a type whose registering specification defines no
-  block treatment → evaluated as without the block (RLTP-DEL-6240
-  to RLTP-DEL-6260) · **lock keys:** two
+  block treatment, such as `membership-invite/0.2` under a
+  Membership Tasks casting that defines none → evaluated, and its
+  defined effect committed, as without the block (RLTP-DEL-6240 to
+  RLTP-DEL-6260) · **lock keys:** two
   messages of one relationship at the last unit of its rate →
   exactly one accepted; one invitation credential in two envelopes
-  under two relationships, one of them blocked → no open prompt and
-  the credential digest in the register, whichever commits first; a
+  under two relationships, one of them blocked, where the
+  invitation's registering specification defines its block
+  treatment → no open prompt and the credential digest in the
+  register, whichever commits first, and both envelopes serialized
+  on the credential-digest key in every case; a
   block set while a message waits → the message re-enters at stage 4
   and sees the block (RLTP-DEL-6210 to RLTP-DEL-6230) · **age bound
   and lifetime:** a `message/0.1` document past its age bound,
@@ -3168,8 +3174,10 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   transaction that fails for storage → nothing persisted, no ack, not
   concluded, evaluated again on the next delivery (RLTP-DEL-5810) ·
   `registry-declaration/0.1`: valid declaration recorded;
-  unsigned or foreign-signed → `failed(validation-failed)` at
-  stage 8, nothing recorded; replacement
+  without `proof` → `failed(malformed)` at stage 5 (the document
+  profile requires it); foreign-signed or with a proof that does not
+  verify → `failed(validation-failed)` at stage 8; nothing recorded
+  in either case; replacement
   prospective-only · introduction-ack timing computed from the
   declared `ack-delay` (Trust Layer §8.4); an introduction-request
   sent without holding the mediator's declaration →
