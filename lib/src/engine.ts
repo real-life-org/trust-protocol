@@ -39,7 +39,8 @@
 //     commits, because its journal entry is the result. Refusals and
 //     journal replays commit nothing, lastWhen included — but for a replay
 //     that finds one of its documents past its lifetime or the horizon:
-//     that give-up commits first, as resume's would
+//     that give-up runs first as an operation of its own on the one commit
+//     path (resume's CommitOp, its timer carried to the replay's answer)
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
 //     when + ceil(backoff(1)); resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
@@ -885,6 +886,8 @@ class HolderEngine implements Engine {
 
   /** `input` is already bound (bindInput); `inputHash` its journal hash for human acts. */
   async #run (def: InternalDef, op: CommitOp, input: unknown, when: Millis, actId?: string, inputHash?: string): Promise<RunResult> {
+    /** a replay's give-up work (below): its timer, carried to the replay's answer */
+    let replayWake: Millis | undefined
     for (let attempt = 1; attempt <= this.#policy.commitAttempts; attempt++) {
       // 1 — snapshot, when
       const { state, version } = await this.#read()
@@ -894,41 +897,24 @@ class HolderEngine implements Engine {
         if (rec.inputHash !== inputHash) return { ok: false, code: 'actid-conflict' }
         const events: HolderEvent[] = structuredClone(rec.events) as HolderEvent[]
         // the act's documents are handed out again only while live; one past
-        // its sender lifetime or the horizon moves to failed here, in a commit
-        // of its own (as resume would: Delivery 6110, 6115), and is not
-        // handed out — the journal's events are not announced again
+        // its sender lifetime or the horizon is given up first, in an
+        // operation of its own on the engine's one commit path (as resume's
+        // give-up: Delivery 6110, 6115), and is never handed out — the
+        // journal's events are not announced again
         const live: string[] = []
-        const expired: Array<[string, 'task-expired' | 'expired-by-adapter-policy']> = []
+        const expired: string[] = []
         for (const d of rec.outboundDigests) {
           const it = this.#itemOf(state, d)
           const t = triasOf(it)
           if (t === 'delivered' || t === 'failed') continue
-          const why = this.#giveUp(it, at)
-          if (why) expired.push([d, why]); else live.push(d)
+          if (this.#giveUp(it, at)) expired.push(d); else live.push(d)
         }
         if (expired.length) {
-          const outbox: Record<string, OutboxItem> = { ...state.outbox }
-          const drafts: EventDraft[] = []
-          for (const [d, why] of expired) {
-            const { nextAttemptAt: _, ...rest } = state.outbox[d]
-            outbox[d] = { ...rest, history: [...rest.history, { status: 'failed', at, reason: why }] }
-            drafts.push({ type: 'delivery.status', digest: d, threadId: rest.threadId, status: 'failed' })
-          }
-          const f = this.#failed({ ...state, outbox }, expired.map(([d]) => d), at)
-          const seq = inc(state.commitSeq)
-          const announced = freezeDeep([...drafts, ...f.events].map((e, i) => ({ ...e, eventId: `${seq}.${i}`, commitSeq: seq }) as HolderEvent))
-          const next: HolderState = { ...f.state, commitSeq: seq, lastWhen: at }
-          const text = encodeState(next)
-          if (this.#check) this.#check(state, next, { kind: 'resume', fulfilled: [] })
-          let res
-          try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {
-            this.#unsettled = { text, commitSeq: seq, events: announced }
-            throw new InfraError('unknown-commit-outcome', undefined, { cause: e })
-          }
-          if (!res.ok) continue
-          this.#announce(seq, announced)
+          const g = await this.#run(this.#giveUpDef(), { kind: 'resume' }, expired, at)
+          if (!isHalt(g) && g.ok && g.nextDueAt !== undefined) replayWake = replayWake === undefined ? g.nextDueAt : Math.min(replayWake, g.nextDueAt)
+          continue   // re-read: the act's documents as the give-up left them
         }
-        return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events) }
+        return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events), ...(replayWake !== undefined ? { nextDueAt: replayWake } : {}) }
       }
       // 2 — prepare, bound to this snapshot
       const ctx: PrepareCtx = Object.freeze({
@@ -1096,6 +1082,36 @@ class HolderEngine implements Engine {
       }
     }
     return { state: cur, events }
+  }
+
+  /** The give-up of the outbox items named (a replay found them due, see
+   *  #run): as resume's, the failed step, the status event, the failure
+   *  handlers in the same transaction; items no longer due are left alone. */
+  #giveUpDef (): InternalDef {
+    const giveUp = (it: Readonly<OutboxItem>, when: Millis) => this.#giveUp(it, when)
+    const failed = (st: HolderState, digests: readonly string[], when: Millis) => this.#failed(st, digests, when)
+    return {
+      human: false,
+      apply (state, _p, digests: string[], when) {
+        const outbox: Record<string, OutboxItem> = { ...state.outbox }
+        const events: EventDraft[] = []
+        const gave: string[] = []
+        for (const d of digests) {
+          const it = state.outbox[d]
+          const t = triasOf(it)
+          if (t === 'delivered' || t === 'failed') continue
+          const why = giveUp(it, when)
+          if (!why) continue
+          const { nextAttemptAt: _, ...rest } = it
+          outbox[d] = { ...rest, history: [...rest.history, { status: 'failed', at: when, reason: why }] }
+          events.push({ type: 'delivery.status', digest: d, threadId: it.threadId, status: 'failed' })
+          gave.push(d)
+        }
+        if (!gave.length) return { state: state as HolderState }
+        const f = failed({ ...state, outbox }, gave, when)
+        return { state: f.state, events: [...events, ...f.events] }
+      },
+    }
   }
 
   /** Why a non-terminal outbox item is given up at `when`, or null: its
