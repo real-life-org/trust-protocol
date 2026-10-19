@@ -112,7 +112,12 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
     if (!s || s.$id !== t.type) { add([], false, `registry ${t.type}: schema ${t.schema} missing or its $id differs`); continue }
     if (!t.rule) continue
     const txt = ruleText(specText, t.rule) ?? ''
-    add([t.rule], txt.includes(`side effects ${t.sideEffects}`) && txt.includes(`exposure ${t.exposure}`), `registry ${t.type.split('/').slice(-2).join('/')}: declared side effects "${t.sideEffects}", exposure "${t.exposure}" as ${t.rule} states; schema $id = type URI`)
+    // the whole declared value, not a prefix of it: side effects up to `; exposure` or ` and exposure`,
+    // a trailing parenthetical annotation of the rule allowed; exposure up to the first `,`, `;` or `.`
+    const se = (txt.match(/side effects (.*?)(?:; exposure| and exposure)/) ?? [])[1]
+    const ex = (txt.match(/exposure (.*?)(?:[,;.]|$)/) ?? [])[1]
+    const sameSe = se !== undefined && (se === t.sideEffects || se.replace(/\s*\([^)]*\)$/, '') === t.sideEffects)
+    add([t.rule], sameSe && ex !== undefined && ex.replace(/\s*\(.*$/, '') === t.exposure, `registry ${t.type.split('/').slice(-2).join('/')}: declared side effects "${t.sideEffects}", exposure "${t.exposure}" as ${t.rule} states; schema $id = type URI`)
   }
 
   // RLTP-MT-10090: every rule a vector names is an identifier of the list

@@ -801,10 +801,10 @@ and the accept itself MUST grant nothing.
 that answers its own invitation without a further human act, its
 invitation standing as its deliberate act of admission (RLTP-MT-3800),
 where the group's policy admits on the inviter's signature with the
-vouches it holds and the inviter holds the accept, by its own clock,
-before `invite.validUntil` plus `membership-skew` plus the longest
-adapter give-up horizon; an accept it holds only later MUST wait for
-a human act of admission.
+vouches it holds and the inviter issues the admission, by its own
+clock, before `invite.validUntil` plus `membership-skew` plus the
+longest adapter give-up horizon; an admission it would issue later
+MUST wait for a human act.
 
 **RLTP-MT-3285** — An accept MUST be consent to one membership: the
 subject is a member once, however many canonical admissions enclose
@@ -1473,11 +1473,13 @@ RLTP-TRU-6180) and MUST attribute an invitation to the relationship
 that tuple belongs to when the invitation is evaluated, so that a
 merge, a split and a chaining move the attribution with the tuple.
 
-**RLTP-MT-3945** — A receiver MUST keep a binding while an invitation
-attributed to it is open or accepted, and at least until
-`invite-validity` plus `membership-skew` plus the longest adapter
-give-up horizon after the request that set it, and MAY delete it once
-both have passed.
+**RLTP-MT-3945** — A receiver MUST keep a binding while the
+relationship of its tuple is current or an invitation attributed to
+it is open or accepted, and MAY delete it once neither holds.
+
+**RLTP-MT-3947** — A receiver MUST delete a binding only under the
+holder-wide key of `(genesisDigest, inviter)` (RLTP-MT-3950), after
+checking RLTP-MT-3945 again inside that critical section.
 
 **RLTP-MT-3950** — The stage-9 lock set of a prelude request, and of
 every `membership-invite` document, MUST include the holder-wide key
@@ -1519,9 +1521,12 @@ chaining changes under an evaluation; an evaluation that read them
 before its locks and finds them moved starts again, as every waiter
 does. The reply decides under its relationship's key whether an
 invitation follows, so a block set at the same moment either stops
-it or comes after it. The retention
-covers the invitation that follows the request: it is answered within
-the invitation's window and may travel as long as the adapters allow.
+it or comes after it. The binding
+lives as long as the relationship it attributes to, so no later
+request can rebind the member elsewhere while that relationship
+lasts; its size is one entry per group, inviter and relationship. A
+deletion takes the same key as every reader and writer of the binding
+and decides on the state it finds there.
 
 **The reply.**
 
@@ -2075,7 +2080,9 @@ invitation of that group rests on it (Delivery Contract Section 5, keys
 of an identity context). A member whose own binding has lapsed can
 therefore, while another member's prelude keeps the key, send
 invitations that only their own signature and the one-surfacing rule
-bound. Each surfaces at most once and is signed by its inviter's
+bound. A binding lives as long as its relationship (RLTP-MT-3945), so
+the member cannot rebind elsewhere while the bound relationship lasts;
+once it has ended, the member may bind on another relationship. Each surfaces at most once and is signed by its inviter's
 member anchor, so it is attributable; this is the residue of a
 binding with a lifetime.
 
@@ -2087,10 +2094,11 @@ once.
 
 **An inviter's invitation admits.** Where an inviter admits on the
 accept without a further act (RLTP-MT-3282), its decision was made
-when it invited. The inviter uses it only for an accept it holds
+when it invited. The inviter uses it only for an admission it issues
 before `validUntil` plus `membership-skew` plus the longest give-up
-horizon on its own clock; a later accept stays valid (RLTP-MT-5040,
-RLTP-MT-5050) but waits for a human act. Inside that span an accept,
+horizon on its own clock, however early the accept or the vouches
+arrived; a later admission of a still valid accept (RLTP-MT-5040,
+RLTP-MT-5050) waits for a human act. Inside that span an accept,
 backdated or not, admits a person the inviter may no longer want, and
 an inviter clock set back widens the span. No withdrawal of an
 invitation exists in this version (MO-8); the inviter's means is a
@@ -3237,7 +3245,7 @@ informative plan and it differ.
 Every rule of this document is in exactly one of the
 state-dependent and interactive set and the vector-checked set; the
 vector-checked set splits into fully proved and partially proved
-rules. The counts are 96 fully proved, 19 partially proved and 104
+rules. The counts are 96 fully proved, 19 partially proved and 105
 state-dependent or interactive.
 
 **State-dependent and interactive set** (RLTP-MT-10080), by reason:
@@ -3245,7 +3253,7 @@ state-dependent or interactive.
 - *State and clock scenarios* — the rule's verdict needs a
   materialized log, a replica, a pending store, a provisional window,
   device bindings, or elapsed time, and is exercised as a scenario
-  with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080 · RLTP-MT-3100 · RLTP-MT-3105 · RLTP-MT-3110 · RLTP-MT-3115 · RLTP-MT-3120 · RLTP-MT-3125 · RLTP-MT-3130 · RLTP-MT-3925 · RLTP-MT-3930 · RLTP-MT-3935 · RLTP-MT-3940 · RLTP-MT-3945 · RLTP-MT-3950 · RLTP-MT-3955 · RLTP-MT-3965 · RLTP-MT-3975 · RLTP-MT-3952 · RLTP-MT-3957 · RLTP-MT-3980.
+  with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080 · RLTP-MT-3100 · RLTP-MT-3105 · RLTP-MT-3110 · RLTP-MT-3115 · RLTP-MT-3120 · RLTP-MT-3125 · RLTP-MT-3130 · RLTP-MT-3925 · RLTP-MT-3930 · RLTP-MT-3935 · RLTP-MT-3940 · RLTP-MT-3945 · RLTP-MT-3950 · RLTP-MT-3955 · RLTP-MT-3965 · RLTP-MT-3975 · RLTP-MT-3952 · RLTP-MT-3957 · RLTP-MT-3980 · RLTP-MT-3947.
 - *Interaction and display* — the rule binds a human decision, an
   application's display, a sender's belief or an optional behaviour
   that no artifact records: RLTP-MT-2300 · RLTP-MT-3095 · RLTP-MT-3400 · RLTP-MT-3700 · RLTP-MT-3740 · RLTP-MT-3765 · RLTP-MT-3780 · RLTP-MT-3785 · RLTP-MT-3790 · RLTP-MT-5010 · RLTP-MT-7010 · RLTP-MT-7020 · RLTP-MT-7050 · RLTP-MT-8070 · RLTP-MT-3282 · RLTP-MT-3915.
