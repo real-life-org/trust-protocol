@@ -888,7 +888,9 @@ class HolderEngine implements Engine {
   async #run (def: InternalDef, op: CommitOp, input: unknown, when: Millis, actId?: string, inputHash?: string): Promise<RunResult> {
     /** a replay's give-up work (below): its timer, carried to the replay's answer */
     let replayWake: Millis | undefined
-    let reread = false
+    /** give-ups a replay ran: each moves at least one of its finitely many
+     *  journaled documents to failed, so they are bounded by that number */
+    let gaveUp = 0
     for (let attempt = 1; attempt <= this.#policy.commitAttempts; attempt++) {
       // 1 — snapshot, when
       const { state, version } = await this.#read()
@@ -913,9 +915,9 @@ class HolderEngine implements Engine {
         if (expired.length) {
           const g = await this.#run(this.#giveUpDef(), { kind: 'resume' }, expired, at)
           if (!isHalt(g) && g.ok && g.nextDueAt !== undefined) replayWake = replayWake === undefined ? g.nextDueAt : Math.min(replayWake, g.nextDueAt)
-          // re-read: the act's documents as the give-up left them — once,
-          // outside the CAS budget (no conflict happened)
-          if (!reread) { reread = true; attempt-- }
+          // re-read: the act's documents as the give-up left them, outside
+          // the CAS budget (no conflict happened); bounded by the act's documents
+          if (gaveUp++ <= rec.outboundDigests.length) attempt--
           continue
         }
         return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events), ...(replayWake !== undefined ? { nextDueAt: replayWake } : {}) }
