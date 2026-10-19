@@ -262,18 +262,23 @@ under `k_msg` of that tuple.
 arriving on a tuple that is not the active head of a current
 relationship (Trust 6190, 6240) with `failed(validation-failed)`.
 
-**RLTP-MSG-4040** — At stage 8 the receiver MUST reject with
-`failed(stale-issuance)` a message whose `sentAt` lies more than `H`
-before the receiver's clock.
+**RLTP-MSG-4040** — Inside the stage-9 critical section (4230) the
+receiver MUST reject with `failed(stale-issuance)` a message whose
+`sentAt + H` lies before the reference time `t_ref` of 4060.
 
-**RLTP-MSG-4050** — At stage 8 the receiver MUST reject with
-`failed(validation-failed)` a message whose `sentAt` lies more than
-one day (`P1D`) after the receiver's clock.
+**RLTP-MSG-4050** — Inside the stage-9 critical section the receiver
+MUST reject with `failed(validation-failed)` a message whose `sentAt`
+lies more than one day (`P1D`) after `t_ref`.
 
-**RLTP-MSG-4060** — "The receiver's clock" in 4040, 4050 and 4340 MUST
-be `max(now, mark)`, where `mark` is a time the holder persists, never
-lowers, and raises to `max(now, mark)` in the same transaction as every
-acceptance of a message and as every deletion under 4340.
+**RLTP-MSG-4060** — The holder MUST persist a time `mark` that never
+lowers. Every transaction that accepts a message or deletes a
+completion-record entry MUST read `t_ref = max(now, mark)` once, use
+that `t_ref` for every time comparison it makes, write `mark = t_ref`,
+and commit only if `mark` is unchanged since its read; otherwise it
+MUST commit nothing and re-enter at stage 4 (acceptance) or start
+again (deletion). A receiver MAY apply 4040 and 4050 at stage 8 as an
+early check against its clock; that check never replaces the one in
+stage 9.
 
 *Rationale.* The outer binding and the MAC tie the message to one
 direction of one tuple. A deactivated tuple accepts nothing new; the
@@ -342,11 +347,12 @@ skips the cache entry or the acknowledgement for an accepted message.
 and of an invitation attributed to a relationship (6110), MUST extend
 by that relationship, acquired with the digest as one acquisition
 (Delivery 6.2); inside the critical section the receiver MUST evaluate
-4030, 4110 to 4130, 4310 to 4330 and the block on the state it holds
-then, and a waiter MUST re-enter at stage 4.
+4030, 4040, 4050, 4110 to 4130, 4310 to 4330 and the block on the
+state it holds then, and a waiter MUST re-enter at stage 4.
 
 **RLTP-MSG-4240** — Setting or clearing a block, a chaining onto the
-relationship (Trust 6220), and a merge or split that moves it MUST
+relationship (Trust 6220), a merge or split that moves it, and a
+deletion of a completion-record entry of one of its tuples MUST
 acquire the same relationship key before they commit.
 
 *Rationale.* The acknowledgement attests the durable defined effect,
@@ -376,9 +382,10 @@ cache entry.
 with a different `bodyDigest` MUST be disposed
 `failed(validation-failed)`.
 
-**RLTP-MSG-4340** — A receiver MUST keep a completion-record entry at
-least until its clock is past `sentAt + H`, or until the tuple is
-deactivated, whichever comes first, and MAY delete it then.
+**RLTP-MSG-4340** — A receiver MAY delete a completion-record entry
+only in a transaction under 4240 and 4060 whose `t_ref` lies after
+the entry's `sentAt + H`, or once its tuple is deactivated, and MUST
+keep it otherwise.
 
 **RLTP-MSG-4350** — Deleting a message from the inbox or from the
 application's history MUST NOT delete its completion-record entry.
@@ -390,12 +397,17 @@ per message and outlives the cache: a message accepted, discarded or
 deleted once has no second effect. A different body under a known
 `mid` is equivocation. After `sentAt + H` the age bound refuses the
 message by itself (4040), and a deactivated tuple accepts nothing
-(4030).
+(4030). Age check, deletion and acceptance read one persisted time
+under one key: a deletion raises `mark` past `sentAt + H` before the
+entry is gone, so an acceptance that commits after it reads that mark
+and refuses the message by age; an acceptance that commits before it
+still finds the entry. A message that passed an early check at stage 8
+and waited while the entry was deleted is refused in stage 9.
 
 ### 4.5 Inbox, time and order
 
 **RLTP-MSG-4410** — An inbox entry MUST hold the body unchanged, the
-receiver's clock at acceptance (`receivedAt`), and a display time
+`t_ref` of its acceptance (`receivedAt`, 4060), and a display time
 `min(sentAt, receivedAt)` fixed at acceptance.
 
 **RLTP-MSG-4420** — A receiver MUST NOT remove an inbox entry before
@@ -723,7 +735,10 @@ and recomputed by `scripts/validate.mjs`, holds:
 Planned, with the reference implementation: a scenario set for the
 reception rules with controlled clock and state (the age and future
 bounds, the persisted clock mark under a clock set back after a
-deletion, the rate, invitation and inbox bounds and the re-evaluation
+deletion, a replay that passes stage 8 at `sentAt + H − 1 s` while a
+deletion at `sentAt + H + 1 s` commits before its stage 9 (expected:
+`failed(stale-issuance)`, one inbox entry in total), concurrent
+acceptances on two relationships against one `mark`, the rate, invitation and inbox bounds and the re-evaluation
 of a rate-limited document, concurrent documents of one `mid` and of
 one relationship under the lock set, the completion record under replay, re-wrap,
 equivocation, cache expiry and deletion, the block table row by row,
