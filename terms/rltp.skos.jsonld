@@ -1346,6 +1346,38 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
+   "@id": "rltp:Prelude",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    { "@id": "rltp:Invite" }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Vorgespräch",
+     "@language": "de"
+    },
+    {
+     "@value": "Prelude",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Der Austausch vor einer Einladung: Die einladende Person fragt über eine bestehende Beziehung nach dem Mitgliedsanker, den die eingeladene Person für die Gruppe ableitet, und bindet die Frage mit einer Signatur unter ihrem eigenen Mitgliedsanker an diese Beziehung. Die Antwort trägt eine Karte an diesem Anker. Die Bindung ordnet die folgende Einladung der Beziehung zu.",
+     "@language": "de"
+    },
+    {
+     "@value": "The exchange before an invitation: the inviter asks, over an existing relationship, for the member anchor the invitee derives for the group, and binds the question to that relationship with a signature under its own member anchor. The answer carries a card at that anchor. The binding attributes the invitation that follows to the relationship.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#35-the-prelude-membership-prelude-request01-and-membership-prelude-reply01"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
    "@id": "rltp:Invite",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",

@@ -174,6 +174,7 @@ is rejected, never silently ignored.
 | `encounter-credential-delivery/0.1` | Delivery | a credential delivered after the encounter |
 | `delivery-ack/0.1` | Delivery | arrival acknowledgement, never acceptance |
 | `registry-declaration/0.1` | Delivery | a party's signed operational constants |
+| `membership-prelude-request/0.1`, `membership-prelude-reply/0.1` | Membership | the inviter asks for the invitee's member anchor; the answer carries a card at it |
 | `membership-invite/0.2` | Membership | the invitation, carrying the VIC |
 | `membership-accept/0.2` | Membership | the invitee's signed consent |
 | `membership-evidence/0.2` | Membership | relays invite and accept to any member who can admit |
@@ -227,8 +228,9 @@ remove each other. Only a change of the rules made at the same time as
 a removal stops the group, visibly, until a member writes a rule change
 that builds on both.
 
-Joining takes five steps. The invitee's app derives its anchor for
-the group and hands it to the inviter. The inviter sends an
+Joining takes five steps. In the prelude, the inviter asks over a
+relationship the two already hold; the invitee's app derives its
+anchor for the group and hands it to the inviter. The inviter sends an
 invitation naming that anchor, with no keys in it. The invitee signs
 an acceptance bound to the invitation. A member who may admit writes
 the admission into the log, enclosing invitation and acceptance as
