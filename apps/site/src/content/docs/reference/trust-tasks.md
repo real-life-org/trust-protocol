@@ -67,13 +67,16 @@ Key material and the removal notice.
 
 ## Membership
 
-The transport of membership changes: invitation, consent, the
-admitting operation, and the evidence relay. A sender issues
+The transport of membership changes: the [prelude](term:Prelude) that
+precedes an invitation, invitation, consent, the admitting operation,
+and the evidence relay. A sender issues
 `membership-evidence/0.2`; a receiver also accepts `/0.1`
 ([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)).
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
+| `membership-prelude-request/0.1` | `{ genesisDigest, group, name, inviter, binding }`: the inviter asks, on an existing relationship, for the invitee's member anchor; the binding is signed under the inviter's member anchor, the document under the sender's pair anchor | [Membership §3.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#35-the-prelude-membership-prelude-request01-and-membership-prelude-reply01) | [`payload-membership-prelude-request`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-membership-prelude-request.schema.json) |
+| `membership-prelude-reply/0.1` | `{ genesisDigest, card }`: the invitee's card at its member anchor for the group, signed under the invitee's pair anchor | [Membership §3.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#35-the-prelude-membership-prelude-request01-and-membership-prelude-reply01) | [`payload-membership-prelude-reply`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-membership-prelude-reply.schema.json) |
 | `membership-invite/0.2` | `{ invite }`: a DTG InvitationCredential, with no keys and no operation | [Membership §3.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#31-membership-invite02) | [`payload-membership-invite`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-membership-invite.schema.json) |
 | `membership-accept/0.2` | `{ accept }`: the invitee's signed consent to exactly one invite | [Membership §3.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#32-membership-accept02) | [`payload-membership-accept`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-membership-accept.schema.json) |
 | `access-operation/0.1` | `{ operation, welcome }`: the admitting `member.add` and its [welcome](term:Welcome), sent to the new member | [Membership §3.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#33-access-operation01) | [`payload-access-operation`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-access-operation.schema.json) |

@@ -79,7 +79,7 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
   const S = {}
   for (const f of readdirSync(join(root, 'schemas')).filter((f) => f.endsWith('.json'))) S[f] = JSON.parse(readFileSync(join(root, 'schemas', f), 'utf8'))
   const byId = new Map(Object.entries(S).map(([f, s]) => [s.$id ?? `https://real-life.org/rltp/v1/schemas/${f}`, f]))
-  const OWN = ['payload-membership-invite.schema.json', 'payload-membership-accept.schema.json', 'payload-membership-evidence.schema.json', 'payload-membership-evidence-0.1.schema.json', 'payload-access-operation.schema.json', 'welcome.schema.json']
+  const OWN = ['payload-membership-invite.schema.json', 'payload-membership-accept.schema.json', 'payload-membership-evidence.schema.json', 'payload-membership-evidence-0.1.schema.json', 'payload-access-operation.schema.json', 'welcome.schema.json', 'payload-membership-prelude-request.schema.json', 'payload-membership-prelude-reply.schema.json']
   const ACCESS = ['access-operation-envelope.schema.json', 'access-material.schema.json', 'access-vouch.schema.json']
   const refs = (node, acc = []) => { if (Array.isArray(node)) node.forEach((n) => refs(n, acc)); else if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) { if (k === '$ref' && typeof v === 'string') acc.push(v); else refs(v, acc) } return acc }
 
@@ -87,7 +87,7 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
   const profile = (specText.match(/\*\*Conformance profile:\*\* `(rltp-membership@[0-9.]+)`/) ?? [])[1]
   const t10010 = ruleText(specText, 'RLTP-MT-10010') ?? ''
   const titles = OWN.filter((f) => !S[f] || !S[f].title.includes(profile ?? '\u0000'))
-  add(['RLTP-MT-10010'], profile === 'rltp-membership@0.19' && t10010.includes(profile) && titles.length === 0,
+  add(['RLTP-MT-10010'], profile === 'rltp-membership@0.20' && t10010.includes(profile) && titles.length === 0,
     `profile ${profile}: header, RLTP-MT-10010 and the titles of ${OWN.length} Membership schemas agree${titles.length ? ' — differs: ' + titles.join(', ') : ''}`)
 
   // RLTP-MT-10030: Access transcriptions keep unversioned $ids; Membership schemas $ref them by those
@@ -112,7 +112,12 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
     if (!s || s.$id !== t.type) { add([], false, `registry ${t.type}: schema ${t.schema} missing or its $id differs`); continue }
     if (!t.rule) continue
     const txt = ruleText(specText, t.rule) ?? ''
-    add([t.rule], txt.includes(`side effects ${t.sideEffects}`) && txt.includes(`exposure ${t.exposure}`), `registry ${t.type.split('/').slice(-2).join('/')}: declared side effects "${t.sideEffects}", exposure "${t.exposure}" as ${t.rule} states; schema $id = type URI`)
+    // the whole declared value, not a prefix of it: side effects up to `; exposure` or ` and exposure`,
+    // a trailing parenthetical annotation of the rule allowed; exposure up to the first `,`, `;` or `.`
+    const se = (txt.match(/side effects (.*?)(?:; exposure| and exposure)/) ?? [])[1]
+    const ex = (txt.match(/exposure (.*?)(?:[,;.]|$)/) ?? [])[1]
+    const sameSe = se !== undefined && (se === t.sideEffects || se.replace(/\s*\([^)]*\)$/, '') === t.sideEffects)
+    add([t.rule], sameSe && ex !== undefined && ex.replace(/\s*\(.*$/, '') === t.exposure, `registry ${t.type.split('/').slice(-2).join('/')}: declared side effects "${t.sideEffects}", exposure "${t.exposure}" as ${t.rule} states; schema $id = type URI`)
   }
 
   // RLTP-MT-10090: every rule a vector names is an identifier of the list

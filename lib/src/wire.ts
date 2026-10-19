@@ -268,7 +268,21 @@ export type EncounterCredential = {
   }
 }
 
-/** schemas/payload-access-operation.schema.json — Payload: access-operation/0.1 (rltp-membership@0.19, target Trust Tasks framework 0.4) */
+/** schemas/message.schema.json — RLTP message@1 (rltp-message@0.1) */
+export type Message = {
+  body: {
+    type: "message@1"
+    mid: string
+    sentAt: string
+    text: string
+    replyTo?: string
+  }
+  proof: {
+    mac: string
+  }
+}
+
+/** schemas/payload-access-operation.schema.json — Payload: access-operation/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
 export type PayloadAccessOperation = ({
   operation: (AccessOperationEnvelope)
   welcome: {
@@ -336,7 +350,7 @@ export type PayloadKeyDelivery = {
   })
 }
 
-/** schemas/payload-membership-accept.schema.json — Payload: membership-accept/0.2 (rltp-membership@0.19, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-accept.schema.json — Payload: membership-accept/0.2 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
 export type PayloadMembershipAccept = {
   accept: {
     group: string
@@ -347,7 +361,7 @@ export type PayloadMembershipAccept = {
   }
 }
 
-/** schemas/payload-membership-evidence-0.1.schema.json — Payload: membership-evidence/0.1 (rltp-membership@0.19, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-evidence-0.1.schema.json — Payload: membership-evidence/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
 export type PayloadMembershipEvidence01 = {
   evidence: {
     invite: (RltpDeliveryDocument) & ({
@@ -362,7 +376,7 @@ export type PayloadMembershipEvidence01 = {
   }
 }
 
-/** schemas/payload-membership-evidence.schema.json — Payload: membership-evidence/0.2 (rltp-membership@0.19, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-evidence.schema.json — Payload: membership-evidence/0.2 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
 export type PayloadMembershipEvidence = {
   evidence: {
     invite: (RltpDeliveryDocument) & ({
@@ -378,7 +392,7 @@ export type PayloadMembershipEvidence = {
   }
 }
 
-/** schemas/payload-membership-invite.schema.json — Payload: membership-invite/0.2 (rltp-membership@0.19, target Trust Tasks framework 0.4) */
+/** schemas/payload-membership-invite.schema.json — Payload: membership-invite/0.2 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
 export type PayloadMembershipInvite = {
   invite: {
     "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
@@ -403,6 +417,36 @@ export type PayloadMembershipInvite = {
       proofPurpose: "assertionMethod"
       proofValue: string
       "@context": ["https://www.w3.org/ns/credentials/v2", "https://firstperson.network/credentials/dtg/v1", "https://real-life.org/rltp/v1"]
+    }
+  }
+}
+
+/** schemas/payload-membership-prelude-reply.schema.json — Payload: membership-prelude-reply/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
+export type PayloadMembershipPreludeReply = {
+  genesisDigest: string
+  card: ContactCard
+}
+
+/** schemas/payload-membership-prelude-request.schema.json — Payload: membership-prelude-request/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4) */
+export type PayloadMembershipPreludeRequest = {
+  genesisDigest: string
+  group: string
+  name: string
+  inviter: string
+  binding: {
+    type: "membership-inviter@1"
+    inviter: string
+    genesisDigest: string
+    threadId: string
+    from: string
+    to: string
+    proof: {
+      type: "DataIntegrityProof"
+      cryptosuite: "eddsa-jcs-2022"
+      created: string
+      verificationMethod: string
+      proofPurpose: "assertionMethod"
+      proofValue: string
     }
   }
 }
@@ -696,7 +740,7 @@ export type VisibilityStar = {
   }
 }
 
-/** schemas/welcome.schema.json — RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.19) */
+/** schemas/welcome.schema.json — RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.20) */
 export type Welcome = {
   v: "rltp-welcome/0.1"
   group: string

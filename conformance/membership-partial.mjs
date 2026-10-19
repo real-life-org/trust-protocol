@@ -1,4 +1,4 @@
-// Rules of Membership Tasks 0.19 that the vectors check only in part: a
+// Rules of Membership Tasks 0.20 that the vectors check only in part: a
 // case or check names such a rule in `rulesPartial` with the obligation
 // that stays unchecked, never in `rules`. Only `rules` counts as coverage
 // (RLTP-MT-10080); the specification lists these rules as partially
@@ -21,6 +21,9 @@ export const PARTIAL = {
   'RLTP-MT-3245': 'card ownership at materialization is not vectored here',
   'RLTP-MT-3355': 'the cap of 2048 JCS bytes per credential and the ban on a merged proof are prose; no schema-valid vouch reaches the cap',
   'RLTP-MT-3815': 'that a sender issues membership-evidence/0.2 is sender behaviour',
+  'RLTP-MT-3900': 'that the request travels on the active head of a current relationship needs tuple state; the vector proves the document proof under its issuer',
+  'RLTP-MT-3910': 'that issuer and recipient are the pair anchors of the arrival tuple needs tuple state; the vector proves the proof and binding checks',
+  'RLTP-MT-3960': 'that the reply travels on the arrival tuple and thread, and that its card is at the receiver\'s own member anchor, need holder state; the vector proves form, document proof and card',
 }
 /** Splits a case's rule identifiers into `rules` (proved completely) and `rulesPartial` (identifier → the duty that stays unproved). */
 export const splitRules = (ids) => {

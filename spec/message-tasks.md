@@ -23,7 +23,7 @@
   types are listed in Appendix A.
 - **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
   Layer 0.31; RLTP Delivery Contract 0.82; RLTP Membership Tasks
-  0.19; RLTP Access Layer 0.57.
+  0.20; RLTP Access Layer 0.57.
 
 ## Status of This Document
 
@@ -879,7 +879,7 @@ conformance notes where it departs from the rules named here.
 
 - RLTP Delivery Contract 0.82, `spec/delivery-contract.md`.
 - RLTP Trust Layer 0.31, `spec/trust-layer.md`.
-- RLTP Membership Tasks 0.19, `spec/membership-tasks.md`.
+- RLTP Membership Tasks 0.20, `spec/membership-tasks.md`.
 - RLTP Access Layer 0.57, `spec/access-layer.md`.
 - RLTP Encounter Layer 0.31, `spec/encounter-layer.md`.
 - RLTP Identity Layer 0.54, `spec/identity-layer.md`.

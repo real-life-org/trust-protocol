@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // Generates vectors/membership-tasks.json — the conformance vectors of
-// Membership Tasks 0.17 (rltp-membership@0.17): one complete admission
+// Membership Tasks 0.20 (rltp-membership@0.20): one complete admission
 // chain from a real genesis, every artifact signed, sealed and digested
 // by the construction its rule names.
 //
+//   prelude (request from the inviter's pair anchor with the inviter
+//   binding membership-inviter@1, reply with the invitee's member card) →
 //   genesis (group DID + founder, rltp-access/0.25) → genesis digest →
 //   invitee member anchor derived from it → invite (founder) → accept
 //   (invitee) → vouch (founder) → welcome (material of the genesis key
@@ -20,7 +22,9 @@
 // Deterministic: every key, nonce and content key derives from the
 // oracle IKM of vectors/identity-derivation.json (the invitee) or the
 // second-party IKM of vectors/dtg-credentials.json (founder, group DID,
-// third member) under vector-only info strings. Two genesis fields are
+// third member, the inviter's prelude pair anchor) under vector-only
+// info strings; the invitee's prelude pair anchor derives from the
+// oracle IKM. Two genesis fields are
 // stand-ins the Access vectors own: `serviceIdentity` (derived service
 // identity, Access 5.2) and `keyOpDigest` (the adapter's key-operation
 // digest, Access 9.2) — the runner marks them [not-proven].
@@ -57,18 +61,23 @@ const INFO = {
   ephemeral: 'rltp/vector/membership-welcome-ephemeral',
   nonce: 'rltp/vector/membership-welcome-nonce',
   inviteeOtherX: 'rltp/vector/membership-invitee-other-x',
+  inviterPair: 'rltp/vector/membership-prelude-inviter-pair',
+  inviteePair: 'rltp/vector/membership-prelude-invitee-pair',
 }
 const T = {
   founderCard: '2026-09-01T09:00:00Z', inviteeCard: '2026-09-01T10:05:00Z',
   validFrom: '2026-09-01T10:00:00Z', validUntil: '2026-11-30T10:00:00Z',
   accept: '2026-09-01T10:06:00Z', vouch: '2026-09-01T10:10:00Z',
   evidence: '2026-09-01T10:15:00Z', carrier: '2026-09-01T10:20:00Z',
+  preludeRequest: '2026-09-01T09:50:00Z', preludeReply: '2026-09-01T09:52:00Z',
 }
 const UUID = {
   thread: '6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d', invite: '7c2a4d3b-9e5f-4b8c-8d2e-3f4a5b6c7d8e',
   accept: '8d3b5e4c-af60-4c9d-9e3f-4a5b6c7d8e9f', carrier: '9e4c6f5d-b071-4dae-af40-5b6c7d8e9fa0',
   evidence02: 'af5d7a6e-c182-4ebf-8051-6c7d8e9fa0b1', evidence01: 'b06e8b7f-d293-4fc0-9162-7d8e9fa0b1c2',
   other: '00000000-0000-4000-8000-000000000000',
+  prelude: 'c17f9c80-e3a4-4d01-a273-8e9fa0b1c2d3', preludeRequest: 'd2809d91-f4b5-4e12-b384-9fa0b1c2d3e4',
+  preludeReply: 'e391ae02-05c6-4f23-8495-a0b1c2d3e4f5',
 }
 
 // eddsa-jcs-2022 (W3C DI-EDDSA): hashData = SHA-256(JCS(proofConfig)) ||
@@ -230,6 +239,38 @@ const evidenceDocuments = {
   v01: evDoc(UUID.evidence01, P + 'membership-evidence/0.1', evidence01),
 }
 
+// ── the prelude (Membership 3.5) ─────────────────────────────────────────
+// it travels on a relationship the two already hold: issuer and recipient
+// are their pair anchors of that tuple, never their member anchors
+const inviterPairSeed = hkdf(IKM2, INFO.inviterPair)
+const inviteePairSeed = hkdf(IKM, INFO.inviteePair)
+const inviterPair = didOf(inviterPairSeed)
+const inviteePair = didOf(inviteePairSeed)
+// a request built coherently for every variant: the binding is signed by
+// `bindingSigner` over its own fields, the document re-signed under its
+// issuer, so a variant differs from the vector's request in its declared
+// point only (RLTP-MT-3900, RLTP-MT-3905)
+const makePreludeRequest = (o = {}) => {
+  const binding = diSign({
+    type: 'membership-inviter@1', inviter: o.bindingInviter ?? founder, genesisDigest,
+    threadId: o.bindingThread ?? UUID.prelude, from: inviterPair, to: o.bindingTo ?? inviteePair,
+  }, o.bindingSigner ?? founderSeed, T.preludeRequest, false)
+  return diSign({
+    id: UUID.preludeRequest, type: P + 'membership-prelude-request/0.1', issuer: inviterPair, recipient: inviteePair,
+    threadId: UUID.prelude, issuedAt: T.preludeRequest,
+    payload: { genesisDigest, group: groupDid, name: 'Vector Group', inviter: o.inviter ?? founder, binding },
+  }, inviterPairSeed, T.preludeRequest, false)
+}
+const preludeRequest = makePreludeRequest()
+// the answer on the same tuple and thread: the invitee's displayed card at
+// its member anchor of the group (2.6) — the anchor and key-agreement key
+// the accept card carries, created when the reply is written
+const preludeReply = diSign({
+  id: UUID.preludeReply, type: P + 'membership-prelude-reply/0.1', issuer: inviteePair, recipient: inviterPair,
+  threadId: UUID.prelude, issuedAt: T.preludeReply,
+  payload: { genesisDigest, card: makeCard(inviteeSeed, inviteeX, T.preludeReply) },
+}, inviteePairSeed, T.preludeReply, false)
+
 // ── cases ────────────────────────────────────────────────────────────────
 const R = (...n) => n.map((x) => 'RLTP-MT-' + x)
 const pairOf = (p) => ({ evidence: { invite: p.invDoc, accept: p.accDoc } })
@@ -274,6 +315,10 @@ const negatives = [
   { name: 'evidence-0.2-17-vouches', rules: R(3805), artifact: 'evidence02', schema: 'payload-membership-evidence.schema.json', fill: { '/evidence/vouches': 17 }, at: '$.evidence.vouches: maxItems' },
   { name: 'evidence-0.2-vouch-without-proof', rules: R(3805, 3810), artifact: 'evidence02', schema: 'payload-membership-evidence.schema.json', delete: ['/evidence/vouches/0/proof'], at: '$.evidence.vouches[0]: missing required proof' },
   { name: 'evidence-0.1-with-vouches', rules: R(3815), artifact: 'evidence01', schema: 'payload-membership-evidence-0.1.schema.json', set: { '/evidence/vouches': [vouch] }, at: '$.evidence: additionalProperty vouches' },
+  { name: 'prelude-binding-without-proof', rules: R(3905), artifact: 'preludeRequestPayload', schema: 'payload-membership-prelude-request.schema.json', delete: ['/binding/proof'], at: '$.binding: missing required proof' },
+  { name: 'prelude-binding-extra-member', rules: R(3905), artifact: 'preludeRequestPayload', schema: 'payload-membership-prelude-request.schema.json', set: { '/binding/group': groupDid }, at: '$.binding: additionalProperty group' },
+  { name: 'prelude-binding-other-type', rules: R(3905), artifact: 'preludeRequestPayload', schema: 'payload-membership-prelude-request.schema.json', set: { '/binding/type': 'membership-inviter@2' }, at: '$.binding.type: const mismatch' },
+  { name: 'prelude-reply-extra-member', rules: R(3960), artifact: 'preludeReplyPayload', schema: 'payload-membership-prelude-reply.schema.json', set: { '/inviter': founder }, at: '$: additionalProperty inviter' },
 ]
 
 // receiver-check negatives: schema-valid, coherently re-signed where a
@@ -404,29 +449,42 @@ const senderSealCases = [
   { name: 'seal-to-the-accept-card', rules: R(4100), rkid: accDoc.payload.accept.card.keyAgreement, expect: 'sealable' },
   { name: 'seal-to-a-low-order-key', rules: R(4100), rkid: ZERO_X, expect: 'all-zero', note: 'a z6LS key that decodes (x25519-pub, 32 zero bytes) but yields an all-zero shared secret: the sender refuses to seal' },
 ]
+// the receiver of a prelude request (RLTP-MT-3910): schema-valid requests,
+// the binding re-signed by its signer and the document re-signed under its
+// issuer, each failing exactly the named checks
+const tamperedRequest = makePreludeRequest(); tamperedRequest.payload.name = 'changed after signing'
+const preludeRequestCases = [
+  { name: 'prelude-request', rules: R(3900, 3905, 3910), artifact: preludeRequest, fails: [], expected: 'accepted' },
+  { name: 'prelude-binding-to-another-anchor', rules: R(3905, 3910), artifact: makePreludeRequest({ bindingTo: third }), fails: ['bindingFields'], expected: VF, note: 'a binding the inviter signed for another recipient, wrapped into a request to the invitee' },
+  { name: 'prelude-binding-on-another-thread', rules: R(3905, 3910), artifact: makePreludeRequest({ bindingThread: UUID.other }), fails: ['bindingFields'], expected: VF, note: 'a binding the inviter signed for another thread' },
+  { name: 'prelude-binding-under-another-key', rules: R(3905, 3910), artifact: makePreludeRequest({ bindingSigner: thirdSeed }), fails: ['bindingProof'], expected: VF, note: 'binding.inviter is the founder, the proof is the third member\'s' },
+  { name: 'prelude-inviter-differs-from-binding', rules: R(3905, 3910), artifact: makePreludeRequest({ inviter: third }), fails: ['bindingFields'], expected: VF, note: 'payload.inviter names the third member; the binding is the founder\'s, valid under binding.inviter' },
+  { name: 'prelude-request-tampered', rules: R(3900, 3910), artifact: tamperedRequest, fails: ['documentProof'], expected: VF, note: 'payload.name changed after the document was signed under its issuer' },
+]
 const evidenceDocumentNegatives = [
   { name: 'evidence-on-another-thread', rules: R(3715), set: { '/threadId': UUID.other }, fails: ['thread'] },
   { name: 'evidence-with-document-proof', rules: R(3720), set: { '/proof': clone(accDoc.proof) }, fails: ['noProof'] },
 ]
 
 // rules a case checks only in part move to rulesPartial (conformance/membership-partial.mjs)
-for (const list of [sealCases, senderSealCases, negatives, pairNegatives, pairPositives, vouchNegatives, vouchPositives, inviteeNegatives, inviteePositives, documentNegatives, reWelcomeNegatives, evidenceDocumentNegatives, inviteReceiptCases]) {
+for (const list of [sealCases, senderSealCases, negatives, pairNegatives, pairPositives, vouchNegatives, vouchPositives, inviteeNegatives, inviteePositives, documentNegatives, reWelcomeNegatives, evidenceDocumentNegatives, inviteReceiptCases, preludeRequestCases]) {
   for (const c of list) { const { rules, rulesPartial } = splitRules(c.rules); c.rules = rules; if (Object.keys(rulesPartial).length) c.rulesPartial = rulesPartial }
 }
 const vector = {
-  source: 'RLTP Membership Tasks 0.17 (rltp-membership@0.17) over Access Layer 0.54 (wire rltp-access/0.25, rltp-access-material/0.25): one admission chain from a real genesis. Generated by scripts/gen-membership-tasks-vector.mjs (deterministic); re-derived by conformance/runner.mjs. Every case names the RLTP-MT rules it proves completely in `rules` (RLTP-MT-10090), and a rule it checks only in part in `rulesPartial`, with the obligation that stays unchecked; only `rules` counts as coverage. Two genesis fields, serviceIdentity and keyOpDigest, are stand-ins whose derivations the Access vectors own; the runner check that would depend on them is marked [not-proven] and proves no rule.',
+  source: 'RLTP Membership Tasks 0.20 (rltp-membership@0.20) over Access Layer 0.54 (wire rltp-access/0.25, rltp-access-material/0.25): one admission chain from a real genesis. Generated by scripts/gen-membership-tasks-vector.mjs (deterministic); re-derived by conformance/runner.mjs. Every case names the RLTP-MT rules it proves completely in `rules` (RLTP-MT-10090), and a rule it checks only in part in `rulesPartial`, with the obligation that stays unchecked; only `rules` counts as coverage. Two genesis fields, serviceIdentity and keyOpDigest, are stand-ins whose derivations the Access vectors own; the runner check that would depend on them is marked [not-proven] and proves no rule.',
   format: {
-    inputs: 'vector-only HKDF info strings: founder (the founding context anchor, a stand-in for the nonce-based pair class of RLTP-ACC-3275), founderX, groupDid, third (a third member, the evidence recipient) under the second-party IKM of vectors/dtg-credentials.json; contentKey, ephemeral, nonce (first 12 bytes), inviteeOtherX under the oracle IKM of vectors/identity-derivation.json. The invitee is the oracle under the group/<genesisDigest> context (Access 5.1). serviceIdentity and keyOpDigest of the genesis are stand-ins (Access vectors own their derivations).',
+    inputs: 'vector-only HKDF info strings: founder (the founding context anchor, a stand-in for the nonce-based pair class of RLTP-ACC-3275), founderX, groupDid, third (a third member, the evidence recipient) under the second-party IKM of vectors/dtg-credentials.json; inviterPair (the inviter pair anchor of the prelude tuple) under the same IKM; contentKey, ephemeral, nonce (first 12 bytes), inviteeOtherX, inviteePair (the invitee pair anchor of the prelude tuple) under the oracle IKM of vectors/identity-derivation.json. The invitee is the oracle under the group/<genesisDigest> context (Access 5.1). serviceIdentity and keyOpDigest of the genesis are stand-ins (Access vectors own their derivations).',
     genesis: 'a group.genesis (rltp-access/0.25) signed by the group DID and the founder; genesisDigest = multibase multihash over its signature input (RLTP-ACC-3030); its id names the first key state (linear/0.1)',
     welcome: 'plaintext, JCS, digest (= operation.body.admission.welcome) and the seal (Contract §5 under HKDF info rltp/v1/welcome, to the accept card)',
     payload: 'the access-operation/0.1 payload; document: the task document carrying it',
     reWelcome: 'the self-contained bootstrap: key-delivery/0.1 kind re-welcome carrying the same welcome seal',
+    prelude: 'the membership-prelude-request/0.1 document from the inviter\'s pair anchor to the invitee\'s, its payload binding (membership-inviter@1) signed under the inviter\'s member anchor, the document signed under its issuer; and the membership-prelude-reply/0.1 document on the same thread, back from the invitee\'s pair anchor, carrying the invitee\'s displayed card at its member anchor of the group',
     evidence: 'evidence01 / evidence02 payloads and evidenceDocuments: membership-evidence/0.1 and /0.2 documents from the invitee to a third member',
     negatives: 'declared mutations of one artifact (set: pointer → value; delete: pointers; fill: pointer → n copies of the first element; padTo: pointer to a string → append x until the whole artifact is exactly n JCS bytes) that MUST fail `schema` with an error at `at`; the unmutated artifact passes',
-    receiverChecks: 'pairNegatives / pairPositives (evidence pair checks of RLTP-MT-3725), vouchNegatives / vouchPositives (RLTP-MT-3810), inviteeNegatives / inviteePositives (the embedded-welcome checks of RLTP-MT-3415; each a complete task — payload, and the document without its payload — whose operation is re-signed and whose welcome is re-sealed, so it differs in its declared point only), documentNegatives (the carrier document), reWelcomeNegatives (RLTP-MT-3420), evidenceDocumentNegatives, inviteReceiptCases (the own derivation check of the invitee on a received invite, RLTP-MT-3030): each MUST fail exactly the named checks `fails`; a schema failure is disposed failed(malformed), every other failure failed(validation-failed) (Contract 6.2), never acknowledged and with nothing written; positives pass every check. Digests compare as decoded multihash bytes, u and z alike; time windows compare exact RFC 3339 instants, a missing fraction read as .000',
+    receiverChecks: 'pairNegatives / pairPositives (evidence pair checks of RLTP-MT-3725), vouchNegatives / vouchPositives (RLTP-MT-3810), inviteeNegatives / inviteePositives (the embedded-welcome checks of RLTP-MT-3415; each a complete task — payload, and the document without its payload — whose operation is re-signed and whose welcome is re-sealed, so it differs in its declared point only), documentNegatives (the carrier document), reWelcomeNegatives (RLTP-MT-3420), evidenceDocumentNegatives, inviteReceiptCases (the own derivation check of the invitee on a received invite, RLTP-MT-3030), preludeRequestCases (the receiver of a prelude request, RLTP-MT-3910): each MUST fail exactly the named checks `fails`; a schema failure is disposed failed(malformed), every other failure failed(validation-failed) (Contract 6.2), never acknowledged and with nothing written; positives pass every check. Digests compare as decoded multihash bytes, u and z alike; time windows compare exact RFC 3339 instants, a missing fraction read as .000',
   },
   inputs: INFO,
-  parties: { founder, groupDid, invitee, third, inviteeKeyAgreement: mkOf(inviteeX), inviteeOtherKeyAgreement: mkOf(inviteeOtherX) },
+  parties: { founder, groupDid, invitee, third, inviteeKeyAgreement: mkOf(inviteeX), inviteeOtherKeyAgreement: mkOf(inviteeOtherX), inviterPair, inviteePair },
   genesis,
   genesisDigest,
   invite: { document: invDoc, credentialDigest: digestU(inv) },
@@ -439,6 +497,7 @@ const vector = {
   evidence01,
   evidence02,
   evidenceDocuments,
+  prelude: { request: preludeRequest, reply: preludeReply },
   validEvidence: [
     { name: 'evidence-0.2-without-vouches', rules: R(3805), delete: ['/evidence/vouches'] },
     { name: 'evidence-0.2-16-vouches', rules: R(3805), fill: { '/evidence/vouches': 16 } },
@@ -456,6 +515,7 @@ const vector = {
   documentNegatives,
   reWelcomeNegatives,
   evidenceDocumentNegatives,
+  preludeRequestCases,
 }
 const text = JSON.stringify(vector, null, 1) + '\n'
 const path = join(ROOT, 'vectors/membership-tasks.json')
