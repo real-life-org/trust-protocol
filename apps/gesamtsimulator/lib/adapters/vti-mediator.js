@@ -321,7 +321,8 @@ export class MediatorCarrierAdapter {
         const id = 's' + this.#nextId++;
         const knownOffline = this.#wire.offline?.() === true;
         const sub = {
-            bytes: envelopeBytes.slice(),
+            // a plain copy of its own (a Node Buffer's slice() shares memory)
+            bytes: new Uint8Array(envelopeBytes),
             submittedAt: now,
             attemptStartedAt: null,
             lastKind: null,
@@ -373,7 +374,8 @@ export class MediatorCarrierAdapter {
             const token = await this.#ensureAuth(now);
             if (this.#closed)
                 return; // retirement between auth and deposit: nothing new starts (R5-B2)
-            await this.#wire.deposit(token, sub.bytes, this.#egressDid);
+            // each attempt hands the wire a copy: what it does with it never reaches the next
+            await this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid);
             sub.lastKind = null;
             next = { state: 'accepted' };
         }
