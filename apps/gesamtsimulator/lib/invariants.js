@@ -174,6 +174,7 @@
 //     bound to a salt above hwm, and a later, higher salt completing
 //     raises hwm past it (5140, 5366). Checked instead: both never fall,
 //     and an open assembly lies above both
+import { MESSAGE_LIFETIME_MS } from './message.js';
 import { jcs } from './core.js';
 import { triasOf } from './state.js';
 import { ADMISSION_BOUND, classOnToward, entryOf, entryRelationships, feeding, findContact, liveRel, newestHeads, newestOf } from './trust/state.js';
@@ -763,8 +764,12 @@ export function transitionViolations(before, after, op) {
         for (const [mid, e] of Object.entries(rec)) {
             const x = after.messages.records[label]?.[mid];
             if (x === undefined) {
+                // only tick, after sentAt + H on the mark it writes, or with its tuple deactivated or gone (4340)
+                const t = Object.values(after.relationships).flatMap((r) => r.tuples).find((u) => u.ownPairLabel === label);
                 if (op.kind !== 'tick')
                     v.push({ invariant: 'messages', detail: `record ${label} ${mid} deleted by ${op.kind}` });
+                else if (!(e.sentAt + MESSAGE_LIFETIME_MS < after.lastWhen) && t !== undefined && !t.deactivated)
+                    v.push({ invariant: 'messages', detail: `record ${label} ${mid} deleted before sentAt + H, its tuple live` });
                 continue;
             }
             if (x.bodyDigest !== e.bodyDigest || x.sentAt !== e.sentAt)
