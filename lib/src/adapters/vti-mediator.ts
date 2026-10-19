@@ -258,7 +258,8 @@ export class MediatorCarrierAdapter {
     }
     this.#wire.onDeliver(async (raw) => {
       if (this.#closed) return
-      const bytes = raw.slice()
+      // a plain copy of its own: a Node Buffer's slice() would share memory
+      const bytes = new Uint8Array(raw)
       const queueId = hex(await sha(bytes))
       if (this.#closed) return
       // Absorption is WINDOW-checked at the moment it happens
@@ -548,7 +549,7 @@ export class MediatorCarrierAdapter {
     this.#outstanding.set(id, new Map(items.map((i) => [i.queueId, i])))
     // the caller gets its own copies: the outstanding entries stay intact,
     // whatever it does with the bytes, for a conclusion that keeps them
-    return { id, items: items.map((i) => ({ ...i, bytes: i.bytes.slice() })) }
+    return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })) }
   }
 
   /** Concludes a collection (profile §4, Delivery 5a.8): its items'
