@@ -8,7 +8,8 @@
 //   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
 //     conformance/access-rule-ids-0.57.txt,
 //     conformance/membership-rule-ids-0.19.txt,
-//     conformance/trust-rule-ids-0.31.txt), one identifier per line,
+//     conformance/trust-rule-ids-0.31.txt,
+//     conformance/delivery-rule-ids-0.82.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
 //     outside this repository) — checked additionally when present, and
@@ -27,9 +28,9 @@
 // is malformed (no separator, empty statement, ID not 4–5 digits); an
 // empty manifest or inventory.
 //
-//   usage: node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust] [--inventory <file>] [--spec <file>] [--manifest <file>]
-//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust] --write-manifest <inventory.md>
-//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust] --write-manifest-from-spec <spec.md>
+//   usage: node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust|message|delivery] [--inventory <file>] [--spec <file>] [--manifest <file>]
+//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust|message|delivery] --write-manifest <inventory.md>
+//          node scripts/check-encounter-trace.mjs [--layer encounter|access|membership|trust|message|delivery] --write-manifest-from-spec <spec.md>
 //
 // Exit 1 on any violation, 2 on usage errors.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
@@ -75,6 +76,14 @@ export const LAYERS = {
     manifest: join(ROOT, 'conformance/trust-rule-ids-0.31.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'trust-0.31-regelinventar.md'),
     env: 'TRUST_INVENTORY'
+  },
+  delivery: {
+    prefix: 'RLTP-DEL',
+    title: 'Delivery Contract 0.82',
+    spec: join(ROOT, 'spec/delivery-contract.md'),
+    manifest: join(ROOT, 'conformance/delivery-rule-ids-0.82.txt'),
+    inventory: null,
+    env: 'DELIVERY_INVENTORY'
   },
   message: {
     prefix: 'RLTP-MSG',

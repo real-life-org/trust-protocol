@@ -119,7 +119,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
 | `membership`, `membership/holder` | Membership Tasks 0.19 on Access 0.57 | founding (Access 3.4.1), the prelude, invite, accept, admission and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
-| `receive`, `engine` | Delivery 0.81 §5, §6.1, §6.2 | the sealed envelope, stages 1–9 once per envelope, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
+| `receive`, `engine` | Delivery 0.82 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the disposition `discarded`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
 | `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |
 
@@ -203,7 +203,7 @@ This package uses its own semver; the specification uses castings.
 | trust | Trust Layer 0.31 | — |
 | membership | Membership Tasks 0.19, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`, and the prelude as `x-membership-prelude-*`); roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.81 | transport adapters beyond `./adapters/vti-mediator` |
+| delivery | Delivery 0.82 | transport adapters beyond `./adapters/vti-mediator`; `message/0.1` (Message Tasks 0.1), the block, `failed(rate-limited)`, `failed(task-expired)`, the lock keys of 6.2 |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
 ## The contract: the vectors

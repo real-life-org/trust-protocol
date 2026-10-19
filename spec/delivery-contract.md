@@ -3,16 +3,19 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.81.0-draft (eighty-first casting — the
-  trust-layer registry follows the Trust Layer 0.31)
+- **Version:** 0.82.0-draft (eighty-second casting — the receiver
+  stages take up the companion changes of Message Tasks 0.1)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-14
+- **Date:** 2026-10-19
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/`
 - **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-delivery@0.81` (draft)
-- **Supersedes:** version 0.80 (archived as
-  `archive/delivery-contract-0.80.md`) and versions 0.79–0.1,
+- **Conformance profile:** `rltp-delivery@0.82` (draft)
+- **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
+  Layer 0.31; RLTP Access 0.57; RLTP Membership Tasks 0.19; RLTP
+  Replication 0.26; RLTP Message Tasks 0.1.
+- **Supersedes:** version 0.81 (archived as
+  `archive/delivery-contract-0.81.md`) and versions 0.80–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
   (wot-spec v0.1, German) in its delivery aspects.
@@ -34,9 +37,13 @@ of its own — `encounter-bundle`, `delivery-ack`,
 document profile all types
 share, the sealed envelope they travel in, and the **task registry**
 (4.4) through which companion layers register theirs: the membership
-and access types (registered in their own documents) and the
-Trust layer's introduction and continuity types and its
-trust-layer family.
+and access types and the message type (registered in their own
+documents) and the Trust layer's introduction and continuity types
+and its trust-layer family. The receiver's stages carry two states
+a holder keeps about a relationship without telling it: a **block**,
+under which a registering specification discards offers and content
+while the protocol steps continue, and a **rate**, beyond which a
+document waits at its carrier rather than being decided.
 
 Addressing is a **triple**, never an account (Section 5a): the
 `rkid` a sender seals to, one per relationship; a queue locator
@@ -53,29 +60,49 @@ converge into a person at whoever carries them.
 
 This is an **Editor's Draft** with no standing. The document
 remains as the scope re-cast of 2026-08-27 shaped it: **the
-promise is protocol; the mechanism is carrier policy.** What a counterpart can observe at the port
-line is specified and vector-tested; how a carrier meets it
-internally is its own affair. The carrier sections (4.4's role,
-5a) are the youngest part of the document and the most likely to
-change; the sealed envelope, the delivery promises and the
-disposition machinery (5, 6) have been stable across many
-castings. Review happens against the converged companion
-documents; the convergence criterion is a review round with no
-blocker-level findings. The reference library implements the sealed
-envelope, the receive stages of 6.2 with the completed-effect cache,
-the sender's status of 6.1 and the acknowledgement classes of 4.2 on
-its holder, and the carrier port of 4.4 and 5a; transports beyond its
-VTI mediator adapter are not in it. Feedback belongs in the design journal
-of the private workshop repository; the public mirror is
-[`real-life-org/trust-protocol`](https://github.com/real-life-org/trust-protocol).
+promise is protocol; the mechanism is carrier policy.** What a
+counterpart can observe at the port line is specified and
+vector-tested; how a carrier meets it internally is its own affair.
+The sealed envelope, the delivery promises and the disposition
+machinery (5, 6) have been stable across many castings; the carrier
+sections (4.4's role, 5a) are the youngest part and the most likely
+to change.
 
+This casting is a companion casting: it takes up what Message Tasks
+0.1 asks of the receiver (the block, the transient rate refusal, the
+lock keys, the type-declared age bound) and two receiver rules the
+reference library had to settle (the disposition `discarded`, and
+the two classes of key-agreement keys in Section 5). Rules new in
+this casting carry identifiers (`RLTP-DEL-nnnn`); the rest of the
+text keeps its prose form until a form casting gives every rule one.
+**The next casting is expected to change the document
+substantially**, together with the Trust Layer's next casting: the
+introduction types of 4.4, a submission contract between a sender
+and its adapter in 6.1, addresses issued ahead of an act in 5 and
+5a, and the lock protocol of 6.2 moving into a companion on holder
+state.
+
+The reference library implements the sealed envelope, the receive
+stages of 6.2 with the completed-effect cache and the disposition
+`discarded`, the key classes of Section 5, the sender's status of
+6.1 and the acknowledgement classes of 4.2 on its holder, and the
+carrier port of 4.4 and 5a; it does not implement `message/0.1`,
+the block, `failed(rate-limited)` or `failed(task-expired)`, and
+transports beyond its VTI mediator adapter are not in it. Review
+happens against the converged companion documents; the convergence
+criterion is a review round with no blocker-level findings.
+Feedback is welcome via the issues of the publication repository
+([`real-life-org/trust-protocol`](https://github.com/real-life-org/trust-protocol)).
 
 ## 1. Introduction (informative)
 
 ### 1.1 Essence and principles
 
 - **Eventually, at least once, never silently lost.** Delivery time is
-  unbounded and never affects validity (Encounter 1.3). At-least-once
+  unbounded and never affects validity (Encounter 1.3); a registered
+  type may bound the age of a sender timestamp inside its own
+  protected payload, and then that type's rule, not this contract,
+  refuses an old document (Section 7). At-least-once
   makes duplicates and lost acknowledgements the *normal case*, so
   idempotency is law, not precaution. A document the service accepted
   is delivered or reported failed; silent loss is non-conformant.
@@ -184,7 +211,9 @@ profile — normative wire form
   credential itself.
 - `issuedAt` — REQUIRED.
 - `expiresAt` — MUST be absent. Delivery time is unbounded; validity
-  windows live in payloads and ceremonies, with issuance semantics.
+  windows live in payloads and ceremonies, with issuance semantics,
+  and an age bound a type declares lives in its protected payload
+  (Section 7).
 - `proof` — REQUIRED on `delivery-ack` and on
   `registry-declaration` (4.4) — the two types whose authenticity
   has no other carrier (1.1); MUST be absent on the other types of
@@ -382,13 +411,15 @@ The arrival acknowledgement (DO-1).
   `issuer` = the acknowledged document's `recipient`; `recipient` =
   the acknowledged document's `issuer`; `threadId` matches; `ref`
   matches a document this sender actually sent on that thread. Any
-  failure → the ack is discarded (`failed(validation-failed)`) and the
+  failure → the ack is rejected (`failed(validation-failed)`) and the
   sender's status is unchanged.
 - Generation: **automatic at the durable recording of the referenced
   document's defined effect** (4.1: the committed bundle effect,
   record-creating or record-aware; 4.3: durable buffering). It MUST NOT wait for, depend on, or reveal any
   human decision, and MUST NOT be sent for a document rejected at
-  document level. **The acknowledgement document is created inside
+  document level, nor for a document disposed `discarded` or
+  `failed(rate-limited)` (6.2), neither of which records a defined
+  effect. **The acknowledgement document is created inside
   the effect's transaction and retained together with the
   completed-effect cache entry it belongs to** — both persist at
   least `key-retention` after commit (Section 7), the bound that
@@ -470,8 +501,9 @@ private Trust Task specification naming its type URI, payload
 schema, proof declaration, and consistency rules:
 
 - `membership-invite/0.2` · `membership-accept/0.2` ·
-  `access-operation/0.1` · `membership-evidence/0.1` — Membership
-  Tasks §3;
+  `access-operation/0.1` · `membership-evidence/0.2`, with
+  `membership-evidence/0.1` still accepted — Membership Tasks §3
+  (its RLTP-MT-3815);
 - `key-delivery/0.1` · `removal-notice/0.1` — Access §10;
 - `introduction-request/0.1` · `introduction-forward/0.1` ·
   `introduction-reply/0.1` · `introduction-ack/0.1` ·
@@ -480,6 +512,13 @@ schema, proof declaration, and consistency rules:
   `…-forward…`, `…-reply…`, `…-ack…`, `…-voucher….schema.json`;
   proofs per Trust Layer §2.1 (the artifacts carry their own MACs
   and signatures; the documents carry none — one carrier);
+- `message/0.1` — Message Tasks §3; the payload is the artifact
+  `message@1` (`schemas/message.schema.json`), authenticated by its
+  inner MAC under a directional key of the arrival tuple; the
+  document carries no proof — one carrier; it travels on the
+  relationship channel of the active head of a relationship; its
+  defined effect, its age bound (Section 7), its rate (6.2) and the
+  relationship key of its lock set (6.2) are Message Tasks §4;
 - `continuity-probe/0.1` · `continuity-mapping/0.1` — Trust
   Layer §6a.2/§6a.4; the payload is the artifact itself
   (`schemas/visibility-continuity-probe.schema.json`,
@@ -537,14 +576,16 @@ payload it acknowledges. For a type whose payload authenticity is
 a transferable signature, the `delivery-ack` carries its standard
 proof. For a type whose payload authenticity is
 designated-verifier — the trust-layer family above,
-`continuity-probe/0.1` and `continuity-mapping/0.1`, and every
-future MAC-authenticated type — the `delivery-ack`'s `proof` is
+`continuity-probe/0.1` and `continuity-mapping/0.1`, `message/0.1`,
+and every future MAC-authenticated type — the `delivery-ack`'s `proof` is
 the **MAC form of 4.2**, under the arrival tuple's ack key: one
 channel-keyed regime for every DV-type ack, independent of the
 payload's internal MAC structure. Deniable, receiver-forgeable
 exactly as the payload is, verifiable by the sender alone. The ack
 still fires at the defined effect (4.2, §11) — only its proof form
-follows the payload's audience class.
+follows the payload's audience class. A document whose evaluation
+records no defined effect has nothing for the acknowledgement to
+fire at and earns none (`discarded`, `failed(rate-limited)`, 6.2).
 
 **The registry-entry form (normative):** a registry is a set of
 entries, one per type, each carrying exactly: the **type URI**
@@ -836,14 +877,42 @@ Normative construction, exactly one way:
   knows them. `key-retention` MUST be at least the longest give-up
   horizon any adapter in the deployment declares (6.1), so a key can
   never retire while a delivery sealed to it is still live; adapters
-  therefore declare their horizon. **A retired identifier remains
-  known indefinitely as a tombstone** — the `rkid` value alone, its
-  private key destroyed; tombstones are a few bytes per card ever
-  issued, and they keep the disposition honest: stage 2's "known"
-  includes tombstones (6.2), so an envelope sealed to a retired key
-  reaches decryption and fails as `failed(decryption-failed)` —
-  never `malformed`, which is reserved for identifiers this party
-  never issued.
+  therefore declare their horizon. What remains of a key after its
+  private key is deleted depends on its class (below).
+
+**Two classes of key-agreement keys.** A recipient's key-agreement
+keys fall into two classes by the role they serve. An **address
+key** serves as the `rkid` of one relationship or one act and
+retires when that use ends: the key of a card the holder displayed
+or sent, which is the address of one relationship (5a.2). A **key
+of an identity context** is the key-agreement key of a context the
+holder derives again, under the same label, whenever it needs that
+context (Identity §6.1): today the member key of a `group/` context,
+to which the invitations and accepts of one group are sealed
+(Membership Tasks 1.2). The retention rule above holds for both
+classes; a registering specification may require longer
+(Membership Tasks RLTP-MT-3090).
+
+**RLTP-DEL-5010** — When a holder deletes the private key of an
+address key, it MUST keep the key's `rkid` as a tombstone, so that a
+later envelope sealed to it passes stage 2 of 6.2 as known and fails
+at stage 3 as `failed(decryption-failed)`.
+
+**RLTP-DEL-5020** — A holder MUST NOT keep as a tombstone the `rkid`
+of a key of an identity context; once it no longer holds such a key,
+the `rkid` is unknown at stage 2 (`failed(malformed)`) until the
+holder derives the context again.
+
+*Rationale.* A tombstone is the `rkid` value alone, a few bytes per
+address ever issued, and it keeps the disposition honest: an envelope
+sealed to a retired address reaches decryption and fails there, never
+as `malformed`. An identity context is different in kind. The same
+derivation serves the same group whenever the holder is invited to it
+again, so a tombstone would make the holder refuse, at stage 3, the
+documents of its own next membership, and the promise a tombstone
+makes, that the private key is gone for good, cannot be kept by a key
+the holder will derive again. What an unknown identity-context key
+reveals, and to whom, is stated in Section 9.
 
 A **shipped test vector** (`vectors/seal.json`) fixes recipient key,
 ephemeral key, nonce, plaintext, ciphertext, and document digest;
@@ -1769,13 +1838,30 @@ Both are closed here, in one rule and its two directions.
 toward the carrier, under the principal that collected it, and a
 carrier MUST offer that operation and MUST NOT redeliver what has
 been concluded. Terminal means every 6.2 outcome that repetition
-cannot change: the failure dispositions of stages 1–8, a stage-9
-outcome that completed, and `duplicate-known`. A disposition that
-is **transient** — the device could not complete the critical
-section, storage was unavailable, the lock set was not obtained —
-is expressly not terminal, is not concluded, and is redelivered;
-that distinction is what keeps this rule from turning a local
-fault into a silent loss.
+cannot change: every failure disposition of stages 1 to 9, whether
+it arises before the critical section or inside it (a type's age
+bound checked in stage 9 among them), except `failed(rate-limited)`;
+`unique`; `discarded` once the transaction recording it has
+committed; and `duplicate-known`.
+
+**RLTP-DEL-5810** — A receiver MUST treat a disposition as
+transient, neither terminal nor concluded, where the device could
+not complete the critical section, storage was unavailable, the
+lock set was not obtained, or the evaluation's transaction could
+not be committed whole.
+
+**RLTP-DEL-5820** — A receiver MUST treat `failed(rate-limited)`
+(6.2) as transient and MUST NOT conclude a document so disposed.
+
+*Rationale.* The distinction between terminal and transient is what
+keeps this rule from turning a local fault into a silent loss. A
+transaction commits whole or not at all: an effect that does not fit
+the device's storage commits nothing, earns no acknowledgement, and
+stays with the carrier, which offers it again until it fits or until
+the carrier gives it up at its declared horizon (below); no part of
+an effect is ever concluded. A rate-limited document is not decided
+either: it waits at its carrier for a later evaluation under a rate
+that has room again, and the same give-up horizon bounds the wait.
 
 **A conclusion carries no reason.** It says "this digest is
 decided", and nothing else — not the disposition, not the stage,
@@ -2275,10 +2361,32 @@ first place that exists is the mediator adapter itself.
 
 Sender failure reasons (closed set): `unroutable` · `oversize` ·
 `expired-by-adapter-policy` (the adapter's declared give-up bound) ·
+`task-expired` (the sender lifetime the document's type declares
+has run out, Section 7) ·
 `rejected-by-receiver(<receiver reason>)` where an adapter conveys
-one. A late valid acknowledgement after `failed` transitions the
-status to `delivered`; implementations MUST surface the transition.
-No other states exist — in particular, no acceptance state.
+one. A late valid acknowledgement after `failed`, whatever its
+reason, transitions the status to `delivered`; implementations MUST
+surface the transition. No other states exist — in particular, no
+acceptance state.
+
+**RLTP-DEL-6110** — A sender MUST move a document whose type
+declares a sender lifetime (RLTP-DEL-7020) to `failed(task-expired)`
+once that lifetime has run out on its clock without `delivered`.
+
+**RLTP-DEL-6115** — A sender MUST NOT hand a document to an adapter
+after moving it to `failed(task-expired)`.
+
+*Rationale.* The lifetime is the sender's own reading of a timestamp
+it wrote into the protected payload, and its type sets it to end
+before the age bound its receivers apply. That orders the two
+deadlines numerically, not in time: sender and receiver read
+different clocks, and a receiver whose clock runs ahead of the
+sender's by more than the margin refuses earlier (Section 7). A copy
+an adapter already holds can still
+arrive inside the receivers' bound and earn an acknowledgement; the
+status then becomes `delivered`, the honest outcome. This contract
+gives a sender no way to withdraw a copy from an adapter, so the
+reason says what the sender decided, not that no copy is in flight.
 
 **Before the trias there is a report, not a fourth state.** The
 three states above describe a submission a service has **taken**.
@@ -2317,10 +2425,12 @@ flowchart TD
     S5 -- no --> F5[failed at the failing stage]
     S5 --> S8{stage 8 consistency, pre-lock checks}
     S8 -- no --> F8[failed validation or stale-issuance]
+    S8 -- beyond a declared rate --> RL[failed rate-limited, nothing committed, not concluded]
     S8 --> S9[stage 9 critical section under the lock set]
     S9 --> EO[own challenge open: record-creating effect]
     S9 --> ER[recorded: the record decides]
     S9 --> EU[unknown: failed validation-failed]
+    S9 --> DS[discarded: the section's discard state, no ack, no cache entry]
     EO --> U[effect plus retained ack, one durable transaction]
     ER --> U
 ```
@@ -2337,8 +2447,9 @@ failing stage names the disposition:
    parse as JSON or defeats JCS/digest computation is
    `failed(malformed)`; **duplicate check against the
    completed-effect cache** — the cache contains ONLY digests whose
-   stage 9 completed successfully; a digest previously rejected at
-   any stage is NOT in it and is re-evaluated in full. Duplicate →
+   stage 9 committed a defined effect; a digest previously rejected
+   at any stage, disposed `failed(rate-limited)` or disposed
+   `discarded` is NOT in it and is re-evaluated in full. Duplicate →
    `duplicate-known`: the prior outcome applies idempotently and the
    **stored** acknowledgement of the completed effect **MUST be
    re-sent, byte-identical** (it exists by construction for every
@@ -2352,9 +2463,10 @@ failing stage names the disposition:
 6. `type` known — else `failed(unknown-type)`;
 7. payload schema — else `failed(malformed)`;
 8. type consistency rules and pre-lock acceptance checks
-   (Section 4, incl. the issuance window for bundles) — else
-   `failed(validation-failed)` / `failed(stale-issuance)`; **one
-   exception:** a bundle whose bound challenge provisionally
+   (Section 4, incl. the issuance window for bundles, and a type's
+   declared age bound and rate where the type places them here) —
+   else `failed(validation-failed)` / `failed(stale-issuance)` /
+   `failed(rate-limited)`; **one exception:** a bundle whose bound challenge provisionally
    resolves `unknown` (the resolution itself has already latched any
    held aged value — Encounter 5.3) skips the rest of this stage and
    enters stage 9, where the authoritative resolution decides:
@@ -2362,10 +2474,11 @@ failing stage names the disposition:
    re-enter at stage 4 (4.1 check 5);
 9. **gates and effect, serialized per lock set:** stage 9 is a
    critical section whose **lock set** is the document digest; for
-   bundles, additionally the credential's bound challenge; for
-   chunked star documents, additionally the assembly key
-   (tuple, salt) (4.4) (the
-   **record key**). The lock protocol, normatively:
+   bundles, additionally the credential's bound challenge (the
+   **record key**); for chunked star documents, additionally the
+   assembly key (tuple, salt) (4.4); for the types named below,
+   additionally a relationship key or a credential-digest key
+   (RLTP-DEL-6210, RLTP-DEL-6220). The lock protocol, normatively:
    the full lock set is acquired **atomically, as one acquisition**
    — never one key after the other; an evaluation whose set overlaps
    a held set **holds nothing while waiting**; and when the way is
@@ -2386,16 +2499,172 @@ failing stage names the disposition:
    the future check (else `failed(gate-future)`), `recorded` → the
    record decides (foreign counterparty: `failed(consumed-challenge)`;
    else record-aware), `unknown` → `failed(validation-failed)` —
-   each effect committed as one durable
+   and for every other type the checks and the effect its
+   registering specification places there, including a block
+   (below), each effect committed as one durable
    transaction (record where created, accepted material, cache
    entry, **the acknowledgement document itself where the type
    acknowledges, retained together with the cache entry per 4.2**;
-   4.1) → `unique`.
+   4.1) → `unique`; a transaction that commits only a registering
+   specification's discarding state → `discarded` (below).
 
 **Validate, then consume:** no stage before 9 consumes single-use
 material, and stage 9 consumes only after 1–8 passed in full — for a
 bundle that includes the issuance window, so **nothing that stage 9
 records can subsequently fail** (the poisoning rule, closed).
+
+**Lock keys a registering specification adds.** The digest key
+serializes copies of one document; a registering specification that
+checks a state shared by several documents names the key of that
+state, and the protocol above acquires it with the rest of the set.
+
+**RLTP-DEL-6210** — The stage-9 lock set of a `message/0.1` document,
+of a `membership-invite` document that Message Tasks 6.2 attributes
+to a relationship, and of every other document whose block treatment
+is in effect (RLTP-DEL-6240) and is *discard* (Message Tasks 6.3),
+MUST include the key of the relationship the document is attributed
+to (Message Tasks RLTP-MSG-4230).
+
+**RLTP-DEL-6220** — The stage-9 lock set of every `membership-invite`
+document MUST include the holder-wide key of its credential digest
+(Membership Tasks RLTP-MT-2180), whether or not the invitation is
+attributed to a relationship (Message Tasks RLTP-MSG-6330).
+
+**RLTP-DEL-6230** — A holder-local operation that a registering
+specification names as a writer of such a key (Message Tasks
+RLTP-MSG-4240: setting or clearing a block, a chaining, merge or
+split that moves the relationship, the deletion of a
+completion-record entry) MUST acquire the key under the protocol of
+stage 9 before it commits: with every other key it needs in one
+acquisition, holding nothing while it waits, and deciding on the
+state it reads after the wait.
+
+*Rationale.* A key per relationship serializes every message and
+every attributed invitation of one relationship, as the assembly key
+does for the chunks of one star, so two documents at the last unit of
+a rate cannot both pass. The credential digest is an invitation's
+identity across every path it can arrive on: two envelopes of one
+invitation under two relationships, or under none, share that key
+and no other. The writers that change what these checks read take
+the same key, so nothing a check read can change before its commit.
+One acquisition for the whole set keeps the rule of stage 9 that no
+evaluation holds part of a set while it waits.
+
+**The block of a relationship.** A holder may block a relationship
+(Message Tasks Section 6): holder-local state, never sent, under
+which offers and content of that relationship are discarded while the
+protocol steps continue.
+
+**RLTP-DEL-6240** — A receiver that holds a block on the
+relationship a document is attributed to (Message Tasks 6.2) MUST
+evaluate the document through stages 1 to 8 as without the block, and
+MUST apply inside the stage-9 critical section, on the block state it
+reads there, the treatment Message Tasks 6.3 names for the
+document's type, where that treatment is in effect.
+
+**RLTP-DEL-6245** — A block treatment MUST be in effect for a type
+exactly when the specification that registers the type defines it:
+for `message/0.1` by Message Tasks itself, for every other type by
+that type's own specification taking up the change Message Tasks
+Appendix A names (Message Tasks RLTP-MSG-6240); for a type without
+one, a block MUST NOT change the evaluation.
+
+**RLTP-DEL-6250** — A block MUST NOT change the evaluation of a
+terminal document (4.2).
+
+**RLTP-DEL-6260** — A document whose treatment under a block is
+*discard* MUST be disposed `unique`, with its completed-effect cache
+entry and its acknowledgement: the record that prevents its
+reappearance is its defined effect (Message Tasks RLTP-MSG-6220), and
+it is not the disposition `discarded`.
+
+*Rationale.* The treatment of a type is part of that type's defined
+effect, which only its registering specification can change (4.4);
+this contract applies a treatment where one is defined and nowhere
+else, so a type whose specification has not taken the block up runs
+as it always did. Stages 1 to 8 decide what a document is and whether it
+is authentic, which a block does not change; an acknowledgement still
+attests a durable defined effect and never a human decision (4.2), so
+a blocked sender observes what an unblocked one would. A terminal
+document carries the sender's own status and touches no
+relationship's offers. Reading the block inside the critical section
+makes a block set concurrently with an arrival apply to one of them
+whole.
+
+**A declared rate.** A registering specification may bound what one
+relationship can make a receiver accept and hold (Message Tasks
+4.2).
+
+**RLTP-DEL-6270** — A receiver MUST dispose a document beyond a
+bound its type declares `failed(rate-limited)`, at stage 8 or inside
+the stage-9 critical section as the type places the check, committing
+nothing, producing no acknowledgement, and entering no completed-effect
+cache entry.
+
+**RLTP-DEL-6280** — A receiver MUST evaluate a document it disposed
+`failed(rate-limited)` in full when the document is delivered again.
+
+*Rationale.* A rate refusal is a statement about the receiver's state
+now, not about the document; deciding the document would turn a
+temporary limit into a permanent loss. It is therefore the one
+failure that is transient (RLTP-DEL-5820): the document stays with the
+carrier and is evaluated again later, under the carrier's give-up
+horizon and under any age bound its type declares (Section 7).
+
+**The disposition `discarded`.** A registering specification may
+require a receiver to commit a state that ends a delivery without its
+defined effect. Today these are the Trust Layer's star and group-star
+assemblies: an open assembly discarded at a local resource limit
+(Trust RLTP-TRU-5365), or an assembly whose delivery the recipient
+rejects as a whole on a rule of Trust 5.2a or 5.2b after the chunk
+authenticated (for example RLTP-TRU-5260 to RLTP-TRU-5310,
+RLTP-TRU-5500, RLTP-TRU-5510), the discarded salt then held as a lower
+bound (RLTP-TRU-5366).
+
+**RLTP-DEL-6290** — A receiver MUST dispose `discarded` a document
+whose stage-9 transaction commits the discarding state its
+registering specification prescribes and no defined effect.
+
+**RLTP-DEL-6300** — A receiver MUST NOT acknowledge a document it
+disposes `discarded`.
+
+**RLTP-DEL-6305** — A receiver MUST NOT enter a document it disposes
+`discarded` into the completed-effect cache.
+
+**RLTP-DEL-6310** — A receiver MUST conclude a document disposed
+`discarded` toward its carrier (5a.8) only after the transaction
+recording the discarding state has committed.
+
+**RLTP-DEL-6320** — A receiver MUST evaluate a redelivered document
+it disposed `discarded` afresh, the discarding state of its
+registering specification deciding the outcome.
+
+*Rationale.* The discarding state is what keeps the delivery from
+completing later out of other chunks; it has to be durable before
+anything tells the carrier the document is decided. An acknowledgement
+would tell the sender the chunk took effect, and for the star the
+sender's completion is computed from acknowledgements (Trust 5.4), so
+a discarded delivery must not earn one; the sender sends again under a
+new salt. The cache holds completed effects only, so a redelivered
+copy of the discarded chunk is evaluated again and meets the lower
+bound (RLTP-TRU-5366 rejects it as `failed(validation-failed)`). A
+transaction that cannot commit leaves the document transient
+(RLTP-DEL-5810), never `discarded`.
+
+**RLTP-DEL-6325** — A redelivered chunk whose own effect completed
+before its assembly was discarded MUST be answered at stage 4 as
+`duplicate-known`, with its stored acknowledgement re-sent, while its
+cache entry is retained; the lower bound of the discarding state
+governs only documents evaluated afresh.
+
+*Rationale.* The earlier chunk's buffering did happen, and its
+acknowledgement said so; re-sending it is byte-identical and changes
+nothing at the sender, whose delivery cannot complete because the
+chunk that met the discard earns no acknowledgement (Trust 5.4).
+Reading Trust RLTP-TRU-5366 ("none of them is acknowledged") as
+reaching such a duplicate would make stage 4 depend on a later state
+of the assembly, which it never reads; the Trust Layer's next casting
+aligns its wording with this rule.
 
 **`incomplete(missing)`** exists in the taxonomy for types with
 declared dependencies. **No type of this casting declares any**; a
@@ -2430,7 +2699,35 @@ acknowledgement arriving after it is still valid (6.1 late
 transition), and the record-aware effect (4.1) makes any switch
 timing safe.
 Delivery time itself is unbounded; no rule in this contract references
-arrival time for validity.
+arrival time for validity. A registered type may bound the age of a
+document by a timestamp of its own:
+
+**RLTP-DEL-7010** — A registered type MAY declare an age bound on a
+timestamp inside its own protected payload, together with the time
+a receiver compares it with and the stage at which it is checked.
+
+**RLTP-DEL-7015** — A receiver MUST dispose a document outside the
+age bound its type declares `failed(stale-issuance)`, without effect,
+at the stage the type names.
+
+**RLTP-DEL-7020** — A type that declares an age bound MUST declare a
+sender lifetime, measured from the same timestamp, that ends before
+the bound (6.1, RLTP-DEL-6110).
+
+*Rationale.* For such a type, delivery time does affect validity: a
+document the carriers hold beyond the bound is refused. That is the
+type's choice and its specification states why it needs it (for
+`message/0.1`, a receiver may forget per-message state after the
+bound, Message Tasks 4.4). The timestamp sits inside the payload's
+proof, so neither a carrier nor a third party can move it; the sender
+can, and an age bound therefore bounds how long a receiver keeps
+state for an honest sender, not what a dishonest one can send. The
+sender's lifetime ends first on the numbers; in time it ends first
+only while the two clocks differ by less than the margin between
+lifetime and bound. A receiver clock further ahead refuses a document
+its sender still retries, which costs that document's delivery and
+nothing else: the refusal is terminal, its sender sees no
+acknowledgement, and the sender's own lifetime ends the retries.
 
 ## 8. State Machines (informative)
 
@@ -2548,6 +2845,60 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   carrier — which is what per-(relationship × carrier)
   granularity buys on the compromise side, not only the privacy
   side.
+- **A block changes no disposition a sender can see.** Under a block
+  stages 1 to 8 run unchanged, a discarded offer or message is still
+  `unique` with its acknowledgement, and a terminal document is never
+  affected (RLTP-DEL-6240 to RLTP-DEL-6260). What a blocked party can
+  still infer is a matter of the registering specification's
+  treatments, and Message Tasks Section 7 names those residues.
+- **A rate refusal leaves work at the carrier.** A document beyond a
+  declared rate is not concluded (RLTP-DEL-5820): it keeps its place in
+  the queue and is offered again at each collection, and each offer
+  costs the receiver stages 1 to 8 again. For a relationship's own
+  address the cost stays inside that relationship's queue (4.4
+  guarantees 4 and 5), and the carrier's give-up horizon ends it; a
+  type's age bound ends it earlier only where the type checks the
+  bound before its rate. **One queue is shared:** invitations travel
+  to the invitee's member key, the key of an identity context, which
+  every inviter to the same group uses. An inviter that sends beyond
+  its rate fills that queue up to `max-queue-bytes`, and another
+  inviter's invitation to the same group then meets a retriable
+  refusal until the carrier gives the excess up. A block does not
+  stop it, because the rate is counted before the block (Message
+  Tasks RLTP-MSG-4130). The reach is one group context of one holder;
+  the residual is recorded as DO-8.
+- **A transaction that cannot be committed whole** commits nothing and
+  stays with the carrier (RLTP-DEL-5810). A document whose effect can
+  never fit the device's storage is offered until the carrier gives it
+  up; nothing is lost silently and no partial state is concluded, and
+  the sender sees `failed(expired-by-adapter-policy)`. That is an
+  availability residual, not a correctness one.
+- **A discarded delivery earns nothing.** A chunk disposed `discarded`
+  earns no acknowledgement, so its sender's delivery does not
+  complete and the sender sends again under a new salt (Trust 5.4).
+  Only the counterpart of the tuple can produce an authenticated chunk,
+  so only the counterpart can make a receiver discard that
+  counterpart's own delivery.
+- **A key of an identity context has no tombstone.** An envelope
+  sealed to a member key the holder no longer holds fails at stage 2;
+  once the holder derives the context again for a new invitation, an
+  old envelope sealed to the same key, replayed by whoever captured
+  it, decrypts again and, after its cache entry has expired, is
+  evaluated afresh, and may surface again where the registering
+  specification keeps no record of it. What this contract does not
+  bound, the registering specification does: an accept to an
+  invitation past its window is refused (Membership Tasks
+  RLTP-MT-5050), and where it keeps the register of invitations
+  declined under a block (Message Tasks 6.4), those never surface
+  again. Forward secrecy is not a property of a key the holder
+  derives again by design.
+- **`failed(task-expired)` is the sender's decision, not a recall.** A
+  copy an adapter holds may still be delivered and accepted inside the
+  receiver's age bound (RLTP-DEL-6110, RLTP-DEL-7010).
+- **A holder-wide lock key serializes one invitation, not a holder.**
+  Every envelope of one invitation credential waits on the same key
+  (RLTP-DEL-6220); envelopes of other invitations, and every other
+  document, do not.
 
 ## 10. Privacy Considerations
 
@@ -2635,17 +2986,30 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   and the record's existence to its own counterparty, and nothing
   more. Implementations MUST NOT extend the ack with further detail.
 - **Sealed content is opaque end to end.**
+- **What a carrier learns from a transient disposition.** A
+  rate-limited document stays unconcluded and is offered again, so a
+  carrier that watches conclusions learns that some documents of a
+  queue stay undecided: the relationship's sender went beyond a rate,
+  or the receiver had a local fault, which look alike. Because the
+  rate is counted before the block, this tells the carrier nothing
+  about a block. A document discarded under a block, or disposed
+  `discarded`, is concluded like an accepted one, and a conclusion
+  carries no reason (5a.8).
 
 ## 11. Conformance
 
-- **Profile** `rltp-delivery@0.81`; the Identity pin is
-  **Identity 0.54** (§7a, the control principal); the Encounter
-  pin is `rltp-encounter@0.31` (wire 0.25); companion
-  registrations per 4.4 (Trust Layer 0.31, Access 0.57,
-  Membership Tasks 0.19, Replication 0.26).
-- **Classes:** *sender* (sealing, status trias, ack-wait switch
-  trigger; principal-free submission, 5a.4) · *receiver*
-  (unsealing, staged dispositions, ack generation; the addressing
+- **Profile** `rltp-delivery@0.82`; the Identity pin is
+  **Identity 0.54** (§6.1 the context labels, §7a the control
+  principal); the Encounter pin is `rltp-encounter@0.31` (wire
+  0.25); companion registrations per 4.4 (Trust Layer 0.31,
+  Access 0.57, Membership Tasks 0.19, Replication 0.26, Message
+  Tasks 0.1).
+- **Classes:** *sender* (sealing, status trias including
+  `failed(task-expired)`, ack-wait switch trigger; principal-free
+  submission, 5a.4) · *receiver* (unsealing, staged dispositions
+  including `discarded` and the transient `failed(rate-limited)`,
+  the lock keys and the block of 6.2, the key classes of Section 5,
+  ack generation; the addressing
   triple of 5a.1, per-relationship `rkid`s 5a.2, the registration
   proofs of 5a.3, the role separation of 5a.6, the collection
   discipline of 5a.7, the conclusion duty of 5a.8) · adapters are
@@ -2765,8 +3129,59 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   type with a registry entry → dispatched to its own
   specification's consistency rules; the same type absent from
   the registry → `failed(unknown-type)` per 6.2, no effect ·
+  **key classes:** an address key past its retention → tombstone,
+  a later envelope to it passes stage 2 and fails stage 3
+  `failed(decryption-failed)`; a member key leaving the holder →
+  no tombstone, an envelope to it `failed(malformed)` at stage 2,
+  and after the group context is derived again the envelope
+  decrypts (RLTP-DEL-5010, RLTP-DEL-5020) · **`discarded`:** a star
+  chunk over the receiver's resource limit → `discarded`, no ack,
+  no cache entry, concluded only after the commit; a crash before
+  the commit → transient, offered again; the same chunk delivered
+  again after the commit → `failed(validation-failed)` under the
+  held lower bound; an earlier chunk of the discarded assembly
+  delivered again while its cache entry is retained →
+  `duplicate-known` with its stored ack, the delivery still never
+  completing (RLTP-DEL-6325); an authenticated chunk breaking an assembly
+  rule of Trust 5.2a → `discarded` with the same consequences
+  (RLTP-DEL-6290 to RLTP-DEL-6320) · **rate:** a `message/0.1`
+  document beyond the bound of Message Tasks 4.2 →
+  `failed(rate-limited)`, nothing committed, no ack, not concluded;
+  the same document delivered again under a rate with room →
+  evaluated in full and accepted; a rate-limited document concluded
+  → nonconformant (RLTP-DEL-5820, RLTP-DEL-6270, RLTP-DEL-6280) ·
+  **block:** each row of the table of Message Tasks 6.3 whose
+  treatment is in effect (RLTP-DEL-6245) under a block, stages 1 to
+  8 unchanged, a discarded message `unique` with
+  its ack; a `delivery-ack` under a block → evaluated as without it;
+  a block set between stage 8 and stage 9 → applied on the state read
+  in stage 9; a type whose registering specification defines no
+  block treatment, such as `membership-invite/0.2` under a
+  Membership Tasks casting that defines none → evaluated, and its
+  defined effect committed, as without the block (RLTP-DEL-6240 to
+  RLTP-DEL-6260) · **lock keys:** two
+  messages of one relationship at the last unit of its rate →
+  exactly one accepted; one invitation credential in two envelopes
+  under two relationships, one of them blocked, where the
+  invitation's registering specification defines its block
+  treatment → no open prompt and the credential digest in the
+  register, whichever commits first, and both envelopes serialized
+  on the credential-digest key in every case; a
+  block set while a message waits → the message re-enters at stage 4
+  and sees the block (RLTP-DEL-6210 to RLTP-DEL-6230) · **age bound
+  and lifetime:** a `message/0.1` document past its age bound,
+  found in stage 9 → `failed(stale-issuance)`, terminal and
+  concluded toward the carrier; a sender past the declared lifetime →
+  `failed(task-expired)`, no further hand-over, and a valid
+  acknowledgement arriving later → `delivered` (RLTP-DEL-6110,
+  RLTP-DEL-6115, RLTP-DEL-7015, RLTP-DEL-7020) · **commit not whole:** a stage-9
+  transaction that fails for storage → nothing persisted, no ack, not
+  concluded, evaluated again on the next delivery (RLTP-DEL-5810) ·
   `registry-declaration/0.1`: valid declaration recorded;
-  unsigned or foreign-signed → discarded; replacement
+  without `proof` → `failed(malformed)` at stage 5 (the document
+  profile requires it); foreign-signed or with a proof that does not
+  verify → `failed(validation-failed)` at stage 8; nothing recorded
+  in either case; replacement
   prospective-only · introduction-ack timing computed from the
   declared `ack-delay` (Trust Layer §8.4); an introduction-request
   sent without holding the mediator's declaration →
@@ -2957,6 +3372,19 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   principal, VID, or registration (5a.10) ·
   `https://real-life.org/trust-tasks/delivery-carrier/0.1` used
   as a document `type` → `failed(unknown-type)` (4.4).
+- **Rule coverage.** The rules with identifiers are listed in
+  `conformance/delivery-rule-ids-0.82.txt`. **State-dependent** —
+  each verdict needs a holder state, a clock, a cache, a carrier, or a
+  registering specification's state, and the scenarios of the vector
+  plan above exercise it (planned, with the reference
+  implementation): RLTP-DEL-5010 · RLTP-DEL-5020 · RLTP-DEL-5810 ·
+  RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6115 · RLTP-DEL-6210 ·
+  RLTP-DEL-6220 · RLTP-DEL-6230 · RLTP-DEL-6240 · RLTP-DEL-6250 ·
+  RLTP-DEL-6260 · RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 ·
+  RLTP-DEL-6300 · RLTP-DEL-6305 · RLTP-DEL-6310 · RLTP-DEL-6320 ·
+  RLTP-DEL-6325 · RLTP-DEL-7015. **Declaration** — the rule binds
+  what a type's registration states or which specification defines
+  a treatment: RLTP-DEL-6245 · RLTP-DEL-7010 · RLTP-DEL-7020.
 
 
 ## 12. Open Issues
@@ -2972,6 +3400,16 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   TT §4.7.1; the ack itself is retained only by its sender.
 - **DO-5 Ordering.** No global ordering is promised; thread
   causality plus the merge rule cover every current flow.
+- **DO-8 A shared queue under a rate.** Documents on the key of an
+  identity context share one queue across every counterpart that
+  uses that context, and a rate-limited document keeps its place in
+  it (Section 9). Whether such documents should be concluded rather
+  than kept, which would let a carrier tell a rate refusal from a
+  decision, or whether the counting belongs before the queue, is
+  open.
+- **DO-9 Block and lock keys across devices.** The block, the
+  relationship keys and the credential-digest keys are state of one
+  holder device until holder state is shared across devices.
 - **DO-7 A carrier-scoped ordering proof.** *Open question, not a
   settled prohibition.* Where two register entries share a
   generation, Identity §7a.3 decides by nonce bytes and this
@@ -3047,7 +3485,8 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 
 [RFC2119] · [RFC8174] BCP 14 · [RFC3339] · [RFC8785] JCS · [RFC5869]
 HKDF · **RLTP Identity Layer 0.54** (normative; §5.2 the `rkid`'s
-key material, §5.3 the recovery context, §7 service identities,
+key material, §5.3 the recovery context, §6.1 the context labels,
+§7 service identities,
 **§7a the carrier-relationship identity**, §9.3 recovery) ·
 [TT] ToIP DTGWG Trust Tasks framework specification 0.4
 (§4.8.2, §4.11.1, §6.1, §6.3, §6.5, §7.2–7.3) · RLTP Encounter Layer
@@ -3055,7 +3494,10 @@ key material, §5.3 the recovery context, §7 service identities,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Trust
 Layer 0.31 (§2.1, §5.2b, §6a, §6b, §8) · RLTP Access Layer 0.57,
 wire 0.25 · RLTP Replication Contract 0.26 (§7/I14, the
-direct-effect seam of 4.4) · RLTP Membership Tasks 0.19 (§3) · Sync
+direct-effect seam of 4.4) · RLTP Membership Tasks 0.19 (§3,
+RLTP-MT-2180, RLTP-MT-3090, RLTP-MT-3815) · RLTP Message Tasks 0.1
+(§3, §4, §6; the block, the rate, the lock keys and the age bound
+of 6.2 and 7) · Sync
 001/003 (superseded transport specs, Appendix A).
 
 **External references of the adapter obligations (5a.10).** These
