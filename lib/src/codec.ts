@@ -208,7 +208,8 @@ const contact = obj({
   groupSettings: rec(setting),
 })
 
-const outboxStep: V = (x, p) => {
+/** an outbox step of codec n: codec 2 added the failure reason task-expired */
+const outboxStepOf = (codec: number): V => (x, p) => {
   if (!isObj(x)) fail(p, 'object expected')
   const s = x as Record<string, unknown>
   switch (s.status) {
@@ -218,19 +219,22 @@ const outboxStep: V = (x, p) => {
     case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p)
     case 'failed': return s.reason === 'rejected-by-receiver'
       ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'proofRequired', 'proofInvalid', 'wrongRecipient', 'identityMismatch') })(x, p)
-      : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p)
+      : obj({ status: str, at: millis, reason: codec < 2 ? lit('unroutable', 'oversize', 'expired-by-adapter-policy') : lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p)
     default: fail(`${p}.status`, 'unknown outbox status')
   }
 }
 
-const outboxShape = obj({
-  type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStep),
-}, { nextAttemptAt: millis, expiresAt: millis })
-/** the envelope is sealed to the counterpart key, never to the own rkid */
-const outboxItem: V = (x, p) => {
-  outboxShape(x, p)
-  const o = x as { recipient: { keyAgreement: string }, envelope: { rkid: string } }
-  if (o.envelope.rkid !== o.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
+/** an outbox item of codec n: codec 2 added expiresAt (the sender lifetime);
+ *  the envelope is sealed to the counterpart key, never to the own rkid */
+const outboxItemOf = (codec: number): V => {
+  const shape = obj({
+    type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStepOf(codec)),
+  }, codec < 2 ? { nextAttemptAt: millis } : { nextAttemptAt: millis, expiresAt: millis })
+  return (x, p) => {
+    shape(x, p)
+    const o = x as { recipient: { keyAgreement: string }, envelope: { rkid: string } }
+    if (o.envelope.rkid !== o.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
+  }
 }
 
 const DUE = { dueAt: millis }
@@ -355,7 +359,7 @@ const fields1: Record<string, V> = {
   groups: keyed(group, 'id'),
   profile: obj({ body: json, revision: dec }),
   effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
-  outbox: rec(outboxItem),
+  outbox: rec(outboxItemOf(1)),
   duties: keyed(duty, 'id'),
   rotations: keyed(obj({
     id: str, from: dec, to: dec, step: lit('register', 'log', 'duties'), startedAt: millis,
@@ -402,6 +406,7 @@ const receivedInvite2: V = (x, p) => {
 const codec2 = obj({
   ...fields1,
   codec: lit(2),
+  outbox: rec(outboxItemOf(2)),
   acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(2)), at: millis }), 'actId'),
   joining: obj({
     preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
