@@ -272,7 +272,8 @@ one day (`P1D`) after the receiver's clock.
 
 **RLTP-MSG-4060** — "The receiver's clock" in 4040, 4050 and 4340 MUST
 be `max(now, mark)`, where `mark` is a time the holder persists, never
-lowers, and raises to `now` at every acceptance of a message.
+lowers, and raises to `max(now, mark)` in the same transaction as every
+acceptance of a message and as every deletion under 4340.
 
 *Rationale.* The outer binding and the MAC tie the message to one
 direction of one tuple. A deactivated tuple accepts nothing new; the
@@ -337,20 +338,27 @@ the completion record (4.4), and, unless the relationship is blocked
 **RLTP-MSG-4220** — The receiver MUST NOT use a disposition that
 skips the cache entry or the acknowledgement for an accepted message.
 
-**RLTP-MSG-4230** — The stage-9 lock set of a `message/0.1` document
-MUST extend by its arrival tuple, acquired with the digest as one
-acquisition (Delivery 6.2); inside the critical section the receiver
-MUST evaluate 4030, 4110 to 4130, 4310 to 4330 and the block on the
-state it holds then, and a waiter MUST re-enter at stage 4.
+**RLTP-MSG-4230** — The stage-9 lock set of a `message/0.1` document,
+and of an invitation attributed to a relationship (6110), MUST extend
+by that relationship, acquired with the digest as one acquisition
+(Delivery 6.2); inside the critical section the receiver MUST evaluate
+4030, 4110 to 4130, 4310 to 4330 and the block on the state it holds
+then, and a waiter MUST re-enter at stage 4.
+
+**RLTP-MSG-4240** — Setting or clearing a block, a chaining onto the
+relationship (Trust 6220), and a merge or split that moves it MUST
+acquire the same relationship key before they commit.
 
 *Rationale.* The acknowledgement attests the durable defined effect,
 never display or reading (Delivery 4.2). Writing all of it in one
 transaction leaves no state in which a sender sees "delivered" for a
 message the recipient can lose. The digest alone serializes only
 copies of one document: two envelopes of one `mid`, or two documents
-at the last unit of the rate, would otherwise both pass. The tuple
-key serializes every message of one relationship, as the assembly key
-does for the chunks of a star (Delivery 6.2).
+at the last unit of a rate, would otherwise both pass. The
+relationship key serializes every message and invitation of one
+relationship, as the assembly key does for the chunks of a star
+(Delivery 6.2), and the writers that change head or block take the
+same key, so nothing a check read can change before the commit.
 
 ### 4.4 Completion record
 
@@ -636,9 +644,19 @@ visible as far as Trust 5.4 makes it visible.
 
 **Clock set back.** A deleted completion-record entry would let its
 message pass the age bound again once the clock runs backwards; the
-persisted mark (4060) closes this for a clock change, not for a
+persisted mark (4060), raised with every deletion, closes this for a
+clock change, not for a
 holder state restored from an older backup, which restores older
 records with it.
+
+**Residual storage paths.** Two paths are bounded only by the rates of
+the documents that carry them: a blocked relationship's prelude
+requests are still answered (6210), and in the library form each new
+genesis digest registers a member key and a prelude entry; the same
+invitation credential in ever new documents earns a cache entry and an
+acknowledgement each (6220) without counting against 4115, which
+counts new credential digests. Both are retained only as long as
+Delivery 4.2 and the prelude's lifetime require.
 
 **Block across devices.** The block is holder state of one device;
 this version does not synchronize it.
@@ -723,7 +741,7 @@ set of 10.2 is planned to exercise it: RLTP-MSG-2010 · RLTP-MSG-2020 ·
 RLTP-MSG-2030 · RLTP-MSG-2040 · RLTP-MSG-3040 · RLTP-MSG-4020 ·
 RLTP-MSG-4030 · RLTP-MSG-4040 · RLTP-MSG-4050 · RLTP-MSG-4060 ·
 RLTP-MSG-4110 · RLTP-MSG-4115 · RLTP-MSG-4120 · RLTP-MSG-4130 · RLTP-MSG-4140 · RLTP-MSG-4210 ·
-RLTP-MSG-4220 · RLTP-MSG-4230 · RLTP-MSG-4310 · RLTP-MSG-4320 · RLTP-MSG-4330 ·
+RLTP-MSG-4220 · RLTP-MSG-4230 · RLTP-MSG-4240 · RLTP-MSG-4310 · RLTP-MSG-4320 · RLTP-MSG-4330 ·
 RLTP-MSG-4340 · RLTP-MSG-4350 · RLTP-MSG-4410 · RLTP-MSG-4420 ·
 RLTP-MSG-5010 · RLTP-MSG-5020 · RLTP-MSG-5030 · RLTP-MSG-5110 ·
 RLTP-MSG-5120 · RLTP-MSG-6010 · RLTP-MSG-6020 · RLTP-MSG-6030 ·
@@ -754,8 +772,10 @@ conformance notes where it departs from the rules named here.
   not terminal: nothing committed, no acknowledgement, no cache
   entry, no conclusion toward the carrier, re-evaluated in full on
   the next delivery.
-- 6.2 stage 9: the lock set of a `message/0.1` document extends by its
-  arrival tuple (Message Tasks 4230).
+- 6.2 stage 9: the lock set of a `message/0.1` document, and of an
+  invitation attributed to a relationship, extends by that
+  relationship; block changes, chaining, merge and split take the same
+  key (Message Tasks 4230, 4240).
 - 6.1: a sender failure reason `task-expired` for a document whose
   type declares a lifetime that has run out (Message Tasks 5110); a
   valid acknowledgement arriving later transitions the status as a
@@ -767,12 +787,23 @@ conformance notes where it departs from the rules named here.
 
 - RLTP-MT-3085: the declaration adds "discarded where the inviter's
   relationship is blocked (Message Tasks 6.3)".
-- Prelude (1.2): a normative prelude binding: the authenticated
-  binding of an inviter's member anchor to the relationship it asked
-  on, keyed by `(genesis digest, inviter)`, with its lifetime, the
-  rule for renewal and for a binding asked on another relationship,
-  and its fate at split and chaining; an invitation without a binding
-  is attributed to no relationship (Message Tasks 6110).
+- Prelude (1.2): a normative prelude binding. The request travels on a
+  tuple, signed under the sender's pair anchor, and carries a binding
+  object `{ inviter, genesisDigest, threadId, from, to }` signed under
+  the inviter's member anchor, `from` and `to` the document's
+  `issuer` and `recipient`, `threadId` the document's; the answering
+  holder verifies both signatures and the equality of these fields
+  and keeps the binding under `(genesis digest, inviter)` with the
+  arrival tuple. A later request under the same key from a tuple of
+  the same contact entry replaces the tuple; one from another entry is
+  refused, unless the bound tuple is no longer an active head, in
+  which case the key is free. The binding moves with its tuple at
+  merge, split and chaining (it is per tuple, Trust 6180), and lives
+  as long as invitations under it can still be answered (RLTP-MT-3090
+  horizon). An invitation is attributed to the relationship of the
+  binding's tuple at its arrival; without a binding it is attributed
+  to no relationship (Message Tasks 6110); the rate of 4115 counts on
+  that relationship.
 - 3.1: at most 20 invitations with a new credential digest per
   relationship in 24 hours, beyond that `failed(rate-limited)`
   (Message Tasks 4115).
@@ -786,6 +817,9 @@ conformance notes where it departs from the rules named here.
 **Trust Layer (next casting):**
 
 - RLTP-TRU-2280: the block joins the chain-level state.
+- RLTP-TRU-6220 and 2140 to 2115: a chaining, a merge and a split
+  acquire the relationship key of Message Tasks 4240 before they
+  commit.
 - RLTP-TRU-6425: the display duty of the profile holds subject to the
   block; holding and revisions (6450, 6460) unchanged.
 - RLTP-TRU-8380 and 8440: an `introduction-forward` on a blocked
