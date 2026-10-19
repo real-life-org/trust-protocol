@@ -173,7 +173,7 @@ const groupOfLabel = (state, label) => label === undefined ? undefined : Object.
  *  the longest give-up horizon, by its own clock; later, the admission
  *  would wait for a human act, which this library does not offer — the
  *  consent stays as evidence until its retention lets it go. */
-const admissionOpen = (invite, when) => untilOf(invite) + MEMBERSHIP_SKEW + HORIZON_MAX >= when;
+const admissionOpen = (invite, when) => when < untilOf(invite) + MEMBERSHIP_SKEW + HORIZON_MAX;
 /** The policy (see the header): admitted when vouchThreshold distinct
  *  members stand behind it, the admitting member one of them. */
 function policyMet(g, ev) {
@@ -773,7 +773,7 @@ const welcomeTask = {
 // ── keys and retention ─────────────────────────────────────────────────
 /** The member keys still needed: held groups' and those on the way in
  *  (an answered prelude, an invitation open or accepted). */
-function memberKeys(state) {
+function memberKeys(state, when) {
     const labels = new Set(Object.values(state.groups).map((g) => g.memberLabel));
     for (const p of Object.values(state.joining.preludes))
         labels.add(p.memberLabel);
@@ -790,7 +790,7 @@ function memberKeys(state) {
     // an answered prelude's tuple, while its answer and the acks may still
     // travel; the binding itself lives longer (3945) and needs no key
     for (const p of Object.values(state.joining.preludes))
-        if (p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= state.lastWhen)
+        if (p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= when)
             out.push(p.rkid);
     return out;
 }
@@ -816,7 +816,9 @@ function retainMembership(state, when) {
     // invitation attributed to it is open or accepted (RLTP-MT-3945); tick
     // deletes it in its own serialized commit, deciding on the state it reads
     // there (3947)
-    const rests = (p) => Object.values(invites).some((i) => i.group === p.group && i.rkid === p.rkid && (i.status === 'open' || i.status === 'accepted'));
+    // an invitation rests on the binding of its key (genesis digest, inviter):
+    // a renewal may have moved the binding to a newer tuple since (3930)
+    const rests = (p) => Object.values(invites).some((i) => i.group === p.group && i.invite.payload.invite.issuer === p.inviter && (i.status === 'open' || i.status === 'accepted'));
     const current = (p) => { const t = tupleByRkid(state, p.rkid); return t !== null && liveRel(t.rel); };
     const preludes = Object.fromEntries(Object.entries(state.joining.preludes).filter(([, p]) => current(p) || rests(p)));
     if (Object.keys(invites).length !== Object.keys(state.joining.invites).length || Object.keys(preludes).length !== Object.keys(state.joining.preludes).length)

@@ -204,7 +204,7 @@ const groupOfLabel = (state: Readonly<HolderState>, label: string | undefined): 
  *  the longest give-up horizon, by its own clock; later, the admission
  *  would wait for a human act, which this library does not offer — the
  *  consent stays as evidence until its retention lets it go. */
-const admissionOpen = (invite: Json, when: Millis): boolean => untilOf(invite) + MEMBERSHIP_SKEW + HORIZON_MAX >= when
+const admissionOpen = (invite: Json, when: Millis): boolean => when < untilOf(invite) + MEMBERSHIP_SKEW + HORIZON_MAX
 
 /** The policy (see the header): admitted when vouchThreshold distinct
  *  members stand behind it, the admitting member one of them. */
@@ -811,7 +811,7 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
 
 /** The member keys still needed: held groups' and those on the way in
  *  (an answered prelude, an invitation open or accepted). */
-function memberKeys (state: Readonly<HolderState>): string[] {
+function memberKeys (state: Readonly<HolderState>, when: Millis): string[] {
   const labels = new Set<string>(Object.values(state.groups).map((g) => g.memberLabel))
   for (const p of Object.values(state.joining.preludes)) labels.add(p.memberLabel)
   for (const i of Object.values(state.joining.invites)) if (i.status === 'open' || i.status === 'accepted') labels.add(i.memberLabel)
@@ -822,7 +822,7 @@ function memberKeys (state: Readonly<HolderState>): string[] {
   for (const g of Object.values(state.groups)) for (const p of Object.values(g.preludes)) out.push(p.rkid)
   // an answered prelude's tuple, while its answer and the acks may still
   // travel; the binding itself lives longer (3945) and needs no key
-  for (const p of Object.values(state.joining.preludes)) if (p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= state.lastWhen) out.push(p.rkid)
+  for (const p of Object.values(state.joining.preludes)) if (p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= when) out.push(p.rkid)
   return out
 }
 
@@ -850,7 +850,10 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
   // invitation attributed to it is open or accepted (RLTP-MT-3945); tick
   // deletes it in its own serialized commit, deciding on the state it reads
   // there (3947)
-  const rests = (p: Joining['preludes'][string]): boolean => Object.values(invites).some((i) => i.group === p.group && i.rkid === p.rkid && (i.status === 'open' || i.status === 'accepted'))
+  // an invitation rests on the binding of its key (genesis digest, inviter):
+  // a renewal may have moved the binding to a newer tuple since (3930)
+  const rests = (p: Joining['preludes'][string]): boolean => Object.values(invites).some((i) =>
+    i.group === p.group && (i.invite as Doc).payload.invite.issuer === p.inviter && (i.status === 'open' || i.status === 'accepted'))
   const current = (p: Joining['preludes'][string]): boolean => { const t = tupleByRkid(state, p.rkid); return t !== null && liveRel(t.rel) }
   const preludes = Object.fromEntries(Object.entries(state.joining.preludes).filter(([, p]) => current(p) || rests(p)))
   if (Object.keys(invites).length !== Object.keys(state.joining.invites).length || Object.keys(preludes).length !== Object.keys(state.joining.preludes).length) changed = true
