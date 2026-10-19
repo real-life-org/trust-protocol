@@ -28,22 +28,40 @@ import type { HolderEventType } from './events.js'
 /** The codec this library writes. */
 export const CODEC = 2
 
+/** The tuples of a codec-1 state on which a document of the counterpart
+ *  was accepted, as far as the state shows it (Message Tasks 5.1): a probe,
+ *  a star, a group star, a continuity or anchor mapping, or a profile
+ *  received; or the counterparty's step credential of its enactment record. */
+function readyOf1 (s: any): string[] {
+  const out = new Set<string>()
+  const inRec = new Set<string>(Object.values(s.encounter.records as Record<string, any>).filter((r) => r.in !== null).map((r) => r.label))
+  for (const r of Object.values(s.relationships as Record<string, any>)) {
+    for (const t of r.tuples) {
+      if (t.probeIn.hwm !== '0' || t.starIn.hwm !== '0' || t.groupStarIn.hwm !== '0' || t.continuityIn.rev !== '0' ||
+        t.mappingIn.rev !== '0' || t.profileIn.rev !== '0' || inRec.has(t.ownPairLabel)) out.add(t.ownPairLabel)
+    }
+  }
+  return [...out].sort()
+}
+
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
  *
  * 1 → 2 (lib 0.5.0, Message Tasks 0.1, Membership 0.20): the message
- * state starts empty (no block, no rate); every invitation a codec-1
- * holder received was surfaced, so their credential digests seed the
- * permanent record of RLTP-MT-3130; the register of declined invitations
- * starts empty (codec 1 knew no block).
+ * state starts empty (no block, no rate, no record, no inbox) but for the
+ * ready tuples, read from what the state shows a counterpart's document
+ * did (readyOf1); every invitation a codec-1 holder received was
+ * surfaced, so their credential digests seed the permanent record of
+ * RLTP-MT-3130; the register of declined invitations starts empty (codec 1
+ * knew no block).
  */
 export const MIGRATIONS: Readonly<Record<number, (state: any) => any>> = Object.freeze({
   1: (s: any) => ({
     ...s,
     codec: 2,
     joining: { ...s.joining, surfaced: Object.keys(s.joining.invites).sort(), declined: [] },
-    messages: { blocked: [], rates: {} },
+    messages: { blocked: [], rates: {}, ready: readyOf1(s), records: {}, inbox: {} },
   }),
 })
 
@@ -200,14 +218,14 @@ const outboxStep: V = (x, p) => {
     case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p)
     case 'failed': return s.reason === 'rejected-by-receiver'
       ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'proofRequired', 'proofInvalid', 'wrongRecipient', 'identityMismatch') })(x, p)
-      : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy') })(x, p)
+      : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p)
     default: fail(`${p}.status`, 'unknown outbox status')
   }
 }
 
 const outboxShape = obj({
   type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStep),
-}, { nextAttemptAt: millis })
+}, { nextAttemptAt: millis, expiresAt: millis })
 /** the envelope is sealed to the counterpart key, never to the own rkid */
 const outboxItem: V = (x, p) => {
   outboxShape(x, p)
@@ -273,9 +291,11 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'group.admitted': [{ groupId: str, member: str }],
   'group.vouched': [{ groupId: str, member: str }],
   'contact.blocked': [{ contactId: str, blocked: bool }],
+  'message.sent': [{ contactId: str, mid: str, digest: str }],
+  'message.received': [{ contactId: str, inboxId: str }],
 }
 /** the event types codec 2 added: codec 1 does not know them */
-const EVENTS_SINCE_2: ReadonlySet<string> = new Set(['contact.blocked'])
+const EVENTS_SINCE_2: ReadonlySet<string> = new Set(['contact.blocked', 'message.sent', 'message.received'])
 const eventOf = (codec: number): V => (x, p) => {
   if (!isObj(x)) fail(p, 'object expected')
   const t = (x as Record<string, unknown>).type
@@ -391,7 +411,10 @@ const codec2 = obj({
   }),
   messages: obj({
     blocked: sortedSet,
-    rates: rec(obj({ invites: arr(millis) })),
+    rates: rec(obj({ invites: arr(millis), messages: arr(millis) })),
+    ready: sortedSet,
+    records: rec(rec(obj({ bodyDigest: str, sentAt: millis }))),
+    inbox: keyed(obj({ id: str, tuple: str, mid: str, body: anyObj, receivedAt: millis, displayAt: millis }), 'id'),
   }),
 })
 

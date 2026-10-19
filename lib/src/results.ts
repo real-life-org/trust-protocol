@@ -88,6 +88,14 @@ export type ActError =
   /** a message, an invitation or the start of an introduction act toward
    *  a relationship the holder has blocked (Message Tasks RLTP-MSG-6410) */
   | 'blocked'
+  /** message.send: the tuple is not ready — no document of the
+   *  counterpart was accepted on it yet (Message Tasks RLTP-MSG-5020); the
+   *  app keeps the message unsent and sends it once the contact view says
+   *  `canMessage` */
+  | 'not-ready'
+  /** message.send: the text is not 1 to 4096 code points, or replyTo is no
+   *  lowercase UUID v4 (Message Tasks 3.2) */
+  | 'message-invalid'
 
 export type ActResult =
   /** nextDueAt: duty work this act opened or unblocked is due then (`when`:

@@ -30,8 +30,13 @@
 This is an Editor's Draft with no standing beyond its own argument.
 It is expected to change together with the next castings of the
 Delivery Contract, Membership Tasks and the Trust Layer, which take up
-the companion changes of Appendix A. The reference library does not
-implement it; its vector is the MAC vector of 10.2. Open questions are listed in Section 9, and feedback is
+the companion changes of Appendix A. The reference library implements
+it on its holder: `message/0.1` with its reception, completion record,
+inbox and sender lifetime (Sections 3 to 5), and the block with its
+treatment of `message/0.1` and, with Membership Tasks 0.20, of
+invitations and prelude replies (Section 6); the scenario set of 10.2 is
+its test suite. The block's treatment of the Trust Layer's types waits
+for that layer's next casting (6240). Open questions are listed in Section 9, and feedback is
 welcome via the issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 

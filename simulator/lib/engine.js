@@ -390,6 +390,7 @@ class HolderEngine {
     #ownRetries;
     #keepKeys;
     #retain;
+    #accepted;
     #deadlines;
     #builtins;
     #check;
@@ -444,6 +445,7 @@ class HolderEngine {
         const ownRetries = new Set();
         const keepKeys = [];
         const retain = [];
+        const accepted = [];
         const deadlines = [];
         const names = new Set();
         for (const m of modules) {
@@ -532,6 +534,11 @@ class HolderEngine {
                     throw new TypeError(`deadlines (module ${m.name}) must be a function`);
                 deadlines.push(m.deadlines);
             }
+            if (m.accepted !== undefined) {
+                if (typeof m.accepted !== 'function')
+                    throw new TypeError(`accepted (module ${m.name}) must be a function`);
+                accepted.push(m.accepted);
+            }
         }
         this.#commands = commands;
         this.#tasks = tasks;
@@ -543,6 +550,7 @@ class HolderEngine {
         this.#keepKeys = Object.freeze(keepKeys);
         this.#deadlines = Object.freeze(deadlines);
         this.#retain = Object.freeze(retain);
+        this.#accepted = Object.freeze(accepted);
         this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() });
         this.registry = Object.freeze({
             commands: Object.freeze([...commands.keys()]),
@@ -681,12 +689,16 @@ class HolderEngine {
             freezeDeep(events);
             const outbound = drafts.map((o) => ({ digest: o.digest, envelope: o.envelope, type: o.type, threadId: o.threadId, recipient: o.recipient, attempt: 1 }));
             const outbox = { ...r.state.outbox };
-            for (const o of outbound) {
+            for (const [i, o] of outbound.entries()) {
                 if (Object.hasOwn(outbox, o.digest))
                     throw new Error(`engine: outbound ${o.digest} is already in the outbox`);
+                const life = drafts[i].expiresAt;
+                if (life !== undefined && (!Number.isSafeInteger(life) || life <= at))
+                    throw new Error(`engine: outbound ${o.digest} expires at ${life}, not after ${at}`);
                 outbox[o.digest] = {
                     type: o.type, threadId: o.threadId, recipient: o.recipient, envelope: o.envelope, attempt: 1,
                     history: [{ status: 'submitted', at, attempt: 1 }], nextAttemptAt: dueAt(at, this.#policy.backoff(1)),
+                    ...(life !== undefined ? { expiresAt: life } : {}),
                 };
             }
             const duties = { ...r.state.duties };
@@ -966,9 +978,19 @@ class HolderEngine {
                     const trias = triasOf(it);
                     if (trias === 'delivered' || trias === 'failed')
                         continue;
-                    // the horizon applies to every non-terminal item: held, accepted or not
+                    // the horizon applies to every non-terminal item: held, accepted or
+                    // not; a sender lifetime the type declares ends it earlier, as
+                    // failed(task-expired), never handed out again (Delivery 6110, 6115)
                     const first = it.history.length ? it.history[0].at : when;
                     const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER);
+                    const life = it.expiresAt;
+                    if (life !== undefined && when >= life && life <= expiry) {
+                        const { nextAttemptAt: _, ...rest } = it;
+                        outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'task-expired' }] };
+                        events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' });
+                        gaveUp.push(digest);
+                        continue;
+                    }
                     if (when >= expiry) {
                         const { nextAttemptAt: _, ...rest } = it;
                         outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'expired-by-adapter-policy' }] };
@@ -976,7 +998,7 @@ class HolderEngine {
                         gaveUp.push(digest);
                         continue;
                     }
-                    due(expiry);
+                    due(life !== undefined ? Math.min(life, expiry) : expiry);
                     // never re-emitted: an accepted item (the service has it) and one the
                     // adapter holds (awaiting-transport, until it reports again)
                     if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport')
@@ -1202,6 +1224,7 @@ class HolderEngine {
     #receiveDef() {
         const tasks = () => this.#tasks;
         const acks = () => this.#acks;
+        const acceptedHooks = () => this.#accepted;
         const policy = () => this.#policy;
         return {
             human: false,
@@ -1256,8 +1279,15 @@ class HolderEngine {
                         }
                         if (r.state.effects !== state.effects)
                             throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`);
+                        // the modules' accepted hooks, in the same transaction
+                        let after = r.state;
+                        for (const hook of acceptedHooks()) {
+                            after = hook(after, plan.doc, plan.arrival);
+                            if (after.effects !== state.effects)
+                                throw new Error('engine: an accepted hook wrote the effect cache');
+                        }
                         return {
-                            state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
+                            state: { ...after, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
                             ...(r.outbound ? { outbound: r.outbound } : {}),
                             ...(r.events ? { events: r.events } : {}),
                             ...(r.duties ? { duties: r.duties } : {}),

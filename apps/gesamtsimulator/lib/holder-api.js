@@ -44,9 +44,11 @@
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
+//   sendMessage(contactId, text, opts{replyTo?})  message.send         human
 //   block(contactId, opts)                    message.block {blocked: true}   human
 //   unblock(contactId, opts)                  message.block {blocked: false}  human
 //   recover({when})                           trust.recover          not human
+//   takeMessages(ids, {when})                 message.take           not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
 // A missing actId is refused at runtime as actid-missing.
@@ -75,7 +77,7 @@ import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js';
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js';
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js';
-import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
+import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, profileView, promptsView } from './views.js';
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
@@ -114,6 +116,8 @@ export async function createHolder(ports, opts = {}) {
         invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
         vouchFor: (groupId, member, o) => human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
         introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
+        sendMessage: (contactId, text, o) => human(MESSAGE_COMMANDS.send, o?.replyTo === undefined ? { contactId, text } : { contactId, text, replyTo: o.replyTo }, o),
+        takeMessages: (ids, o) => engine.act(MESSAGE_COMMANDS.take, { ids }, o?.when),
         block: (contactId, o) => human(MESSAGE_COMMANDS.block, { contactId, blocked: true }, o),
         unblock: (contactId, o) => human(MESSAGE_COMMANDS.block, { contactId, blocked: false }, o),
         addDevice: (name, o) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
@@ -133,6 +137,7 @@ export async function createHolder(ports, opts = {}) {
         groups: async () => groupsView(await read()),
         profile: async () => profileView(await read()),
         prompts: async () => promptsView(await read()),
+        inbox: async () => inboxView(await read()),
         deliveryStatus: async (x) => deliveryStatusView(await read(), x),
     });
 }

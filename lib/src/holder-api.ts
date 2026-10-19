@@ -42,9 +42,11 @@
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
+//   sendMessage(contactId, text, opts{replyTo?})  message.send         human
 //   block(contactId, opts)                    message.block {blocked: true}   human
 //   unblock(contactId, opts)                  message.block {blocked: false}  human
 //   recover({when})                           trust.recover          not human
+//   takeMessages(ids, {when})                 message.take           not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
 // A missing actId is refused at runtime as actid-missing.
@@ -82,8 +84,8 @@ import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js'
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js'
 import type { Json } from './core.js'
-import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js'
-import type { ContactView, DeliveryStatusView, GroupView, ProfileView, PromptView } from './views.js'
+import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, profileView, promptsView } from './views.js'
+import type { ContactView, DeliveryStatusView, GroupView, InboxMessageView, ProfileView, PromptView } from './views.js'
 
 /** The committed state and its commitSeq; the state is opaque (note §4.5):
  *  apps read the views, store tooling may persist it. */
@@ -166,6 +168,17 @@ export interface Holder {
   /** a vouch@2 for a member anchor whose consent pair this holder holds
    *  (Access 5.3, Membership 3.4); human */
   vouchFor (groupId: string, member: string, opts: HumanActOptions & { provenance?: 'met' | 'introduced' }): Promise<ActResult>
+  /** a text message to the contact (Message Tasks 3, 5): 1 to 4096 code
+   *  points, replyTo the mid of an earlier message of the relationship. It
+   *  goes on a ready, unblocked relationship (canMessage); otherwise refused
+   *  as not-ready, blocked or no-own-channel, and the app keeps it unsent.
+   *  Event message.sent {mid, digest}; deliveryStatus(digest) is its sender
+   *  status, failed(task-expired) once sentAt + P179D passed undelivered;
+   *  human */
+  sendMessage (contactId: string, text: string, opts: HumanActOptions & { replyTo?: string }): Promise<ActResult>
+  /** the inbox entries the app has durably taken over leave the inbox
+   *  (4420); their completion record stays (4350); not human */
+  takeMessages (ids: string[], opts: { when: Millis }): Promise<ActResult>
   /** the block (Message Tasks 6): set on every relationship of the
    *  contact's entry. Messages, invitations and the holder's own offers on
    *  them stop; the protocol steps owed continue; the contact observes
@@ -192,6 +205,9 @@ export interface Holder {
   groups (): Promise<GroupView[]>
   profile (): Promise<ProfileView>
   prompts (): Promise<PromptView[]>
+  /** the messages accepted and not yet taken over (Message Tasks 4.5),
+   *  by display time; event message.received announces each */
+  inbox (): Promise<InboxMessageView[]>
   /** by document digest or threadId */
   deliveryStatus (digestOrThreadId: string): Promise<DeliveryStatusView>
 }
@@ -238,6 +254,9 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
       human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
     introduce: (requesterId: string, targetId: string, o: HumanActOptions & { label?: string }) =>
       human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
+    sendMessage: (contactId: string, text: string, o: HumanActOptions & { replyTo?: string }) =>
+      human(MESSAGE_COMMANDS.send, o?.replyTo === undefined ? { contactId, text } : { contactId, text, replyTo: o.replyTo }, o),
+    takeMessages: (ids: string[], o: { when: Millis }) => engine.act(MESSAGE_COMMANDS.take, { ids }, o?.when as Millis),
     block: (contactId: string, o: HumanActOptions) => human(MESSAGE_COMMANDS.block, { contactId, blocked: true }, o),
     unblock: (contactId: string, o: HumanActOptions) => human(MESSAGE_COMMANDS.block, { contactId, blocked: false }, o),
     addDevice: (name: string, o: HumanActOptions) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
@@ -257,6 +276,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     groups: async () => groupsView(await read()),
     profile: async () => profileView(await read()),
     prompts: async () => promptsView(await read()),
+    inbox: async () => inboxView(await read()),
     deliveryStatus: async (x: string) => deliveryStatusView(await read(), x),
   })
 }

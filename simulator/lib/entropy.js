@@ -13,7 +13,7 @@
 // (test/entropy-lint.test.mjs enforces it).
 export const ENTROPY_PURPOSES = Object.freeze([
     'seal.eph', 'seal.nonce', 'doc.id', 'thread.id', 'ack.id', 'challenge',
-    'group.seed', 'founding.nonce', 'intro.act', 'intro.target', 'groupstar.nonce', 'pad',
+    'group.seed', 'founding.nonce', 'intro.act', 'intro.target', 'groupstar.nonce', 'pad', 'message.mid',
 ]);
 export class EntropyError extends Error {
     code;

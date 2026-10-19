@@ -86,10 +86,10 @@ The reference library implements the sealed envelope, the receive
 stages of 6.2 with the completed-effect cache and the disposition
 `discarded`, the key classes of Section 5, the sender's status of
 6.1 and the acknowledgement classes of 4.2 on its holder, and the
-carrier port of 4.4 and 5a, and `failed(rate-limited)` with the
-block for `membership-invite/0.2`; it does not implement
-`message/0.1` or `failed(task-expired)`, and transports beyond its
-VTI mediator adapter are not in it. Review
+carrier port of 4.4 and 5a, `message/0.1` with its age bound and
+sender lifetime, `failed(rate-limited)`, `failed(task-expired)`, and
+the block for `message/0.1` and `membership-invite/0.2`; transports
+beyond its VTI mediator adapter are not in it. Review
 happens against the converged companion documents; the convergence
 criterion is a review round with no blocker-level findings.
 Feedback is welcome via the issues of the publication repository

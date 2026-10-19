@@ -67,11 +67,11 @@ The human acts: `show`, `scan`, `captureSentCard`, `counter` (the encounter),
 `decide` (a prompt: confirm an encounter, accept an invitation, take up or
 consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
 `setGroupClass`, `merge`, `depart`, `setProfile`, `foundGroup`, `invite`,
-`vouchFor`, `introduce`, `block`, `unblock`, `rotateAnchor`, `addDevice`,
-`revokeDevice`. Not
-human: `receive`, `report`, `resume`, `tick`, `recover`. Reads: `contacts`,
-`contact`, `groups`, `profile`, `prompts`, `deliveryStatus`, `deviceKey`,
-`snapshot`, `subscribe`.
+`vouchFor`, `introduce`, `sendMessage`, `block`, `unblock`, `rotateAnchor`,
+`addDevice`, `revokeDevice`. Not
+human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
+Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
+`deliveryStatus`, `deviceKey`, `snapshot`, `subscribe`.
 
 ## What the root exports
 
@@ -119,7 +119,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `trust/profile`, `profile` | Trust §6b | `profile@1`: the one revision counter (6450), delivery on the class gates (6455), reception and the image bounds (6475) |
 | `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
 | `membership`, `membership/holder` | Membership Tasks 0.20 on Access 0.57 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
-| `message/holder` | Message Tasks 0.1 §6, §4.2 | the block of a relationship (6010–6030, 6510), its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410), the rate per relationship (4115) |
+| `message`, `message/holder` | Message Tasks 0.1 | `message@1`, `k_msg` and its MAC (3); sending on a ready, unblocked relationship with the sender lifetime (5); reception through the stages with the age and future bounds on the time mark, the completion record, the inbox taken over by the app, the rates and the inbox bound as `failed(rate-limited)` (4); the block of a relationship (6010–6030, 6510), its discard of messages and its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410) |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
 | `receive`, `engine` | Delivery 0.82 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
@@ -152,16 +152,19 @@ the state as opaque JSON and gives it back; the library decodes it
   holder, one with work open (prompts, a joining invite, duties, a
   rotation at step 2) and one with a tombstone, a revoked device and
   carrier entries. They validate under codec 1 and migrate to codec 2.
-- **Codec 2** is the format of 0.5.0: codec 1 with the block and the
-  rates of Message Tasks 0.1 (`messages`) and the record of surfaced and
-  the register of declined invitations (`joining.surfaced`,
+- **Codec 2** is the format of 0.5.0: codec 1 with the state of Message
+  Tasks 0.1 (`messages`: the block, the rates, the ready tuples, the
+  completion record, the inbox), an outbox item's sender lifetime
+  (`expiresAt`) and `failed(task-expired)`, and the record of surfaced
+  and the register of declined invitations (`joining.surfaced`,
   `joining.declined`); an invitation may be attributed to no
-  relationship. The migration from codec 1 is pure: no block, no rate,
-  every invitation received counted as surfaced. Its fixtures
-  (`test/fixtures/state-v2*.json`, deterministic runs of
-  `test/fixtures/gen-state-v2.mjs`, reproduced in `npm test`) add a block
-  and a declined invitation to the open holder; each decodes and
-  re-encodes byte for byte. A later codec brings its validator, a pure
+  relationship. The migration from codec 1 is pure: no block, no rate, no
+  record, no inbox, the ready tuples read from what the counterparts'
+  documents left, every invitation received counted as surfaced. Its
+  fixtures (`test/fixtures/state-v2*.json`, deterministic runs of
+  `test/fixtures/gen-state-v2.mjs`, reproduced in `npm test`) add
+  messages to the settled holder and a block and a declined invitation to
+  the open one; each decodes and re-encodes byte for byte. A later codec brings its validator, a pure
   migration from the one before, and its own fixture with a migration
   test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
@@ -218,7 +221,8 @@ This package uses its own semver; the specification uses castings.
 | trust | Trust Layer 0.31 | — |
 | membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.82 | transport adapters beyond `./adapters/vti-mediator`; `message/0.1` (Message Tasks 0.1) and `failed(task-expired)`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| delivery | Delivery 0.82 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| message | Message Tasks 0.1 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9) |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
 ## The contract: the vectors

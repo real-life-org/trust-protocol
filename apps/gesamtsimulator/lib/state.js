@@ -33,6 +33,6 @@ export function emptyState(codec) {
         acts: {},
         encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
         joining: { preludes: {}, invites: {}, surfaced: [], declined: [] },
-        messages: { blocked: [], rates: {} },
+        messages: { blocked: [], rates: {}, ready: [], records: {}, inbox: {} },
     };
 }
