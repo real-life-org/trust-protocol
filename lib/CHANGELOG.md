@@ -43,7 +43,9 @@ Takes up Message Tasks 0.1, Delivery Contract 0.82 and Membership Tasks
   (nothing committed, no ack, no cache entry, evaluated afresh when
   delivered again); an outbound may carry its type's sender lifetime,
   after which resume moves it to `failed(task-expired)` and never hands it
-  out again.
+  out again — for a message `sentAt + P179D`, after any retry horizon
+  (at most P90D), so an undelivered message fails as
+  `failed(expired-by-adapter-policy)` first.
 - `./adapters/vti-mediator`: `conclude(collection, now, {keep})` leaves
   transient items unconcluded and offers them again; `concludable(result)`.
 - **State codec 2**, with a pure migration from codec 1 (no block, no

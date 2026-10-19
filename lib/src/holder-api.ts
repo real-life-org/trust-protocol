@@ -173,7 +173,9 @@ export interface Holder {
    *  goes on a ready, unblocked relationship (canMessage); otherwise refused
    *  as not-ready, blocked or no-own-channel, and the app keeps it unsent.
    *  Event message.sent {mid, digest}; deliveryStatus(digest) is its sender
-   *  status, failed(task-expired) once sentAt + P179D passed undelivered;
+   *  status: undelivered, it fails at whichever comes first, the retry
+   *  horizon (failed(expired-by-adapter-policy); P7D by default, P90D at
+   *  most) or its sender lifetime sentAt + P179D (failed(task-expired));
    *  human */
   sendMessage (contactId: string, text: string, opts: HumanActOptions & { replyTo?: string }): Promise<ActResult>
   /** the inbox entries the app has durably taken over leave the inbox

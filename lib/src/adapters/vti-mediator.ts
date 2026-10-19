@@ -546,7 +546,9 @@ export class MediatorCarrierAdapter {
     this.#inboxDigests.clear()
     const id = 'c' + this.#nextColId++
     this.#outstanding.set(id, new Map(items.map((i) => [i.queueId, i])))
-    return { id, items: items.map((i) => ({ ...i })) }
+    // the caller gets its own copies: the outstanding entries stay intact,
+    // whatever it does with the bytes, for a conclusion that keeps them
+    return { id, items: items.map((i) => ({ ...i, bytes: i.bytes.slice() })) }
   }
 
   /** Concludes a collection (profile §4, Delivery 5a.8): its items'
