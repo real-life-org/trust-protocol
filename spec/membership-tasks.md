@@ -54,7 +54,8 @@ with the signatures and field bindings of 3.5, and refuses an
 invitation for which it holds no prelude binding. It departs from 3.5
 and 3.1 where it compares genesis digests as strings, keeps a binding
 from another contact entry rather than another relationship until
-the bound tuple is gone, admits on an accept without the time bound
+the bound tuple is gone, deletes an answered prelude's binding after
+an invitation's lifetime even while its relationship lasts, admits on an accept without the time bound
 of RLTP-MT-3282, and keeps the record of a surfaced invitation only
 until the invitation expires; it does not implement the rate, the
 block or the register of declined invitations; and it
@@ -2082,7 +2083,10 @@ therefore, while another member's prelude keeps the key, send
 invitations that only their own signature and the one-surfacing rule
 bound. A binding lives as long as its relationship (RLTP-MT-3945), so
 the member cannot rebind elsewhere while the bound relationship lasts;
-once it has ended, the member may bind on another relationship. Each surfaces at most once and is signed by its inviter's
+once it has ended, the member may bind on another relationship. The
+price is storage: a binding per group, inviter and relationship for
+the life of that relationship, which a contact grows by asking for new
+groups. Each surfaces at most once and is signed by its inviter's
 member anchor, so it is attributable; this is the residue of a
 binding with a lifetime.
 
