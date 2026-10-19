@@ -12,7 +12,7 @@
 - **Target Trust Tasks framework version:** 0.4
 - **Conformance profile:** `rltp-delivery@0.82` (draft)
 - **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
-  Layer 0.31; RLTP Access 0.57; RLTP Membership Tasks 0.19; RLTP
+  Layer 0.31; RLTP Access 0.57; RLTP Membership Tasks 0.20; RLTP
   Replication 0.26; RLTP Message Tasks 0.1.
 - **Supersedes:** version 0.81 (archived as
   `archive/delivery-contract-0.81.md`) and versions 0.80–0.1,
@@ -502,8 +502,9 @@ schema, proof declaration, and consistency rules:
 
 - `membership-invite/0.2` · `membership-accept/0.2` ·
   `access-operation/0.1` · `membership-evidence/0.2`, with
-  `membership-evidence/0.1` still accepted — Membership Tasks §3
-  (its RLTP-MT-3815);
+  `membership-evidence/0.1` still accepted (its RLTP-MT-3815) ·
+  `membership-prelude-request/0.1` · `membership-prelude-reply/0.1`
+  (its 3.5) — Membership Tasks §3;
 - `key-delivery/0.1` · `removal-notice/0.1` — Access §10;
 - `introduction-request/0.1` · `introduction-forward/0.1` ·
   `introduction-reply/0.1` · `introduction-ack/0.1` ·
@@ -3002,7 +3003,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   **Identity 0.54** (§6.1 the context labels, §7a the control
   principal); the Encounter pin is `rltp-encounter@0.31` (wire
   0.25); companion registrations per 4.4 (Trust Layer 0.31,
-  Access 0.57, Membership Tasks 0.19, Replication 0.26, Message
+  Access 0.57, Membership Tasks 0.20, Replication 0.26, Message
   Tasks 0.1).
 - **Classes:** *sender* (sealing, status trias including
   `failed(task-expired)`, ack-wait switch trigger; principal-free
@@ -3494,7 +3495,7 @@ key material, §5.3 the recovery context, §6.1 the context labels,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Trust
 Layer 0.31 (§2.1, §5.2b, §6a, §6b, §8) · RLTP Access Layer 0.57,
 wire 0.25 · RLTP Replication Contract 0.26 (§7/I14, the
-direct-effect seam of 4.4) · RLTP Membership Tasks 0.19 (§3,
+direct-effect seam of 4.4) · RLTP Membership Tasks 0.20 (§3, §3.5,
 RLTP-MT-2180, RLTP-MT-3090, RLTP-MT-3815) · RLTP Message Tasks 0.1
 (§3, §4, §6; the block, the rate, the lock keys and the age bound
 of 6.2 and 7) · Sync

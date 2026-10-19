@@ -1984,17 +1984,17 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the cases review 3 added are all present')
 }
 
-// ── suite: membership-tasks.json — Membership Tasks 0.19 from a real genesis ──
+// ── suite: membership-tasks.json — Membership Tasks 0.20 from a real genesis ──
 // Every check that proves a Membership rule names it (checkR, `rules` of
 // the vector cases); `--coverage membership` prints the proven set.
-section('membership-tasks.json — Membership Tasks 0.19: genesis → invite → accept → welcome → member.add, evidence, re-welcome')
+section('membership-tasks.json — Membership Tasks 0.20: prelude, genesis → invite → accept → welcome → member.add, evidence, re-welcome')
 {
   const M = J('vectors/membership-tasks.json')
   const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
   const P = 'https://real-life.org/trust-tasks/'
   const VF = 'failed(validation-failed)'
   const MEMBERSHIP_SKEW = 300 // PT5M (RLTP-MT-5020)
-  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.19.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
+  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.20.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
   const ptr = (p) => p.split('/').slice(1).map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'))
   const mutate = (base, m) => {
     const doc = JSON.parse(JSON.stringify(base))
@@ -2029,10 +2029,10 @@ section('membership-tasks.json — Membership Tasks 0.19: genesis → invite →
   const receive = (fails, store, key, value) => { const d = dispose(fails); if (d.disposition === 'accepted') store.put(key, value); return d }
 
   // every rule a vector case names is an identifier of this document (RLTP-MT-10090)
-  const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'vouchPositives', 'inviteeNegatives', 'inviteePositives', 'inviteReceiptCases', 'sealCases', 'senderSealCases', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives']
+  const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'vouchPositives', 'inviteeNegatives', 'inviteePositives', 'inviteReceiptCases', 'sealCases', 'senderSealCases', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives', 'preludeRequestCases']
   const allCases = caseLists.flatMap((l) => M[l])
   const named = (c) => [...(c.rules ?? []), ...Object.keys(c.rulesPartial ?? {})]
-  check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.19.txt`)
+  check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.20.txt`)
   check(allCases.every((c) => c.rules.every((r) => !PARTIAL[r]) && Object.keys(c.rulesPartial ?? {}).every((r) => PARTIAL[r] === c.rulesPartial[r])), 'no case names a partially checked rule in `rules`; every rulesPartial entry states the obligation left unchecked')
 
   // ── the genesis: a real one, its digest the group identity ──────────────
@@ -2322,8 +2322,47 @@ section('membership-tasks.json — Membership Tasks 0.19: genesis → invite →
     checkR(['RLTP-MT-3465'], d.disposition === VF && !d.ack && store.writes.length === 0, `${c.name}: failed(validation-failed), nothing adopted, no state written`)
   }
 
+  // ── the prelude (Membership 3.5): request and reply on one tuple and thread ──
+  const preReq = M.prelude.request, preRep = M.prelude.reply
+  const inviterPairSeed = hkdf(IKM2, M.inputs.inviterPair), inviteePairSeed = hkdf(IKM, M.inputs.inviteePair)
+  check(didOf(inviterPairSeed) === M.parties.inviterPair && didOf(inviteePairSeed) === M.parties.inviteePair && preReq.issuer === M.parties.inviterPair && preReq.recipient === M.parties.inviteePair, 'the prelude pair anchors recompute from their vector-only info strings; the request goes from the inviter\'s to the invitee\'s')
+  // the receiver's check set of a request (RLTP-MT-3910); that issuer and
+  // recipient are the pair anchors of the arrival tuple needs tuple state
+  // and is not vectored
+  const preludeRequestChecks = (d) => {
+    const pl = d.payload, b = pl?.binding
+    return {
+      schema: valid(d, 'rltp-delivery-document.schema.json') && d.type === P + 'membership-prelude-request/0.1' && valid(pl, 'payload-membership-prelude-request.schema.json'),
+      documentProof: diVerify(d, d.issuer).ok,
+      bindingProof: diVerify(b, b.inviter).ok && !('@context' in b.proof),
+      bindingFields: b.type === 'membership-inviter@1' && b.inviter === pl.inviter && sameDigest(b.genesisDigest, pl.genesisDigest) && b.threadId === d.threadId && b.from === d.issuer && b.to === d.recipient,
+    }
+  }
+  const baseReq = failing(preludeRequestChecks(preReq))
+  checkR(['RLTP-MT-3900'], baseReq.length === 0 && preReq.proof.verificationMethod.split('#')[0] === preReq.issuer, `prelude request: a Delivery document under its registered type, its document proof verifying under its issuer, the inviter's pair anchor${baseReq.length ? ' — fails ' + baseReq : ''}`)
+  checkR(['RLTP-MT-3905'], baseReq.length === 0 && preReq.payload.inviter === G.body.members[0] && preReq.payload.genesisDigest === M.genesisDigest && preReq.payload.group === G.group, 'prelude request payload valid; its binding membership-inviter@1 names inviter, genesisDigest, threadId, from and to as the payload and the document do, signed eddsa-jcs-2022 under the inviter\'s member anchor without an @context copy')
+  for (const c of M.preludeRequestCases) {
+    const f = failing(preludeRequestChecks(c.artifact))
+    const store = spyStore()
+    const d = receive(f, store, c.artifact.threadId, c.artifact)
+    checkR(named(c), sameSet(f, c.fails) && d.disposition === c.expected && (c.fails.length ? !d.ack && store.writes.length === 0 : store.writes.length === 1), `${c.name}: prelude request checks fail exactly [${c.fails}] → ${c.expected}${sameSet(f, c.fails) ? '' : ' — got [' + f + ']'}`)
+  }
+  // the reply: on the request's thread, back over the same pair anchors,
+  // carrying the request's genesisDigest and the invitee's displayed card
+  // at the member anchor the invitee derives from it (RLTP-MT-3960)
+  const card = preRep.payload?.card
+  const replyChecks = {
+    schema: valid(preRep, 'rltp-delivery-document.schema.json') && preRep.type === P + 'membership-prelude-reply/0.1' && valid(preRep.payload, 'payload-membership-prelude-reply.schema.json'),
+    documentProof: diVerify(preRep, preRep.issuer).ok && preRep.issuer === preReq.recipient && preRep.recipient === preReq.issuer,
+    thread: preRep.threadId === preReq.threadId,
+    genesis: sameDigest(preRep.payload.genesisDigest, preReq.payload.genesisDigest),
+    card: diVerify(card, card.anchor).ok && card.anchor === didOf(inviteeSeed) && card.keyAgreement === mkOf(inviteeX) && x25519OK(card.keyAgreement) && !('sentTo' in card) && !('boundTo' in card) && !('deliveryHints' in card),
+  }
+  const baseRep = failing(replyChecks)
+  checkR(['RLTP-MT-3960'], baseRep.length === 0, `prelude reply: Delivery document under its registered type, document proof under its issuer (the invitee's pair anchor), the request's thread and genesisDigest, a displayed card verifying under card.anchor = the member anchor the invitee derives from the genesis digest${baseRep.length ? ' — fails ' + baseRep : ''}`)
+
   // ── schema negatives: fail AT the declared point; the unmutated artifact passes ──
-  const ART = { payload: M.payload, welcome: W, evidence01: M.evidence01, evidence02: M.evidence02, invitePayload: invDoc.payload, acceptPayload: accDoc.payload }
+  const ART = { payload: M.payload, welcome: W, evidence01: M.evidence01, evidence02: M.evidence02, invitePayload: invDoc.payload, acceptPayload: accDoc.payload, preludeRequestPayload: preReq.payload, preludeReplyPayload: preRep.payload }
   for (const n of M.negatives) {
     const base = ART[n.artifact]
     if (!base) { err(`${n.name}: unknown artifact ${n.artifact}`); continue }

@@ -3,19 +3,20 @@
 **Real Life Trust Protocol — task types: Membership**
 
 - **Status:** Editor's Draft
-- **Version:** 0.19.0-draft
+- **Version:** 0.20.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-14
+- **Date:** 2026-10-19
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/`
 - **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-membership@0.19` (draft). Registered
+- **Conformance profile:** `rltp-membership@0.20` (draft). Registered
   task types: `membership-invite/0.2`, `membership-accept/0.2`,
   `access-operation/0.1`, `membership-evidence/0.2`
-  (`membership-evidence/0.1` accepted). Welcome plaintext
-  `rltp-welcome/0.1`.
+  (`membership-evidence/0.1` accepted),
+  `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`.
+  Welcome plaintext `rltp-welcome/0.1`.
 - **Position:** a task-type registration on top of the **RLTP
-  Delivery Contract 0.81** (normative reference; its §4.4 registry
+  Delivery Contract 0.82** (normative reference; its §4.4 registry
   carries these types), carrying operations of the **RLTP Access
   Layer 0.57** (normative reference; wire forms `rltp-access/0.25`
   and `rltp-access-material/0.25`): the operation envelope of its
@@ -28,24 +29,39 @@
   checked on receipt, and what a receiver does with them.
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3); RLTP
   Encounter 0.31; RLTP Access Layer 0.57; RLTP Delivery Contract
-  0.81.
-- **Supersedes:** version 0.18 (archived as
-  `archive/membership-tasks-0.18.md`). Earlier versions: Appendix A.
+  0.82; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
+  6.4); RLTP Message Tasks 0.1 (the block and the register of
+  declined invitations, its Section 6).
+- **Supersedes:** version 0.19 (archived as
+  `archive/membership-tasks-0.19.md`). Earlier versions: Appendix A.
 
 ## Status of This Document
 
 This is an Editor's Draft with no standing beyond its own argument.
-The reference library implements its forms and, on its holder, the
-flow from founding through prelude, invite, accept and admission to
-the vouch; it sends the welcome in a form of its own instead of the
-Access envelope (3.3), and a holder's roster is what it admitted and
-what its welcome carried, not a replicated one. The bootstrap
-lifecycle it references is the Access layer's and is exercised there. The next expected changes are the carrier
-for a bootstrap under the experimental adapter `beekem/0.1` (MO-7)
-and the move to Trust Tasks framework 0.7.0 together with the Access
-layer and the Delivery Contract; each is a new version. Open
-questions are listed in Section 9, and feedback is welcome via the
-issues of the publication repository
+This version makes the prelude a protocol exchange with two
+registered types and an inviter binding (3.5), and takes up the
+companion changes Message Tasks 0.1 asks of the invitation: its
+attribution to a relationship, a rate per relationship, the silent
+decline under a block with the holder's register of declined
+invitations, and one surfacing per invitation (3.1).
+
+The reference library implements the forms of this document and, on
+its holder, the flow from founding through prelude, invite, accept
+and admission to the vouch. It carries the prelude in experimental
+forms of its own (`x-membership-prelude-request/0.1`,
+`x-membership-prelude-reply/0.1`, binding `x-membership-inviter@0.1`)
+with the fields and checks of 3.5, and refuses an invitation for
+which it holds no prelude binding; it does not implement the rate,
+the block or the register of declined invitations of 3.1; and it
+sends the welcome in a form of its own instead of the Access envelope
+(3.3), a holder's roster being what it admitted and what its welcome
+carried, not a replicated one. The bootstrap lifecycle it references
+is the Access layer's and is exercised there. The next expected
+changes are the carrier for a bootstrap under the experimental
+adapter `beekem/0.1` (MO-7) and the move to Trust Tasks framework
+0.7.0 together with the Access layer and the Delivery Contract; each
+is a new version. Open questions are listed in Section 9, and
+feedback is welcome via the issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 
 
@@ -57,7 +73,7 @@ explicit **acceptance**, the carrier that delivers the **admitting
 operation and its welcome** to a new member across the replica
 boundary, and the **evidence relay** that lets any authorized member
 complete an admission. It carries operations of the RLTP Access Layer 0.57 (envelope `rltp-access/0.25`, key material
-`rltp-access-material/0.25`) over the Delivery Contract 0.81.
+`rltp-access-material/0.25`) over the Delivery Contract 0.82.
 
 The dividing line is the replica boundary: inside a group, the
 authority log replicates as shared state, and **exactly one
@@ -102,13 +118,16 @@ own.
 
 ### 1.2 The flow at a glance
 
-0. The **prelude** (application-level, over the existing
-   relationship channel): the inviter asks, the invitee's app
-   derives the invitee's **member anchor** for the offered group
+0. The **prelude** (3.5, over a relationship the two already hold):
+   the inviter asks, proving in a signed binding that it asks as a
+   member of the offered group; the invitee's app keeps that
+   binding, derives the invitee's **member anchor** for the group
    from the genesis digest (Access 5.1, Identity §6's
-   `group/<digest>` context) and answers with it. The inviter
-   cannot derive another person's context anchor, so the formal
-   invite can name it only after this exchange.
+   `group/<digest>` context) and answers with a card at it. The
+   inviter cannot derive another person's context anchor, so the
+   formal invite can name it only after this exchange, and the
+   binding tells the invitee which relationship the invite that
+   follows comes from.
 1. A member sends an **invite**: no key material, but the inviter's
    contact card at the inviter's own member anchor (so the answer
    has a key to travel under) and the group's genesis digest (so
@@ -281,10 +300,17 @@ them; this document does not redefine them.
 - **Credential digest** — the multibase multihash over the JCS
   serialization of an invite's complete `payload.invite`, its proof
   included (RLTP-MT-2180).
-- **Prelude** — the application-level exchange, over an existing
-  relationship channel, in which the invitee's application tells
-  the inviter the invitee's member anchor for the offered group
-  (1.2).
+- **Prelude** — the exchange of 3.5, on the active head of a
+  relationship the two parties hold, in which the inviter asks and
+  the invitee's application answers with the invitee's member anchor
+  for the offered group.
+- **Prelude binding** — the invitee's record, under the key
+  (genesis digest, inviter member anchor), of the tuple a verified
+  prelude request arrived on (3.5); it attributes the invitations of
+  that inviter for that group to the relationship of the tuple.
+- **Register of declined invitations** — the holder-wide set of
+  credential digests of invitations declined under a block (Message
+  Tasks 6.4).
 - **Candidacy** — a consented, pre-admission display of a consent
   pair in the group space (3.4).
 - **Welcome** — the sealed `rltp-welcome/0.1` document carrying the
@@ -294,7 +320,7 @@ them; this document does not redefine them.
 
 This document consumes the securing profile of the Encounter layer
 (Encounter 0.31, 2.3), which restates the surface of Identity 0.51 it
-consumes, and the document profile of the Delivery Contract 0.81.
+consumes, and the document profile of the Delivery Contract 0.82.
 
 **RLTP-MT-2110** — The securing profile of Encounter 2.3 MUST apply
 to every artifact of this document.
@@ -427,10 +453,10 @@ reader can link to the party's other relationships.
 
 ## 3. Registered Task Types
 
-This section registers four task types in the Delivery Contract's
+This section registers six task types in the Delivery Contract's
 registry: the invitation, the acceptance, the carrier that brings an
-admitting operation and its welcome to its subject, and the evidence
-relay. Each subsection states the payload, the document fields, the
+admitting operation and its welcome to its subject, the evidence
+relay, and the request and reply of the prelude. Each subsection states the payload, the document fields, the
 receiver's checks, the declarations, and the defined effect of its
 type.
 
@@ -471,7 +497,7 @@ anchor (Access 5.1; RLTP-ACC-5080 for an anchor the materialized
 membership already carries) and MUST equal the document `issuer`.
 
 **RLTP-MT-3025** — `invite.credentialSubject.id` MUST be the
-invitee's member anchor, obtained in the prelude (1.2), and MUST
+invitee's member anchor, obtained in the prelude (3.5), and MUST
 equal the document `recipient`.
 
 *Rationale.* The invitee's anchor is signed into the credential so
@@ -526,7 +552,8 @@ retention (RLTP-MT-3090).
 
 *Rationale.* `validUntil` is an honest-clock bound, not a freshness
 proof; a backdated accept inside the window passes. The effective
-gate on stale consent is the human admission decision (3.3), and
+gate on stale consent is the admission decision (3.3), which for the
+inviter is the invitation itself (RLTP-MT-3282), and
 WD01's single-use guidance is met more strongly by accept
 consumption (RLTP-ACC-5480): one accept enters the group once.
 
@@ -549,7 +576,8 @@ opening the membership thread, and MUST equal `invite.taskContext`.
 `proof` (RLTP-MT-2150).
 
 **RLTP-MT-3085** — The declarations (TT §7.3) MUST be: side effects
-durable buffering and surfacing to the human only; exposure
+durable buffering and surfacing to the human only, discarded where
+the inviter's relationship is blocked (Message Tasks 6.3); exposure
 recipient-only while travelling, and visible to the group once a
 consented candidacy (3.4) surfaces it or an admission encloses it
 in the log (3.3).
@@ -572,13 +600,75 @@ An inviter who discards the key earlier makes every late answer
 unreadable, and the invitee's consent is silently lost.
 
 **RLTP-MT-3095** — The defined effect MUST be durable buffering plus
-surfacing for the recipient's decision, and the acknowledgement MUST
-say arrival only, never the recipient's inclination.
+the surfacing decision of RLTP-MT-3110, and the acknowledgement MUST
+say arrival only, never the recipient's inclination and never a
+block.
 
 *Rationale.* Accepting or ignoring is a human act. An acknowledgement
 that hinted at a decision would leak it to the inviter before the
 invitee made it, and a decision derived from receipt would be no
 consent at all.
+
+**Attribution, rate, block, and one surfacing.**
+
+**RLTP-MT-3100** — A receiver MUST attribute an invitation to the
+relationship of the prelude binding (3.5) held for its genesis digest
+and its `issuer`, as that binding stands at the invitation's
+evaluation, and to no relationship where it holds no such binding
+(Message Tasks RLTP-MSG-6110).
+
+**RLTP-MT-3105** — A receiver MUST dispose `failed(rate-limited)`
+(Delivery RLTP-DEL-6270) an invitation attributed to a relationship
+on which it has, in the preceding 24 hours, already accepted 20
+invitations with a credential digest it held in no record before,
+counting before any block is applied (Message Tasks RLTP-MSG-4115,
+RLTP-MSG-4130).
+
+**RLTP-MT-3110** — Inside its stage-9 critical section, whose lock
+set holds the key of the invitation's credential digest (Delivery
+RLTP-DEL-6220), a receiver MUST in one transaction check the register
+of declined invitations and the open prompts for that credential
+digest, and commit exactly one of three outcomes: **decline**, the
+digest written to the register and an open prompt of that digest
+closed as declined; **surface**, a prompt opened; or **no new
+effect** (Message Tasks RLTP-MSG-6330).
+
+**RLTP-MT-3115** — The outcome MUST be decline for an invitation
+attributed to a relationship its receiver has blocked, the silent
+decline of RLTP-MT-7020 (Message Tasks RLTP-MSG-6210,
+RLTP-MSG-6310).
+
+**RLTP-MT-3120** — For an invitation not attributed to a blocked
+relationship, the outcome MUST be no new effect where the register
+holds its credential digest, whatever relationship or prelude binding
+it arrives under (Message Tasks RLTP-MSG-6320).
+
+**RLTP-MT-3125** — For any other invitation, the outcome MUST be no
+new effect where a prompt for its credential digest is open or the
+receiver still holds a human answer to it, and surface otherwise.
+
+**RLTP-MT-3130** — A receiver MUST hold its record of the human
+answer to an invitation at least until `invite.validUntil` plus
+`membership-skew`.
+
+*Rationale.* A block acts on the relationship an invitation comes
+from, so the invitation needs one: the prelude binding is the one
+statement, signed by the inviter as a member of the group, that ties
+an inviter to a relationship of the invitee. Its absence attributes
+the invitation to nobody, which no block can reach, while the
+register still can. A rate per relationship keeps one contact from
+filling the register, which lives as long as the holder; counted
+before the block, it behaves alike for a blocked and an unblocked
+relationship, and a document beyond it waits at its carrier rather
+than being decided (Delivery 6.2). The credential digest is the
+invitation's identity (RLTP-MT-2180), so two envelopes of one
+invitation, under two relationships or under none, meet under its key
+and decide once: a later decline under a block closes the prompt an
+earlier surfacing opened, and a declined digest never surfaces again.
+Holding the human answer until the invitation can no longer be
+answered keeps a redelivered or re-wrapped invitation from asking the
+person a second time; after that, the accept window has closed
+(RLTP-MT-5050) and a prompt would offer nothing.
 
 
 ### 3.2 `membership-accept/0.2`
@@ -695,6 +785,12 @@ invitations that never existed.
 **RLTP-MT-3280** — The defined effect MUST be durable recording of
 the consent as input to the group's admission policy (Access 4),
 and the accept itself MUST grant nothing.
+
+**RLTP-MT-3282** — An inviter MAY issue the admission for an accept
+that answers its own invitation without a further human act, its
+invitation standing as its deliberate act of admission (RLTP-MT-3800),
+where the group's policy admits on the inviter's signature with the
+vouches it holds.
 
 **RLTP-MT-3285** — An accept MUST be consent to one membership: the
 subject is a member once, however many canonical admissions enclose
@@ -1268,7 +1364,10 @@ the group's policy.
 
 *Rationale.* Keying by the accept collapses every relay of one
 consent onto one decision, so a pair forwarded by several members
-does not prompt the admitting member several times. Arrival is
+does not prompt the admitting member several times. An inviter
+decided when it invited, so its invitation can be its act of
+admission (RLTP-MT-3282); a member who only receives the evidence
+decided nothing yet, and evidence never stands as its act. Arrival is
 acknowledged even when it changes nothing, because withholding the
 acknowledgement would make the relayer retry. Evidence that consumed
 the accept would let a relayer burn a person's consent without
@@ -1285,6 +1384,143 @@ sender MUST issue `membership-evidence/0.2`.
 array, so a `/0.1` document is a `/0.2` document without vouches;
 refusing it would strand pairs relayed by implementations that have
 not yet moved, for no gain.
+
+
+### 3.5 The prelude: `membership-prelude-request/0.1` and `membership-prelude-reply/0.1`
+
+*In plain terms.* Before an invitation can name the invitee, the
+inviter has to learn the invitee's member anchor for the group, which
+only the invitee's own app can derive. The inviter asks over a
+relationship the two already hold and proves, with a signature under
+its member anchor, that it asks as that member and on that very
+relationship. The invitee's app answers with a card at its member
+anchor and remembers which relationship asked as which inviter, so
+that the invitation that follows is attributed to that relationship,
+and a block of it reaches the invitation.
+
+**The request.**
+
+**RLTP-MT-3900** — An inviter MUST send a
+`membership-prelude-request/0.1` document on the active head of a
+current relationship with the invitee (Trust Layer 6.4), its `issuer`
+the inviter's pair anchor of that tuple, its `recipient` the
+invitee's, and its document proof under its `issuer`.
+
+**RLTP-MT-3905** — The payload MUST validate against
+`schemas/payload-membership-prelude-request.schema.json`, and its
+`binding` (`membership-inviter@1`) MUST carry `inviter` and
+`genesisDigest` equal to the payload's, `threadId` equal to the
+document's, `from` and `to` equal to the document's `issuer` and
+`recipient`, and a DataIntegrityProof `eddsa-jcs-2022` under the
+binding's `inviter`; the genesis digests compare by their decoded bytes.
+
+**RLTP-MT-3910** — A receiver MUST dispose `failed(validation-failed)`
+a request whose document proof does not verify under its `issuer`,
+whose `issuer` and `recipient` are not the counterpart's and its own
+pair anchor of the arrival tuple, whose binding proof does not verify
+under `inviter`, or whose binding fields differ from those RLTP-MT-3905
+names.
+
+**RLTP-MT-3915** — The request document's `threadId` MUST be fresh,
+opening the prelude thread.
+
+**RLTP-MT-3920** — The declarations (TT §7.3) of the request MUST be:
+side effects mutating; exposure recipient-only.
+
+*Rationale.* The request travels where the two people already have
+a relationship, so the invitee knows who asks. The binding says, under
+the inviter's member key, that this member asks on this channel in
+this thread: a request replayed on another relationship, or wrapped
+by another contact around a binding it observed, fails the `from` and
+`to` equality, and nobody but the member can sign a binding for its
+anchor. The document proof under the pair anchor ties the request to
+the tuple it travels on, as every signed document is tied to its
+issuer (RLTP-MT-2130).
+
+**The binding.**
+
+**RLTP-MT-3925** — On a request that passes RLTP-MT-3910, the receiver
+MUST keep a prelude binding under the key `(genesisDigest, inviter)`,
+holding the arrival tuple.
+
+**RLTP-MT-3930** — A later request under the same key that arrives on
+a tuple of the contact entry the bound tuple feeds MUST replace the
+bound tuple with its own.
+
+**RLTP-MT-3935** — A later request under the same key that arrives on
+a tuple of another contact entry MUST be disposed
+`failed(validation-failed)` while the bound tuple is the active head
+of a current relationship, and MUST replace the binding otherwise.
+
+**RLTP-MT-3940** — A binding MUST be kept with its tuple (Trust Layer
+RLTP-TRU-6180) and MUST attribute an invitation to the relationship
+that tuple belongs to when the invitation is evaluated, so that a
+merge, a split and a chaining move the attribution with the tuple.
+
+**RLTP-MT-3945** — A receiver MUST keep a binding while an invitation
+attributed to it is open or accepted, and at least until
+`invite-validity` plus `membership-skew` plus the longest adapter
+give-up horizon after the request that set it, and MAY delete it once
+both have passed.
+
+**RLTP-MT-3950** — The stage-9 lock set of a prelude request, and of
+every `membership-invite` document, MUST include the holder-wide key
+of `(genesisDigest, inviter)` (for an invitation: its credential's
+`genesisDigest` and `issuer`), acquired with the rest of the set as
+one acquisition (Delivery 6.2).
+
+**RLTP-MT-3955** — An invitation evaluation that finds, inside its
+critical section, its prelude binding attributing it to a relationship
+whose key its lock set does not hold MUST release the set and
+re-enter at Delivery stage 4.
+
+*Rationale.* The key names the member who asks and the group it asks
+for, and nothing else; one contact may hold several relationships,
+and one relationship may be split from an entry, so the binding stays
+with the tuple it came on, as every per-tuple state does, and
+attribution follows the tuple wherever the chain takes it. A second
+contact entry cannot take a binding over while the first relationship
+lives: the same member asking through two entries of one person would
+otherwise flip the attribution of its invitations back and forth and
+let one relationship's block be escaped through the other. Once the
+bound tuple is no longer an active head, the key is free, so a person
+whose old relationship ended can be asked again. The lock key makes
+the binding a state that one evaluation reads and no request changes
+under it, and an evaluation that read the binding before its locks
+and finds it moved starts again, as every waiter does. The retention
+covers the invitation that follows the request: it is answered within
+the invitation's window and may travel as long as the adapters allow.
+
+**The reply.**
+
+**RLTP-MT-3960** — A receiver of a request that passed RLTP-MT-3910
+MUST answer it with a `membership-prelude-reply/0.1` document on the
+arrival tuple and the request's thread, its document proof under its
+`issuer`, its payload valid against
+`schemas/payload-membership-prelude-reply.schema.json` and carrying
+the request's `genesisDigest` and the receiver's displayed contact card
+at its member anchor of that group (2.6).
+
+**RLTP-MT-3965** — An inviter MUST dispose `failed(validation-failed)`
+a reply that does not answer, on its thread and its tuple, a request
+it sent and still holds.
+
+**RLTP-MT-3970** — The declarations (TT §7.3) of the reply MUST be:
+side effects mutating; exposure recipient-only.
+
+**RLTP-MT-3975** — An inviter that holds a block on the relationship
+a reply arrives on MUST close the waiting prelude and MUST NOT issue
+the invitation (Message Tasks 6.3, RLTP-MSG-6410).
+
+*Rationale.* The answer is the invitee's application speaking, not
+the person: a member anchor is scoped to one group and reveals no
+other relationship, and whether to join is decided later, on the
+invitation. Answering under a block as well keeps the block
+unobservable to the asking party (Message Tasks 6.3); the invitation
+that follows is then declined silently (RLTP-MT-3115). The card is
+trusted only through the invitee's own derivation and the accept's
+signature (RLTP-MT-8090). A reply on any other thread or tuple would
+let a contact plant an anchor in a prelude it was not asked in.
 
 
 ## 4. The Welcome Seal
@@ -1556,7 +1792,8 @@ the evidence may still never admit. A
 decline sends nothing,
 because a declined invitation is the invitee's business and an
 announcement of it would tell the inviter more than the invitee
-chose to say. A bootstrap that could end in `member` on a weaker
+chose to say; a silent decline under a block (RLTP-MT-3115) is a
+decline like any other. A bootstrap that could end in `member` on a weaker
 condition than 3.3 would leave an invitee believing it belongs to a
 group whose log says otherwise. Without the evidence wire form,
 "any authorized member can admit" would be true only for members the
@@ -1614,7 +1851,7 @@ surfaced lie attributable to its `issuer` (RLTP-ACC-10350,
 RLTP-ACC-10360), with no mechanical effect.
 
 
-## 8. Security Considerations
+## 8. Security and Privacy Considerations
 
 Each consideration below names the attack or failure it answers;
 where it states a requirement, the requirement is a numbered rule,
@@ -1774,10 +2011,79 @@ trusted only through the invitee's own derivation check
 (RLTP-MT-3220), never through the channel it travelled on.
 
 *Rationale.* The invitee's member anchor travels to the inviter over
-whatever relationship channel the two share. A forged prelude answer
-could only name an anchor whose accept the forger cannot sign, or
-one the invitee's own derivation rejects; either way no consent
-results.
+the relationship the prelude runs on. A forged prelude answer could
+only name an anchor whose accept the forger cannot sign, or one the
+invitee's own derivation rejects; either way no consent results.
+
+**The prelude binding cannot be moved.** A binding names the channel
+it was made for (`from`, `to`, `threadId`) under the inviter's member
+key (RLTP-MT-3905). A contact that observed or received one cannot
+present it on its own relationship, and cannot make one for an anchor
+whose key it does not hold, so a contact cannot attribute another
+member's invitations to itself, nor its own to a relationship the
+invitee has not blocked. The one party that can bind the same key on
+two relationships is the member itself, asking through two contact
+entries of one person; the first binding holds while its tuple is an
+active head (RLTP-MT-3935), so the member cannot flip attribution to
+escape a block.
+
+**An invitation without a binding reaches no block and no rate.** An
+invitation whose inviter holds no binding is attributed to no
+relationship (RLTP-MT-3100): a block does not decline it and no rate
+counts it, while the register and the one-surfacing rule still apply
+(RLTP-MT-3120, RLTP-MT-3125). It can arrive only on a member key the
+invitee still holds, which is the case while a prelude or an
+invitation of that group rests on it (Delivery Contract Section 5, keys
+of an identity context). A member whose own binding has lapsed can
+therefore, while another member's prelude keeps the key, send
+invitations that only their own signature and the one-surfacing rule
+bound. Each surfaces at most once and is signed by its inviter's
+member anchor, so it is attributable; this is the residue of a
+binding with a lifetime.
+
+**One surfacing per invitation.** Envelopes of one invitation meet
+under the key of its credential digest (RLTP-MT-3110): a flood of
+re-wrapped copies costs the receiver a cache entry and an
+acknowledgement each (Message Tasks Section 7) and asks the person
+once.
+
+**An inviter's invitation admits.** Where an inviter admits on the
+accept without a further act (RLTP-MT-3282), its decision was made
+when it invited and holds until `validUntil` plus `membership-skew`:
+an accept arriving late in that window, or a backdated one inside it,
+admits a person the inviter may no longer want. No withdrawal of an
+invitation exists in this version (MO-8); the inviter's means is a
+short `validUntil`.
+
+**Privacy.** The considerations below concern what the documents of
+this specification disclose beyond what Section 3 requires.
+
+- **Invitation provenance is visible to the group.** Who invited whom
+  is read from signed invites in the log (RLTP-MT-3085, RLTP-MT-8070);
+  an inviter has no anonymity toward the group.
+- **The prelude binding links two of the inviter's anchors.** The
+  binding is a transferable signature of the inviter's member anchor
+  over the pair anchors of the relationship it asked on. The invitee
+  can show a third party that the member of this group and its
+  contact on that relationship are one person. The invite names the
+  member anchor before consent anyway; the link to the pair channel
+  is what the binding adds, and it is the price of attributing an
+  invitation to a relationship.
+- **The prelude reveals a member anchor before consent.** The
+  invitee's application answers automatically (RLTP-MT-3960), so an
+  inviter learns the invitee's member anchor for the offered group
+  whether or not the invitee ever joins. The anchor is scoped to that
+  group and links to nothing else of the invitee (Access 5.1).
+- **A block stays silent.** A prelude request on a blocked
+  relationship is answered as on any other, and the invitation that
+  follows is declined without a word (RLTP-MT-3115, RLTP-MT-7020): the
+  inviter observes what an ignored invitation shows. The residues
+  Message Tasks Section 7 names apply.
+- **The register is local and content-free.** It holds credential
+  digests of invitations declined under a block, for the life of the
+  holder (Message Tasks 6.4). Whoever obtains the holder's state learns
+  which invitations were declined that way, and nothing about their
+  content beyond what the digest lets them confirm.
 
 
 ## 9. Open Issues
@@ -1794,7 +2100,14 @@ results.
 3. **MO-3 Leave and dissolve notices.** Whether `member.leave` and
    `group.dissolve` deserve compact notices to the parties they
    affect, as a removal has `removal-notice/0.1` (Access 10.2).
-4. **MO-7 Bootstrap under `beekem/0.1`.** Under `beekem/0.1` the
+4. **MO-8 Withdrawing an invitation.** An invitation stands as its
+   inviter's act of admission until it expires (RLTP-MT-3282); no
+   document withdraws it earlier, and an inviter whose wish changed
+   relies on a short `validUntil`.
+5. **MO-9 State of one device.** Prelude bindings, the register of
+   declined invitations and the block are state of one holder device
+   until holder state is shared across devices.
+6. **MO-7 Bootstrap under `beekem/0.1`.** Under `beekem/0.1` the
    recovery kind is `material` (RLTP-ACC-9897), and key operations
    and material for an admitted device travel as replication items
    (RLTP-ACC-9895), which an invitee without a replica cannot yet
@@ -1808,13 +2121,15 @@ results.
 
 ## 10. Conformance
 
-**RLTP-MT-10010** — The profile `rltp-membership@0.19` MUST be read
-against `rltp-delivery@0.81`, `rltp-access@0.57` with its wire forms
+**RLTP-MT-10010** — The profile `rltp-membership@0.20` MUST be read
+against `rltp-delivery@0.82`, `rltp-access@0.57` with its wire forms
 `0.25` (envelope 3.3, group identity 3.2, member identity and device
 bindings 5.1, admission, vouch and candidacy 5.3, views 7.3, service
 9.3, material 9.4, `key-delivery/0.1` 10.1, `removal-notice/0.1`
 10.2), `rltp-encounter@0.31` with card wire 0.25 (securing profile 2.3,
-contact card §6), and RLTP Identity 0.54.
+contact card §6), RLTP Identity 0.54, RLTP Trust Layer 0.31
+(relationships and tuples) and RLTP Message Tasks 0.1 (the block and
+the register of declined invitations).
 
 **RLTP-MT-10020** — This profile MUST pin the Access wire `0.25` in
 two places: in prose (RLTP-MT-10010, RLTP-MT-4040) and as a `const`
@@ -1867,7 +2182,11 @@ ship with offline closure: `schemas/payload-membership-invite.schema.json`
 `schemas/payload-membership-evidence-0.1.schema.json`
 (`membership-evidence/0.1`) ·
 `schemas/payload-access-operation.schema.json` ·
-`schemas/welcome.schema.json` — plus, by reference, the Access
+`schemas/welcome.schema.json` ·
+`schemas/payload-membership-prelude-request.schema.json`
+(`membership-prelude-request/0.1`) ·
+`schemas/payload-membership-prelude-reply.schema.json`
+(`membership-prelude-reply/0.1`) — plus, by reference, the Access
 transcriptions `schemas/access-operation-envelope.schema.json`,
 `schemas/access-material.schema.json` and
 `schemas/access-vouch.schema.json`, the Delivery schemas
@@ -1884,10 +2203,10 @@ interactive.
 
 **RLTP-MT-10090** — A vector and a conformance report MUST reference
 rules by their `RLTP-MT` identifiers, against the identifier list
-`conformance/membership-rule-ids-0.19.txt`.
+`conformance/membership-rule-ids-0.20.txt`.
 
 **RLTP-MT-10100** — The identifier list
-`conformance/membership-rule-ids-0.19.txt` MUST equal the union of
+`conformance/membership-rule-ids-0.20.txt` MUST equal the union of
 the three sets of 10.3, the validation script MUST check on every run
 that the sets are disjoint, that every fully proved rule is proved in
 full and every partially proved rule is named by a check, and a
@@ -1915,7 +2234,9 @@ mechanical in both directions.
   sealed under `rltp/v1/welcome` to the accept card); the admitting
   `member.add` and its `access-operation/0.1` task; the
   self-contained re-welcome (`key-delivery/0.1`); and the evidence
-  relay as `membership-evidence/0.1` and `/0.2`. Every case names the
+  relay as `membership-evidence/0.1` and `/0.2`; the prelude request
+  with its inviter binding and the reply, and the binding re-signed
+  for another channel, thread or inviter. Every case names the
   `RLTP-MT` rules it proves (`rules`): schema negatives as declared
   mutations failing at a named point, and re-signed receiver-check
   negatives failing exactly named checks. The genesis's
@@ -1926,7 +2247,8 @@ mechanical in both directions.
 - `conformance/membership-task-types.json` — the machine-readable
   transcription of this document's entries in the Delivery task
   registry, against which the declarations RLTP-MT-3085,
-  RLTP-MT-3375 and RLTP-MT-3760 are checked.
+  RLTP-MT-3375, RLTP-MT-3760, RLTP-MT-3920 and RLTP-MT-3970 are
+  checked.
 
 ### 10.1 Normative schemas
 
@@ -1940,7 +2262,7 @@ its transcription is a defect of the release.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/membership-invite/0.2",
-  "title": "Payload: membership-invite/0.2 (rltp-membership@0.19, target Trust Tasks framework 0.4)",
+  "title": "Payload: membership-invite/0.2 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
   "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The invitation is a conformant DTG InvitationCredential (DTGWG Core Credentials WD01): issuer = the inviting member's anchor (MUST equal the document issuer), credentialSubject.id = the invitee's member anchor (MUST equal the document recipient; accept.subject MUST equal it), group/genesisDigest/card are WD01-legal additional subject properties, validUntil bounds the invite's answerable life and the inviter's reply-key retention, taskContext = the membership thread (MUST equal the document threadId). The credential's DataIntegrityProof is the one authenticity carrier: the enclosing document carries no document-level proof (Membership Tasks RLTP-MT-2150, 3.1).",
   "type": "object",
   "required": [
@@ -2139,7 +2461,7 @@ its transcription is a defect of the release.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/membership-accept/0.2",
-  "title": "Payload: membership-accept/0.2 (rltp-membership@0.19, target Trust Tasks framework 0.4)",
+  "title": "Payload: membership-accept/0.2 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
   "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The consent artifact: subject MUST equal the document issuer and the referenced invite's credentialSubject.id; ref binds this accept to exactly one invitation by credential digest, the multibase multihash over the JCS of the invite's complete payload.invite including its proof (Membership Tasks RLTP-MT-2180, RLTP-MT-3230); card is the subject's contact card, whose key-agreement key the welcome is sealed to and from which the Access layer derives the subject's first device binding (RLTP-ACC-5125); card proof MUST verify and card.anchor MUST equal subject; the key is retained for as long as the subject is a member (RLTP-ACC-5550). candidacy is the subject's signed consent to or refusal of candidacy surfacing (Membership Tasks 3.4). The document MUST carry a proof verifying under the issuer. An accept is consent to one membership and is consumed content-bound, never freed (RLTP-MT-3285, RLTP-MT-3290; Access 5.3).",
   "type": "object",
   "required": [
@@ -2198,7 +2520,7 @@ its transcription is a defect of the release.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/membership-evidence/0.2",
-  "title": "Payload: membership-evidence/0.2 (rltp-membership@0.19, target Trust Tasks framework 0.4)",
+  "title": "Payload: membership-evidence/0.2 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
   "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The evidence relay: the complete invite and accept documents travel enclosed (their signed recipients are facts of the pair, not the task's recipient), so any authorized member can verify the consent chain and complete the admission; optional vouches (vouch@2, at most 16, Access RLTP-ACC-5360, RLTP-ACC-5390) travel alongside. The task document carries no proof; the enclosed documents and vouches carry their own. Normative rules in Membership Tasks 3.4. membership-evidence/0.1 is this payload without vouches and remains accepted (RLTP-MT-3815).",
   "type": "object",
   "required": [
@@ -2273,7 +2595,7 @@ its transcription is a defect of the release.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/membership-evidence/0.1",
-  "title": "Payload: membership-evidence/0.1 (rltp-membership@0.19, target Trust Tasks framework 0.4)",
+  "title": "Payload: membership-evidence/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
   "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). membership-evidence/0.1, accepted by every receiver (Membership Tasks RLTP-MT-3815): the payload of membership-evidence/0.2 without vouches. The complete invite and accept documents travel enclosed (their signed recipients are facts of the pair, not the task's recipient), so any authorized member can verify the consent chain and complete the admission. The task document carries no proof; the enclosed documents carry their own (one carrier). Normative rules in Membership Tasks 3.4.",
   "type": "object",
   "required": [
@@ -2339,7 +2661,7 @@ its transcription is a defect of the release.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/access-operation/0.1",
-  "title": "Payload: access-operation/0.1 (rltp-membership@0.19, target Trust Tasks framework 0.4)",
+  "title": "Payload: access-operation/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
   "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). Carries exactly one thing across the replica boundary: an admitting member.add with its welcome, delivered to its own subject (Membership Tasks 3.3). The enclosed operation is an Access envelope rltp-access/0.25 (Access 0.57; const below, RLTP-MT-10020); member.add is additive and carries no keyOpDigest. Replication owns the inside, a removed member's notice is Access's removal-notice/0.1 (its 10.2), transition key material travels via key-delivery/0.1 (its 10.1), and transition-carrying envelopes never leave the replica (RLTP-ACC-5350). The schema therefore requires op = member.add, the member.add body, and the welcome seal, and additionally rejects any operation body carrying a transition. The envelope carries its own signatures, so the task document carries no proof, and the document issuer MUST be the operation's author or one of its signers. The enclosed member.add proof is a transported variant capped at 64 signatures and 16 credentials (each credential at most 2048 bytes JCS, a prose rule; RLTP-ACC-5320), never a replica's merged proof. Validity, canonicality, consumption, and every merge question are Access 5.3's; this schema is transport shape only.",
   "type": "object",
   "required": [
@@ -2521,7 +2843,7 @@ its transcription is a defect of the release.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/rltp/v1/schemas/welcome.schema.json",
-  "title": "RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.19)",
+  "title": "RLTP Welcome (rltp-welcome/0.1, rltp-membership@0.20)",
   "description": "The plaintext of a welcome seal (Membership Tasks Section 4): binding fields (v, group, subject, accept) are owned by Membership Tasks and closed; the receiver verifies them against the admitting operation. material is owned by the Access layer: the rltp-access-material/0.25 object of Access 9.4, naming in keyState the key state its keys belong to (RLTP-ACC-9362), validated against access-material.schema.json; the welcome carries the material of the current key state only (RLTP-ACC-9290), never the keydist form, and history opens through the adapter's chain in the replicated log. The digest over JCS(this document) is committed in the admitting operation's body (admission.welcome), the welcome's one authenticity carrier. The welcome binds the accept digest, never the operation id: the id covers admission.welcome, so a back-pointer would be an unconstructible hash fixed point.",
   "type": "object",
   "required": [
@@ -2571,6 +2893,165 @@ its transcription is a defect of the release.
     "didKey": {
       "type": "string",
       "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$"
+    }
+  }
+}
+```
+
+#### `schemas/payload-membership-prelude-request.schema.json`
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://real-life.org/trust-tasks/membership-prelude-request/0.1",
+  "title": "Payload: membership-prelude-request/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
+  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The inviter's request for the invitee's member anchor of one group, travelling on the active head of a relationship between the two (Membership Tasks 3.5). genesisDigest names the offered group, group its DID, name its display name, inviter the inviter's member anchor. binding is the inviter binding membership-inviter@1, signed under the inviter's member anchor over the inviter, the genesis digest, and the request document's threadId, issuer (from) and recipient (to), so that the request cannot be replayed on another channel or for another inviter (RLTP-MT-3905, RLTP-MT-3910). The document carries a proof verifying under its issuer, the sender's pair anchor of the tuple (RLTP-MT-3900).",
+  "type": "object",
+  "required": [
+    "genesisDigest",
+    "group",
+    "name",
+    "inviter",
+    "binding"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "genesisDigest": {
+      "$ref": "#/$defs/multibaseMultihash"
+    },
+    "group": {
+      "$ref": "#/$defs/didKey"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "inviter": {
+      "$ref": "#/$defs/didKey"
+    },
+    "binding": {
+      "type": "object",
+      "required": [
+        "type",
+        "inviter",
+        "genesisDigest",
+        "threadId",
+        "from",
+        "to",
+        "proof"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "membership-inviter@1"
+        },
+        "inviter": {
+          "$ref": "#/$defs/didKey"
+        },
+        "genesisDigest": {
+          "$ref": "#/$defs/multibaseMultihash"
+        },
+        "threadId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "from": {
+          "$ref": "#/$defs/didKey"
+        },
+        "to": {
+          "$ref": "#/$defs/didKey"
+        },
+        "proof": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "cryptosuite",
+            "created",
+            "verificationMethod",
+            "proofPurpose",
+            "proofValue"
+          ],
+          "properties": {
+            "type": {
+              "const": "DataIntegrityProof"
+            },
+            "cryptosuite": {
+              "const": "eddsa-jcs-2022"
+            },
+            "created": {
+              "$ref": "#/$defs/rfc3339utc"
+            },
+            "verificationMethod": {
+              "type": "string",
+              "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}#z6Mk[1-9A-HJ-NP-Za-km-z]{44}$"
+            },
+            "proofPurpose": {
+              "const": "assertionMethod"
+            },
+            "proofValue": {
+              "type": "string",
+              "minLength": 65,
+              "maxLength": 89,
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "description": "multibase base58btc of an Ed25519 signature (exactly 64 bytes): 'z' plus 64 to 88 base58 characters — the Encounter 2.3 form, shared verbatim by all three RLTP credential schemas."
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "didKey": {
+      "type": "string",
+      "pattern": "^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$"
+    },
+    "multibaseMultihash": {
+      "type": "string",
+      "pattern": "^(u[A-Za-z0-9_-]{45}[AQgw]|z[1-9A-HJ-NP-Za-km-z]{44,48})$",
+      "description": "multibase(multihash sha2-256) per Encounter 2.3: emit u, accept u/z"
+    },
+    "rfc3339utc": {
+      "type": "string",
+      "maxLength": 24,
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,3})?Z$",
+      "description": "RFC3339 UTC 'Z', at most 3 fractional-second digits, 24 characters maximum — the Encounter 2.3 securing profile's timestamp language, shared verbatim by all three RLTP credential schemas: a syntactic gate, calendar validity is a parse-time check."
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    }
+  }
+}
+```
+
+#### `schemas/payload-membership-prelude-reply.schema.json`
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://real-life.org/trust-tasks/membership-prelude-reply/0.1",
+  "title": "Payload: membership-prelude-reply/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
+  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The invitee's answer to a membership-prelude-request/0.1 on the same tuple and thread (Membership Tasks 3.5): genesisDigest repeats the request's, card is the invitee's displayed contact card at its member anchor of that group (Membership Tasks 2.6), whose key-agreement key the invitation is sealed to. The document carries a proof verifying under its issuer, the invitee's pair anchor of the tuple (RLTP-MT-3960). The member anchor is trusted only through the invitee's own derivation check and the accept's signature (RLTP-MT-3030, RLTP-MT-8090).",
+  "type": "object",
+  "required": [
+    "genesisDigest",
+    "card"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "genesisDigest": {
+      "$ref": "#/$defs/multibaseMultihash"
+    },
+    "card": {
+      "$ref": "https://real-life.org/rltp/v1/schemas/contact-card.schema.json",
+      "description": "the invitee's contact card at its member anchor (displayed form, Membership Tasks 2.6)"
+    }
+  },
+  "$defs": {
+    "multibaseMultihash": {
+      "type": "string",
+      "pattern": "^(u[A-Za-z0-9_-]{45}[AQgw]|z[1-9A-HJ-NP-Za-km-z]{44,48})$",
+      "description": "multibase(multihash sha2-256) per Encounter 2.3: emit u, accept u/z"
     }
   }
 }
@@ -2697,6 +3178,13 @@ informative plan and it differ.
 - *History:* under `linear/0.1`, a lineage edge missing between two
   key states → the bootstrap succeeds, history is readable up to the
   edge, and the gap is surfaced per edge (RLTP-ACC-9780).
+- *Prelude:* the request with its inviter binding verifies under the
+  sender's pair anchor and under the inviter's member anchor; the
+  binding re-signed for another `to`, another `threadId`, or by a
+  key other than `inviter`'s, and a payload `inviter` differing from
+  the binding's → `failed(validation-failed)`; schema negatives (a
+  binding without proof, with an extra member, of another type) ·
+  the reply's form, document proof and member card.
 - *Profile closure:* the profile string in the header, in this
   section, and in every profile-bearing schema title of 10.1 are
   identical (Access-owned transcriptions carry the Access version) ·
@@ -2708,7 +3196,7 @@ informative plan and it differ.
 Every rule of this document is in exactly one of the
 state-dependent and interactive set and the vector-checked set; the
 vector-checked set splits into fully proved and partially proved
-rules. The counts are 93 fully proved, 16 partially proved and 83
+rules. The counts are 96 fully proved, 19 partially proved and 101
 state-dependent or interactive.
 
 **State-dependent and interactive set** (RLTP-MT-10080), by reason:
@@ -2716,10 +3204,10 @@ state-dependent or interactive.
 - *State and clock scenarios* — the rule's verdict needs a
   materialized log, a replica, a pending store, a provisional window,
   device bindings, or elapsed time, and is exercised as a scenario
-  with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080.
+  with controlled state and clock: RLTP-MT-2030 · RLTP-MT-2040 · RLTP-MT-2190 · RLTP-MT-2230 · RLTP-MT-2310 · RLTP-MT-3090 · RLTP-MT-3210 · RLTP-MT-3280 · RLTP-MT-3285 · RLTP-MT-3290 · RLTP-MT-3305 · RLTP-MT-3360 · RLTP-MT-3385 · RLTP-MT-3390 · RLTP-MT-3395 · RLTP-MT-3455 · RLTP-MT-3460 · RLTP-MT-3470 · RLTP-MT-3475 · RLTP-MT-3480 · RLTP-MT-3485 · RLTP-MT-3490 · RLTP-MT-3495 · RLTP-MT-3500 · RLTP-MT-3505 · RLTP-MT-3510 · RLTP-MT-3525 · RLTP-MT-3530 · RLTP-MT-3535 · RLTP-MT-3540 · RLTP-MT-3545 · RLTP-MT-3550 · RLTP-MT-3555 · RLTP-MT-3560 · RLTP-MT-3565 · RLTP-MT-3570 · RLTP-MT-3745 · RLTP-MT-3750 · RLTP-MT-3755 · RLTP-MT-3770 · RLTP-MT-3795 · RLTP-MT-3800 · RLTP-MT-4010 · RLTP-MT-4050 · RLTP-MT-4120 · RLTP-MT-4140 · RLTP-MT-5030 · RLTP-MT-5040 · RLTP-MT-6030 · RLTP-MT-6040 · RLTP-MT-6050 · RLTP-MT-7030 · RLTP-MT-7060 · RLTP-MT-8010 · RLTP-MT-8020 · RLTP-MT-8030 · RLTP-MT-8040 · RLTP-MT-8050 · RLTP-MT-8060 · RLTP-MT-8080 · RLTP-MT-3100 · RLTP-MT-3105 · RLTP-MT-3110 · RLTP-MT-3115 · RLTP-MT-3120 · RLTP-MT-3125 · RLTP-MT-3130 · RLTP-MT-3925 · RLTP-MT-3930 · RLTP-MT-3935 · RLTP-MT-3940 · RLTP-MT-3945 · RLTP-MT-3950 · RLTP-MT-3955 · RLTP-MT-3965 · RLTP-MT-3975.
 - *Interaction and display* — the rule binds a human decision, an
   application's display, a sender's belief or an optional behaviour
-  that no artifact records: RLTP-MT-2300 · RLTP-MT-3095 · RLTP-MT-3400 · RLTP-MT-3700 · RLTP-MT-3740 · RLTP-MT-3765 · RLTP-MT-3780 · RLTP-MT-3785 · RLTP-MT-3790 · RLTP-MT-5010 · RLTP-MT-7010 · RLTP-MT-7020 · RLTP-MT-7050 · RLTP-MT-8070.
+  that no artifact records: RLTP-MT-2300 · RLTP-MT-3095 · RLTP-MT-3400 · RLTP-MT-3700 · RLTP-MT-3740 · RLTP-MT-3765 · RLTP-MT-3780 · RLTP-MT-3785 · RLTP-MT-3790 · RLTP-MT-5010 · RLTP-MT-7010 · RLTP-MT-7020 · RLTP-MT-7050 · RLTP-MT-8070 · RLTP-MT-3282 · RLTP-MT-3915.
 - *Statements of scope and reading* — the rule allocates a question
   to another rule or document and is tested through the rules it
   defers to: RLTP-MT-2010 · RLTP-MT-2020 · RLTP-MT-3450 · RLTP-MT-3515 · RLTP-MT-5060 · RLTP-MT-6010 · RLTP-MT-7040 · RLTP-MT-10040 · RLTP-MT-10060.
@@ -2727,8 +3215,8 @@ state-dependent or interactive.
 **Vector-checked set** — every other rule, each named by a vector
 case or by a check of the conformance runner or the validation
 script. Checked by the validation script over the shipped schemas,
-the task registry and the identifier list: RLTP-MT-3085 · RLTP-MT-3375 · RLTP-MT-3760 · RLTP-MT-10010 · RLTP-MT-10030 · RLTP-MT-10070 · RLTP-MT-10080 · RLTP-MT-10090 · RLTP-MT-10100. Checked by
-vector cases: RLTP-MT-2110 · RLTP-MT-2120 · RLTP-MT-2130 · RLTP-MT-2140 · RLTP-MT-2150 · RLTP-MT-2160 · RLTP-MT-2170 · RLTP-MT-2180 · RLTP-MT-2200 · RLTP-MT-2210 · RLTP-MT-2220 · RLTP-MT-2240 · RLTP-MT-2250 · RLTP-MT-2260 · RLTP-MT-2270 · RLTP-MT-2280 · RLTP-MT-2290 · RLTP-MT-3005 · RLTP-MT-3010 · RLTP-MT-3015 · RLTP-MT-3020 · RLTP-MT-3025 · RLTP-MT-3030 · RLTP-MT-3035 · RLTP-MT-3040 · RLTP-MT-3045 · RLTP-MT-3050 · RLTP-MT-3055 · RLTP-MT-3060 · RLTP-MT-3065 · RLTP-MT-3070 · RLTP-MT-3075 · RLTP-MT-3080 · RLTP-MT-3200 · RLTP-MT-3205 · RLTP-MT-3215 · RLTP-MT-3220 · RLTP-MT-3225 · RLTP-MT-3230 · RLTP-MT-3235 · RLTP-MT-3240 · RLTP-MT-3245 · RLTP-MT-3250 · RLTP-MT-3255 · RLTP-MT-3260 · RLTP-MT-3265 · RLTP-MT-3270 · RLTP-MT-3275 · RLTP-MT-3300 · RLTP-MT-3310 · RLTP-MT-3315 · RLTP-MT-3320 · RLTP-MT-3325 · RLTP-MT-3330 · RLTP-MT-3335 · RLTP-MT-3340 · RLTP-MT-3345 · RLTP-MT-3350 · RLTP-MT-3355 · RLTP-MT-3365 · RLTP-MT-3370 · RLTP-MT-3380 · RLTP-MT-3405 · RLTP-MT-3410 · RLTP-MT-3415 · RLTP-MT-3420 · RLTP-MT-3425 · RLTP-MT-3430 · RLTP-MT-3435 · RLTP-MT-3440 · RLTP-MT-3445 · RLTP-MT-3465 · RLTP-MT-3520 · RLTP-MT-3705 · RLTP-MT-3710 · RLTP-MT-3715 · RLTP-MT-3720 · RLTP-MT-3725 · RLTP-MT-3730 · RLTP-MT-3735 · RLTP-MT-3775 · RLTP-MT-3805 · RLTP-MT-3810 · RLTP-MT-3815 · RLTP-MT-4020 · RLTP-MT-4030 · RLTP-MT-4040 · RLTP-MT-4060 · RLTP-MT-4070 · RLTP-MT-4080 · RLTP-MT-4090 · RLTP-MT-4100 · RLTP-MT-4110 · RLTP-MT-4130 · RLTP-MT-5020 · RLTP-MT-5050 · RLTP-MT-6020 · RLTP-MT-8090 · RLTP-MT-10020 · RLTP-MT-10050.
+the task registry and the identifier list: RLTP-MT-3085 · RLTP-MT-3375 · RLTP-MT-3760 · RLTP-MT-3920 · RLTP-MT-3970 · RLTP-MT-10010 · RLTP-MT-10030 · RLTP-MT-10070 · RLTP-MT-10080 · RLTP-MT-10090 · RLTP-MT-10100. Checked by
+vector cases: RLTP-MT-2110 · RLTP-MT-2120 · RLTP-MT-2130 · RLTP-MT-2140 · RLTP-MT-2150 · RLTP-MT-2160 · RLTP-MT-2170 · RLTP-MT-2180 · RLTP-MT-2200 · RLTP-MT-2210 · RLTP-MT-2220 · RLTP-MT-2240 · RLTP-MT-2250 · RLTP-MT-2260 · RLTP-MT-2270 · RLTP-MT-2280 · RLTP-MT-2290 · RLTP-MT-3005 · RLTP-MT-3010 · RLTP-MT-3015 · RLTP-MT-3020 · RLTP-MT-3025 · RLTP-MT-3030 · RLTP-MT-3035 · RLTP-MT-3040 · RLTP-MT-3045 · RLTP-MT-3050 · RLTP-MT-3055 · RLTP-MT-3060 · RLTP-MT-3065 · RLTP-MT-3070 · RLTP-MT-3075 · RLTP-MT-3080 · RLTP-MT-3200 · RLTP-MT-3205 · RLTP-MT-3215 · RLTP-MT-3220 · RLTP-MT-3225 · RLTP-MT-3230 · RLTP-MT-3235 · RLTP-MT-3240 · RLTP-MT-3245 · RLTP-MT-3250 · RLTP-MT-3255 · RLTP-MT-3260 · RLTP-MT-3265 · RLTP-MT-3270 · RLTP-MT-3275 · RLTP-MT-3300 · RLTP-MT-3310 · RLTP-MT-3315 · RLTP-MT-3320 · RLTP-MT-3325 · RLTP-MT-3330 · RLTP-MT-3335 · RLTP-MT-3340 · RLTP-MT-3345 · RLTP-MT-3350 · RLTP-MT-3355 · RLTP-MT-3365 · RLTP-MT-3370 · RLTP-MT-3380 · RLTP-MT-3405 · RLTP-MT-3410 · RLTP-MT-3415 · RLTP-MT-3420 · RLTP-MT-3425 · RLTP-MT-3430 · RLTP-MT-3435 · RLTP-MT-3440 · RLTP-MT-3445 · RLTP-MT-3465 · RLTP-MT-3520 · RLTP-MT-3705 · RLTP-MT-3710 · RLTP-MT-3715 · RLTP-MT-3720 · RLTP-MT-3725 · RLTP-MT-3730 · RLTP-MT-3735 · RLTP-MT-3775 · RLTP-MT-3805 · RLTP-MT-3810 · RLTP-MT-3815 · RLTP-MT-4020 · RLTP-MT-4030 · RLTP-MT-4040 · RLTP-MT-4060 · RLTP-MT-4070 · RLTP-MT-4080 · RLTP-MT-4090 · RLTP-MT-4100 · RLTP-MT-4110 · RLTP-MT-4130 · RLTP-MT-5020 · RLTP-MT-5050 · RLTP-MT-6020 · RLTP-MT-8090 · RLTP-MT-10020 · RLTP-MT-10050 · RLTP-MT-3900 · RLTP-MT-3905 · RLTP-MT-3910 · RLTP-MT-3960.
 
 **Partially proved** — vector-checked rules whose cases prove only
 some of their duties; each is listed with the duty that no case or
@@ -2751,6 +3239,9 @@ proved:
 - RLTP-MT-3355 — the cap of 2048 JCS bytes per credential and the ban on a merged proof are prose; no schema-valid vouch reaches the cap.
 - RLTP-MT-3815 — that a sender issues membership-evidence/0.2 is sender behaviour.
 - RLTP-MT-4100 — that the ephemeral key and the nonce come from a CSPRNG: the vector derives them deterministically by design, so only their freshness per envelope is shown.
+- RLTP-MT-3900 — that the request travels on the active head of a current relationship needs tuple state; the vector proves the document proof under its issuer.
+- RLTP-MT-3910 — that issuer and recipient are the pair anchors of the arrival tuple needs tuple state; the vector proves the proof and binding checks.
+- RLTP-MT-3960 — that the reply travels on the arrival tuple and thread, and that its card is at the receiver's own member anchor, need holder state; the vector proves form, document proof and card.
 
 
 ## Appendix A (informative): changelog
@@ -2778,6 +3269,7 @@ One line per version; the archived text is under `archive/`.
 | 0.17 | 2026-10-06 | Numbered rules with separate rationale; Access 0.55 pinned (`rltp-access/0.25`, `rltp-access-material/0.25` with `keyState`), 0.24 forms refused; welcome sealed to the first device binding; history without narrowing; `membership-evidence/0.2` with optional vouches; pins Identity 0.51, Encounter 0.30. |
 | 0.18 | 2026-10-07 | Pins Access 0.56, Delivery 0.80, Identity 0.52. |
 | 0.19 | 2026-10-14 | Pins Access 0.57, Delivery 0.81, Identity 0.54, Encounter 0.31; the introduction act cited as Trust Layer §8. |
+| 0.20 | 2026-10-19 | The prelude as `membership-prelude-request/0.1` and `membership-prelude-reply/0.1` with the inviter binding; invitation attribution, rate, silent decline under a block with the register of declined invitations, one surfacing per invitation (Message Tasks 0.1); the inviter's invitation as its act of admission; Privacy Considerations; pins Delivery 0.82. |
 
 
 ## References
@@ -2789,9 +3281,11 @@ DTGWG, Core Credentials WD01: InvitationCredential,
 EndorsementCredential) · [TT] ToIP DTGWG Trust Tasks framework 0.4 ·
 **RLTP Identity 0.54** (contexts and the `group/<digest>` label §6) ·
 **RLTP Encounter Layer 0.31**, card wire 0.25 (securing profile 2.3,
-principles 1.3, contact card §6) · **RLTP Delivery Contract 0.81
+principles 1.3, contact card §6) · **RLTP Delivery Contract 0.82
 (normative)** (document profile §3, registry 4.4, sealed envelope §5,
-dispositions §6, delivery time §7) · **RLTP Access Layer 0.57
+dispositions, lock keys and rate §6, delivery time §7) · **RLTP
+Message Tasks 0.1 (normative)** (attribution 6.2, the block 6.3, the
+register of declined invitations 6.4, the rate 4.2) · **RLTP Access Layer 0.57
 (normative)**, wire 0.25 (group identity 3.2, operation envelope
 3.3, materialization and conflict matrix 3.5–3.6, `member.add` body
 profile 4.5, member identity and device bindings 5.1, admission,
@@ -2799,4 +3293,5 @@ vouch and key service duty 5.3, authorization
 views 7.3, history exposure §8, key port 9.2, service 9.3, material
 and adapters 9.4, `key-delivery/0.1` 10.1, `removal-notice/0.1` 10.2,
 evolvability §11, privacy §13) · RLTP Trust Layer 0.31
-(introduction act §8).
+(relationships and tuples §2 and 6.4, per-tuple state 6180,
+introduction act §8).

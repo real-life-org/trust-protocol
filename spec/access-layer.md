@@ -20,7 +20,7 @@
   RLTP Encounter 0.31; RLTP Delivery Contract 0.82 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
-  Membership Tasks 0.19 (the task types that transport this
+  Membership Tasks 0.20 (the task types that transport this
   layer's admission documents); RLTP Trust Layer 0.31 (the
   group pair, §5.2b, and the `anchor-rotation@2` artifact, §6.5).
 - **Supersedes:** version 0.56 (archived as
@@ -5522,8 +5522,8 @@ identity of 5.2 awaits, so conformance claims no device-level
 service identity), RLTP
 Encounter 0.31 (`rltp-encounter@0.31`, card form `rltp-card/0.25`,
 where cards are consumed), RLTP Trust Layer 0.31 (`rltp-trust@0.31`,
-the `anchor-rotation@2` of 5.6), the Delivery Contract 0.81, and the
-Membership Tasks 0.19 (`rltp-membership@0.19`), whose pins of this layer's wire forms
+the `anchor-rotation@2` of 5.6), the Delivery Contract 0.82, and the
+Membership Tasks 0.20 (`rltp-membership@0.20`), whose pins of this layer's wire forms
 RLTP-ACC-11100 states; the two documents move together, so the
 Membership Tasks text carried in the same publication names this
 version, and the removal notice travels as
@@ -5988,7 +5988,7 @@ registry §6, the community anchor's generations §5.4, derived
 service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.31**, card wire 0.25 (securing
 profile 2.3, contact card §6, pair anchors §4.4) · **RLTP Delivery
 Contract 0.81 (normative)** (document profile, sealed envelope §5,
-dispositions §6) · **RLTP Membership Tasks 0.19 (normative)**
+dispositions §6) · **RLTP Membership Tasks 0.20 (normative)**
 (document shapes §3, welcome seal §4, timing §5) · **RLTP Replication
 Contract** (replication port, service targets) · **RLTP Trust
 Layer 0.31** (§2.1 wire conventions, §3 audience classes,
