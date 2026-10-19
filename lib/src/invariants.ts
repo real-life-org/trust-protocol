@@ -113,7 +113,8 @@
 //               links it holds (6150, 6170), except at such a chaining
 //   messages    the record of surfaced invitations and the register of
 //               declined ones only grow (RLTP-MT-3130, RLTP-MSG-6310); a
-//               block is set only by the block act or a merge (6030),
+//               block is set only by the block act, a merge, or a
+//               chaining that absorbs a blocked fresh relationship (6030),
 //               cleared only by the block act or with its relationship; a
 //               completion-record entry never changes and leaves only by
 //               tick (4340); an inbox entry arises only in a unique
@@ -693,7 +694,10 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
     if (!after.messages.blocked.includes(r) && Object.hasOwn(after.relationships, r) && !(op.kind === 'act' && op.command === 'message.block')) v.push({ invariant: 'messages', detail: `the block of ${r} cleared by ${op.kind}` })
   }
   for (const r of after.messages.blocked) {
-    if (!before.messages.blocked.includes(r) && !(op.kind === 'act' && (op.command === 'message.block' || op.command === 'trust.merge')) && op.kind !== 'resume') v.push({ invariant: 'messages', detail: `the block of ${r} set by ${op.kind}` })
+    if (before.messages.blocked.includes(r) || (op.kind === 'act' && (op.command === 'message.block' || op.command === 'trust.merge')) || op.kind === 'resume') continue
+    // a chaining: the chain takes the block of the fresh relationship it absorbed (6030)
+    const absorbed = Object.values(after.relationships).some((h) => h.chainedInto === r && before.relationships[h.id]?.chainedInto === null && before.messages.blocked.includes(h.id))
+    if (!absorbed) v.push({ invariant: 'messages', detail: `the block of ${r} set by ${op.kind}` })
   }
   // a member stays on the holder's roster (removal is not built)
   for (const [id, g] of Object.entries(before.groups)) {

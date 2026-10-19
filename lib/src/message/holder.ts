@@ -59,7 +59,8 @@
 //     sent mids to check it against, and a receiver never rejects it
 //   - the block is kept beside the relationships, by relationship id
 //     (`messages.blocked`): the chain's id survives a chaining (6030: the
-//     chain keeps its block) and stays with the relationship through a
+//     chain keeps its block, and takes the block of the fresh relationship
+//     it absorbs, trust/continuity.ts) and stays with the relationship through a
 //     merge and a split; trust/entries.ts sets it on every relationship of
 //     a merged entry where one held it (6030) and drops it with a departed
 //     relationship
