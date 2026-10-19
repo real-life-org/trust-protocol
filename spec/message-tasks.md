@@ -566,10 +566,34 @@ consult the register and MUST decline silently an invitation whose
 credential digest it holds, whatever relationship or prelude binding
 the invitation arrives under.
 
+**RLTP-MSG-6330** — The stage-9 lock set of every `membership-invite`
+document MUST extend by the holder-wide key of its credential digest,
+whether or not the invitation is attributed to a relationship, and
+the following MUST happen in that one transaction: the check of the
+register, the check for an open prompt of the same credential digest,
+and exactly one outcome of three: decline (register entry written,
+an open prompt of that digest closed as declined), surface (a prompt
+opened, only if none is open for that digest and the register holds
+none), or no new effect (the digest is in the register, or a prompt
+is open for it).
+
+**RLTP-MSG-6340** — An implementation that cannot acquire a lock set
+in one acquisition (Delivery 6.2) MUST acquire its keys in the order
+credential-digest key, relationship key, document digest, and release
+all of them before a re-entry at stage 4.
+
 *Rationale.* A prelude binding is renewable and one contact may hold
 several relationships; a record kept with one relationship or one
 binding would let the same signed invitation surface again through
-another. Invitations are rare and a digest is small; a register for
+another. Two envelopes of one invitation can arrive under two relationships,
+or under none; a key per relationship would let one path read "not
+declined" while the other writes the decline, and then surface the
+invitation anyway. The credential digest is the invitation's identity
+(Membership 2180), so its key is the one every path of one invitation
+shares, and binding the surfacing decision to it makes the outcome one
+of two: no prompt, or one prompt that a later decline under a block
+closes. A fixed order of the keys keeps two such paths from waiting on
+each other. Invitations are rare and a digest is small; a register for
 the life of the holder costs little and closes every path.
 
 ### 6.5 Outbound
@@ -740,7 +764,11 @@ deletion at `sentAt + H + 1 s` commits before its stage 9 (expected:
 `failed(stale-issuance)`, one inbox entry in total), concurrent
 acceptances on two relationships against one `mark`, the rate, invitation and inbox bounds and the re-evaluation
 of a rate-limited document, concurrent documents of one `mid` and of
-one relationship under the lock set, the completion record under replay, re-wrap,
+one relationship under the lock set, one invitation credential in two
+envelopes under two relationships, one of them blocked, and under a
+missing and a renewed prelude binding (expected: no open prompt and
+the digest in the register, whichever commits first; with neither
+relationship blocked, exactly one prompt), the completion record under replay, re-wrap,
 equivocation, cache expiry and deletion, the block table row by row,
 the register across two relationships and a renewed prelude, and
 readiness after an introduction).
@@ -761,7 +789,7 @@ RLTP-MSG-4340 · RLTP-MSG-4350 · RLTP-MSG-4410 · RLTP-MSG-4420 ·
 RLTP-MSG-5010 · RLTP-MSG-5020 · RLTP-MSG-5030 · RLTP-MSG-5110 ·
 RLTP-MSG-5120 · RLTP-MSG-6010 · RLTP-MSG-6020 · RLTP-MSG-6030 ·
 RLTP-MSG-6110 · RLTP-MSG-6210 · RLTP-MSG-6220 · RLTP-MSG-6240 ·
-RLTP-MSG-6310 · RLTP-MSG-6320 · RLTP-MSG-6410 · RLTP-MSG-6420 ·
+RLTP-MSG-6310 · RLTP-MSG-6320 · RLTP-MSG-6330 · RLTP-MSG-6340 · RLTP-MSG-6410 · RLTP-MSG-6420 ·
 RLTP-MSG-6510.
 
 **Interaction and display** — the rule binds what an application
@@ -787,7 +815,9 @@ conformance notes where it departs from the rules named here.
   not terminal: nothing committed, no acknowledgement, no cache
   entry, no conclusion toward the carrier, re-evaluated in full on
   the next delivery.
-- 6.2 stage 9: the lock set of a `message/0.1` document, and of an
+- 6.2 stage 9: the lock set of a `membership-invite` document extends
+  by the holder-wide key of its credential digest (Message Tasks 6330,
+  6340); the lock set of a `message/0.1` document, and of an
   invitation attributed to a relationship, extends by that
   relationship; block changes, chaining, merge and split take the same
   key (Message Tasks 4230, 4240).
@@ -822,6 +852,10 @@ conformance notes where it departs from the rules named here.
 - 3.1: at most 20 invitations with a new credential digest per
   relationship in 24 hours, beyond that `failed(rate-limited)`
   (Message Tasks 4115).
+- RLTP-MT-3095: the surfacing decision of an invitation is made under
+  the key of its credential digest, together with the register check
+  and the check for an open prompt of that digest; one invitation is
+  surfaced at most once (Message Tasks 6330).
 - RLTP-MT-3095: an invitation attributed by its prelude binding to a
   blocked relationship has as its defined effect the silent decline
   of RLTP-MT-7020, its credential digest recorded in the holder-wide
