@@ -623,7 +623,8 @@ export class MediatorCarrierAdapter {
       if (live.length === 0) return
       for (const id of live) this.#flightAcks.add(id)
       try {
-        await this.#wire.ackReceived(token, live)
+        // the wire gets its own list: what it does with it never reaches the bookkeeping below
+        await this.#wire.ackReceived(token, [...live])
         if (!this.#closed) for (const id of live) this.#pendingAcks.delete(id)
       } finally {
         for (const id of live) this.#flightAcks.delete(id)
