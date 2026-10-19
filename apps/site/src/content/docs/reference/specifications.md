@@ -1,7 +1,7 @@
 ---
 title: Specifications
 description: Every RLTP document, and the artifacts beside them.
-specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
+specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, message-tasks, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
 The normative documents live in
@@ -16,6 +16,7 @@ beside them.
 | [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) | Layer 3 |
 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | Layer 4 |
 | [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | Layer 4, transport of membership changes |
+| [Message Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md) | Layer 3, direct messages and the block |
 | [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) | Service behind a port |
 | [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) | Service behind a port |
 | [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md) | Cross-cutting |

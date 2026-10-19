@@ -1828,6 +1828,69 @@
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#42-requirement-types"
    ],
    "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Block",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:prefLabel": [
+    {
+     "@value": "Sperre",
+     "@language": "de"
+    },
+    {
+     "@value": "Block",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Ein lokaler Zustand einer Beziehung beim Holder: Nachrichten und Angebote dieser Beziehung werden still verworfen und quittiert, geschuldete Protokollschritte und Gruppenzustand laufen weiter. Die gesperrte Seite beobachtet nichts, was sie ohne Sperre nicht auch beobachten würde; nach dem Entsperren erscheint nichts, was während der Sperre verworfen wurde.",
+     "@language": "de"
+    },
+    {
+     "@value": "A holder-local state of a relationship: messages and offers of that relationship are discarded silently and acknowledged, the protocol steps the holder owes and group state continue. The blocked party observes nothing it would not observe without the block; after an unblock nothing reappears that was discarded during the block.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md#6-the-block"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Message",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:Block"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Nachricht",
+     "@language": "de"
+    },
+    {
+     "@value": "Message",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Ein Text von einer Seite einer Beziehung an die andere (message@1), mit einem MAC unter dem gerichteten Schlüssel der Beziehung: überzeugt den Empfänger, beweist Dritten nichts. Der Empfänger merkt sich jede angenommene Nachricht in einem inhaltslosen Abschlussnachweis, sodass keine zweimal erscheint und keine verworfene oder gelöschte wiederkommt.",
+     "@language": "de"
+    },
+    {
+     "@value": "A text from one party of a relationship to the other (message@1), proved by a MAC under the relationship's directional key: it convinces the recipient and proves nothing to a third party. The recipient keeps a content-free completion record of every message it accepted, so none appears twice and none discarded or deleted comes back.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md#3-message01"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
   }
  ]
 }

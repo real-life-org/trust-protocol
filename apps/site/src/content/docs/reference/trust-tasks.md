@@ -1,7 +1,7 @@
 ---
 title: Trust Tasks
 description: "Every registered task type, by layer: where it is registered, what it carries, where the rules are."
-specs: [access-layer, delivery-contract, encounter-layer, membership-tasks, trust-layer]
+specs: [access-layer, delivery-contract, encounter-layer, membership-tasks, message-tasks, trust-layer]
 ---
 
 Every RLTP message is a Trust Task document of a private, versioned
@@ -46,6 +46,16 @@ documents carry no proof.
 | `introduction-reply/0.1` | `{ introduction, card }`, target to mediator to requester: the reply and the target's fresh card | [Trust §8.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#81-precondition-carrier-pins-and-the-per-role-lifecycle) · [§8.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#82-artifacts) | [`visibility-payload-introduction-reply`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/visibility-payload-introduction-reply.schema.json) |
 | `introduction-ack/0.1` | `{ introduction }`, mediator to requester: an `introduction-ack@1`, after a fixed delay | [Trust §8.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#81-precondition-carrier-pins-and-the-per-role-lifecycle) · [§8.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#84-the-acknowledgement) | [`visibility-payload-introduction-ack`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/visibility-payload-introduction-ack.schema.json) |
 | `introduction-voucher/0.1` | `{ voucher }`, mediator to each side: which fresh anchor belongs to the other | [Trust §8.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#81-precondition-carrier-pins-and-the-per-role-lifecycle) · [§8.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#85-the-voucher) | [`visibility-payload-introduction-voucher`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/visibility-payload-introduction-voucher.schema.json) |
+
+## Message
+
+A text message from one contact to the other. The payload is the
+artifact; it carries its own MAC, the document carries no proof. The
+Delivery register (§4.4) does not list it yet.
+
+| Type | Carries | Rules | Schema |
+|---|---|---|---|
+| `message/0.1` | a `message@1`: a text of at most 4096 characters for one contact, deniable | [Message Tasks §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md#3-message01) · [§4](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md#4-reception) | [`message`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/message.schema.json) |
 
 ## Access
 

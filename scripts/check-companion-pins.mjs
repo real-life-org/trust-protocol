@@ -32,6 +32,7 @@ export const SPECS = {
   Trust: 'trust-layer.md',
   Predicates: 'personhood-predicates.md',
   Succession: 'succession.md',
+  Message: 'message-tasks.md',
 }
 export const PIN = new RegExp(`\\b(${Object.keys(SPECS).join('|')})(?:\\s+(?:Layer|Contract|Tasks))?\\s+(\\d+)\\.(\\d+)\\b`, 'g')
 const PIN_FIELD = /^(companion|position)/i

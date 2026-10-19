@@ -75,6 +75,14 @@ export const LAYERS = {
     manifest: join(ROOT, 'conformance/trust-rule-ids-0.31.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'trust-0.31-regelinventar.md'),
     env: 'TRUST_INVENTORY'
+  },
+  message: {
+    prefix: 'RLTP-MSG',
+    title: 'Message Tasks 0.1',
+    spec: join(ROOT, 'spec/message-tasks.md'),
+    manifest: join(ROOT, 'conformance/message-rule-ids-0.1.txt'),
+    inventory: null,
+    env: 'MESSAGE_INVENTORY'
   }
 }
 export const DEFAULT_SPEC = LAYERS.encounter.spec

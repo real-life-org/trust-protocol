@@ -13,6 +13,7 @@ Normative JSON Schemas for every wire artifact. Each spec names the schema it bi
 - [`encounter-credential-0.25.schema.json`](encounter-credential-0.25.schema.json)
 - [`encounter-credential-0.26.schema.json`](encounter-credential-0.26.schema.json)
 - [`encounter-credential.schema.json`](encounter-credential.schema.json)
+- [`message.schema.json`](message.schema.json)
 - [`payload-access-operation.schema.json`](payload-access-operation.schema.json)
 - [`payload-delivery-ack.schema.json`](payload-delivery-ack.schema.json)
 - [`payload-encounter-bundle.schema.json`](payload-encounter-bundle.schema.json)

@@ -1,7 +1,7 @@
 ---
 title: Read the spec
 description: The layer documents of RLTP, where to start and in which order.
-specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
+specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, trust-layer, message-tasks, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
 New to RLTP? Start with [Foundations](/understand/foundations/) and the
@@ -20,8 +20,9 @@ Considerations. They are dense. This order keeps the dependencies in view.
 | 4 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | How a group holds shared authority: the [authority log](term:AuthorityLog), [policies](term:Policy) as decision rules, [epochs](term:Epoch) that make revocation real. |
 | 5 | [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | How membership changes travel: [invitation](term:Invite), explicit consent, the admitting operation and its [welcome](term:Welcome). |
 | 6 | [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) | What a person reveals to a contact and how far it travels: [trust classes](term:TrustClass), [stars](term:Star), [anchor mappings](term:AnchorMapping), the [profile](term:Profile), [introductions](term:Introduction). |
-| 7 | [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md) | What "a human vouched for a human" can and cannot prove, relative to a verifier. |
-| 8 | [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) | The service contract behind the Access Layer's replication port. |
+| 7 | [Message Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md) | Direct messages between two contacts, and the [block](term:Block) a person applies to a contact. |
+| 8 | [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md) | What "a human vouched for a human" can and cannot prove, relative to a verifier. |
+| 9 | [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) | The service contract behind the Access Layer's replication port. |
 
 Two companions: the [VTI mediator adapter](https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md),
 a delivery profile over the Verifiable Trust Infrastructure, and

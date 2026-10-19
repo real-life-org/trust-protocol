@@ -93,6 +93,7 @@ live.
 | [`spec/encounter-layer.md`](spec/encounter-layer.md) | **RLTP Encounter Layer** — how two people establish, record, and maintain mutual recognition: the one registered ceremony (`encounter-scan`, with a connected path and an offline path and free switching between them), contact cards, challenges, the own-challenge state model, the enactment binding, encounter credentials, edges |
 | [`spec/delivery-contract.md`](spec/delivery-contract.md) | **RLTP Delivery Contract** — how documents travel: private Trust Task types (`encounter-bundle`, `delivery-ack`, `encounter-credential-delivery`), the sealed envelope, staged dispositions, delivery promises |
 | [`spec/membership-tasks.md`](spec/membership-tasks.md) | **RLTP Membership Tasks** — how membership changes travel: invitation, explicit consent (`membership-invite`, `membership-accept`, `membership-evidence`), the `access-operation` carrier narrowed to the one operation that crosses the replica boundary — the admitting `member.add` delivered to its own subject — with the admission chain (provable invitation provenance), and the welcome seal |
+| [`spec/message-tasks.md`](spec/message-tasks.md) | **RLTP Message Tasks** — direct messages between the two parties of a relationship (`message/0.1`, MAC under a directional relationship key, deniable), the completion record that keeps a message from appearing twice, and the block a holder applies to a relationship |
 | [`spec/access-layer.md`](spec/access-layer.md) | **RLTP Access Layer** — how a group holds shared authority over its membership, data, and itself: the authority log (a causally linked DAG whose genesis digest *is* the group's identity), policies as group-defined decision rules, epochs that make revocation real, chained quorum-signed authorization views toward services, and the enforcement port that keeps the replication/key-agreement substrate replaceable |
 | [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived: the community anchor of the person's personal community, each generation bound in advance to the next (pre-rotation), per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act |
 | [`spec/replication-contract.md`](spec/replication-contract.md) | **RLTP Replication Contract** — the service contract behind the Access Layer's replication port: sixteen promises over individually signed, causally linked entries — attested convergence targets, one ingest admission for every road, immutable verdicts under merge-revisable canonicality dispositions, key-blind by construction; the substrate that moves the bytes stays outside the trusted computing base |
@@ -121,6 +122,7 @@ findings.
 **Converged:** Encounter 0.31 · Identity 0.54 · Access Layer 0.57 ·
 Delivery Contract 0.81 · Membership Tasks 0.19 · Replication Contract
 0.26 · Trust Layer 0.31 · Personhood Predicates 0.12.
+**First casting:** Message Tasks 0.1.
 Succession 0.2 is parked; the Data layer is not published here yet.
 
 Two things are worth knowing about how this state was reached. The
