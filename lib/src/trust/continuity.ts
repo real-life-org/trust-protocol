@@ -241,6 +241,7 @@
 // C's earliestAnchor on r-A-x is right by 2285 as written (nothing
 // earlier was issued on that relationship); it is the per-relationship
 // scope, not the value, that leaves A without the link.
+import { blockedRel, withBlocked } from '../message/holder.js'
 import { iso, jcs, fromB64u } from '../core.js'
 import type { Json } from '../core.js'
 import { digestBytes, digestDoc } from '../crypto.js'
@@ -534,9 +535,14 @@ export function chainTuple (state: Readonly<HolderState>, label: string, prior: 
     awaitHead[R0.id] = own === undefined ? fresh : own === null || fresh === null ? null : own
     rotations[id] = { ...r, awaitHead }
   }
+  // the block is chain-level state (Message Tasks 6010, 6030): the chain
+  // keeps its own, and takes the fresh relationship's, whose id becomes a husk
+  const messages = blockedRel(state, Rn.id) && !blockedRel(state, R0.id)
+    ? { ...state.messages, blocked: withBlocked(state.messages.blocked, [R0.id], true) }
+    : state.messages
   let next: HolderState = {
     ...state, relationships: { ...state.relationships, [R0.id]: chain, [Rn.id]: husk }, duties, rotations,
-    entryOrder: { ...state.entryOrder, heads },
+    entryOrder: { ...state.entryOrder, heads }, messages,
   }
   // the entries (2145, 2140)
   const swap = (c: Contact): Contact => ({ ...c, relIds: [...new Set(c.relIds.map((id) => (id === Rn.id ? R0.id : id)))] })
