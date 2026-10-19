@@ -51,6 +51,10 @@
 //   - readiness (5020) is a refusal, not a queue: message.send answers
 //     `not-ready` and the application keeps the message unsent until the
 //     contact view says canMessage; the library holds no drafts
+//   - the completion record is per tuple and inbound direction (4310), as
+//     the rule says: after a chaining, a body sent again on the new head's
+//     tuple, under its own key, is a new message there — the guarantee of
+//     one effect per mid holds per tuple, not per relationship
 //   - replyTo (5120) is the application's: the library keeps no history of
 //     sent mids to check it against, and a receiver never rejects it
 //   - the block is kept beside the relationships, by relationship id

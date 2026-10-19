@@ -37,19 +37,25 @@
 //     act whose apply returns the identical state object and nothing else
 //     commits nothing only when lastWhen stays too. A human act always
 //     commits, because its journal entry is the result. Refusals and
-//     journal replays commit nothing, lastWhen included
+//     journal replays commit nothing, lastWhen included — but for a replay
+//     that finds one of its documents past its lifetime or the horizon:
+//     that give-up commits first, as resume's would
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
 //     when + ceil(backoff(1)); resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
 //     (the adapter holds the item) and never re-emits an accepted one. It
 //     gives up every non-terminal item (submitted, held or accepted) at
 //     first submission + horizonMs, never by attempt
-//     count; nextDueAt is the earliest due re-emission or horizon expiry
-//   - the holder's give-up is failed(expired-by-adapter-policy); a later
+//     count, or earlier at the sender lifetime its type declared
+//     (expiresAt, Delivery 7020); nextDueAt is the earliest due
+//     re-emission, horizon or lifetime
+//   - the holder's give-up is failed(expired-by-adapter-policy), at a
+//     lifetime failed(task-expired) (Delivery 6110); a later
 //     delivered report is late by that history, whatever the adapter says
 //   - replay of a human act returns the journaled events and the outbound
-//     of its documents that are not terminal (delivered, failed), at their
-//     current attempt. Idempotency is bounded by the journal's retention:
+//     of its documents that are not terminal (delivered, failed) and not
+//     due for the give-up, at their current attempt; one due for it is
+//     given up in a commit of its own first (6115: never handed out again). Idempotency is bounded by the journal's retention:
 //     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
 //     bounds effects and their acks; after it the same actId is a new act
 //   - KeyProvider, Log and Access rejections inside a preparation become
@@ -886,17 +892,42 @@ class HolderEngine implements Engine {
       if (def.human && Object.hasOwn(state.acts, actId!)) {
         const rec = state.acts[actId!]
         if (rec.inputHash !== inputHash) return { ok: false, code: 'actid-conflict' }
-        // what is still live at `at`: not terminal, and neither past a sender
-        // lifetime nor past the horizon — those resume moves to failed
-        // (Delivery 6110) and nothing hands them out again (6115)
-        const live = rec.outboundDigests.filter((d) => {
+        const events: HolderEvent[] = structuredClone(rec.events) as HolderEvent[]
+        // the act's documents are handed out again only while live; one past
+        // its sender lifetime or the horizon moves to failed here, in a commit
+        // of its own (as resume would: Delivery 6110, 6115), and is not
+        // handed out — the journal's events are not announced again
+        const live: string[] = []
+        const expired: Array<[string, 'task-expired' | 'expired-by-adapter-policy']> = []
+        for (const d of rec.outboundDigests) {
           const it = this.#itemOf(state, d)
           const t = triasOf(it)
-          if (t === 'delivered' || t === 'failed') return false
-          const first = it.history.length ? it.history[0].at : at
-          return at < first + this.#policy.horizonMs && (it.expiresAt === undefined || at < it.expiresAt)
-        })
-        const events: HolderEvent[] = structuredClone(rec.events) as HolderEvent[]
+          if (t === 'delivered' || t === 'failed') continue
+          const why = this.#giveUp(it, at)
+          if (why) expired.push([d, why]); else live.push(d)
+        }
+        if (expired.length) {
+          const outbox: Record<string, OutboxItem> = { ...state.outbox }
+          const drafts: EventDraft[] = []
+          for (const [d, why] of expired) {
+            const { nextAttemptAt: _, ...rest } = state.outbox[d]
+            outbox[d] = { ...rest, history: [...rest.history, { status: 'failed', at, reason: why }] }
+            drafts.push({ type: 'delivery.status', digest: d, threadId: rest.threadId, status: 'failed' })
+          }
+          const f = this.#failed({ ...state, outbox }, expired.map(([d]) => d), at)
+          const seq = inc(state.commitSeq)
+          const announced = freezeDeep([...drafts, ...f.events].map((e, i) => ({ ...e, eventId: `${seq}.${i}`, commitSeq: seq }) as HolderEvent))
+          const next: HolderState = { ...f.state, commitSeq: seq, lastWhen: at }
+          const text = encodeState(next)
+          if (this.#check) this.#check(state, next, { kind: 'resume', fulfilled: [] })
+          let res
+          try { res = await this.#store.commit(version, toOpaque(next)) } catch (e) {
+            this.#unsettled = { text, commitSeq: seq, events: announced }
+            throw new InfraError('unknown-commit-outcome', undefined, { cause: e })
+          }
+          if (!res.ok) continue
+          this.#announce(seq, announced)
+        }
         return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events) }
       }
       // 2 — prepare, bound to this snapshot
@@ -1067,6 +1098,18 @@ class HolderEngine implements Engine {
     return { state: cur, events }
   }
 
+  /** Why a non-terminal outbox item is given up at `when`, or null: its
+   *  sender lifetime, where it ends no later than the horizon
+   *  (failed(task-expired), Delivery 6110), else the horizon
+   *  (failed(expired-by-adapter-policy)). */
+  #giveUp (it: Readonly<OutboxItem>, when: Millis): 'task-expired' | 'expired-by-adapter-policy' | null {
+    const first = it.history.length ? it.history[0].at : when
+    const expiry = Math.min(first + this.#policy.horizonMs, Number.MAX_SAFE_INTEGER)
+    const life = it.expiresAt
+    if (life !== undefined && when >= life && life <= expiry) return 'task-expired'
+    return when >= expiry ? 'expired-by-adapter-policy' : null
+  }
+
   #itemOf (state: Readonly<HolderState>, digest: string): OutboxItem {
     if (!Object.hasOwn(state.outbox, digest)) throw new Error(`engine: journaled outbound ${digest} is missing from the outbox`)
     return state.outbox[digest]
@@ -1166,6 +1209,7 @@ class HolderEngine implements Engine {
     const sweeps = (): ReadonlyMap<string, SweepHandler> => this.#sweeps
     const failed = (st: HolderState, digests: readonly string[], when: Millis) => this.#failed(st, digests, when)
     const ownRetries = (): ReadonlySet<string> => this.#ownRetries
+    const giveUp = (it: Readonly<OutboxItem>, when: Millis) => this.#giveUp(it, when)
     return {
       human: false,
       // the due duties' and the sweeps' preparations, against the snapshot apply will see
@@ -1194,24 +1238,17 @@ class HolderEngine implements Engine {
           // the horizon applies to every non-terminal item: held, accepted or
           // not; a sender lifetime the type declares ends it earlier, as
           // failed(task-expired), never handed out again (Delivery 6110, 6115)
+          const why = giveUp(it, when)
+          if (why) {
+            const { nextAttemptAt: _, ...rest } = it
+            outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: why }] }
+            events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' })
+            gaveUp.push(digest)
+            continue
+          }
           const first = it.history.length ? it.history[0].at : when
           const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
-          const life = it.expiresAt
-          if (life !== undefined && when >= life && life <= expiry) {
-            const { nextAttemptAt: _, ...rest } = it
-            outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'task-expired' }] }
-            events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' })
-            gaveUp.push(digest)
-            continue
-          }
-          if (when >= expiry) {
-            const { nextAttemptAt: _, ...rest } = it
-            outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'expired-by-adapter-policy' }] }
-            events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' })
-            gaveUp.push(digest)
-            continue
-          }
-          due(life !== undefined ? Math.min(life, expiry) : expiry)
+          due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry)
           // never re-emitted: an accepted item (the service has it) and one the
           // adapter holds (awaiting-transport, until it reports again)
           if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
