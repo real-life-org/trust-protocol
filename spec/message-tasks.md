@@ -12,7 +12,7 @@
 - **Conformance profile:** `rltp-message@0.1` (draft). Registered
   task type: `message/0.1`, carrying the artifact `message@1`.
 - **Position:** a task-type registration on top of the **RLTP
-  Delivery Contract 0.81** (normative reference: document profile,
+  Delivery Contract 0.82** (normative reference: document profile,
   sealed envelope, staged dispositions, acknowledgement), travelling
   on the relationship channel of a tuple of the **RLTP Trust Layer
   0.31** (normative reference: tuples and relationships, its 2 and
@@ -22,7 +22,7 @@
   no other type; the companion changes that extend the block to other
   types are listed in Appendix A.
 - **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
-  Layer 0.31; RLTP Delivery Contract 0.81; RLTP Membership Tasks
+  Layer 0.31; RLTP Delivery Contract 0.82; RLTP Membership Tasks
   0.19; RLTP Access Layer 0.57.
 
 ## Status of This Document
@@ -877,7 +877,7 @@ conformance notes where it departs from the rules named here.
 
 ## References
 
-- RLTP Delivery Contract 0.81, `spec/delivery-contract.md`.
+- RLTP Delivery Contract 0.82, `spec/delivery-contract.md`.
 - RLTP Trust Layer 0.31, `spec/trust-layer.md`.
 - RLTP Membership Tasks 0.19, `spec/membership-tasks.md`.
 - RLTP Access Layer 0.57, `spec/access-layer.md`.

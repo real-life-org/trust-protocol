@@ -19,7 +19,7 @@
   pre-rotation binding, §5.4) · **Encounter 0.31** (fresh-always
   enactment, §4.4; Section 6a here is the other half of it) · **Access
   0.57** (the roster a group pair points into, §5.5; the
-  `anchor.rotate` entry, §5.6) · Membership 0.19 · **Delivery 0.81**
+  `anchor.rotate` entry, §5.6) · Membership 0.19 · **Delivery 0.82**
   (the §4.4 registry, including `star/0.2`, `group-star/0.1`,
   `anchor-mapping/0.3`, `profile/0.1`, and the `ack-delay` publication
   path `registry-declaration/0.1`).

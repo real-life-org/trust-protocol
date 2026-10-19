@@ -120,8 +120,9 @@ converged when consecutive review rounds produce no blocker-level
 findings.
 
 **Converged:** Encounter 0.31 · Identity 0.54 · Access Layer 0.57 ·
-Delivery Contract 0.81 · Membership Tasks 0.19 · Replication Contract
-0.26 · Trust Layer 0.31 · Personhood Predicates 0.12.
+Membership Tasks 0.19 · Replication Contract 0.26 · Trust Layer 0.31 ·
+Personhood Predicates 0.12.
+**In review:** Delivery Contract 0.82.
 **First casting:** Message Tasks 0.1.
 Succession 0.2 is parked; the Data layer is not published here yet.
 

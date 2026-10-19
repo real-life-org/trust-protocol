@@ -176,10 +176,11 @@ is rejected, never silently ignored.
 | `registry-declaration/0.1` | Delivery | a party's signed operational constants |
 | `membership-invite/0.2` | Membership | the invitation, carrying the VIC |
 | `membership-accept/0.2` | Membership | the invitee's signed consent |
-| `membership-evidence/0.1` | Membership | relays invite and accept to any member who can admit |
+| `membership-evidence/0.2` | Membership | relays invite and accept to any member who can admit |
 | `access-operation/0.1` | Membership | the admitting operation and [welcome](term:Welcome), sent to the new member |
 | `key-delivery/0.1` | Access | epoch keys, welcomes, key requests |
 | `removal-notice/0.1` | Access | tells a removed member |
+| `message/0.1` | Message | a text message for one contact, deniable |
 | `star/0.2` | Trust | lets a contact relate your contacts to theirs, blinded |
 | `group-star/0.1` | Trust | your groups, blinded to every contact; your member anchor sealed to the ones you choose |
 | `anchor-mapping/0.3` | Trust | links a pair anchor to the community anchor for one addressee |

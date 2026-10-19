@@ -17,7 +17,7 @@
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3);
-  RLTP Encounter 0.31; RLTP Delivery Contract 0.81 (normative
+  RLTP Encounter 0.31; RLTP Delivery Contract 0.82 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
   Membership Tasks 0.19 (the task types that transport this
