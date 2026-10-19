@@ -411,7 +411,7 @@ The arrival acknowledgement (DO-1).
   `issuer` = the acknowledged document's `recipient`; `recipient` =
   the acknowledged document's `issuer`; `threadId` matches; `ref`
   matches a document this sender actually sent on that thread. Any
-  failure → the ack is discarded (`failed(validation-failed)`) and the
+  failure → the ack is rejected (`failed(validation-failed)`) and the
   sender's status is unchanged.
 - Generation: **automatic at the durable recording of the referenced
   document's defined effect** (4.1: the committed bundle effect,
@@ -1838,10 +1838,11 @@ Both are closed here, in one rule and its two directions.
 toward the carrier, under the principal that collected it, and a
 carrier MUST offer that operation and MUST NOT redeliver what has
 been concluded. Terminal means every 6.2 outcome that repetition
-cannot change: the failure dispositions of stages 1–8 except
-`failed(rate-limited)`, a stage-9 outcome that completed,
-`discarded` once the transaction recording it has committed, and
-`duplicate-known`.
+cannot change: every failure disposition of stages 1 to 9, whether
+it arises before the critical section or inside it (a type's age
+bound checked in stage 9 among them), except `failed(rate-limited)`;
+`unique`; `discarded` once the transaction recording it has
+committed; and `duplicate-known`.
 
 **RLTP-DEL-5810** — A receiver MUST treat a disposition as
 transient, neither terminal nor concluded, where the device could
@@ -2370,13 +2371,18 @@ acceptance state.
 
 **RLTP-DEL-6110** — A sender MUST move a document whose type
 declares a sender lifetime (RLTP-DEL-7020) to `failed(task-expired)`
-once that lifetime has run out without `delivered`, and MUST NOT
-hand the document to an adapter again after that.
+once that lifetime has run out on its clock without `delivered`.
+
+**RLTP-DEL-6115** — A sender MUST NOT hand a document to an adapter
+after moving it to `failed(task-expired)`.
 
 *Rationale.* The lifetime is the sender's own reading of a timestamp
 it wrote into the protected payload, and its type sets it to end
-before the age bound its receivers apply, so a sender gives up before
-a receiver would refuse. A copy an adapter already holds can still
+before the age bound its receivers apply. That orders the two
+deadlines numerically, not in time: sender and receiver read
+different clocks, and a receiver whose clock runs ahead of the
+sender's by more than the margin refuses earlier (Section 7). A copy
+an adapter already holds can still
 arrive inside the receivers' bound and earn an acknowledgement; the
 status then becomes `delivered`, the honest outcome. This contract
 gives a sender no way to withdraw a copy from an adapter, so the
@@ -2514,10 +2520,10 @@ state, and the protocol above acquires it with the rest of the set.
 
 **RLTP-DEL-6210** — The stage-9 lock set of a `message/0.1` document,
 of a `membership-invite` document that Message Tasks 6.2 attributes
-to a relationship, and of every other document whose treatment under
-a block is *discard* (Message Tasks 6.3), MUST include the key of the
-relationship the document is attributed to (Message Tasks
-RLTP-MSG-4230).
+to a relationship, and of every other document whose block treatment
+is in effect (RLTP-DEL-6240) and is *discard* (Message Tasks 6.3),
+MUST include the key of the relationship the document is attributed
+to (Message Tasks RLTP-MSG-4230).
 
 **RLTP-DEL-6220** — The stage-9 lock set of every `membership-invite`
 document MUST include the holder-wide key of its credential digest
@@ -2554,7 +2560,14 @@ relationship a document is attributed to (Message Tasks 6.2) MUST
 evaluate the document through stages 1 to 8 as without the block, and
 MUST apply inside the stage-9 critical section, on the block state it
 reads there, the treatment Message Tasks 6.3 names for the
-document's type.
+document's type, where that treatment is in effect.
+
+**RLTP-DEL-6245** — A block treatment MUST be in effect for a type
+exactly when the specification that registers the type defines it:
+for `message/0.1` by Message Tasks itself, for every other type by
+that type's own specification taking up the change Message Tasks
+Appendix A names (Message Tasks RLTP-MSG-6240); for a type without
+one, a block MUST NOT change the evaluation.
 
 **RLTP-DEL-6250** — A block MUST NOT change the evaluation of a
 terminal document (4.2).
@@ -2565,7 +2578,11 @@ entry and its acknowledgement: the record that prevents its
 reappearance is its defined effect (Message Tasks RLTP-MSG-6220), and
 it is not the disposition `discarded`.
 
-*Rationale.* Stages 1 to 8 decide what a document is and whether it
+*Rationale.* The treatment of a type is part of that type's defined
+effect, which only its registering specification can change (4.4);
+this contract applies a treatment where one is defined and nowhere
+else, so a type whose specification has not taken the block up runs
+as it always did. Stages 1 to 8 decide what a document is and whether it
 is authentic, which a block does not change; an acknowledgement still
 attests a durable defined effect and never a human decision (4.2), so
 a blocked sender observes what an unblocked one would. A terminal
@@ -2609,8 +2626,10 @@ whose stage-9 transaction commits the discarding state its
 registering specification prescribes and no defined effect.
 
 **RLTP-DEL-6300** — A receiver MUST NOT acknowledge a document it
-disposes `discarded` and MUST NOT enter it into the completed-effect
-cache.
+disposes `discarded`.
+
+**RLTP-DEL-6305** — A receiver MUST NOT enter a document it disposes
+`discarded` into the completed-effect cache.
 
 **RLTP-DEL-6310** — A receiver MUST conclude a document disposed
 `discarded` toward its carrier (5a.8) only after the transaction
@@ -2627,10 +2646,25 @@ would tell the sender the chunk took effect, and for the star the
 sender's completion is computed from acknowledgements (Trust 5.4), so
 a discarded delivery must not earn one; the sender sends again under a
 new salt. The cache holds completed effects only, so a redelivered
-copy is evaluated again and meets the lower bound (RLTP-TRU-5366
-rejects it as `failed(validation-failed)`). A transaction that cannot
-commit leaves the document transient (RLTP-DEL-5810), never
-`discarded`.
+copy of the discarded chunk is evaluated again and meets the lower
+bound (RLTP-TRU-5366 rejects it as `failed(validation-failed)`). A
+transaction that cannot commit leaves the document transient
+(RLTP-DEL-5810), never `discarded`.
+
+**RLTP-DEL-6325** — A redelivered chunk whose own effect completed
+before its assembly was discarded MUST be answered at stage 4 as
+`duplicate-known`, with its stored acknowledgement re-sent, while its
+cache entry is retained; the lower bound of the discarding state
+governs only documents evaluated afresh.
+
+*Rationale.* The earlier chunk's buffering did happen, and its
+acknowledgement said so; re-sending it is byte-identical and changes
+nothing at the sender, whose delivery cannot complete because the
+chunk that met the discard earns no acknowledgement (Trust 5.4).
+Reading Trust RLTP-TRU-5366 ("none of them is acknowledged") as
+reaching such a duplicate would make stage 4 depend on a later state
+of the assembly, which it never reads; the Trust Layer's next casting
+aligns its wording with this rule.
 
 **`incomplete(missing)`** exists in the taxonomy for types with
 declared dependencies. **No type of this casting declares any**; a
@@ -2670,9 +2704,11 @@ document by a timestamp of its own:
 
 **RLTP-DEL-7010** — A registered type MAY declare an age bound on a
 timestamp inside its own protected payload, together with the time
-a receiver compares it with; a receiver MUST then dispose a document
-outside the bound `failed(stale-issuance)` without effect, at the
-stage the type places the check.
+a receiver compares it with and the stage at which it is checked.
+
+**RLTP-DEL-7015** — A receiver MUST dispose a document outside the
+age bound its type declares `failed(stale-issuance)`, without effect,
+at the stage the type names.
 
 **RLTP-DEL-7020** — A type that declares an age bound MUST declare a
 sender lifetime, measured from the same timestamp, that ends before
@@ -2686,8 +2722,12 @@ bound, Message Tasks 4.4). The timestamp sits inside the payload's
 proof, so neither a carrier nor a third party can move it; the sender
 can, and an age bound therefore bounds how long a receiver keeps
 state for an honest sender, not what a dishonest one can send. The
-sender's lifetime ends first, so an honest sender stops retrying
-before its documents would be refused.
+sender's lifetime ends first on the numbers; in time it ends first
+only while the two clocks differ by less than the margin between
+lifetime and bound. A receiver clock further ahead refuses a document
+its sender still retries, which costs that document's delivery and
+nothing else: the refusal is terminal, its sender sees no
+acknowledgement, and the sender's own lifetime ends the retries.
 
 ## 8. State Machines (informative)
 
@@ -3095,7 +3135,10 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   no cache entry, concluded only after the commit; a crash before
   the commit → transient, offered again; the same chunk delivered
   again after the commit → `failed(validation-failed)` under the
-  held lower bound; an authenticated chunk breaking an assembly
+  held lower bound; an earlier chunk of the discarded assembly
+  delivered again while its cache entry is retained →
+  `duplicate-known` with its stored ack, the delivery still never
+  completing (RLTP-DEL-6325); an authenticated chunk breaking an assembly
   rule of Trust 5.2a → `discarded` with the same consequences
   (RLTP-DEL-6290 to RLTP-DEL-6320) · **rate:** a `message/0.1`
   document beyond the bound of Message Tasks 4.2 →
@@ -3107,22 +3150,26 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   block, stages 1 to 8 unchanged, a discarded message `unique` with
   its ack; a `delivery-ack` under a block → evaluated as without it;
   a block set between stage 8 and stage 9 → applied on the state read
-  in stage 9 (RLTP-DEL-6240 to RLTP-DEL-6260) · **lock keys:** two
+  in stage 9; a type whose registering specification defines no
+  block treatment → evaluated as without the block (RLTP-DEL-6240
+  to RLTP-DEL-6260) · **lock keys:** two
   messages of one relationship at the last unit of its rate →
   exactly one accepted; one invitation credential in two envelopes
   under two relationships, one of them blocked → no open prompt and
   the credential digest in the register, whichever commits first; a
   block set while a message waits → the message re-enters at stage 4
   and sees the block (RLTP-DEL-6210 to RLTP-DEL-6230) · **age bound
-  and lifetime:** a `message/0.1` document past its age bound →
-  `failed(stale-issuance)`; a sender past the declared lifetime →
+  and lifetime:** a `message/0.1` document past its age bound,
+  found in stage 9 → `failed(stale-issuance)`, terminal and
+  concluded toward the carrier; a sender past the declared lifetime →
   `failed(task-expired)`, no further hand-over, and a valid
   acknowledgement arriving later → `delivered` (RLTP-DEL-6110,
-  RLTP-DEL-7010, RLTP-DEL-7020) · **commit not whole:** a stage-9
+  RLTP-DEL-6115, RLTP-DEL-7015, RLTP-DEL-7020) · **commit not whole:** a stage-9
   transaction that fails for storage → nothing persisted, no ack, not
   concluded, evaluated again on the next delivery (RLTP-DEL-5810) ·
   `registry-declaration/0.1`: valid declaration recorded;
-  unsigned or foreign-signed → discarded; replacement
+  unsigned or foreign-signed → `failed(validation-failed)` at
+  stage 8, nothing recorded; replacement
   prospective-only · introduction-ack timing computed from the
   declared `ack-delay` (Trust Layer §8.4); an introduction-request
   sent without holding the mediator's declaration →
@@ -3319,11 +3366,13 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   registering specification's state, and the scenarios of the vector
   plan above exercise it (planned, with the reference
   implementation): RLTP-DEL-5010 · RLTP-DEL-5020 · RLTP-DEL-5810 ·
-  RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6210 · RLTP-DEL-6220 ·
-  RLTP-DEL-6230 · RLTP-DEL-6240 · RLTP-DEL-6250 · RLTP-DEL-6260 ·
-  RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 · RLTP-DEL-6300 ·
-  RLTP-DEL-6310 · RLTP-DEL-6320 · RLTP-DEL-7010. **Declaration** —
-  the rule binds what a type's registration states: RLTP-DEL-7020.
+  RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6115 · RLTP-DEL-6210 ·
+  RLTP-DEL-6220 · RLTP-DEL-6230 · RLTP-DEL-6240 · RLTP-DEL-6250 ·
+  RLTP-DEL-6260 · RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 ·
+  RLTP-DEL-6300 · RLTP-DEL-6305 · RLTP-DEL-6310 · RLTP-DEL-6320 ·
+  RLTP-DEL-6325 · RLTP-DEL-7015. **Declaration** — the rule binds
+  what a type's registration states or which specification defines
+  a treatment: RLTP-DEL-6245 · RLTP-DEL-7010 · RLTP-DEL-7020.
 
 
 ## 12. Open Issues
