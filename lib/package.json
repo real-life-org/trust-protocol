@@ -57,13 +57,9 @@
     "dist/internal.*",
     "dist/util-freeze.*",
     "dist/forge.*",
-    "dist/holder-state-v1.*",
-    "dist/holder-state-v2.*",
     "dist/holder-state-v3.*",
     "dist/adapters/",
     "dist/message/",
-    "schemas/holder-state-v1.schema.json",
-    "schemas/holder-state-v2.schema.json",
     "schemas/holder-state-v3.schema.json",
     "README.md",
     "CHANGELOG.md"

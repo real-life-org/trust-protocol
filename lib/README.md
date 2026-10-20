@@ -197,57 +197,36 @@ A holder's state is pure JSON under a codec version. The Store port takes
 the state as opaque JSON and gives it back; the library decodes it
 (`decodeState`), the adapter never migrates.
 
-- **Codec 1** is the format of 0.4.0, the first stable one. Its golden
-  fixtures (`test/fixtures/state-v1*.json`, written by lib 0.4.0 with
-  `test/fixtures/gen-state-v1.mjs` and frozen since) cover a settled
-  holder, one with work open (prompts, a joining invite, duties, a
-  rotation at step 2) and one with a tombstone, a revoked device and
-  carrier entries. They validate under codec 1 and migrate to codec 2.
-- **Codec 2** is the format of 0.5.0: codec 1 with the state of Message
-  Tasks 0.1 (`messages`: the block, the rates, the ready tuples, the
-  completion record, the inbox), an outbox item's sender lifetime
-  (`expiresAt`) and `failed(task-expired)`, and the record of surfaced
-  and the register of declined invitations (`joining.surfaced`,
-  `joining.declined`); an invitation may be attributed to no
-  relationship. The migration from codec 1 is pure: no block, no rate, no
-  record, no inbox, the ready tuples read from what the counterparts'
-  documents left, every invitation received counted as surfaced. Its
-  fixtures (`test/fixtures/state-v2*.json`, deterministic runs of
-  `test/fixtures/gen-state-v2.mjs` under lib 0.5.0) add
-  messages to the settled holder and a block and a declined invitation to
-  the open one; each decodes and re-encodes byte for byte. A later codec brings its validator, a pure
-  migration from the one before, and its own fixture with a migration
-  test. Frozen since 0.6.0 beside `test/fixtures/state-v2-acks.json`
-  (written by lib 0.5.0 with `test/fixtures/gen-state-v2-acks.mjs`: its
-  stored acks in every form codec 2 knows); they validate under codec 2
-  and migrate to codec 3.
-- **Codec 3** is the format of 0.6.0 (Delivery 0.83): a stored ack is
-  `sent` exactly when it says why (`sentBy`: `accepted`, `failed`,
-  `horizon`), may be `held` by the adapter while unsent, and carries the
-  duplicates' answers (`answers`, `answerDue`). Codec 2 marked
-  an ack sent on any report (`sentBy: 'report'`), an `awaiting-transport`
-  report included, so a stored state does not tell an ack a service took
-  from one an adapter only held: the migration makes every such ack
-  unsent again, due at once. The next resume offers it until a service
-  takes it or its horizon passes; one a service did take arrives twice at
-  its receiver, which absorbs the duplicate (a terminal document, nothing
-  re-sent). Its fixtures (`test/fixtures/state-v3*.json`, deterministic
-  runs of `test/fixtures/gen-state-v3.mjs`, reproduced in `npm test`) add
-  a holder with acks held, accepted, failed and unsent and an own
-  document held.
+- **Codec 3** is the format of 0.6.0 and the only one this library
+  reads. It holds the state of Message Tasks 0.1 (`messages`: the block,
+  the rates, the ready tuples, the completion record, the inbox), an
+  outbox item's sender lifetime (`expiresAt`) and `failed(task-expired)`,
+  the record of surfaced and the register of declined invitations, and
+  per stored ack (Delivery 0.83) why it counts as sent (`sentBy`:
+  `accepted`, `failed`, `horizon`, present exactly when `sent`), whether
+  the adapter holds it (`held`), and the duplicates' answers (`answers`,
+  `answerDue`). Its fixtures (`test/fixtures/state-v3*.json`,
+  deterministic runs of `test/fixtures/gen-state-v3.mjs`, reproduced in
+  `npm test`) cover a settled holder, one with work open (prompts, a
+  joining invite, duties, a rotation at step 2, a block and a declined
+  invitation), one with a tombstone, a revoked device and carrier entries,
+  and one with transport in custody (acks held, accepted, failed and
+  unsent, an answer due and one handed over, an own document held); each
+  decodes and re-encodes byte for byte.
+- Codecs 1 and 2 (lib 0.4.0, 0.5.0) never held a rolled-out app's state:
+  they are read no more, a state of either is `codec-unknown`. A later
+  codec that must read codec 3 brings its validator, a pure migration from
+  it, and its own fixture with a migration test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
-- `schemas/holder-state-v1.schema.json`,
-  `schemas/holder-state-v2.schema.json` and
-  `schemas/holder-state-v3.schema.json` describe the codecs as
-  non-normative JSON Schemas (published with the package). The types
-  `HolderStateV1`, `HolderStateV2` and `HolderStateV3` (`./internal`) are generated from
-  them (`scripts/build-holder-state-types.mjs`); the build holds the
-  current one against the library's `HolderState`, and the tests hold each
-  schema against its codec's validator on the fixtures and on mutations
-  of them. Rules only the codec states: a record's id equals its key, an
-  envelope's `rkid` equals its recipient's `keyAgreement`, and (codec 2) a
-  set of strings is sorted.
+- `schemas/holder-state-v3.schema.json` describes the codec as a
+  non-normative JSON Schema (published with the package). The type
+  `HolderStateV3` (`./internal`) is generated from it
+  (`scripts/build-holder-state-types.mjs`); the build holds it against the
+  library's `HolderState`, and the tests hold the schema against the
+  codec's validator on the fixtures and on mutations of them. Rules only
+  the codec states: a record's id equals its key, an envelope's `rkid`
+  equals its recipient's `keyAgreement`, and a set of strings is sorted.
 
 **Writing a Store adapter.** Implement `read(): Promise<{state, version}>`
 (a deep, independent copy; `null` state and version for an empty store) and

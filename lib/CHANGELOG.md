@@ -44,15 +44,17 @@ for transport, and only an open, resumed opening hands anything over.
   horizon ends its retries (`'horizon'`). Sent or not, it stays with its
   effect until the effect's retention; a duplicate re-sends it once
   without new retries.
-- **Codec 3**: `StoredAck.sentBy` is `accepted | failed | horizon`, present
-  exactly when sent, and `held` only while unsent. The migration from
-  codec 2 makes every ack sent by a report (`sentBy: 'report'`, which
-  codec 2 also wrote for `awaiting-transport`) unsent again, due at once:
-  codec 2 cannot tell an ack a service took from one an adapter held, so
-  some acks go out twice and their receivers absorb the duplicate.
+- **Codec 3, a clean cut**: `StoredAck.sentBy` is `accepted | failed |
+  horizon`, present exactly when sent, `held` only while unsent, and the
+  answers (`answers`, `answerDue`). Codec 3 replaces codecs 1 and 2
+  without a migration: neither ever held a rolled-out app's state, so a
+  state of either is refused as `codec-unknown`. Removed: the migrations
+  1 → 2 and 2 → 3 (`MIGRATIONS` is empty), the codec-1 and codec-2
+  validators, `schemas/holder-state-v1.schema.json`,
+  `schemas/holder-state-v2.schema.json`, the types `HolderStateV1` and
+  `HolderStateV2`, and their fixtures and generators. New:
   `schemas/holder-state-v3.schema.json`, `HolderStateV3`, fixtures
-  `state-v3*.json` (generated) and `state-v2-acks.json` (lib 0.5.0,
-  frozen) with a migration test; the codec-2 fixtures are frozen.
+  `state-v3*.json` (generated, reproduced in `npm test`).
 - **`./adapters/vti-mediator`**: `reconcile(view, gate, now)` replaces
   `submitOutbound`. It files the entries of the view not yet filed and
   withdraws every submission before the trias whose digest the view no
