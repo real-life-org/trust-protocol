@@ -17,7 +17,7 @@
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3);
-  RLTP Encounter 0.31; RLTP Delivery Contract 0.82 (normative
+  RLTP Encounter 0.31; RLTP Delivery Contract 0.83 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
   Membership Tasks 0.20 (the task types that transport this
@@ -5522,7 +5522,7 @@ identity of 5.2 awaits, so conformance claims no device-level
 service identity), RLTP
 Encounter 0.31 (`rltp-encounter@0.31`, card form `rltp-card/0.25`,
 where cards are consumed), RLTP Trust Layer 0.31 (`rltp-trust@0.31`,
-the `anchor-rotation@2` of 5.6), the Delivery Contract 0.82, and the
+the `anchor-rotation@2` of 5.6), the Delivery Contract 0.83, and the
 Membership Tasks 0.20 (`rltp-membership@0.20`), whose pins of this layer's wire forms
 RLTP-ACC-11100 states; the two documents move together, so the
 Membership Tasks text carried in the same publication names this

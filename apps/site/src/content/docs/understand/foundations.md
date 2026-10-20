@@ -261,7 +261,8 @@ own documents, as a message does; duplicates and lost receipts are
 the normal case, every effect is idempotent. The envelope is sealed end
 to end; a carrier holds queues and reads nothing. The sender sees
 `accepted`, `delivered` or `failed`, never a success that was not
-one. An acknowledgement means arrival only. Whether the recipient agrees
+one. Until a service takes a document, the sender keeps it, across a
+lock and a restart, and a locked device sends nothing. An acknowledgement means arrival only. Whether the recipient agrees
 is said by a document they issue themselves: the counter-credential
 in an encounter, the signed acceptance of an invitation. Each relationship registers under its own
 principal, so a relay holding six of your relationships holds six

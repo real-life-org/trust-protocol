@@ -9,7 +9,7 @@
 //     conformance/access-rule-ids-0.57.txt,
 //     conformance/membership-rule-ids-0.20.txt,
 //     conformance/trust-rule-ids-0.31.txt,
-//     conformance/delivery-rule-ids-0.82.txt), one identifier per line,
+//     conformance/delivery-rule-ids-0.83.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
 //     outside this repository) — checked additionally when present, and
@@ -79,9 +79,9 @@ export const LAYERS = {
   },
   delivery: {
     prefix: 'RLTP-DEL',
-    title: 'Delivery Contract 0.82',
+    title: 'Delivery Contract 0.83',
     spec: join(ROOT, 'spec/delivery-contract.md'),
-    manifest: join(ROOT, 'conformance/delivery-rule-ids-0.82.txt'),
+    manifest: join(ROOT, 'conformance/delivery-rule-ids-0.83.txt'),
     inventory: null,
     env: 'DELIVERY_INVENTORY'
   },

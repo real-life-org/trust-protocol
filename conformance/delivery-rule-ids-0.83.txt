@@ -1,4 +1,4 @@
-# Delivery Contract 0.82 — rule identifiers, one per line, generated from the specification.
+# Delivery Contract 0.83 — rule identifiers, one per line, generated from the specification.
 # Regenerate: node scripts/check-encounter-trace.mjs --layer delivery --write-manifest-from-spec <spec.md>
 RLTP-DEL-5010
 RLTP-DEL-5020
@@ -6,6 +6,10 @@ RLTP-DEL-5810
 RLTP-DEL-5820
 RLTP-DEL-6110
 RLTP-DEL-6115
+RLTP-DEL-6120
+RLTP-DEL-6125
+RLTP-DEL-6130
+RLTP-DEL-6135
 RLTP-DEL-6210
 RLTP-DEL-6220
 RLTP-DEL-6230
@@ -21,6 +25,8 @@ RLTP-DEL-6305
 RLTP-DEL-6310
 RLTP-DEL-6320
 RLTP-DEL-6325
+RLTP-DEL-6330
+RLTP-DEL-6335
 RLTP-DEL-7010
 RLTP-DEL-7015
 RLTP-DEL-7020
