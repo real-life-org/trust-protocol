@@ -53,7 +53,10 @@ mediator adapter does this in `reconcile(view, holder, now)`;
 `mayHandOver` is the check alone and authorizes nothing afterwards). At
 the lock it awaits `close`, which returns once the holder's running
 operation has finished; only then does the next opening, a new holder over
-the same store, begin. `InMemoryStore` is for tests;
+the same store, begin. An app that does not know whether a human act
+committed (a crash, a lock) asks `replay(actId, when)`, which answers the
+act's journaled result or `unknown-act` and never runs the act again.
+`InMemoryStore` is for tests;
 an app brings its own store, which passes the `storeContract` suite.
 
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)

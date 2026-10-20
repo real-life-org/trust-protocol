@@ -58,7 +58,20 @@
 //     due for the give-up, at their current attempt; one due for it is
 //     given up in a commit of its own first (6115: never handed out again). Idempotency is bounded by the journal's retention:
 //     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
-//     bounds effects and their acks; after it the same actId is a new act
+//     bounds effects and their acks; after it the same actId is a new act.
+//     The retention runs in holder time (an entry leaves at the tick at or
+//     after at + retention, `when` raised to lastWhen): a clock set ahead
+//     by more than the retention ends it early in real time. Every
+//     document of an act is past its send deadline by then (the horizon
+//     at the latest), so the journal outlives its act's transport. A replay
+//     answers from the journal alone, before any preparation: no key, no
+//     entropy, no new document; the time it reads at changes nothing in it
+//   - replay(actId, when) is the journal read without the act: in the
+//     queue (after the settling of an unsettled commit), on the stored
+//     state, committing nothing, lastWhen included; it names which of the
+//     act's documents a repeat at max(when, lastWhen) would hand out, and
+//     gives none up. unknown-act: no entry under the id (never committed,
+//     or past the retention)
 //   - KeyProvider, Log and Access rejections inside a preparation become
 //     InfraError('key-provider' | 'log' | 'access') with the cause. Known
 //     limitation: a provider's argument errors (a module passing a label
@@ -228,7 +241,7 @@ import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, 
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
 import { CryptoUnavailableError, InfraError } from './results.js'
-import type { ActError, ActResult, InfraErrorCode, ReceiveResult, ResumeResult } from './results.js'
+import type { ActError, ActResult, InfraErrorCode, ReceiveResult, ReplayResult, ResumeResult } from './results.js'
 import { randomEntropy } from './entropy.js'
 import type { Entropy, PlatformRandom } from './entropy.js'
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js'
@@ -535,6 +548,9 @@ export interface Engine {
   receive (env: unknown, when: Millis): Promise<ReceiveResult>
   subscribe (listener: CommitListener): () => void
   snapshot (): Promise<EngineSnapshot>
+  /** the journaled result of the human act `actId`, or `unknown-act`: a
+   *  pure read in the queue — never runs, gives up or commits anything */
+  replay (actId: string, when: Millis): Promise<ReplayResult>
   /** what the holder keeps for transport at `when` (Delivery RLTP-DEL-6120):
    *  refused until a resume of this engine has completed */
   pendingTransport (when: Millis): Promise<TransportView | TransportRefusal>
@@ -1768,6 +1784,25 @@ class HolderEngine implements Engine {
     return this.#enqueue(async () => {
       const { state } = await this.#read()
       return Object.freeze({ state, commitSeq: state.commitSeq })
+    })
+  }
+
+  replay (actId: string, when: Millis): Promise<ReplayResult> {
+    try { checkWhen(when) } catch (e) { return Promise.reject(e) }
+    if (typeof actId !== 'string' || actId === '') return Promise.resolve(Object.freeze({ ok: false as const, code: 'actid-missing' as const }))
+    return this.#enqueue(async () => {
+      const { state } = await this.#read()
+      if (!Object.hasOwn(state.acts, actId)) return Object.freeze({ ok: false as const, code: 'unknown-act' as const })
+      const rec = state.acts[actId]
+      // as a repeat of the act would see them at max(when, lastWhen), without
+      // the give-up it would commit first: a pure read
+      const at = Math.max(when, state.lastWhen)
+      const outbound = rec.outboundDigests.map((digest) => {
+        const it = Object.hasOwn(state.outbox, digest) ? state.outbox[digest] : undefined
+        const t = it ? triasOf(it) : undefined
+        return { digest, live: it !== undefined && t !== 'delivered' && t !== 'failed' && this.#giveUp(it, at) === null }
+      })
+      return freezeDeep({ ok: true as const, result: { actId: rec.actId, commitSeq: rec.commitSeq, at: rec.at, events: structuredClone(rec.events) as HolderEvent[], outbound } })
     })
   }
 

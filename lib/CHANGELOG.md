@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.1
+
+One actId, one result.
+
+- **`replay(actId, when)`**: the journaled result of a human act without
+  the act — `{ok: true, result: {actId, commitSeq, at, events, outbound}}`,
+  each document of the act with `live` (whether a repeat at `when` would
+  hand it out), or `{ok: false, code: 'unknown-act'}` (`actid-missing` for
+  an empty id). For `sendMessage` the `message.sent` event carries the
+  `mid` and the `digest`; `at` is the commit time the message's `sentAt`
+  was taken from. A pure read in the holder's queue: nothing runs, nothing
+  is given up, nothing commits, lastWhen included; no key is used, so it
+  answers on an opening whose keys are locked. New types `ReplayResult`,
+  `ActReplay`, `ReplayOutbound`.
+- **The rule, tested for every human act** (it held before; now it is
+  stated and tested): a repeat under a journaled actId answers the
+  journaled events — for `sendMessage` the same `mid` — whatever the clock
+  says (ahead, set back), across `close()` and a new opening, with keys
+  that answer nothing, and after a commit whose outcome was unknown; it
+  never mints a second `mid`. Another input under the same actId stays
+  `actid-conflict`.
+- **The bound, documented**: the journal keeps an act for max(P90D, the
+  retry horizon) after its commit, in holder time, as before; every
+  document of the act is past its send deadline by then. A clock set ahead by more than
+  that ends it early in real time; `replay` then answers `unknown-act`, and
+  a repeat under that actId would be a new act. An app asks `replay`
+  instead of repeating an act blind.
+- The state and codec 3 are unchanged: the journal was already part of the
+  stored state.
+
 ## 0.6.0
 
 Takes up Delivery Contract 0.83: the holder keeps custody of what waits

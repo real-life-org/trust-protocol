@@ -51,6 +51,19 @@
 // unrevoked name under an own anchor context (identity-state.ts).
 // A missing actId is refused at runtime as actid-missing.
 //
+// One actId, one result: replay(actId, when) reads the journaled result of
+// any of the human acts above (its events: for sendMessage `message.sent`
+// with mid and digest; its commit time; its documents and whether a repeat
+// would hand them out at `when`), or answers unknown-act. It runs nothing
+// and commits nothing, needs no keys, and works on every opening over the
+// store. A repeat of the act under the same actId answers the same events
+// at any clock, across a lock and a new opening; the journal holds an act
+// for the retention max(P90D, retry.horizonMs) after its commit in holder
+// time (engine.ts), after which the actId is unknown. An app that does not
+// know whether an act committed (a crash, an unknown-commit-outcome, a
+// lock) asks replay; on unknown-act the act did not commit or has left
+// the journal, and only the human decides to act anew.
+//
 // Reading: the views (views.ts) over one snapshot each, carrying its
 // commitSeq. `subscribe` announces every commit with its commitSeq and
 // events; the app re-reads the views it shows, and a view read after the
@@ -85,7 +98,7 @@ import { createEngine } from './engine.js'
 import type { CommitListener, EnginePorts, HolderModule, TransportEntry, TransportRefusal, TransportView } from './engine.js'
 import type { DeliveryReport } from './ports.js'
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js'
-import type { ActResult, ReceiveResult, ResumeResult } from './results.js'
+import type { ActResult, ReceiveResult, ReplayResult, ResumeResult } from './results.js'
 import { InfraError } from './results.js'
 import { commitViolations } from './invariants.js'
 import type { CommitOp } from './invariants.js'
@@ -232,6 +245,12 @@ export interface Holder {
   inbox (): Promise<InboxMessageView[]>
   /** by document digest or threadId */
   deliveryStatus (digestOrThreadId: string): Promise<DeliveryStatusView>
+  /** the journaled result of the human act `actId` (any of the acts above:
+   *  for sendMessage its `message.sent` event with `mid` and `digest`), or
+   *  `{ok: false, code: 'unknown-act'}`; a pure read that never runs the
+   *  act, never mints a mid, commits nothing. The question an app asks
+   *  after a crash or a lock instead of repeating the act blind */
+  replay (actId: string, when: Millis): Promise<ReplayResult>
   /** what the holder keeps for transport at `when`, after this opening's
    *  first completed resume (else `{ok: false, code: 'not-resumed'}`) */
   pendingTransport (when: Millis): Promise<TransportView | TransportRefusal>
@@ -314,6 +333,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     prompts: async () => promptsView(await read()),
     inbox: async () => inboxView(await read()),
     deliveryStatus: async (x: string) => deliveryStatusView(await read(), x),
+    replay: (actId: string, when: Millis) => engine.replay(actId, when),
     pendingTransport: (when: Millis) => engine.pendingTransport(when),
     mayHandOver: (entry: TransportEntry, when: Millis) => engine.mayHandOver(entry, when),
     handOver: (entry: TransportEntry, when: Millis, start: () => boolean) => engine.handOver(entry, when, start),

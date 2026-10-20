@@ -118,7 +118,22 @@ consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
 `addDevice`, `revokeDevice`. Not
 human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
 Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
-`deliveryStatus`, `deviceKey`, `snapshot`, `subscribe`. Custody:
+`deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
+
+One actId, one result: every human act is journaled under its actId with
+its result. A repeat under the same actId answers the journaled events
+(for `sendMessage` the same `mid`) at any clock and across a lock and a
+new opening; it never runs the act again, and another input under the
+same actId is `actid-conflict`. `replay(actId, when)` reads that result
+without the act: `{ok: true, result: {actId, commitSeq, at, events,
+outbound}}` (each document with `live`: whether a repeat at `when` would
+hand it out), or `{ok: false, code: 'unknown-act'}`. It commits nothing and
+needs no keys. The journal keeps an act for max(P90D, the retry horizon)
+after its commit, counted in holder time; after that its actId is
+unknown. An app that does not know whether an act committed (a crash, an
+`unknown-commit-outcome`, a lock) asks `replay` and does not repeat the act
+blind: `unknown-act` means the act did not commit or has left the
+journal, and acting anew is the human's decision. Custody:
 `pendingTransport`, `handOver`, `mayHandOver`, `close`, `closed`.
 
 ## What the root exports
