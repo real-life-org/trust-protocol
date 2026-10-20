@@ -452,30 +452,25 @@ export class MediatorCarrierAdapter {
     if (this.#gate === null) this.#gate = gate
     else if (this.#gate !== gate) throw new Error('one adapter per opening: this adapter reconciles with another holder (create a new adapter for the next opening)')
     const now = this.#now(rawNow)
-    const named = new Set(view.entries.map((e) => e.digest))
+    // a submission's key: the digest, and for a duplicate's answer its
+    // grant too — the retries and each answer are hand-overs of their own
+    const keyOf = (digest: string, resend: number | undefined): string => resend === undefined ? digest : `${digest}#${resend}`
+    const named = new Set(view.entries.map((e) => keyOf(e.digest, e.resend)))
     const filed = new Map<string, Submission>()
     for (const [id, sub] of this.#subs) {
       if (sub.digest === undefined) continue
+      const key = keyOf(sub.digest, sub.entry?.resend)
       const before = sub.st === null || sub.st.state === 'awaiting-transport'
-      if (before && !named.has(sub.digest)) { this.#subs.delete(id); continue }
-      filed.set(sub.digest, sub)
+      if (before && !named.has(key)) { this.#subs.delete(id); continue }
+      filed.set(key, sub)
     }
     const refs: SubmissionRef[] = []
     for (const entry of view.entries) {
-      const had = filed.get(entry.digest)
+      const had = filed.get(keyOf(entry.digest, entry.resend))
       if (had !== undefined) {
         // the newest entry of a live submission is the one its gate checks
-        const live = had.st === null || had.st.state === 'awaiting-transport'
-        // a duplicate's ack, once more: a submission of its own, from now —
-        // a held one of the ended retries is withdrawn, never taken over
-        // (each grant of the holder is its own hand-over: another number
-        // than the filed one's is a new submission; the same is idempotent)
-        if (entry.resend !== undefined && had.entry?.resend !== entry.resend) {
-          if (live) this.#subs.delete(had.id)
-        } else {
-          if (live) { had.entry = entry; had.gate = gate }
-          continue
-        }
+        if (had.st === null || had.st.state === 'awaiting-transport') { had.entry = entry; had.gate = gate }
+        continue
       }
       const id = 's' + this.#nextId++
       const sub: Submission = {

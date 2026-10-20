@@ -78,9 +78,9 @@ the holder's queue, so nothing of this holder runs between the check and
 the start of the send; it says yes only for an entry this opening issued
 that is still pending, unchanged and before its deadline (`mayHandOver`
 is the check alone). A document missing from the view is not to be sent.
-A duplicate whose stored ack has ended its retries adds that ack once, as
-a `resend` entry (numbered per grant: each duplicate is a hand-over of its
-own), used up by its hand-over. The check is the opening's:
+Every duplicate adds its stored ack once more, as a `resend` entry beside
+the ack's retries and independent of their state (numbered per grant:
+each duplicate is a hand-over of its own), used up by its hand-over. The check is the opening's:
 two openings over one store at once are not serialized with each other,
 so an app keeps one opening per store (its writer lock), and releases
 that lock, or starts the next opening, only after `await holder.close()`:

@@ -103,9 +103,10 @@
 //     there with the same envelope before its deadline. handOver(entry,
 //     when, start) is the same check with the deposit's start inside the
 //     queue: nothing of this engine runs between the check and the start.
-//     A duplicate's stored ack whose retries ended is granted one hand-over
-//     to this engine (a `resend` entry, deadline the effect's retention),
-//     used up by its hand-over; a resume that throws, its settling
+//     Every duplicate grants this engine one hand-over of its stored ack
+//     (a `resend` entry, numbered, beside the ack's retries and independent
+//     of their state, deadline the effect's retention), used up by its
+//     hand-over; a resume that throws, its settling
 //     included, withdraws the authority until one completes. The check is
 //     this engine's: a second engine over the same store commits through
 //     CAS but is not serialized with this one's hand-overs, so one opening
@@ -1629,9 +1630,8 @@ class HolderEngine {
                 return false;
             if (start() !== true)
                 return false;
-            // a hand-over of the ack uses up the grant it was issued under (a
-            // regular one, any standing grant): a later duplicate grants anew
-            if (entry.kind === 'ack' && (entry.resend === undefined || this.#resends.get(entry.digest) === entry.resend))
+            // a resend's hand-over uses up its grant; a later duplicate grants anew
+            if (entry.resend !== undefined)
                 this.#resends.delete(entry.digest);
             return true;
         }).catch((e) => {
@@ -1653,7 +1653,10 @@ class HolderEngine {
     #passes(state, entry, when) {
         if (this.#closed || !this.#resumed)
             return false;
-        const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, this.#resends);
+        // a resend entry stands only while its grant is the standing one
+        if (entry.resend !== undefined && this.#resends.get(entry.digest) !== entry.resend)
+            return false;
+        const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, entry.resend);
         return now !== null && now.resend === entry.resend && jcs(now.envelope) === jcs(entry.envelope);
     }
     close() {
@@ -1674,7 +1677,7 @@ const notAfterOf = (it, horizonMs) => {
 /** The transport entry of one pending document or ack at `when`, or null:
  *  terminal, accepted, sent, past its deadline, or absent (RLTP-DEL-6135:
  *  absent means stop). */
-function transportEntryOf(state, kind, digest, when, horizonMs, resends) {
+function transportEntryOf(state, kind, digest, when, horizonMs, resend) {
     if (kind === 'document') {
         if (!Object.hasOwn(state.outbox, digest))
             return null;
@@ -1695,17 +1698,19 @@ function transportEntryOf(state, kind, digest, when, horizonMs, resends) {
         const a = state.effects[d].ack;
         if (a === null || a.digest !== digest)
             continue;
-        const notAfter = Math.min(a.at + horizonMs, Number.MAX_SAFE_INTEGER);
-        if (a.sent || when >= notAfter) {
-            // retries over: only a duplicate's grant sends it, once, while the
-            // effect keeps it
-            if (!resends.has(digest) || when >= state.effects[d].expiresAt)
+        if (resend !== undefined) {
+            // a duplicate's answer: its own hand-over, apart from the retries and
+            // whatever state they are in, while the effect keeps the ack (6335)
+            if (when >= state.effects[d].expiresAt)
                 return null;
             return structuredClone({
                 digest, kind, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt: a.attempt, since: a.at,
-                notAfter: state.effects[d].expiresAt, resend: resends.get(digest),
+                notAfter: state.effects[d].expiresAt, resend,
             });
         }
+        const notAfter = Math.min(a.at + horizonMs, Number.MAX_SAFE_INTEGER);
+        if (a.sent || when >= notAfter)
+            return null;
         return structuredClone({
             digest, kind, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt: a.attempt, since: a.at, notAfter,
             ...(a.held !== undefined ? { held: a.held } : a.nextAttemptAt !== undefined ? { nextAttemptAt: a.nextAttemptAt } : {}),
@@ -1719,7 +1724,7 @@ function transportEntries(state, when, horizonMs, resends) {
     const out = [];
     const order = Object.keys(state.outbox).sort((a, b) => ((state.outbox[a].nextAttemptAt ?? 0) - (state.outbox[b].nextAttemptAt ?? 0)) || (a < b ? -1 : a > b ? 1 : 0));
     for (const d of order) {
-        const e = transportEntryOf(state, 'document', d, when, horizonMs, resends);
+        const e = transportEntryOf(state, 'document', d, when, horizonMs);
         if (e)
             out.push(e);
     }
@@ -1727,7 +1732,13 @@ function transportEntries(state, when, horizonMs, resends) {
         const a = state.effects[d].ack;
         if (a === null)
             continue;
-        const e = transportEntryOf(state, 'ack', a.digest, when, horizonMs, resends);
+        const e = transportEntryOf(state, 'ack', a.digest, when, horizonMs);
+        if (e)
+            out.push(e);
+    }
+    // the duplicates' answers, each its own entry beside the retries
+    for (const [digest, grant] of [...resends].sort((x, y) => x[1] - y[1])) {
+        const e = transportEntryOf(state, 'ack', digest, when, horizonMs, grant);
         if (e)
             out.push(e);
     }
