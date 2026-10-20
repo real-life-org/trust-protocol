@@ -184,6 +184,7 @@ const project = (state, c, ix, rix) => {
         classes: { ...classes, sealedGroupStar: { ...classes.sealedGroupStar, groups } },
         ...(sharedGroups ? { sharedGroups } : {}),
         ...(profile ? { profile } : {}),
+        blocked: own.some((r) => state.messages.blocked.includes(r.id)),
     };
 };
 const itemView = (digest, it) => {

@@ -1,0 +1,3975 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://real-life.org/trust-protocol/lib/holder-state-v2.schema.json",
+  "title": "HolderState, codec 2",
+  "description": "NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges),, an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked) is sorted.",
+  "type": "object",
+  "properties": {
+    "codec": {
+      "const": 2
+    },
+    "commitSeq": {
+      "$ref": "#/$defs/Dec"
+    },
+    "lastWhen": {
+      "$ref": "#/$defs/Millis"
+    },
+    "register": {
+      "type": "object",
+      "properties": {
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "pairNonces": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "carriers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nonce": {
+                  "type": "string"
+                },
+                "generation": {
+                  "$ref": "#/$defs/Dec"
+                }
+              },
+              "required": [
+                "nonce",
+                "generation"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "devices": {
+          "type": "object",
+          "properties": {
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "revoked": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "names",
+            "revoked"
+          ],
+          "additionalProperties": false
+        },
+        "community": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "genesis": {
+                  "type": "string"
+                },
+                "head": {
+                  "$ref": "#/$defs/Dec"
+                }
+              },
+              "required": [
+                "genesis",
+                "head"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lineage": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "labels",
+        "pairNonces",
+        "carriers",
+        "devices",
+        "community",
+        "lineage"
+      ],
+      "additionalProperties": false
+    },
+    "addresses": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "lastShown": {
+                "$ref": "#/$defs/Millis"
+              },
+              "retiredAt": {
+                "$ref": "#/$defs/Millis"
+              }
+            },
+            "required": [
+              "label",
+              "lastShown"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "tombstones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "keys",
+        "tombstones"
+      ],
+      "additionalProperties": false
+    },
+    "contacts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Contact"
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Relationship"
+      }
+    },
+    "entryOrder": {
+      "type": "object",
+      "properties": {
+        "nextPos": {
+          "$ref": "#/$defs/Dec"
+        },
+        "heads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "nextPos",
+        "heads"
+      ],
+      "additionalProperties": false
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Group"
+      }
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "body": true,
+        "revision": {
+          "$ref": "#/$defs/Dec"
+        }
+      },
+      "required": [
+        "body",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "ack": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/StoredAck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "$ref": "#/$defs/Millis"
+          }
+        },
+        "required": [
+          "ack",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "outbox": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/OutboxItem"
+      }
+    },
+    "duties": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Duty"
+      }
+    },
+    "rotations": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Rotation"
+      }
+    },
+    "prompts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Prompt"
+      }
+    },
+    "acts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/ActRecord"
+      }
+    },
+    "encounter": {
+      "type": "object",
+      "properties": {
+        "challenges": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "tCh": {
+                "$ref": "#/$defs/Millis"
+              },
+              "label": {
+                "type": "string"
+              },
+              "card": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "value",
+              "tCh",
+              "label",
+              "card"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "records": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/EnactmentRecord"
+          }
+        },
+        "introductions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/IntroAct"
+          }
+        },
+        "offers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "mediatorContactId": {
+                "type": "string"
+              },
+              "pin": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Millis"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "mediatorContactId",
+              "pin",
+              "target",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "designators": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "declarations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "issuer": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "revision": {
+                "$ref": "#/$defs/Dec"
+              },
+              "constants": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "at": {
+                "$ref": "#/$defs/Millis"
+              }
+            },
+            "required": [
+              "issuer",
+              "role",
+              "revision",
+              "constants",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "challenges",
+        "records",
+        "introductions",
+        "offers",
+        "designators",
+        "declarations"
+      ],
+      "additionalProperties": false
+    },
+    "joining": {
+      "type": "object",
+      "properties": {
+        "preludes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "inviter": {
+                "type": "string"
+              },
+              "contactId": {
+                "type": "string"
+              },
+              "rkid": {
+                "type": "string"
+              },
+              "memberLabel": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Millis"
+              }
+            },
+            "required": [
+              "group",
+              "inviter",
+              "contactId",
+              "rkid",
+              "memberLabel",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "invites": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "credDigest": {
+                "type": "string"
+              },
+              "group": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "contactId": {
+                "type": "string",
+                "description": "the contact of the relationship its prelude binding attributed it to (RLTP-MT-3100); absent for an invitation attributed to none"
+              },
+              "rkid": {
+                "type": "string"
+              },
+              "memberLabel": {
+                "type": "string"
+              },
+              "invite": {
+                "type": "object"
+              },
+              "promptId": {
+                "type": "string"
+              },
+              "validUntil": {
+                "$ref": "#/$defs/Millis"
+              },
+              "status": {
+                "enum": [
+                  "open",
+                  "accepted",
+                  "declined",
+                  "joined"
+                ]
+              },
+              "at": {
+                "$ref": "#/$defs/Millis"
+              },
+              "acceptDigest": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "credDigest",
+              "group",
+              "name",
+              "memberLabel",
+              "invite",
+              "promptId",
+              "validUntil",
+              "status",
+              "at"
+            ],
+            "additionalProperties": false,
+            "dependentRequired": {
+              "contactId": [
+                "rkid"
+              ],
+              "rkid": [
+                "contactId"
+              ]
+            }
+          }
+        },
+        "surfaced": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "the credential digest of every invitation surfaced, for the life of the holder (RLTP-MT-3130); sorted"
+        },
+        "declined": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "the register of declined invitations (Message Tasks 6.4): credential digests, holder-wide, for the life of the holder; sorted"
+        }
+      },
+      "required": [
+        "preludes",
+        "invites",
+        "surfaced",
+        "declined"
+      ],
+      "additionalProperties": false
+    },
+    "messages": {
+      "type": "object",
+      "description": "Message Tasks 0.1 on the holder (message/holder.ts)",
+      "properties": {
+        "blocked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "the relationships under a block (Message Tasks 6.1), by relationship id; sorted"
+        },
+        "rates": {
+          "type": "object",
+          "description": "per relationship id: acceptance times inside the last 24 hours (Message Tasks 4.2)",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "invites": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/Millis"
+                }
+              }
+            },
+            "required": [
+              "invites"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "blocked",
+        "rates"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "codec",
+    "commitSeq",
+    "lastWhen",
+    "register",
+    "addresses",
+    "contacts",
+    "relationships",
+    "entryOrder",
+    "groups",
+    "profile",
+    "effects",
+    "outbox",
+    "duties",
+    "rotations",
+    "prompts",
+    "acts",
+    "encounter",
+    "joining",
+    "messages"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Dec": {
+      "description": "a counter as a canonical decimal string",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,17})$"
+    },
+    "Millis": {
+      "description": "milliseconds since the epoch, a safe non-negative integer",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "Setting": {
+      "enum": [
+        "default",
+        "on",
+        "off"
+      ]
+    },
+    "TrustClass": {
+      "enum": [
+        "star",
+        "groupStar",
+        "anchorMapping",
+        "sealedGroupStar",
+        "profile"
+      ]
+    },
+    "Recipient": {
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string"
+        },
+        "rkid": {
+          "type": "string"
+        },
+        "keyAgreement": {
+          "type": "string"
+        },
+        "anchor": {
+          "type": "string"
+        },
+        "via": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contactId",
+        "rkid",
+        "keyAgreement"
+      ],
+      "additionalProperties": false
+    },
+    "Envelope": {
+      "type": "object",
+      "properties": {
+        "rkid": {
+          "type": "string"
+        },
+        "epk": {
+          "type": "string"
+        },
+        "nonce": {
+          "type": "string"
+        },
+        "ciphertext": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rkid",
+        "epk",
+        "nonce",
+        "ciphertext"
+      ],
+      "additionalProperties": false
+    },
+    "Assembly": {
+      "type": "object",
+      "properties": {
+        "salt": {
+          "$ref": "#/$defs/Dec"
+        },
+        "chunks": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "salt",
+        "chunks"
+      ],
+      "additionalProperties": false
+    },
+    "StarPair": {
+      "type": "object",
+      "properties": {
+        "member": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "head"
+      ],
+      "additionalProperties": false
+    },
+    "GroupStarItem": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "group": {
+              "type": "string"
+            },
+            "mode": {
+              "const": "digest"
+            }
+          },
+          "required": [
+            "group",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "group": {
+              "type": "string"
+            },
+            "mode": {
+              "const": "sealed"
+            },
+            "member": {
+              "type": "string"
+            },
+            "memberOp": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "group",
+            "mode",
+            "member",
+            "memberOp"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StarOutInflight": {
+      "type": "object",
+      "properties": {
+        "view": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StarPair"
+          }
+        },
+        "viewDigest": {
+          "type": "string"
+        },
+        "digests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "view",
+        "viewDigest",
+        "digests",
+        "acked"
+      ],
+      "additionalProperties": false
+    },
+    "StarOut": {
+      "description": "the sender side of one reconciled sequence (5.4); snapshot and snapshotDigest are null together",
+      "type": "object",
+      "properties": {
+        "lastSalt": {
+          "$ref": "#/$defs/Dec"
+        },
+        "exhausted": {
+          "type": "boolean"
+        },
+        "hwm": {
+          "$ref": "#/$defs/Dec"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/StarPair"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshotDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inflight": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/StarOutInflight"
+          }
+        }
+      },
+      "required": [
+        "lastSalt",
+        "exhausted",
+        "hwm",
+        "snapshot",
+        "snapshotDigest",
+        "inflight"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "snapshot": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "snapshotDigest": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "snapshotDigest": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "StarIn": {
+      "type": "object",
+      "properties": {
+        "hwm": {
+          "$ref": "#/$defs/Dec"
+        },
+        "lowerBound": {
+          "$ref": "#/$defs/Dec"
+        },
+        "assembly": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Assembly"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accepted": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "salt": {
+                  "$ref": "#/$defs/Dec"
+                },
+                "blinded": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "matches": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "salt",
+                "blinded",
+                "matches"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "hwm",
+        "lowerBound",
+        "assembly",
+        "accepted"
+      ],
+      "additionalProperties": false
+    },
+    "GroupStarOutInflight": {
+      "type": "object",
+      "properties": {
+        "view": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GroupStarItem"
+          }
+        },
+        "viewDigest": {
+          "type": "string"
+        },
+        "digests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "view",
+        "viewDigest",
+        "digests",
+        "acked"
+      ],
+      "additionalProperties": false
+    },
+    "GroupStarOut": {
+      "description": "the sender side of one reconciled sequence (5.4); snapshot and snapshotDigest are null together",
+      "type": "object",
+      "properties": {
+        "lastSalt": {
+          "$ref": "#/$defs/Dec"
+        },
+        "exhausted": {
+          "type": "boolean"
+        },
+        "hwm": {
+          "$ref": "#/$defs/Dec"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/GroupStarItem"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshotDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inflight": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/GroupStarOutInflight"
+          }
+        }
+      },
+      "required": [
+        "lastSalt",
+        "exhausted",
+        "hwm",
+        "snapshot",
+        "snapshotDigest",
+        "inflight"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "snapshot": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "snapshotDigest": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "snapshotDigest": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "GroupStarIn": {
+      "type": "object",
+      "properties": {
+        "hwm": {
+          "$ref": "#/$defs/Dec"
+        },
+        "lowerBound": {
+          "$ref": "#/$defs/Dec"
+        },
+        "assembly": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Assembly"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accepted": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "salt": {
+                  "$ref": "#/$defs/Dec"
+                },
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "d": {
+                        "type": "string"
+                      },
+                      "c": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "d",
+                      "c"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "salt",
+                "entries",
+                "groups"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "hwm",
+        "lowerBound",
+        "assembly",
+        "accepted"
+      ],
+      "additionalProperties": false
+    },
+    "ContinuityDue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "choice"
+            },
+            "prior": {
+              "type": "string"
+            },
+            "alts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "prior",
+            "alts"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "report",
+                "align"
+              ]
+            },
+            "prior": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "prior"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LogHead": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "genesis": {
+              "type": "string"
+            },
+            "empty": {
+              "const": true
+            }
+          },
+          "required": [
+            "genesis",
+            "empty"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "genesis": {
+              "type": "string"
+            },
+            "entryId": {
+              "type": "string"
+            },
+            "gen": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "next": {
+              "type": "string"
+            },
+            "commit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "genesis",
+            "entryId",
+            "gen",
+            "next",
+            "commit"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Tuple": {
+      "description": "one enactment's tuple of a relationship (Trust 6.4)",
+      "type": "object",
+      "properties": {
+        "ownPairLabel": {
+          "type": "string"
+        },
+        "counterpartAnchor": {
+          "type": "string"
+        },
+        "counterpartKeyAgreement": {
+          "type": "string"
+        },
+        "rkid": {
+          "type": "string"
+        },
+        "entryId": {
+          "type": "string"
+        },
+        "priorCandidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ownPairLabel": {
+                "type": "string"
+              },
+              "counterpartAnchor": {
+                "type": "string"
+              },
+              "replaces": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "ownPairLabel",
+              "counterpartAnchor"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "starOut": {
+          "$ref": "#/$defs/StarOut"
+        },
+        "starIn": {
+          "$ref": "#/$defs/StarIn"
+        },
+        "groupStarOut": {
+          "$ref": "#/$defs/GroupStarOut"
+        },
+        "groupStarIn": {
+          "$ref": "#/$defs/GroupStarIn"
+        },
+        "probeOut": {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "inflight": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "digests": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "acked": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "digests",
+                  "acked"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "done": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "seq",
+            "inflight",
+            "done"
+          ],
+          "additionalProperties": false
+        },
+        "probeIn": {
+          "type": "object",
+          "properties": {
+            "hwm": {
+              "$ref": "#/$defs/Dec"
+            },
+            "lowerBound": {
+              "$ref": "#/$defs/Dec"
+            },
+            "assembly": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Assembly"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "hwm",
+            "lowerBound",
+            "assembly"
+          ],
+          "additionalProperties": false
+        },
+        "continuityOut": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "$ref": "#/$defs/Dec"
+            },
+            "body": true,
+            "proof": true,
+            "sent": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "align": {
+              "type": "boolean"
+            },
+            "chosen": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reported": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aligned": {
+              "type": "boolean"
+            },
+            "due": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ContinuityDue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "rev",
+            "body",
+            "proof",
+            "sent",
+            "align",
+            "chosen",
+            "reported",
+            "aligned",
+            "due"
+          ],
+          "additionalProperties": false
+        },
+        "continuityIn": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "$ref": "#/$defs/Dec"
+            },
+            "body": true,
+            "recordPrior": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "rev",
+            "body",
+            "recordPrior"
+          ],
+          "additionalProperties": false
+        },
+        "mappingOut": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "$ref": "#/$defs/Dec"
+            },
+            "body": true,
+            "underAnchor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "rev",
+            "body",
+            "underAnchor"
+          ],
+          "additionalProperties": false
+        },
+        "mappingIn": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "$ref": "#/$defs/Dec"
+            },
+            "body": true,
+            "self": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "card": true
+          },
+          "required": [
+            "rev",
+            "body",
+            "self",
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        "profileOut": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "$ref": "#/$defs/Dec"
+            }
+          },
+          "required": [
+            "rev"
+          ],
+          "additionalProperties": false
+        },
+        "profileIn": {
+          "type": "object",
+          "properties": {
+            "rev": {
+              "$ref": "#/$defs/Dec"
+            },
+            "body": true,
+            "verifiedSeq": {
+              "$ref": "#/$defs/Dec"
+            }
+          },
+          "required": [
+            "rev",
+            "body",
+            "verifiedSeq"
+          ],
+          "additionalProperties": false
+        },
+        "deactivated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ownPairLabel",
+        "counterpartAnchor",
+        "counterpartKeyAgreement",
+        "rkid",
+        "entryId",
+        "priorCandidates",
+        "starOut",
+        "starIn",
+        "groupStarOut",
+        "groupStarIn",
+        "probeOut",
+        "probeIn",
+        "continuityOut",
+        "continuityIn",
+        "mappingOut",
+        "mappingIn",
+        "profileOut",
+        "profileIn",
+        "deactivated"
+      ],
+      "additionalProperties": false
+    },
+    "Relationship": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "tuples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Tuple"
+          }
+        },
+        "activeHead": {
+          "type": "string"
+        },
+        "earliestAnchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "prev": {
+                "type": "string"
+              },
+              "next": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prev",
+              "next"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        },
+        "heldCounterpartHead": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "ceremony",
+                "introduced"
+              ]
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            },
+            "via": {
+              "type": "string"
+            },
+            "viaPin": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "at"
+          ],
+          "additionalProperties": false
+        },
+        "chainedInto": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstVerified": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Dec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "contactId",
+        "tuples",
+        "activeHead",
+        "earliestAnchor",
+        "links",
+        "bindings",
+        "heldCounterpartHead",
+        "memory",
+        "provenance",
+        "chainedInto",
+        "firstVerified"
+      ],
+      "additionalProperties": false
+    },
+    "Contact": {
+      "description": "one entry of the deliverable set (Trust 2120, 2140); its id equals its key",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "pos": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Dec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "none",
+            "admitted",
+            "pending"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "relIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "anchorHead": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "star": {
+              "$ref": "#/$defs/Setting"
+            },
+            "groupStar": {
+              "$ref": "#/$defs/Setting"
+            },
+            "anchorMapping": {
+              "$ref": "#/$defs/Setting"
+            },
+            "sealedGroupStar": {
+              "$ref": "#/$defs/Setting"
+            },
+            "profile": {
+              "$ref": "#/$defs/Setting"
+            }
+          },
+          "required": [
+            "star",
+            "groupStar",
+            "anchorMapping",
+            "sealedGroupStar",
+            "profile"
+          ],
+          "additionalProperties": false
+        },
+        "groupSettings": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Setting"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "pos",
+        "status",
+        "aliases",
+        "relIds",
+        "anchorHead",
+        "settings",
+        "groupSettings"
+      ],
+      "additionalProperties": false
+    },
+    "OutboxStep": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "submitted"
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "status",
+            "at",
+            "attempt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "awaiting-transport"
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            },
+            "reason": {
+              "enum": [
+                "offline",
+                "transport-unreachable",
+                "carrier-refused-retriable"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "at",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "accepted"
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            }
+          },
+          "required": [
+            "status",
+            "at"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "delivered"
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            },
+            "late": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "status",
+            "at",
+            "late"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed"
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            },
+            "reason": {
+              "enum": [
+                "unroutable",
+                "oversize",
+                "expired-by-adapter-policy"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "at",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed"
+            },
+            "at": {
+              "$ref": "#/$defs/Millis"
+            },
+            "reason": {
+              "const": "rejected-by-receiver"
+            },
+            "code": {
+              "enum": [
+                "malformedRequest",
+                "unsupportedType",
+                "proofRequired",
+                "proofInvalid",
+                "wrongRecipient",
+                "identityMismatch"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "at",
+            "reason",
+            "code"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "OutboxItem": {
+      "description": "an issued document; its envelope's rkid equals recipient.keyAgreement (not expressible here, checked by the codec)",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "recipient": {
+          "$ref": "#/$defs/Recipient"
+        },
+        "envelope": {
+          "$ref": "#/$defs/Envelope"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OutboxStep"
+          }
+        },
+        "nextAttemptAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "type",
+        "threadId",
+        "recipient",
+        "envelope",
+        "attempt",
+        "history"
+      ],
+      "additionalProperties": false
+    },
+    "StoredAck": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "envelope": {
+          "$ref": "#/$defs/Envelope"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "recipient": {
+          "$ref": "#/$defs/Recipient"
+        },
+        "at": {
+          "$ref": "#/$defs/Millis"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sent": {
+          "type": "boolean"
+        },
+        "nextAttemptAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "sentBy": {
+          "enum": [
+            "report",
+            "horizon"
+          ]
+        }
+      },
+      "required": [
+        "digest",
+        "envelope",
+        "threadId",
+        "recipient",
+        "at",
+        "attempt",
+        "sent"
+      ],
+      "additionalProperties": false
+    },
+    "ReissueMappingDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "reissue-mapping"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "relId": {
+          "type": "string"
+        },
+        "awaitHead": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "contactId",
+        "relId",
+        "awaitHead"
+      ],
+      "additionalProperties": false
+    },
+    "ClassOnDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "class-on"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "relId": {
+          "type": "string"
+        },
+        "cls": {
+          "$ref": "#/$defs/TrustClass"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "contactId",
+        "relId",
+        "cls"
+      ],
+      "additionalProperties": false
+    },
+    "ProfileDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "profile"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "relId": {
+          "type": "string"
+        },
+        "rev": {
+          "$ref": "#/$defs/Dec"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "contactId",
+        "relId",
+        "rev"
+      ],
+      "additionalProperties": false
+    },
+    "ContinuityDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "continuity"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "relId": {
+          "type": "string"
+        },
+        "tuple": {
+          "type": "string"
+        },
+        "step": {
+          "enum": [
+            "probe",
+            "mapping"
+          ]
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "lastAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "relId",
+        "tuple",
+        "step"
+      ],
+      "additionalProperties": false
+    },
+    "MergeDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "merge"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "entryIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "relId": {
+          "type": "string"
+        },
+        "witness": {
+          "type": "object",
+          "properties": {
+            "heads": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "superseded": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              }
+            }
+          },
+          "required": [
+            "heads",
+            "superseded"
+          ],
+          "additionalProperties": false
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "entryIds",
+        "relId",
+        "witness"
+      ],
+      "additionalProperties": false
+    },
+    "RotationDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "rotation"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "rotationId": {
+          "type": "string"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "lastAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "rotationId"
+      ],
+      "additionalProperties": false
+    },
+    "IntroAckDuty": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "intro-ack"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "act": {
+          "type": "string"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id",
+        "act"
+      ],
+      "additionalProperties": false
+    },
+    "UnknownDuty": {
+      "description": "a duty of a kind or version this library does not handle: kept as it is",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "v": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "v",
+        "id"
+      ],
+      "additionalProperties": true,
+      "not": {
+        "anyOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "reissue-mapping"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "class-on"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "profile"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "continuity"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "merge"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "rotation"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "intro-ack"
+              },
+              "v": {
+                "const": 1
+              }
+            },
+            "required": [
+              "kind",
+              "v"
+            ]
+          }
+        ]
+      }
+    },
+    "Duty": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReissueMappingDuty"
+        },
+        {
+          "$ref": "#/$defs/ClassOnDuty"
+        },
+        {
+          "$ref": "#/$defs/ProfileDuty"
+        },
+        {
+          "$ref": "#/$defs/ContinuityDuty"
+        },
+        {
+          "$ref": "#/$defs/MergeDuty"
+        },
+        {
+          "$ref": "#/$defs/RotationDuty"
+        },
+        {
+          "$ref": "#/$defs/IntroAckDuty"
+        },
+        {
+          "$ref": "#/$defs/UnknownDuty"
+        }
+      ]
+    },
+    "Event": {
+      "description": "a journaled event (events.ts)",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.added"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.verified"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "relationshipId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "relationshipId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.chained"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "into": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "from",
+            "into"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.merged"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "merged": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "merged"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.split"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "leaver": {
+              "type": "string"
+            },
+            "relationshipId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "leaver",
+            "relationshipId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.departed"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "relationshipIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "removed": {
+              "type": "boolean"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "relationshipIds",
+            "removed"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "trust.given"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "trust.received"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "trust.paused"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "paused": {
+              "type": "boolean"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "paused"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "group.joined"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "groupId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "groupId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "prompt.opened"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "promptId": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "encounter-confirm",
+                "group-invite",
+                "introduction"
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "promptId",
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "prompt.decided"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "promptId": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "encounter-confirm",
+                "group-invite",
+                "introduction"
+              ]
+            },
+            "choice": {
+              "enum": [
+                "accept",
+                "decline"
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "promptId",
+            "kind",
+            "choice"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "delivery.status"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "threadId": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "submitted",
+                "accepted",
+                "delivered",
+                "failed"
+              ]
+            },
+            "actId": {
+              "type": "string"
+            },
+            "late": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "digest",
+            "threadId",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "profile.updated"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "anchor.rotated"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "generation": {
+              "$ref": "#/$defs/Dec"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "generation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "device.added"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "name": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "device.revoked"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "name": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "duty.unsupported"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "dutyId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "v": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "dutyId",
+            "kind",
+            "v"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "star.accepted"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "relationshipId": {
+              "type": "string"
+            },
+            "salt": {
+              "$ref": "#/$defs/Dec"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "relationshipId",
+            "salt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "groupStar.accepted"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "relationshipId": {
+              "type": "string"
+            },
+            "salt": {
+              "$ref": "#/$defs/Dec"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "relationshipId",
+            "salt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "encounter.shown"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "challenge": {
+              "type": "string"
+            },
+            "card": {
+              "type": "object"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "challenge",
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "encounter.scanned"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "card": {
+              "type": "object"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "encounter.recorded"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "relationshipId": {
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "scanner",
+                "displayer"
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "relationshipId",
+            "role"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "encounter.accepted"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "relationshipId": {
+              "type": "string"
+            },
+            "mutual": {
+              "type": "boolean"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "relationshipId",
+            "mutual"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "group.founded"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "groupId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "groupId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "group.admitted"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "groupId": {
+              "type": "string"
+            },
+            "member": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "groupId",
+            "member"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "group.vouched"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "groupId": {
+              "type": "string"
+            },
+            "member": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "groupId",
+            "member"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "contact.blocked"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "blocked": {
+              "type": "boolean"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "blocked"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RosterEntry": {
+      "type": "object",
+      "properties": {
+        "anchor": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string"
+        },
+        "keyAgreement": {
+          "type": "string"
+        },
+        "addedAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "name": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "rkid": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchor",
+        "op",
+        "keyAgreement",
+        "addedAt"
+      ],
+      "additionalProperties": false
+    },
+    "OpenInvitation": {
+      "type": "object",
+      "properties": {
+        "invitee": {
+          "type": "string"
+        },
+        "keyAgreement": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "rkid": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "credDigest": {
+          "type": "string"
+        },
+        "invite": {
+          "type": "object"
+        },
+        "validUntil": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "invitee",
+        "keyAgreement",
+        "contactId",
+        "rkid",
+        "threadId",
+        "credDigest",
+        "invite",
+        "validUntil"
+      ],
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "invite": {
+          "type": "object"
+        },
+        "accept": {
+          "type": "object"
+        },
+        "vouches": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "at": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "invite",
+        "accept",
+        "vouches",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "Group": {
+      "description": "a group the holder is in; a listed group carries memberAnchor and memberOp (Trust 5400)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "memberLabel": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "vouchThreshold": {
+              "$ref": "#/$defs/Dec"
+            }
+          },
+          "required": [
+            "vouchThreshold"
+          ],
+          "additionalProperties": false
+        },
+        "listed": {
+          "type": "boolean"
+        },
+        "roster": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/RosterEntry"
+          }
+        },
+        "invitations": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/OpenInvitation"
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Evidence"
+          }
+        },
+        "preludes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "contactId": {
+                "type": "string"
+              },
+              "rkid": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Millis"
+              }
+            },
+            "required": [
+              "contactId",
+              "rkid",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "did": {
+          "type": "string"
+        },
+        "genesis": {
+          "type": "object"
+        },
+        "memberAnchor": {
+          "type": "string"
+        },
+        "memberOp": {
+          "type": "string"
+        },
+        "acceptDigest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "memberLabel",
+        "rules",
+        "listed",
+        "roster",
+        "invitations",
+        "evidence",
+        "preludes"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "listed": {
+            "const": true
+          }
+        },
+        "required": [
+          "listed"
+        ]
+      },
+      "then": {
+        "required": [
+          "memberAnchor",
+          "memberOp"
+        ]
+      }
+    },
+    "HeldCredential": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "credential": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "digest",
+        "credential"
+      ],
+      "additionalProperties": false
+    },
+    "EnactmentRecord": {
+      "type": "object",
+      "properties": {
+        "ceremony": {
+          "type": "string"
+        },
+        "own": {
+          "type": "string"
+        },
+        "tCh": {
+          "$ref": "#/$defs/Millis"
+        },
+        "peer": {
+          "type": "string"
+        },
+        "counterpart": {
+          "type": "string"
+        },
+        "card": {
+          "type": "object"
+        },
+        "bind": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/Millis"
+        },
+        "label": {
+          "type": "string"
+        },
+        "relId": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "scanner",
+            "displayer"
+          ]
+        },
+        "out": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeldCredential"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "in": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeldCredential"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thread": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bundleDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threads": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "sentCard": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterPending": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ceremony",
+        "own",
+        "tCh",
+        "peer",
+        "counterpart",
+        "card",
+        "bind",
+        "at",
+        "label",
+        "relId",
+        "role",
+        "out",
+        "in",
+        "thread",
+        "bundleDigest",
+        "threads",
+        "sentCard",
+        "counterPending"
+      ],
+      "additionalProperties": false
+    },
+    "IntroAct": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "act": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "requester",
+            "mediator",
+            "target"
+          ]
+        },
+        "status": {
+          "enum": [
+            "sent",
+            "acked",
+            "completed",
+            "failed",
+            "received",
+            "forwarded",
+            "consented",
+            "refused"
+          ]
+        },
+        "issuedAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "request": {
+          "type": "object"
+        },
+        "requestCard": {
+          "type": "object"
+        },
+        "reply": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replyCard": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pins": {
+          "type": "object",
+          "properties": {
+            "requester": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "mediator": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "threads": {
+          "type": "object",
+          "properties": {
+            "request": {
+              "type": "string"
+            },
+            "forward": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "request"
+          ],
+          "additionalProperties": false
+        },
+        "at": {
+          "$ref": "#/$defs/Millis"
+        },
+        "ackDelayMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ownLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ack": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replyForwarded": {
+          "type": "boolean"
+        },
+        "vouchersSent": {
+          "type": "boolean"
+        },
+        "pendingVoucher": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "voucher": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vouched": {
+          "type": "boolean"
+        },
+        "promptId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "peerName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "act",
+        "role",
+        "status",
+        "issuedAt",
+        "request",
+        "requestCard",
+        "reply",
+        "replyCard",
+        "pins",
+        "threads",
+        "at",
+        "ackDelayMs",
+        "ownLabel",
+        "ack",
+        "replyForwarded",
+        "vouchersSent",
+        "pendingVoucher",
+        "voucher",
+        "vouched",
+        "promptId"
+      ],
+      "additionalProperties": false
+    },
+    "Rotation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/Dec"
+        },
+        "to": {
+          "$ref": "#/$defs/Dec"
+        },
+        "step": {
+          "enum": [
+            "register",
+            "log",
+            "duties"
+          ]
+        },
+        "startedAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "entry": true,
+        "overHead": {
+          "$ref": "#/$defs/LogHead"
+        },
+        "awaitHead": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "step",
+        "startedAt",
+        "entry",
+        "overHead",
+        "awaitHead"
+      ],
+      "additionalProperties": false
+    },
+    "Prompt": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "encounter-confirm",
+            "group-invite",
+            "introduction"
+          ]
+        },
+        "openedAt": {
+          "$ref": "#/$defs/Millis"
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "groupId": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "openedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ActRecord": {
+      "type": "object",
+      "properties": {
+        "actId": {
+          "type": "string"
+        },
+        "inputHash": {
+          "type": "string"
+        },
+        "commitSeq": {
+          "$ref": "#/$defs/Dec"
+        },
+        "outboundDigests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          }
+        },
+        "at": {
+          "$ref": "#/$defs/Millis"
+        }
+      },
+      "required": [
+        "actId",
+        "inputHash",
+        "commitSeq",
+        "outboundDigests",
+        "events",
+        "at"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

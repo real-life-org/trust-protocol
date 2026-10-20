@@ -1,5 +1,100 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
+// trust/entries — the entries of the deliverable set on the holder (lib
+// Stage 2, PR 4c; Trust Section 2, 6a.1): merge, split, departure, the
+// pending admission that goes with them, and the identity rewrite they
+// need, on HolderState.
+//
+// Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
+//
+// What it registers (through trustModule, trust/mapping.ts):
+//   commands  trust.merge {contactIds}               the manual merge of
+//               rung 3 (6640): at most one of them holds an entry; human
+//             trust.depart {contactId, relationshipId?}   departure (2260):
+//               the entry id departs the whole entry, an alias the
+//               relationship(s) whose identity it is, a relationshipId that
+//               one relationship; human
+//   duty      merge/1 (2230): the persisted continuation of a merge the
+//             net (rung 2) or a chaining (2145) made admissible; it runs
+//             after the verification commit, as one atomic step
+//
+// The model. An entry is a Contact; its id is the identity of one of its
+// relationships (2100, 2140). A relationship's own identity is its
+// contactId, the contact id it was created under, which stays its identity
+// when it is merged (then an alias of the entry) and which it takes along
+// when it leaves (2090, 2100). A fresh relationship whose tuple a chaining
+// appended to a chain stays as a husk (no tuples, chainedInto = the
+// chain): its contactId is a chain alias of the chain (2090).
+//
+// Choices this file makes where note and spec leave them open:
+//   - every merge path but the manual act runs as a merge/1 duty: the
+//     verification (or the chaining) commits first, and the duty, run by
+//     the next resume before the sweeps, merges in one step (2230). The
+//     duty persists its witness (each entry's anchor head and the heads
+//     each held as superseded) and runs only while it holds and the binding
+//     rule and the one anchor head (6605, 6560) still hold; otherwise it is
+//     dropped silently. A verification that admits the merge of the same
+//     entries while a duty is open refreshes its witness. The manual merge
+//     (6640) involves no verification and merges in its own act
+//   - the merged entry's identity: the entry at the earliest position
+//     (2140); where none holds one, the identity of the relationship whose
+//     active head was created last (2180, entryOrder.heads)
+//   - the net (rung 2) runs on every accepted anchor mapping: the incoming
+//     relationship against every other entry when it does not lag in its
+//     own entry (6550), and, where the entry's
+//     anchor head changed, every relationship of another entry against it
+//     (6580); all entries that join in one evaluation merge in one duty
+//     (2150), taken in position order while they stay mergeable together
+//   - the split (2080) applies to the first verified mapping on a
+//     relationship of an entry whose other relationships hold an anchor:
+//     a relationship without a mapping can share an entry with others only
+//     by the manual merge (6640); see the split exception below
+//   - "oldest remaining relationship in entry-commit order" (2100): by
+//     firstVerified (the commitSeq of its first verification, 2190), never
+//     verified ones after, then by the creation of their active heads
+//   - departure removes the relationship (and its husks) from the state;
+//     its tuples' address keys become tombstones by tick's retention. Its
+//     open duties go; its outbox items run to their horizon. An entry
+//     removed with it leaves the matches of every accepted star (6160); an
+//     entry that keeps relationships keeps its matches, though the anchors
+//     behind one may have left with the relationship (a match is not
+//     re-tested without the star's key; matches only grow otherwise)
+//   - a merge rewrites every holder-local key of the merged ids to the
+//     survivor's; a rename (2100) rewrites the remaining entry's keys and
+//     the star baselines' members, so a rename alone diverges nothing; the
+//     introducer a relationship names (provenance.via) follows both; the
+//     stored acks follow through the engine (Applied.renames)
+//   - a split (2080) moves a contact reference with the relationship it
+//     was made on, never with the entry it was filed under: membership
+//     records keep the own rkid of the tuple their prelude went or arrived
+//     on (joining preludes and invites, groups' preludes and invitations,
+//     the roster entry an invitation became, and as Recipient.via the
+//     outbox items and stored acks of documents on a member key), introduction records the own
+//     pair label toward the mediator (an offer's pin, the introducer's
+//     provenance.viaPin, the voucher mark's memory.vouchedPin); a prompt
+//     follows the record it asks about
+//   - head rule (b) for the incoming relationship is read by the rationale
+//     under 6590 ("only knowledge the committed mapping newly carries
+//     connects … stale knowledge … must not create a merge"): (b) is
+//     evaluated against the links its entry held before this
+//     verification's lineage joined them (6610), while that lineage counts
+//     for (a). Read literally after the commit, 6540 would refuse every
+//     case 6530 (a) admits by a lineage that extends E's head; the wording
+//     of 6540 is a follow-up for Trust 0.32
+//   - the split exception: 2080 read literally would split every manual
+//     merge of unmapped relationships at the first mapping; open point for
+//     Trust 0.32. A relationship whose entry's other relationships hold no
+//     anchor yet stays
+//
+// Open point for Trust 0.32: 6540/6580/6590 in the rotation direction;
+// today's behaviour is pinned, not justified normatively. The incoming
+// relationship is joined against the links its entry held before the
+// verification (the 6590 rationale, mergeDutiesAfter), the 6580 direction
+// (an entry's anchor head changed) against the other entry's current
+// links; so a relationship rotating up to a head another entry's lineage
+// extends opens no merge, while the same relationships arriving the other
+// way round can (test/trust-ported.test.mjs, "the other direction").
+import { blockedRel, withBlocked, withoutRelationships } from '../message/holder.js';
 import { CLASSES, anchorSet, classOnToward, conflicts, entryOf, entryRelationships, feeding, findContact, joins, lags, liveRel, newestHeads, newestOf, supersededIn, } from './state.js';
 import { viewDigest } from './star.js';
 import { dropOff, followClasses } from './duties.js';
@@ -93,7 +188,7 @@ function renameBaselines(t, from, to) {
 function promptTuple(state, p) {
     if (p.kind === 'group-invite') {
         const i = Object.values(state.joining.invites).find((x) => x.promptId === p.id);
-        return i ? { rkid: i.rkid } : null;
+        return i?.rkid !== undefined ? { rkid: i.rkid } : null;
     }
     if (p.kind === 'introduction') {
         if (Object.hasOwn(state.encounter.offers, p.id))
@@ -323,7 +418,11 @@ export function mergeInto(state, survivor, id, gone, bound) {
         settings, groupSettings,
     };
     const renames = [];
-    let next = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames });
+    // a merge sets the block on every relationship of the merged entry where
+    // any of them held it (Message Tasks RLTP-MSG-6030)
+    const relIds = contacts[id].relIds;
+    const blocked = relIds.some((r) => blockedRel(state, r)) ? withBlocked(state.messages.blocked, relIds, true) : state.messages.blocked;
+    let next = rewriteIdentity({ ...state, contacts, messages: { ...state.messages, blocked } }, merged, id, { global: true, renames });
     next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } };
     // the class duties of the merged settings (2160, 2850, 6410): per
     // relationship against the entry it sent under before (2146)
@@ -635,6 +734,8 @@ export function depart(state, input, bound) {
     };
     // 6160: an accepted star matches the holder's contacts; one that left matches nothing
     next = dropMatches(next, removedIds);
+    // the block and the rates of a departed relationship leave with it (Message Tasks 6.1, 4.2)
+    next = withoutRelationships(next, [...leaving]);
     const renames = [];
     for (const r of renamed)
         next = rename(next, r.from, r.to, (id) => r.rels.includes(id), renames);

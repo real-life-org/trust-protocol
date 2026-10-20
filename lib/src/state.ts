@@ -66,9 +66,29 @@ export interface HolderState {
   acts: Record<string, ActRecord>
   encounter: EncounterState
   /** groups on the way in: the preludes answered and the invitations
-   *  received, before a welcome makes them groups (Membership 1.2, 3.1) */
+   *  received, before a welcome makes them groups (Membership 3.5, 3.1) */
   joining: Joining
+  /** Message Tasks 0.1 on the holder: the block of relationships and the
+   *  rates per relationship (message/holder.ts) */
+  messages: MessagesState
 }
+
+// ── Message Tasks: the block and the rates ─────────────────────────────
+
+/** What Message Tasks 0.1 keeps on the holder (message/holder.ts). */
+export interface MessagesState {
+  /** the relationships under a block (Message Tasks 6.1): chain-level
+   *  state of a relationship (Trust 2280), by relationship id, sorted */
+  blocked: string[]
+  /** per relationship id: the times at which documents counted against a
+   *  rate were accepted, inside the last 24 hours (Message Tasks 4.2):
+   *  invitations with a credential digest new to the holder (4115,
+   *  Membership RLTP-MT-3105) */
+  rates: Record<string, Rates>
+}
+
+/** The acceptance times a rate counts, oldest first. */
+export interface Rates { invites: Millis[] }
 
 // ── Identity ───────────────────────────────────────────────────────────
 
@@ -409,6 +429,13 @@ export interface Joining {
   preludes: Record<string, { group: string, inviter: string, contactId: string, rkid: string, memberLabel: string, at: Millis }>
   /** invitations received, by credential digest */
   invites: Record<string, ReceivedInvite>
+  /** the credential digest of every invitation surfaced, for as long as
+   *  the holder exists (RLTP-MT-3130), sorted */
+  surfaced: string[]
+  /** the register of declined invitations: the credential digest of every
+   *  invitation declined under a block, holder-wide and for as long as the
+   *  holder exists (Message Tasks 6.4, RLTP-MT-3115), sorted */
+  declined: string[]
 }
 
 /** An invitation received (Membership 3.1), surfaced as a group-invite prompt. */
@@ -417,9 +444,12 @@ export interface ReceivedInvite {
   /** genesis digest */
   group: string
   name: string
-  contactId: string
-  /** the own rkid of the tuple its prelude arrived on, which a split follows (2080) */
-  rkid: string
+  /** the contact of the relationship its prelude binding attributed it to
+   *  (RLTP-MT-3100); absent for an invitation attributed to none */
+  contactId?: string
+  /** the own rkid of the tuple its prelude arrived on, which a split
+   *  follows (2080); absent with contactId */
+  rkid?: string
   memberLabel: string
   /** the invite document, complete */
   invite: JsonObject
@@ -758,6 +788,7 @@ export function emptyState (codec: number): HolderState {
     prompts: {},
     acts: {},
     encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
-    joining: { preludes: {}, invites: {} },
+    joining: { preludes: {}, invites: {}, surfaced: [], declined: [] },
+    messages: { blocked: [], rates: {} },
   }
 }

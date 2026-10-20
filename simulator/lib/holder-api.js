@@ -44,6 +44,8 @@
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
+//   block(contactId, opts)                    message.block {blocked: true}   human
+//   unblock(contactId, opts)                  message.block {blocked: false}  human
 //   recover({when})                           trust.recover          not human
 // and the read deviceKey(name, contextLabel): the device key of a held,
 // unrevoked name under an own anchor context (identity-state.ts).
@@ -72,13 +74,14 @@ import { ENTRY_COMMANDS } from './trust/entries.js';
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js';
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js';
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
+import { MESSAGE_COMMANDS, messageModule } from './message/holder.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, profileView, promptsView } from './views.js';
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
-    const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), ...(opts.modules ?? [])];
+    const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), messageModule(), ...(opts.modules ?? [])];
     const check = opts.invariants === true
         ? (before, after, op) => {
             const v = commitViolations(before, after, op);
@@ -111,6 +114,8 @@ export async function createHolder(ports, opts = {}) {
         invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
         vouchFor: (groupId, member, o) => human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
         introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
+        block: (contactId, o) => human(MESSAGE_COMMANDS.block, { contactId, blocked: true }, o),
+        unblock: (contactId, o) => human(MESSAGE_COMMANDS.block, { contactId, blocked: false }, o),
         addDevice: (name, o) => human(IDENTITY_COMMANDS.addDevice, { name }, o),
         revokeDevice: (name, o) => human(IDENTITY_COMMANDS.revokeDevice, { name }, o),
         deviceKey: async (name, contextLabel) => deviceKeyOf(await read(), ports.keys, name, contextLabel),

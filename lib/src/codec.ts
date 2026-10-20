@@ -12,23 +12,40 @@
 // stored documents, outbound or acks.
 //
 // Codec 1 is the format of 0.4.0: its golden fixtures are
-// lib/test/fixtures/*.json (deterministic runs, test/fixtures/gen-state-v1.mjs),
-// decoded and re-encoded byte-identically by test/codec-fixture.test.mjs.
-// The rule: codec 1 is read; a newer codec is codec-newer; a codec without
-// a validator is codec-unknown. Every later codec adds its validator, a
-// migration from the one before, and its own fixture with a migration test.
+// lib/test/fixtures/state-v1*.json (runs of lib 0.4.0, frozen), decoded and
+// re-encoded byte-identically and migrated by test/codec-fixture.test.mjs.
+// Codec 2 is the format of 0.5.0 (Message Tasks 0.1, Membership 0.20): its
+// fixtures are lib/test/fixtures/state-v2*.json (deterministic runs,
+// test/fixtures/gen-state-v2.mjs, reproduced in npm test). The rule: codecs
+// 1 and 2 are read, 1 migrated to 2; a newer codec is codec-newer; a codec
+// without a validator is codec-unknown. Every later codec adds its
+// validator, a migration from the one before, and its own fixture with a
+// migration test.
 import { jcs } from './core.js'
 import type { Duty, HolderState, KnownDuty } from './state.js'
 import type { HolderEventType } from './events.js'
 
 /** The codec this library writes. */
-export const CODEC = 1
+export const CODEC = 2
 
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
+ *
+ * 1 → 2 (lib 0.5.0, Message Tasks 0.1, Membership 0.20): the message
+ * state starts empty (no block, no rate); every invitation a codec-1
+ * holder received was surfaced, so their credential digests seed the
+ * permanent record of RLTP-MT-3130; the register of declined invitations
+ * starts empty (codec 1 knew no block).
  */
-export const MIGRATIONS: Readonly<Record<number, (state: any) => any>> = Object.freeze({})
+export const MIGRATIONS: Readonly<Record<number, (state: any) => any>> = Object.freeze({
+  1: (s: any) => ({
+    ...s,
+    codec: 2,
+    joining: { ...s.joining, surfaced: Object.keys(s.joining.invites).sort(), declined: [] },
+    messages: { blocked: [], rates: {} },
+  }),
+})
 
 /** A codec's structural validator: throws StateCodecError('shape') or returns. */
 export type StateValidator = (raw: unknown) => void
@@ -255,11 +272,14 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'group.founded': [{ groupId: str }],
   'group.admitted': [{ groupId: str, member: str }],
   'group.vouched': [{ groupId: str, member: str }],
+  'contact.blocked': [{ contactId: str, blocked: bool }],
 }
-const event: V = (x, p) => {
+/** the event types codec 2 added: codec 1 does not know them */
+const EVENTS_SINCE_2: ReadonlySet<string> = new Set(['contact.blocked'])
+const eventOf = (codec: number): V => (x, p) => {
   if (!isObj(x)) fail(p, 'object expected')
   const t = (x as Record<string, unknown>).type
-  if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t)) fail(`${p}.type`, 'unknown event type')
+  if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t) || (codec < 2 && EVENTS_SINCE_2.has(t))) fail(`${p}.type`, 'unknown event type')
   const [req, opt = {}] = EVENT_FIELDS[t as HolderEventType]
   obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p)
 }
@@ -297,7 +317,7 @@ const introAct = obj({
   pendingVoucher: nullable(anyObj), voucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
 }, { peerName: str })
 
-const codec1 = obj({
+const fields1: Record<string, V> = {
   codec: lit(1),
   commitSeq: dec,
   lastWhen: millis,
@@ -322,7 +342,7 @@ const codec1 = obj({
     entry: json, overHead: logHead, awaitHead: rec(nullable(str)),
   }), 'id'),
   prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
-  acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
+  acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(1)), at: millis }), 'actId'),
   encounter: obj({
     challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
     records: keyed(enactmentRecord, 'own'),
@@ -338,11 +358,47 @@ const codec1 = obj({
       status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
     }, { acceptDigest: str }), 'credDigest'),
   }),
+}
+const codec1 = obj(fields1)
+
+/** a sorted set of strings */
+const sortedSet: V = (x, p) => {
+  set(str)(x, p)
+  const a = x as string[]
+  for (let i = 1; i < a.length; i++) if (!(a[i - 1] < a[i])) fail(`${p}[${i}]`, 'a sorted set expected')
+}
+
+/** an invitation received: attributed to a relationship (contactId and
+ *  rkid together) or to none (Membership RLTP-MT-3100) */
+const receivedInvite2: V = (x, p) => {
+  obj({
+    credDigest: str, group: str, name: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+    status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
+  }, { acceptDigest: str, contactId: str, rkid: str })(x, p)
+  const i = x as { contactId?: unknown, rkid?: unknown }
+  if ((i.contactId === undefined) !== (i.rkid === undefined)) fail(`${p}.rkid`, 'present exactly with contactId')
+}
+
+const codec2 = obj({
+  ...fields1,
+  codec: lit(2),
+  acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(2)), at: millis }), 'actId'),
+  joining: obj({
+    preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
+    invites: keyed(receivedInvite2, 'credDigest'),
+    surfaced: sortedSet,
+    declined: sortedSet,
+  }),
+  messages: obj({
+    blocked: sortedSet,
+    rates: rec(obj({ invites: arr(millis) })),
+  }),
 })
 
 /** Structural validators per codec version; every readable codec has one. */
 export const VALIDATORS: Readonly<Record<number, StateValidator>> = Object.freeze({
   1: (raw: unknown) => codec1(raw, '$'),
+  2: (raw: unknown) => codec2(raw, '$'),
 })
 
 // ── the codec ──────────────────────────────────────────────────────────

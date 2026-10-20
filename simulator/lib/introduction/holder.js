@@ -91,6 +91,7 @@
 //     displayName, at the requester the offer's label; kept in the
 //     relationship's memory as `introducedName`, which the views read until
 //     a profile arrives (self-declared, Encounter 6120)
+import { blockedRel } from '../message/holder.js';
 import { iso, jcs } from '../core.js';
 import { diSignWith, diVerify, digestBytes, digestDoc, xRawOfMk } from '../crypto.js';
 import { seal } from '../delivery.js';
@@ -212,6 +213,9 @@ const introduceDef = {
             return no('no-own-channel', 'RLTP-TRU-8020');
         if (r.contact.id === t.contact.id)
             return no('unknown-contact');
+        // no act whose requester or target relationship is blocked (Message Tasks 6410)
+        if (blockedRel(s, r.rel.id) || blockedRel(s, t.rel.id))
+            return no('blocked', 'RLTP-MSG-6410');
         const held = Object.entries(s.encounter.designators).find(([, c]) => c === t.contact.id)?.[0];
         const designator = held ?? designatorOf(ctx.entropy.bytes('intro.target', 32));
         const label = input.label;
@@ -292,6 +296,9 @@ async function prepareRequest(ctx, o) {
     const pin = tupleByLabel(ctx.snapshot, o.pin);
     if (!pin || pin.tuple.deactivated)
         return no('no-own-channel', 'RLTP-TRU-8270');
+    // no act whose mediator relationship is blocked (Message Tasks 6410)
+    if (blockedRel(ctx.snapshot, pin.rel.id))
+        return no('blocked', 'RLTP-MSG-6410');
     // Delivery §4.4: never a request to a mediator whose declaration is not held
     const dec = ctx.snapshot.encounter.declarations[`${pin.tuple.counterpartAnchor} ${MEDIATOR_ROLE}`];
     const c = dec ? mediatorConstants(dec.constants) : null;

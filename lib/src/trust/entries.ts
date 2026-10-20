@@ -92,6 +92,7 @@
 // links; so a relationship rotating up to a head another entry's lineage
 // extends opens no merge, while the same relationships arriving the other
 // way round can (test/trust-ported.test.mjs, "the other direction").
+import { blockedRel, withBlocked, withoutRelationships } from '../message/holder.js'
 import type { CommandDef, DutyHandler, EventDraft, IdentityRename, Refusal, Applied } from '../engine.js'
 import type { ClassOnDuty, Contact, Dec, Duty, HolderState, MergeDuty, Prompt, ReissueMappingDuty, Relationship, Setting, StarPair, TrustClass, Tuple } from '../state.js'
 import {
@@ -204,7 +205,7 @@ function renameBaselines (t: Tuple, from: (id: string) => boolean, to: string): 
 function promptTuple (state: Readonly<HolderState>, p: Readonly<Prompt>): { rkid: string } | { label: string } | null {
   if (p.kind === 'group-invite') {
     const i = Object.values(state.joining.invites).find((x) => x.promptId === p.id)
-    return i ? { rkid: i.rkid } : null
+    return i?.rkid !== undefined ? { rkid: i.rkid } : null
   }
   if (p.kind === 'introduction') {
     if (Object.hasOwn(state.encounter.offers, p.id)) return { label: state.encounter.offers[p.id].pin }
@@ -408,7 +409,11 @@ export function mergeInto (state: Readonly<HolderState>, survivor: Readonly<Cont
     settings, groupSettings,
   }
   const renames: IdentityRename[] = []
-  let next: HolderState = rewriteIdentity({ ...state, contacts }, merged, id, { global: true, renames })
+  // a merge sets the block on every relationship of the merged entry where
+  // any of them held it (Message Tasks RLTP-MSG-6030)
+  const relIds = contacts[id].relIds
+  const blocked = relIds.some((r) => blockedRel(state, r)) ? withBlocked(state.messages.blocked, relIds, true) : state.messages.blocked
+  let next: HolderState = rewriteIdentity({ ...state, contacts, messages: { ...state.messages, blocked } }, merged, id, { global: true, renames })
   next = { ...next, contacts: { ...next.contacts, [id]: settleHead(next, next.contacts[id]) } }
   // the class duties of the merged settings (2160, 2850, 6410): per
   // relationship against the entry it sent under before (2146)
@@ -690,6 +695,8 @@ export function depart (state: Readonly<HolderState>, input: TrustDepartInput, b
   }
   // 6160: an accepted star matches the holder's contacts; one that left matches nothing
   next = dropMatches(next, removedIds)
+  // the block and the rates of a departed relationship leave with it (Message Tasks 6.1, 4.2)
+  next = withoutRelationships(next, [...leaving])
   const renames: IdentityRename[] = []
   for (const r of renamed) next = rename(next, r.from, r.to, (id) => r.rels.includes(id), renames)
   for (const x of Object.values(next.contacts)) {

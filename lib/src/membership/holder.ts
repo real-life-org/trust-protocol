@@ -136,6 +136,7 @@ import type { Channel, TaskRefusal } from '../receive.js'
 import type { Applied, CommandDef, DecisionDef, EventDraft, HolderModule, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
 import type { Access, GroupAccess, Recipient } from '../ports.js'
 import type { Evidence, Group, HolderState, Joining, Millis, OpenInvitation, Prompt, ReceivedInvite, RosterEntry } from '../state.js'
+import { INVITE_RATE, blockedRel, rateCount, relOfRkid, withRate } from '../message/holder.js'
 import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js'
 import { groupStarRematch, withGroupHits } from '../trust/group-star.js'
 import type { GroupStarRehit } from '../trust/group-star.js'
@@ -300,6 +301,8 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
     if (!g || g.memberAnchor === undefined) return no('unknown-group')
     const ch = channelTo(ctx.snapshot, input.contactId)
     if (!ch) return no('no-own-channel')
+    // no invitation toward a blocked relationship (Message Tasks 6410)
+    if (blockedRel(ctx.snapshot, ch.rel.id)) return no('blocked', 'RLTP-MSG-6410')
     const own = await ctx.keys.anchorOf(ch.tuple.ownPairLabel)
     const at = iso(ctx.when)
     const body = {
@@ -426,6 +429,11 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
     const g = state.groups[toU(doc.payload.genesisDigest)!]
     const preludes = { ...g.preludes }
     delete preludes[doc.threadId]
+    // under a block of the relationship the reply arrives on: the waiting
+    // prelude closes, acknowledged, and no invitation is issued or sent —
+    // one transaction with the block check (RLTP-MT-3975, 3980)
+    const rel = relOfRkid(state, arr.rkid)
+    if (rel !== null && blockedRel(state, rel)) return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } } }
     // a member is not invited again; every invitation is its own thread,
     // kept beside earlier ones (an accept signed in time may still travel)
     if (Object.hasOwn(g.roster, p.invitee)) return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } } }
@@ -442,40 +450,91 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
 
 const invitePromptId = (credDigest: string): string => 'invite:' + credDigest
 
+/** The invitation's attribution (RLTP-MT-3100): the relationship of the
+ *  prelude binding held for its genesis digest and issuer, read through
+ *  the binding's tuple now (3940), or none. */
+function attribution (state: Readonly<HolderState>, inv: Doc): { pre: Joining['preludes'][string], relId: string } | null {
+  const pre = state.joining.preludes[preludeKey(toU(inv.credentialSubject.genesisDigest) ?? '', inv.issuer)]
+  const relId = pre ? relOfRkid(state, pre.rkid) : null
+  return pre && relId !== null ? { pre, relId } : null
+}
+
+/** Whether the holder holds the credential digest in any record (3105):
+ *  surfaced, declined, or a received invitation. */
+const knownInvite = (state: Readonly<HolderState>, credDigest: string): boolean =>
+  state.joining.surfaced.includes(credDigest) || state.joining.declined.includes(credDigest) || Object.hasOwn(state.joining.invites, credDigest)
+
+const sortedWith = (xs: readonly string[], x: string): string[] => (xs.includes(x) ? [...xs] : [...xs, x].sort())
+
 const inviteTask: TaskHandler<Doc, { credDigest: string }> = {
   proof: 'absent',
   decode: (p) => (membershipSchemaOk('payload-membership-invite.schema.json', p) ? p as Doc : refuse('malformed')),
   // the prelude check (3030): the invite reaches the key of the own
-  // derivation from its genesis digest, after a prelude this holder answered
+  // derivation from its genesis digest. The ack is sealed to the inviter's
+  // card and filed under the contact of the binding's relationship, or
+  // under the member where no binding attributes it (3100)
   channel (state, doc, rkid): Channel | TaskRefusal {
     const inv = doc.payload.invite
     const label = memberLabelOf(inv.credentialSubject.genesisDigest)
     if (label === null || state.addresses.keys[rkid]?.label !== label) return refuse('validation-failed', 'RLTP-MT-3030')
-    // the contact that asked as this inviter (the prelude's binding)
-    const pre = state.joining.preludes[preludeKey(toU(inv.credentialSubject.genesisDigest) ?? '', inv.issuer)]
-    if (!pre) return refuse('validation-failed', 'RLTP-MT-3030')
-    return { keyAgreement: inv.credentialSubject.card.keyAgreement, contactId: pre.contactId, via: pre.rkid }
+    const at = attribution(state, inv)
+    return at
+      ? { keyAgreement: inv.credentialSubject.card.keyAgreement, contactId: at.pre.contactId, via: at.pre.rkid }
+      : { keyAgreement: inv.credentialSubject.card.keyAgreement, contactId: 'member:' + inv.issuer }
   },
   async prepare (ctx, doc) {
     const bad = await inviteProblem(doc, ctx.crypto.subtle)
     if (bad) return refuse('validation-failed', bad)
-    return { credDigest: await digestDoc(doc.payload.invite, ctx.crypto.subtle) }
+    const credDigest = await digestDoc(doc.payload.invite, ctx.crypto.subtle)
+    // the rate (3105, Message Tasks 4115): a digest new to the holder, on a
+    // relationship that accepted 20 new ones in the window, counted before
+    // the block, waits at its carrier: failed(rate-limited) at stage 8,
+    // nothing committed (Delivery RLTP-DEL-6270); a known digest never
+    // counts and is never refused by it
+    const s = ctx.snapshot
+    const at = attribution(s, doc.payload.invite)
+    if (at && !knownInvite(s, credDigest) && rateCount(s, at.relId, 'invites', ctx.when) >= INVITE_RATE) return refuse('rate-limited', 'RLTP-MT-3105')
+    return { credDigest }
   },
-  // durable buffering and surfacing to the human (3095)
+  // the defined effect (3095): durable buffering and the surfacing
+  // decision, in one transaction under the credential digest's key (3110;
+  // the engine serializes the whole state, receive.ts): exactly one of
+  // decline, surface, or no new effect
   apply (state, prepared, doc, arr) {
     const inv = doc.payload.invite
     const gd = toU(inv.credentialSubject.genesisDigest)!
     const { credDigest } = prepared.value
-    if (Object.hasOwn(state.groups, gd) || Object.hasOwn(state.joining.invites, credDigest)) return { state: state as HolderState }
-    const pre = state.joining.preludes[preludeKey(gd, inv.issuer)]
+    const at = attribution(state, inv)
+    // the rate counts the new digest before the block is applied (3105, Message Tasks 4130)
+    let next: HolderState = at && !knownInvite(state, credDigest) ? withRate(state, at.relId, 'invites', arr.when) : state as HolderState
+    // decline under a block (3115, Message Tasks 6.4): the register holds
+    // the digest, an open prompt of it closes as declined, silently
+    if (at && blockedRel(state, at.relId)) {
+      const promptId = invitePromptId(credDigest)
+      const prompts = { ...next.prompts }
+      delete prompts[promptId]
+      const held = next.joining.invites[credDigest]
+      const invites = held && held.status === 'open' ? { ...next.joining.invites, [credDigest]: { ...held, status: 'declined' as const } } : next.joining.invites
+      return { state: { ...next, prompts, joining: { ...next.joining, invites, declined: sortedWith(next.joining.declined, credDigest) } } }
+    }
+    // no new effect: the register holds it (3120), or it surfaced before
+    // (3125). An invitation into a group the holder holds surfaces like any
+    // other: 3125 names no exception, and the person decides
+    if (next.joining.declined.includes(credDigest) || next.joining.surfaced.includes(credDigest) || Object.hasOwn(next.joining.invites, credDigest)) return { state: next }
+    // surface (3125): a prompt opened, the digest kept for the holder's life (3130)
     const validUntil = Date.parse(inv.validUntil)
     const r: ReceivedInvite = {
-      credDigest, group: gd, name: typeof inv.credentialSubject.name === 'string' ? inv.credentialSubject.name : '', contactId: pre.contactId, rkid: pre.rkid,
+      credDigest, group: gd, name: typeof inv.credentialSubject.name === 'string' ? inv.credentialSubject.name : '',
+      ...(at ? { contactId: at.pre.contactId, rkid: at.pre.rkid } : {}),
       memberLabel: memberLabelOf(gd)!, invite: doc as unknown as JsonObject, promptId: invitePromptId(credDigest), validUntil, status: 'open', at: arr.when,
     }
-    const prompt: Prompt = { id: r.promptId, kind: 'group-invite', contactId: r.contactId, groupId: gd, openedAt: arr.when, expiresAt: validUntil + MEMBERSHIP_SKEW }
+    const prompt: Prompt = { id: r.promptId, kind: 'group-invite', ...(r.contactId !== undefined ? { contactId: r.contactId } : {}), groupId: gd, openedAt: arr.when, expiresAt: validUntil + MEMBERSHIP_SKEW }
     return {
-      state: { ...state, joining: { ...state.joining, invites: { ...state.joining.invites, [credDigest]: r } }, prompts: { ...state.prompts, [prompt.id]: prompt } },
+      state: {
+        ...next,
+        joining: { ...next.joining, invites: { ...next.joining.invites, [credDigest]: r }, surfaced: sortedWith(next.joining.surfaced, credDigest) },
+        prompts: { ...next.prompts, [prompt.id]: prompt },
+      },
       events: [{ type: 'prompt.opened', promptId: prompt.id, kind: 'group-invite' }],
     }
   },
@@ -501,7 +560,7 @@ const acceptDecision: DecisionDef<(Sealed & { acceptDigest: string }) | Refusal 
     }
     const doc = await signDoc(ctx, r.memberLabel, me.anchor, body, at)
     if (!withinBudget(doc)) return no('unknown-group', 'RLTP-MT-2220')
-    const out = await sealed(ctx, doc, { contactId: r.contactId, rkid: rkidOf(ctx.snapshot, r.memberLabel) ?? '', keyAgreement: inv.credentialSubject.card.keyAgreement, anchor: inv.issuer, via: r.rkid })
+    const out = await sealed(ctx, doc, { contactId: r.contactId ?? 'member:' + inv.issuer, rkid: rkidOf(ctx.snapshot, r.memberLabel) ?? '', keyAgreement: inv.credentialSubject.card.keyAgreement, anchor: inv.issuer, ...(r.rkid !== undefined ? { via: r.rkid } : {}) })
     return { ...out, acceptDigest: await digestDoc(doc, ctx.crypto.subtle) }
   },
   apply (state, prompt, choice, when, prepared) {
@@ -767,7 +826,7 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
   channel (state, doc, rkid): Channel | TaskRefusal {
     const i = acceptedInvite(state, doc)
     if (!i || state.addresses.keys[rkid]?.label !== i.memberLabel) return refuse('validation-failed')
-    return { keyAgreement: (i.invite as Doc).payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId, via: i.rkid }
+    return { keyAgreement: (i.invite as Doc).payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId ?? 'member:' + doc.issuer, ...(i.rkid !== undefined ? { via: i.rkid } : {}) }
   },
   // the group stars already accepted are matched against the joined group (5520)
   async prepare (ctx, doc) {
@@ -791,7 +850,7 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
     }
     const roster: Record<string, RosterEntry> = {}
     for (const m of welcomeRoster(w.roster).values()) {
-      roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer ? { contactId: i.contactId, rkid: i.rkid } : {}) }
+      roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer && i.contactId !== undefined && i.rkid !== undefined ? { contactId: i.contactId, rkid: i.rkid } : {}) }
     }
     const g: Group = {
       id: w.genesisDigest, name: w.name, did: w.group, genesis: w.genesis as JsonObject, memberLabel: i.memberLabel, rules: { vouchThreshold: w.vouchThreshold },
@@ -857,7 +916,7 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
   const current = (p: Joining['preludes'][string]): boolean => { const t = tupleByRkid(state, p.rkid); return t !== null && liveRel(t.rel) }
   const preludes = Object.fromEntries(Object.entries(state.joining.preludes).filter(([, p]) => current(p) || rests(p)))
   if (Object.keys(invites).length !== Object.keys(state.joining.invites).length || Object.keys(preludes).length !== Object.keys(state.joining.preludes).length) changed = true
-  return changed ? { ...state, groups, joining: { preludes, invites } } : state as HolderState
+  return changed ? { ...state, groups, joining: { ...state.joining, preludes, invites } } : state as HolderState
 }
 
 /** When retainMembership lets something go (the timer contract, engine.ts). */
