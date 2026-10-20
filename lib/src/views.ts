@@ -67,9 +67,10 @@
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
 import { triasOf } from './state.js'
-import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js'
+import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
+import { messageChannel } from './message/holder.js'
 import type {
   EnactmentRecord,
   Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
@@ -124,6 +125,33 @@ export interface ContactView {
    *  application shows no content and no offer of it, and shows group
    *  state and removal notices as without a block (6230) */
   blocked: boolean
+  /** a message to the contact goes out now (Message Tasks 5.1): an
+   *  unblocked relationship whose active head is ready; false, sendMessage
+   *  answers not-ready, blocked or no-own-channel */
+  canMessage: boolean
+}
+
+/** One message in the inbox (Message Tasks 4.5): accepted, not yet taken
+ *  over by the application (takeMessages). */
+export interface InboxMessageView {
+  commitSeq: Dec
+  /** the inbox id, the accepted document's digest; takeMessages names it */
+  id: string
+  /** the contact of the relationship it arrived on; absent once that
+   *  relationship departed */
+  contactId?: string
+  /** the relationship is blocked now (it was not at acceptance): an
+   *  application shows nothing of it (6230) */
+  blocked: boolean
+  mid: string
+  text: string
+  replyTo?: string
+  /** the sender's statement, distinct from receivedAt (4430) */
+  sentAt: Millis
+  /** t_ref of the acceptance (4410) */
+  receivedAt: Millis
+  /** min(sentAt, receivedAt), fixed at acceptance: the order of 4430 with mid */
+  displayAt: Millis
 }
 
 /** One relationship of a contact, as its chain stands. */
@@ -172,8 +200,8 @@ export interface DeliveryItemView {
   awaiting?: PreTransportReason
   /** for delivered: after a failure (the holder's own give-up included) */
   late?: boolean
-  /** for failed */
-  reason?: DeliveryFailure
+  /** for failed; task-expired: the sender lifetime its type declares ran out (Delivery 6110) */
+  reason?: DeliveryFailure | 'task-expired'
   code?: ReceiverRefusalCode
   attempt: number
   submittedAt: Millis
@@ -296,6 +324,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
     ...(sharedGroups ? { sharedGroups } : {}),
     ...(profile ? { profile } : {}),
     blocked: own.some((r) => state.messages.blocked.includes(r.id)),
+    canMessage: !('ok' in messageChannel(state, c.id)),
   }
 }
 
@@ -377,4 +406,20 @@ export function deliveryStatusView (state: Readonly<HolderState>, x: string): De
     .map(([digest, it]) => itemView(digest, it))
     .sort((a, b) => (a.submittedAt - b.submittedAt) || cmp(a.digest, b.digest))
   return freezeDeep({ commitSeq: state.commitSeq, items })
+}
+
+/** The inbox (Message Tasks 4.5), ordered by display time, then mid (4430). */
+export function inboxView (state: Readonly<HolderState>): InboxMessageView[] {
+  const out = Object.values(state.messages.inbox).map((e) => {
+    const t = tupleByLabel(state, e.tuple)
+    const c = t ? (findContact(state, t.tuple.entryId) ?? findContact(state, t.rel.contactId)) : undefined
+    const b = e.body as { text: string, replyTo?: string, sentAt: string }
+    return {
+      commitSeq: state.commitSeq, id: e.id, ...(c ? { contactId: c.id } : {}),
+      blocked: t !== null && state.messages.blocked.includes(t.rel.id),
+      mid: e.mid, text: b.text, ...(b.replyTo !== undefined ? { replyTo: b.replyTo } : {}),
+      sentAt: Date.parse(b.sentAt), receivedAt: e.receivedAt, displayAt: e.displayAt,
+    }
+  }).sort((a, b) => (a.displayAt - b.displayAt) || cmp(a.mid, b.mid) || cmp(a.id, b.id))
+  return freezeDeep(out)
 }

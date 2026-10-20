@@ -117,7 +117,11 @@
 //               declined ones only grow (RLTP-MT-3130, RLTP-MSG-6310); a
 //               block is set only by the block act, a merge, or a
 //               chaining that absorbs a blocked fresh relationship (6030),
-//               cleared only by the block act or with its relationship
+//               cleared only by the block act or with its relationship; a
+//               completion-record entry never changes and leaves only by
+//               tick (4340); an inbox entry arises only in a unique
+//               receive of its document, with its record entry, and leaves
+//               only by the take-over (4420)
 //   outbox      `accepted` appears only through report; a new item starts
 //               submitted (Delivery §6.1, note §4.3)
 //   effects     a new cache entry only through a unique receive, one, the
@@ -171,6 +175,7 @@
 //     bound to a salt above hwm, and a later, higher salt completing
 //     raises hwm past it (5140, 5366). Checked instead: both never fall,
 //     and an open assembly lies above both
+import { MESSAGE_LIFETIME_MS } from './message.js';
 import { jcs } from './core.js';
 import { triasOf } from './state.js';
 import { ADMISSION_BOUND, classOnToward, entryOf, entryRelationships, feeding, findContact, liveRel, newestHeads, newestOf } from './trust/state.js';
@@ -751,6 +756,38 @@ export function transitionViolations(before, after, op) {
         const gone = superset(a, b);
         if (gone.length)
             v.push({ invariant: 'messages', detail: `joining.${what} lost ${jcs(gone)}` });
+    }
+    // the completion record (Message Tasks 4.4): an entry never changes its
+    // body digest and leaves only by tick (4340); the inbox (4.5): an entry
+    // arises only in a unique receive, with its record entry, and leaves only
+    // by the application's take-over (4420)
+    for (const [label, rec] of Object.entries(before.messages.records)) {
+        for (const [mid, e] of Object.entries(rec)) {
+            const x = after.messages.records[label]?.[mid];
+            if (x === undefined) {
+                // only tick, after sentAt + H on the mark it writes, or with its tuple deactivated or gone (4340)
+                const t = Object.values(after.relationships).flatMap((r) => r.tuples).find((u) => u.ownPairLabel === label);
+                if (op.kind !== 'tick')
+                    v.push({ invariant: 'messages', detail: `record ${label} ${mid} deleted by ${op.kind}` });
+                else if (!(e.sentAt + MESSAGE_LIFETIME_MS < after.lastWhen) && t !== undefined && !t.deactivated)
+                    v.push({ invariant: 'messages', detail: `record ${label} ${mid} deleted before sentAt + H, its tuple live` });
+                continue;
+            }
+            if (x.bodyDigest !== e.bodyDigest || x.sentAt !== e.sentAt)
+                v.push({ invariant: 'messages', detail: `record ${label} ${mid} changed` });
+        }
+    }
+    for (const [id, e] of Object.entries(after.messages.inbox)) {
+        if (Object.hasOwn(before.messages.inbox, id))
+            continue;
+        if (op.kind !== 'receive' || op.disposition !== 'unique' || op.digest !== id)
+            v.push({ invariant: 'messages', detail: `inbox entry ${id} arose by ${op.kind}` });
+        if (after.messages.records[e.tuple]?.[e.mid] === undefined)
+            v.push({ invariant: 'messages', detail: `inbox entry ${id} without its record entry` });
+    }
+    for (const id of Object.keys(before.messages.inbox)) {
+        if (!Object.hasOwn(after.messages.inbox, id) && !(op.kind === 'act' && op.command === 'message.take'))
+            v.push({ invariant: 'messages', detail: `inbox entry ${id} left by ${op.kind}` });
     }
     // a block changes only by the block act, a merge (6030) or a departure
     // that removes its relationship

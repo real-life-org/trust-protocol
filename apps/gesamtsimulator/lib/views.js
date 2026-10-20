@@ -68,9 +68,10 @@
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
 import { triasOf } from './state.js';
-import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted } from './trust/state.js';
+import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js';
 import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
+import { messageChannel } from './message/holder.js';
 // ── helpers ────────────────────────────────────────────────────────────
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
@@ -185,6 +186,7 @@ const project = (state, c, ix, rix) => {
         ...(sharedGroups ? { sharedGroups } : {}),
         ...(profile ? { profile } : {}),
         blocked: own.some((r) => state.messages.blocked.includes(r.id)),
+        canMessage: !('ok' in messageChannel(state, c.id)),
     };
 };
 const itemView = (digest, it) => {
@@ -267,4 +269,19 @@ export function deliveryStatusView(state, x) {
         .map(([digest, it]) => itemView(digest, it))
         .sort((a, b) => (a.submittedAt - b.submittedAt) || cmp(a.digest, b.digest));
     return freezeDeep({ commitSeq: state.commitSeq, items });
+}
+/** The inbox (Message Tasks 4.5), ordered by display time, then mid (4430). */
+export function inboxView(state) {
+    const out = Object.values(state.messages.inbox).map((e) => {
+        const t = tupleByLabel(state, e.tuple);
+        const c = t ? (findContact(state, t.tuple.entryId) ?? findContact(state, t.rel.contactId)) : undefined;
+        const b = e.body;
+        return {
+            commitSeq: state.commitSeq, id: e.id, ...(c ? { contactId: c.id } : {}),
+            blocked: t !== null && state.messages.blocked.includes(t.rel.id),
+            mid: e.mid, text: b.text, ...(b.replyTo !== undefined ? { replyTo: b.replyTo } : {}),
+            sentAt: Date.parse(b.sentAt), receivedAt: e.receivedAt, displayAt: e.displayAt,
+        };
+    }).sort((a, b) => (a.displayAt - b.displayAt) || cmp(a.mid, b.mid) || cmp(a.id, b.id));
+    return freezeDeep(out);
 }

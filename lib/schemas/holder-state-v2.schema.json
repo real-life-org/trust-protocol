@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-protocol/lib/holder-state-v2.schema.json",
   "title": "HolderState, codec 2",
-  "description": "NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges),, an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked) is sorted.",
+  "description": "NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted.",
   "type": "object",
   "properties": {
     "codec": {
@@ -525,7 +525,7 @@
     },
     "messages": {
       "type": "object",
-      "description": "Message Tasks 0.1 on the holder (message/holder.ts)",
+      "description": "Message Tasks 0.1 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen",
       "properties": {
         "blocked": {
           "type": "array",
@@ -546,10 +546,84 @@
                 "items": {
                   "$ref": "#/$defs/Millis"
                 }
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/Millis"
+                }
               }
             },
             "required": [
-              "invites"
+              "invites",
+              "messages"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ready": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "the own pair labels of the ready tuples (Message Tasks 5.1); sorted"
+        },
+        "records": {
+          "type": "object",
+          "description": "the completion record (Message Tasks 4.4), per own pair label: mid → bodyDigest and sentAt",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "bodyDigest": {
+                  "type": "string"
+                },
+                "sentAt": {
+                  "$ref": "#/$defs/Millis"
+                }
+              },
+              "required": [
+                "bodyDigest",
+                "sentAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "inbox": {
+          "type": "object",
+          "description": "the inbox (Message Tasks 4.5), by the accepted document digest",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "tuple": {
+                "type": "string"
+              },
+              "mid": {
+                "type": "string"
+              },
+              "body": {
+                "type": "object"
+              },
+              "receivedAt": {
+                "$ref": "#/$defs/Millis"
+              },
+              "displayAt": {
+                "$ref": "#/$defs/Millis"
+              }
+            },
+            "required": [
+              "id",
+              "tuple",
+              "mid",
+              "body",
+              "receivedAt",
+              "displayAt"
             ],
             "additionalProperties": false
           }
@@ -557,7 +631,10 @@
       },
       "required": [
         "blocked",
-        "rates"
+        "rates",
+        "ready",
+        "records",
+        "inbox"
       ],
       "additionalProperties": false
     }
@@ -1832,7 +1909,8 @@
               "enum": [
                 "unroutable",
                 "oversize",
-                "expired-by-adapter-policy"
+                "expired-by-adapter-policy",
+                "task-expired"
               ]
             }
           },
@@ -1905,6 +1983,10 @@
         },
         "nextAttemptAt": {
           "$ref": "#/$defs/Millis"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Millis",
+          "description": "the sender lifetime its type declares (Delivery RLTP-DEL-7020)"
         }
       },
       "required": [
@@ -3308,6 +3390,72 @@
             "commitSeq",
             "contactId",
             "blocked"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "message.sent"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "mid": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "mid",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "message.received"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "contactId": {
+              "type": "string"
+            },
+            "inboxId": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "contactId",
+            "inboxId"
           ],
           "additionalProperties": false
         }

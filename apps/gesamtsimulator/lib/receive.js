@@ -238,7 +238,8 @@ export async function prepareReceive(ctx, env, tasks) {
             if (!key || !(await macAckValid(doc, key, S)))
                 return failed('validation-failed', 8, { digest });
         }
-        return { kind: 'ack', digest, ref };
+        const arrival = Object.freeze({ rkid, threadId: doc.threadId, digest, when: ctx.when });
+        return { kind: 'ack', digest, ref, doc: Object.freeze({ ...doc }), arrival };
     }
     // 6 — the task register, by the full type URI (no prefix, no fallback)
     const h = tasks.get(doc.type);

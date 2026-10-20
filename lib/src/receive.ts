@@ -225,7 +225,7 @@ type Failed = Extract<ReceiveResult, { disposition: 'failed' }>
 export type ReceivePlan =
   | { kind: 'failed', result: Failed }
   | { kind: 'duplicate', digest: string }
-  | { kind: 'ack', digest: string, ref: string }
+  | { kind: 'ack', digest: string, ref: string, doc: ReceivedDocument, arrival: Arrival }
   | { kind: 'task', digest: string, type: string, doc: ReceivedDocument, arrival: Arrival, value: unknown, ack: SealedAck }
 
 /** The handler surface the core needs (engine.ts TaskHandler). */
@@ -312,7 +312,8 @@ export async function prepareReceive (ctx: PrepareCtx, env: unknown, tasks: Read
       const key = await ackKey(ctx, rkid, item.recipient.keyAgreement, doc.issuer as string, doc.recipient as string)
       if (!key || !(await macAckValid(doc, key, S))) return failed('validation-failed', 8, { digest })
     }
-    return { kind: 'ack', digest, ref }
+    const arrival: Arrival = Object.freeze({ rkid, threadId: doc.threadId as string, digest, when: ctx.when })
+    return { kind: 'ack', digest, ref, doc: Object.freeze({ ...doc }) as unknown as ReceivedDocument, arrival }
   }
   // 6 — the task register, by the full type URI (no prefix, no fallback)
   const h = tasks.get(doc.type as string)

@@ -37,19 +37,26 @@
 //     act whose apply returns the identical state object and nothing else
 //     commits nothing only when lastWhen stays too. A human act always
 //     commits, because its journal entry is the result. Refusals and
-//     journal replays commit nothing, lastWhen included
+//     journal replays commit nothing, lastWhen included — but for a replay
+//     that finds one of its documents past its lifetime or the horizon:
+//     that give-up runs first as an operation of its own on the one commit
+//     path (resume's CommitOp, its timer carried to the replay's answer)
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
 //     when + ceil(backoff(1)); resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
 //     (the adapter holds the item) and never re-emits an accepted one. It
 //     gives up every non-terminal item (submitted, held or accepted) at
 //     first submission + horizonMs, never by attempt
-//     count; nextDueAt is the earliest due re-emission or horizon expiry
-//   - the holder's give-up is failed(expired-by-adapter-policy); a later
+//     count, or earlier at the sender lifetime its type declared
+//     (expiresAt, Delivery 7020); nextDueAt is the earliest due
+//     re-emission, horizon or lifetime
+//   - the holder's give-up is failed(expired-by-adapter-policy), at a
+//     lifetime failed(task-expired) (Delivery 6110); a later
 //     delivered report is late by that history, whatever the adapter says
 //   - replay of a human act returns the journaled events and the outbound
-//     of its documents that are not terminal (delivered, failed), at their
-//     current attempt. Idempotency is bounded by the journal's retention:
+//     of its documents that are not terminal (delivered, failed) and not
+//     due for the give-up, at their current attempt; one due for it is
+//     given up in a commit of its own first (6115: never handed out again). Idempotency is bounded by the journal's retention:
 //     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
 //     bounds effects and their acks; after it the same actId is a new act
 //   - KeyProvider, Log and Access rejections inside a preparation become
@@ -204,8 +211,11 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 
 /** An event as a module emits it; the engine adds eventId, commitSeq, actId. */
 export type EventDraft = DistributiveOmit<HolderEvent, 'eventId' | 'commitSeq' | 'actId'>
-/** A document as a module issues it; the engine sets attempt 1 and files it in the outbox. */
-export type OutboundDraft = Omit<Outbound, 'attempt'>
+/** A document as a module issues it; the engine sets attempt 1 and files
+ *  it in the outbox. `expiresAt`: the sender lifetime its type declares
+ *  (Delivery RLTP-DEL-7020), after which resume moves it to
+ *  failed(task-expired) and never hands it out again (6110, 6115). */
+export type OutboundDraft = Omit<Outbound, 'attempt'> & { expiresAt?: Millis }
 
 /** What a WebCrypto handle must offer; resolved at construction. The
  *  default entropy also needs getRandomValues and randomUUID from it. */
@@ -435,6 +445,13 @@ export interface HolderModule {
   /** at most one handler per prompt kind across all modules; collected by
    *  createHolder for the prompts module (prompts.ts) */
   decisions?: Partial<Record<PromptKind, DecisionHandler>>
+  /** run in the stage-9 transaction of every document disposed `unique`
+   *  (through a task handler, after it; or a verified delivery-ack, after
+   *  its ack handler), on the state it left: pure and
+   *  synchronous, returning the same object where nothing changes; it must
+   *  not write the effect cache (the readiness of a tuple, Message Tasks
+   *  5.1) */
+  accepted?: (state: Readonly<HolderState>, doc: ReceivedDocument, arrival: Arrival) => HolderState
 }
 
 /** The ports of a holder (note §3); retry fields fall back to ENGINE_DEFAULTS. */
@@ -678,6 +695,7 @@ class HolderEngine implements Engine {
   readonly #ownRetries: ReadonlySet<string>
   readonly #keepKeys: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => Iterable<string>>
   readonly #retain: ReadonlyArray<(state: Readonly<HolderState>, when: Millis) => HolderState>
+  readonly #accepted: ReadonlyArray<NonNullable<HolderModule['accepted']>>
   readonly #deadlines: ReadonlyArray<(state: Readonly<HolderState>) => Iterable<Millis>>
   readonly #builtins: Readonly<Record<typeof BUILTIN[number], InternalDef>>
   readonly #check?: EngineOptions['check']
@@ -726,6 +744,7 @@ class HolderEngine implements Engine {
     const ownRetries = new Set<string>()
     const keepKeys: Array<(state: Readonly<HolderState>, when: Millis) => Iterable<string>> = []
     const retain: Array<(state: Readonly<HolderState>, when: Millis) => HolderState> = []
+    const accepted: Array<NonNullable<HolderModule['accepted']>> = []
     const deadlines: Array<(state: Readonly<HolderState>) => Iterable<Millis>> = []
     const names = new Set<string>()
     for (const m of modules) {
@@ -787,6 +806,10 @@ class HolderEngine implements Engine {
         if (typeof m.deadlines !== 'function') throw new TypeError(`deadlines (module ${m.name}) must be a function`)
         deadlines.push(m.deadlines)
       }
+      if (m.accepted !== undefined) {
+        if (typeof m.accepted !== 'function') throw new TypeError(`accepted (module ${m.name}) must be a function`)
+        accepted.push(m.accepted)
+      }
     }
     this.#commands = commands
     this.#tasks = tasks
@@ -798,6 +821,7 @@ class HolderEngine implements Engine {
     this.#keepKeys = Object.freeze(keepKeys)
     this.#deadlines = Object.freeze(deadlines)
     this.#retain = Object.freeze(retain)
+    this.#accepted = Object.freeze(accepted)
     this.#builtins = Object.freeze({ tick: this.#tickDef(), resume: this.#resumeDef(), report: this.#reportDef(), receive: this.#receiveDef() })
     this.registry = Object.freeze({
       commands: Object.freeze([...commands.keys()]),
@@ -862,6 +886,11 @@ class HolderEngine implements Engine {
 
   /** `input` is already bound (bindInput); `inputHash` its journal hash for human acts. */
   async #run (def: InternalDef, op: CommitOp, input: unknown, when: Millis, actId?: string, inputHash?: string): Promise<RunResult> {
+    /** a replay's give-up work (below): its timer, carried to the replay's answer */
+    let replayWake: Millis | undefined
+    /** give-ups a replay ran: each moves at least one of its finitely many
+     *  journaled documents to failed, so they are bounded by that number */
+    let gaveUp = 0
     for (let attempt = 1; attempt <= this.#policy.commitAttempts; attempt++) {
       // 1 — snapshot, when
       const { state, version } = await this.#read()
@@ -869,9 +898,29 @@ class HolderEngine implements Engine {
       if (def.human && Object.hasOwn(state.acts, actId!)) {
         const rec = state.acts[actId!]
         if (rec.inputHash !== inputHash) return { ok: false, code: 'actid-conflict' }
-        const live = rec.outboundDigests.filter((d) => { const t = triasOf(this.#itemOf(state, d)); return t !== 'delivered' && t !== 'failed' })
         const events: HolderEvent[] = structuredClone(rec.events) as HolderEvent[]
-        return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events) }
+        // the act's documents are handed out again only while live; one past
+        // its sender lifetime or the horizon is given up first, in an
+        // operation of its own on the engine's one commit path (as resume's
+        // give-up: Delivery 6110, 6115), and is never handed out — the
+        // journal's events are not announced again
+        const live: string[] = []
+        const expired: string[] = []
+        for (const d of rec.outboundDigests) {
+          const it = this.#itemOf(state, d)
+          const t = triasOf(it)
+          if (t === 'delivered' || t === 'failed') continue
+          if (this.#giveUp(it, at)) expired.push(d); else live.push(d)
+        }
+        if (expired.length) {
+          const g = await this.#run(this.#giveUpDef(), { kind: 'resume' }, expired, at)
+          if (!isHalt(g) && g.ok && g.nextDueAt !== undefined) replayWake = replayWake === undefined ? g.nextDueAt : Math.min(replayWake, g.nextDueAt)
+          // re-read: the act's documents as the give-up left them, outside
+          // the CAS budget (no conflict happened); bounded by the act's documents
+          if (gaveUp++ <= rec.outboundDigests.length) attempt--
+          continue
+        }
+        return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events), ...(replayWake !== undefined ? { nextDueAt: replayWake } : {}) }
       }
       // 2 — prepare, bound to this snapshot
       const ctx: PrepareCtx = Object.freeze({
@@ -918,11 +967,14 @@ class HolderEngine implements Engine {
       freezeDeep(events)
       const outbound: Outbound[] = drafts.map((o) => ({ digest: o.digest, envelope: o.envelope, type: o.type, threadId: o.threadId, recipient: o.recipient, attempt: 1 }))
       const outbox: Record<string, OutboxItem> = { ...r.state.outbox }
-      for (const o of outbound) {
+      for (const [i, o] of outbound.entries()) {
         if (Object.hasOwn(outbox, o.digest)) throw new Error(`engine: outbound ${o.digest} is already in the outbox`)
+        const life = drafts[i].expiresAt
+        if (life !== undefined && (!Number.isSafeInteger(life) || life <= at)) throw new Error(`engine: outbound ${o.digest} expires at ${life}, not after ${at}`)
         outbox[o.digest] = {
           type: o.type, threadId: o.threadId, recipient: o.recipient, envelope: o.envelope, attempt: 1,
           history: [{ status: 'submitted', at, attempt: 1 }], nextAttemptAt: dueAt(at, this.#policy.backoff(1)),
+          ...(life !== undefined ? { expiresAt: life } : {}),
         }
       }
       const duties: Record<string, Duty> = { ...r.state.duties }
@@ -1038,6 +1090,48 @@ class HolderEngine implements Engine {
     return { state: cur, events }
   }
 
+  /** The give-up of the outbox items named (a replay found them due, see
+   *  #run): as resume's, the failed step, the status event, the failure
+   *  handlers in the same transaction; items no longer due are left alone. */
+  #giveUpDef (): InternalDef {
+    const giveUp = (it: Readonly<OutboxItem>, when: Millis) => this.#giveUp(it, when)
+    const failed = (st: HolderState, digests: readonly string[], when: Millis) => this.#failed(st, digests, when)
+    return {
+      human: false,
+      apply (state, _p, digests: string[], when) {
+        const outbox: Record<string, OutboxItem> = { ...state.outbox }
+        const events: EventDraft[] = []
+        const gave: string[] = []
+        for (const d of digests) {
+          const it = state.outbox[d]
+          const t = triasOf(it)
+          if (t === 'delivered' || t === 'failed') continue
+          const why = giveUp(it, when)
+          if (!why) continue
+          const { nextAttemptAt: _, ...rest } = it
+          outbox[d] = { ...rest, history: [...rest.history, { status: 'failed', at: when, reason: why }] }
+          events.push({ type: 'delivery.status', digest: d, threadId: it.threadId, status: 'failed' })
+          gave.push(d)
+        }
+        if (!gave.length) return { state: state as HolderState }
+        const f = failed({ ...state, outbox }, gave, when)
+        return { state: f.state, events: [...events, ...f.events] }
+      },
+    }
+  }
+
+  /** Why a non-terminal outbox item is given up at `when`, or null: its
+   *  sender lifetime, where it ends no later than the horizon
+   *  (failed(task-expired), Delivery 6110), else the horizon
+   *  (failed(expired-by-adapter-policy)). */
+  #giveUp (it: Readonly<OutboxItem>, when: Millis): 'task-expired' | 'expired-by-adapter-policy' | null {
+    const first = it.history.length ? it.history[0].at : when
+    const expiry = Math.min(first + this.#policy.horizonMs, Number.MAX_SAFE_INTEGER)
+    const life = it.expiresAt
+    if (life !== undefined && when >= life && life <= expiry) return 'task-expired'
+    return when >= expiry ? 'expired-by-adapter-policy' : null
+  }
+
   #itemOf (state: Readonly<HolderState>, digest: string): OutboxItem {
     if (!Object.hasOwn(state.outbox, digest)) throw new Error(`engine: journaled outbound ${digest} is missing from the outbox`)
     return state.outbox[digest]
@@ -1137,6 +1231,7 @@ class HolderEngine implements Engine {
     const sweeps = (): ReadonlyMap<string, SweepHandler> => this.#sweeps
     const failed = (st: HolderState, digests: readonly string[], when: Millis) => this.#failed(st, digests, when)
     const ownRetries = (): ReadonlySet<string> => this.#ownRetries
+    const giveUp = (it: Readonly<OutboxItem>, when: Millis) => this.#giveUp(it, when)
     return {
       human: false,
       // the due duties' and the sweeps' preparations, against the snapshot apply will see
@@ -1162,17 +1257,20 @@ class HolderEngine implements Engine {
           const it = state.outbox[digest]
           const trias = triasOf(it)
           if (trias === 'delivered' || trias === 'failed') continue
-          // the horizon applies to every non-terminal item: held, accepted or not
-          const first = it.history.length ? it.history[0].at : when
-          const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
-          if (when >= expiry) {
+          // the horizon applies to every non-terminal item: held, accepted or
+          // not; a sender lifetime the type declares ends it earlier, as
+          // failed(task-expired), never handed out again (Delivery 6110, 6115)
+          const why = giveUp(it, when)
+          if (why) {
             const { nextAttemptAt: _, ...rest } = it
-            outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: 'expired-by-adapter-policy' }] }
+            outbox[digest] = { ...rest, history: [...it.history, { status: 'failed', at: when, reason: why }] }
             events.push({ type: 'delivery.status', digest, threadId: it.threadId, status: 'failed' })
             gaveUp.push(digest)
             continue
           }
-          due(expiry)
+          const first = it.history.length ? it.history[0].at : when
+          const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
+          due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry)
           // never re-emitted: an accepted item (the service has it) and one the
           // adapter holds (awaiting-transport, until it reports again)
           if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
@@ -1359,6 +1457,7 @@ class HolderEngine implements Engine {
   #receiveDef (): InternalDef {
     const tasks = (): ReadonlyMap<string, TaskHandler> => this.#tasks
     const acks = (): ReadonlyMap<string, AckHandler> => this.#acks
+    const acceptedHooks = (): ReadonlyArray<NonNullable<HolderModule['accepted']>> => this.#accepted
     const policy = (): Policy => this.#policy
     return {
       human: false,
@@ -1387,6 +1486,12 @@ class HolderEngine implements Engine {
               next = r.state
               events.push(...(r.events ?? []))
             }
+            // a verified ack is an accepted document of its issuer too: the
+            // modules' accepted hooks, in the same transaction
+            for (const hook of acceptedHooks()) {
+              next = hook(next, plan.doc, plan.arrival)
+              if (next.effects !== state.effects) throw new Error('engine: an accepted hook wrote the effect cache')
+            }
             return {
               state: { ...next, effects: { ...next.effects, [plan.digest]: cached(null) } },
               events,
@@ -1409,8 +1514,14 @@ class HolderEngine implements Engine {
               return { state: r.state, detail: { disposition: 'discarded', digest: plan.digest, type: plan.type, reason: r.reason, ...(r.ref !== undefined ? { ref: r.ref } : {}) } }
             }
             if (r.state.effects !== state.effects) throw new Error(`engine: the handler of ${plan.type} wrote the effect cache; the core writes it`)
+            // the modules' accepted hooks, in the same transaction
+            let after = r.state
+            for (const hook of acceptedHooks()) {
+              after = hook(after, plan.doc, plan.arrival)
+              if (after.effects !== state.effects) throw new Error('engine: an accepted hook wrote the effect cache')
+            }
             return {
-              state: { ...r.state, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
+              state: { ...after, effects: { ...state.effects, [plan.digest]: cached({ ...plan.ack, at: when, attempt: 1, nextAttemptAt: dueAt(when, policy().backoff(1)), sent: false }) } },
               ...(r.outbound ? { outbound: r.outbound } : {}),
               ...(r.events ? { events: r.events } : {}),
               ...(r.duties ? { duties: r.duties } : {}),

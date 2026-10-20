@@ -78,6 +78,12 @@ export type HolderEvent = EventBase & (
   | { type: 'group.vouched', groupId: string, member: string }
   /** the block of the contact's relationships set or cleared (Message Tasks 6.1) */
   | { type: 'contact.blocked', contactId: string, blocked: boolean }
+  /** a message issued (Message Tasks 5): its mid and its document's digest,
+   *  whose sender status deliveryStatus answers */
+  | { type: 'message.sent', contactId: string, mid: string, digest: string }
+  /** a message accepted into the inbox (4.5), by its inbox id; the contact
+   *  of the relationship it arrived on */
+  | { type: 'message.received', contactId: string, inboxId: string }
 )
 
 export type HolderEventType = HolderEvent['type']

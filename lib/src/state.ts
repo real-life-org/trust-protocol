@@ -75,20 +75,48 @@ export interface HolderState {
 
 // ── Message Tasks: the block and the rates ─────────────────────────────
 
-/** What Message Tasks 0.1 keeps on the holder (message/holder.ts). */
+/** What Message Tasks 0.1 keeps on the holder (message/holder.ts). The
+ *  time mark of RLTP-MSG-4060 is `lastWhen`: it never falls, every commit
+ *  writes it, and the CAS commits only on the state it was read with. */
 export interface MessagesState {
   /** the relationships under a block (Message Tasks 6.1): chain-level
    *  state of a relationship (Trust 2280), by relationship id, sorted */
   blocked: string[]
   /** per relationship id: the times at which documents counted against a
    *  rate were accepted, inside the last 24 hours (Message Tasks 4.2):
-   *  invitations with a credential digest new to the holder (4115,
-   *  Membership RLTP-MT-3105) */
+   *  new message/0.1 document digests (4110) and invitations with a
+   *  credential digest new to the holder (4115, Membership RLTP-MT-3105) */
   rates: Record<string, Rates>
+  /** the own pair labels of the tuples that are ready (5.1, 5020): a
+   *  document whose issuer is the counterpart was accepted on them; sorted */
+  ready: string[]
+  /** the completion record (4.4), per tuple (own pair label) and inbound
+   *  direction: mid → the body's digest and its sentAt */
+  records: Record<string, Record<string, MessageRecord>>
+  /** the inbox (4.5): messages accepted and not yet taken over by the
+   *  application, by the accepted document's digest */
+  inbox: Record<string, InboxEntry>
 }
 
 /** The acceptance times a rate counts, oldest first. */
-export interface Rates { invites: Millis[] }
+export interface Rates { invites: Millis[], messages: Millis[] }
+
+/** One completion-record entry (RLTP-MSG-4310). */
+export interface MessageRecord { bodyDigest: string, sentAt: Millis }
+
+/** One inbox entry (RLTP-MSG-4410): the body unchanged, the t_ref of its
+ *  acceptance and the display time min(sentAt, receivedAt), fixed then. */
+export interface InboxEntry {
+  /** the accepted document's digest */
+  id: string
+  /** the own pair label of the arrival tuple */
+  tuple: string
+  mid: string
+  /** the message@1 body as it arrived */
+  body: JsonObject
+  receivedAt: Millis
+  displayAt: Millis
+}
 
 // ── Identity ───────────────────────────────────────────────────────────
 
@@ -510,7 +538,7 @@ export type OutboxStep =
   | { status: 'awaiting-transport', at: Millis, reason: PreTransportReason }
   | { status: 'accepted', at: Millis }
   | { status: 'delivered', at: Millis, late: boolean }
-  | { status: 'failed', at: Millis, reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> }
+  | { status: 'failed', at: Millis, reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> | 'task-expired' }
   | { status: 'failed', at: Millis, reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
 
 export interface OutboxItem {
@@ -524,6 +552,9 @@ export interface OutboxItem {
   /** history, oldest first (Delivery §6.1) */
   history: OutboxStep[]
   nextAttemptAt?: Millis
+  /** the sender lifetime its type declares (Delivery RLTP-DEL-7020):
+   *  from then on failed(task-expired), never handed out again (6110, 6115) */
+  expiresAt?: Millis
 }
 
 // ── Duties ─────────────────────────────────────────────────────────────
@@ -789,6 +820,6 @@ export function emptyState (codec: number): HolderState {
     acts: {},
     encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
     joining: { preludes: {}, invites: {}, surfaced: [], declined: [] },
-    messages: { blocked: [], rates: {} },
+    messages: { blocked: [], rates: {}, ready: [], records: {}, inbox: {} },
   }
 }

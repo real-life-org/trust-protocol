@@ -3,7 +3,7 @@
 export { emptyState, triasOf, toOpaque } from './state.js';
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
 export { SIGNATURE_CLASS } from './receive.js';
-export { contactsView, contactView, groupsView, profileView, promptsView, deliveryStatusView } from './views.js';
+export { contactsView, contactView, groupsView, profileView, promptsView, inboxView, deliveryStatusView } from './views.js';
 export { DECIDE } from './prompts.js';
 export { freezeDeep } from './util-freeze.js';
 export { trustModule, ANCHOR_MAPPING_TYPE, TRUST_COMMANDS, lineageSegment, recommitEntries } from './trust/mapping.js';

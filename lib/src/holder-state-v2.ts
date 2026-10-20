@@ -6,7 +6,7 @@
 // and state.ts's HolderState against each other.
 import type { Json } from './core.js'
 
-/** NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges),, an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked) is sorted. */
+/** NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted. */
 export type HolderStateV2 = {
   codec: 2
   commitSeq: DecV2
@@ -111,13 +111,30 @@ export type HolderStateV2 = {
     /** the register of declined invitations (Message Tasks 6.4): credential digests, holder-wide, for the life of the holder; sorted */
     declined: string[]
   }
-  /** Message Tasks 0.1 on the holder (message/holder.ts) */
+  /** Message Tasks 0.1 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen */
   messages: {
     /** the relationships under a block (Message Tasks 6.1), by relationship id; sorted */
     blocked: string[]
     /** per relationship id: acceptance times inside the last 24 hours (Message Tasks 4.2) */
     rates: Record<string, {
       invites: MillisV2[]
+      messages: MillisV2[]
+    }>
+    /** the own pair labels of the ready tuples (Message Tasks 5.1); sorted */
+    ready: string[]
+    /** the completion record (Message Tasks 4.4), per own pair label: mid → bodyDigest and sentAt */
+    records: Record<string, Record<string, {
+      bodyDigest: string
+      sentAt: MillisV2
+    }>>
+    /** the inbox (Message Tasks 4.5), by the accepted document digest */
+    inbox: Record<string, {
+      id: string
+      tuple: string
+      mid: string
+      body: { [k: string]: Json }
+      receivedAt: MillisV2
+      displayAt: MillisV2
     }>
   }
 }
@@ -372,7 +389,7 @@ export type OutboxStepV2 = ({
 }) | ({
   status: "failed"
   at: MillisV2
-  reason: "unroutable" | "oversize" | "expired-by-adapter-policy"
+  reason: "unroutable" | "oversize" | "expired-by-adapter-policy" | "task-expired"
 }) | ({
   status: "failed"
   at: MillisV2
@@ -389,6 +406,8 @@ export type OutboxItemV2 = {
   attempt: number
   history: OutboxStepV2[]
   nextAttemptAt?: MillisV2
+  /** the sender lifetime its type declares (Delivery RLTP-DEL-7020) */
+  expiresAt?: MillisV2
 }
 
 export type StoredAckV2 = {
@@ -684,6 +703,21 @@ export type EventV2 = ({
   commitSeq: DecV2
   contactId: string
   blocked: boolean
+  actId?: string
+}) | ({
+  type: "message.sent"
+  eventId: string
+  commitSeq: DecV2
+  contactId: string
+  mid: string
+  digest: string
+  actId?: string
+}) | ({
+  type: "message.received"
+  eventId: string
+  commitSeq: DecV2
+  contactId: string
+  inboxId: string
   actId?: string
 })
 

@@ -26,22 +26,40 @@
 import { jcs } from './core.js';
 /** The codec this library writes. */
 export const CODEC = 2;
+/** The tuples of a codec-1 state on which a document of the counterpart
+ *  was accepted, as far as the state shows it (Message Tasks 5.1): a probe,
+ *  a star, a group star, a continuity or anchor mapping, or a profile
+ *  received; or the counterparty's step credential of its enactment record. */
+function readyOf1(s) {
+    const out = new Set();
+    const inRec = new Set(Object.values(s.encounter.records).filter((r) => r.in !== null).map((r) => r.label));
+    for (const r of Object.values(s.relationships)) {
+        for (const t of r.tuples) {
+            if (t.probeIn.hwm !== '0' || t.starIn.hwm !== '0' || t.groupStarIn.hwm !== '0' || t.continuityIn.rev !== '0' ||
+                t.mappingIn.rev !== '0' || t.profileIn.rev !== '0' || inRec.has(t.ownPairLabel))
+                out.add(t.ownPairLabel);
+        }
+    }
+    return [...out].sort();
+}
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
  *
  * 1 → 2 (lib 0.5.0, Message Tasks 0.1, Membership 0.20): the message
- * state starts empty (no block, no rate); every invitation a codec-1
- * holder received was surfaced, so their credential digests seed the
- * permanent record of RLTP-MT-3130; the register of declined invitations
- * starts empty (codec 1 knew no block).
+ * state starts empty (no block, no rate, no record, no inbox) but for the
+ * ready tuples, read from what the state shows a counterpart's document
+ * did (readyOf1); every invitation a codec-1 holder received was
+ * surfaced, so their credential digests seed the permanent record of
+ * RLTP-MT-3130; the register of declined invitations starts empty (codec 1
+ * knew no block).
  */
 export const MIGRATIONS = Object.freeze({
     1: (s) => ({
         ...s,
         codec: 2,
         joining: { ...s.joining, surfaced: Object.keys(s.joining.invites).sort(), declined: [] },
-        messages: { blocked: [], rates: {} },
+        messages: { blocked: [], rates: {}, ready: readyOf1(s), records: {}, inbox: {} },
     }),
 });
 /** A stored state the library will not load (or a state it will not write). */
@@ -188,7 +206,8 @@ const contact = obj({
     settings: obj({ star: setting, groupStar: setting, anchorMapping: setting, sealedGroupStar: setting, profile: setting }),
     groupSettings: rec(setting),
 });
-const outboxStep = (x, p) => {
+/** an outbox step of codec n: codec 2 added the failure reason task-expired */
+const outboxStepOf = (codec) => (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
     const s = x;
@@ -199,19 +218,22 @@ const outboxStep = (x, p) => {
         case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p);
         case 'failed': return s.reason === 'rejected-by-receiver'
             ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'proofRequired', 'proofInvalid', 'wrongRecipient', 'identityMismatch') })(x, p)
-            : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy') })(x, p);
+            : obj({ status: str, at: millis, reason: codec < 2 ? lit('unroutable', 'oversize', 'expired-by-adapter-policy') : lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p);
         default: fail(`${p}.status`, 'unknown outbox status');
     }
 };
-const outboxShape = obj({
-    type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStep),
-}, { nextAttemptAt: millis });
-/** the envelope is sealed to the counterpart key, never to the own rkid */
-const outboxItem = (x, p) => {
-    outboxShape(x, p);
-    const o = x;
-    if (o.envelope.rkid !== o.recipient.keyAgreement)
-        fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
+/** an outbox item of codec n: codec 2 added expiresAt (the sender lifetime);
+ *  the envelope is sealed to the counterpart key, never to the own rkid */
+const outboxItemOf = (codec) => {
+    const shape = obj({
+        type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStepOf(codec)),
+    }, codec < 2 ? { nextAttemptAt: millis } : { nextAttemptAt: millis, expiresAt: millis });
+    return (x, p) => {
+        shape(x, p);
+        const o = x;
+        if (o.envelope.rkid !== o.recipient.keyAgreement)
+            fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
+    };
 };
 const DUE = { dueAt: millis };
 /** a retained ack: sealed to the counterpart key, like an outbox item */
@@ -271,9 +293,11 @@ const EVENT_FIELDS = {
     'group.admitted': [{ groupId: str, member: str }],
     'group.vouched': [{ groupId: str, member: str }],
     'contact.blocked': [{ contactId: str, blocked: bool }],
+    'message.sent': [{ contactId: str, mid: str, digest: str }],
+    'message.received': [{ contactId: str, inboxId: str }],
 };
 /** the event types codec 2 added: codec 1 does not know them */
-const EVENTS_SINCE_2 = new Set(['contact.blocked']);
+const EVENTS_SINCE_2 = new Set(['contact.blocked', 'message.sent', 'message.received']);
 const eventOf = (codec) => (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
@@ -333,7 +357,7 @@ const fields1 = {
     groups: keyed(group, 'id'),
     profile: obj({ body: json, revision: dec }),
     effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
-    outbox: rec(outboxItem),
+    outbox: rec(outboxItemOf(1)),
     duties: keyed(duty, 'id'),
     rotations: keyed(obj({
         id: str, from: dec, to: dec, step: lit('register', 'log', 'duties'), startedAt: millis,
@@ -380,6 +404,7 @@ const receivedInvite2 = (x, p) => {
 const codec2 = obj({
     ...fields1,
     codec: lit(2),
+    outbox: rec(outboxItemOf(2)),
     acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(2)), at: millis }), 'actId'),
     joining: obj({
         preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
@@ -389,7 +414,10 @@ const codec2 = obj({
     }),
     messages: obj({
         blocked: sortedSet,
-        rates: rec(obj({ invites: arr(millis) })),
+        rates: rec(obj({ invites: arr(millis), messages: arr(millis) })),
+        ready: sortedSet,
+        records: rec(rec(obj({ bodyDigest: str, sentAt: millis }))),
+        inbox: keyed(obj({ id: str, tuple: str, mid: str, body: anyObj, receivedAt: millis, displayAt: millis }), 'id'),
     }),
 });
 /** Structural validators per codec version; every readable codec has one. */
