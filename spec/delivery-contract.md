@@ -2394,8 +2394,11 @@ status then becomes `delivered`, the honest outcome. This contract
 gives a sender no way to withdraw a copy from an adapter, so the
 reason says what the sender decided, not that no copy is in flight.
 
-**Before the trias there is a report, not a fourth state.** The
-three states above describe a submission a service has **taken**.
+**Before the trias there is a report, not a fourth state.**
+`accepted` and `delivered` describe a submission a service has
+**taken**; `failed` also records the sender's own give-up, which can
+come before any service took the document (RLTP-DEL-6110, the
+adapter's declared horizon).
 A submission an adapter still holds — because it is offline, the
 transport is unreachable, or the carrier refused retriably (5a.5)
 — has no trias state yet, and inventing one would break the
@@ -2436,7 +2439,9 @@ locked nor ended since.
 taken before a lock or the end of a process MUST NOT authorize a
 submission after it; a submission after reopening MUST rest on the
 holder state as that opening finds it, with the transitions due by
-then (RLTP-DEL-6110, the adapter's horizon) applied first.
+then (RLTP-DEL-6110, the adapter's horizon) applied first. Those
+deadlines run from the first submission as the sender recorded it;
+neither a reopening nor a new adapter instance restarts them.
 
 **RLTP-DEL-6135** — A sender MUST NOT submit a document whose
 transitions due at the time of submission could not be applied, nor
@@ -2447,8 +2452,7 @@ keep submitting it.
 only the sender knows the document is owed, and if a report that it
 waits were enough to let the sender forget it, a lock or a crash
 between the report and the service would lose it with nobody left
-to submit it again — the gap the field record of the store launch
-found. The rule puts custody where the status already lives, in the
+to submit it again. The rule puts custody where the status already lives, in the
 holder: the envelope is stored there once, sealed, and re-offered
 byte-identical, so the copy an adapter holds is volatile and bound
 to an open holder state. Custody is no fourth state; the closed set
@@ -2736,7 +2740,10 @@ aligns its wording with this rule.
 acknowledgement to its adapter, under the retry policy that applies
 to it, until a service durably accepts it or that policy ends its
 retries; an awaiting-transport report ends neither the retries nor
-the custody of RLTP-DEL-6120.
+the custody of RLTP-DEL-6120. The retries run from the commit of
+the effect. A re-send answering a stage-4 duplicate is one hand-over
+of its own: it starts no new retries, and a later redelivery of the
+document is what asks for the next one.
 
 **RLTP-DEL-6335** — The end of an acknowledgement's retries MUST NOT
 discard it: the stored acknowledgement stays retained with its
@@ -3296,8 +3303,9 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   **acknowledgement retries:** an acknowledgement reported
   `awaiting-transport` → still offered after a lock and a restart;
   past its retry bound → no longer offered, and a duplicate within
-  the retention bound re-sends it byte-identical (RLTP-DEL-6330,
-  RLTP-DEL-6335) · **commit not whole:** a stage-9
+  the retention bound re-sends it byte-identical, once, with no new
+  retries — reported `awaiting-transport` and then online again, the
+  next redelivery re-sends it again (RLTP-DEL-6330, RLTP-DEL-6335) · **commit not whole:** a stage-9
   transaction that fails for storage → nothing persisted, no ack, not
   concluded, evaluated again on the next delivery (RLTP-DEL-5810) ·
   `registry-declaration/0.1`: valid declaration recorded;
