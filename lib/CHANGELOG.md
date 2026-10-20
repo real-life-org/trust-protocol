@@ -58,7 +58,9 @@ for transport, and only an open, resumed opening hands anything over.
   past the entry's deadline or its horizon): the holder's no withdraws,
   an error skips the attempt. Its give-up horizon counts from the entry's
   `since`; an entry taken over past it is given up at once, never
-  attempted. A `resend` entry is a submission of its own. It keeps no
+  attempted. A `resend` entry is a submission of its own. One adapter
+  serves one opening: bound to the holder of its first reconcile, it
+  refuses another, and the next opening gets a new adapter. It keeps no
   custody of its own.
 - Tests: the custody scenarios (`test/transport-custody.test.mjs`, among
   them the open counter-probes of the store-launch reviews) and seeded

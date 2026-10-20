@@ -92,7 +92,8 @@ failed, or its horizon passes; an `awaiting-transport` report records
 that the adapter holds it and ends nothing (RLTP-DEL-6330), and it stays
 retained with its effect for a duplicate (6335).
 `./adapters/vti-mediator` reconciles from the view
-(`reconcile(view, holder, now)`).
+(`reconcile(view, holder, now)`); one adapter serves one opening, so the
+next opening creates a new one.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)

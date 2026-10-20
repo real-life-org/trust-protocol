@@ -9,8 +9,9 @@
 // deposit it asks gate.mayHandOver(entry, now) (the holder): false
 // withdraws the submission, an error skips the attempt. It keeps no
 // custody of its own: its copies are volatile and bound to the holder's
-// opening, so after holder.close() nothing it holds goes out, and after a
-// reopening it takes the new opening's view. Its give-up horizon counts
+// opening: bound to the holder of its first reconcile, it refuses another,
+// so after holder.close() nothing it holds goes out, and the next opening
+// gets a new adapter (restored from ackState like any other). Its give-up horizon counts
 // from the entry's first submission (`since`), never from when it took the
 // entry over (RLTP-DEL-6130). Its reports reach the holder as the ports'
 // DeliveryReport: report(id) maps the adapter's SubmissionState onto
@@ -189,6 +190,8 @@ export class MediatorCarrierAdapter {
   #tokens: TokenSet | null = null
   #clock = Number.NEGATIVE_INFINITY
   #closed = false
+  /** the opening this adapter serves, bound at its first reconcile */
+  #gate: TransportGate | null = null
 
   #subs = new Map<string, Submission>()
   #inflight = new Set<Promise<void>>()
@@ -444,6 +447,10 @@ export class MediatorCarrierAdapter {
     this.#open()
     if (view?.ok !== true || !Array.isArray(view.entries)) throw new Error('reconcile needs a view of holder.pendingTransport')
     if (typeof gate?.handOver !== 'function') throw new Error('reconcile needs the holder as its gate')
+    // one adapter per opening: its copies and the holder's grants belong to
+    // that opening, and the next opening gets an adapter of its own
+    if (this.#gate === null) this.#gate = gate
+    else if (this.#gate !== gate) throw new Error('one adapter per opening: this adapter reconciles with another holder (create a new adapter for the next opening)')
     const now = this.#now(rawNow)
     const named = new Set(view.entries.map((e) => e.digest))
     const filed = new Map<string, Submission>()
