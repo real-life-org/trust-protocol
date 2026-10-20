@@ -4,7 +4,7 @@ import Landing from '../components/Landing.astro'
 import { encounterHtml } from '../lib/encounter'
 
 // The hero's eyebrow sits in the tagline; site.css lifts it above the title.
-const chip = `<a class="tp-chip top" href="/understand/why/#decentralized-identity-meets-local-first">Local-first</a>`
+const chip = `<span class="tp-eyebrow"><a href="/understand/why/#decentralized-identity-meets-local-first">Local-first</a><span class="sep">·</span><a href="/reference/credentials/">DTG credentials</a><span class="sep">·</span><a href="/reference/trust-tasks/">Trust Tasks</a></span>`
 const tagline = `${chip}<p>Your keys and your graph stay on your devices, and servers only carry encrypted data between them. Every connection starts with a real encounter, and from there people form groups that run by their own rules.</p>`
 ---
 <StarlightPage frontmatter={{

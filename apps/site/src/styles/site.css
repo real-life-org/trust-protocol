@@ -73,14 +73,20 @@ h2, h3 { letter-spacing: -.02em; }
 .hero .tagline { display: contents; }
 .hero .tagline p { margin: 0; line-height: 1.6; max-width: 44rem; font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl)); color: var(--sl-color-gray-2); }
 .tp-chip.top { order: -1; align-self: flex-start; padding: .3rem .8rem; border-radius: 999px; background: var(--tp-tint); color: var(--sl-color-accent-high); font-size: .8rem; font-weight: 600; text-decoration: none; }
+.tp-eyebrow { order: -1; display: flex; flex-wrap: wrap; gap: .25rem .6rem; font-size: .72rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.tp-eyebrow a { color: var(--sl-color-accent-high); text-decoration: none; }
+.tp-eyebrow a:hover { text-decoration: underline; }
+.tp-eyebrow .sep { color: var(--sl-color-gray-4); }
 /* Below the hero: the library on the left, the DTG work it builds on at the right. */
-.tp-lib { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding-block: .5rem 3rem; }
+.tp-lib { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .75rem; padding-block: .5rem 3rem; }
 .tp-chip.lib { display: inline-flex; align-items: center; gap: .6rem; padding: .25rem .75rem .25rem .3rem; border-radius: 999px; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-bg-sidebar); font-size: .8rem; font-weight: 500; color: var(--sl-color-gray-2); text-decoration: none; }
 .tp-chip.lib:hover { border-color: var(--sl-color-accent); }
 .tp-chip.lib .tag { padding: .1rem .5rem; border-radius: 999px; background: var(--tp-tint); color: var(--sl-color-accent-high); font-size: .75rem; font-weight: 600; }
 .tp-chip.lib code { font-size: .75rem; background: none; padding: 0; color: inherit; }
-.tp-std { display: inline-flex; flex-wrap: wrap; gap: .6rem; }
-.tp-std a { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .8rem .3rem .6rem; border-radius: 999px; border: 1px solid var(--tp-ok-border); background: var(--tp-ok-bg); color: var(--sl-color-gray-2); font-size: .8rem; font-weight: 600; text-decoration: none; }
+.tp-std { display: flex; flex-direction: column; align-items: flex-end; gap: .4rem; }
+.tp-std-label { font-size: .72rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--sl-color-gray-3); }
+.tp-std-links { display: flex; flex-wrap: wrap; gap: .6rem; }
+.tp-std a { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .8rem .45rem .65rem; border-radius: .6rem; border: 1px solid var(--tp-ok-border); background: var(--tp-ok-bg); color: var(--sl-color-gray-2); font-size: .8rem; font-weight: 600; text-decoration: none; }
 .tp-std a:hover { color: var(--sl-color-white); }
 .tp-std .tp-icon { display: inline-flex; margin: 0; padding: 0; width: auto; height: auto; background: none; }
 .tp-std .tp-icon, .tp-std .tp-icon svg { width: .95rem; height: .95rem; color: var(--success); }
@@ -301,19 +307,32 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-stat { padding: 1rem; }
   .tp-stat strong { font-size: 1.8rem; }
   #layers { grid-template-columns: 1fr; }
-  .tp-bands { --gap: .5rem; --rail: 1.4rem; }
+  /* The architecture picture restacked: bands full width with wrapping chips,
+     then the "ports" kicker and the two services side by side. No rail, no
+     arrows; only the short vertical joints between the bands remain. */
+  .tp-bands { display: flex; flex-direction: column; gap: .8rem; }
   .tp-band ul { flex-wrap: wrap; }
-  .tp-band.svc { padding-inline: .35rem; }
   .tp-band li { font-size: .72rem; padding: .18rem .42rem; }
+  .tp-band.layer::after, .tp-band.svc::before, .tp-band.svc::after, .tp-rail::before { display: none; }
+  .tp-rail { margin-top: .6rem; text-align: center; line-height: 1; }
+  .tp-rail span { position: static; transform: none; }
+  .tp-svcs { flex-direction: row; gap: .8rem; }
+  .tp-band.svc { flex: 1 1 0; min-width: 0; padding-inline: .35rem; }
   .tp-outro { margin-block: 3rem 2rem; padding: 1.75rem 1.25rem; }
   .tp-outro .tp-actions, .tp-outro .tp-btn { width: 100%; justify-content: center; }
   .hero { padding-block: 1.5rem .5rem; }
   .hero h1 { font-size: clamp(2.2rem, 9vw, 3rem); line-height: 1.1; }
   .hero .tagline p { font-size: 1.05rem; }
   .tp-chip.top { align-self: center; }
-  .tp-lib { padding-block: .5rem 2.5rem; justify-content: center; }
+  .tp-eyebrow { justify-content: center; column-gap: 1.1rem; }
+  .tp-eyebrow .sep { display: none; }
+  .tp-lib { padding-block: 1rem 2rem; gap: 1.25rem; justify-content: center; }
+  .tp-std { align-items: center; }
+  .tp-chip.lib .tag, .tp-chip.lib code { white-space: nowrap; }
+  /* On a phone the package scope goes, so the chip stays one line. */
+  .tp-chip.lib .scope { display: none; }
   /* On a phone the picture follows the copy and takes the full width. */
-  .hero > .hero-html { order: 2; width: 100% !important; }
+  .hero > .hero-html { display: none; }
   .tp-encounter { padding: 1rem; font-size: .75rem; }
   .tp-devices { gap: 1.25rem; }
   .tp-devices::before { width: 1.25rem; }
@@ -322,6 +341,9 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-device-head strong { font-size: .8rem; }
   .tp-cred { flex-wrap: wrap; }
   .tp-cred code { width: 100%; padding-left: 1.6rem; }
+}
+@media (max-width: 22rem) {
+  .tp-svcs { flex-direction: column; }
 }
 
 /* Why page: the quote, and the two figures, plain, in the colours of the docs. */
