@@ -3,12 +3,23 @@
 // RLTP transport adapter: VTI mediator — published as
 // @real-life/trust-protocol/adapters/vti-mediator (lib Stage 2, note §4.6).
 //
-// Its reports reach the holder as the ports' DeliveryReport: submitOutbound
-// files an Outbound under its document digest and returns the
-// SubmissionRef (submission id ↔ digest); report(id) maps the adapter's
-// SubmissionState onto DeliveryReport (deliveryReportOf), which the app
-// hands to holder.report(). An adapter's `delivered` is its claim about
-// transport; the holder's receive core verifies the delivery-ack itself.
+// It takes the holder's documents from the holder's custody (Delivery 0.83
+// RLTP-DEL-6120 to 6135, lib 0.6.0): reconcile(view, gate, now) files every
+// entry of holder.pendingTransport(when) not yet filed, and withdraws every
+// filed submission still before the trias whose digest the view no longer
+// names — a missing entry means stop, never keep sending. Before every
+// deposit it asks gate.mayHandOver(entry, now) (the holder): false
+// withdraws the submission, an error skips the attempt. It keeps no
+// custody of its own: its copies are volatile and bound to the holder's
+// opening, so after holder.close() nothing it holds goes out, and after a
+// reopening it takes the new opening's view. Its give-up horizon counts
+// from the entry's first submission (`since`), never from when it took the
+// entry over (RLTP-DEL-6130). Its reports reach the holder as the ports'
+// DeliveryReport: report(id) maps the adapter's SubmissionState onto
+// DeliveryReport (deliveryReportOf), keyed by the document digest, which
+// the app hands to holder.report(). An adapter's `delivered` is its claim
+// about transport; the holder's receive core verifies the delivery-ack
+// itself.
 //
 // Profile: spec/adapter-vti-mediator.md v0.23 (twenty-third casting;
 // round journals under design/adapter-review*). A
@@ -324,6 +335,7 @@ export class MediatorCarrierAdapter {
         const id = 's' + this.#nextId++;
         const knownOffline = this.#wire.offline?.() === true;
         const sub = {
+            id,
             // a plain copy of its own (a Node Buffer's slice() shares memory)
             bytes: new Uint8Array(envelopeBytes),
             submittedAt: now,
@@ -336,16 +348,56 @@ export class MediatorCarrierAdapter {
             this.#startAttempt(sub, now);
         return id;
     }
-    /** Files an Outbound (its envelope as JCS bytes) and returns the
-     *  SubmissionRef the holder's reports are keyed by: submission id ↔
-     *  document digest (note §4.3). */
-    submitOutbound(outbound, rawNow) {
+    /** Takes the holder's custody set (holder.pendingTransport, after a
+     *  resume of this opening) and the holder as the gate: files every entry
+     *  not yet filed under its digest (its envelope as JCS bytes; the give-up
+     *  horizon from entry.since) and returns their SubmissionRefs; withdraws
+     *  every filed submission still before the trias (no report, or
+     *  awaiting-transport) whose digest the view does not name. Accepted and
+     *  terminal submissions stay for their reports. */
+    reconcile(view, gate, rawNow) {
         this.#open();
-        if (typeof outbound?.digest !== 'string' || outbound.digest === '')
-            throw new Error('an outbound needs its document digest');
-        const submissionId = this.submit(new TextEncoder().encode(jcs(outbound.envelope)), rawNow);
-        this.#subs.get(submissionId).digest = outbound.digest;
-        return { submissionId, digest: outbound.digest };
+        if (view?.ok !== true || !Array.isArray(view.entries))
+            throw new Error('reconcile needs a view of holder.pendingTransport');
+        if (typeof gate?.mayHandOver !== 'function')
+            throw new Error('reconcile needs the holder as its gate');
+        const now = this.#now(rawNow);
+        const named = new Set(view.entries.map((e) => e.digest));
+        const filed = new Map();
+        for (const [id, sub] of this.#subs) {
+            if (sub.digest === undefined)
+                continue;
+            const before = sub.st === null || sub.st.state === 'awaiting-transport';
+            if (before && !named.has(sub.digest)) {
+                this.#subs.delete(id);
+                continue;
+            }
+            filed.set(sub.digest, sub);
+        }
+        const refs = [];
+        for (const entry of view.entries) {
+            const had = filed.get(entry.digest);
+            if (had !== undefined) {
+                // the newest entry of a live submission is the one its gate checks
+                if (had.st === null || had.st.state === 'awaiting-transport') {
+                    had.entry = entry;
+                    had.gate = gate;
+                }
+                continue;
+            }
+            const id = 's' + this.#nextId++;
+            const sub = {
+                id, digest: entry.digest, entry, gate,
+                bytes: new TextEncoder().encode(jcs(entry.envelope)),
+                submittedAt: Math.min(entry.since, now),
+                attemptStartedAt: null, lastKind: null, st: null,
+            };
+            this.#subs.set(id, sub);
+            refs.push({ submissionId: id, digest: entry.digest });
+            if (this.#wire.offline?.() !== true)
+                this.#startAttempt(sub, now);
+        }
+        return refs;
     }
     /** The current state as the ports' DeliveryReport for holder.report(),
      *  or null while no honest report exists (and for an unknown id). A
@@ -356,7 +408,7 @@ export class MediatorCarrierAdapter {
             return null;
         const digest = this.#subs.get(id).digest;
         if (digest === undefined)
-            throw new Error('submitted without a document digest: use submitOutbound');
+            throw new Error('submitted without a document digest: file holder documents through reconcile');
         return deliveryReportOf(digest, st);
     }
     has(id) {
@@ -377,6 +429,26 @@ export class MediatorCarrierAdapter {
             const token = await this.#ensureAuth(now);
             if (this.#closed)
                 return; // retirement between auth and deposit: nothing new starts (R5-B2)
+            if (sub.gate !== undefined) {
+                // the holder decides right before the hand-over (Delivery
+                // RLTP-DEL-6125 to 6135): no opening, no longer pending, past its
+                // deadline → withdrawn; the holder unreachable → not this attempt
+                let ok;
+                try {
+                    ok = await sub.gate.mayHandOver(sub.entry, this.#clock);
+                }
+                catch {
+                    ok = null;
+                }
+                if (this.#closed || this.#subs.get(sub.id) !== sub)
+                    return;
+                if (ok === false || sub.gate.closed === true) {
+                    this.#subs.delete(sub.id);
+                    return;
+                }
+                if (ok !== true)
+                    return;
+            }
             // each attempt hands the wire a copy: what it does with it never reaches the next
             await this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid);
             sub.lastKind = null;

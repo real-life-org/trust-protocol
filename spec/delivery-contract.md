@@ -90,10 +90,10 @@ stages of 6.2 with the completed-effect cache and the disposition
 6.1 and the acknowledgement classes of 4.2 on its holder, and the
 carrier port of 4.4 and 5a, `message/0.1` with its age bound and
 sender lifetime, `failed(rate-limited)`, `failed(task-expired)`, and
-the block for `message/0.1` and `membership-invite/0.2`; the custody
-and retry rules of this casting (RLTP-DEL-6120 to RLTP-DEL-6135,
-RLTP-DEL-6330, RLTP-DEL-6335) are not yet in it, and transports
-beyond its VTI mediator adapter are not in it. Review
+the block for `message/0.1` and `membership-invite/0.2`, and the
+custody and retry rules of this casting (RLTP-DEL-6120 to
+RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335) on its holder and in its
+VTI mediator adapter; transports beyond that adapter are not in it. Review
 happens against the converged companion documents; the convergence
 criterion is a review round with no blocker-level findings.
 Feedback is welcome via the issues of the publication repository

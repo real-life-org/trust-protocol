@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.6.0
+
+Takes up Delivery Contract 0.83: the holder keeps custody of what waits
+for transport, and only an open, resumed opening hands anything over.
+
+- **Custody** (RLTP-DEL-6120 to 6135): `pendingTransport(when)` names
+  what the holder keeps for transport, after this opening's first
+  completed resume (else `{ok: false, code: 'not-resumed'}`): every
+  outbox document neither terminal nor accepted, the ones the adapter
+  reported `awaiting-transport` included, and every unsent ack, each with
+  its envelope, recipient, `since` (first submission), `notAfter` (the
+  horizon or the type's sender lifetime, whichever first), `held` and
+  `nextAttemptAt`; none past its deadline, whether or not a resume has
+  recorded the give-up. Entries are deep-frozen and issued to the
+  opening. `mayHandOver(entry, when)` re-reads the store and says yes only
+  for an entry this opening issued that is still pending, unchanged and
+  before its deadline. A resume that throws withdraws the opening's
+  authority until one completes.
+- **The opening ends**: `close()` (a lock, the end of a process); every
+  later call rejects with `InfraError('closed')` (a new code),
+  `mayHandOver` answers false, `closed` says so. The next opening is a new
+  `createHolder` over the same store.
+- **Acks** (RLTP-DEL-6330, 6335): an `awaiting-transport` report on an
+  ack no longer marks it sent; it records `held`, resume stops re-offering
+  it and `pendingTransport` keeps it. `accepted` or `delivered` marks it
+  sent (`sentBy: 'accepted'`), `failed` gives it up (`'failed'`), the
+  horizon ends its retries (`'horizon'`). Sent or not, it stays with its
+  effect until the effect's retention; a duplicate re-sends it once
+  without new retries.
+- **Codec 3**: `StoredAck.sentBy` is `accepted | failed | horizon`, present
+  exactly when sent, and `held` only while unsent. The migration from
+  codec 2 makes every ack sent by a report (`sentBy: 'report'`, which
+  codec 2 also wrote for `awaiting-transport`) unsent again, due at once:
+  codec 2 cannot tell an ack a service took from one an adapter held, so
+  some acks go out twice and their receivers absorb the duplicate.
+  `schemas/holder-state-v3.schema.json`, `HolderStateV3`, fixtures
+  `state-v3*.json` (generated) and `state-v2-acks.json` (lib 0.5.0,
+  frozen) with a migration test; the codec-2 fixtures are frozen.
+- **`./adapters/vti-mediator`**: `reconcile(view, gate, now)` replaces
+  `submitOutbound`. It files the entries of the view not yet filed and
+  withdraws every submission before the trias whose digest the view no
+  longer names; before each deposit it asks the gate (the holder) and
+  reads its `closed`: no withdraws, an error skips the attempt. Its give-up
+  horizon counts from the entry's `since`. It keeps no custody of its own.
+- Tests: the custody scenarios (`test/transport-custody.test.mjs`, among
+  them the open counter-probes of the store-launch reviews) and seeded
+  interleavings of locks, the end of a process, hand-overs and acks with
+  every cell reached (`test/transport-interleavings.test.mjs`).
+
 ## 0.5.0
 
 Takes up Message Tasks 0.1, Delivery Contract 0.82 and Membership Tasks

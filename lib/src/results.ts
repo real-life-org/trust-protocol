@@ -166,6 +166,10 @@ export type InfraErrorCode =
    *  break an invariant of invariants.ts; nothing committed, the
    *  violations are the cause */
   | 'invariant-violated'
+  /** the holder was closed (a lock, the end of a process): it runs nothing
+   *  more, and nothing it issued authorizes a hand-over (Delivery
+   *  RLTP-DEL-6125, 6130) */
+  | 'closed'
 
 /** A failure of a port the host provides, never of the protocol. */
 export class InfraError extends Error {

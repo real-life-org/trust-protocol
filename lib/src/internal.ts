@@ -32,6 +32,7 @@ export type * from './state.js'
 // the projections of the non-normative lib/schemas/holder-state-v<n>.schema.json
 export type { HolderStateV1 } from './holder-state-v1.js'
 export type { HolderStateV2 } from './holder-state-v2.js'
+export type { HolderStateV3 } from './holder-state-v3.js'
 export { emptyState, triasOf, toOpaque } from './state.js'
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js'
 export type { StateCodecErrorCode, StateValidator } from './codec.js'

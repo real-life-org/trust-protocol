@@ -502,13 +502,17 @@ export interface Effect { ack: StoredAck | null, expiresAt: Millis }
 /**
  * The acknowledgement of a completed effect, sealed once inside the
  * effect's transaction and re-sent byte-identical on every duplicate
- * (Delivery 4.2, 6.2 stage 4). Acks are outbox-less: no trias. Until the
- * app reports the ack's digest (any DeliveryReport status) it is unsent
- * and resume re-offers it on the retry policy like an outbox item
- * (attempt, nextAttemptAt, backoff), which covers a restart between the
- * receive commit and the send. At the horizon (at + horizonMs) the holder
- * stops offering it: `sent` with `sentBy: 'horizon'`; a redelivery of the
- * document still earns it (duplicate-known).
+ * (Delivery 4.2, 6.2 stage 4). Acks are outbox-less: no trias. It is
+ * unsent until a service takes it (an `accepted` or `delivered` report on
+ * its digest), the adapter reports it failed, or its retries end at the
+ * horizon (at + horizonMs): `sent` with `sentBy` saying which (Delivery
+ * RLTP-DEL-6330). An awaiting-transport report keeps it unsent and records
+ * `held`: the adapter has it, resume does not re-offer it, and
+ * pendingTransport keeps offering it (RLTP-DEL-6120). Unsent and not held,
+ * resume re-offers it on the retry policy like an outbox item (attempt,
+ * nextAttemptAt, backoff). Sent or not, it stays retained with its effect
+ * until expiresAt, and a redelivery of the document still earns it
+ * (duplicate-known, RLTP-DEL-6335).
  */
 export interface StoredAck {
   /** the ack document's digest; report() on it marks the ack sent */
@@ -524,8 +528,11 @@ export interface StoredAck {
   /** next re-offer while unsent */
   nextAttemptAt?: Millis
   sent: boolean
-  /** why it counts as sent: the app reported it, or the horizon passed */
-  sentBy?: 'report' | 'horizon'
+  /** why it counts as sent (present exactly when sent): a service took it,
+   *  the adapter reported it failed, or its retries ended at the horizon */
+  sentBy?: 'accepted' | 'failed' | 'horizon'
+  /** unsent and held by the adapter: its last report was awaiting-transport */
+  held?: PreTransportReason
 }
 
 export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'

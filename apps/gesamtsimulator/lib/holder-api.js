@@ -60,9 +60,26 @@
 //
 // Delivery: `receive(env, when)` runs Delivery §6.2 in the core and
 // dispatches through the task register (receive.ts); `report` takes the
-// adapter's reports (on an ack's digest it marks the ack sent); `resume`
-// re-emits, runs due duties and re-emits unsent acks; `tick` expires and
-// retains (engine.ts).
+// adapter's reports (on an ack's digest: accepted or delivered marks it
+// sent, failed gives it up, awaiting-transport records that the adapter
+// holds it); `resume` re-emits, runs due duties and re-emits unsent acks;
+// `tick` expires and retains (engine.ts).
+//
+// Custody (Delivery 0.83 RLTP-DEL-6120 to 6135): the holder keeps every
+// outbound document until a service takes it or the holder gives it up,
+// across a lock and the end of a process. One createHolder is one opening.
+// After its first resume, `pendingTransport(when)` names what is to be
+// handed over: the outbox items neither terminal nor accepted (held ones
+// included) and the unsent acks, each with its envelope, its first
+// submission and its deadline, none past it. A transport hands over only
+// such entries, and asks `mayHandOver(entry, when)` right before each
+// hand-over: true only for an entry this opening issued that is still
+// pending, unchanged, before its deadline. A document missing from the
+// view is no longer to be sent. `close()` ends the opening at a lock or
+// the end of a process: every later call rejects with InfraError
+// 'closed', mayHandOver answers false, and nothing issued before
+// authorizes anything; the next opening is a new createHolder over the
+// same store, resumed first.
 import { createEngine } from './engine.js';
 import { DECIDE, collectDecisions, promptsModule } from './prompts.js';
 import { InfraError } from './results.js';
@@ -139,5 +156,9 @@ export async function createHolder(ports, opts = {}) {
         prompts: async () => promptsView(await read()),
         inbox: async () => inboxView(await read()),
         deliveryStatus: async (x) => deliveryStatusView(await read(), x),
+        pendingTransport: (when) => engine.pendingTransport(when),
+        mayHandOver: (entry, when) => engine.mayHandOver(entry, when),
+        close: () => engine.close(),
+        get closed() { return engine.closed; },
     });
 }

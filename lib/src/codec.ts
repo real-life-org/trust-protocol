@@ -15,10 +15,14 @@
 // lib/test/fixtures/state-v1*.json (runs of lib 0.4.0, frozen), decoded and
 // re-encoded byte-identically and migrated by test/codec-fixture.test.mjs.
 // Codec 2 is the format of 0.5.0 (Message Tasks 0.1, Membership 0.20): its
-// fixtures are lib/test/fixtures/state-v2*.json (deterministic runs,
-// test/fixtures/gen-state-v2.mjs, reproduced in npm test). The rule: codecs
-// 1 and 2 are read, 1 migrated to 2; a newer codec is codec-newer; a codec
-// without a validator is codec-unknown. Every later codec adds its
+// fixtures are lib/test/fixtures/state-v2*.json (runs of lib 0.5.0,
+// frozen), decoded, re-encoded byte-identically and migrated. Codec 3 is the
+// format of 0.6.0 (Delivery 0.83: an acknowledgement is sent when a service
+// took it, failed, or its retries ended, and may be held by the adapter
+// meanwhile): its fixtures are lib/test/fixtures/state-v3*.json
+// (deterministic runs, test/fixtures/gen-state-v3.mjs, reproduced in npm
+// test). The rule: codecs 1, 2 and 3 are read, each migrated to the next; a
+// newer codec is codec-newer; a codec without a validator is codec-unknown. Every later codec adds its
 // validator, a migration from the one before, and its own fixture with a
 // migration test.
 import { jcs } from './core.js'
@@ -26,7 +30,7 @@ import type { Duty, HolderState, KnownDuty } from './state.js'
 import type { HolderEventType } from './events.js'
 
 /** The codec this library writes. */
-export const CODEC = 2
+export const CODEC = 3
 
 /** The tuples of a codec-1 state on which a document of the counterpart
  *  was accepted, as far as the state shows it (Message Tasks 5.1): a probe,
@@ -55,6 +59,17 @@ function readyOf1 (s: any): string[] {
  * surfaced, so their credential digests seed the permanent record of
  * RLTP-MT-3130; the register of declined invitations starts empty (codec 1
  * knew no block).
+ *
+ * 2 → 3 (lib 0.6.0, Delivery 0.83 RLTP-DEL-6330, 6335): codec 2 marked an
+ * acknowledgement sent on ANY report (`sentBy: 'report'`), an
+ * awaiting-transport report included, so a stored state does not tell an
+ * acknowledgement a service took from one an adapter only held. Every such
+ * acknowledgement becomes unsent again, due at once; the next resume offers
+ * it on the retry schedule until a service takes it or its horizon (effect
+ * commit + horizonMs) passes, which resume then records as `horizon`. One
+ * a service did take is offered again: its receiver absorbs the duplicate
+ * at stage 4 (a terminal document, nothing re-sent). `sentBy: 'horizon'`
+ * stays as it is.
  */
 export const MIGRATIONS: Readonly<Record<number, (state: any) => any>> = Object.freeze({
   1: (s: any) => ({
@@ -62,6 +77,16 @@ export const MIGRATIONS: Readonly<Record<number, (state: any) => any>> = Object.
     codec: 2,
     joining: { ...s.joining, surfaced: Object.keys(s.joining.invites).sort(), declined: [] },
     messages: { blocked: [], rates: {}, ready: readyOf1(s), records: {}, inbox: {} },
+  }),
+  2: (s: any) => ({
+    ...s,
+    codec: 3,
+    effects: Object.fromEntries(Object.entries(s.effects as Record<string, any>).map(([d, e]) => {
+      const a = e.ack
+      if (a === null || !a.sent || a.sentBy === 'horizon') return [d, e]
+      const { sentBy: _s, nextAttemptAt: _n, ...rest } = a
+      return [d, { ...e, ack: { ...rest, sent: false } }]
+    })),
   }),
 })
 
@@ -244,6 +269,16 @@ const storedAck: V = (x, p) => {
   const a = x as { recipient: { keyAgreement: string }, envelope: { rkid: string } }
   if (a.envelope.rkid !== a.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
 }
+/** codec 3: sent exactly when it names why; held only while unsent */
+const storedAck3: V = (x, p) => {
+  obj({ digest: str, envelope, threadId: str, recipient, at: millis, attempt: positive, sent: bool }, {
+    nextAttemptAt: millis, sentBy: lit('accepted', 'failed', 'horizon'), held: lit('offline', 'transport-unreachable', 'carrier-refused-retriable'),
+  })(x, p)
+  const a = x as { recipient: { keyAgreement: string }, envelope: { rkid: string }, sent: boolean, sentBy?: string, held?: string }
+  if (a.envelope.rkid !== a.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
+  if (a.sent !== (a.sentBy !== undefined)) fail(`${p}.sentBy`, 'present exactly when sent')
+  if (a.sent && a.held !== undefined) fail(`${p}.held`, 'only while unsent')
+}
 
 const KNOWN_DUTIES: Record<KnownDuty['kind'], { v: number, shape: V }> = {
   'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
@@ -403,7 +438,7 @@ const receivedInvite2: V = (x, p) => {
   if ((i.contactId === undefined) !== (i.rkid === undefined)) fail(`${p}.rkid`, 'present exactly with contactId')
 }
 
-const codec2 = obj({
+const fields2: Record<string, V> = {
   ...fields1,
   codec: lit(2),
   outbox: rec(outboxItemOf(2)),
@@ -421,12 +456,20 @@ const codec2 = obj({
     records: rec(rec(obj({ bodyDigest: str, sentAt: millis }))),
     inbox: keyed(obj({ id: str, tuple: str, mid: str, body: anyObj, receivedAt: millis, displayAt: millis }), 'id'),
   }),
+}
+const codec2 = obj(fields2)
+
+const codec3 = obj({
+  ...fields2,
+  codec: lit(3),
+  effects: rec(obj({ ack: nullable(storedAck3), expiresAt: millis })),
 })
 
 /** Structural validators per codec version; every readable codec has one. */
 export const VALIDATORS: Readonly<Record<number, StateValidator>> = Object.freeze({
   1: (raw: unknown) => codec1(raw, '$'),
   2: (raw: unknown) => codec2(raw, '$'),
+  3: (raw: unknown) => codec3(raw, '$'),
 })
 
 // ── the codec ──────────────────────────────────────────────────────────

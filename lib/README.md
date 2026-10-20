@@ -49,6 +49,40 @@ const { outbound, nextDueAt } = await holder.resume(Date.now())
 holder.subscribe(async () => render(await holder.contacts(), await holder.prompts()))
 ```
 
+**Custody and the lock** (Delivery 0.83, RLTP-DEL-6120 to 6135). The
+holder keeps every outbound document until a service takes it or the
+holder gives it up, across a lock and the end of a process; a transport
+takes what it hands over from the holder, never from a store of its own.
+One `createHolder` is one opening of the store:
+
+```ts
+await holder.resume(Date.now())                      // the opening's first resume comes first
+const view = await holder.pendingTransport(Date.now())
+if (view.ok) for (const entry of view.entries) {
+  // entry: digest, kind ('document' | 'ack'), envelope, recipient,
+  // since (first submission), notAfter (deadline), held?, nextAttemptAt?
+  if (await holder.mayHandOver(entry, Date.now())) transport.send(entry)
+}
+// a lock or the end of the process: nothing issued before authorizes anything
+holder.close()
+```
+
+`pendingTransport` answers `{ok: false, code: 'not-resumed'}` until a
+resume of this opening has completed (a resume that throws withdraws it
+again). It names every outbox document neither terminal nor accepted
+(held ones included) and every unsent ack, none past its deadline.
+`mayHandOver` says yes only for an entry this opening issued that is
+still pending, unchanged and before its deadline; a document missing from
+the view is not to be sent. After `close()` every call rejects with
+`InfraError('closed')` and `mayHandOver` answers false; the next opening
+is a new `createHolder` over the same store. An ack is sent once a
+service took it (`accepted`/`delivered` report), the adapter reports it
+failed, or its horizon passes; an `awaiting-transport` report records
+that the adapter holds it and ends nothing (RLTP-DEL-6330), and it stays
+retained with its effect for a duplicate (6335).
+`./adapters/vti-mediator` reconciles from the view
+(`reconcile(view, holder, now)`).
+
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)
 and expiry work (a prompt's expiry, an act's timeout or lifetime, an aging
@@ -71,7 +105,8 @@ consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
 `addDevice`, `revokeDevice`. Not
 human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
 Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
-`deliveryStatus`, `deviceKey`, `snapshot`, `subscribe`.
+`deliveryStatus`, `deviceKey`, `snapshot`, `subscribe`. Custody:
+`pendingTransport`, `mayHandOver`, `close`, `closed`.
 
 ## What the root exports
 
@@ -124,7 +159,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `membership`, `membership/holder` | Membership Tasks 0.20 on Access 0.57 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
 | `message`, `message/holder` | Message Tasks 0.1 | `message@1`, `k_msg` and its MAC (3); sending on a ready, unblocked relationship with the sender lifetime (5); reception through the stages with the age and future bounds on the time mark, the completion record, the inbox taken over by the app, the rates and the inbox bound as `failed(rate-limited)` (4); the block of a relationship (6010–6030, 6510), its discard of messages and its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410) |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
-| `receive`, `engine` | Delivery 0.82 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, the act journal |
+| `receive`, `engine` | Delivery 0.83 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, custody before the trias and the hand-over gate (`pendingTransport`, `mayHandOver`, `close`), ack retries apart from ack retention, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
 | `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |
 
@@ -165,17 +200,34 @@ the state as opaque JSON and gives it back; the library decodes it
   record, no inbox, the ready tuples read from what the counterparts'
   documents left, every invitation received counted as surfaced. Its
   fixtures (`test/fixtures/state-v2*.json`, deterministic runs of
-  `test/fixtures/gen-state-v2.mjs`, reproduced in `npm test`) add
+  `test/fixtures/gen-state-v2.mjs` under lib 0.5.0) add
   messages to the settled holder and a block and a declined invitation to
   the open one; each decodes and re-encodes byte for byte. A later codec brings its validator, a pure
   migration from the one before, and its own fixture with a migration
-  test.
+  test. Frozen since 0.6.0 beside `test/fixtures/state-v2-acks.json`
+  (written by lib 0.5.0 with `test/fixtures/gen-state-v2-acks.mjs`: its
+  stored acks in every form codec 2 knows); they validate under codec 2
+  and migrate to codec 3.
+- **Codec 3** is the format of 0.6.0 (Delivery 0.83): a stored ack is
+  `sent` exactly when it says why (`sentBy`: `accepted`, `failed`,
+  `horizon`) and may be `held` by the adapter while unsent. Codec 2 marked
+  an ack sent on any report (`sentBy: 'report'`), an `awaiting-transport`
+  report included, so a stored state does not tell an ack a service took
+  from one an adapter only held: the migration makes every such ack
+  unsent again, due at once. The next resume offers it until a service
+  takes it or its horizon passes; one a service did take arrives twice at
+  its receiver, which absorbs the duplicate (a terminal document, nothing
+  re-sent). Its fixtures (`test/fixtures/state-v3*.json`, deterministic
+  runs of `test/fixtures/gen-state-v3.mjs`, reproduced in `npm test`) add
+  a holder with acks held, accepted, failed and unsent and an own
+  document held.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
-- `schemas/holder-state-v1.schema.json` and
-  `schemas/holder-state-v2.schema.json` describe the codecs as
+- `schemas/holder-state-v1.schema.json`,
+  `schemas/holder-state-v2.schema.json` and
+  `schemas/holder-state-v3.schema.json` describe the codecs as
   non-normative JSON Schemas (published with the package). The types
-  `HolderStateV1` and `HolderStateV2` (`./internal`) are generated from
+  `HolderStateV1`, `HolderStateV2` and `HolderStateV3` (`./internal`) are generated from
   them (`scripts/build-holder-state-types.mjs`); the build holds the
   current one against the library's `HolderState`, and the tests hold each
   schema against its codec's validator on the fixtures and on mutations
@@ -224,7 +276,7 @@ This package uses its own semver; the specification uses castings.
 | trust | Trust Layer 0.31 | — |
 | membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.83 | the custody of outbound documents and acknowledgements across a lock and the end of a process (RLTP-DEL-6120 to RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335); transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| delivery | Delivery 0.83 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
 | message | Message Tasks 0.1 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
