@@ -44,10 +44,12 @@
 //     that give-up runs first as an operation of its own on the one commit
 //     path (resume's CommitOp, its timer carried to the replay's answer)
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
-//     when + ceil(backoff(1)), which the act names in nextDueAt (a repeat
-//     of the act names its live documents' next attempt the same way), so
-//     an idle holder's timer reaches the retries, the give-up and the
-//     journal's end; resume() re-emits only items that are due
+//     when + ceil(backoff(1)); the act names that or the document's send
+//     deadline, whichever is first, in nextDueAt (a repeat names its live
+//     documents' the same way), so an idle holder's timer reaches the
+//     retries, the give-up and the journal's end. An act without documents
+//     names no journal deadline: the end of its entry comes with the next
+//     tick's or resume's timer; resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
 //     (the adapter holds the item) and never re-emits an accepted one. It
 //     gives up every non-terminal item (submitted, held or accepted) at
@@ -747,10 +749,12 @@ class HolderEngine {
                 }
                 // the timer as the act named it: the next attempt of its live documents
                 // (and a give-up's own timer), so a repeat answers as the act did
+                const soon = (t) => { if (t !== undefined && t !== null)
+                    replayWake = replayWake === undefined ? t : Math.min(replayWake, t); };
                 for (const d of live) {
-                    const due = this.#itemOf(state, d).nextAttemptAt;
-                    if (due !== undefined)
-                        replayWake = replayWake === undefined ? due : Math.min(replayWake, due);
+                    const it = this.#itemOf(state, d);
+                    soon(it.nextAttemptAt);
+                    soon(notAfterOf(it, this.#policy.horizonMs));
                 }
                 return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events), ...(replayWake !== undefined ? { nextDueAt: replayWake } : {}) };
             }
@@ -830,15 +834,17 @@ class HolderEngine {
             const effects = r.renames?.length ? renameAcks(r.state.effects, r.renames) : r.state.effects;
             const next = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts };
             const text = encodeState(next); // validates; an invalid next state is a programming error
-            // the timer from the state this commit writes: the deadlines its new
-            // journal entry and outbox items bring (an act's retention, the first
-            // retry of its documents) count too, not only those of the module's state
+            // the timer for the documents this commit issues: each one's first
+            // retry or its send deadline, whichever comes first, beside the duty
+            // work the module's state opened
             let full = wake;
             if (r.nextDueAt === undefined && def !== this.#builtins.resume) {
+                const soon = (t) => { if (t !== undefined && t !== null)
+                    full = full === undefined ? t : Math.min(full, t); };
+                // each document's first retry or its send deadline, whichever comes first
                 for (const o of outbound) {
-                    const due = outbox[o.digest].nextAttemptAt;
-                    if (due !== undefined)
-                        full = full === undefined ? due : Math.min(full, due);
+                    soon(outbox[o.digest].nextAttemptAt);
+                    soon(notAfterOf(outbox[o.digest], this.#policy.horizonMs));
                 }
             }
             const fullExtra = { ...(full !== undefined ? { nextDueAt: full } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };

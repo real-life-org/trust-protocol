@@ -98,8 +98,10 @@ export type ActError =
   | 'message-invalid'
 
 export type ActResult =
-  /** nextDueAt: duty work this act opened or unblocked is due then (`when`:
-   *  now) — call resume at that time (engine.ts) */
+  /** nextDueAt: duty work this act opened or unblocked, or the first retry
+   *  or send deadline of a document it issued (a repeat: of its live
+   *  documents), is due then (`when`: now) — call resume at that time
+   *  (engine.ts) */
   | { ok: true, outbound: Outbound[], events: HolderEvent[], nextDueAt?: number }
   | { ok: false, code: ActError, ref?: string }
 
