@@ -2363,7 +2363,7 @@ first place that exists is the mediator adapter itself.
 |---|---|
 | `accepted` | the service durably buffered it; delivery is owed |
 | `delivered` | a **valid** `delivery-ack` (4.2 consistency) referencing its digest arrived |
-| `failed(reason)` | the service gave up; reason from the closed set below |
+| `failed(reason)` | the service or the sender gave up; reason from the closed set below |
 
 Sender failure reasons (closed set): `unroutable` · `oversize` ·
 `expired-by-adapter-policy` (the adapter's declared give-up bound) ·
@@ -2439,17 +2439,20 @@ locked nor ended since.
 taken before a lock or the end of a process MUST NOT authorize a
 submission after it; a submission after reopening MUST rest on the
 holder state as that opening finds it, with the transitions due by
-then (RLTP-DEL-6110, the adapter's horizon) applied first. Those
-deadlines run from the first submission as the sender recorded it;
-neither a reopening nor a new adapter instance restarts them.
+then (RLTP-DEL-6110, the adapter's horizon) applied first. A type's
+sender lifetime runs from the type's own timestamp (RLTP-DEL-7020);
+the adapter's horizon runs from the first submission as the sender
+recorded it, also for an adapter instance that takes a document over
+after a reopening; neither a reopening nor a new adapter instance
+restarts either.
 
 **RLTP-DEL-6135** — A sender MUST NOT submit a document whose
 transitions due at the time of submission could not be applied, nor
 read a document's absence from what its holder offers as leave to
 keep submitting it.
 
-*Rationale.* The status trias begins at the service. Until then
-only the sender knows the document is owed, and if a report that it
+*Rationale.* `accepted` begins at the service. Until then only the
+sender knows the document is owed, and if a report that it
 waits were enough to let the sender forget it, a lock or a crash
 between the report and the service would lose it with nobody left
 to submit it again. The rule puts custody where the status already lives, in the
