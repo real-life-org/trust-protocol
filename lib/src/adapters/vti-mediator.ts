@@ -531,14 +531,16 @@ export class MediatorCarrierAdapter {
         // queue (Delivery RLTP-DEL-6125 to 6135); the adapter re-checks its
         // own state there: retired, withdrawn, past the trias, past the
         // entry's deadline or its own horizon → no deposit
-        let started: Promise<void> | null = null
+        // the deposit's outcome, caught at once: the holder's step may still
+        // be committing when the wire answers
+        let started: Promise<unknown> | null = null
         let declined = false
         const entry = sub.entry!
         const start = (): boolean => {
           if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate!.closed === true ||
               (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
               this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) { declined = true; return false }
-          started = deposit()
+          started = deposit().then(() => null, (e: unknown) => ({ failed: e }))
           return true
         }
         let ok: boolean | null
@@ -549,7 +551,8 @@ export class MediatorCarrierAdapter {
           if (ok === false && !declined && this.#subs.get(sub.id) === sub) this.#subs.delete(sub.id)
           return
         }
-        await started
+        const outcome = await (started as Promise<unknown>)
+        if (outcome !== null) throw (outcome as { failed: unknown }).failed
       } else {
         await deposit()
       }

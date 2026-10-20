@@ -469,6 +469,8 @@ export class MediatorCarrierAdapter {
                 // queue (Delivery RLTP-DEL-6125 to 6135); the adapter re-checks its
                 // own state there: retired, withdrawn, past the trias, past the
                 // entry's deadline or its own horizon → no deposit
+                // the deposit's outcome, caught at once: the holder's step may still
+                // be committing when the wire answers
                 let started = null;
                 let declined = false;
                 const entry = sub.entry;
@@ -479,7 +481,7 @@ export class MediatorCarrierAdapter {
                         declined = true;
                         return false;
                     }
-                    started = deposit();
+                    started = deposit().then(() => null, (e) => ({ failed: e }));
                     return true;
                 };
                 let ok;
@@ -496,7 +498,9 @@ export class MediatorCarrierAdapter {
                         this.#subs.delete(sub.id);
                     return;
                 }
-                await started;
+                const outcome = await started;
+                if (outcome !== null)
+                    throw outcome.failed;
             }
             else {
                 await deposit();

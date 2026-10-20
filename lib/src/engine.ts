@@ -105,8 +105,10 @@
 //     A duplicate makes an answer due, stored with the ack (answers,
 //     answerDue: kept across a lock): a `resend` entry numbered by it,
 //     beside the ack's retries and independent of their state, deadline the
-//     effect's retention; the begun hand-over ends it (a commit), and a
-//     duplicate while one is due is answered by it (the same bytes); a resume that throws, its settling
+//     effect's retention; the begun hand-over ends it (a commit): it is one
+//     hand-over with no retries (Delivery 6330), so a deposit the wire
+//     refuses is not tried again — the sender's next redelivery asks anew;
+//     a duplicate while one is due is answered by it (the same bytes); a resume that throws, its settling
 //     included, withdraws the authority until one completes. The check is
 //     this engine's: a second engine over the same store commits through
 //     CAS but is not serialized with this one's hand-overs, so one opening
