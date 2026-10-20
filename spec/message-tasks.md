@@ -35,8 +35,11 @@ it on its holder: `message/0.1` with its reception, completion record,
 inbox and sender lifetime (Sections 3 to 5), and the block with its
 treatment of `message/0.1` and, with Membership Tasks 0.20, of
 invitations and prelude replies (Section 6); the scenario set of 10.2 is
-its test suite. The block's treatment of the Trust Layer's types waits
-for that layer's next casting (6240). Open questions are listed in Section 9, and feedback is
+its test suite. Its sender gives a message up at its retry horizon (at
+most P90D), so the sender lifetime of 5110 and `failed(task-expired)`
+are not reached for a message under the library's horizons. The block's
+treatment of the Trust Layer's types waits for that layer's next
+casting (6240). Open questions are listed in Section 9, and feedback is
 welcome via the issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 
