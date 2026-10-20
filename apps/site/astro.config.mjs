@@ -61,9 +61,9 @@ export default defineConfig({
         ] },
         { label: 'Reference', items: [
           { label: 'Specifications', link: '/reference/specifications/' },
-          { label: 'Glossary', link: '/reference/glossary/' },
-          { label: 'Trust Tasks', link: '/reference/trust-tasks/' },
           { label: 'Credentials', link: '/reference/credentials/' },
+          { label: 'Trust Tasks', link: '/reference/trust-tasks/' },
+          { label: 'Glossary', link: '/reference/glossary/' },
           { label: 'Schemas', link: `${REPO}/tree/main/schemas` },
           { label: 'Test vectors', link: `${REPO}/tree/main/vectors` },
           { label: 'Term register', link: '/terms/rltp.skos.jsonld' },
