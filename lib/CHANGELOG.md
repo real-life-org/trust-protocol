@@ -26,7 +26,8 @@ for transport, and only an open, resumed opening hands anything over.
 - **A duplicate's ack** past its retries: the duplicate grants this
   opening one hand-over of the stored ack, a `resend` entry in
   `pendingTransport` with the effect's retention as deadline, used up by
-  its hand-over.
+  its hand-over; `resend` numbers the grant, so each duplicate is a
+  hand-over of its own.
 - **The opening ends**: `await close()` (a lock, the end of a process),
   resolved once the operation running at the call has finished; only then
   may the next opening start. Every

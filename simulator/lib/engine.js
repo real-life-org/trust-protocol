@@ -444,7 +444,8 @@ class HolderEngine {
     /** the transport entries this engine issued (RLTP-DEL-6130) */
     #issued = new WeakSet();
     /** acks a duplicate asked for again, one hand-over each (6330, 6335) */
-    #resends = new Set();
+    #resends = new Map();
+    #grants = 0;
     constructor(ports, crypto, modules, opts = {}) {
         if (opts.check !== undefined && typeof opts.check !== 'function')
             throw new TypeError('check must be a function');
@@ -1554,7 +1555,7 @@ class HolderEngine {
                 : (() => {
                     // the stored ack re-sent: one hand-over, granted to this opening
                     for (const o of r.outbound)
-                        this.#resends.add(o.digest);
+                        this.#resends.set(o.digest, ++this.#grants);
                     return { disposition: 'duplicate-known', digest: d.digest, outbound: r.outbound };
                 })();
         });
@@ -1628,7 +1629,9 @@ class HolderEngine {
                 return false;
             if (start() !== true)
                 return false;
-            if (entry.kind === 'ack')
+            // a hand-over of the ack uses up the grant it was issued under (a
+            // regular one, any standing grant): a later duplicate grants anew
+            if (entry.kind === 'ack' && (entry.resend === undefined || this.#resends.get(entry.digest) === entry.resend))
                 this.#resends.delete(entry.digest);
             return true;
         }).catch((e) => {
@@ -1651,7 +1654,7 @@ class HolderEngine {
         if (this.#closed || !this.#resumed)
             return false;
         const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, this.#resends);
-        return now !== null && (now.resend === true) === (entry.resend === true) && jcs(now.envelope) === jcs(entry.envelope);
+        return now !== null && now.resend === entry.resend && jcs(now.envelope) === jcs(entry.envelope);
     }
     close() {
         this.#closed = true;
@@ -1700,7 +1703,7 @@ function transportEntryOf(state, kind, digest, when, horizonMs, resends) {
                 return null;
             return structuredClone({
                 digest, kind, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt: a.attempt, since: a.at,
-                notAfter: state.effects[d].expiresAt, resend: true,
+                notAfter: state.effects[d].expiresAt, resend: resends.get(digest),
             });
         }
         return structuredClone({

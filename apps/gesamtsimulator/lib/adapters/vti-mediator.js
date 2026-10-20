@@ -382,7 +382,9 @@ export class MediatorCarrierAdapter {
                 const live = had.st === null || had.st.state === 'awaiting-transport';
                 // a duplicate's ack, once more: a submission of its own, from now —
                 // a held one of the ended retries is withdrawn, never taken over
-                if (entry.resend === true && had.entry?.resend !== true) {
+                // (each grant of the holder is its own hand-over: another number
+                // than the filed one's is a new submission; the same is idempotent)
+                if (entry.resend !== undefined && had.entry?.resend !== entry.resend) {
                     if (live)
                         this.#subs.delete(had.id);
                 }
@@ -399,7 +401,7 @@ export class MediatorCarrierAdapter {
                 id, digest: entry.digest, entry, gate,
                 bytes: new TextEncoder().encode(jcs(entry.envelope)),
                 // a duplicate's ack is a hand-over of its own, from now
-                submittedAt: entry.resend === true ? now : Math.min(entry.since, now),
+                submittedAt: entry.resend !== undefined ? now : Math.min(entry.since, now),
                 attemptStartedAt: null, lastKind: null, st: null,
             };
             this.#subs.set(id, sub);

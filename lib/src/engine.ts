@@ -596,8 +596,9 @@ export interface TransportEntry {
   readonly held?: PreTransportReason
   /** an ack whose retries ended, re-sent once to answer a duplicate
    *  (Delivery RLTP-DEL-6330, 6335): its deadline is the effect's
-   *  retention, and its hand-over uses up the duplicate's grant */
-  readonly resend?: true
+   *  retention, and its hand-over uses up the duplicate's grant. The value
+   *  names the grant: each duplicate grants anew, under a new number */
+  readonly resend?: number
 }
 
 /** pendingTransport's answer: the set at `at` — the `when` asked for, or
@@ -804,7 +805,8 @@ class HolderEngine implements Engine {
   /** the transport entries this engine issued (RLTP-DEL-6130) */
   readonly #issued = new WeakSet<object>()
   /** acks a duplicate asked for again, one hand-over each (6330, 6335) */
-  readonly #resends = new Set<string>()
+  readonly #resends = new Map<string, number>()
+  #grants = 0
 
   constructor (ports: EnginePorts, crypto: CryptoHandle, modules: readonly HolderModule[], opts: EngineOptions = {}) {
     if (opts.check !== undefined && typeof opts.check !== 'function') throw new TypeError('check must be a function')
@@ -1732,7 +1734,7 @@ class HolderEngine implements Engine {
         ? { disposition: 'unique', digest: d.digest, type: d.type!, outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
         : (() => {
             // the stored ack re-sent: one hand-over, granted to this opening
-            for (const o of r.outbound) this.#resends.add(o.digest)
+            for (const o of r.outbound) this.#resends.set(o.digest, ++this.#grants)
             return { disposition: 'duplicate-known' as const, digest: d.digest, outbound: r.outbound }
           })()
     })
@@ -1787,7 +1789,9 @@ class HolderEngine implements Engine {
       // of this engine come before the check or after the start
       if (!this.#passes(state, entry, when)) return false
       if (start() !== true) return false
-      if (entry.kind === 'ack') this.#resends.delete(entry.digest)
+      // a hand-over of the ack uses up the grant it was issued under (a
+      // regular one, any standing grant): a later duplicate grants anew
+      if (entry.kind === 'ack' && (entry.resend === undefined || this.#resends.get(entry.digest) === entry.resend)) this.#resends.delete(entry.digest)
       return true
     }).catch((e) => {
       if (e instanceof InfraError && e.code === 'closed') return false
@@ -1808,7 +1812,7 @@ class HolderEngine implements Engine {
   #passes (state: Readonly<HolderState>, entry: TransportEntry, when: Millis): boolean {
     if (this.#closed || !this.#resumed) return false
     const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, this.#resends)
-    return now !== null && (now.resend === true) === (entry.resend === true) && jcs(now.envelope) === jcs(entry.envelope)
+    return now !== null && now.resend === entry.resend && jcs(now.envelope) === jcs(entry.envelope)
   }
 
   close (): Promise<void> {
@@ -1831,7 +1835,7 @@ const notAfterOf = (it: Readonly<OutboxItem>, horizonMs: number): Millis | null 
 /** The transport entry of one pending document or ack at `when`, or null:
  *  terminal, accepted, sent, past its deadline, or absent (RLTP-DEL-6135:
  *  absent means stop). */
-function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack', digest: string, when: Millis, horizonMs: number, resends: ReadonlySet<string>): TransportEntry | null {
+function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack', digest: string, when: Millis, horizonMs: number, resends: ReadonlyMap<string, number>): TransportEntry | null {
   if (kind === 'document') {
     if (!Object.hasOwn(state.outbox, digest)) return null
     const it = state.outbox[digest]
@@ -1855,7 +1859,7 @@ function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack
       if (!resends.has(digest) || when >= state.effects[d].expiresAt) return null
       return structuredClone({
         digest, kind, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt: a.attempt, since: a.at,
-        notAfter: state.effects[d].expiresAt, resend: true as const,
+        notAfter: state.effects[d].expiresAt, resend: resends.get(digest)!,
       })
     }
     return structuredClone({
@@ -1868,7 +1872,7 @@ function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack
 
 /** Everything the holder keeps for transport at `when`: the outbox items
  *  by due time, then digest, then the unsent acks by effect digest. */
-function transportEntries (state: Readonly<HolderState>, when: Millis, horizonMs: number, resends: ReadonlySet<string>): TransportEntry[] {
+function transportEntries (state: Readonly<HolderState>, when: Millis, horizonMs: number, resends: ReadonlyMap<string, number>): TransportEntry[] {
   const out: TransportEntry[] = []
   const order = Object.keys(state.outbox).sort((a, b) =>
     ((state.outbox[a].nextAttemptAt ?? 0) - (state.outbox[b].nextAttemptAt ?? 0)) || (a < b ? -1 : a > b ? 1 : 0))
