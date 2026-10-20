@@ -16,7 +16,7 @@
   `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`.
   Welcome plaintext `rltp-welcome/0.1`.
 - **Position:** a task-type registration on top of the **RLTP
-  Delivery Contract 0.82** (normative reference; its §4.4 registry
+  Delivery Contract 0.83** (normative reference; its §4.4 registry
   carries these types), carrying operations of the **RLTP Access
   Layer 0.57** (normative reference; wire forms `rltp-access/0.25`
   and `rltp-access-material/0.25`): the operation envelope of its
@@ -29,7 +29,7 @@
   checked on receipt, and what a receiver does with them.
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3); RLTP
   Encounter 0.31; RLTP Access Layer 0.57; RLTP Delivery Contract
-  0.82; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
+  0.83; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
   6.4); RLTP Message Tasks 0.1 (the block and the register of
   declined invitations, its Section 6).
 - **Supersedes:** version 0.19 (archived as
@@ -71,7 +71,7 @@ explicit **acceptance**, the carrier that delivers the **admitting
 operation and its welcome** to a new member across the replica
 boundary, and the **evidence relay** that lets any authorized member
 complete an admission. It carries operations of the RLTP Access Layer 0.57 (envelope `rltp-access/0.25`, key material
-`rltp-access-material/0.25`) over the Delivery Contract 0.82.
+`rltp-access-material/0.25`) over the Delivery Contract 0.83.
 
 The dividing line is the replica boundary: inside a group, the
 authority log replicates as shared state, and **exactly one
@@ -318,7 +318,7 @@ them; this document does not redefine them.
 
 This document consumes the securing profile of the Encounter layer
 (Encounter 0.31, 2.3), which restates the surface of Identity 0.51 it
-consumes, and the document profile of the Delivery Contract 0.82.
+consumes, and the document profile of the Delivery Contract 0.83.
 
 **RLTP-MT-2110** — The securing profile of Encounter 2.3 MUST apply
 to every artifact of this document.
@@ -2167,7 +2167,7 @@ this specification disclose beyond what Section 3 requires.
 ## 10. Conformance
 
 **RLTP-MT-10010** — The profile `rltp-membership@0.20` MUST be read
-against `rltp-delivery@0.82`, `rltp-access@0.57` with its wire forms
+against `rltp-delivery@0.83`, `rltp-access@0.57` with its wire forms
 `0.25` (envelope 3.3, group identity 3.2, member identity and device
 bindings 5.1, admission, vouch and candidacy 5.3, views 7.3, service
 9.3, material 9.4, `key-delivery/0.1` 10.1, `removal-notice/0.1`
@@ -3326,7 +3326,7 @@ DTGWG, Core Credentials WD01: InvitationCredential,
 EndorsementCredential) · [TT] ToIP DTGWG Trust Tasks framework 0.4 ·
 **RLTP Identity 0.54** (contexts and the `group/<digest>` label §6) ·
 **RLTP Encounter Layer 0.31**, card wire 0.25 (securing profile 2.3,
-principles 1.3, contact card §6) · **RLTP Delivery Contract 0.82
+principles 1.3, contact card §6) · **RLTP Delivery Contract 0.83
 (normative)** (document profile §3, registry 4.4, sealed envelope §5,
 dispositions, lock keys and rate §6, delivery time §7) · **RLTP
 Message Tasks 0.1 (normative)** (attribution 6.2, the block 6.3, the

@@ -3,19 +3,20 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.82.0-draft (eighty-second casting — the receiver
-  stages take up the companion changes of Message Tasks 0.1)
+- **Version:** 0.83.0-draft (eighty-third casting — a sender keeps
+  custody of what waits for transport, and an acknowledgement
+  outlives its retries)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-19
+- **Date:** 2026-10-20
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/`
 - **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-delivery@0.82` (draft)
+- **Conformance profile:** `rltp-delivery@0.83` (draft)
 - **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
   Layer 0.31; RLTP Access 0.57; RLTP Membership Tasks 0.20; RLTP
   Replication 0.26; RLTP Message Tasks 0.1.
-- **Supersedes:** version 0.81 (archived as
-  `archive/delivery-contract-0.81.md`) and versions 0.80–0.1,
+- **Supersedes:** version 0.82 (archived as
+  `archive/delivery-contract-0.82.md`) and versions 0.81–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
   (wot-spec v0.1, German) in its delivery aspects.
@@ -68,16 +69,17 @@ machinery (5, 6) have been stable across many castings; the carrier
 sections (4.4's role, 5a) are the youngest part and the most likely
 to change.
 
-This casting is a companion casting: it takes up what Message Tasks
-0.1 asks of the receiver (the block, the transient rate refusal, the
-lock keys, the type-declared age bound) and two receiver rules the
-reference library had to settle (the disposition `discarded`, and
-the two classes of key-agreement keys in Section 5). Rules new in
-this casting carry identifiers (`RLTP-DEL-nnnn`); the rest of the
-text keeps its prose form until a form casting gives every rule one.
-**The next casting is expected to change the document
-substantially**, together with the Trust Layer's next casting: the
-introduction types of 4.4, a submission contract between a sender
+This casting is a two-rule casting. It settles who keeps an
+outbound document while its adapter reports that it waits for
+transport, and when a sender may hand anything over at all (6.1:
+the sender keeps it, and only an active holder state submits); and
+it separates the end of an acknowledgement's retries from the end of
+its retention (6.2). Nothing else changed. Rules new in a casting
+carry identifiers (`RLTP-DEL-nnnn`); the rest of the text keeps its
+prose form until a form casting gives every rule one. **The next
+casting is expected to change the document substantially**,
+together with the Trust Layer's next casting: the introduction
+types of 4.4, the rest of a submission contract between a sender
 and its adapter in 6.1, addresses issued ahead of an act in 5 and
 5a, and the lock protocol of 6.2 moving into a companion on holder
 state.
@@ -88,7 +90,9 @@ stages of 6.2 with the completed-effect cache and the disposition
 6.1 and the acknowledgement classes of 4.2 on its holder, and the
 carrier port of 4.4 and 5a, `message/0.1` with its age bound and
 sender lifetime, `failed(rate-limited)`, `failed(task-expired)`, and
-the block for `message/0.1` and `membership-invite/0.2`; transports
+the block for `message/0.1` and `membership-invite/0.2`; the custody
+and retry rules of this casting (RLTP-DEL-6120 to RLTP-DEL-6135,
+RLTP-DEL-6330, RLTP-DEL-6335) are not yet in it, and transports
 beyond its VTI mediator adapter are not in it. Review
 happens against the converged companion documents; the convergence
 criterion is a review round with no blocker-level findings.
@@ -2359,7 +2363,7 @@ first place that exists is the mediator adapter itself.
 |---|---|
 | `accepted` | the service durably buffered it; delivery is owed |
 | `delivered` | a **valid** `delivery-ack` (4.2 consistency) referencing its digest arrived |
-| `failed(reason)` | the service gave up; reason from the closed set below |
+| `failed(reason)` | the service or the sender gave up; reason from the closed set below |
 
 Sender failure reasons (closed set): `unroutable` · `oversize` ·
 `expired-by-adapter-policy` (the adapter's declared give-up bound) ·
@@ -2390,8 +2394,11 @@ status then becomes `delivered`, the honest outcome. This contract
 gives a sender no way to withdraw a copy from an adapter, so the
 reason says what the sender decided, not that no copy is in flight.
 
-**Before the trias there is a report, not a fourth state.** The
-three states above describe a submission a service has **taken**.
+**Before the trias there is a report, not a fourth state.**
+`accepted` and `delivered` describe a submission a service has
+**taken**; `failed` also records the sender's own give-up, which can
+come before any service took the document (RLTP-DEL-6110, the
+adapter's declared horizon).
 A submission an adapter still holds — because it is offline, the
 transport is unreachable, or the carrier refused retriably (5a.5)
 — has no trias state yet, and inventing one would break the
@@ -2406,6 +2413,70 @@ trias. Silence is not one of them: an adapter that reports nothing
 within its declared horizon is nonconformant, and that rule —
 not a shortened delivery time — is what the forty-minute
 CONNECTING socket of the field record would have caught.
+
+**Custody before the trias.** A pre-transport report says where a
+document is not yet; it hands nothing over. The sender keeps the
+document until a service has taken it or the sender has stopped
+submitting it, and that holds across a lock of the holder and the
+end of its process alike. *Cessation of submission under the
+applicable policy* is the sender's own give-up — the adapter's
+declared horizon, `failed(expired-by-adapter-policy)`; a type's
+sender lifetime, `failed(task-expired)` (RLTP-DEL-6110); any other
+`failed` the trias records — and, for an acknowledgement, the end
+of its retries (RLTP-DEL-6330).
+
+**RLTP-DEL-6120** — An awaiting-transport report MUST NOT relinquish
+durable custody: the sender MUST retain the exact outbound envelope
+and make it recoverable until durable service acceptance or
+cessation of submission under the applicable policy; custody
+introduces no additional delivery status.
+
+**RLTP-DEL-6125** — A sender MUST hand a document to an adapter only
+from an active holder state: one that is open and has been neither
+locked nor ended since.
+
+**RLTP-DEL-6130** — A copy, list, or snapshot of outbound documents
+taken before a lock or the end of a process MUST NOT authorize a
+submission after it; a submission after reopening MUST rest on the
+holder state as that opening finds it, with the transitions due by
+then (RLTP-DEL-6110, the adapter's horizon) applied first. A type's
+sender lifetime runs from the type's own timestamp (RLTP-DEL-7020);
+the adapter's horizon runs from the first submission as the sender
+recorded it, also for an adapter instance that takes a document over
+after a reopening; neither a reopening nor a new adapter instance
+restarts either.
+
+**RLTP-DEL-6135** — A sender MUST NOT submit a document whose
+transitions due at the time of submission could not be applied, nor
+read a document's absence from what its holder offers as leave to
+keep submitting it.
+
+*Rationale.* `accepted` begins at the service. Until then only the
+sender knows the document is owed, and if a report that it
+waits were enough to let the sender forget it, a lock or a crash
+between the report and the service would lose it with nobody left
+to submit it again. The rule puts custody where the status already lives, in the
+holder: the envelope is stored there once, sealed, and re-offered
+byte-identical, so the copy an adapter holds is volatile and bound
+to an open holder state. Custody is no fourth state; the closed set
+of 6.1 is unchanged and the reports keep their meaning. Two limits
+are stated plainly. A copy an adapter handed to a service before a
+lock is beyond recall, and a crash between a service's acceptance
+and the stored report makes the sender submit again; the receiver's
+stage 4 absorbs the duplicate (6.3), so at-least-once is kept and
+no second effect arises, but no rule here makes a hand-over
+exactly-once. And custody is not a draft store: what a person wrote
+and never turned into a document is the application's affair.
+
+The second half bounds who may submit. A lock ends the authority of
+everything taken from the holder before it, so a locked device sends
+nothing it kept in memory, and a reopened holder decides afresh: a
+document that expired or was given up while the holder was closed
+(RLTP-DEL-6115) is not revived by an older copy. Where the due
+transitions cannot be applied — the store refuses the write, say —
+the sender submits nothing rather than guess; and where its holder
+no longer offers a document, the absence means *stop*, never
+*carry on*.
 
 ### 6.2 Receiver: dispositions, in mandatory order
 
@@ -2668,6 +2739,31 @@ reaching such a duplicate would make stage 4 depend on a later state
 of the assembly, which it never reads; the Trust Layer's next casting
 aligns its wording with this rule.
 
+**RLTP-DEL-6330** — A receiver MUST keep offering a stored
+acknowledgement to its adapter, under the retry policy that applies
+to it, until a service durably accepts it or that policy ends its
+retries; an awaiting-transport report ends neither the retries nor
+the custody of RLTP-DEL-6120. The retries run from the commit of
+the effect. A re-send answering a stage-4 duplicate is one hand-over
+of its own: it starts no new retries, and a later redelivery of the
+document is what asks for the next one.
+
+**RLTP-DEL-6335** — The end of an acknowledgement's retries MUST NOT
+discard it: the stored acknowledgement stays retained with its
+completed-effect cache entry for the retention of 4.2 and is the
+document re-sent, byte-identical, on a stage-4 duplicate.
+
+*Rationale.* An acknowledgement is an outbound document like any
+other, but it has no trias of its own — nothing acknowledges it — so
+its sending ends either at a service's acceptance or when the retry
+policy gives up. Two bounds do two jobs. The retry bound decides how
+long the receiver pushes the acknowledgement on its own; the
+retention bound (`key-retention`, 4.2) decides how long it can still
+answer a duplicate with the same bytes. Tying the second to the first
+would turn every redelivery after the retries into a fresh
+evaluation that a duplicate should never need, and would break the
+byte-identity 4.2 promises within the retention bound.
+
 **`incomplete(missing)`** exists in the taxonomy for types with
 declared dependencies. **No type of this casting declares any**; a
 future type that does MUST define its closed `missing` vocabulary,
@@ -2901,6 +2997,22 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   Every envelope of one invitation credential waits on the same key
   (RLTP-DEL-6220); envelopes of other invitations, and every other
   document, do not.
+- **Custody is a duty, not a recall** (RLTP-DEL-6120 to
+  RLTP-DEL-6135). A sender keeps what waits for transport across a
+  lock and a crash, so neither loses a document; a lock withdraws
+  the authority to submit, so a locked device hands nothing over.
+  Neither recalls a copy a service already took, and a crash between
+  acceptance and the stored report submits again: duplicates are
+  absorbed at the receiver's stage 4 (6.3), never turned into a
+  second effect. An implementation that keeps an adapter-side store
+  of its own beside the holder's reintroduces the split this rule
+  removes: two stores that disagree on whether a document is still
+  owed resend an expired one or drop a live one.
+- **An acknowledgement outlives its retries** (RLTP-DEL-6330,
+  RLTP-DEL-6335). A receiver that discarded an acknowledgement when
+  its retries ended would answer a later duplicate with a freshly
+  generated one, or with none; keeping it to the retention bound keeps
+  the answer byte-identical and the sender's status unchanged.
 
 ## 10. Privacy Considerations
 
@@ -2997,10 +3109,17 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   about a block. A document discarded under a block, or disposed
   `discarded`, is concluded like an accepted one, and a conclusion
   carries no reason (5a.8).
+- **What waits for transport stays on the device, sealed.** Custody
+  (RLTP-DEL-6120) keeps the outbound envelope — ciphertext to the
+  recipient's card key — with its recipient address until a service
+  takes it or the sender stops; an acknowledgement stays to the
+  retention bound (RLTP-DEL-6335). A device inspected while locked
+  holds these envelopes and the addresses they go to, as it already
+  holds its effect cache; nothing new reaches a carrier.
 
 ## 11. Conformance
 
-- **Profile** `rltp-delivery@0.82`; the Identity pin is
+- **Profile** `rltp-delivery@0.83`; the Identity pin is
   **Identity 0.54** (§6.1 the context labels, §7a the control
   principal); the Encounter pin is `rltp-encounter@0.31` (wire
   0.25); companion registrations per 4.4 (Trust Layer 0.31,
@@ -3176,7 +3295,20 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   concluded toward the carrier; a sender past the declared lifetime →
   `failed(task-expired)`, no further hand-over, and a valid
   acknowledgement arriving later → `delivered` (RLTP-DEL-6110,
-  RLTP-DEL-6115, RLTP-DEL-7015, RLTP-DEL-7020) · **commit not whole:** a stage-9
+  RLTP-DEL-6115, RLTP-DEL-7015, RLTP-DEL-7020) · **custody:** a
+  document reported `awaiting-transport`, then the holder locked and
+  its process ended → after reopening it is offered again,
+  byte-identical, and reaches the service; the same document past its
+  lifetime or the horizon when the holder reopens → given up first,
+  never offered; a snapshot of outbound documents taken before the
+  lock → submits nothing after it; the due give-up failing to commit
+  on reopening → nothing submitted (RLTP-DEL-6120 to RLTP-DEL-6135) ·
+  **acknowledgement retries:** an acknowledgement reported
+  `awaiting-transport` → still offered after a lock and a restart;
+  past its retry bound → no longer offered, and a duplicate within
+  the retention bound re-sends it byte-identical, once, with no new
+  retries — reported `awaiting-transport` and then online again, the
+  next redelivery re-sends it again (RLTP-DEL-6330, RLTP-DEL-6335) · **commit not whole:** a stage-9
   transaction that fails for storage → nothing persisted, no ack, not
   concluded, evaluated again on the next delivery (RLTP-DEL-5810) ·
   `registry-declaration/0.1`: valid declaration recorded;
@@ -3375,16 +3507,18 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   `https://real-life.org/trust-tasks/delivery-carrier/0.1` used
   as a document `type` → `failed(unknown-type)` (4.4).
 - **Rule coverage.** The rules with identifiers are listed in
-  `conformance/delivery-rule-ids-0.82.txt`. **State-dependent** —
+  `conformance/delivery-rule-ids-0.83.txt`. **State-dependent** —
   each verdict needs a holder state, a clock, a cache, a carrier, or a
   registering specification's state, and the scenarios of the vector
   plan above exercise it (planned, with the reference
   implementation): RLTP-DEL-5010 · RLTP-DEL-5020 · RLTP-DEL-5810 ·
-  RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6115 · RLTP-DEL-6210 ·
+  RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6115 · RLTP-DEL-6120 ·
+  RLTP-DEL-6125 · RLTP-DEL-6130 · RLTP-DEL-6135 · RLTP-DEL-6210 ·
   RLTP-DEL-6220 · RLTP-DEL-6230 · RLTP-DEL-6240 · RLTP-DEL-6250 ·
   RLTP-DEL-6260 · RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 ·
   RLTP-DEL-6300 · RLTP-DEL-6305 · RLTP-DEL-6310 · RLTP-DEL-6320 ·
-  RLTP-DEL-6325 · RLTP-DEL-7015. **Declaration** — the rule binds
+  RLTP-DEL-6325 · RLTP-DEL-6330 · RLTP-DEL-6335 · RLTP-DEL-7015.
+  **Declaration** — the rule binds
   what a type's registration states or which specification defines
   a treatment: RLTP-DEL-6245 · RLTP-DEL-7010 · RLTP-DEL-7020.
 
