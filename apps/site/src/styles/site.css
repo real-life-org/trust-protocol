@@ -72,7 +72,18 @@ h2, h3 { letter-spacing: -.02em; }
 .hero h1 { font-weight: 800 !important; }
 .hero .tagline { display: contents; }
 .hero .tagline p { margin: 0; line-height: 1.6; max-width: 44rem; font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl)); color: var(--sl-color-gray-2); }
-.tp-chip { order: -1; align-self: flex-start; padding: .3rem .8rem; border-radius: 999px; background: var(--tp-tint); color: var(--sl-color-accent-high); font-size: .8rem; font-weight: 600; }
+.tp-chip.top { order: -1; align-self: flex-start; padding: .3rem .8rem; border-radius: 999px; background: var(--tp-tint); color: var(--sl-color-accent-high); font-size: .8rem; font-weight: 600; text-decoration: none; }
+/* Below the hero: the library on the left, the DTG work it builds on at the right. */
+.tp-lib { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding-block: .5rem 3rem; }
+.tp-chip.lib { display: inline-flex; align-items: center; gap: .6rem; padding: .25rem .75rem .25rem .3rem; border-radius: 999px; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-bg-sidebar); font-size: .8rem; font-weight: 500; color: var(--sl-color-gray-2); text-decoration: none; }
+.tp-chip.lib:hover { border-color: var(--sl-color-accent); }
+.tp-chip.lib .tag { padding: .1rem .5rem; border-radius: 999px; background: var(--tp-tint); color: var(--sl-color-accent-high); font-size: .75rem; font-weight: 600; }
+.tp-chip.lib code { font-size: .75rem; background: none; padding: 0; color: inherit; }
+.tp-std { display: inline-flex; flex-wrap: wrap; gap: .6rem; }
+.tp-std a { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .8rem .3rem .6rem; border-radius: 999px; border: 1px solid var(--tp-ok-border); background: var(--tp-ok-bg); color: var(--sl-color-gray-2); font-size: .8rem; font-weight: 600; text-decoration: none; }
+.tp-std a:hover { color: var(--sl-color-white); }
+.tp-std .tp-icon { display: inline-flex; margin: 0; padding: 0; width: auto; height: auto; background: none; }
+.tp-std .tp-icon, .tp-std .tp-icon svg { width: .95rem; height: .95rem; color: var(--success); }
 .tp-accent { color: var(--sl-color-accent); }
 .hero h1 .tp-accent { display: block; }
 /* The hero buttons take the shape of the landing's buttons (.tp-btn). */
@@ -111,11 +122,6 @@ h2, h3 { letter-spacing: -.02em; }
 
 /* Landing layout */
 .tp-landing { max-width: none; margin-inline: 0; padding-inline: 0; }
-.tp-lib { padding-block: .5rem 3rem; }
-.tp-lib-bar { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.5rem; padding: .5rem 1rem; border-radius: 999px; border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-bg-sidebar); color: var(--sl-color-gray-2); text-decoration: none; font-size: .8rem; }
-.tp-lib-bar:hover { border-color: var(--sl-color-accent); }
-.tp-lib-bar code { font-size: .8rem; color: var(--sl-color-white); background: none; padding: 0; }
-.tp-lib-bar .tp-cta { margin: 0; padding: 0; font-size: .8rem; }
 .tp-section { display: grid; gap: 4rem; align-items: center; padding-block: 5.5rem; border-top: 1px solid var(--sl-color-gray-6); }
 /* Every other section sits on a darker band that bleeds to the window edges. */
 .tp-section.band { background: var(--tp-band); box-shadow: 0 0 0 100vmax var(--tp-band); clip-path: inset(0 -100vmax); }
@@ -291,8 +297,6 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .tp-section { padding-block: 3.5rem; gap: 2.25rem; }
   .tp-section h2, .tp-outro h2 { font-size: 1.7rem; }
   .tp-section p { font-size: 1rem; }
-  .tp-lib { padding-block: .5rem 2.5rem; }
-  .tp-lib-bar { border-radius: var(--radius-xl); }
   .tp-stats { grid-template-columns: 1fr 1fr; gap: .6rem; }
   .tp-stat { padding: 1rem; }
   .tp-stat strong { font-size: 1.8rem; }
@@ -306,7 +310,8 @@ a.tp-band:hover { border-color: var(--sl-color-accent); }
   .hero { padding-block: 1.5rem .5rem; }
   .hero h1 { font-size: clamp(2.2rem, 9vw, 3rem); line-height: 1.1; }
   .hero .tagline p { font-size: 1.05rem; }
-  .tp-chip { align-self: center; flex-wrap: wrap; justify-content: center; text-align: center; }
+  .tp-chip.top { align-self: center; }
+  .tp-lib { padding-block: .5rem 2.5rem; justify-content: center; }
   /* On a phone the picture follows the copy and takes the full width. */
   .hero > .hero-html { order: 2; width: 100% !important; }
   .tp-encounter { padding: 1rem; font-size: .75rem; }

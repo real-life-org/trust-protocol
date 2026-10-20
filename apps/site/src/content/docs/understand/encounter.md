@@ -132,7 +132,8 @@ condition it afterwards;
 whether the recipient agrees is said only by a credential they issue
 themselves. Its size is bounded by the issuer: at most 2048 bytes in canonical form, so no transport ever has to refuse one.
 
-Spec: [Encounter Layer §7](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#7-the-encounter-credential)
+Spec: [Encounter Layer §7](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#7-the-encounter-credential) ·
+all credentials of the protocol: [Credentials](/reference/credentials/)
 
 ## Try it
 
