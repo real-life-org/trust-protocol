@@ -58,8 +58,9 @@
 // and commits nothing, needs no keys, and works on every opening over the
 // store. A repeat of the act under the same actId answers the same events
 // at any clock, across a lock and a new opening; the journal holds an act
-// for the retention max(P90D, retry.horizonMs) after its commit in holder
-// time (engine.ts), after which the actId is unknown. An app that does not
+// for the retention max(P90D, retry.horizonMs) after its commit and after
+// the last step of each of its documents, in holder time (engine.ts),
+// after which the actId is unknown. An app that does not
 // know whether an act committed (a crash, an unknown-commit-outcome, a
 // lock) asks replay; on unknown-act the act did not commit or has left
 // the journal, and only the human decides to act anew.

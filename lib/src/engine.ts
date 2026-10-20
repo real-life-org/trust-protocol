@@ -58,12 +58,16 @@
 //     due for the give-up, at their current attempt; one due for it is
 //     given up in a commit of its own first (6115: never handed out again). Idempotency is bounded by the journal's retention:
 //     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
-//     bounds effects and their acks; after it the same actId is a new act.
-//     The retention runs in holder time (an entry leaves at the tick at or
-//     after at + retention, `when` raised to lastWhen): a clock set ahead
-//     by more than the retention ends it early in real time. Every
-//     document of an act is past its send deadline by then (the horizon
-//     at the latest), so the journal outlives its act's transport. A replay
+//     bounds effects and their acks, counted from the act's commit and
+//     from the last step of each of its documents, whichever is later (a
+//     document not yet terminal keeps the act): the act's result stays as
+//     long as its documents' completion does; after it the same actId is
+//     a new act. The retention runs in holder time (an entry leaves at the
+//     tick at or after its end, `when` raised to lastWhen): a clock set
+//     ahead by more than the retention ends it early in real time. The
+//     bound is one of time, not of count: one entry per human act (its
+//     events and document digests, the documents themselves kept beside
+//     it), removed by the tick that is due. A replay
 //     answers from the journal alone, before any preparation: no key, no
 //     entropy, no new document; the time it reads at changes nothing in it
 //   - replay(actId, when) is the journal read without the act: in the
@@ -236,7 +240,7 @@
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
 import { emptyState, toOpaque, triasOf } from './state.js'
-import type { Dec, Duty, Effect, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind, StoredAck } from './state.js'
+import type { ActRecord, Dec, Duty, Effect, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind, StoredAck } from './state.js'
 import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, PreTransportReason, Recipient, RetryPolicy, Store, StoreSnapshot } from './ports.js'
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
@@ -991,8 +995,11 @@ class HolderEngine implements Engine {
     const u = this.#unsettled
     if (!u) return
     const { state } = await this.#read()
+    // the journal entry at that commitSeq with these very events: another
+    // opening's commit of the same act at the same commitSeq is not this one
     const landed = jcs(state) === u.text ||
-      (u.actId !== undefined && Object.hasOwn(state.acts, u.actId) && state.acts[u.actId].commitSeq === u.commitSeq)
+      (u.actId !== undefined && Object.hasOwn(state.acts, u.actId) && state.acts[u.actId].commitSeq === u.commitSeq &&
+        jcs(state.acts[u.actId].events) === jcs(u.events))
     this.#unsettled = null
     if (landed) this.#announce(u.commitSeq, u.events)
   }
@@ -1143,7 +1150,7 @@ class HolderEngine implements Engine {
     const out: Millis[] = []
     for (const p of Object.values(state.prompts)) if (p.expiresAt !== undefined) out.push(p.expiresAt)
     for (const e of Object.values(state.effects)) out.push(e.expiresAt)
-    for (const a of Object.values(state.acts)) out.push(a.at + retention)
+    for (const a of Object.values(state.acts)) { const end = actEnd(state, a, retention); if (end !== Infinity) out.push(end) }
     for (const it of Object.values(state.outbox)) {
       const t = triasOf(it)
       if ((t === 'delivered' || t === 'failed') && it.history.length) out.push(it.history[it.history.length - 1].at + retention)
@@ -1280,14 +1287,15 @@ class HolderEngine implements Engine {
         let dropped = false
         const keep = <T>(rec: Record<string, T>, live: (x: T, key: string) => boolean): Record<string, T> => {
           const out: Record<string, T> = {}
-          for (const [k, v] of Object.entries(rec)) { if (live(v, k)) out[k] = v; else dropped = true }
+          // defined, not assigned: a key such as `__proto__` (an app's actId) stays an own member
+          for (const [k, v] of Object.entries(rec)) { if (live(v, k)) Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true }); else dropped = true }
           return out
         }
         // effects leave with their acks (Delivery 4.2); prompts at expiry; the
         // act journal after the retention
         const effects = keep(state.effects, (x) => x.expiresAt > when)
         const prompts = keep(state.prompts, (x) => x.expiresAt === undefined || x.expiresAt > when)
-        const acts = keep(state.acts, (x) => x.at + retention > when)
+        const acts = keep(state.acts, (x) => actEnd(state, x, retention) > when)
         // terminal outbox items, the retention after their last step, unless a
         // kept journal entry still answers with them (replay needs the item)
         const journaled = new Set(Object.values(acts).flatMap((a) => a.outboundDigests))
@@ -1877,6 +1885,23 @@ class HolderEngine implements Engine {
   }
 
   get closed (): boolean { return this.#closed }
+}
+
+/** When the journal entry of an act may leave (tick): the retention after
+ *  its commit and after the last step of each of its documents that is
+ *  terminal — the act's result stays as long as the completion of its
+ *  documents does; Infinity while one of them is not terminal yet (its
+ *  give-up makes it terminal, and the deadline follows then). */
+const actEnd = (state: Readonly<HolderState>, a: Readonly<ActRecord>, retention: number): Millis => {
+  let end = a.at
+  for (const d of a.outboundDigests) {
+    if (!Object.hasOwn(state.outbox, d)) continue
+    const it = state.outbox[d]
+    const t = triasOf(it)
+    if (t !== 'delivered' && t !== 'failed') return Infinity
+    if (it.history.length) end = Math.max(end, it.history[it.history.length - 1].at)
+  }
+  return end + retention
 }
 
 /** The send deadline of an outbox item: the horizon from its first
