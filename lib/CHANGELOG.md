@@ -23,11 +23,14 @@ for transport, and only an open, resumed opening hands anything over.
   included, withdraws the opening's authority until one completes. One
   opening per store at a time is the app's to keep: two openings are not
   serialized with each other.
-- **A duplicate's answer**: every duplicate grants this opening one
-  hand-over of the stored ack, a `resend` entry in `pendingTransport`
+- **A duplicate's answer** (RLTP-DEL-6330): a duplicate makes an answer
+  due, stored with the ack (`answers`, `answerDue`) and so kept across a
+  lock; `pendingTransport` offers it as a `resend` entry numbered by it,
   beside the ack's retries and independent of their state, with the
-  effect's retention as deadline, used up by its hand-over; `resend`
-  numbers the grant, so each duplicate is a hand-over of its own.
+  effect's retention as deadline. The begun hand-over ends it (a commit);
+  a duplicate arriving while one is due is answered by it (the same
+  bytes), the next one after it makes the next due. A duplicate therefore
+  commits that answer (else, as before, lastWhen only).
 - **The opening ends**: `await close()` (a lock, the end of a process),
   resolved once the operation running at the call has finished; only then
   may the next opening start. Every

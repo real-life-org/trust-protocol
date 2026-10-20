@@ -533,6 +533,12 @@ export interface StoredAck {
   sentBy?: 'accepted' | 'failed' | 'horizon'
   /** unsent and held by the adapter: its last report was awaiting-transport */
   held?: PreTransportReason
+  /** the duplicates' answers granted so far (Delivery RLTP-DEL-6330): each
+   *  stage-4 duplicate arriving while none is due grants the next */
+  answers?: number
+  /** an answer is due: granted, its hand-over not yet begun; kept across a
+   *  lock, apart from the retries and `sent` (present with `answers`) */
+  answerDue?: true
 }
 
 export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'

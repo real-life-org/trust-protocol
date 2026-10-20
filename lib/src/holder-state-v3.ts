@@ -6,7 +6,7 @@
 // and state.ts's HolderState against each other.
 import type { Json } from './core.js'
 
-/** NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 3 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v3.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted. A stored acknowledgement counts as sent exactly when it names why (sentBy), and only an unsent one may be held by the adapter (held); the schema states both. */
+/** NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 3 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v3.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted. A stored acknowledgement counts as sent exactly when it names why (sentBy), and only an unsent one may be held by the adapter (held); the schema states both, and that a due answer (answerDue) comes with its number (answers). */
 export type HolderStateV3 = {
   codec: 3
   commitSeq: DecV3
@@ -421,6 +421,8 @@ export type StoredAckV3 = {
   nextAttemptAt?: MillisV3
   sentBy?: "accepted" | "failed" | "horizon"
   held?: "offline" | "transport-unreachable" | "carrier-refused-retriable"
+  answers?: number
+  answerDue?: true
 }
 
 export type ReissueMappingDutyV3 = {

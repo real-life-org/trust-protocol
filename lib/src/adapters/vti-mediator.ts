@@ -469,8 +469,12 @@ export class MediatorCarrierAdapter {
       const had = filed.get(keyOf(entry.digest, entry.resend))
       if (had !== undefined) {
         // the newest entry of a live submission is the one its gate checks
-        if (had.st === null || had.st.state === 'awaiting-transport') { had.entry = entry; had.gate = gate }
-        continue
+        if (had.st === null || had.st.state === 'awaiting-transport') { had.entry = entry; had.gate = gate; continue }
+        // an answer the holder still offers is still owed — its hand-over
+        // never began, or the holder could not record that it did: a
+        // terminal submission of it is filed again (the holder ends it)
+        if (entry.resend === undefined) continue
+        this.#subs.delete(had.id)
       }
       const id = 's' + this.#nextId++
       const sub: Submission = {

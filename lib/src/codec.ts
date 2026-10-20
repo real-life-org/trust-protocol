@@ -273,8 +273,10 @@ const storedAck: V = (x, p) => {
 const storedAck3: V = (x, p) => {
   obj({ digest: str, envelope, threadId: str, recipient, at: millis, attempt: positive, sent: bool }, {
     nextAttemptAt: millis, sentBy: lit('accepted', 'failed', 'horizon'), held: lit('offline', 'transport-unreachable', 'carrier-refused-retriable'),
+    answers: positive, answerDue: lit(true),
   })(x, p)
-  const a = x as { recipient: { keyAgreement: string }, envelope: { rkid: string }, sent: boolean, sentBy?: string, held?: string }
+  const a = x as { recipient: { keyAgreement: string }, envelope: { rkid: string }, sent: boolean, sentBy?: string, held?: string, answers?: number, answerDue?: true }
+  if (a.answerDue !== undefined && a.answers === undefined) fail(`${p}.answers`, 'present with answerDue')
   if (a.envelope.rkid !== a.recipient.keyAgreement) fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement')
   if (a.sent !== (a.sentBy !== undefined)) fail(`${p}.sentBy`, 'present exactly when sent')
   if (a.sent && a.held !== undefined) fail(`${p}.held`, 'only while unsent')

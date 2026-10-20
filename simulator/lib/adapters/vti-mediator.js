@@ -395,8 +395,14 @@ export class MediatorCarrierAdapter {
                 if (had.st === null || had.st.state === 'awaiting-transport') {
                     had.entry = entry;
                     had.gate = gate;
+                    continue;
                 }
-                continue;
+                // an answer the holder still offers is still owed — its hand-over
+                // never began, or the holder could not record that it did: a
+                // terminal submission of it is filed again (the holder ends it)
+                if (entry.resend === undefined)
+                    continue;
+                this.#subs.delete(had.id);
             }
             const id = 's' + this.#nextId++;
             const sub = {

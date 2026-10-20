@@ -78,9 +78,10 @@ the holder's queue, so nothing of this holder runs between the check and
 the start of the send; it says yes only for an entry this opening issued
 that is still pending, unchanged and before its deadline (`mayHandOver`
 is the check alone). A document missing from the view is not to be sent.
-Every duplicate adds its stored ack once more, as a `resend` entry beside
-the ack's retries and independent of their state (numbered per grant:
-each duplicate is a hand-over of its own), used up by its hand-over. The check is the opening's:
+A duplicate makes an answer due, stored with the ack and kept across a
+lock: a `resend` entry beside the ack's retries, independent of their
+state, ended by the begun hand-over; a duplicate while one is due is
+answered by it (the same bytes). The check is the opening's:
 two openings over one store at once are not serialized with each other,
 so an app keeps one opening per store (its writer lock), and releases
 that lock, or starts the next opening, only after `await holder.close()`:
@@ -222,7 +223,8 @@ the state as opaque JSON and gives it back; the library decodes it
   and migrate to codec 3.
 - **Codec 3** is the format of 0.6.0 (Delivery 0.83): a stored ack is
   `sent` exactly when it says why (`sentBy`: `accepted`, `failed`,
-  `horizon`) and may be `held` by the adapter while unsent. Codec 2 marked
+  `horizon`), may be `held` by the adapter while unsent, and carries the
+  duplicates' answers (`answers`, `answerDue`). Codec 2 marked
   an ack sent on any report (`sentBy: 'report'`), an `awaiting-transport`
   report included, so a stored state does not tell an ack a service took
   from one an adapter only held: the migration makes every such ack
