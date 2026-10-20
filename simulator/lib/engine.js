@@ -48,8 +48,8 @@
 //     deadline, whichever is first, in nextDueAt (a repeat names its live
 //     documents' the same way), so an idle holder's timer reaches the
 //     retries, the give-up and the journal's end. An act without documents
-//     names no journal deadline: the end of its entry comes with the next
-//     tick's or resume's timer; resume() re-emits only items that are due
+//     names no journal deadline: the next resume names the end of its entry
+//     (a tick does not); resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
 //     (the adapter holds the item) and never re-emits an accepted one. It
 //     gives up every non-terminal item (submitted, held or accepted) at

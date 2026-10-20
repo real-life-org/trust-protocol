@@ -42,8 +42,8 @@ One actId, one result.
   first (a repeat names its live documents' the same way), so a holder
   whose timer had run out reaches the retries, the give-up and the
   journal's end on the timers alone. An act without documents names no
-  journal deadline; its entry's end comes with the next `tick` or
-  `resume` timer.
+  journal deadline; the next `resume` names its entry's end, a `tick`
+  does not.
 - The state and codec 3 are unchanged: the journal was already part of the
   stored state.
 

@@ -132,8 +132,8 @@ needs no keys. The journal keeps an act for max(P90D, the retry horizon)
 after its commit and after the last step of each of its documents
 (delivered or failed; one not yet terminal keeps it), counted in holder
 time and removed by the tick that is due (an act without documents
-names no deadline of its own; the next `tick`'s or `resume`'s timer
-does); after that its actId is unknown. An app that does not know whether an act committed (a crash, an
+names no deadline of its own; the next `resume` names it, a `tick`
+does not); after that its actId is unknown. An app that does not know whether an act committed (a crash, an
 `unknown-commit-outcome`, a lock) asks `replay` and does not repeat the act
 blind: `unknown-act` means the act did not commit or has left the
 journal, and acting anew is the human's decision. Custody:
