@@ -44,7 +44,10 @@
 //     that give-up runs first as an operation of its own on the one commit
 //     path (resume's CommitOp, its timer carried to the replay's answer)
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
-//     when + ceil(backoff(1)); resume() re-emits only items that are due
+//     when + ceil(backoff(1)), which the act names in nextDueAt (a repeat
+//     of the act names its live documents' next attempt the same way), so
+//     an idle holder's timer reaches the retries, the give-up and the
+//     journal's end; resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
 //     (the adapter holds the item) and never re-emits an accepted one. It
 //     gives up every non-terminal item (submitted, held or accepted) at
@@ -742,6 +745,13 @@ class HolderEngine {
                         attempt--;
                     continue;
                 }
+                // the timer as the act named it: the next attempt of its live documents
+                // (and a give-up's own timer), so a repeat answers as the act did
+                for (const d of live) {
+                    const due = this.#itemOf(state, d).nextAttemptAt;
+                    if (due !== undefined)
+                        replayWake = replayWake === undefined ? due : Math.min(replayWake, due);
+                }
                 return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events), ...(replayWake !== undefined ? { nextDueAt: replayWake } : {}) };
             }
             // 2 — prepare, bound to this snapshot
@@ -820,6 +830,18 @@ class HolderEngine {
             const effects = r.renames?.length ? renameAcks(r.state.effects, r.renames) : r.state.effects;
             const next = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts };
             const text = encodeState(next); // validates; an invalid next state is a programming error
+            // the timer from the state this commit writes: the deadlines its new
+            // journal entry and outbox items bring (an act's retention, the first
+            // retry of its documents) count too, not only those of the module's state
+            let full = wake;
+            if (r.nextDueAt === undefined && def !== this.#builtins.resume) {
+                for (const o of outbound) {
+                    const due = outbox[o.digest].nextAttemptAt;
+                    if (due !== undefined)
+                        full = full === undefined ? due : Math.min(full, due);
+                }
+            }
+            const fullExtra = { ...(full !== undefined ? { nextDueAt: full } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
             if (this.#check) {
                 const d = (r.detail ?? {});
                 const pick = (k) => (d[k] !== undefined ? { [k]: d[k] } : {});
@@ -839,7 +861,7 @@ class HolderEngine {
                 continue;
             // 4 — release
             this.#announce(seq, events);
-            return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...extra };
+            return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...fullExtra };
         }
         throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`);
     }

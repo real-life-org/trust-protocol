@@ -37,7 +37,10 @@ One actId, one result.
   journal, and the commit failed the codec); the settling after an
   `unknown-commit-outcome` counts the act as landed only when the journal
   holds it with the same events, not another opening's commit of the same
-  actId at the same commitSeq.
+  actId at the same commitSeq; an act that issues documents names their
+  first retry in `nextDueAt` (a repeat names its live documents' next
+  attempt), so a holder whose timer had run out reaches the retries, the
+  give-up and the journal's end on the timers alone.
 - The state and codec 3 are unchanged: the journal was already part of the
   stored state.
 
