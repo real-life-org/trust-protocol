@@ -15,6 +15,9 @@ of the Delivery Contract. Each type is registered by the specification
 where its semantics live, which names its payload schema, its proof
 and its rules.
 
+The verifiable credentials some of these documents carry are listed
+under [Credentials](/reference/credentials/).
+
 ## Encounter
 
 The two transmissions of the encounter ceremony

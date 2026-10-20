@@ -37,10 +37,11 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
 ---
 <div class="tp-landing not-content">
   <section class="tp-lib" id="get-started">
-    <a class="tp-lib-bar" href="/get-started/implement/">
-      <code>npm install @real-life/trust-protocol</code>
-      <em class="tp-cta">Implement →</em>
-    </a>
+    <a class="tp-chip lib" href="/get-started/implement/"><span class="tag">Editor's drafts</span><code><span class="scope">@real-life/</span>trust-protocol {info.lib}</code></a>
+    <span class="tp-std">
+      <span class="tp-std-label">Powered by</span>
+      <span class="tp-std-links"><a href="/reference/credentials/"><Icon name="shield-check" tile={false} />DTG credentials</a><a href="/reference/trust-tasks/"><Icon name="shield-check" tile={false} />Trust Tasks</a></span>
+    </span>
   </section>
 
   <section class="tp-section flip" id="layers">
