@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.6.1
+
+One actId, one result.
+
+- **`replay(actId, when)`**: the journaled result of a human act without
+  the act — `{ok: true, result: {actId, commitSeq, at, events, outbound}}`,
+  each document of the act with `live` (whether a repeat at `when` would
+  hand it out), or `{ok: false, code: 'unknown-act'}` (`actid-missing` for
+  an empty id). For `sendMessage` the `message.sent` event carries the
+  `mid` and the `digest`; `at` is the commit time the message's `sentAt`
+  was taken from. A pure read in the holder's queue: nothing runs, nothing
+  is given up, nothing commits, lastWhen included; no key is used, so it
+  answers on an opening whose keys are locked. New types `ReplayResult`,
+  `ActReplay`, `ReplayOutbound`.
+- **The rule, stated and tested** (it held before; the engine takes one
+  path for every human act, and the tests cover `sendMessage`, `show`,
+  `scan`, `setProfile`, `foundGroup`, `block`, `unblock` and `trust`): a repeat under a journaled actId answers the
+  journaled events — for `sendMessage` the same `mid` — whatever the clock
+  says (ahead, set back), across `close()` and a new opening, with keys
+  that answer nothing, and after a commit whose outcome was unknown; it
+  never mints a second `mid`. Another input under the same actId stays
+  `actid-conflict`.
+- **The journal keeps an act as long as its documents' completion**: the
+  retention max(P90D, the retry horizon) now runs from the act's commit
+  and from the last step of each of its documents (delivered or failed),
+  whichever is later; a document not yet terminal keeps the act. Before,
+  it ran from the commit alone, so an act delivered late left the journal
+  while its delivery status stayed. The bound is in holder time and of
+  time, not of count: one entry per human act, removed by the tick that is
+  due. A clock set ahead by more than the retention ends it early in real time; `replay` then answers `unknown-act`, and
+  a repeat under that actId would be a new act. An app asks `replay`
+  instead of repeating an act blind.
+- **Fixes**: a tick that drops journal entries keeps an entry whose actId
+  is `__proto__` as an own member (it set the prototype of the kept
+  journal, and the commit failed the codec); the settling after an
+  `unknown-commit-outcome` counts the act as landed only when the journal
+  holds it with the same events, not another opening's commit of the same
+  actId at the same commitSeq; an act that issues documents names in
+  `nextDueAt` each one's first retry or send deadline, whichever comes
+  first (a repeat names its live documents' the same way), so a holder
+  whose timer had run out reaches the retries, the give-up and the
+  journal's end on the timers alone. An act without documents names no
+  journal deadline; the next `resume` names its entry's end, a `tick`
+  does not.
+- The state and codec 3 are unchanged: the journal was already part of the
+  stored state.
+
 ## 0.6.0
 
 Takes up Delivery Contract 0.83: the holder keeps custody of what waits

@@ -53,6 +53,20 @@
 // unrevoked name under an own anchor context (identity-state.ts).
 // A missing actId is refused at runtime as actid-missing.
 //
+// One actId, one result: replay(actId, when) reads the journaled result of
+// any of the human acts above (its events: for sendMessage `message.sent`
+// with mid and digest; its commit time; its documents and whether a repeat
+// would hand them out at `when`), or answers unknown-act. It runs nothing
+// and commits nothing, needs no keys, and works on every opening over the
+// store. A repeat of the act under the same actId answers the same events
+// at any clock, across a lock and a new opening; the journal holds an act
+// for the retention max(P90D, retry.horizonMs) after its commit and after
+// the last step of each of its documents, in holder time (engine.ts),
+// after which the actId is unknown. An app that does not
+// know whether an act committed (a crash, an unknown-commit-outcome, a
+// lock) asks replay; on unknown-act the act did not commit or has left
+// the journal, and only the human decides to act anew.
+//
 // Reading: the views (views.ts) over one snapshot each, carrying its
 // commitSeq. `subscribe` announces every commit with its commitSeq and
 // events; the app re-reads the views it shows, and a view read after the
@@ -159,6 +173,7 @@ export async function createHolder(ports, opts = {}) {
         prompts: async () => promptsView(await read()),
         inbox: async () => inboxView(await read()),
         deliveryStatus: async (x) => deliveryStatusView(await read(), x),
+        replay: (actId, when) => engine.replay(actId, when),
         pendingTransport: (when) => engine.pendingTransport(when),
         mayHandOver: (entry, when) => engine.mayHandOver(entry, when),
         handOver: (entry, when, start) => engine.handOver(entry, when, start),

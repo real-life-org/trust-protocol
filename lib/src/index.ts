@@ -101,7 +101,7 @@ export function decodeState (raw: unknown): OpaqueHolderState {
 export type * from './ports.js'
 export type * from './events.js'
 export { InfraError, CryptoUnavailableError } from './results.js'
-export type { ActError, ActResult, ReceiveFailure, ReceiveStageNo, ReceiveResult, ResumeResult, InfraErrorCode } from './results.js'
+export type { ActError, ActResult, ActReplay, ReceiveFailure, ReceiveStageNo, ReceiveResult, ReplayOutbound, ReplayResult, ResumeResult, InfraErrorCode } from './results.js'
 export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js'
 export type { Entropy, EntropyPurpose, EntropyErrorCode, PlatformRandom } from './entropy.js'
 export { storeContract } from './store-contract.js'

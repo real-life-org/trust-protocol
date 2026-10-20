@@ -44,7 +44,12 @@
 //     that give-up runs first as an operation of its own on the one commit
 //     path (resume's CommitOp, its timer carried to the replay's answer)
 //   - outbound of an act starts at attempt 1 with nextAttemptAt =
-//     when + ceil(backoff(1)); resume() re-emits only items that are due
+//     when + ceil(backoff(1)); the act names that or the document's send
+//     deadline, whichever is first, in nextDueAt (a repeat names its live
+//     documents' the same way), so an idle holder's timer reaches the
+//     retries, the give-up and the journal's end. An act without documents
+//     names no journal deadline: the next resume names the end of its entry
+//     (a tick does not); resume() re-emits only items that are due
 //     and pauses re-emission while the last step is awaiting-transport
 //     (the adapter holds the item) and never re-emits an accepted one. It
 //     gives up every non-terminal item (submitted, held or accepted) at
@@ -60,7 +65,24 @@
 //     due for the give-up, at their current attempt; one due for it is
 //     given up in a commit of its own first (6115: never handed out again). Idempotency is bounded by the journal's retention:
 //     max(P90D, retry.horizonMs), the key-retention of Delivery §7 that
-//     bounds effects and their acks; after it the same actId is a new act
+//     bounds effects and their acks, counted from the act's commit and
+//     from the last step of each of its documents, whichever is later (a
+//     document not yet terminal keeps the act): the act's result stays as
+//     long as its documents' completion does; after it the same actId is
+//     a new act. The retention runs in holder time (an entry leaves at the
+//     tick at or after its end, `when` raised to lastWhen): a clock set
+//     ahead by more than the retention ends it early in real time. The
+//     bound is one of time, not of count: one entry per human act (its
+//     events and document digests, the documents themselves kept beside
+//     it), removed by the tick that is due. A replay
+//     answers from the journal alone, before any preparation: no key, no
+//     entropy, no new document; the time it reads at changes nothing in it
+//   - replay(actId, when) is the journal read without the act: in the
+//     queue (after the settling of an unsettled commit), on the stored
+//     state, committing nothing, lastWhen included; it names which of the
+//     act's documents a repeat at max(when, lastWhen) would hand out, and
+//     gives none up. unknown-act: no entry under the id (never committed,
+//     or past the retention)
 //   - KeyProvider, Log and Access rejections inside a preparation become
 //     InfraError('key-provider' | 'log' | 'access') with the cause. Known
 //     limitation: a provider's argument errors (a module passing a label
@@ -661,8 +683,11 @@ class HolderEngine {
         if (!u)
             return;
         const { state } = await this.#read();
+        // the journal entry at that commitSeq with these very events: another
+        // opening's commit of the same act at the same commitSeq is not this one
         const landed = jcs(state) === u.text ||
-            (u.actId !== undefined && Object.hasOwn(state.acts, u.actId) && state.acts[u.actId].commitSeq === u.commitSeq);
+            (u.actId !== undefined && Object.hasOwn(state.acts, u.actId) && state.acts[u.actId].commitSeq === u.commitSeq &&
+                jcs(state.acts[u.actId].events) === jcs(u.events));
         this.#unsettled = null;
         if (landed)
             this.#announce(u.commitSeq, u.events);
@@ -721,6 +746,15 @@ class HolderEngine {
                     if (gaveUp++ <= rec.outboundDigests.length)
                         attempt--;
                     continue;
+                }
+                // the timer as the act named it: the next attempt of its live documents
+                // (and a give-up's own timer), so a repeat answers as the act did
+                const soon = (t) => { if (t !== undefined && t !== null)
+                    replayWake = replayWake === undefined ? t : Math.min(replayWake, t); };
+                for (const d of live) {
+                    const it = this.#itemOf(state, d);
+                    soon(it.nextAttemptAt);
+                    soon(notAfterOf(it, this.#policy.horizonMs));
                 }
                 return { ok: true, outbound: live.map((d) => this.#outboundOf(state, d)), events: freezeDeep(events), ...(replayWake !== undefined ? { nextDueAt: replayWake } : {}) };
             }
@@ -800,6 +834,20 @@ class HolderEngine {
             const effects = r.renames?.length ? renameAcks(r.state.effects, r.renames) : r.state.effects;
             const next = { ...r.state, effects, commitSeq: seq, lastWhen: at, outbox, duties, acts };
             const text = encodeState(next); // validates; an invalid next state is a programming error
+            // the timer for the documents this commit issues: each one's first
+            // retry or its send deadline, whichever comes first, beside the duty
+            // work the module's state opened
+            let full = wake;
+            if (r.nextDueAt === undefined && def !== this.#builtins.resume) {
+                const soon = (t) => { if (t !== undefined && t !== null)
+                    full = full === undefined ? t : Math.min(full, t); };
+                // each document's first retry or its send deadline, whichever comes first
+                for (const o of outbound) {
+                    soon(outbox[o.digest].nextAttemptAt);
+                    soon(notAfterOf(outbox[o.digest], this.#policy.horizonMs));
+                }
+            }
+            const fullExtra = { ...(full !== undefined ? { nextDueAt: full } : {}), ...(r.detail !== undefined ? { detail: r.detail } : {}) };
             if (this.#check) {
                 const d = (r.detail ?? {});
                 const pick = (k) => (d[k] !== undefined ? { [k]: d[k] } : {});
@@ -819,7 +867,7 @@ class HolderEngine {
                 continue;
             // 4 — release
             this.#announce(seq, events);
-            return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...extra };
+            return { ok: true, outbound: [...emit, ...release, ...outbound], events, ...fullExtra };
         }
         throw new InfraError('commit-conflict', `no commit after ${this.#policy.commitAttempts} attempts`);
     }
@@ -835,8 +883,11 @@ class HolderEngine {
                 out.push(p.expiresAt);
         for (const e of Object.values(state.effects))
             out.push(e.expiresAt);
-        for (const a of Object.values(state.acts))
-            out.push(a.at + retention);
+        for (const a of Object.values(state.acts)) {
+            const end = actEnd(state, a, retention);
+            if (end !== Infinity)
+                out.push(end);
+        }
         for (const it of Object.values(state.outbox)) {
             const t = triasOf(it);
             if ((t === 'delivered' || t === 'failed') && it.history.length)
@@ -985,9 +1036,10 @@ class HolderEngine {
                 let dropped = false;
                 const keep = (rec, live) => {
                     const out = {};
+                    // defined, not assigned: a key such as `__proto__` (an app's actId) stays an own member
                     for (const [k, v] of Object.entries(rec)) {
                         if (live(v, k))
-                            out[k] = v;
+                            Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
                         else
                             dropped = true;
                     }
@@ -997,7 +1049,7 @@ class HolderEngine {
                 // act journal after the retention
                 const effects = keep(state.effects, (x) => x.expiresAt > when);
                 const prompts = keep(state.prompts, (x) => x.expiresAt === undefined || x.expiresAt > when);
-                const acts = keep(state.acts, (x) => x.at + retention > when);
+                const acts = keep(state.acts, (x) => actEnd(state, x, retention) > when);
                 // terminal outbox items, the retention after their last step, unless a
                 // kept journal entry still answers with them (replay needs the item)
                 const journaled = new Set(Object.values(acts).flatMap((a) => a.outboundDigests));
@@ -1591,6 +1643,31 @@ class HolderEngine {
             return Object.freeze({ state, commitSeq: state.commitSeq });
         });
     }
+    replay(actId, when) {
+        try {
+            checkWhen(when);
+        }
+        catch (e) {
+            return Promise.reject(e);
+        }
+        if (typeof actId !== 'string' || actId === '')
+            return Promise.resolve(Object.freeze({ ok: false, code: 'actid-missing' }));
+        return this.#enqueue(async () => {
+            const { state } = await this.#read();
+            if (!Object.hasOwn(state.acts, actId))
+                return Object.freeze({ ok: false, code: 'unknown-act' });
+            const rec = state.acts[actId];
+            // as a repeat of the act would see them at max(when, lastWhen), without
+            // the give-up it would commit first: a pure read
+            const at = Math.max(when, state.lastWhen);
+            const outbound = rec.outboundDigests.map((digest) => {
+                const it = Object.hasOwn(state.outbox, digest) ? state.outbox[digest] : undefined;
+                const t = it ? triasOf(it) : undefined;
+                return { digest, live: it !== undefined && t !== 'delivered' && t !== 'failed' && this.#giveUp(it, at) === null };
+            });
+            return freezeDeep({ ok: true, result: { actId: rec.actId, commitSeq: rec.commitSeq, at: rec.at, events: structuredClone(rec.events), outbound } });
+        });
+    }
     pendingTransport(when) {
         try {
             checkWhen(when);
@@ -1686,6 +1763,25 @@ class HolderEngine {
     }
     get closed() { return this.#closed; }
 }
+/** When the journal entry of an act may leave (tick): the retention after
+ *  its commit and after the last step of each of its documents that is
+ *  terminal — the act's result stays as long as the completion of its
+ *  documents does; Infinity while one of them is not terminal yet (its
+ *  give-up makes it terminal, and the deadline follows then). */
+const actEnd = (state, a, retention) => {
+    let end = a.at;
+    for (const d of a.outboundDigests) {
+        if (!Object.hasOwn(state.outbox, d))
+            continue;
+        const it = state.outbox[d];
+        const t = triasOf(it);
+        if (t !== 'delivered' && t !== 'failed')
+            return Infinity;
+        if (it.history.length)
+            end = Math.max(end, it.history[it.history.length - 1].at);
+    }
+    return end + retention;
+};
 /** The send deadline of an outbox item: the horizon from its first
  *  submission, or the sender lifetime its type declared if that is
  *  earlier (#giveUp's two bounds as one instant). */

@@ -98,10 +98,41 @@ export type ActError =
   | 'message-invalid'
 
 export type ActResult =
-  /** nextDueAt: duty work this act opened or unblocked is due then (`when`:
-   *  now) — call resume at that time (engine.ts) */
+  /** nextDueAt: duty work this act opened or unblocked, or the first retry
+   *  or send deadline of a document it issued (a repeat: of its live
+   *  documents), is due then (`when`: now) — call resume at that time
+   *  (engine.ts) */
   | { ok: true, outbound: Outbound[], events: HolderEvent[], nextDueAt?: number }
   | { ok: false, code: ActError, ref?: string }
+
+/** One document of a journaled act, as replay(actId, when) sees it:
+ *  `live` is whether a repeat of the act at `when` would hand it out again
+ *  (neither delivered nor failed, and not past its sender lifetime or the
+ *  horizon at max(when, lastWhen)); deliveryStatus(digest) has the rest. */
+export interface ReplayOutbound { readonly digest: string, readonly live: boolean }
+
+/** The journaled result of one human act (note §4.2): what the act's
+ *  commit answered. For sendMessage, the `message.sent` event carries
+ *  `mid` and `digest`; `at` is the commit time the message's `sentAt` was
+ *  taken from (whole seconds below it). */
+export interface ActReplay {
+  readonly actId: string
+  /** the act's commit */
+  readonly commitSeq: string
+  /** the holder time of the act's commit (max(when, lastWhen) then) */
+  readonly at: number
+  /** the act's events as the commit announced them */
+  readonly events: readonly HolderEvent[]
+  /** the act's documents, in the act's order */
+  readonly outbound: readonly ReplayOutbound[]
+}
+
+/** replay(actId, when): the journaled result, or `unknown-act` when the
+ *  journal holds no act under the id — never committed, or past the
+ *  journal's retention. A pure read: nothing runs, nothing commits. */
+export type ReplayResult =
+  | { readonly ok: true, readonly result: ActReplay }
+  | { readonly ok: false, readonly code: 'unknown-act' | 'actid-missing' }
 
 /** Receiver failure dispositions (Delivery §6.2), by the stage that names them. */
 export type ReceiveFailure =
