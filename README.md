@@ -201,8 +201,9 @@ Life Network Protocol and the Real Life Stack live in the shared register,
 ## Implementations
 
 - **Library:** [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
-  0.3.2 on npm, published with provenance: encounter ceremony and
-  continuity.
+  0.5.0, published with provenance from its tag: one person's device as
+  a holder, with encounters, trust, continuity, introductions, groups,
+  messages and the block.
 - **Simulators:** [`simulator/`](simulator/) and the workbench
   [`apps/gesamtsimulator/`](apps/gesamtsimulator/), both on the real
   library.

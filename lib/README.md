@@ -81,14 +81,17 @@ Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
   `RetryPolicy`, `DeliveryReport`, `Outbound`; `seedKeys(seed)` is the
   default KeyProvider, `randomEntropy` the default Entropy.
 - The views: `ContactView`, `GroupView`, `PromptView`, `ProfileView`,
-  `DeliveryStatusView` and their parts.
+  `InboxMessageView`, `DeliveryStatusView` and their parts.
 - The results and events: `ActResult`, `ReceiveResult`, `ResumeResult`,
   `InfraError`, `CryptoUnavailableError`, `HolderEvent`.
 - The state as an opaque type (`HolderState`), `decodeState`, `CODEC`,
   `StateCodecError`, and `storeContract`, the suite a Store adapter passes.
 - The pure wire builders and verifiers of every layer (`core`, `crypto`,
-  `identity`, `profile`, `encounter`, `membership`, `introduction`,
-  `delivery`, `carrier-identity`, `carrier`, `carrier-holder`), and two
+  `identity`, `profile`, `encounter`, `membership`, `message` —
+  `MESSAGE_TYPE`, `messageKeyOf`, `messageMac`, `messageProblem`,
+  `messageShapeOk` and the constants of Message Tasks 0.1 —,
+  `introduction`, `delivery`, `carrier-identity`, `carrier`,
+  `carrier-holder`), and two
   namespaces of pure forms: `visibility` (anchor, star, group star,
   continuity, acks) and `ceremony` (the encounter's, the group's and the
   introduction's forms).
@@ -99,7 +102,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a carrier adapter: its submission states as `DeliveryReport`, collection and ack handling. |
+| `./adapters/vti-mediator` | The VTI mediator as a carrier adapter: its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier). |
 
 ## The modules and the rules they implement
 

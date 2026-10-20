@@ -14,6 +14,13 @@
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port.
 //
+// Beyond the profile (lib 0.5.0): conclude(collection, now, {keep}) leaves
+// the items whose disposition is transient unconcluded and offers them
+// again (Delivery 0.82 RLTP-DEL-5810, 5820: failed(rate-limited) is never
+// concluded); `concludable(result)` says which receive outcomes are
+// terminal. The profile's §4 concludes a collection whole; its next
+// casting is to take this up.
+//
 // Structural rules (reviews 3+4):
 //   · No port operation ever awaits the mediator — including
 //     register: keylist synchronization is a recorded intent with a
@@ -28,14 +35,15 @@ import { jcs } from '../core.js';
 import { sha } from '../crypto.js';
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js';
 // ── Declared constants (profile §2) — promises of THIS casting ──────
-export const DECLARED = {
+// frozen: the declared promises cannot be changed at run time either
+export const DECLARED = Object.freeze({
     giveUpHorizonMs: 72 * 3_600_000,
     statusHorizonMs: 60_000,
     queueFloorCount: 64,
     queueFloorBytes: 1_048_576,
     maxQueueBytes: 16_777_216,
     duplicateWindowMs: 30 * 86_400_000,
-};
+});
 export class WireError extends Error {
     kind;
     constructor(kind, message) {
@@ -61,6 +69,16 @@ export function deliveryReportOf(digest, st) {
             : { digest, status: 'failed', reason: st.reason };
     }
 }
+/** Whether a receive outcome is terminal and its item may be concluded
+ *  (Delivery 5a.8): every disposition but `failed(rate-limited)`, the one
+ *  failure that is transient (RLTP-DEL-5820). An InfraError of the
+ *  holder's store is transient as well (RLTP-DEL-5810): an item whose
+ *  receive threw is kept, too. */
+export function concludable(r) {
+    return !(r.disposition === 'failed' && r.reason === 'rate-limited');
+}
+/** The adapter's own copy of a wire's token set: the wire keeps no handle on it. */
+const tokenCopy = (t) => ({ accessToken: t.accessToken, accessExpiresAt: t.accessExpiresAt, refreshToken: t.refreshToken, refreshExpiresAt: t.refreshExpiresAt });
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 // construction capability: only create() holds it
 const KEY = Symbol('MediatorCarrierAdapter.create');
@@ -163,7 +181,8 @@ export class MediatorCarrierAdapter {
         this.#wire.onDeliver(async (raw) => {
             if (this.#closed)
                 return;
-            const bytes = raw.slice();
+            // a plain copy of its own: a Node Buffer's slice() would share memory
+            const bytes = new Uint8Array(raw);
             const queueId = hex(await sha(bytes));
             if (this.#closed)
                 return;
@@ -231,7 +250,7 @@ export class MediatorCarrierAdapter {
                     const refreshed = await this.#wire.refresh(this.#tokens.refreshToken);
                     if (this.#closed)
                         throw new Error('retired'); // as on the handshake path (R6-B1)
-                    this.#tokens = refreshed;
+                    this.#tokens = tokenCopy(refreshed);
                     return this.#tokens.accessToken;
                 }
                 catch (e) {
@@ -249,7 +268,7 @@ export class MediatorCarrierAdapter {
             const { challenge, sessionId } = await this.#wire.authChallenge(this.#connectionDid);
             if (this.#closed)
                 throw new Error('retired'); // nothing new starts, not even the answer (R6-B1)
-            this.#tokens = await this.#wire.authenticate({ did: this.#connectionDid, challenge, sessionId });
+            this.#tokens = tokenCopy(await this.#wire.authenticate({ did: this.#connectionDid, challenge, sessionId }));
             return this.#tokens.accessToken;
         })();
         this.#authing = run.finally(() => { this.#authing = null; });
@@ -280,7 +299,7 @@ export class MediatorCarrierAdapter {
                 const token = await this.#ensureAuth(now);
                 if (this.#closed)
                     return;
-                await this.#wire.keylistUpdate(token, wanted);
+                await this.#wire.keylistUpdate(token, [...wanted]); // the wire's own list: `wanted` is compared below
                 // land only if the desire has not moved meanwhile
                 if (!this.#closed && this.#desiredRkids !== null &&
                     wanted.join(' ') === this.#desiredRkids.join(' ')) {
@@ -305,7 +324,8 @@ export class MediatorCarrierAdapter {
         const id = 's' + this.#nextId++;
         const knownOffline = this.#wire.offline?.() === true;
         const sub = {
-            bytes: envelopeBytes.slice(),
+            // a plain copy of its own (a Node Buffer's slice() shares memory)
+            bytes: new Uint8Array(envelopeBytes),
             submittedAt: now,
             attemptStartedAt: null,
             lastKind: null,
@@ -357,7 +377,8 @@ export class MediatorCarrierAdapter {
             const token = await this.#ensureAuth(now);
             if (this.#closed)
                 return; // retirement between auth and deposit: nothing new starts (R5-B2)
-            await this.#wire.deposit(token, sub.bytes, this.#egressDid);
+            // each attempt hands the wire a copy: what it does with it never reaches the next
+            await this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid);
             sub.lastKind = null;
             next = { state: 'accepted' };
         }
@@ -408,7 +429,7 @@ export class MediatorCarrierAdapter {
         if (!sub)
             return null;
         if (sub.st !== null && sub.st.state !== 'awaiting-transport')
-            return sub.st;
+            return { ...sub.st };
         if (this.#wire.offline?.() === true) {
             return { state: 'awaiting-transport', reason: 'offline' };
         }
@@ -416,7 +437,7 @@ export class MediatorCarrierAdapter {
             this.#clock - sub.attemptStartedAt >= DECLARED.statusHorizonMs) {
             return { state: 'awaiting-transport', reason: 'transport-unreachable' };
         }
-        return sub.st;
+        return sub.st === null ? null : { ...sub.st };
     }
     acknowledged(id) {
         if (this.#closed)
@@ -471,17 +492,33 @@ export class MediatorCarrierAdapter {
         this.#inboxDigests.clear();
         const id = 'c' + this.#nextColId++;
         this.#outstanding.set(id, new Map(items.map((i) => [i.queueId, i])));
-        return { id, items: items.map((i) => ({ ...i })) };
+        // the caller gets its own copies: the outstanding entries stay intact,
+        // whatever it does with the bytes, for a conclusion that keeps them
+        return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })) };
     }
-    conclude(collection, rawNow) {
+    /** Concludes a collection (profile §4, Delivery 5a.8): its items'
+     *  digests become ack intent. `keep` names the items whose disposition
+     *  is transient (Delivery RLTP-DEL-5810, 5820: `failed(rate-limited)`,
+     *  or a transaction that could not commit, see `concludable`): they are
+     *  not concluded and not acknowledged, they go back to the buffer and the
+     *  next collect offers them again, and the mediator keeps its copy. */
+    conclude(collection, rawNow, opts = {}) {
         this.#open();
         const now = this.#now(rawNow);
         const col = this.#outstanding.get(collection.id);
         if (!col)
             return;
         this.#outstanding.delete(collection.id);
+        const keep = new Set(opts.keep ?? []);
         for (const item of col.values()) {
             this.#outstandingBytes -= item.bytes.length;
+            if (keep.has(item.queueId)) {
+                // transient: back to the buffer, offered again, never acknowledged
+                this.#inbox.push(item);
+                this.#inboxBytes += item.bytes.length;
+                this.#inboxDigests.add(item.queueId);
+                continue;
+            }
             this.#concluded.set(item.queueId, now);
             this.#pendingAcks.add(item.queueId);
         }
@@ -533,7 +570,8 @@ export class MediatorCarrierAdapter {
             for (const id of live)
                 this.#flightAcks.add(id);
             try {
-                await this.#wire.ackReceived(token, live);
+                // the wire gets its own list: what it does with it never reaches the bookkeeping below
+                await this.#wire.ackReceived(token, [...live]);
                 if (!this.#closed)
                     for (const id of live)
                         this.#pendingAcks.delete(id);
