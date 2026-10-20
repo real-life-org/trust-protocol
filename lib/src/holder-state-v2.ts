@@ -6,7 +6,7 @@
 // and state.ts's HolderState against each other.
 import type { Json } from './core.js'
 
-/** NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox),, an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted. */
+/** NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted. */
 export type HolderStateV2 = {
   codec: 2
   commitSeq: DecV2
