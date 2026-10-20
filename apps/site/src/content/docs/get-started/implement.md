@@ -45,10 +45,14 @@ one to `receive`. Acts, receives and resumes name `nextDueAt`, the earliest
 time something is due; the app keeps one timer at the earliest of them, and
 when it fires calls `tick` and then `resume`, delivers what `resume` returns
 and sets the timer anew. A transport that must survive a lock or the end
-of the process takes what it sends from `pendingTransport`, which names
-every document the holder still keeps for transport, asks `mayHandOver`
-right before each hand-over, and calls `close` at the lock; the next
-opening is a new holder over the same store. `InMemoryStore` is for tests;
+of the process resumes the holder first, then takes what it sends from
+`pendingTransport`, which names every document the holder still keeps for
+transport, and starts each send inside `handOver(entry, when, start)`, so
+the holder's check and the start of the send are one step (the VTI
+mediator adapter does this in `reconcile(view, holder, now)`;
+`mayHandOver` is the check alone and authorizes nothing afterwards). At
+the lock it calls `close`; the next opening is a new holder over the same
+store. `InMemoryStore` is for tests;
 an app brings its own store, which passes the `storeContract` suite.
 
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)

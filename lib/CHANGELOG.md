@@ -18,7 +18,8 @@ for transport, and only an open, resumed opening hands anything over.
   entry this opening issued that is still pending, unchanged and before
   its deadline, calls `start` inside the holder's queue: the check and the
   start of the deposit are one step. `mayHandOver(entry, when)` is the
-  check alone. A resume that throws, the settling of an earlier commit
+  check alone, and authorizes nothing afterwards. Both read at
+  max(when, lastWhen): the holder's time never runs back. A resume that throws, the settling of an earlier commit
   included, withdraws the opening's authority until one completes. One
   opening per store at a time is the app's to keep: two openings are not
   serialized with each other.

@@ -1582,12 +1582,14 @@ class HolderEngine {
             if (!this.#resumed)
                 return Object.freeze({ ok: false, code: 'not-resumed' });
             const { state } = await this.#read();
-            const entries = transportEntries(state, when, this.#policy.horizonMs, this.#resends).map((e) => {
+            // the holder's time never runs back: an earlier `when` reads at lastWhen
+            const at = Math.max(when, state.lastWhen);
+            const entries = transportEntries(state, at, this.#policy.horizonMs, this.#resends).map((e) => {
                 const f = freezeDeep(e);
                 this.#issued.add(f);
                 return f;
             });
-            return Object.freeze({ ok: true, commitSeq: state.commitSeq, at: when, entries: Object.freeze(entries) });
+            return Object.freeze({ ok: true, commitSeq: state.commitSeq, at, entries: Object.freeze(entries) });
         });
     }
     mayHandOver(entry, when) {
@@ -1617,9 +1619,13 @@ class HolderEngine {
         if (this.#closed || entry === null || typeof entry !== 'object' || !this.#issued.has(entry))
             return Promise.resolve(false);
         return this.#enqueue(async () => {
-            if (!(await this.#mayGo(entry, when)))
+            if (!this.#resumed)
                 return false;
-            // no await from here: the deposit starts before anything else runs
+            const { state } = await this.#read();
+            // no await from here to start(): close() and every other operation
+            // of this engine come before the check or after the start
+            if (!this.#passes(state, entry, when))
+                return false;
             if (start() !== true)
                 return false;
             if (entry.kind === 'ack')
@@ -1637,9 +1643,14 @@ class HolderEngine {
         if (!this.#resumed)
             return false;
         const { state } = await this.#read();
+        return this.#passes(state, entry, when);
+    }
+    /** synchronous: open, resumed, the entry pending in `state` as issued,
+     *  before its deadline at max(when, lastWhen) */
+    #passes(state, entry, when) {
         if (this.#closed || !this.#resumed)
             return false;
-        const now = transportEntryOf(state, entry.kind, entry.digest, when, this.#policy.horizonMs, this.#resends);
+        const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, this.#resends);
         return now !== null && (now.resend === true) === (entry.resend === true) && jcs(now.envelope) === jcs(entry.envelope);
     }
     close() { this.#closed = true; }

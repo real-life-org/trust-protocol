@@ -598,7 +598,8 @@ export interface TransportEntry {
   readonly resend?: true
 }
 
-/** pendingTransport's answer: the set at `at` and the commit it was read at. */
+/** pendingTransport's answer: the set at `at` — the `when` asked for, or
+ *  the holder's lastWhen if that is later — and the commit it was read at. */
 export interface TransportView {
   readonly ok: true
   readonly commitSeq: Dec
@@ -1753,12 +1754,14 @@ class HolderEngine implements Engine {
     return this.#enqueue(async () => {
       if (!this.#resumed) return Object.freeze({ ok: false as const, code: 'not-resumed' as const })
       const { state } = await this.#read()
-      const entries = transportEntries(state, when, this.#policy.horizonMs, this.#resends).map((e) => {
+      // the holder's time never runs back: an earlier `when` reads at lastWhen
+      const at = Math.max(when, state.lastWhen)
+      const entries = transportEntries(state, at, this.#policy.horizonMs, this.#resends).map((e) => {
         const f = freezeDeep(e)
         this.#issued.add(f)
         return f
       })
-      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at: when, entries: Object.freeze(entries) })
+      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at, entries: Object.freeze(entries) })
     })
   }
 
@@ -1776,8 +1779,11 @@ class HolderEngine implements Engine {
     if (typeof start !== 'function') return Promise.reject(new TypeError('handOver needs a start function'))
     if (this.#closed || entry === null || typeof entry !== 'object' || !this.#issued.has(entry)) return Promise.resolve(false)
     return this.#enqueue(async () => {
-      if (!(await this.#mayGo(entry, when))) return false
-      // no await from here: the deposit starts before anything else runs
+      if (!this.#resumed) return false
+      const { state } = await this.#read()
+      // no await from here to start(): close() and every other operation
+      // of this engine come before the check or after the start
+      if (!this.#passes(state, entry, when)) return false
       if (start() !== true) return false
       if (entry.kind === 'ack') this.#resends.delete(entry.digest)
       return true
@@ -1792,8 +1798,14 @@ class HolderEngine implements Engine {
   async #mayGo (entry: TransportEntry, when: Millis): Promise<boolean> {
     if (!this.#resumed) return false
     const { state } = await this.#read()
+    return this.#passes(state, entry, when)
+  }
+
+  /** synchronous: open, resumed, the entry pending in `state` as issued,
+   *  before its deadline at max(when, lastWhen) */
+  #passes (state: Readonly<HolderState>, entry: TransportEntry, when: Millis): boolean {
     if (this.#closed || !this.#resumed) return false
-    const now = transportEntryOf(state, entry.kind, entry.digest, when, this.#policy.horizonMs, this.#resends)
+    const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, this.#resends)
     return now !== null && (now.resend === true) === (entry.resend === true) && jcs(now.envelope) === jcs(entry.envelope)
   }
 
