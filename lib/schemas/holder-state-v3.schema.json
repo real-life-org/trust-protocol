@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://real-life.org/trust-protocol/lib/holder-state-v2.schema.json",
-  "title": "HolderState, codec 2",
-  "description": "NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 2 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v2.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted.",
+  "$id": "https://real-life.org/trust-protocol/lib/holder-state-v3.schema.json",
+  "title": "HolderState, codec 3",
+  "description": "NON-NORMATIVE. The stored state of an @real-life/trust-protocol holder at codec 3 (lib/src/codec.ts): the library's storage format, not a protocol artifact. lib/src/holder-state-v3.ts is generated from it (scripts/build-holder-state-types.mjs). Not expressible here and checked by the codec alone: a record's id equals its key (contacts, relationships, groups, duties, rotations, prompts, acts, roster, invitations, records, introductions, offers, challenges, the inbox), an envelope's rkid equals its recipient's keyAgreement, and a set of strings (joining.surfaced, joining.declined, messages.blocked, messages.ready) is sorted. A stored acknowledgement counts as sent exactly when it names why (sentBy), and only an unsent one may be held by the adapter (held); the schema states both, and that a due answer (answerDue) comes with its number (answers).",
   "type": "object",
   "properties": {
     "codec": {
-      "const": 2
+      "const": 3
     },
     "commitSeq": {
       "$ref": "#/$defs/Dec"
@@ -2030,9 +2030,25 @@
         },
         "sentBy": {
           "enum": [
-            "report",
+            "accepted",
+            "failed",
             "horizon"
           ]
+        },
+        "held": {
+          "enum": [
+            "offline",
+            "transport-unreachable",
+            "carrier-refused-retriable"
+          ]
+        },
+        "answers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "answerDue": {
+          "const": true
         }
       },
       "required": [
@@ -2044,6 +2060,35 @@
         "attempt",
         "sent"
       ],
+      "if": {
+        "properties": {
+          "sent": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "sentBy"
+        ],
+        "not": {
+          "required": [
+            "held"
+          ]
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "sentBy"
+          ]
+        }
+      },
+      "dependentRequired": {
+        "answerDue": [
+          "answers"
+        ]
+      },
       "additionalProperties": false
     },
     "ReissueMappingDuty": {

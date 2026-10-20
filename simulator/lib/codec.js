@@ -13,55 +13,26 @@
 // versions and the codec are independent; a migration never re-issues
 // stored documents, outbound or acks.
 //
-// Codec 1 is the format of 0.4.0: its golden fixtures are
-// lib/test/fixtures/state-v1*.json (runs of lib 0.4.0, frozen), decoded and
-// re-encoded byte-identically and migrated by test/codec-fixture.test.mjs.
-// Codec 2 is the format of 0.5.0 (Message Tasks 0.1, Membership 0.20): its
-// fixtures are lib/test/fixtures/state-v2*.json (deterministic runs,
-// test/fixtures/gen-state-v2.mjs, reproduced in npm test). The rule: codecs
-// 1 and 2 are read, 1 migrated to 2; a newer codec is codec-newer; a codec
-// without a validator is codec-unknown. Every later codec adds its
-// validator, a migration from the one before, and its own fixture with a
-// migration test.
+// Codec 3 is the format of 0.6.0 and the only one this library reads
+// (Delivery 0.83: an acknowledgement is sent when a service took it, failed,
+// or its retries ended; it may be held by the adapter meanwhile, and it
+// carries the duplicates' answers). Codecs 1 and 2 (lib 0.4.0, 0.5.0) never
+// held the state of a rolled-out app, so they have neither validator nor
+// migration: a state of either is codec-unknown, a clean cut. Its fixtures
+// are lib/test/fixtures/state-v3*.json (deterministic runs,
+// test/fixtures/gen-state-v3.mjs, reproduced in npm test). The rule: a
+// newer codec is codec-newer, a codec without a validator codec-unknown.
+// A later codec that must read this one adds its validator, a migration
+// from codec 3, and its own fixture with a migration test.
 import { jcs } from './core.js';
 /** The codec this library writes. */
-export const CODEC = 2;
-/** The tuples of a codec-1 state on which a document of the counterpart
- *  was accepted, as far as the state shows it (Message Tasks 5.1): a probe,
- *  a star, a group star, a continuity or anchor mapping, or a profile
- *  received; or the counterparty's step credential of its enactment record. */
-function readyOf1(s) {
-    const out = new Set();
-    const inRec = new Set(Object.values(s.encounter.records).filter((r) => r.in !== null).map((r) => r.label));
-    for (const r of Object.values(s.relationships)) {
-        for (const t of r.tuples) {
-            if (t.probeIn.hwm !== '0' || t.starIn.hwm !== '0' || t.groupStarIn.hwm !== '0' || t.continuityIn.rev !== '0' ||
-                t.mappingIn.rev !== '0' || t.profileIn.rev !== '0' || inRec.has(t.ownPairLabel))
-                out.add(t.ownPairLabel);
-        }
-    }
-    return [...out].sort();
-}
+export const CODEC = 3;
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
- *
- * 1 → 2 (lib 0.5.0, Message Tasks 0.1, Membership 0.20): the message
- * state starts empty (no block, no rate, no record, no inbox) but for the
- * ready tuples, read from what the state shows a counterpart's document
- * did (readyOf1); every invitation a codec-1 holder received was
- * surfaced, so their credential digests seed the permanent record of
- * RLTP-MT-3130; the register of declined invitations starts empty (codec 1
- * knew no block).
+ * None today: codec 3 is the first codec a rolled-out app holds.
  */
-export const MIGRATIONS = Object.freeze({
-    1: (s) => ({
-        ...s,
-        codec: 2,
-        joining: { ...s.joining, surfaced: Object.keys(s.joining.invites).sort(), declined: [] },
-        messages: { blocked: [], rates: {}, ready: readyOf1(s), records: {}, inbox: {} },
-    }),
-});
+export const MIGRATIONS = Object.freeze({});
 /** A stored state the library will not load (or a state it will not write). */
 export class StateCodecError extends Error {
     code;
@@ -206,8 +177,8 @@ const contact = obj({
     settings: obj({ star: setting, groupStar: setting, anchorMapping: setting, sealedGroupStar: setting, profile: setting }),
     groupSettings: rec(setting),
 });
-/** an outbox step of codec n: codec 2 added the failure reason task-expired */
-const outboxStepOf = (codec) => (x, p) => {
+/** an outbox step */
+const outboxStep = (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
     const s = x;
@@ -218,30 +189,40 @@ const outboxStepOf = (codec) => (x, p) => {
         case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p);
         case 'failed': return s.reason === 'rejected-by-receiver'
             ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'proofRequired', 'proofInvalid', 'wrongRecipient', 'identityMismatch') })(x, p)
-            : obj({ status: str, at: millis, reason: codec < 2 ? lit('unroutable', 'oversize', 'expired-by-adapter-policy') : lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p);
+            : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p);
         default: fail(`${p}.status`, 'unknown outbox status');
     }
 };
-/** an outbox item of codec n: codec 2 added expiresAt (the sender lifetime);
+/** an outbox item with its sender lifetime (expiresAt);
  *  the envelope is sealed to the counterpart key, never to the own rkid */
-const outboxItemOf = (codec) => {
+const outboxItem = (() => {
     const shape = obj({
-        type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStepOf(codec)),
-    }, codec < 2 ? { nextAttemptAt: millis } : { nextAttemptAt: millis, expiresAt: millis });
+        type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStep),
+    }, { nextAttemptAt: millis, expiresAt: millis });
     return (x, p) => {
         shape(x, p);
         const o = x;
         if (o.envelope.rkid !== o.recipient.keyAgreement)
             fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
     };
-};
+})();
 const DUE = { dueAt: millis };
 /** a retained ack: sealed to the counterpart key, like an outbox item */
+/** codec 3: sent exactly when it names why; held only while unsent */
 const storedAck = (x, p) => {
-    obj({ digest: str, envelope, threadId: str, recipient, at: millis, attempt: positive, sent: bool }, { nextAttemptAt: millis, sentBy: lit('report', 'horizon') })(x, p);
+    obj({ digest: str, envelope, threadId: str, recipient, at: millis, attempt: positive, sent: bool }, {
+        nextAttemptAt: millis, sentBy: lit('accepted', 'failed', 'horizon'), held: lit('offline', 'transport-unreachable', 'carrier-refused-retriable'),
+        answers: positive, answerDue: lit(true),
+    })(x, p);
     const a = x;
+    if (a.answerDue !== undefined && a.answers === undefined)
+        fail(`${p}.answers`, 'present with answerDue');
     if (a.envelope.rkid !== a.recipient.keyAgreement)
         fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
+    if (a.sent !== (a.sentBy !== undefined))
+        fail(`${p}.sentBy`, 'present exactly when sent');
+    if (a.sent && a.held !== undefined)
+        fail(`${p}.held`, 'only while unsent');
 };
 const KNOWN_DUTIES = {
     'reissue-mapping': { v: 1, shape: obj({ kind: str, v: positive, id: str, contactId: str, relId: str, awaitHead: nullable(str) }, DUE) },
@@ -296,13 +277,12 @@ const EVENT_FIELDS = {
     'message.sent': [{ contactId: str, mid: str, digest: str }],
     'message.received': [{ contactId: str, inboxId: str }],
 };
-/** the event types codec 2 added: codec 1 does not know them */
-const EVENTS_SINCE_2 = new Set(['contact.blocked', 'message.sent', 'message.received']);
-const eventOf = (codec) => (x, p) => {
+/** a journaled event of a type this library emits */
+const event = (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
     const t = x.type;
-    if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t) || (codec < 2 && EVENTS_SINCE_2.has(t)))
+    if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t))
         fail(`${p}.type`, 'unknown event type');
     const [req, opt = {}] = EVENT_FIELDS[t];
     obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
@@ -339,8 +319,27 @@ const introAct = obj({
     at: millis, ackDelayMs: natural, ownLabel: nullable(str), ack: nullable(anyObj), replyForwarded: bool, vouchersSent: bool,
     pendingVoucher: nullable(anyObj), voucher: nullable(anyObj), vouched: bool, promptId: nullable(str),
 }, { peerName: str });
-const fields1 = {
-    codec: lit(1),
+/** a sorted set of strings */
+const sortedSet = (x, p) => {
+    set(str)(x, p);
+    const a = x;
+    for (let i = 1; i < a.length; i++)
+        if (!(a[i - 1] < a[i]))
+            fail(`${p}[${i}]`, 'a sorted set expected');
+};
+/** an invitation received: attributed to a relationship (contactId and
+ *  rkid together) or to none (Membership RLTP-MT-3100) */
+const receivedInvite = (x, p) => {
+    obj({
+        credDigest: str, group: str, name: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
+        status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
+    }, { acceptDigest: str, contactId: str, rkid: str })(x, p);
+    const i = x;
+    if ((i.contactId === undefined) !== (i.rkid === undefined))
+        fail(`${p}.rkid`, 'present exactly with contactId');
+};
+const codec3 = obj({
+    codec: lit(3),
     commitSeq: dec,
     lastWhen: millis,
     register: obj({
@@ -357,14 +356,14 @@ const fields1 = {
     groups: keyed(group, 'id'),
     profile: obj({ body: json, revision: dec }),
     effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
-    outbox: rec(outboxItemOf(1)),
+    outbox: rec(outboxItem),
     duties: keyed(duty, 'id'),
     rotations: keyed(obj({
         id: str, from: dec, to: dec, step: lit('register', 'log', 'duties'), startedAt: millis,
         entry: json, overHead: logHead, awaitHead: rec(nullable(str)),
     }), 'id'),
     prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
-    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(1)), at: millis }), 'actId'),
+    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
     encounter: obj({
         challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
         records: keyed(enactmentRecord, 'own'),
@@ -375,40 +374,7 @@ const fields1 = {
     }),
     joining: obj({
         preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
-        invites: keyed(obj({
-            credDigest: str, group: str, name: str, contactId: str, rkid: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
-            status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
-        }, { acceptDigest: str }), 'credDigest'),
-    }),
-};
-const codec1 = obj(fields1);
-/** a sorted set of strings */
-const sortedSet = (x, p) => {
-    set(str)(x, p);
-    const a = x;
-    for (let i = 1; i < a.length; i++)
-        if (!(a[i - 1] < a[i]))
-            fail(`${p}[${i}]`, 'a sorted set expected');
-};
-/** an invitation received: attributed to a relationship (contactId and
- *  rkid together) or to none (Membership RLTP-MT-3100) */
-const receivedInvite2 = (x, p) => {
-    obj({
-        credDigest: str, group: str, name: str, memberLabel: str, invite: anyObj, promptId: str, validUntil: millis,
-        status: lit('open', 'accepted', 'declined', 'joined'), at: millis,
-    }, { acceptDigest: str, contactId: str, rkid: str })(x, p);
-    const i = x;
-    if ((i.contactId === undefined) !== (i.rkid === undefined))
-        fail(`${p}.rkid`, 'present exactly with contactId');
-};
-const codec2 = obj({
-    ...fields1,
-    codec: lit(2),
-    outbox: rec(outboxItemOf(2)),
-    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(2)), at: millis }), 'actId'),
-    joining: obj({
-        preludes: rec(obj({ group: str, inviter: str, contactId: str, rkid: str, memberLabel: str, at: millis })),
-        invites: keyed(receivedInvite2, 'credDigest'),
+        invites: keyed(receivedInvite, 'credDigest'),
         surfaced: sortedSet,
         declined: sortedSet,
     }),
@@ -422,8 +388,7 @@ const codec2 = obj({
 });
 /** Structural validators per codec version; every readable codec has one. */
 export const VALIDATORS = Object.freeze({
-    1: (raw) => codec1(raw, '$'),
-    2: (raw) => codec2(raw, '$'),
+    3: (raw) => codec3(raw, '$'),
 });
 // ── the codec ──────────────────────────────────────────────────────────
 /** Canonical JSON text of a JSON-pure value, or not-json. */

@@ -1,6 +1,6 @@
 {
   "name": "@real-life/trust-protocol",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "The Real Life Trust Protocol (RLTP) \u2014 the executable form of the specification: encounters, introductions, trust disclosure, groups, continuity, and the delivery channel. Zero dependencies, WebCrypto only.",
   "license": "CC-BY-4.0",
   "type": "module",
@@ -57,12 +57,10 @@
     "dist/internal.*",
     "dist/util-freeze.*",
     "dist/forge.*",
-    "dist/holder-state-v1.*",
-    "dist/holder-state-v2.*",
+    "dist/holder-state-v3.*",
     "dist/adapters/",
     "dist/message/",
-    "schemas/holder-state-v1.schema.json",
-    "schemas/holder-state-v2.schema.json",
+    "schemas/holder-state-v3.schema.json",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -86,7 +84,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test test/vectors.test.mjs test/vectors2.test.mjs test/vectors3.test.mjs test/vectors4.test.mjs test/carrier.test.mjs test/loopback.test.mjs test/adapter-vti-mediator.test.mjs test/anchor.test.mjs test/codec.test.mjs test/codec-fixture.test.mjs test/holder-state-schema.test.mjs test/entropy.test.mjs test/entropy-lint.test.mjs test/store.test.mjs test/keys-seed.test.mjs test/engine.test.mjs test/views.test.mjs test/prompts.test.mjs test/receive.test.mjs test/duties.test.mjs test/retention.test.mjs test/crypto-lazy.test.mjs test/trust-mapping.test.mjs test/trust-admission.test.mjs test/trust-classes.test.mjs test/trust-star.test.mjs test/trust-group-star.test.mjs test/trust-continuity.test.mjs test/trust-entries.test.mjs test/trust-ported.test.mjs test/trust-duties.test.mjs test/invariants.test.mjs test/invariants-generator.test.mjs test/invariants-coverage.test.mjs test/identity.test.mjs test/profile.test.mjs test/sha256.test.mjs test/encounter-holder.test.mjs test/encounter-ported.test.mjs test/membership-holder.test.mjs test/introduction-holder.test.mjs test/block-holder.test.mjs test/message-vectors.test.mjs test/message-holder.test.mjs test/message-interleavings.test.mjs",
+    "test": "node --test test/vectors.test.mjs test/vectors2.test.mjs test/vectors3.test.mjs test/vectors4.test.mjs test/carrier.test.mjs test/loopback.test.mjs test/adapter-vti-mediator.test.mjs test/anchor.test.mjs test/codec.test.mjs test/codec-fixture.test.mjs test/holder-state-schema.test.mjs test/entropy.test.mjs test/entropy-lint.test.mjs test/store.test.mjs test/keys-seed.test.mjs test/engine.test.mjs test/views.test.mjs test/prompts.test.mjs test/receive.test.mjs test/duties.test.mjs test/retention.test.mjs test/crypto-lazy.test.mjs test/trust-mapping.test.mjs test/trust-admission.test.mjs test/trust-classes.test.mjs test/trust-star.test.mjs test/trust-group-star.test.mjs test/trust-continuity.test.mjs test/trust-entries.test.mjs test/trust-ported.test.mjs test/trust-duties.test.mjs test/invariants.test.mjs test/invariants-generator.test.mjs test/invariants-coverage.test.mjs test/identity.test.mjs test/profile.test.mjs test/sha256.test.mjs test/encounter-holder.test.mjs test/encounter-ported.test.mjs test/membership-holder.test.mjs test/introduction-holder.test.mjs test/block-holder.test.mjs test/message-vectors.test.mjs test/message-holder.test.mjs test/message-interleavings.test.mjs test/transport-custody.test.mjs test/transport-interleavings.test.mjs",
     "prepack": "npm run build && npm test"
   },
   "keywords": [

@@ -75,13 +75,48 @@
 //     stages again, which re-checks the effect cache at stage 4
 //   - an ack is stored sealed (StoredAck: envelope, digest, recipient) in
 //     its effect, so every re-send is byte-identical down to the envelope.
-//     It stays `sent: false` until any report on its digest. Unsent, it has
-//     the outbox's retry schedule: attempt 1 at the receive, re-offered by
-//     resume when due (attempt + 1, backoff), counted into nextDueAt, and at
-//     its horizon (effect commit + horizonMs) marked sent by the horizon
-//     (`sentBy: 'horizon'`, no event: acks have no trias). A duplicate's
-//     re-send carries attempt + 1 and does not move the schedule (it
-//     commits nothing beyond lastWhen)
+//     It stays `sent: false` until a service takes it (report accepted or
+//     delivered: `sentBy: 'accepted'`), the adapter reports it failed
+//     (`'failed'`), or its horizon passes (effect commit + horizonMs:
+//     `'horizon'`, no event: acks have no trias) — Delivery RLTP-DEL-6330.
+//     An awaiting-transport report keeps it unsent and records `held`; a
+//     held ack is not re-offered by resume (the adapter has it) and stays
+//     in pendingTransport. Unsent and not held, it has the outbox's retry
+//     schedule: attempt 1 at the receive, re-offered by resume when due
+//     (attempt + 1, backoff), counted into nextDueAt. Sent or not, it stays
+//     with its effect until the effect expires (RLTP-DEL-6335). A
+//     duplicate's re-send carries attempt + 1 and does not move the
+//     schedule; it commits the answer it makes due (6330), else nothing
+//     beyond lastWhen
+//   - custody (Delivery RLTP-DEL-6120 to 6135): pendingTransport(when) is
+//     the set the holder keeps for transport — every outbox item neither
+//     terminal nor accepted, held ones included, and every unsent ack —
+//     each with its deadline (notAfter: the horizon from the first
+//     submission, or the type's sender lifetime if earlier) and without
+//     those whose deadline has passed at `when`, whether or not a resume
+//     has recorded the give-up yet. It answers only after a resume of this
+//     engine has completed (a resume that throws withdraws that again), and
+//     its entries are issued to this engine: mayHandOver(entry, when)
+//     accepts only an entry this engine issued, re-reads the store and says
+//     yes only while the engine is open and the entry is still pending
+//     there with the same envelope before its deadline. handOver(entry,
+//     when, start) is the same check with the deposit's start inside the
+//     queue: nothing of this engine runs between the check and the start.
+//     A duplicate makes an answer due, stored with the ack (answers,
+//     answerDue: kept across a lock): a `resend` entry numbered by it,
+//     beside the ack's retries and independent of their state, deadline the
+//     effect's retention; the begun hand-over ends it (a commit): it is one
+//     hand-over with no retries (Delivery 6330), so a deposit the wire
+//     refuses is not tried again — the sender's next redelivery asks anew;
+//     a duplicate while one is due is answered by it (the same bytes); a resume that throws, its settling
+//     included, withdraws the authority until one completes. The check is
+//     this engine's: a second engine over the same store commits through
+//     CAS but is not serialized with this one's hand-overs, so one opening
+//     per store at a time is the app's to keep (its writer lock). close() ends the
+//     engine: every later operation rejects with InfraError('closed'),
+//     mayHandOver answers false, and no entry issued before authorizes
+//     anything. An operation already running when close() is called
+//     completes
 //   - outbound of one commit, in order: outbox re-emissions, released
 //     acks, new documents
 //   - resume runs duties after the outbox, ordered by dueAt (absent: due
@@ -188,8 +223,9 @@
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
 import { emptyState, toOpaque, triasOf } from './state.js'
-import type { Dec, Duty, Effect, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind } from './state.js'
-import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, RetryPolicy, Store, StoreSnapshot } from './ports.js'
+import type { Dec, Duty, Effect, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind, StoredAck } from './state.js'
+import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, PreTransportReason, Recipient, RetryPolicy, Store, StoreSnapshot } from './ports.js'
+import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
 import { CryptoUnavailableError, InfraError } from './results.js'
 import type { ActError, ActResult, InfraErrorCode, ReceiveResult, ResumeResult } from './results.js'
@@ -499,6 +535,23 @@ export interface Engine {
   receive (env: unknown, when: Millis): Promise<ReceiveResult>
   subscribe (listener: CommitListener): () => void
   snapshot (): Promise<EngineSnapshot>
+  /** what the holder keeps for transport at `when` (Delivery RLTP-DEL-6120):
+   *  refused until a resume of this engine has completed */
+  pendingTransport (when: Millis): Promise<TransportView | TransportRefusal>
+  /** whether `entry`, issued by this engine, may be handed over now: open,
+   *  still pending in the store, its envelope unchanged, before notAfter */
+  mayHandOver (entry: TransportEntry, when: Millis): Promise<boolean>
+  /** the hand-over itself: checks as mayHandOver, then calls `start` inside
+   *  the engine's queue, so no operation of this engine runs between the
+   *  check and the start of the deposit; `start` returns whether it started
+   *  one (a resend entry's grant is used up then). Resolves to the check's
+   *  verdict and `start`'s answer together; false when closed */
+  handOver (entry: TransportEntry, when: Millis, start: () => boolean): Promise<boolean>
+  /** ends this engine: later operations reject with InfraError('closed');
+   *  resolves once the operation running at the call has finished, after
+   *  which this engine commits nothing more */
+  close (): Promise<void>
+  readonly closed: boolean
 }
 
 // ── defaults ───────────────────────────────────────────────────────────
@@ -521,6 +574,49 @@ const HORIZON_MIN = DAY
 const HORIZON_MAX = 90 * DAY
 
 const BUILTIN = ['tick', 'resume', 'report', 'receive'] as const
+
+/** One document the holder keeps for transport (Delivery RLTP-DEL-6120):
+ *  issued by one engine's pendingTransport, deep-frozen; only that engine's
+ *  mayHandOver accepts it, and only while it stays pending. */
+export interface TransportEntry {
+  readonly digest: string
+  /** an outbox document, or a stored acknowledgement */
+  readonly kind: 'document' | 'ack'
+  readonly envelope: Envelope
+  readonly type: string
+  readonly threadId: string
+  readonly recipient: Recipient
+  /** emissions on the holder's retry schedule so far */
+  readonly attempt: number
+  /** the first submission as the holder recorded it (an ack: its effect's
+   *  commit): an adapter's own horizon counts from here, never from when
+   *  it took the entry over (Delivery RLTP-DEL-6130) */
+  readonly since: Millis
+  /** the send deadline: from then on it is given up (or, an ack, no longer
+   *  offered) and never handed over again */
+  readonly notAfter: Millis
+  /** when the holder's retry schedule next re-offers it (absent: due, or held) */
+  readonly nextAttemptAt?: Millis
+  /** the adapter's last report on it was awaiting-transport */
+  readonly held?: PreTransportReason
+  /** a duplicate's answer due (Delivery RLTP-DEL-6330, 6335), beside the
+   *  ack's retries: its number (StoredAck.answers), its deadline the
+   *  effect's retention; its begun hand-over ends it */
+  readonly resend?: number
+}
+
+/** pendingTransport's answer: the set at `at` — the `when` asked for, or
+ *  the holder's lastWhen if that is later — and the commit it was read at. */
+export interface TransportView {
+  readonly ok: true
+  readonly commitSeq: Dec
+  readonly at: Millis
+  readonly entries: readonly TransportEntry[]
+}
+
+/** pendingTransport refuses until a resume of this engine has completed:
+ *  the transitions due at the opening come first (RLTP-DEL-6130, 6135). */
+export interface TransportRefusal { readonly ok: false, readonly code: 'not-resumed' }
 const TASK_URI = /^[a-z][a-z0-9+.-]*:\S+\/[0-9]+\.[0-9]+$/
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -627,6 +723,8 @@ function renameAcks (effects: HolderState['effects'], renames: readonly Identity
   return out ?? effects
 }
 
+const closedError = (): InfraError => new InfraError('closed', 'the holder was closed')
+
 const checkWhen = (when: unknown): void => {
   if (!Number.isSafeInteger(when) || (when as number) < 0) throw new TypeError(`when must be non-negative integer milliseconds, got ${String(when)}`)
 }
@@ -704,6 +802,12 @@ class HolderEngine implements Engine {
   #chain: Promise<unknown> = Promise.resolve()
   /** a commit whose outcome is unknown, settled before the next operation */
   #unsettled: { text: string, actId?: string, commitSeq: Dec, events: HolderEvent[] } | null = null
+  /** close() was called: nothing more runs, nothing issued authorizes */
+  #closed = false
+  /** a resume of this engine completed (and none threw since) */
+  #resumed = false
+  /** the transport entries this engine issued (RLTP-DEL-6130) */
+  readonly #issued = new WeakSet<object>()
 
   constructor (ports: EnginePorts, crypto: CryptoHandle, modules: readonly HolderModule[], opts: EngineOptions = {}) {
     if (opts.check !== undefined && typeof opts.check !== 'function') throw new TypeError('check must be a function')
@@ -857,7 +961,12 @@ class HolderEngine implements Engine {
   // ── the queue ────────────────────────────────────────────────────────
 
   #enqueue<T> (fn: () => Promise<T>): Promise<T> {
-    const p = this.#chain.then(async () => { await this.#settle(); return fn() })
+    if (this.#closed) return Promise.reject(closedError())
+    const p = this.#chain.then(async () => {
+      if (this.#closed) throw closedError()
+      await this.#settle()
+      return fn()
+    })
     this.#chain = p.then(() => undefined, () => undefined)
     return p
   }
@@ -1369,11 +1478,13 @@ class HolderEngine implements Engine {
           const expiry = Math.min(a.at + p.horizonMs, Number.MAX_SAFE_INTEGER)
           effects ??= { ...cur.effects }
           if (when >= expiry) {
-            const { nextAttemptAt: _, ...rest } = a
+            const { nextAttemptAt: _, held: _h, ...rest } = a
             effects[d] = { ...cur.effects[d], ack: { ...rest, sent: true, sentBy: 'horizon' } }
             continue
           }
           due(expiry)
+          // held: the adapter has it (awaiting-transport); pendingTransport offers it
+          if (a.held !== undefined) continue
           if (a.nextAttemptAt !== undefined && a.nextAttemptAt > when) { due(a.nextAttemptAt); continue }
           const attempt = a.attempt + 1
           const nextAttemptAt = dueAt(when, p.backoff(attempt))
@@ -1394,19 +1505,53 @@ class HolderEngine implements Engine {
     }
   }
 
+  /** an answer's hand-over began: it is no longer due (handOver) */
+  #answeredDef (): InternalDef {
+    return {
+      human: false,
+      apply (state, _p, input: { digest: string, n: number }) {
+        const eff = Object.keys(state.effects).find((d) => state.effects[d].ack?.digest === input.digest)
+        if (eff === undefined) return { state: state as HolderState }
+        const a = state.effects[eff].ack!
+        if (a.answerDue !== true || a.answers !== input.n) return { state: state as HolderState }
+        const { answerDue: _d, ...rest } = a
+        return { state: { ...state, effects: { ...state.effects, [eff]: { ...state.effects[eff], ack: rest } } } }
+      },
+    }
+  }
+
   #reportDef (): InternalDef {
     const failed = (st: HolderState, digests: readonly string[], when: Millis) => this.#failed(st, digests, when)
     return {
       human: false,
       apply (state, _p, report: DeliveryReport, when) {
         if (!Object.hasOwn(state.outbox, report.digest)) {
-          // an ack (outbox-less): any report says the app handed it over
+          // an ack (outbox-less, no trias; Delivery RLTP-DEL-6330): sent once
+          // a service took it or the adapter gave it up; awaiting-transport
+          // records that the adapter holds it and ends nothing
           const eff = Object.keys(state.effects).find((d) => state.effects[d].ack?.digest === report.digest)
           if (eff === undefined) return { ok: false, code: 'unknown-digest' }
           const e = state.effects[eff]
-          if (e.ack!.sent) return { state: state as HolderState }
-          const { nextAttemptAt: _, ...ack } = e.ack!
-          return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack: { ...ack, sent: true, sentBy: 'report' } } } } }
+          const a = e.ack!
+          if (a.sent) return { state: state as HolderState }
+          const { nextAttemptAt: _, held: _h, ...rest } = a
+          let ack: StoredAck
+          switch (report.status) {
+            case 'awaiting-transport':
+              if (a.held === report.reason) return { state: state as HolderState }
+              ack = { ...rest, held: report.reason }
+              break
+            case 'accepted':
+            case 'delivered':
+              ack = { ...rest, sent: true, sentBy: 'accepted' }
+              break
+            case 'failed':
+              ack = { ...rest, sent: true, sentBy: 'failed' }
+              break
+            default:
+              throw new TypeError(`unknown report status ${String((report as { status?: unknown }).status)}`)
+          }
+          return { state: { ...state, effects: { ...state.effects, [eff]: { ...e, ack } } } }
         }
         const it = state.outbox[report.digest]
         const trias = triasOf(it)
@@ -1470,8 +1615,14 @@ class HolderEngine implements Engine {
           case 'duplicate': {
             // the stored ack, byte-identical; a terminal document has none
             // (its outbound attempt is one past the schedule's, which it does not move)
+            // and an answer due (Delivery RLTP-DEL-6330): a hand-over of its
+            // own, kept across a lock until it begins; while one is due, a
+            // further duplicate is answered by it (the same bytes)
             const a = state.effects[plan.digest].ack
-            return { state: state as HolderState, release: a ? [ackOutbound(a, a.attempt + 1)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } }
+            const next: HolderState = a && a.answerDue === undefined
+              ? { ...state, effects: { ...state.effects, [plan.digest]: { ...state.effects[plan.digest], ack: { ...a, answers: (a.answers ?? 0) + 1, answerDue: true } } } }
+              : state as HolderState
+            return { state: next, release: a ? [ackOutbound(a, a.attempt + 1)] : [], detail: { disposition: 'duplicate-known', digest: plan.digest } }
           }
           case 'ack': {
             // terminal: the sender-status update and its cache entry, no ack;
@@ -1570,11 +1721,15 @@ class HolderEngine implements Engine {
 
   resume (when: Millis): Promise<ResumeResult> {
     try { checkWhen(when) } catch (e) { return Promise.reject(e) }
+    // fail closed: a resume that throws anywhere — the settling of an
+    // earlier commit included — leaves nothing to go out until one completes
     return this.#enqueue(async () => {
+      this.#resumed = false
       const r = await this.#run(this.#builtins.resume, { kind: 'resume' }, null, when)
       if (isHalt(r) || !r.ok) throw new Error('engine: resume does not refuse')
+      this.#resumed = true
       return { outbound: r.outbound, events: r.events, ...(r.nextDueAt !== undefined ? { nextDueAt: r.nextDueAt } : {}) }
-    })
+    }).catch((e) => { this.#resumed = false; throw e })
   }
 
   report (report: DeliveryReport, when: Millis): Promise<ActResult> {
@@ -1615,6 +1770,152 @@ class HolderEngine implements Engine {
       return Object.freeze({ state, commitSeq: state.commitSeq })
     })
   }
+
+  pendingTransport (when: Millis): Promise<TransportView | TransportRefusal> {
+    try { checkWhen(when) } catch (e) { return Promise.reject(e) }
+    return this.#enqueue(async () => {
+      if (!this.#resumed) return Object.freeze({ ok: false as const, code: 'not-resumed' as const })
+      const { state } = await this.#read()
+      // the holder's time never runs back: an earlier `when` reads at lastWhen
+      const at = Math.max(when, state.lastWhen)
+      const entries = transportEntries(state, at, this.#policy.horizonMs).map((e) => {
+        const f = freezeDeep(e)
+        this.#issued.add(f)
+        return f
+      })
+      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at, entries: Object.freeze(entries) })
+    })
+  }
+
+  mayHandOver (entry: TransportEntry, when: Millis): Promise<boolean> {
+    try { checkWhen(when) } catch (e) { return Promise.reject(e) }
+    if (this.#closed || entry === null || typeof entry !== 'object' || !this.#issued.has(entry)) return Promise.resolve(false)
+    return this.#enqueue(() => this.#mayGo(entry, when)).catch((e) => {
+      if (e instanceof InfraError && e.code === 'closed') return false
+      throw e
+    })
+  }
+
+  handOver (entry: TransportEntry, when: Millis, start: () => boolean): Promise<boolean> {
+    try { checkWhen(when) } catch (e) { return Promise.reject(e) }
+    if (typeof start !== 'function') return Promise.reject(new TypeError('handOver needs a start function'))
+    if (this.#closed || entry === null || typeof entry !== 'object' || !this.#issued.has(entry)) return Promise.resolve(false)
+    return this.#enqueue(async () => {
+      if (!this.#resumed) return false
+      const { state } = await this.#read()
+      // no await from here to start(): close() and every other operation
+      // of this engine come before the check or after the start
+      if (!this.#passes(state, entry, when)) return false
+      if (start() !== true) return false
+      // an answer's hand-over has begun: it is no longer due (a later
+      // duplicate grants the next); a commit that fails leaves it due, and
+      // it may go out once more — the receiver absorbs it
+      if (entry.resend !== undefined) {
+        try { await this.#run(this.#answeredDef(), { kind: 'report', status: 'answered' }, { digest: entry.digest, n: entry.resend }, Math.max(when, state.lastWhen)) } catch { /* stays due */ }
+      }
+      return true
+    }).catch((e) => {
+      if (e instanceof InfraError && e.code === 'closed') return false
+      throw e
+    })
+  }
+
+  /** the gate's check, inside the queue: open, resumed, still pending in
+   *  the store as issued, before its deadline */
+  async #mayGo (entry: TransportEntry, when: Millis): Promise<boolean> {
+    if (!this.#resumed) return false
+    const { state } = await this.#read()
+    return this.#passes(state, entry, when)
+  }
+
+  /** synchronous: open, resumed, the entry pending in `state` as issued,
+   *  before its deadline at max(when, lastWhen) */
+  #passes (state: Readonly<HolderState>, entry: TransportEntry, when: Millis): boolean {
+    if (this.#closed || !this.#resumed) return false
+    const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, entry.resend)
+    return now !== null && now.resend === entry.resend && jcs(now.envelope) === jcs(entry.envelope)
+  }
+
+  close (): Promise<void> {
+    this.#closed = true
+    return this.#chain.then(() => undefined, () => undefined)
+  }
+
+  get closed (): boolean { return this.#closed }
+}
+
+/** The send deadline of an outbox item: the horizon from its first
+ *  submission, or the sender lifetime its type declared if that is
+ *  earlier (#giveUp's two bounds as one instant). */
+const notAfterOf = (it: Readonly<OutboxItem>, horizonMs: number): Millis | null => {
+  if (!it.history.length) return null
+  const expiry = Math.min(it.history[0].at + horizonMs, Number.MAX_SAFE_INTEGER)
+  return it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry
+}
+
+/** The transport entry of one pending document or ack at `when`, or null:
+ *  terminal, accepted, sent, past its deadline, or absent (RLTP-DEL-6135:
+ *  absent means stop). */
+function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack', digest: string, when: Millis, horizonMs: number, resend?: number): TransportEntry | null {
+  if (kind === 'document') {
+    if (!Object.hasOwn(state.outbox, digest)) return null
+    const it = state.outbox[digest]
+    const trias = triasOf(it)
+    if (trias !== 'submitted') return null
+    const notAfter = notAfterOf(it, horizonMs)
+    if (notAfter === null || when >= notAfter) return null
+    const last = it.history[it.history.length - 1]
+    return structuredClone({
+      digest, kind, envelope: it.envelope, type: it.type, threadId: it.threadId, recipient: it.recipient, attempt: it.attempt, since: it.history[0].at, notAfter,
+      ...(last.status === 'awaiting-transport' ? { held: last.reason } : it.nextAttemptAt !== undefined ? { nextAttemptAt: it.nextAttemptAt } : {}),
+    })
+  }
+  for (const d of Object.keys(state.effects)) {
+    const a = state.effects[d].ack
+    if (a === null || a.digest !== digest) continue
+    if (resend !== undefined) {
+      // a duplicate's answer: its own hand-over, apart from the retries and
+      // whatever state they are in, while due and the effect keeps the ack (6335)
+      if (a.answerDue !== true || a.answers !== resend || when >= state.effects[d].expiresAt) return null
+      return structuredClone({
+        digest, kind, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt: a.attempt, since: a.at,
+        notAfter: state.effects[d].expiresAt, resend,
+      })
+    }
+    const notAfter = Math.min(a.at + horizonMs, Number.MAX_SAFE_INTEGER)
+    if (a.sent || when >= notAfter) return null
+    return structuredClone({
+      digest, kind, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt: a.attempt, since: a.at, notAfter,
+      ...(a.held !== undefined ? { held: a.held } : a.nextAttemptAt !== undefined ? { nextAttemptAt: a.nextAttemptAt } : {}),
+    })
+  }
+  return null
+}
+
+/** Everything the holder keeps for transport at `when`: the outbox items
+ *  by due time, then digest, then the unsent acks by effect digest. */
+function transportEntries (state: Readonly<HolderState>, when: Millis, horizonMs: number): TransportEntry[] {
+  const out: TransportEntry[] = []
+  const order = Object.keys(state.outbox).sort((a, b) =>
+    ((state.outbox[a].nextAttemptAt ?? 0) - (state.outbox[b].nextAttemptAt ?? 0)) || (a < b ? -1 : a > b ? 1 : 0))
+  for (const d of order) {
+    const e = transportEntryOf(state, 'document', d, when, horizonMs)
+    if (e) out.push(e)
+  }
+  for (const d of Object.keys(state.effects).sort()) {
+    const a = state.effects[d].ack
+    if (a === null) continue
+    const e = transportEntryOf(state, 'ack', a.digest, when, horizonMs)
+    if (e) out.push(e)
+  }
+  // the duplicates' answers due, each its own entry beside the retries
+  for (const d of Object.keys(state.effects).sort()) {
+    const a = state.effects[d].ack
+    if (a === null || a.answerDue !== true) continue
+    const e = transportEntryOf(state, 'ack', a.digest, when, horizonMs, a.answers)
+    if (e) out.push(e)
+  }
+  return out
 }
 
 /**

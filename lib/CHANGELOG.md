@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.6.0
+
+Takes up Delivery Contract 0.83: the holder keeps custody of what waits
+for transport, and only an open, resumed opening hands anything over.
+
+- **Custody** (RLTP-DEL-6120 to 6135): `pendingTransport(when)` names
+  what the holder keeps for transport, after this opening's first
+  completed resume (else `{ok: false, code: 'not-resumed'}`): every
+  outbox document neither terminal nor accepted, the ones the adapter
+  reported `awaiting-transport` included, and every unsent ack, each with
+  its envelope, recipient, `since` (first submission), `notAfter` (the
+  horizon or the type's sender lifetime, whichever first), `held` and
+  `nextAttemptAt`; none past its deadline, whether or not a resume has
+  recorded the give-up. Entries are deep-frozen and issued to the
+  opening. `handOver(entry, when, start)` re-reads the store and, for an
+  entry this opening issued that is still pending, unchanged and before
+  its deadline, calls `start` inside the holder's queue: the check and the
+  start of the deposit are one step. `mayHandOver(entry, when)` is the
+  check alone, and authorizes nothing afterwards. Both read at
+  max(when, lastWhen): the holder's time never runs back. A resume that throws, the settling of an earlier commit
+  included, withdraws the opening's authority until one completes. One
+  opening per store at a time is the app's to keep: two openings are not
+  serialized with each other.
+- **A duplicate's answer** (RLTP-DEL-6330): a duplicate makes an answer
+  due, stored with the ack (`answers`, `answerDue`) and so kept across a
+  lock; `pendingTransport` offers it as a `resend` entry numbered by it,
+  beside the ack's retries and independent of their state, with the
+  effect's retention as deadline. The begun hand-over ends it (a commit);
+  a duplicate arriving while one is due is answered by it (the same
+  bytes), the next one after it makes the next due. A duplicate therefore
+  commits that answer (else, as before, lastWhen only).
+- **The opening ends**: `await close()` (a lock, the end of a process),
+  resolved once the operation running at the call has finished; only then
+  may the next opening start. Every
+  later call rejects with `InfraError('closed')` (a new code),
+  `mayHandOver` answers false, `closed` says so. The next opening is a new
+  `createHolder` over the same store.
+- **Acks** (RLTP-DEL-6330, 6335): an `awaiting-transport` report on an
+  ack no longer marks it sent; it records `held`, resume stops re-offering
+  it and `pendingTransport` keeps it. `accepted` or `delivered` marks it
+  sent (`sentBy: 'accepted'`), `failed` gives it up (`'failed'`), the
+  horizon ends its retries (`'horizon'`). Sent or not, it stays with its
+  effect until the effect's retention; a duplicate re-sends it once
+  without new retries.
+- **Codec 3, a clean cut**: `StoredAck.sentBy` is `accepted | failed |
+  horizon`, present exactly when sent, `held` only while unsent, and the
+  answers (`answers`, `answerDue`). Codec 3 replaces codecs 1 and 2
+  without a migration: neither ever held a rolled-out app's state, so a
+  state of either is refused as `codec-unknown`. Removed: the migrations
+  1 → 2 and 2 → 3 (`MIGRATIONS` is empty), the codec-1 and codec-2
+  validators, `schemas/holder-state-v1.schema.json`,
+  `schemas/holder-state-v2.schema.json`, the types `HolderStateV1` and
+  `HolderStateV2`, and their fixtures and generators. New:
+  `schemas/holder-state-v3.schema.json`, `HolderStateV3`, fixtures
+  `state-v3*.json` (generated, reproduced in `npm test`).
+- **`./adapters/vti-mediator`**: `reconcile(view, gate, now)` replaces
+  `submitOutbound`. It files the entries of the view not yet filed and
+  withdraws every submission before the trias whose digest the view no
+  longer names; each deposit starts inside `gate.handOver` (the holder),
+  after the adapter's own re-check (retired, withdrawn, past the trias,
+  past the entry's deadline or its horizon): the holder's no withdraws,
+  an error skips the attempt. Its give-up horizon counts from the entry's
+  `since`; an entry taken over past it is given up at once, never
+  attempted. A `resend` entry is a submission of its own. One adapter
+  serves one opening: bound to the holder of its first reconcile, it
+  refuses another, and the next opening gets a new adapter. It keeps no
+  custody of its own.
+- Tests: the custody scenarios (`test/transport-custody.test.mjs`, among
+  them the open counter-probes of the store-launch reviews) and seeded
+  interleavings of locks, the end of a process, hand-overs and acks with
+  every cell reached (`test/transport-interleavings.test.mjs`).
+
 ## 0.5.0
 
 Takes up Message Tasks 0.1, Delivery Contract 0.82 and Membership Tasks

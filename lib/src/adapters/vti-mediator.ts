@@ -1,12 +1,24 @@
 // RLTP transport adapter: VTI mediator — published as
 // @real-life/trust-protocol/adapters/vti-mediator (lib Stage 2, note §4.6).
 //
-// Its reports reach the holder as the ports' DeliveryReport: submitOutbound
-// files an Outbound under its document digest and returns the
-// SubmissionRef (submission id ↔ digest); report(id) maps the adapter's
-// SubmissionState onto DeliveryReport (deliveryReportOf), which the app
-// hands to holder.report(). An adapter's `delivered` is its claim about
-// transport; the holder's receive core verifies the delivery-ack itself.
+// It takes the holder's documents from the holder's custody (Delivery 0.83
+// RLTP-DEL-6120 to 6135, lib 0.6.0): reconcile(view, gate, now) files every
+// entry of holder.pendingTransport(when) not yet filed, and withdraws every
+// filed submission still before the trias whose digest the view no longer
+// names — a missing entry means stop, never keep sending. Before every
+// deposit it asks gate.mayHandOver(entry, now) (the holder): false
+// withdraws the submission, an error skips the attempt. It keeps no
+// custody of its own: its copies are volatile and bound to the holder's
+// opening: bound to the holder of its first reconcile, it refuses another,
+// so after holder.close() nothing it holds goes out, and the next opening
+// gets a new adapter (restored from ackState like any other). Its give-up horizon counts
+// from the entry's first submission (`since`), never from when it took the
+// entry over (RLTP-DEL-6130). Its reports reach the holder as the ports'
+// DeliveryReport: report(id) maps the adapter's SubmissionState onto
+// DeliveryReport (deliveryReportOf), keyed by the document digest, which
+// the app hands to holder.report(). An adapter's `delivered` is its claim
+// about transport; the holder's receive core verifies the delivery-ack
+// itself.
 //
 // Profile: spec/adapter-vti-mediator.md v0.23 (twenty-third casting;
 // round journals under design/adapter-review*). A
@@ -34,7 +46,8 @@ import { jcs } from '../core.js'
 import { sha } from '../crypto.js'
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js'
 import type { CarrierPrincipal, CarrierScopedIdentity } from '../carrier-identity.js'
-import type { DeliveryReport, Outbound, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
+import type { DeliveryReport, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
+import type { TransportEntry, TransportView } from '../engine.js'
 import type { ReceiveResult } from '../results.js'
 export type { ReceiverRefusalCode } from '../ports.js'
 
@@ -133,9 +146,22 @@ export interface AckState {
   pending: string[]
 }
 
+/** The holder's side of a hand-over (lib 0.6.0): the holder itself.
+ *  handOver checks the entry and calls `start` inside the holder's queue;
+ *  `start` re-checks the adapter's own state, starts the deposit
+ *  synchronously and says whether it did. `closed` is read in `start`. */
+export interface TransportGate {
+  handOver (entry: TransportEntry, when: number, start: () => boolean): Promise<boolean>
+  readonly closed?: boolean
+}
+
 interface Submission {
-  /** the document digest, for submissions filed by submitOutbound */
+  id: string
+  /** the document digest, for submissions filed by reconcile */
   digest?: string
+  /** the holder's entry and its gate, for submissions filed by reconcile */
+  entry?: TransportEntry
+  gate?: TransportGate
   bytes: Uint8Array
   submittedAt: number
   attemptStartedAt: number | null
@@ -164,6 +190,8 @@ export class MediatorCarrierAdapter {
   #tokens: TokenSet | null = null
   #clock = Number.NEGATIVE_INFINITY
   #closed = false
+  /** the opening this adapter serves, bound at its first reconcile */
+  #gate: TransportGate | null = null
 
   #subs = new Map<string, Submission>()
   #inflight = new Set<Promise<void>>()
@@ -395,6 +423,7 @@ export class MediatorCarrierAdapter {
     const id = 's' + this.#nextId++
     const knownOffline = this.#wire.offline?.() === true
     const sub: Submission = {
+      id,
       // a plain copy of its own (a Node Buffer's slice() shares memory)
       bytes: new Uint8Array(envelopeBytes),
       submittedAt: now,
@@ -407,15 +436,62 @@ export class MediatorCarrierAdapter {
     return id
   }
 
-  /** Files an Outbound (its envelope as JCS bytes) and returns the
-   *  SubmissionRef the holder's reports are keyed by: submission id ↔
-   *  document digest (note §4.3). */
-  submitOutbound (outbound: Pick<Outbound, 'digest' | 'envelope'>, rawNow: number): SubmissionRef {
+  /** Takes the holder's custody set (holder.pendingTransport, after a
+   *  resume of this opening) and the holder as the gate: files every entry
+   *  not yet filed under its digest (its envelope as JCS bytes; the give-up
+   *  horizon from entry.since) and returns their SubmissionRefs; withdraws
+   *  every filed submission still before the trias (no report, or
+   *  awaiting-transport) whose digest the view does not name. Accepted and
+   *  terminal submissions stay for their reports. */
+  reconcile (view: TransportView, gate: TransportGate, rawNow: number): SubmissionRef[] {
     this.#open()
-    if (typeof outbound?.digest !== 'string' || outbound.digest === '') throw new Error('an outbound needs its document digest')
-    const submissionId = this.submit(new TextEncoder().encode(jcs(outbound.envelope)), rawNow)
-    this.#subs.get(submissionId)!.digest = outbound.digest
-    return { submissionId, digest: outbound.digest }
+    if (view?.ok !== true || !Array.isArray(view.entries)) throw new Error('reconcile needs a view of holder.pendingTransport')
+    if (typeof gate?.handOver !== 'function') throw new Error('reconcile needs the holder as its gate')
+    // one adapter per opening: its copies and the holder's grants belong to
+    // that opening, and the next opening gets an adapter of its own
+    if (this.#gate === null) this.#gate = gate
+    else if (this.#gate !== gate) throw new Error('one adapter per opening: this adapter reconciles with another holder (create a new adapter for the next opening)')
+    const now = this.#now(rawNow)
+    // a submission's key: the digest, and for a duplicate's answer its
+    // grant too — the retries and each answer are hand-overs of their own
+    const keyOf = (digest: string, resend: number | undefined): string => resend === undefined ? digest : `${digest}#${resend}`
+    const named = new Set(view.entries.map((e) => keyOf(e.digest, e.resend)))
+    const filed = new Map<string, Submission>()
+    for (const [id, sub] of this.#subs) {
+      if (sub.digest === undefined) continue
+      const key = keyOf(sub.digest, sub.entry?.resend)
+      const before = sub.st === null || sub.st.state === 'awaiting-transport'
+      if (before && !named.has(key)) { this.#subs.delete(id); continue }
+      filed.set(key, sub)
+    }
+    const refs: SubmissionRef[] = []
+    for (const entry of view.entries) {
+      const had = filed.get(keyOf(entry.digest, entry.resend))
+      if (had !== undefined) {
+        // the newest entry of a live submission is the one its gate checks
+        if (had.st === null || had.st.state === 'awaiting-transport') { had.entry = entry; had.gate = gate; continue }
+        // an answer the holder still offers is still owed — its hand-over
+        // never began, or the holder could not record that it did: a
+        // terminal submission of it is filed again (the holder ends it)
+        if (entry.resend === undefined) continue
+        this.#subs.delete(had.id)
+      }
+      const id = 's' + this.#nextId++
+      const sub: Submission = {
+        id, digest: entry.digest, entry, gate,
+        bytes: new TextEncoder().encode(jcs(entry.envelope)),
+        // a duplicate's ack is a hand-over of its own, from now
+        submittedAt: entry.resend !== undefined ? now : Math.min(entry.since, now),
+        attemptStartedAt: null, lastKind: null, st: null,
+      }
+      this.#subs.set(id, sub)
+      refs.push({ submissionId: id, digest: entry.digest })
+      // taken over past its horizon (counted from the first submission,
+      // RLTP-DEL-6130): given up at once, never attempted
+      if (now - sub.submittedAt >= DECLARED.giveUpHorizonMs) { sub.st = { state: 'failed', reason: 'expired-by-adapter-policy' }; continue }
+      if (this.#wire.offline?.() !== true) this.#startAttempt(sub, now)
+    }
+    return refs
   }
 
   /** The current state as the ports' DeliveryReport for holder.report(),
@@ -425,7 +501,7 @@ export class MediatorCarrierAdapter {
     const st = this.status(id)
     if (st === null) return null
     const digest = this.#subs.get(id)!.digest
-    if (digest === undefined) throw new Error('submitted without a document digest: use submitOutbound')
+    if (digest === undefined) throw new Error('submitted without a document digest: file holder documents through reconcile')
     return deliveryReportOf(digest, st)
   }
 
@@ -447,7 +523,39 @@ export class MediatorCarrierAdapter {
       const token = await this.#ensureAuth(now)
       if (this.#closed) return   // retirement between auth and deposit: nothing new starts (R5-B2)
       // each attempt hands the wire a copy: what it does with it never reaches the next
-      await this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid)
+      const deposit = (): Promise<void> => {
+        try { return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid) } catch (e) { return Promise.reject(e) }
+      }
+      if (sub.gate !== undefined) {
+        // the holder decides, and the deposit starts in the same step of its
+        // queue (Delivery RLTP-DEL-6125 to 6135); the adapter re-checks its
+        // own state there: retired, withdrawn, past the trias, past the
+        // entry's deadline or its own horizon → no deposit
+        // the deposit's outcome, caught at once: the holder's step may still
+        // be committing when the wire answers
+        let started: Promise<unknown> | null = null
+        let declined = false
+        const entry = sub.entry!
+        const start = (): boolean => {
+          if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate!.closed === true ||
+              (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
+              this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) { declined = true; return false }
+          started = deposit().then(() => null, (e: unknown) => ({ failed: e }))
+          return true
+        }
+        let ok: boolean | null
+        try { ok = await sub.gate.handOver(entry, this.#clock, start) } catch { ok = null }
+        if (started === null) {
+          // the holder said no: withdrawn; the adapter declined or the
+          // holder was unreachable: not this attempt
+          if (ok === false && !declined && this.#subs.get(sub.id) === sub) this.#subs.delete(sub.id)
+          return
+        }
+        const outcome = await (started as Promise<unknown>)
+        if (outcome !== null) throw (outcome as { failed: unknown }).failed
+      } else {
+        await deposit()
+      }
       sub.lastKind = null
       next = { state: 'accepted' }
     } catch (e) {

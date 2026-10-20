@@ -44,8 +44,17 @@ closed error code. The app delivers each envelope and passes every arriving
 one to `receive`. Acts, receives and resumes name `nextDueAt`, the earliest
 time something is due; the app keeps one timer at the earliest of them, and
 when it fires calls `tick` and then `resume`, delivers what `resume` returns
-and sets the timer anew. `InMemoryStore` is for tests; an app brings its own
-store, which passes the `storeContract` suite.
+and sets the timer anew. A transport that must survive a lock or the end
+of the process resumes the holder first, then takes what it sends from
+`pendingTransport`, which names every document the holder still keeps for
+transport, and starts each send inside `handOver(entry, when, start)`, so
+the holder's check and the start of the send are one step (the VTI
+mediator adapter does this in `reconcile(view, holder, now)`;
+`mayHandOver` is the check alone and authorizes nothing afterwards). At
+the lock it awaits `close`, which returns once the holder's running
+operation has finished; only then does the next opening, a new holder over
+the same store, begin. `InMemoryStore` is for tests;
+an app brings its own store, which passes the `storeContract` suite.
 
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)
 lists every act, every export and entry point, and for each module the
