@@ -379,14 +379,20 @@ export class MediatorCarrierAdapter {
             const had = filed.get(entry.digest);
             if (had !== undefined) {
                 // the newest entry of a live submission is the one its gate checks
-                if (had.st === null || had.st.state === 'awaiting-transport') {
-                    had.entry = entry;
-                    had.gate = gate;
+                const live = had.st === null || had.st.state === 'awaiting-transport';
+                // a duplicate's ack, once more: a submission of its own, from now —
+                // a held one of the ended retries is withdrawn, never taken over
+                if (entry.resend === true && had.entry?.resend !== true) {
+                    if (live)
+                        this.#subs.delete(had.id);
+                }
+                else {
+                    if (live) {
+                        had.entry = entry;
+                        had.gate = gate;
+                    }
                     continue;
                 }
-                // a duplicate's ack, once more: a new submission of its own
-                if (entry.resend !== true)
-                    continue;
             }
             const id = 's' + this.#nextId++;
             const sub = {
