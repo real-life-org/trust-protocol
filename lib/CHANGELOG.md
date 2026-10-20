@@ -27,7 +27,9 @@ for transport, and only an open, resumed opening hands anything over.
   opening one hand-over of the stored ack, a `resend` entry in
   `pendingTransport` with the effect's retention as deadline, used up by
   its hand-over.
-- **The opening ends**: `close()` (a lock, the end of a process); every
+- **The opening ends**: `await close()` (a lock, the end of a process),
+  resolved once the operation running at the call has finished; only then
+  may the next opening start. Every
   later call rejects with `InfraError('closed')` (a new code),
   `mayHandOver` answers false, `closed` says so. The next opening is a new
   `createHolder` over the same store.

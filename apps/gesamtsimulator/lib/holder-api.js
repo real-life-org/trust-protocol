@@ -77,8 +77,9 @@
 // queue, true only for an entry this opening issued that is still pending,
 // unchanged, before its deadline. A duplicate's stored ack past its retries
 // appears once as a `resend` entry (Delivery RLTP-DEL-6330). A document missing from the
-// view is no longer to be sent. `close()` ends the opening at a lock or
-// the end of a process: every later call rejects with InfraError
+// view is no longer to be sent. `await close()` ends the opening at a lock or
+// the end of a process (resolved once the running operation finished, the
+// moment the next opening may start): every later call rejects with InfraError
 // 'closed', mayHandOver answers false, and nothing issued before
 // authorizes anything; the next opening is a new createHolder over the
 // same store, resumed first.

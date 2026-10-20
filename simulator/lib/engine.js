@@ -1653,7 +1653,10 @@ class HolderEngine {
         const now = transportEntryOf(state, entry.kind, entry.digest, Math.max(when, state.lastWhen), this.#policy.horizonMs, this.#resends);
         return now !== null && (now.resend === true) === (entry.resend === true) && jcs(now.envelope) === jcs(entry.envelope);
     }
-    close() { this.#closed = true; }
+    close() {
+        this.#closed = true;
+        return this.#chain.then(() => undefined, () => undefined);
+    }
     get closed() { return this.#closed; }
 }
 /** The send deadline of an outbox item: the horizon from its first

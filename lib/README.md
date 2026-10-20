@@ -64,8 +64,9 @@ if (view.ok) for (const entry of view.entries) {
   // the check and the start of the send are one step of the holder
   await holder.handOver(entry, Date.now(), () => { transport.send(entry); return true })
 }
-// a lock or the end of the process: nothing issued before authorizes anything
-holder.close()
+// a lock or the end of the process: nothing issued before authorizes anything;
+// it resolves once the operation running at the call has finished
+await holder.close()
 ```
 
 `pendingTransport` answers `{ok: false, code: 'not-resumed'}` until a
@@ -80,7 +81,9 @@ is the check alone). A document missing from the view is not to be sent.
 A duplicate whose stored ack has ended its retries adds that ack once, as
 a `resend` entry, used up by its hand-over. The check is the opening's:
 two openings over one store at once are not serialized with each other,
-so an app keeps one opening per store (its writer lock). After `close()` every call rejects with
+so an app keeps one opening per store (its writer lock), and releases
+that lock, or starts the next opening, only after `await holder.close()`:
+until then the operation running at the close may still commit. After `close()` every call rejects with
 `InfraError('closed')` and `mayHandOver` answers false; the next opening
 is a new `createHolder` over the same store. An ack is sent once a
 service took it (`accepted`/`delivered` report), the adapter reports it

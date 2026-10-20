@@ -51,8 +51,9 @@ transport, and starts each send inside `handOver(entry, when, start)`, so
 the holder's check and the start of the send are one step (the VTI
 mediator adapter does this in `reconcile(view, holder, now)`;
 `mayHandOver` is the check alone and authorizes nothing afterwards). At
-the lock it calls `close`; the next opening is a new holder over the same
-store. `InMemoryStore` is for tests;
+the lock it awaits `close`, which returns once the holder's running
+operation has finished; only then does the next opening, a new holder over
+the same store, begin. `InMemoryStore` is for tests;
 an app brings its own store, which passes the `storeContract` suite.
 
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)

@@ -542,8 +542,10 @@ export interface Engine {
    *  one (a resend entry's grant is used up then). Resolves to the check's
    *  verdict and `start`'s answer together; false when closed */
   handOver (entry: TransportEntry, when: Millis, start: () => boolean): Promise<boolean>
-  /** ends this engine: later operations reject with InfraError('closed') */
-  close (): void
+  /** ends this engine: later operations reject with InfraError('closed');
+   *  resolves once the operation running at the call has finished, after
+   *  which this engine commits nothing more */
+  close (): Promise<void>
   readonly closed: boolean
 }
 
@@ -1809,7 +1811,10 @@ class HolderEngine implements Engine {
     return now !== null && (now.resend === true) === (entry.resend === true) && jcs(now.envelope) === jcs(entry.envelope)
   }
 
-  close (): void { this.#closed = true }
+  close (): Promise<void> {
+    this.#closed = true
+    return this.#chain.then(() => undefined, () => undefined)
+  }
 
   get closed (): boolean { return this.#closed }
 }
