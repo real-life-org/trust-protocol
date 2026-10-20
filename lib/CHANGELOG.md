@@ -14,10 +14,18 @@ for transport, and only an open, resumed opening hands anything over.
   horizon or the type's sender lifetime, whichever first), `held` and
   `nextAttemptAt`; none past its deadline, whether or not a resume has
   recorded the give-up. Entries are deep-frozen and issued to the
-  opening. `mayHandOver(entry, when)` re-reads the store and says yes only
-  for an entry this opening issued that is still pending, unchanged and
-  before its deadline. A resume that throws withdraws the opening's
-  authority until one completes.
+  opening. `handOver(entry, when, start)` re-reads the store and, for an
+  entry this opening issued that is still pending, unchanged and before
+  its deadline, calls `start` inside the holder's queue: the check and the
+  start of the deposit are one step. `mayHandOver(entry, when)` is the
+  check alone. A resume that throws, the settling of an earlier commit
+  included, withdraws the opening's authority until one completes. One
+  opening per store at a time is the app's to keep: two openings are not
+  serialized with each other.
+- **A duplicate's ack** past its retries: the duplicate grants this
+  opening one hand-over of the stored ack, a `resend` entry in
+  `pendingTransport` with the effect's retention as deadline, used up by
+  its hand-over.
 - **The opening ends**: `close()` (a lock, the end of a process); every
   later call rejects with `InfraError('closed')` (a new code),
   `mayHandOver` answers false, `closed` says so. The next opening is a new
@@ -41,9 +49,13 @@ for transport, and only an open, resumed opening hands anything over.
 - **`./adapters/vti-mediator`**: `reconcile(view, gate, now)` replaces
   `submitOutbound`. It files the entries of the view not yet filed and
   withdraws every submission before the trias whose digest the view no
-  longer names; before each deposit it asks the gate (the holder) and
-  reads its `closed`: no withdraws, an error skips the attempt. Its give-up
-  horizon counts from the entry's `since`. It keeps no custody of its own.
+  longer names; each deposit starts inside `gate.handOver` (the holder),
+  after the adapter's own re-check (retired, withdrawn, past the trias,
+  past the entry's deadline or its horizon): the holder's no withdraws,
+  an error skips the attempt. Its give-up horizon counts from the entry's
+  `since`; an entry taken over past it is given up at once, never
+  attempted. A `resend` entry is a submission of its own. It keeps no
+  custody of its own.
 - Tests: the custody scenarios (`test/transport-custody.test.mjs`, among
   them the open counter-probes of the store-launch reviews) and seeded
   interleavings of locks, the end of a process, hand-overs and acks with

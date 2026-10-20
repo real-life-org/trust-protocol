@@ -70,9 +70,11 @@
 // handed over: the outbox items neither terminal nor accepted (held ones
 // included) and the unsent acks, each with its envelope, its first
 // submission and its deadline, none past it. A transport hands over only
-// such entries, and asks `mayHandOver(entry, when)` right before each
-// hand-over: true only for an entry this opening issued that is still
-// pending, unchanged, before its deadline. A document missing from the
+// such entries, through `handOver(entry, when, start)`: the check of
+// `mayHandOver` and the start of the deposit in one step of the holder's
+// queue, true only for an entry this opening issued that is still pending,
+// unchanged, before its deadline. A duplicate's stored ack past its retries
+// appears once as a `resend` entry (Delivery RLTP-DEL-6330). A document missing from the
 // view is no longer to be sent. `close()` ends the opening at a lock or
 // the end of a process: every later call rejects with InfraError
 // 'closed', mayHandOver answers false, and nothing issued before
@@ -234,6 +236,10 @@ export interface Holder {
   pendingTransport (when: Millis): Promise<TransportView | TransportRefusal>
   /** right before a hand-over: whether this opening's `entry` may go now */
   mayHandOver (entry: TransportEntry, when: Millis): Promise<boolean>
+  /** the hand-over: the same check, then `start()` (which starts the
+   *  deposit synchronously and says whether it did) inside the holder's
+   *  queue; true when both said yes */
+  handOver (entry: TransportEntry, when: Millis, start: () => boolean): Promise<boolean>
   /** ends this opening (a lock, the end of a process) */
   close (): void
   readonly closed: boolean
@@ -307,6 +313,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     deliveryStatus: async (x: string) => deliveryStatusView(await read(), x),
     pendingTransport: (when: Millis) => engine.pendingTransport(when),
     mayHandOver: (entry: TransportEntry, when: Millis) => engine.mayHandOver(entry, when),
+    handOver: (entry: TransportEntry, when: Millis, start: () => boolean) => engine.handOver(entry, when, start),
     close: () => engine.close(),
     get closed () { return engine.closed },
   })

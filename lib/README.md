@@ -60,8 +60,9 @@ await holder.resume(Date.now())                      // the opening's first resu
 const view = await holder.pendingTransport(Date.now())
 if (view.ok) for (const entry of view.entries) {
   // entry: digest, kind ('document' | 'ack'), envelope, recipient,
-  // since (first submission), notAfter (deadline), held?, nextAttemptAt?
-  if (await holder.mayHandOver(entry, Date.now())) transport.send(entry)
+  // since (first submission), notAfter (deadline), held?, nextAttemptAt?, resend?
+  // the check and the start of the send are one step of the holder
+  await holder.handOver(entry, Date.now(), () => { transport.send(entry); return true })
 }
 // a lock or the end of the process: nothing issued before authorizes anything
 holder.close()
@@ -71,9 +72,15 @@ holder.close()
 resume of this opening has completed (a resume that throws withdraws it
 again). It names every outbox document neither terminal nor accepted
 (held ones included) and every unsent ack, none past its deadline.
-`mayHandOver` says yes only for an entry this opening issued that is
-still pending, unchanged and before its deadline; a document missing from
-the view is not to be sent. After `close()` every call rejects with
+`handOver(entry, when, start)` checks an entry and calls `start` inside
+the holder's queue, so nothing of this holder runs between the check and
+the start of the send; it says yes only for an entry this opening issued
+that is still pending, unchanged and before its deadline (`mayHandOver`
+is the check alone). A document missing from the view is not to be sent.
+A duplicate whose stored ack has ended its retries adds that ack once, as
+a `resend` entry, used up by its hand-over. The check is the opening's:
+two openings over one store at once are not serialized with each other,
+so an app keeps one opening per store (its writer lock). After `close()` every call rejects with
 `InfraError('closed')` and `mayHandOver` answers false; the next opening
 is a new `createHolder` over the same store. An ack is sent once a
 service took it (`accepted`/`delivered` report), the adapter reports it
@@ -106,7 +113,7 @@ consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
 human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
 Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `snapshot`, `subscribe`. Custody:
-`pendingTransport`, `mayHandOver`, `close`, `closed`.
+`pendingTransport`, `handOver`, `mayHandOver`, `close`, `closed`.
 
 ## What the root exports
 

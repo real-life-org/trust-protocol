@@ -146,10 +146,11 @@ export interface AckState {
 }
 
 /** The holder's side of a hand-over (lib 0.6.0): the holder itself.
- *  `closed` is read synchronously right before the deposit, after the
- *  awaited `mayHandOver`, so a close in between still stops it. */
+ *  handOver checks the entry and calls `start` inside the holder's queue;
+ *  `start` re-checks the adapter's own state, starts the deposit
+ *  synchronously and says whether it did. `closed` is read in `start`. */
 export interface TransportGate {
-  mayHandOver (entry: TransportEntry, when: number): Promise<boolean>
+  handOver (entry: TransportEntry, when: number, start: () => boolean): Promise<boolean>
   readonly closed?: boolean
 }
 
@@ -442,7 +443,7 @@ export class MediatorCarrierAdapter {
   reconcile (view: TransportView, gate: TransportGate, rawNow: number): SubmissionRef[] {
     this.#open()
     if (view?.ok !== true || !Array.isArray(view.entries)) throw new Error('reconcile needs a view of holder.pendingTransport')
-    if (typeof gate?.mayHandOver !== 'function') throw new Error('reconcile needs the holder as its gate')
+    if (typeof gate?.handOver !== 'function') throw new Error('reconcile needs the holder as its gate')
     const now = this.#now(rawNow)
     const named = new Set(view.entries.map((e) => e.digest))
     const filed = new Map<string, Submission>()
@@ -457,18 +458,23 @@ export class MediatorCarrierAdapter {
       const had = filed.get(entry.digest)
       if (had !== undefined) {
         // the newest entry of a live submission is the one its gate checks
-        if (had.st === null || had.st.state === 'awaiting-transport') { had.entry = entry; had.gate = gate }
-        continue
+        if (had.st === null || had.st.state === 'awaiting-transport') { had.entry = entry; had.gate = gate; continue }
+        // a duplicate's ack, once more: a new submission of its own
+        if (entry.resend !== true) continue
       }
       const id = 's' + this.#nextId++
       const sub: Submission = {
         id, digest: entry.digest, entry, gate,
         bytes: new TextEncoder().encode(jcs(entry.envelope)),
-        submittedAt: Math.min(entry.since, now),
+        // a duplicate's ack is a hand-over of its own, from now
+        submittedAt: entry.resend === true ? now : Math.min(entry.since, now),
         attemptStartedAt: null, lastKind: null, st: null,
       }
       this.#subs.set(id, sub)
       refs.push({ submissionId: id, digest: entry.digest })
+      // taken over past its horizon (counted from the first submission,
+      // RLTP-DEL-6130): given up at once, never attempted
+      if (now - sub.submittedAt >= DECLARED.giveUpHorizonMs) { sub.st = { state: 'failed', reason: 'expired-by-adapter-policy' }; continue }
       if (this.#wire.offline?.() !== true) this.#startAttempt(sub, now)
     }
     return refs
@@ -502,18 +508,37 @@ export class MediatorCarrierAdapter {
     try {
       const token = await this.#ensureAuth(now)
       if (this.#closed) return   // retirement between auth and deposit: nothing new starts (R5-B2)
-      if (sub.gate !== undefined) {
-        // the holder decides right before the hand-over (Delivery
-        // RLTP-DEL-6125 to 6135): no opening, no longer pending, past its
-        // deadline → withdrawn; the holder unreachable → not this attempt
-        let ok: boolean | null
-        try { ok = await sub.gate.mayHandOver(sub.entry!, this.#clock) } catch { ok = null }
-        if (this.#closed || this.#subs.get(sub.id) !== sub) return
-        if (ok === false || sub.gate.closed === true) { this.#subs.delete(sub.id); return }
-        if (ok !== true) return
-      }
       // each attempt hands the wire a copy: what it does with it never reaches the next
-      await this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid)
+      const deposit = (): Promise<void> => {
+        try { return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid) } catch (e) { return Promise.reject(e) }
+      }
+      if (sub.gate !== undefined) {
+        // the holder decides, and the deposit starts in the same step of its
+        // queue (Delivery RLTP-DEL-6125 to 6135); the adapter re-checks its
+        // own state there: retired, withdrawn, past the trias, past the
+        // entry's deadline or its own horizon → no deposit
+        let started: Promise<void> | null = null
+        let declined = false
+        const entry = sub.entry!
+        const start = (): boolean => {
+          if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate!.closed === true ||
+              (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
+              this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) { declined = true; return false }
+          started = deposit()
+          return true
+        }
+        let ok: boolean | null
+        try { ok = await sub.gate.handOver(entry, this.#clock, start) } catch { ok = null }
+        if (started === null) {
+          // the holder said no: withdrawn; the adapter declined or the
+          // holder was unreachable: not this attempt
+          if (ok === false && !declined && this.#subs.get(sub.id) === sub) this.#subs.delete(sub.id)
+          return
+        }
+        await started
+      } else {
+        await deposit()
+      }
       sub.lastKind = null
       next = { state: 'accepted' }
     } catch (e) {
