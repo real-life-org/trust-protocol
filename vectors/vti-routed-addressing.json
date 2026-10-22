@@ -486,7 +486,8 @@
    "mode": "egress-session",
    "switched": false,
    "rules": [
-    "RLTP-VTI-3120"
+    "RLTP-VTI-3120",
+    "RLTP-VTI-3110"
    ],
    "message": {
     "messageType": "direct",
