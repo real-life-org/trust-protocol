@@ -233,8 +233,14 @@ offline signal. The switch is one-way for the instance; an
 instance that saw one routed deposit acknowledged never switches,
 and a successor instance (§6) starts in `routed`.
 
-**RLTP-VTI-3135** — At the switch, every submission of the instance
-not yet `delivered` is deposited once more in the new mode. Its
+**RLTP-VTI-3135** — From the switch on, every attempt uses the new
+mode. A submission still in the holder's custody (no report yet, or
+`awaiting-transport`) goes in the new mode at its next hand-over
+through the holder (RLTP-DEL-6125). A submission already `accepted`
+in mode `routed` and not yet `delivered` is deposited once more in
+the new mode from the instance's own copy (RLTP-VTI-7130), and only
+while the opening that handed it over is still open; a terminal
+submission (`delivered`, `failed`) is never deposited again. Its
 trias state does not move (§6.1: nothing moves `accepted` back), and
 its give-up horizon keeps running from its first submission
 (RLTP-DEL-6130). A document that thereby arrives twice is absorbed by
@@ -445,19 +451,23 @@ itself, so its VID cannot change under an unchanged `C`, and the
 case of §5a.10 that establishes a fresh outer VID does not arise in
 this profile; no Referral is used. What can change under an
 unchanged `C` is the key `C`'s DID document names first under
-`keyAgreement` (a rebinding of the intermediary). When an
-authentication resolves a key other than the one the instance last
-deposited under, every submission not yet `delivered` that was
-deposited under the old key is deposited once more under the new
-one, as RLTP-VTI-3135 states for the switch: state and horizon
-unchanged, a duplicate absorbed by the receiver. A submission that
-had not been accepted is simply packed for the new key at its next
-attempt.
+`keyAgreement` (a rebinding of the intermediary). The binding
+resolves that key at every authentication of the connection DID's
+session, and the adapter authenticates again at the latest when its
+access token expires, so a change is seen no later than the next
+authentication. When the key resolved differs from the one a
+submission was accepted under, that submission, if it is neither
+`delivered` nor `failed`, is deposited once more under the new key,
+from the instance's own copy and only while the opening that handed
+it over is still open: state and horizon unchanged, a duplicate
+absorbed by the receiver. A submission still in the holder's custody
+is packed for the new key at its next hand-over.
 
-**RLTP-VTI-7130** — The re-deposit of RLTP-VTI-7120 draws on the
-instance's own copies, which it took from the holder's custody
-(RLTP-DEL-6120). The holder's custody is not touched by it, and
-nothing taken before a lock or a close authorizes it
+**RLTP-VTI-7130** — The re-deposits of RLTP-VTI-3135 and 7120
+draw on the instance's own copies, which it took from the holder's
+custody (RLTP-DEL-6120). They are no new hand-over: the holder's
+custody is not touched by them, a retired instance makes none, and
+nothing taken before a lock or a close authorizes one
 (RLTP-DEL-6130).
 
 **RLTP-VTI-7140** — On receipt the binding delivers to the adapter
