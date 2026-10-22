@@ -18,9 +18,9 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   the mediator, and a wire does not take its queue for drained until the
   frame is offered again.
 - **The send state** (RLTP-VTI-3130), per relationship: the mode, the
-  instant a document (an entry of kind `document`, or a `submit()`
-  without an entry; never an acknowledgement, which goes through
-  `reconcile`) was first accepted in
+  instant a document (an entry of kind `document` filed by `reconcile`;
+  never an acknowledgement, and never a `submit()` without a digest,
+  which starts no deadline and never proves) was first accepted in
   `routed`, the digests of the documents accepted in `routed` and not yet
   answered (with acceptance and the end of their give-up horizon), and
   whether `routed` is proven. It travels in `AckState.send` (new type

@@ -109,7 +109,8 @@ that persists only `concluded` and `pending` starts every opening in
 less than 24 hours never switches; `mode` and `proven` in a restored
 snapshot are as trustworthy as the host's store. A verdict proves
 `routed` only for a digest the send state names at that moment, so a
-`submit()` without a digest never proves. The consumer a wire registers
+`submit()` without a digest never proves and starts no deadline: an app
+that sends only through `submit()` never switches. The consumer a wire registers
 with `onDeliver` answers whether the adapter took the frame.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
@@ -184,7 +185,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.24): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state travels in `AckState.send` (a document is an entry of kind `document` or a `submit()` without an entry; acknowledgements go through `reconcile`), a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.24): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state travels in `AckState.send` (only an entry of kind `document` filed by `reconcile` counts; a `submit()` without a digest starts no deadline and never proves), a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
 
 ## The modules and the rules they implement
 

@@ -40,9 +40,10 @@
 // unproven for routed-ack-deadline, checked in an advance after a
 // conclusion that left nothing pending and while nothing is pending
 // again (RLTP-VTI-3130); "nothing pending" needs the wire's queueEmpty()
-// to say true — a wire without it never lets the adapter switch. A
-// document is an entry of kind `document`, or a submit() without an
-// entry (the holder's acknowledgements go through reconcile). An attempt
+// to say true — a wire without it never lets the adapter switch. Only a
+// document with a digest — an entry of kind `document` filed by reconcile
+// — enters the send state; a submit() without a digest starts no deadline
+// and never proves, and acknowledgements never count. An attempt
 // ends in the mode it began in; an accepted submission is never
 // deposited again (RLTP-VTI-3135, 7130).
 //
@@ -178,6 +179,9 @@ function restoreSendState(send, restoredAt) {
     // the switch needs a first routed acceptance: an egress-session without one was never produced
     if (s.mode === 'egress-session' && first === null)
         refuse('is egress-session without a first routed acceptance');
+    // proof needs a named digest, which needs a first routed acceptance (review 4 N1)
+    if (s.proven === true && first === null)
+        refuse('is proven without a first routed acceptance');
     if (routed.length > 0 && (first === null || first > Math.min(...routed.map((r) => r.acceptedAt)))) {
         refuse('routed digests without a first routed acceptance at or before them');
     }
@@ -640,7 +644,9 @@ export class MediatorCarrierAdapter {
             return;
         // a document accepted in routed enters the send state (RLTP-VTI-3130);
         // acknowledgements never count
-        if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#isDocument(sub)) {
+        // a submission without a digest (submit()) can never prove routed, so it
+        // starts no deadline either (review 4 N2)
+        if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#isDocument(sub) && sub.digest !== undefined) {
             this.#firstRoutedAcceptedAt ??= this.#clock;
             const horizonAt = sub.submittedAt + DECLARED.giveUpHorizonMs;
             // answered already (the verdict outran the deposit's resolution): not
