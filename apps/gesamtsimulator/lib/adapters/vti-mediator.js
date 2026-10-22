@@ -169,6 +169,8 @@ function restoreSendState(send, restoredAt) {
         refuse('open deposits are not a list');
     if (!Array.isArray(s.sentAcks))
         refuse('sent acknowledgements are not a list');
+    if (!Array.isArray(s.seenResends))
+        refuse('judged duplicates are not a list');
     const instant = (x) => finite(x) && x <= restoredAt;
     const open = s.open.map((r) => {
         const e = r;
@@ -185,14 +187,24 @@ function restoreSendState(send, restoredAt) {
         }
         return { digest: e.digest, acceptedAt: e.acceptedAt };
     });
+    const seenResends = s.seenResends.map((r) => {
+        const e = r;
+        if (typeof e !== 'object' || e === null || typeof e.digest !== 'string' ||
+            !Number.isInteger(e.resend) || e.resend < 0 || !instant(e.seenAt)) {
+            return refuse('judged duplicate is malformed, non-finite or seen after restoredAt');
+        }
+        return { digest: e.digest, resend: e.resend, seenAt: e.seenAt };
+    });
+    if (new Set(seenResends.map((r) => `${r.digest}#${r.resend}`)).size !== seenResends.length)
+        refuse('names a judged duplicate twice');
     if (new Set(open.map((o) => `${o.kind}:${o.digest}`)).size !== open.length)
         refuse('names an open deposit twice');
     if (new Set(sentAcks.map((a) => a.digest)).size !== sentAcks.length)
         refuse('names a sent acknowledgement twice');
     // the switch empties both: an egress-session with either was never produced
-    if (s.mode === 'egress-session' && (open.length > 0 || sentAcks.length > 0))
+    if (s.mode === 'egress-session' && (open.length > 0 || sentAcks.length > 0 || seenResends.length > 0))
         refuse('is egress-session with routed deposits');
-    return { mode: s.mode, open, sentAcks };
+    return { mode: s.mode, open, sentAcks, seenResends };
 }
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 // construction capability: only create() holds it
@@ -237,6 +249,8 @@ export class MediatorCarrierAdapter {
     #openDeposits = new Map();
     /** acknowledgements accepted in routed: digest → acceptance */
     #sentAcks = new Map();
+    /** duplicates' answers already judged: `digest#resend` → first seen */
+    #seenResends = new Map();
     /** this instance has concluded a collection that left nothing pending */
     #cleanConcluded = false;
     /** The only way to build an adapter: the trio is DERIVED here from
@@ -312,6 +326,10 @@ export class MediatorCarrierAdapter {
                     // kept a give-up horizon and the duplicate window after its acceptance
                     if (restoredAt - a.acceptedAt < SENT_ACK_KEEP_MS)
                         this.#sentAcks.set(a.digest, a.acceptedAt);
+                }
+                for (const r of send.seenResends) {
+                    if (restoredAt - r.seenAt < SENT_ACK_KEEP_MS)
+                        this.#seenResends.set(`${r.digest}#${r.resend}`, r.seenAt);
                 }
             }
         }
@@ -523,7 +541,12 @@ export class MediatorCarrierAdapter {
             // there. It is an open routed deposit with that earlier acceptance,
             // so it is due at once (RLTP-VTI-3130 item 2). A redelivery the
             // adapter absorbs itself never reaches the holder and is no duplicate.
-            if (entry.resend !== undefined && entry.kind === 'ack' && this.#mode === 'routed') {
+            // Each grant is judged once, at the first reconcile that names it:
+            // a duplicate that arrived early and is still offered later shows
+            // nothing (the arrival is taken as that first sight).
+            const grant = entry.resend !== undefined ? `${entry.digest}#${entry.resend}` : null;
+            if (grant !== null && entry.kind === 'ack' && this.#mode === 'routed' && !this.#seenResends.has(grant)) {
+                this.#seenResends.set(grant, now);
                 const at = this.#sentAcks.get(entry.digest);
                 const key = `ack:${entry.digest}`;
                 if (at !== undefined && now - at >= DECLARED.giveUpHorizonMs && !this.#openDeposits.has(key)) {
@@ -684,7 +707,9 @@ export class MediatorCarrierAdapter {
         // without a digest opens nothing
         if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#mode === 'routed' && sub.digest !== undefined) {
             if (this.#isDocument(sub)) {
-                // answered already (the verdict outran the deposit's resolution): not opened
+                // answered already (the verdict outran the deposit's resolution): not
+                // opened. acceptedAt is the adapter clock when the deposit resolved,
+                // not when it was handed over: later by the deposit's own run time
                 const key = `document:${sub.digest}`;
                 if (sub.answered !== true && !this.#openDeposits.has(key)) {
                     this.#openDeposits.set(key, { digest: sub.digest, acceptedAt: this.#clock, kind: 'document' });
@@ -725,6 +750,7 @@ export class MediatorCarrierAdapter {
         this.#mode = 'egress-session';
         this.#openDeposits.clear();
         this.#sentAcks.clear();
+        this.#seenResends.clear();
     }
     /** The current sending mode of the relationship (profile §3a). */
     get sendMode() { return this.#mode; }
@@ -739,6 +765,11 @@ export class MediatorCarrierAdapter {
             return;
         this.#now(rawNow);
         this.#openDeposits.delete(`document:${digest}`);
+        // a document of this instance whose attempt still runs is answered too:
+        // its acceptance after this opens nothing
+        for (const sub of this.#subs.values())
+            if (sub.digest === digest && this.#isDocument(sub))
+                sub.answered = true;
     }
     /** Host teardown aid, NOT a port operation (profile §6): awaits
      *  the in-flight background tasks so a host can drain before
@@ -901,6 +932,10 @@ export class MediatorCarrierAdapter {
                 mode: this.#mode,
                 open: [...this.#openDeposits.values()].map((o) => ({ ...o })),
                 sentAcks: [...this.#sentAcks].map(([digest, acceptedAt]) => ({ digest, acceptedAt })),
+                seenResends: [...this.#seenResends].map(([grant, seenAt]) => {
+                    const i = grant.lastIndexOf('#');
+                    return { digest: grant.slice(0, i), resend: Number(grant.slice(i + 1)), seenAt };
+                }),
             },
         };
     }
@@ -982,6 +1017,9 @@ export class MediatorCarrierAdapter {
         for (const [digest, at] of this.#sentAcks)
             if (now - at >= SENT_ACK_KEEP_MS)
                 this.#sentAcks.delete(digest);
+        for (const [grant, at] of this.#seenResends)
+            if (now - at >= SENT_ACK_KEEP_MS)
+                this.#seenResends.delete(grant);
         // the switch (RLTP-VTI-3130): only after a conclusion that left nothing
         // pending and while nothing is pending again at the check (an
         // acknowledgement that arrived since is collected and reported first),

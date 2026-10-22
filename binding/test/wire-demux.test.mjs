@@ -356,7 +356,7 @@ test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rota
 test("fallback (RLTP-VTI-3120): an adapter in egress-session deposits the inner message alone on the egress identity's send-only session, opened at the first such deposit", async () => {
   const med = mediatorDouble();
   const logs = [];
-  const send = { mode: "egress-session", open: [], sentAcks: [] };
+  const send = { mode: "egress-session", open: [], sentAcks: [], seenResends: [] };
   const { A, B, alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
   assert.equal(bob.sendMode, "egress-session");
   assert.equal(med.sockets.has(B.ids.egress.did), false, "lazy: not opened at authentication");
@@ -400,7 +400,7 @@ test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after
 
 test("queueEmpty right after the session opens is false; a successor restored past the deadline does not switch at once (B1)", async () => {
   const med = mediatorDouble();
-  const send = { mode: "routed", open: [{ digest: "d0", acceptedAt: 0, kind: "document" }], sentAcks: [] };
+  const send = { mode: "routed", open: [{ digest: "d0", acceptedAt: 0, kind: "document" }], sentAcks: [], seenResends: [] };
   const { alice, bob, wireB } = await pair(med, [], { restoredB: { concluded: [], pending: [], send } });
   assert.equal(wireB.queueEmpty(), false, "just opened: what the mediator holds may still be on its way");
   bob.conclude(bob.collect(Date.now()), Date.now());

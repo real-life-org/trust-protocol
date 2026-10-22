@@ -29,9 +29,16 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   nothing). Such an entry carries that earlier acceptance, so it is due
   at once. `SendState.sentAcks` keeps the acknowledgements accepted in
   `routed` (the earliest acceptance per digest), each for the give-up
-  horizon and the duplicate window after its acceptance. It travels in `AckState.send` (new type `SendState`); a
-  restore checks it fail-closed (a known mode, finite instants none after
-  the restore instant, each digest once per kind, nothing open or sent in
+  horizon and the duplicate window after its acceptance;
+  `SendState.seenResends` keeps the duplicates' answers already judged
+  (`digest#resend`, as long), so each is judged once, at the first
+  `reconcile` that names it, also across instances. An ack entry carries
+  the acknowledgement's digest. A document's acceptance instant is the
+  adapter clock when its deposit resolved, later than the hand-over by
+  the deposit's run time. The send state travels in `AckState.send` (new
+  type `SendState`); a restore checks it fail-closed (a known mode, finite
+  instants none after the restore instant, each digest once per kind,
+  each judged duplicate once, nothing open, sent or judged in
   `egress-session`), and a snapshot without it starts in `routed`.
   `sendMode` reads the current mode. A `submit()` without a digest opens
   nothing.
@@ -39,8 +46,8 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   and the new `answered(digest, now)` (an answer the holder hands a later
   instance: a valid acknowledgement, a validated refusal or a validated
   `idConflict`) answer the open deposit of that document's digest; a
-  verdict that outruns the acceptance keeps the document from being
-  opened. An open acknowledgement is answered by nothing. Each answer
+  verdict that outruns the acceptance (`answered` included) keeps the
+  document from being opened. An open acknowledgement is answered by nothing. Each answer
   settles its own deposit only. `advance` switches one way to
   `egress-session` when an open routed deposit was accepted
   `DECLARED.routedAckDeadlineMs` (72 h, equal to the give-up horizon) or
@@ -52,7 +59,9 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   `WireError` kind `'routed-refused'` (a validated refusal of the routed
   form) switches at once; the submission stays
   `awaiting-transport(carrier-refused-retriable)` and goes in
-  `egress-session` at its next hand-over. At the switch the open deposits
+  `egress-session` at its next hand-over. This holds for an attempt the
+  holder withdrew while it ran as well: the refusal is evidence about the
+  mediator, not about the document. At the switch the open deposits
   leave; nothing returns to `routed`. An accepted submission is never
   deposited again; one still in the holder's custody goes in the new mode
   at its next hand-over (RLTP-VTI-3135, 7130).

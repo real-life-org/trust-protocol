@@ -54,8 +54,12 @@ mediator adapter does this in `reconcile(view, holder, now)`;
 the lock it awaits `close`, which returns once the holder's running
 operation has finished; only then does the next opening, a new holder over
 the same store, begin. The VTI mediator adapter keeps the relationship's
-sending mode in its `ackState()`; the app persists that state and restores
-it into the adapter of the next opening. An app that does not know whether a human act
+send state in its `ackState()` (the sending mode, the open routed deposits,
+the routed acknowledgements sent); the app persists it with the ack state,
+restores it into the adapter of the next opening, and hands that adapter
+the answers for earlier deposits through `answered(digest, now)` before its
+next `advance` (see the
+[library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)). An app that does not know whether a human act
 committed (a crash, a lock) asks `replay(actId, when)`, which answers the
 act's journaled result or `unknown-act` and never runs the act again.
 `InMemoryStore` is for tests;

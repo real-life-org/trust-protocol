@@ -113,7 +113,9 @@ so does a deposit the wire refuses as `'routed-refused'`, at once. A host
 that persists only `concluded` and `pending` starts every opening in
 `routed` with nothing open, so a relationship whose openings last less
 than 72 hours never switches by the deadline; the mode in a restored
-snapshot is as trustworthy as the host's store. A `submit()` without a
+snapshot is as trustworthy as the host's store. The send state also keeps
+the routed acknowledgements sent and the duplicates' answers already
+judged, so a later adapter judges each duplicate once. A `submit()` without a
 digest opens nothing: an app that sends only through `submit()` never
 switches by the deadline. The consumer a wire registers with `onDeliver`
 answers whether the adapter took the frame.
