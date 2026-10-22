@@ -54,7 +54,9 @@
 // 6), as far as it holds here: (5) a withdrawal — reconcile without the
 // entry — means the adapter starts no deposit for that submission
 // afterwards, and an outcome that resolves late changes nothing here
-// (has() false, report() null, no send state). A wire call already
+// (has() false, report() null, no send state) — except a validated refusal
+// of the routed form, which switches the relationship (a finding about the
+// mediator, RLTP-VTI-3130). A wire call already
 // running cannot be recalled and may still land at the mediator (the §6
 // boundary); the copy that then arrives is a duplicate the receiver
 // absorbs (Delivery §6.2). (6) Every deposit is a submission with an id
@@ -358,7 +360,7 @@ export class MediatorCarrierAdapter {
 
   // the relationship's send state (RLTP-VTI-3130)
   #mode: SendMode = 'routed'
-  /** open routed deposits, keyed `${kind}:${digest}` */
+  /** open routed deposits (documents), keyed by digest */
   #openDeposits = new Map<string, number>()
   /** this instance has concluded a collection that left nothing pending */
   #cleanConcluded = false
@@ -782,8 +784,8 @@ export class MediatorCarrierAdapter {
     if (sub.digest !== undefined) this.#openDeposits.delete(sub.digest)
   }
 
-  /** The switch (RLTP-VTI-3130): one way; the open routed deposits and the
-   *  sent acknowledgements leave the send state. */
+  /** The switch (RLTP-VTI-3130): one way; the open routed deposits leave
+   *  the send state. */
   #switchToEgress (): void {
     this.#mode = 'egress-session'
     this.#openDeposits.clear()

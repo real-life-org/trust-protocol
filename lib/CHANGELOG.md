@@ -86,7 +86,8 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
 - **The app's transport contract**, stated and tested (it held before):
   after a withdrawal by `reconcile` the adapter starts no deposit for that
   submission, and an outcome that resolves late changes nothing, the send
-  state included; a wire call already running cannot be recalled and may
+  state included, except a validated refusal of the routed form, which
+  switches; a wire call already running cannot be recalled and may
   still land at the mediator (profile §6), and the copy that arrives is a
   duplicate the receiver absorbs (Delivery §6.2). Every deposit is a
   submission with an id of its own, a duplicate's answer included; the
