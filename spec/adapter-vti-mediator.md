@@ -248,9 +248,9 @@ RLTP-VTI-1235. The same holds for a second first entry that the
 register convergence of Identity §7a.3 makes canonical over the `N` of
 the hint (two devices writing a first `N` apart): it is a change of `N`
 in this sense. A holder with one writer of its register, as this
-casting assumes, never produces one; carrying a relationship across
-several writing devices belongs to Open Issue 13. A re-announcement of
-the wire identities over the relationship is Open Issue 13.
+casting assumes, never produces one. Re-announcing the wire identities
+over the relationship, which all these cases and several writing
+devices need, is Open Issue 13.
 
 The hint is read below the port line. The holder that carries the
 card passes the hints on as signed and interprets none; building and
@@ -589,7 +589,10 @@ never re-pointed. Changes beyond the direct carrier change
 nothing. A rebind is likewise a new instance. A relationship that the
 continuity machinery chains into another is closed at the chaining
 and gets no successor; the chain is carried by the instance of its
-first contact (RLTP-VTI-1230). There is no wind-up
+first contact (RLTP-VTI-1230). The documents of the closed instance
+that are still in the holder's custody are taken over by the chain's
+instance as under RLTP-VTI-6110 and RLTP-VTI-6120, and the appended
+tuple's `rkid` maps to the chain's wire identities. There is no wind-up
 here to run: the adapter holds no bindings — what it holds at
 teardown is its ack state (§4, the host persists it) and its
 submissions. **A close with live submissions ends their
@@ -951,8 +954,9 @@ is decidable.
    and the counterpart's connection DID, so a foreign client cannot be
    reached through a hint alone.
 13. **Re-announcing the wire identities over the relationship.** A
-   rotation or replacement of `N` (RLTP-VTI-1245) and a relationship
-   without a hint at first contact (RLTP-VTI-1235) both need the
+   rotation or replacement of `N` (RLTP-VTI-1245), a second first `N`
+   from several devices writing the register (RLTP-VTI-1245) and a
+   relationship without a hint at first contact (RLTP-VTI-1235) all need the
    relationship's wire identities announced in a signed document of the
    relationship rather than in a card. That document type does not
    exist; together with the two-stage form of Open Issue 11 it is the
@@ -1042,4 +1046,4 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |
+| 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |
