@@ -104,18 +104,18 @@ collection carries (`acknowledged`, `receiverRefused`, `answered`) are
 applied before that collection's `conclude`, at the latest before the
 next `advance`: the switch check counts them as applied, and one applied
 late can let a relationship switch although its deposits were answered.
-The send state holds the mode and the open routed deposits: documents
-accepted in `routed` and not yet answered, and acknowledgements accepted
-in `routed` whose document the counterpart delivered again a give-up
-horizon or more later (then due at once); an open
+The send state holds the mode and the open routed deposits: this side's
+documents accepted in `routed` and not yet answered (acknowledgements are
+none, so a side that only acknowledges never switches by the deadline); an open
 deposit 72 hours old switches the relationship to `egress-session`, and
 so does a deposit the wire refuses as `'routed-refused'`, at once. A host
 that persists only `concluded` and `pending` starts every opening in
 `routed` with nothing open, so a relationship whose openings last less
 than 72 hours never switches by the deadline; the mode in a restored
-snapshot is as trustworthy as the host's store. The send state also keeps
-the routed acknowledgements sent and the duplicates' answers already
-judged, so a later adapter judges each duplicate once. A `submit()` without a
+snapshot is as trustworthy as the host's store. The adapter absorbs a
+byte-identical copy of a concluded item only for the give-up horizon
+after its conclusion; a later copy reaches the holder, which absorbs it
+and answers it with the stored acknowledgement. A `submit()` without a
 digest opens nothing: an app that sends only through `submit()` never
 switches by the deadline. The consumer a wire registers with `onDeliver`
 answers whether the adapter took the frame.
@@ -192,7 +192,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.24): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits, sent routed acknowledgements, judged duplicates) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.24): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
 
 ## The modules and the rules they implement
 

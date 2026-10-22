@@ -18,30 +18,31 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   the mediator, and a wire does not take its queue for drained until the
   frame is offered again.
 - **The send state** (RLTP-VTI-3130), per relationship: the mode and the
-  **open routed deposits** (`SendState.open`, each with digest,
-  acceptance instant and kind):
-  every document (an entry of kind `document` filed by `reconcile`)
-  accepted in `routed` and not yet answered, and every acknowledgement
-  whose loss the counterpart showed: `reconcile` brings the answer to a
-  duplicate (`resend`) of its document, and an earlier acknowledgement of
-  that document was accepted in `routed` a give-up horizon or more before
-  (an earlier duplicate may come from an ambiguous attempt and shows
-  nothing). Such an entry carries that earlier acceptance, so it is due
-  at once. `SendState.sentAcks` keeps the acknowledgements accepted in
-  `routed` (the earliest acceptance per digest), each for the give-up
-  horizon and the duplicate window after its acceptance;
-  `SendState.seenResends` keeps the duplicates' answers already judged
-  (`digest#resend`, as long), so each is judged once, at the first
-  `reconcile` that names it, also across instances. An ack entry carries
-  the acknowledgement's digest. A document's acceptance instant is the
-  adapter clock (the last port instant) when its deposit resolved;
-  without a port call in between it is the hand-over instant. The send state travels in `AckState.send` (new
-  type `SendState`); a restore checks it fail-closed (a known mode, finite
-  instants none after the restore instant, each digest once per kind,
-  each judged duplicate once, nothing open, sent or judged in
-  `egress-session`), and a snapshot without it starts in `routed`.
-  `sendMode` reads the current mode. A `submit()` without a digest opens
-  nothing.
+  **open routed deposits** (`SendState.open`, each with digest and
+  acceptance instant): every document (an entry of kind `document` filed
+  by `reconcile`) accepted in `routed` and not yet answered.
+  Acknowledgements are no open deposits, so a side that only
+  acknowledges never switches by the deadline (profile Open Issue 9). A
+  document's acceptance instant is the adapter clock (the last port
+  instant) when its deposit resolved; without a port call in between it
+  is the hand-over instant. The send state travels in `AckState.send`
+  (new type `SendState`); a restore checks it fail-closed: exactly `mode`
+  and `open`, a known mode, each entry exactly digest and acceptance
+  instant, finite and not after the restore instant, each digest once,
+  nothing open in `egress-session` — any other field is refused, not
+  ignored. A snapshot without it starts in `routed`. `sendMode` reads the
+  current mode. A `submit()` without a digest opens nothing.
+- **Absorption for the give-up horizon** (profile §2, §4): the adapter
+  absorbs a byte-identical copy of a concluded item only within
+  `give-up-horizon` of its conclusion (or while an acknowledgement for it
+  is on the wire); a later copy is a new item for the holder, whose
+  absorption answers it with the stored acknowledgement (RLTP-DEL-6330,
+  6335). The entry and its ack intent stand for the duplicate window as
+  before; while such a later copy waits in the buffer or is outstanding,
+  the standing intent is not sent, so it never deletes the copy before
+  the holder concluded it (hand off → await → ack).
+- **"Nothing pending" is the binding's statement** (RLTP-VTI-7150):
+  `queueEmpty()` true; without it, no switch.
 - **Answers and switch**: `acknowledged(id)`, `receiverRefused(id, code)`
   and the new `answered(digest, now)` (an answer the holder hands a later
   instance: a valid acknowledgement, a validated refusal or a validated
