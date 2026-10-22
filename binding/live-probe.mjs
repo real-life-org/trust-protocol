@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// live-probe.mjs — the converged adapter (profile 0.23) over the real
-// wire binding against the LIVE VTI mediator.
+// live-probe.mjs — the adapter (profile 0.24) over the real wire
+// binding against the LIVE VTI mediator.
 //
 // Two independent relationships (Alice, Bob), each: derived identity
-// trio, ATM auth under the connection DID, TSP direct-mode carriage of
-// an opaque "sealed RLTP envelope", delete-to-ack timed by the
-// adapter's conclude — measured, not assumed.
+// trio, ATM auth under the connection DID, carriage of an opaque
+// "sealed RLTP envelope" in the sending form the adapter names (default
+// routed: inner TSP direct egress → peer's connection DID inside an
+// outer routed message connection DID → C), delete-to-ack timed by the
+// adapter's conclude — measured, not assumed. Prints the measurements:
+// delivery yes/no, frame sizes (payload, inner, outer bytes) and the
+// times deposit → accepted and deposit → delivery (ms). No secrets.
 //
 // Network-gated: set RLTP_LIVE_MEDIATOR=1 to run.
 //   MEDIATOR_DID=...   overrides the public dev mediator.
@@ -24,11 +28,18 @@ const MEDIATOR_DID = process.env.MEDIATOR_DID
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 const now = () => Date.now();
 const say = (...a) => console.log(...a);
-const fail = (m) => { console.error(`✗ ${m}`); process.exit(1); };
+const measured = [];
+let openCounts = null;
+const report = () => {
+  say("\n── measurements ──");
+  if (openCounts) say(`  open routed deposits: A ${openCounts.A}, B ${openCounts.B}`);
+  for (const m of measured) say(`  ${m.dir}: delivered=${m.delivered ? "yes" : "no"} mode=${m.mode} payload=${m.payload}B inner=${m.inner}B outer=${m.outer ?? "-"}B accepted=${m.acceptedMs ?? "-"}ms delivery=${m.deliveryMs ?? "-"}ms`);
+};
+const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live probe: converged adapter × real mediator ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress-session"} (vti-wire.mjs; provisional default egress-session, profile form egress)`);
+say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.24 §3a)`);
 
 // Each party: its own relationship root and carrier nonce. The wire
 // derives the identical trio the adapter's factory derives.
@@ -61,11 +72,16 @@ say(`    alice conn ${alice.connectionDid.slice(0, 24)}… egress ${alice.egress
 
 // a stand-in sealed RLTP envelope: opaque bytes above the 17-byte floor
 const envelope = rand(64);
-const id = alice.submit(envelope, now());
+const m1 = { dir: "A→B", delivered: false, mode: alice.sendMode };
+measured.push(m1);
+const t1 = now();
+const id = alice.submit(envelope, t1);
 await alice.settle();
+m1.acceptedMs = now() - t1;
+Object.assign(m1, wireA.sentFrames().at(-1) ?? {});
 const st = alice.status(id);
 if (st?.state !== "accepted") fail(`submit not accepted: ${JSON.stringify(st)}`);
-say(`  ✓ deposit handed to the live mediator socket (TSP Rev 3 direct frame)`);
+say(`  ✓ deposit handed to the live mediator socket (mode ${m1.mode}: inner ${m1.inner}B, outer ${m1.outer ?? "-"}B)`);
 
 // give the store-and-forward a moment, then collect at Bob
 const waitFor = async (pred, ms = 20000, step = 250) => {
@@ -80,6 +96,7 @@ const waitFor = async (pred, ms = 20000, step = 250) => {
 let c = { items: [] };
 const got = await waitFor(() => { c = bob.collect(now()); return c.items.length > 0; });
 if (!got) fail("no delivery within 20s");
+m1.delivered = true; m1.deliveryMs = now() - t1;
 say(`  ✓ delivered: ${c.items.length} envelope(s), ${c.items[0].bytes.length}B`);
 if (Buffer.compare(Buffer.from(c.items[0].bytes), Buffer.from(envelope)) !== 0) {
   fail("payload bytes differ — the TSP layer did not carry them truthfully (M-2)");
@@ -92,18 +109,26 @@ say(`  ✓ concluded — delete-to-ack sent under the adapter's timing`);
 
 // the reply direction proves bidirectionality of both bindings
 const replyEnvelope = rand(48);
-const rid = bob.submit(replyEnvelope, now());
+const m2 = { dir: "B→A", delivered: false, mode: bob.sendMode };
+measured.push(m2);
+const t2 = now();
+const rid = bob.submit(replyEnvelope, t2);
 await bob.settle();
+m2.acceptedMs = now() - t2;
+Object.assign(m2, wireB.sentFrames().at(-1) ?? {});
 if (bob.status(rid)?.state !== "accepted") fail("reply not accepted");
 let c2 = { items: [] };
 const got2 = await waitFor(() => { c2 = alice.collect(now()); return c2.items.length > 0; });
 if (!got2) fail("no reply delivery within 20s");
+m2.delivered = true; m2.deliveryMs = now() - t2;
 if (Buffer.compare(Buffer.from(c2.items[0].bytes), Buffer.from(replyEnvelope)) !== 0) fail("reply bytes differ");
 alice.conclude(c2, now());
 await alice.settle();
 say(`  ✓ reply delivered and concluded`);
 
+openCounts = { A: alice.ackState().send.open.length, B: bob.ackState().send.open.length };
 alice.close(); bob.close();
 wireA.close(); wireB.close();
+report();
 console.log("\nLIVE-PROBE PASS — converged adapter exchanged sealed envelopes through the live VTI mediator (deposit → deliver → conclude, both directions)");
 process.exit(0);
