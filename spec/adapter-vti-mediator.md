@@ -75,7 +75,9 @@ foreign one.
   two wire identities, one per relationship × carrier each:
   - the **connection DID** — this side's account at the mediator
     and its address in the relationship: the session that collects
-    (auth, keylist, pickup, receipts) runs under it, the
+    (auth, keylist, pickup, receipts) runs under it — the one other
+    authentication is the egress identity's send-only session in
+    mode `egress-session` (§3a) — the
     counterpart addresses every document to it, and it is the
     **outer** sender of every deposit in mode `routed` (§3a);
   - the **egress identity** — the **inner**, end-to-end sender of
@@ -578,8 +580,9 @@ Control messages, padding, routed and nested messages, and empty
 acknowledged, never delivered.
 
 **RLTP-VTI-7150** — The binding states whether the mediator holds
-nothing more for the connection DID (from the pickup protocol's
-status, or an approximation it names). The check of RLTP-VTI-3130
+nothing more for the connection DID, from the pickup protocol's
+status or from an approximation it names that errs toward
+"something is pending", never toward "nothing is pending". The check of RLTP-VTI-3130
 runs only on that statement: a binding that cannot make it never
 lets the deadline switch happen, and an implementation that uses
 such a binding states so in its conformance notes. The immediate switch on a validated
@@ -746,7 +749,11 @@ is decidable.
    switches at once on a validated refusal of the routed form; what
    the target mediator sends in that case, and how a binding ties it
    to the deposit and authenticates it, is not measured, and the
-   target binding attributes no refusal to the routed form yet.
+   target binding attributes no refusal to the routed form yet. The
+   same holds for problem reports in general: §5 requires a
+   problem report that refuses a deposit to count as a refusal of
+   that deposit, and the target binding does not yet correlate a
+   problem report with a deposit.
 5. **Keylist.** §1 and §3 name keylist updates; the target
    mediator keeps no keylist for TSP clients, and the binding
    treats the update as a no-op.
