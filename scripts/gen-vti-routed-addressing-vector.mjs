@@ -76,7 +76,7 @@ const refused = [
   { case: 'egress-session: the inner message on the connection DID\'s session', mode: 'egress-session', rules: ['RLTP-VTI-3120'], message: egressSession(A, B).message, session: A.connection },
   { case: 'routed after the switch', mode: 'routed', switched: true, rules: ['RLTP-VTI-3135'], inner: r.inner, outer: r.outer, session: r.session },
   { case: 'egress-session: a routed layer from the egress identity on its session (form c-es)', mode: 'egress-session', rules: ['RLTP-VTI-3120', 'RLTP-VTI-1120'], inner: r.inner, outer: { ...r.outer, sender: A.egress }, session: A.egress },
-  { case: 'egress-session before the switch', mode: 'egress-session', switched: false, rules: ['RLTP-VTI-3120'], message: egressSession(A, B).message, session: A.egress },
+  { case: 'egress-session before the switch', mode: 'egress-session', switched: false, rules: ['RLTP-VTI-3120', 'RLTP-VTI-3110'], message: egressSession(A, B).message, session: A.egress },
 ]
 
 // what a receiving binding refuses (RLTP-VTI-7140), seen from A
