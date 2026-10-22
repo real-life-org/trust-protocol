@@ -265,8 +265,9 @@ deposits**:
    only at the switch. The acknowledgements accepted in mode
    `routed` are kept in the send state for this purpose, each for
    `give-up-horizon` and the duplicate-window after its acceptance,
-   and each duplicate is judged once, when the holder first hands
-   over its answer, which counts as its arrival;
+   and each duplicate is judged once, when the holder's custody view
+   first names its answer to the adapter (RLTP-DEL-6125), which
+   counts as its arrival;
    a redelivery the adapter absorbs itself (§2, §4) is no duplicate
    here. Acknowledgements thereby count as deposits like documents,
    and a side that only acknowledges switches by the same rule;
