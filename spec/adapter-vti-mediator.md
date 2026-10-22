@@ -356,7 +356,7 @@ phantom debt (an ack that in fact landed just before a close) can
 never outlive the window. The adapter
 absorbs a byte-identical arrival only within `give-up-horizon` of its
 conclusion; a later one, inside the window or beyond it, is a new
-item — always, without exception — and the receiver's §6.2
+item, with the exceptions listed below, and the receiver's §6.2
 absorption owns it, answering it with the stored acknowledgement
 (RLTP-DEL-6330, RLTP-DEL-6335). That is how a counterpart that
 resubmits after a lost acknowledgement is answered; a resubmission
@@ -368,11 +368,20 @@ of an acknowledgement call already carrying it on the wire** — the
 stay of expiry begins at the wire call itself, never earlier (a
 hanging authentication extends no window; ids whose entry already
 fell are not sent at all), it covers absorption too, and the
-account is settled the moment the call returns. An intent sent or
-flying before a later copy arrives can still delete that copy at the
-mediator before the holder sees it: no document is lost by it — the
-holder concluded the document — but that resubmission of the
-counterpart then goes unanswered, once per such intent.
+account is settled the moment the call returns.
+
+The exceptions, a closed list, all at one price — the
+counterpart's resubmission goes unanswered, and no document is lost,
+because the holder concluded it:
+
+1. the later copy arrives while an acknowledgement carrying its id
+   is on the wire: it is absorbed (the stay of expiry above);
+2. the intent was already sent before the later copy arrived: that
+   acknowledgement can delete the copy at the mediator before the
+   holder sees it;
+3. after a restart the instance does not know that a buffered copy
+   is a later one, so the holding back of §3 does not apply, and a
+   restored intent can delete it at the mediator.
 
 **The teardown edge, priced honestly.** An acknowledgement still
 flying at `close()` cannot be carried by the snapshot; a restored
@@ -455,7 +464,9 @@ retriable, persistent → `failed(unroutable)` at the horizon; 413 →
 `awaiting-transport(transport-unreachable)`; 429/5xx →
 `awaiting-transport(carrier-refused-retriable)`;
 `duplicate-channel` → re-establish, no port event; mediator
-status/problem-report frames → consumed, never acked, never items;
+status frames, and problem-report frames that refuse no deposit →
+consumed, never acked, never items; a problem-report frame that
+refuses a deposit is a refusal of that deposit and maps as below;
 any other refusal of a deposit → retriable, persistent →
 `failed(unroutable)` at the horizon. A refusal of a routed deposit maps like any other deposit refusal
 above, with one exception: a validated refusal of the routed form
@@ -570,8 +581,9 @@ acknowledged, never delivered.
 nothing more for the connection DID (from the pickup protocol's
 status, or an approximation it names). The check of RLTP-VTI-3130
 runs only on that statement: a binding that cannot make it never
-lets the switch happen, and an adapter profile that uses such a
-binding states so.
+lets the deadline switch happen, and an adapter profile that uses
+such a binding states so. The immediate switch on a validated
+refusal of the routed form needs no such statement.
 
 Of the §5a.10 vector debt (Delivery §11), this profile discharges
 what is decidable **here**: the identity derivations are
