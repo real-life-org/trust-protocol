@@ -64,7 +64,12 @@
 //   - deliveryStatus(x) lists the outbox items whose digest or threadId is
 //     x, by first submission, then digest; an unknown x lists none
 //   - relationships: the entry's own (relIds), in that order; chainedFrom
-//     the husks chained into each (chainedInto), by id
+//     the husks chained into each (chainedInto), by id; carrierNonce the
+//     canonical register entry under the relationship's id;
+//     counterpartDeliveryHints the deliveryHints of the counterparty card
+//     on the record whose relId is the relationship's id (the enactment
+//     that opened it): a re-encounter's record names the husk it opened,
+//     so its card never replaces the first contact's hints
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
 import { triasOf } from './state.js';
@@ -72,6 +77,7 @@ import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted,
 import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
 import { messageChannel } from './message/holder.js';
+import { canonicalCarrierNonce } from './identity-state.js';
 // ── helpers ────────────────────────────────────────────────────────────
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
@@ -121,6 +127,22 @@ const relationshipsOf = (state, c, ids, ix) => {
     }
     return { own, all };
 };
+/** The counterparty card's delivery hints on the record that opened relationship `relId`. */
+const firstHints = (state, relId) => {
+    const r = Object.values(state.encounter.records).find((x) => x.relId === relId);
+    const h = r?.card?.deliveryHints;
+    return Array.isArray(h) && h.length ? h.filter((x) => typeof x === 'string') : undefined;
+};
+const relationshipView = (state, r) => {
+    const n = canonicalCarrierNonce(state.register, r.id);
+    const hints = firstHints(state, r.id);
+    return {
+        id: r.id, tuples: r.tuples.length,
+        chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
+        ...(n ? { carrierNonce: { nonce: n.nonce, generation: n.generation } } : {}),
+        ...(hints ? { counterpartDeliveryHints: hints } : {}),
+    };
+};
 const project = (state, c, ix, rix) => {
     const ids = new Set([c.id, ...c.aliases]);
     const { own, all: rels } = relationshipsOf(state, c, ids, ix);
@@ -168,10 +190,7 @@ const project = (state, c, ix, rix) => {
         commitSeq: state.commitSeq,
         id: c.id,
         aliases: [...c.aliases],
-        relationships: own.map((r) => ({
-            id: r.id, tuples: r.tuples.length,
-            chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
-        })),
+        relationships: own.map((r) => relationshipView(state, r)),
         ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
         provenance: origin.provenance.kind,
         ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),

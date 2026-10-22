@@ -62,7 +62,12 @@
 //   - deliveryStatus(x) lists the outbox items whose digest or threadId is
 //     x, by first submission, then digest; an unknown x lists none
 //   - relationships: the entry's own (relIds), in that order; chainedFrom
-//     the husks chained into each (chainedInto), by id
+//     the husks chained into each (chainedInto), by id; carrierNonce the
+//     canonical register entry under the relationship's id;
+//     counterpartDeliveryHints the deliveryHints of the counterparty card
+//     on the record whose relId is the relationship's id (the enactment
+//     that opened it): a re-encounter's record names the husk it opened,
+//     so its card never replaces the first contact's hints
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
@@ -71,6 +76,7 @@ import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted,
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
 import { messageChannel } from './message/holder.js'
+import { canonicalCarrierNonce } from './identity-state.js'
 import type {
   EnactmentRecord,
   Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
@@ -155,7 +161,20 @@ export interface InboxMessageView {
 }
 
 /** One relationship of a contact, as its chain stands. */
-export interface RelationshipView { id: string, tuples: number, chainedFrom: string[] }
+export interface RelationshipView {
+  id: string
+  tuples: number
+  chainedFrom: string[]
+  /** the relationship's canonical carrier-nonce entry (Identity §7a.3):
+   *  N in base64url and its generation, from which an adapter derives this
+   *  side's wire identities; absent where none is held */
+  carrierNonce?: { nonce: string, generation: Dec }
+  /** the counterpart's delivery hints from the card of the enactment that
+   *  opened this relationship (its first contact; Encounter 6080), as
+   *  signed, uninterpreted; absent where that card carried none. A card of
+   *  a later enactment chained into the relationship changes nothing */
+  counterpartDeliveryHints?: string[]
+}
 
 /** One group the holder is a member of. */
 export interface GroupView {
@@ -263,6 +282,24 @@ const relationshipsOf = (state: Readonly<HolderState>, c: Readonly<Contact>, ids
   return { own, all }
 }
 
+/** The counterparty card's delivery hints on the record that opened relationship `relId`. */
+const firstHints = (state: Readonly<HolderState>, relId: string): string[] | undefined => {
+  const r = Object.values(state.encounter.records).find((x) => x.relId === relId)
+  const h = (r?.card as { deliveryHints?: unknown } | undefined)?.deliveryHints
+  return Array.isArray(h) && h.length ? h.filter((x): x is string => typeof x === 'string') : undefined
+}
+
+const relationshipView = (state: Readonly<HolderState>, r: Readonly<Relationship>): RelationshipView => {
+  const n = canonicalCarrierNonce(state.register, r.id)
+  const hints = firstHints(state, r.id)
+  return {
+    id: r.id, tuples: r.tuples.length,
+    chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
+    ...(n ? { carrierNonce: { nonce: n.nonce, generation: n.generation } } : {}),
+    ...(hints ? { counterpartDeliveryHints: hints } : {}),
+  }
+}
+
 const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex, rix: RecordIndex): ContactView => {
   const ids = new Set([c.id, ...c.aliases])
   const { own, all: rels } = relationshipsOf(state, c, ids, ix)
@@ -306,10 +343,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
     commitSeq: state.commitSeq,
     id: c.id,
     aliases: [...c.aliases],
-    relationships: own.map((r) => ({
-      id: r.id, tuples: r.tuples.length,
-      chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
-    })),
+    relationships: own.map((r) => relationshipView(state, r)),
     ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
     provenance: origin.provenance.kind,
     ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),

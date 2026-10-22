@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.7.1
+
+Takes up the VTI Mediator Adapter Profile 0.25 (§1b, the delivery hint)
+and Encounter 0.31.1: a card carries the hints by which its side is
+reachable in the relationship the card opens.
+
+- **The carrier offer** of `show` and `scan`: `carrier: {nonce,
+  deliveryHints}` (new type `CarrierOffer`). `nonce` is the
+  relationship's carrier nonce N, 32 bytes the app draws fresh (Identity
+  §7a.3); `deliveryHints` are the hints the app built from the wire
+  identities its adapter derives from N. The displayed card (`show`) or
+  the scanner's sent card (`scan`) carries the hints under its proof.
+  The library interprets no hint. The offer is act input: bound and
+  journaled with the act, so a repeat under the same actId answers the
+  same card and another offer under it is `actid-conflict`.
+- **N in the register** (`register.carriers`, generation 1) under the
+  relationship the card opens: at `show` already, as the card's pair
+  label enters the register before display (Encounter 4110); a card that
+  ages unscanned leaves its entry, as it leaves its label. At `scan`
+  under the scanner's fresh relationship. The storage format is
+  unchanged (codec 3).
+- **Refusals**: one to eight hints of at most 512 characters each
+  (Encounter RLTP-ENC-6090), else `card-invalid` with `ref`
+  `RLTP-ENC-6090`; a nonce that is not 32 bytes in canonical base64url,
+  or that the register already holds as a carrier or pair nonce, is the
+  new code `carrier-nonce-invalid`. Nothing commits on a refusal.
+- **The view**: each `RelationshipView` names the relationship's
+  canonical carrier-nonce entry (`carrierNonce: {nonce, generation}`) and
+  the counterpart's hints from the card of the enactment that opened it
+  (`counterpartDeliveryHints`), as signed. A re-encounter chained into
+  the relationship changes neither (profile RLTP-VTI-1230). Without an
+  offer both are absent.
+- `cardBody` takes `deliveryHints`.
+
 ## 0.7.0
 
 Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.

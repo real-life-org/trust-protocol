@@ -146,6 +146,31 @@ human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
 Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
 
+**Delivery hints** (Encounter RLTP-ENC-6080, 6090; Identity §7a.3; VTI
+Mediator Adapter Profile 0.25 §1b). `show` and `scan` take a carrier
+offer, `carrier: {nonce, deliveryHints}`: the relationship's carrier
+nonce N (32 bytes the app draws fresh) and the hints the app built from
+the wire identities its adapter derives from N. The card (the displayed
+card, or the scanner's sent card) carries the hints under its proof, and
+N enters the register under the relationship the card opens — at `show`
+already, as the card's pair label does. One to eight hints of at most 512
+characters each, else `card-invalid` with `ref` `RLTP-ENC-6090`; a nonce
+that is not 32 bytes or that the register already holds is
+`carrier-nonce-invalid`. The offer is act input, journaled with the act.
+The library interprets no hint. Each relationship of a contact view names
+the own canonical carrier-nonce entry (`carrierNonce: {nonce,
+generation}`) and the counterpart's hints from the card of the enactment
+that opened it (`counterpartDeliveryHints`); a re-encounter chained into
+the relationship changes neither.
+
+```ts
+const nonce = crypto.getRandomValues(new Uint8Array(32))
+const hint = myHintFor(nonce)  // the app's: the carrier profile's form, from its adapter's identities
+const shown = await holder.show({ when: Date.now(), actId: crypto.randomUUID(), carrier: { nonce, deliveryHints: [hint] } })
+const [rel] = (await holder.contacts())[0]?.relationships ?? []
+// rel?.carrierNonce: this side's N; rel?.counterpartDeliveryHints: the counterpart's hints, as signed
+```
+
 One actId, one result: every human act is journaled under its actId with
 its result. A repeat under the same actId answers the journaled events
 (for `sendMessage` the same `mid`) at any clock and across a lock and a
@@ -167,7 +192,7 @@ journal, and acting anew is the human's decision. Custody:
 
 ## What the root exports
 
-- `createHolder` and its types (`Holder`, `HolderOptions`, `HumanActOptions`,
+- `createHolder` and its types (`Holder`, `HolderOptions`, `HumanActOptions`, `CarrierOffer`,
   `HolderSnapshot`).
 - The ports: `Store`, `KeyProvider`, `Entropy`, `Log`, `Access`,
   `RetryPolicy`, `DeliveryReport`, `Outbound`; `seedKeys(seed)` is the
@@ -194,7 +219,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.24): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.25): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
 
 ## The modules and the rules they implement
 
@@ -314,7 +339,7 @@ This package uses its own semver; the specification uses castings.
 | membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
 | delivery | Delivery 0.83 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
-| transport adapter | VTI Mediator Adapter Profile 0.24 | the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `egress-session` to `routed` (profile Open Issue 7) |
+| transport adapter | VTI Mediator Adapter Profile 0.25 | building and reading the delivery hint of §1b, which is the app's (the holder carries hints uninterpreted); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `egress-session` to `routed` (profile Open Issue 7) |
 | message | Message Tasks 0.1 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 

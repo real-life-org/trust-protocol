@@ -22,9 +22,14 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.24 (twenty-fourth casting;
+// Profile: spec/adapter-vti-mediator.md v0.25 (twenty-fifth casting;
 // round journals under design/adapter-review*). A
-// transport adapter contract — NOT a carrier at the port.
+// transport adapter contract — NOT a carrier at the port. The
+// counterpart's connection DID and egress identity the wire needs come
+// from the counterpart's delivery hint in the card that opened the
+// relationship (profile §1b); the holder hands the hints on uninterpreted
+// (RelationshipView.counterpartDeliveryHints) and this adapter derives its
+// own trio from the relationship's carrier nonce (RelationshipView.carrierNonce).
 //
 // Sending form (profile §3a, lib 0.7.0): every deposit names its mode to
 // the wire. Mode `routed` (the mode of every instance from construction):

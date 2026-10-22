@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 import { canonicalLabel, communityLabel, deviceLabel, deviceName } from './identity.js';
-import { jcs } from './core.js';
+import { fromB64u, jcs } from './core.js';
 import { bindingOf, rawProofValue } from './anchor.js';
 import { classOnToward, entryOf, entryRelationships, lags, liveRel } from './trust/state.js';
 /** The identity module's command names. */
@@ -22,6 +22,41 @@ export function withPairNonce(r, label, nonce) {
     }
     return { ...withLabel(r, label), pairNonces: { ...r.pairNonces, [label]: nonce } };
 }
+/** Does the register hold `nonce` (canonical base64url) as a carrier
+ *  nonce of any relationship, or as a pair nonce (Identity §7a.3: N is
+ *  fresh and never a pair nonce)? */
+export const carrierNonceHeld = (r, nonce) => Object.values(r.carriers).some((list) => list.some((e) => e.nonce === nonce)) || Object.values(r.pairNonces).includes(nonce);
+/** The register with the first carrier-nonce entry of relationship
+ *  `relId`, generation 1 (Identity §7a.3). A relationship that already
+ *  holds an entry is not given a second one here: rotation is not this. */
+export function withCarrierNonce(r, relId, nonce) {
+    if (Object.hasOwn(r.carriers, relId))
+        throw new Error(`identity: ${relId} already holds a carrier nonce (§7a.3)`);
+    return { ...r, carriers: { ...r.carriers, [relId]: [{ nonce, generation: '1' }] } };
+}
+/** The canonical carrier-nonce entry of a relationship (Identity §7a.3):
+ *  the highest generation, among equal ones the nonce whose bytes are
+ *  smallest in unsigned bytewise order; undefined where none is held. */
+export function canonicalCarrierNonce(r, relId) {
+    const list = Object.hasOwn(r.carriers, relId) ? r.carriers[relId] : [];
+    let best;
+    for (const e of list) {
+        if (!best) {
+            best = e;
+            continue;
+        }
+        const g = BigInt(e.generation) - BigInt(best.generation);
+        if (g > 0n || (g === 0n && bytewiseLess(fromB64u(e.nonce), fromB64u(best.nonce))))
+            best = e;
+    }
+    return best;
+}
+const bytewiseLess = (a, b) => {
+    for (let i = 0; i < Math.min(a.length, b.length); i++)
+        if (a[i] !== b[i])
+            return a[i] < b[i];
+    return a.length < b.length;
+};
 const needName = (x, cmd) => {
     if (x === null || typeof x !== 'object' || Array.isArray(x))
         throw new TypeError(`${cmd} needs an input object`);
