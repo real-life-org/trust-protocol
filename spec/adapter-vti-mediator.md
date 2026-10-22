@@ -164,7 +164,7 @@ runtime revision machinery, and this profile claims none:
 | `queue-floor` | 64 envelopes **and** 1 MiB | below both bounds an inbound frame is always buffered |
 | `max-queue-bytes` | 16 MiB | buffered **and** collected-but-unconcluded bytes together; above it a frame is not buffered and **not acknowledged** — the mediator keeps its copy and re-covers |
 | `duplicate-window` | 30 days | a concluded digest is absorbed for the window, measured from conclusion — and **the window beats everything**: at its end, entry, absorption and any unpaid ack intent fall together |
-| `routed-ack-deadline` | 24 h | the one switch signal of §3a: a document first accepted in mode `routed` this long ago without a valid acknowledgement, while `routed` is not proven for the relationship |
+| `routed-ack-deadline` | 72 h | the deadline of RLTP-VTI-3130: a routed deposit without its answer this long after its acceptance switches the relationship to `egress-session`; equal to `give-up-horizon`, so a document that fails at its horizon without an acknowledgement is the signal |
 
 Withdrawn from the second casting, with reasons on the record:
 `challenge-lifetime` (the adapter has no wall-clock source of its
@@ -236,34 +236,51 @@ keylist and no Live Mode.
 **RLTP-VTI-3130** — The sending mode belongs to the relationship, not
 to the instance: it is kept in the adapter's send state, which the
 host persists with the ack state (§4), and a successor instance
-resumes it. The send state holds the mode, the instant a **document**
-(never an acknowledgement, which is never itself acknowledged) was
-first accepted in mode `routed`, the digests of the documents
-accepted in mode `routed` and not yet answered, and whether `routed`
-has been **proven** for the relationship. `routed` is proven by a
-valid acknowledgement, a validated receiver refusal (§5) or a
-validated `idConflict` answer for one of those digests — reported to the
-instance that deposited it, or by the holder to a later instance when
-it arrives after that one's close. A report for a document the send
-state does not name as routed proves nothing, so after a loss of the
-send state earlier reports prove nothing; answers that are no verdict
-(`unavailable`, `internalError`, §5) prove nothing either. A digest
-leaves the send state when it is answered, or at the first
-conclusion described below that follows the end of its give-up
-horizon. An instance in mode `routed` MUST switch to `egress-session`
-when `routed` is not proven and that first acceptance lies
-`routed-ack-deadline` (§2) or more in the past, checked only after
-the instance has concluded (§3, `conclude`) a collection that left
-no frame pending for it at the mediator, with the reports that
-collection produced applied (an acknowledgement that arrived while
-no instance ran waits in the connection DID's own queue), and MUST
-NOT switch otherwise: not on a refusal by the
-mediator (it maps as §5 says), not on a mediator status or
-problem-report frame (consumed, §5), not on an offline signal. A
-successor applies the reports the holder hands it before it checks
-the deadline. The switch is one-way for the relationship; a
-relationship whose send state is lost (a host that persists nothing)
-starts again in `routed`.
+resumes it. The send state holds the mode and the **open routed
+deposits**:
+
+1. every **document** accepted in mode `routed` and not yet
+   answered, with its digest and acceptance instant. A valid
+   acknowledgement, a validated receiver refusal (§5) or a validated
+   `idConflict` answer for that digest answers it — reported to the
+   instance that deposited it, or by the holder to a later instance
+   when it arrives after that one's close; answers that are no
+   verdict (`unavailable`, `internalError`, §5) do not. A report for
+   a digest the send state does not name answers nothing, so after a
+   loss of the send state earlier reports answer nothing;
+2. every **acknowledgement** of this side accepted in mode `routed`
+   whose document the counterpart delivered again after that
+   acceptance, with the instant of that acceptance: the duplicate is
+   the counterpart's report that the acknowledgement did not arrive
+   (Delivery §6.3). Such an entry is answered by no report; it leaves
+   the send state only at the switch. Acknowledgements count as
+   deposits like documents; a side that only acknowledges switches
+   by the same rule.
+
+An instance in mode `routed` MUST switch to `egress-session` when an
+open routed deposit was accepted `routed-ack-deadline` (§2) or more
+in the past, checked only after the instance has concluded (§3,
+`conclude`) a collection that left no frame pending for it at the
+mediator, with the reports that collection produced applied (an
+acknowledgement that arrived while no instance ran waits in the
+connection DID's own queue). It MUST switch at once when the
+mediator answers a routed deposit with a refusal that names the
+routed form and that the binding authenticates as the mediator's
+(a validated refusal of routed: evidence against `routed`, §5); the
+refused submission stays in the holder's custody and goes in the new
+mode at its next hand-over. It MUST NOT switch otherwise: not on any
+other refusal by the mediator (it maps as §5 says), not on a
+mediator status or problem-report frame that names no routed
+deposit (consumed, §5), not on an offline signal. An answer of one
+deposit settles that deposit only: a relationship in which routed
+deposits were answered before switches by the same rule when a
+later one goes unanswered. A successor applies the reports the
+holder hands it before it checks the deadline. The switch is one-way
+for the relationship, and nothing returns it to `routed`: only a new
+relationship or a change of `C` (a new principal, §6) starts in
+`routed` again. A relationship whose send state is lost (a host that
+persists nothing) starts again in `routed`; at the switch the open
+routed deposits leave the send state.
 
 **RLTP-VTI-3135** — Every attempt to deposit a submission in the
 holder's custody is a hand-over through the holder (RLTP-DEL-6125),
@@ -285,23 +302,23 @@ counterpart's egress identity to its own connection DID (§7).
 
 The signal is honest about what it cannot tell apart: a missing
 acknowledgement is also what a counterpart produces that stays
-offline for the whole deadline, or what this side produces when it
-stays closed and the acknowledgement waits in its own queue, so a
-relationship in which `routed` is not yet proven can switch without
-need. Such a switch is conforming — both modes satisfy §1a — and
-costs what §9 states for mode `egress-session`: a second session and
-a link between the two identities through two logins. The other
-side of the trade is a relationship whose every document fails at
-the give-up horizon on a mediator that accepts routed messages and
-does not deliver them. What was accepted in mode `routed` before the
-switch on such a mediator fails at the horizon; the switch carries
-this side's documents that follow it. It does not carry the
-counterpart's acknowledgements: a side switches on its own
-documents only, so a counterpart that sends no documents of its own
-never switches, its acknowledgements stay routed, and this side's
-documents then arrive while their `delivered` report does not (§10).
-A mediator that refuses routed deposits outright produces no
-acceptance and no switch: the documents fail as `unroutable` (§5).
+offline, or what this side produces when it stays closed and the
+acknowledgement waits in its own queue, so a relationship can switch
+without need. The deadline equals the give-up horizon for that
+reason: a switch caused by absence is the more frequent error than a
+mediator that accepts routed messages and does not deliver them, and
+at 72 hours a document that has gone unacknowledged has already
+failed at its own horizon. A needless switch is conforming — both
+modes satisfy §1a — and costs what §9 states for mode
+`egress-session`: a second session and a link between the two
+identities through two logins. The other side of the trade is a
+relationship whose documents fail at the give-up horizon until the
+switch; what was accepted in mode `routed` before the switch on such
+a mediator fails at its horizon (§10), the switch carries what
+follows it. A mediator that refuses routed deposits with a validated
+refusal of the routed form switches the relationship at once; one
+that refuses them in any other way produces no acceptance and no
+switch, and the documents fail as `unroutable` (§5).
 
 ## 4. Acknowledgement intent and durability
 
@@ -317,8 +334,8 @@ where the flush lives).
 The intent's durability is the **host's store**: the adapter
 exposes its ack state (concluded digests with conclusion instants,
 pending intents) for the host to persist, and accepts it back at
-construction; the send state of §3a (mode, first routed acceptance,
-the routed digests not yet answered, proof) travels in the same snapshot, and an
+construction; the send state of §3a (mode, open routed deposits)
+travels in the same snapshot, and an
 instant in it after the restore instant is refused like a
 conclusion instant. The snapshot invariant — every pending intent names
 a concluded entry — is enforced **fail-closed**: an inconsistent
@@ -428,7 +445,9 @@ retriable, persistent → `failed(unroutable)` at the horizon; 413 →
 `duplicate-channel` → re-establish, no port event; mediator
 status/problem-report frames → consumed, never acked, never items.
 A refusal of a routed deposit maps like any other deposit refusal
-above; it is not a switch signal (§3a).
+above, with one exception: a validated refusal of the routed form
+switches the relationship at once and leaves the submission
+`awaiting-transport` (RLTP-VTI-3130).
 
 ## 6. Lifecycle coupling (§5a.10, applied)
 
@@ -599,8 +618,11 @@ is decidable.
   cost of a forced switch is the second session.
 - **The switch can be forced.** The mediator can drop routed
   frames, or deliver them and suppress the acknowledgements; the
-  counterpart can withhold its acknowledgements for the deadline.
-  Each leaves `routed` unproven past the deadline.
+  counterpart can withhold its acknowledgements for the deadline,
+  or redeliver documents to make this side's acknowledgements look
+  lost; the mediator can also send a refusal of the routed form if
+  the binding cannot tell it from an authentic one. Each leaves an
+  open routed deposit past the deadline, or switches at once.
   Either way the result is the fallback bullet above, made
   permanent for the relationship (RLTP-VTI-3130), plus what Open
   Issue 6 states: a counterpart's access list that admits the
@@ -655,9 +677,8 @@ is decidable.
   which port-level authority is exercised.
 - **The ack store reveals traffic history.** `AckState` holds
   digests and instants of concluded deliveries, and the send state
-  whether and since when a relationship's routed documents went
-  unacknowledged, and the digests of the routed documents not yet
-  answered (outbound history) — metadata about
+  the digests and acceptance instants of the open routed deposits
+  (outbound history) — metadata about
   what arrived and when, not content. A host persisting it should
   protect it like the message store it accompanies.
 - **Instance retirement is not principal retirement.** `close()`
@@ -682,15 +703,14 @@ is decidable.
 2. **Separate pickup identities.** A form in which each
    relationship collects under an identity of its own with its own
    login has not been measured live.
-3. **The value of `routed-ack-deadline`.** 24 hours trades a false
-   switch against stranded documents (§3a); no measurement of
-   counterpart absence underlies the value.
-4. **An explicit refusal of routed messages.** A mediator that
-   answers a routed deposit with a refusal is handled by §5 and
-   does not switch (RLTP-VTI-3130); one that refuses every routed
-   deposit leaves the relationship in `routed` with every document
-   failing as `unroutable`. Whether a refusal that names the routed
-   form should switch at once is open.
+3. **The value of `routed-ack-deadline`.** 72 hours, equal to the
+   give-up horizon (§3a); no measurement of how long counterparts
+   stay absent underlies it.
+4. **Recognising a refusal of the routed form.** RLTP-VTI-3130
+   switches at once on a validated refusal of the routed form; what
+   the target mediator sends in that case, and how a binding ties it
+   to the deposit and authenticates it, is not measured, and the
+   target binding attributes no refusal to the routed form yet.
 5. **Keylist.** §1 and §3 name keylist updates; the target
    mediator keeps no keylist for TSP clients, and the binding
    treats the update as a no-op.
@@ -699,19 +719,21 @@ is decidable.
    mode `routed` and the egress identity in mode `egress-session`;
    a counterpart's access list that admits one does not admit the
    other. This profile sets no access list.
-7. **Return to `routed`, and loss of `routed` later.** The switch
-   is one-way for a relationship; whether and when a relationship in
-   `egress-session` probes `routed` again is open. A relationship in
-   which `routed` was proven never switches, also if the mediator
-   later stops carrying routed messages.
+7. **No return to `routed`.** The switch is final for the
+   relationship; a mediator that carries routed messages again later
+   is used in mode `routed` only by a new relationship or after a
+   change of `C`.
 8. **Documents accepted before a switch or a rebinding.** They end
    at the give-up horizon (RLTP-VTI-7130); depositing them again
    would need the holder's leave after acceptance, which the
-   Delivery Contract does not give.
-9. **Acknowledgements of a side that sends no documents.** Such a
-   side never switches; on a mediator that does not deliver routed
-   messages its acknowledgements are lost, and the counterpart's
-   documents arrive without their `delivered` report (§3a).
+   Delivery Contract does not give; whether its next casting gives
+   such a leave is open (Delivery 0.84).
+9. **Acknowledgements whose loss no duplicate shows.** An
+   acknowledgement counts as an open routed deposit only when the
+   counterpart delivers its document again (RLTP-VTI-3130); a lost
+   acknowledgement after the counterpart's last redelivery is never
+   counted, and the counterpart's document ends `failed` there while
+   it arrived.
 10. **A mediator VID other than `C`.** Not served (RLTP-VTI-7120);
    serving it needs a connection DID that is not a function of
    (root, `C`, `N`) alone.
