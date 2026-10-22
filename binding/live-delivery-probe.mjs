@@ -41,6 +41,7 @@ const report = () => {
   line("document A→B", measured.doc);
   line("delivery-ack B→A", measured.ack);
   say(`  trias A: ${measured.trias.join(" → ") || "-"}; deposit → ack validated: ${measured.ackMs ?? "-"}ms`);
+  say(`  open routed deposits: A ${measured.openA ?? "-"}, B ${measured.openB ?? "-"}`);
 };
 const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
@@ -157,8 +158,10 @@ const finalSt = alice.status(sid);
 if (finalSt?.state !== "delivered" || finalSt.late !== false) fail(`trias did not close: ${JSON.stringify(finalSt)}`);
 measured.trias.push("delivered");
 // in the profile form the acknowledgement proves routed for the relationship (RLTP-VTI-3130)
-// submit() carries no digest: it neither starts the switch deadline nor proves routed (RLTP-VTI-3130, lib 0.7.0)
-if ((process.env.RLTP_WIRE_DEPOSIT ?? "routed") === "routed" && (alice.sendMode !== "routed" || alice.ackState().send.firstRoutedAcceptedAt !== null)) fail("the probe's submit() moved the send state");
+// submit() carries no digest: it opens no routed deposit (RLTP-VTI-3130, lib 0.7.0)
+measured.openA = alice.ackState().send.open.length;
+measured.openB = bob.ackState().send.open.length;
+if ((process.env.RLTP_WIRE_DEPOSIT ?? "routed") === "routed" && (alice.sendMode !== "routed" || measured.openA !== 0)) fail("the probe's submit() moved the send state");
 say(`  ✓ §6.1 trias closed: accepted → delivered (in time, not late)`);
 
 alice.close(); bob.close(); wireA.close(); wireB.close();

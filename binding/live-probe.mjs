@@ -29,8 +29,10 @@ const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 const now = () => Date.now();
 const say = (...a) => console.log(...a);
 const measured = [];
+let openCounts = null;
 const report = () => {
   say("\n── measurements ──");
+  if (openCounts) say(`  open routed deposits: A ${openCounts.A}, B ${openCounts.B}`);
   for (const m of measured) say(`  ${m.dir}: delivered=${m.delivered ? "yes" : "no"} mode=${m.mode} payload=${m.payload}B inner=${m.inner}B outer=${m.outer ?? "-"}B accepted=${m.acceptedMs ?? "-"}ms delivery=${m.deliveryMs ?? "-"}ms`);
 };
 const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
@@ -124,6 +126,7 @@ alice.conclude(c2, now());
 await alice.settle();
 say(`  ✓ reply delivered and concluded`);
 
+openCounts = { A: alice.ackState().send.open.length, B: bob.ackState().send.open.length };
 alice.close(); bob.close();
 wireA.close(); wireB.close();
 report();

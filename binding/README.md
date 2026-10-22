@@ -129,10 +129,10 @@ benennt genau die Pflichten, die hier wohnen.
   auf Bobs rkid → Träger-Pfad → gestuftes `receive()`-Verdikt
   (`unique`, Digest) → signierter `delivery-ack/0.1`
   (eddsa-jcs-2022, ref+thread-gebunden) zurück → Alices §6.1-Trias
-  schließt `accepted → delivered` (nicht late), und im Default ist
-  `routed` danach für die Beziehung bewiesen. Gibt Zustellung,
-  Trias, Rahmengrößen und die Zeiten Einlieferung → `accepted`,
-  → Zustellung und → Ack (ms) aus. Keine Secrets.
+  schließt `accepted → delivered` (nicht late). Gibt Zustellung,
+  Trias, Rahmengrößen, die Zeiten Einlieferung → `accepted`,
+  → Zustellung und → Ack (ms) und die Zahl offener routed-Einlieferungen
+  je Seite aus (`submit()` ohne Digest öffnet keine). Keine Secrets.
 - `.sender-hypothesis.mjs` — Naht-Messung: welchen TSP-Sender leitet
   der Mediator weiter? Drei Fälle (Sender = Socket-DID; fremde
   Sender-VID auf dem Socket; Sender-VID auf eigenem Socket).
@@ -206,7 +206,12 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
 
 ## Offen
 
-- Live-Rückfall `egress-session` aus dem Adapter heraus (Frist 24 h) und
+- Sofortige Umschaltung auf eine validierte Ablehnung der routed-Form
+  (`WireError('routed-refused')`, RLTP-VTI-3130): die Bindung wirft
+  diese Art heute nie; was der Ziel-Mediator in dem Fall sendet und wie
+  er authentisiert wird, ist nicht gemessen (Profil Open Issue 4). Eine
+  Ablehnung eines routed-Deposits gilt bis dahin wie jede andere (§5).
+- Live-Rückfall `egress-session` aus dem Adapter heraus (Frist 72 h) und
   Schlüsselrotation des Mediators: nur im Double geprüft.
 - Die send-only-Session öffnet seit dieser Fassung ohne
   `live-delivery-change`; ob der Live-Mediator Deposits über einen

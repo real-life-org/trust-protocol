@@ -356,7 +356,7 @@ test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rota
 test("fallback (RLTP-VTI-3120): an adapter in egress-session deposits the inner message alone on the egress identity's send-only session, opened at the first such deposit", async () => {
   const med = mediatorDouble();
   const logs = [];
-  const send = { mode: "egress-session", firstRoutedAcceptedAt: 0, routed: [], proven: false };
+  const send = { mode: "egress-session", open: [], sentAcks: [] };
   const { A, B, alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
   assert.equal(bob.sendMode, "egress-session");
   assert.equal(med.sockets.has(B.ids.egress.did), false, "lazy: not opened at authentication");
@@ -400,7 +400,7 @@ test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after
 
 test("queueEmpty right after the session opens is false; a successor restored past the deadline does not switch at once (B1)", async () => {
   const med = mediatorDouble();
-  const send = { mode: "routed", firstRoutedAcceptedAt: 0, routed: [], proven: false };
+  const send = { mode: "routed", open: [{ digest: "d0", acceptedAt: 0, kind: "document" }], sentAcks: [] };
   const { alice, bob, wireB } = await pair(med, [], { restoredB: { concluded: [], pending: [], send } });
   assert.equal(wireB.queueEmpty(), false, "just opened: what the mediator holds may still be on its way");
   bob.conclude(bob.collect(Date.now()), Date.now());
@@ -431,13 +431,13 @@ test("a closed connection socket fails the deposit as unreachable — never acce
   const envelope = jcsBytes(env);
   const [{ submissionId: id }] = bob.reconcile(view, gate(), Date.now()); await bob.settle();
   assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "transport-unreachable" });
-  assert.equal(bob.ackState().send.firstRoutedAcceptedAt, null);
+  assert.deepEqual(bob.ackState().send.open, [], "nothing open before an acceptance");
   assert.equal(med.forwarded.length, 0);
   await tick();
   assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2, "reopened");
   bob.advance(Date.now()); await bob.settle(); await tick();
   assert.equal(bob.status(id).state, "accepted");
-  assert.notEqual(bob.ackState().send.firstRoutedAcceptedAt, null);
+  assert.equal(bob.ackState().send.open.length, 1, "accepted in routed: an open deposit");
   const c = alice.collect(Date.now());
   assert.deepEqual(new Uint8Array(c.items[0].bytes), envelope);
   void A;
@@ -495,9 +495,9 @@ test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed f
   await tick(1100);                               // the real queueEmpty: a quiet open socket
   let t = Date.now();
   bob.conclude(bob.collect(t), t);
-  bob.advance(t + 24 * 3_600_000);
+  bob.advance(t + 72 * 3_600_000);
   assert.equal(bob.sendMode, "egress-session");
-  t += 24 * 3_600_000 + 1;
+  t += 72 * 3_600_000 + 1;
   const second = rand(32);
   bob.submit(second, t); await bob.settle(); await tick();
   const c = alice.collect(Date.now());
