@@ -174,7 +174,12 @@ enactment by the card's proof, and to nothing else.
 string `TSPTransport`; `id`, the side's connection DID followed by
 `#tsp`; `serviceEndpoint`, `C` exactly as configured; and `rltpEgress`,
 the side's egress identity. Both identities are Ed25519 `did:key`
-identifiers and distinct. A card carries at most one hint of this
+identifiers in exactly the form the derivation of §1 produces:
+`did:key:z` followed by the base58btc encoding of the multicodec prefix
+`0xed 0x01` and the 32-byte public key, in its canonical rendering
+(decoding and re-encoding yields the same string); a string that only
+matches the pattern `did:key:z6Mk…` without decoding so is not one. The
+two are distinct. A card carries at most one hint of this
 profile per `C`; a side reachable through two mediators places two
 hints, and the card stays within RLTP-ENC-6090.
 
@@ -210,7 +215,13 @@ chains a later enactment into the chain (Trust §6a), that enactment's
 relationship is one of its own, and its card is its first contact.
 Once chained, the later card leaves the chain unchanged: its hints are
 ignored, and the `N` drawn for it stays with the fresh relationship it
-opened.
+opened. The chain is carried under the `N` of its first contact. An
+adapter instance built for the later enactment's relationship before
+the chaining is closed at the chaining (§6): it collects and deposits
+nothing more. A document the counterpart deposited to that
+relationship's account in the window and that was not collected before
+the close fails at the sender's give-up horizon (§6.1), the resubmission
+being the sender's recourse.
 
 **RLTP-VTI-1235** — A relationship whose counterpart has no wire
 identities at `C` (RLTP-VTI-1225, an introduced relationship, a card
@@ -233,8 +244,13 @@ register entry. The counterpart keeps the identities of the first
 contact (RLTP-VTI-1230), so a holder that rotates or replaces `N` ends
 the relationship's reachability over this carrier: its new identities
 reach no one, and documents to it stay in custody as under
-RLTP-VTI-1235. A re-announcement of the wire identities over the
-relationship is Open Issue 13.
+RLTP-VTI-1235. The same holds for a second first entry that the
+register convergence of Identity §7a.3 makes canonical over the `N` of
+the hint (two devices writing a first `N` apart): it is a change of `N`
+in this sense. A holder with one writer of its register, as this
+casting assumes, never produces one; carrying a relationship across
+several writing devices belongs to Open Issue 13. A re-announcement of
+the wire identities over the relationship is Open Issue 13.
 
 The hint is read below the port line. The holder that carries the
 card passes the hints on as signed and interprets none; building and
@@ -570,7 +586,10 @@ switches the relationship at once and leaves the submission
 Change of the direct carrier = change of `C` = new principal, new
 adapter instance, new wire identities; the old ones are retired,
 never re-pointed. Changes beyond the direct carrier change
-nothing. A rebind is likewise a new instance. There is no wind-up
+nothing. A rebind is likewise a new instance. A relationship that the
+continuity machinery chains into another is closed at the chaining
+and gets no successor; the chain is carried by the instance of its
+first contact (RLTP-VTI-1230). There is no wind-up
 here to run: the adapter holds no bindings — what it holds at
 teardown is its ack state (§4, the host persists it) and its
 submissions. **A close with live submissions ends their
@@ -775,7 +794,9 @@ is decidable.
   `rkid`. The counterpart's binding accepts inner messages only from
   the named egress identity (RLTP-VTI-7140), so the author's own
   deposits are refused and the relationship is not carried. The named
-  account bears the load of those frames, bounded by §2 on its side,
+  account bears the load of those frames: its adapter's buffering is
+  bounded by §2, the mediator's queue and the deposit rate are the
+  mediator's own limits (§2, the honest limit),
   and the mediator sees a pairing of the counterpart's egress identity
   with that account that no relationship holds (§9). A co-signature
   of the hint by both wire identities would prove possession; it is
@@ -785,8 +806,10 @@ is decidable.
   it (§9). A party other than the counterpart can deposit frames to
   that account at the mediator; the binding refuses each
   (RLTP-VTI-7140), logs and acknowledges it, and the documents it
-  carried have no effect. The cost is mediator load and queue space,
-  bounded by §2.
+  carried have no effect. The cost is load: the receiving adapter's
+  buffering is bounded by §2; the mediator's queue and the deposit rate
+  are the mediator's own limits, which this profile does not bind (§2,
+  the honest limit).
 - **Foreign inner messages fail at the receiver.** The mediator
   opens the routing layer and could pass on an inner message of
   its own choosing. An inner message is sealed to the
@@ -960,7 +983,9 @@ the changes its next casting takes up.
   opens it, the sent card answering it), is no such place and MAY name
   the identifier. A displayed card that more than one party scans or
   sees is the limit an adapter profile that uses such a card states
-  (this profile: Open Issue 11).
+  (this profile: Open Issue 11). The conformance list of the same
+  casting (§11: the well-known outer VID, the well-known DIDComm
+  connection DID, TSP ingress) reads "well-known" alike.
 - 5a.10, TSP ingress, the prohibition "not person-wide": the clause
   "the sending side and the collecting side of one person must never
   meet in one identifier" applies to every sender identifier the
