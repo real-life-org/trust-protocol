@@ -1,10 +1,13 @@
 # Changelog
 
-## 0.7.1
+## 0.8.0
 
 Takes up the VTI Mediator Adapter Profile 0.25 (§1b, the delivery hint)
 and Encounter 0.31.1: a card carries the hints by which its side is
-reachable in the relationship the card opens.
+reachable in the relationship the card opens. A minor version: the
+public API grows (`CarrierOffer`, a new `ActError` member, new
+`RelationshipView` fields, three adapter exports); the storage format
+does not change.
 
 - **The carrier offer** of `show` and `scan`: `carrier: {nonce,
   deliveryHints}` (new type `CarrierOffer`). `nonce` is the
@@ -33,6 +36,21 @@ reachable in the relationship the card opens.
   the relationship changes neither (profile RLTP-VTI-1230). Without an
   offer both are absent.
 - `cardBody` takes `deliveryHints`.
+- **The adapter builds and reads the hint** (`./adapters/vti-mediator`,
+  below the port line): `deliveryHint(self, C)` gives this side's hint
+  (RLTP-VTI-1210: the JCS form of the `TSPTransport` entry; throws on
+  identities that are not distinct canonical Ed25519 `did:key`);
+  `readDeliveryHint(hint, C)` reads one hint strictly (1210, 1220: JSON,
+  byte-equal to its JCS form, exactly the four members, `serviceEndpoint`
+  = `C`) into `{connectionDid, egressDid, carrier}` or null;
+  `readDeliveryHints(hints, C)` reads a card's list (1225: exactly one
+  hint for `C`, else null). The app passes the identities to the wire
+  (`peerDid`, `peerEgressDid` of the binding).
+- **No change of N.** The library offers no rotation of a carrier nonce
+  (Identity §7a.3, `generation + 1`) and no replacement after loss:
+  `register.carriers` is written once per relationship, at `show` or
+  `scan`. The profile carries none either (RLTP-VTI-1245), so
+  `carrierNonce` is always the `N` whose identities the counterpart saw.
 
 ## 0.7.0
 
