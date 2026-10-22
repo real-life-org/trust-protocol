@@ -35,8 +35,8 @@ import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import {
   authenticateToMediator, MediatorSession, multibase, didKey,
 } from "@openvtc/vti-didcomm-js";
-import { pack as tspPack, unpack as tspUnpack, packRouted } from "@openvtc/vti-tsp-js";
-import { depositAddressing } from "../lib/dist/adapters/vti-mediator.js";
+import { pack as tspPack, unpack as tspUnpack, packRouted, decodeEnvelope } from "@openvtc/vti-tsp-js";
+import { depositAddressing, WireError } from "../lib/dist/adapters/vti-mediator.js";
 import { hkdf, sha } from "../lib/dist/crypto.js";
 import {
   CONNECTION_INFO_PREFIX, EGRESS_INFO_PREFIX, CARRIER_INFO_PREFIX,
@@ -190,7 +190,22 @@ export async function createVtiWire(cfg) {
       onTspFrame: async (qb2, text) => {
         lastFrameAt = Date.now();
         dispatching++;
-        try { await dispatchFrame(qb2, text); } finally { dispatching--; lastFrameAt = Date.now(); }
+        try {
+          await dispatchFrame(qb2, text);
+        } catch (e) {
+          if (e?.consumer) {
+            if (process.env.RLTP_WIRE_DEBUG) console.error("[wire] adapter refused a frame:", e.cause?.message ?? e.cause);
+            return;
+          }
+          // a frame that cannot be opened, or one from another sender or for
+          // another relationship, is refused for good: logged (type and
+          // sender VID from the cleartext envelope, no secrets) and acked,
+          // so it does not stay in the queue (RLTP-VTI-7140)
+          let sender = "unknown";
+          try { sender = decodeEnvelope(qb2).envelope.sender || "unknown"; } catch { /* undecodable */ }
+          log(`[wire] TSP frame from ${sender} refused: ${e?.message ?? "unreadable"} (acked and dropped)`);
+          try { await session.ackTsp([hexOf(await sha(te.encode(text)))]); } catch { /* the next delivery re-covers */ }
+        } finally { dispatching--; lastFrameAt = Date.now(); }
       },
       onError: () => {},
     });
@@ -199,6 +214,23 @@ export async function createVtiWire(cfg) {
     // period of queueEmpty() starts at the open, not at the epoch
     lastFrameAt = Date.now();
     return session;
+  }
+
+  // A socket that closed under the session is opened again in the
+  // background (single-flight); the call that found it closed fails as
+  // unreachable, so the adapter keeps the deposit or the ack intent and
+  // retries — never a silent success on a dead socket (ws drops a send
+  // after close without an error).
+  let reconnecting = null;
+  function openSession() {
+    if (session?.isOpen) return session;
+    if (session && !reconnecting) {
+      reconnecting = session.connect()
+        .then(() => { lastFrameAt = Date.now(); })
+        .catch(() => { /* the next attempt tries again */ })
+        .finally(() => { reconnecting = null; });
+    }
+    throw new WireError("unreachable", "the connection DID's socket is closed");
   }
 
   async function dispatchFrame(qb2, text) {
@@ -237,7 +269,8 @@ export async function createVtiWire(cfg) {
     const payload = new Uint8Array(got.payload);
     const payloadQid = hexOf(await sha(payload));
     ackMap.set(payloadQid, mediatorQid);
-    await consumer(payload);
+    // the adapter's own failure is not a refusal of the frame: unacked, redelivered
+    try { await consumer(payload); } catch (e) { throw Object.assign(new Error("consumer failed"), { consumer: true, cause: e }); }
   }
 
   // C's key as resolved at the last authentication or token renewal of the
@@ -339,12 +372,12 @@ export async function createVtiWire(cfg) {
       const mode = depositMode === "routed" ? adapterMode : depositMode;
       if (mode === "connection") {
         // control form, not profile-conformant (RLTP-VTI-1130)
-        if (!session) throw new Error("no session");
+        openSession();
         const packed = await tspPack(bytes, conn.did, cfg.peerDid, {
           senderSigningKey: conn.edSecret, receiverEncryptionKey: peerConn.encPub,
         });
         sent.push({ mode, payload: bytes.length, inner: packed.bytes.length, outer: null });
-        session.sendBinary(packed.bytes);
+        openSession().sendBinary(packed.bytes);
         return;
       }
       const addr = depositAddressing(mode === "egress" ? "egress-session" : mode,
@@ -356,7 +389,8 @@ export async function createVtiWire(cfg) {
         receiverEncryptionKey: peerConn.encPub,
       });
       if (mode === "routed") {
-        if (!session || !mediatorInfo) throw new Error("no session");
+        if (!mediatorInfo) throw new WireError("unreachable", "not authenticated");
+        openSession();
         // outer: routed, connection DID → C, route [peer's connection DID],
         // sealed to C's key as last resolved (RLTP-VTI-1120, 3110, 3115, 7120)
         const outer = await packRouted(inner.bytes, [...addr.outer.route], addr.outer.sender, addr.outer.receiver, {
@@ -365,7 +399,7 @@ export async function createVtiWire(cfg) {
         });
         sent.push({ mode, payload: bytes.length, inner: inner.bytes.length, outer: outer.bytes.length });
         if (process.env.RLTP_WIRE_DEBUG) console.error(`[wire] deposit routed ${bytes.length}B → inner ${inner.bytes.length}B → outer ${outer.bytes.length}B`);
-        session.sendBinary(outer.bytes);
+        openSession().sendBinary(outer.bytes);
         return;
       }
       // egress-session: the inner message alone on the egress identity's
@@ -373,8 +407,8 @@ export async function createVtiWire(cfg) {
       // The adapter authenticates the connection DID before every deposit,
       // in this mode too (its token is the deposit's first argument); the
       // egress identity's own authentication happens here
-      const s = mode === "egress-session" ? await ensureEgressSession() : session;
-      if (!s) throw new Error("no session");
+      const s = mode === "egress-session" ? await ensureEgressSession() : openSession();
+      if (!s.isOpen) throw new WireError("unreachable", "the egress identity's socket is closed");
       sent.push({ mode, payload: bytes.length, inner: inner.bytes.length, outer: null });
       if (process.env.RLTP_WIRE_DEBUG) console.error(`[wire] deposit ${mode} ${bytes.length}B → ${inner.bytes.length}B`);
       s.sendBinary(inner.bytes);
@@ -394,9 +428,10 @@ export async function createVtiWire(cfg) {
     sentFrames() { return sent.map((f) => ({ ...f })); },
 
     async ackReceived(_token, queueIds) {
-      const s = session; if (!s) return;
       const mediatorIds = queueIds.map((q) => ackMap.get(q)).filter(Boolean);
       if (mediatorIds.length === 0) return;
+      // on a closed socket the ack would vanish: fail, so the intent stays
+      const s = openSession();
       await s.ackTsp(mediatorIds);
       for (const q of queueIds) ackMap.delete(q);
     },

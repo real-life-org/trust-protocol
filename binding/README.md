@@ -50,6 +50,17 @@ benennt genau die Pflichten, die hier wohnen.
     damit sie die Queue nicht blockieren — inklusive der
     **Ack-Übersetzung** (Payload-Digest ↔ Mediator-Queue-ID = sha256
     über den qb64-Text);
+  - Ein Rahmen, der sich nicht öffnen lässt, von einem anderen Sender
+    kommt oder einer anderen Beziehung gilt, wird ebenfalls mit
+    Sender-VID (aus dem Klartext-Envelope, keine Secrets) geloggt und
+    geackt; nur ein Fehler des Adapters selbst bleibt ungeackt und wird
+    neu zugestellt;
+  - **Geschlossener Socket:** `ws` verwirft ein `send` nach dem Schließen
+    ohne Fehler. Deposit und Ack prüfen daher vorher, ob der Socket der
+    Connection-DID offen ist; sonst werfen sie `WireError('unreachable')`
+    (der Adapter meldet `awaiting-transport` bzw. behält die
+    Ack-Absicht) und stoßen im Hintergrund das Neuverbinden an, der
+    nächste Versuch läuft über den neuen Socket;
   - **Delete-to-Ack unter der Hoheit des Adapters**: die 0.12.0-
     Session ackt sonst direkt nach dem Consumer (mit eigenem
     `_seen`-Dedup); die Subclass `RltpMediatorSession` hebt beides
@@ -86,8 +97,11 @@ benennt genau die Pflichten, die hier wohnen.
   Egress-Identität); die Adressierung beider Richtungen gegen
   `vectors/vti-routed-addressing.json`; Neubindung (Deposit scheitert,
   `rotate()`, Erneuerung, das Wartende kommt mit dem neuen Schlüssel
-  an); Rückfall `egress-session` über die send-only-Session;
-  `queueEmpty()`.
+  an); Rückfall `egress-session` über die send-only-Session, auch Ende
+  zu Ende als Umschaltung über die echte Wire (Double trägt keine
+  routed-Rahmen); geschlossener Socket bei Deposit und Ack;
+  abgewiesene Fremd- und Fehlrahmen; `queueEmpty()`. Das Double
+  verhält sich beim Schließen wie `ws` (`send` danach still verworfen).
 - `live-probe.mjs` — env-gated (`RLTP_LIVE_MEDIATOR=1`): zwei
   Beziehungen gegen die öffentliche Dev-Instanz, deposit → deliver
   → conclude in beide Richtungen; gibt Zustellung ja/nein,

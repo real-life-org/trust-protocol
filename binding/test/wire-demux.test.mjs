@@ -48,7 +48,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   const direct = [];                     // direct frames relayed: { session, sender, receiver }
   const opened = [];                     // the DID of every socket opened, in order
   let lastChallengeDid = null;
-  const med = { down: false };
+  // dropRouted: a mediator that accepts routed frames and delivers none
+  const med = { dropRouted: false };
 
   const resolve = async () => ({
     didDocument: {
@@ -86,6 +87,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       return;
     }
     if (got.messageType !== "routed") { dropped.push({ why: `not routed: ${got.messageType}`, sender: session }); return; }
+    if (med.dropRouted) { dropped.push({ why: "routed frames not carried", sender: session }); return; }
     const step = nextHop(got.hops, got.payload);
     if (step.kind !== "forward") { dropped.push({ why: "no next hop", sender: session }); return; }
     forwarded.push({ session, outer: { sender: got.sender, receiver: got.receiver, route: [...got.hops] }, inner: step.inner, outerBytes: qb2.length });
@@ -101,8 +103,9 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       setTimeout(() => this.onopen?.(), 0);
     }
     send(data) {
+      // as ws does: a send after close is dropped without an error
+      if (this.readyState !== 1) { dropped.push({ why: "socket closed", sender: this.did }); return; }
       if (typeof data === "string") { sent.push({ did: this.did, data }); return; }
-      if (med.down) throw new Error("socket down");
       const qb2 = new Uint8Array(data);
       const env = decodeEnvelope(qb2).envelope;
       if (env.sender !== this.did) { dropped.push({ why: "sender is not the socket's DID", sender: env.sender }); return; }
@@ -110,7 +113,11 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       direct.push({ session: this.did, sender: env.sender, receiver: env.receiver });
       sockets.get(env.receiver)?.onmessage?.({ data: b64u(qb2) });
     }
-    close() { this.readyState = 3; }
+    close() {
+      if (this.readyState === 3) return;
+      this.readyState = 3;
+      setTimeout(() => this.onclose?.({ code: 1006 }), 0);
+    }
   }
 
   /** Inject a frame into a client's socket as the mediator would deliver it. */
@@ -275,18 +282,18 @@ test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rota
   const logs = [];
   const { A, B, alice, bob } = await pair(med, logs);
   const oldKey = med.publicKey();
-  med.down = true;
+  med.sockets.get(B.ids.conn.did).close(); await tick();
   const envelope = rand(48);
   const id = bob.submit(envelope, Date.now()); await bob.settle();
   assert.equal(bob.status(id).state, "awaiting-transport");
+  await tick();                                   // the socket is reopened in the background
   med.rotate();
-  med.down = false;
   // a frame packed for the old key never reaches anyone
   const stale = await packRouted((await tspPack(rand(16), B.ids.egress.did, A.ids.conn.did,
     { senderSigningKey: B.ids.egress.edSecret, receiverEncryptionKey: A.ids.conn.xPublic })).bytes,
   [A.ids.conn.did], B.ids.conn.did, MEDIATOR_DID, { senderSigningKey: B.ids.conn.edSecret, receiverEncryptionKey: oldKey });
   med.sockets.get(B.ids.conn.did).send(stale.bytes); await tick();
-  assert.deepEqual(med.dropped.map((d) => d.why), ["not openable with the current key"]);
+  assert.deepEqual(med.dropped.map((d) => d.why).filter((w) => w !== "socket closed"), ["not openable with the current key"]);
   assert.equal(alice.collect(Date.now()).items.length, 0);
   // the next attempt after the access token's expiry: renewal, new key, packed anew
   bob.advance(Date.now() + 601_000); await bob.settle(); await tick();
@@ -294,7 +301,7 @@ test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rota
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
   assert.deepEqual(new Uint8Array(c.items[0].bytes), envelope);
-  assert.equal(med.dropped.length, 1, "sealed to the new key");
+  assert.equal(med.dropped.filter((d) => d.why === "not openable with the current key").length, 1, "sealed to the new key");
   alice.close(); bob.close();
 });
 
@@ -366,4 +373,94 @@ test("the egress session is send-only and kept usable: no live delivery, nothing
   assert.equal(p.alice.collect(Date.now()).items.length, 1, "delivered over a reopened session");
   assert.equal(med.opened.filter((d) => d === egressDid).length, 2);
   p.alice.close(); p.bob.close();
+});
+
+test("a closed connection socket fails the deposit as unreachable — never accepted on a dead socket — and the retry after the reconnect lands (B1)", async () => {
+  const med = mediatorDouble();
+  const { A, B, alice, bob } = await pair(med, []);
+  med.sockets.get(B.ids.conn.did).close(); await tick();
+  const envelope = rand(32);
+  const id = bob.submit(envelope, Date.now()); await bob.settle();
+  assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "transport-unreachable" });
+  assert.equal(bob.ackState().send.firstRoutedAcceptedAt, null);
+  assert.equal(med.forwarded.length, 0);
+  await tick();
+  assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2, "reopened");
+  bob.advance(Date.now()); await bob.settle(); await tick();
+  assert.equal(bob.status(id).state, "accepted");
+  assert.notEqual(bob.ackState().send.firstRoutedAcceptedAt, null);
+  const c = alice.collect(Date.now());
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), envelope);
+  void A;
+  alice.close(); bob.close();
+});
+
+test("an ack on a closed socket fails, so the intent stays and the next advance sends it (N6)", async () => {
+  const med = mediatorDouble();
+  const { A, alice, bob } = await pair(med, []);
+  bob.submit(rand(32), Date.now()); await bob.settle(); await tick();
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1);
+  med.sockets.get(A.ids.conn.did).close(); await tick();
+  alice.conclude(c, Date.now()); await alice.settle();
+  assert.equal(alice.ackState().pending.length, 1, "the intent stays");
+  await tick();
+  alice.advance(Date.now()); await alice.settle(); await tick();
+  assert.equal(alice.ackState().pending.length, 0);
+  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  assert.equal(acked.length, 1);
+  alice.close(); bob.close();
+});
+
+test("a frame from a foreign sender or one that cannot be read is logged and acked, never delivered (N5, RLTP-VTI-7140)", async () => {
+  const med = mediatorDouble();
+  const logs = [];
+  const { A, B: bobSide, alice, bob } = await pair(med, logs);
+  const bobIds = bobSide.ids;
+  const X = await deriveWireIdentities(rand(32), MEDIATOR_DID, rand(32));
+  const foreign = await tspPack(rand(40), X.egress.did, A.ids.conn.did,
+    { senderSigningKey: X.egress.edSecret, receiverEncryptionKey: A.ids.conn.xPublic });
+  const t1 = med.deliver(A.ids.conn.did, foreign.bytes); await tick();
+  // the expected sender's frame, tampered: its signature no longer holds
+  const good = await tspPack(rand(40), bobIds.egress.did, A.ids.conn.did,
+    { senderSigningKey: bobIds.egress.edSecret, receiverEncryptionKey: A.ids.conn.xPublic });
+  const tampered = new Uint8Array(good.bytes); tampered[tampered.length - 5] ^= 0xff;
+  const t2 = med.deliver(A.ids.conn.did, tampered); await tick();
+  assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.equal(logs.length, 2);
+  assert.ok(logs[0].includes(X.egress.did) && /refused/.test(logs[0]), logs[0]);
+  assert.ok(logs[1].includes(bobIds.egress.did) && /refused/.test(logs[1]), logs[1]);
+  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  assert.ok(acked.includes(await sha256hex(t1)) && acked.includes(await sha256hex(t2)));
+  alice.close(); bob.close();
+});
+
+test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed frames, a quiet queue, the deadline — then the egress session carries the next document; a frame delivered to the egress socket is dropped unacked", async () => {
+  const med = mediatorDouble();
+  med.dropRouted = true;
+  const logs = [];
+  const { B, alice, bob } = await pair(med, logs);
+  const first = rand(32);
+  bob.submit(first, Date.now()); await bob.settle(); await tick();
+  assert.equal(alice.collect(Date.now()).items.length, 0, "routed frames are not carried");
+  await tick(1100);                               // the real queueEmpty: a quiet open socket
+  let t = Date.now();
+  bob.conclude(bob.collect(t), t);
+  bob.advance(t + 24 * 3_600_000);
+  assert.equal(bob.sendMode, "egress-session");
+  t += 24 * 3_600_000 + 1;
+  const second = rand(32);
+  bob.submit(second, t); await bob.settle(); await tick();
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1);
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), second);
+  assert.equal(med.direct.at(-1).session, B.ids.egress.did);
+  const before = med.sent.length;
+  med.deliver(B.ids.egress.did, (await tspPack(rand(16), B.ids.egress.did, B.ids.egress.did,
+    { senderSigningKey: B.ids.egress.edSecret, receiverEncryptionKey: B.ids.egress.xPublic })).bytes);
+  await tick();
+  assert.equal(med.sent.length, before, "nothing acked from the egress socket");
+  assert.equal(bob.collect(Date.now()).items.length, 0);
+  assert.deepEqual(logs, []);
+  alice.close(); bob.close();
 });
