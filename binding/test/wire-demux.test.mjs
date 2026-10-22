@@ -49,7 +49,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   const opened = [];                     // the DID of every socket opened, in order
   let lastChallengeDid = null;
   // dropRouted: a mediator that accepts routed frames and delivers none
-  const med = { dropRouted: false };
+  const med = { dropRouted: false, closeOnNextText: null };
+  const all = [];                        // every socket ever opened
 
   const resolve = async () => ({
     didDocument: {
@@ -100,12 +101,17 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       this.readyState = 1;
       sockets.set(this.did, this);
       opened.push(this.did);
+      all.push(this);
       setTimeout(() => this.onopen?.(), 0);
     }
     send(data) {
       // as ws does: a send after close is dropped without an error
       if (this.readyState !== 1) { dropped.push({ why: "socket closed", sender: this.did }); return; }
-      if (typeof data === "string") { sent.push({ did: this.did, data }); return; }
+      if (typeof data === "string") {
+        // a socket that dies while a DIDComm frame (an ack) is on its way
+        if (med.closeOnNextText === this.did) { med.closeOnNextText = null; this.close(); dropped.push({ why: "socket closed", sender: this.did }); return; }
+        sent.push({ did: this.did, data }); return;
+      }
       const qb2 = new Uint8Array(data);
       const env = decodeEnvelope(qb2).envelope;
       if (env.sender !== this.did) { dropped.push({ why: "sender is not the socket's DID", sender: env.sender }); return; }
@@ -149,6 +155,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
     transport: { fetch, resolve, WebSocketImpl: FakeWs },
     deliver, ackedBy, rotate, sockets, dropped, forwarded, direct, opened, sent,
     publicKey: () => xPublic,
+    openSockets: (did) => all.filter((w) => w.did === did && w.readyState === 1).length,
   });
 }
 
@@ -308,7 +315,7 @@ test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rota
 test("fallback (RLTP-VTI-3120): an adapter in egress-session deposits the inner message alone on the egress identity's send-only session, opened at the first such deposit", async () => {
   const med = mediatorDouble();
   const logs = [];
-  const send = { mode: "egress-session", firstRoutedAcceptedAt: null, routed: [], proven: false };
+  const send = { mode: "egress-session", firstRoutedAcceptedAt: 0, routed: [], proven: false };
   const { A, B, alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
   assert.equal(bob.sendMode, "egress-session");
   assert.equal(med.sockets.has(B.ids.egress.did), false, "lazy: not opened at authentication");
@@ -462,5 +469,61 @@ test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed f
   assert.equal(med.sent.length, before, "nothing acked from the egress socket");
   assert.equal(bob.collect(Date.now()).items.length, 0);
   assert.deepEqual(logs, []);
+  alice.close(); bob.close();
+});
+
+test("queueEmpty stays false while a frame the adapter did not take waits at the mediator, until the socket opens again (review 3 N1)", async () => {
+  const med = mediatorDouble();
+  const { A, alice, bob, wireA } = await pair(med, []);
+  alice.close();                                   // a retired adapter takes nothing
+  bob.submit(rand(32), Date.now()); await bob.settle(); await tick();
+  await tick(1100);
+  assert.equal(wireA.queueEmpty(), false, "a frame was left with the mediator");
+  med.sockets.get(A.ids.conn.did).close();         // the next open re-covers it
+  await tick(300);
+  await tick(1100);
+  assert.equal(wireA.queueEmpty(), true);
+  bob.close();
+});
+
+test("authenticate during a background reconnect waits for it: one socket, never two (review 3 N2)", async () => {
+  const med = mediatorDouble();
+  const { B, alice, bob, wireB } = await pair(med, []);
+  med.sockets.get(B.ids.conn.did).close(); await tick(0);
+  await wireB.authenticate();
+  await tick(300);
+  assert.equal(med.openSockets(B.ids.conn.did), 1);
+  assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2);
+  alice.close(); bob.close();
+});
+
+test("an ack whose socket dies while it is sent fails, so the intent stays (review 3 N3)", async () => {
+  const med = mediatorDouble();
+  const { A, alice, bob } = await pair(med, []);
+  bob.submit(rand(32), Date.now()); await bob.settle(); await tick();
+  const c = alice.collect(Date.now());
+  med.closeOnNextText = A.ids.conn.did;
+  alice.conclude(c, Date.now()); await alice.settle();
+  assert.equal(alice.ackState().pending.length, 1);
+  await tick(300);
+  alice.advance(Date.now()); await alice.settle(); await tick();
+  assert.equal(alice.ackState().pending.length, 0);
+  alice.close(); bob.close();
+});
+
+test("a receive-only side reconnects by itself after its socket drops, and receives again; a closed wire reconnects nothing (review 3 N4)", async () => {
+  const med = mediatorDouble();
+  const { A, alice, bob, wireA } = await pair(med, []);
+  med.sockets.get(A.ids.conn.did).close();
+  await tick(300);
+  assert.equal(med.openSockets(A.ids.conn.did), 1, "reopened without a send of its own");
+  const envelope = rand(32);
+  bob.submit(envelope, Date.now()); await bob.settle(); await tick();
+  const c = alice.collect(Date.now());
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), envelope);
+  const before = med.opened.length;
+  wireA.close();
+  await tick(300);
+  assert.equal(med.opened.length, before, "no reconnect after close()");
   alice.close(); bob.close();
 });

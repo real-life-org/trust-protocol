@@ -177,6 +177,9 @@ export async function createVtiWire(cfg) {
   // the adapter, and when the last TSP frame arrived
   let dispatching = 0;
   let lastFrameAt = 0;
+  // a frame the adapter did not take since the socket last opened: it waits
+  // at the mediator until the next open re-offers it
+  let leftBehind = false;
   const QUIET_MS = 1000;
 
   async function ensureSession(accessToken, mediator) {
@@ -194,6 +197,7 @@ export async function createVtiWire(cfg) {
           await dispatchFrame(qb2, text);
         } catch (e) {
           if (e?.consumer) {
+            leftBehind = true;
             if (process.env.RLTP_WIRE_DEBUG) console.error("[wire] adapter refused a frame:", e.cause?.message ?? e.cause);
             return;
           }
@@ -208,11 +212,12 @@ export async function createVtiWire(cfg) {
         } finally { dispatching--; lastFrameAt = Date.now(); }
       },
       onError: () => {},
+      onClose: () => scheduleReconnect(),
     });
     await session.connect();
     // live delivery pushes what the mediator holds from now on: the quiet
     // period of queueEmpty() starts at the open, not at the epoch
-    lastFrameAt = Date.now();
+    opened();
     return session;
   }
 
@@ -221,15 +226,33 @@ export async function createVtiWire(cfg) {
   // unreachable, so the adapter keeps the deposit or the ack intent and
   // retries — never a silent success on a dead socket (ws drops a send
   // after close without an error).
+  // A drop of the socket (onClose) schedules a reconnect with backoff,
+  // so a side that only receives comes back without a send of its own;
+  // after close() no timer runs. Every path shares one reconnect.
   let reconnecting = null;
+  let reconnectTimer = null;
+  let backoff = 0;
+  let wireClosed = false;
+  function opened() { lastFrameAt = Date.now(); leftBehind = false; backoff = 0; }
+  function reconnect() {
+    if (session?.isOpen) return Promise.resolve();
+    if (!session || wireClosed) return Promise.reject(new WireError("unreachable", "no session"));
+    reconnecting ??= session.connect().then(opened).finally(() => { reconnecting = null; });
+    return reconnecting;
+  }
+  function scheduleReconnect() {
+    if (wireClosed || reconnectTimer) return;
+    const delay = Math.min(50 * 2 ** backoff, 30_000);
+    backoff++;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnect().catch(() => scheduleReconnect());
+    }, delay);
+    reconnectTimer.unref?.();
+  }
   function openSession() {
     if (session?.isOpen) return session;
-    if (session && !reconnecting) {
-      reconnecting = session.connect()
-        .then(() => { lastFrameAt = Date.now(); })
-        .catch(() => { /* the next attempt tries again */ })
-        .finally(() => { reconnecting = null; });
-    }
+    if (session) reconnect().catch(() => scheduleReconnect());
     throw new WireError("unreachable", "the connection DID's socket is closed");
   }
 
@@ -270,7 +293,11 @@ export async function createVtiWire(cfg) {
     const payloadQid = hexOf(await sha(payload));
     ackMap.set(payloadQid, mediatorQid);
     // the adapter's own failure is not a refusal of the frame: unacked, redelivered
-    try { await consumer(payload); } catch (e) { throw Object.assign(new Error("consumer failed"), { consumer: true, cause: e }); }
+    let took;
+    try { took = await consumer(payload); } catch (e) { throw Object.assign(new Error("consumer failed"), { consumer: true, cause: e }); }
+    // not taken (the adapter's queue is full, or it is retired): the frame
+    // stays with the mediator, which offers it again at the next open
+    if (took === false) leftBehind = true;
   }
 
   // C's key as resolved at the last authentication or token renewal of the
@@ -341,11 +368,9 @@ export async function createVtiWire(cfg) {
         // delivery) and its next reconnect use what was just resolved
         session.mediator = auth.mediator;
         session.mediatorJwt = auth.accessToken;
-        if (!session.isOpen) {
-          // reconnect with the renewed token; the quiet period starts anew
-          await session.connect();
-          lastFrameAt = Date.now();
-        }
+        // reconnect with the renewed token, joining a reconnect already
+        // running (never a second socket); the quiet period starts anew
+        if (!session.isOpen) await reconnect();
       }
       await ensureSession(auth.accessToken, auth.mediator);
       return {
@@ -416,12 +441,14 @@ export async function createVtiWire(cfg) {
 
     /** RLTP-VTI-3130's "no frame pending at the mediator", as far as the
      *  wire can tell: the connection DID's session is open, no received
-     *  frame is still on its way to the adapter, and no TSP frame arrived
-     *  for QUIET_MS (1 s) — live delivery pushes what the mediator holds
+     *  frame is still on its way to the adapter, no frame the adapter did
+     *  not take has been left with the mediator since the socket last
+     *  opened, and no TSP frame arrived (nor did the socket open) for
+     *  QUIET_MS (1 s) — live delivery pushes what the mediator holds
      *  right after the socket opens, so a quiet open socket is taken as a
      *  drained queue. */
     queueEmpty() {
-      return Boolean(session?.isOpen) && dispatching === 0 && Date.now() - lastFrameAt >= QUIET_MS;
+      return Boolean(session?.isOpen) && dispatching === 0 && !leftBehind && Date.now() - lastFrameAt >= QUIET_MS;
     },
 
     /** Sizes of the frames deposited so far (payload, inner, outer bytes). */
@@ -433,12 +460,17 @@ export async function createVtiWire(cfg) {
       // on a closed socket the ack would vanish: fail, so the intent stays
       const s = openSession();
       await s.ackTsp(mediatorIds);
+      // the socket may have died while the ack was packed and sent: ws
+      // drops it silently, so fail and keep the intent
+      if (!s.isOpen) { openSession(); }
       for (const q of queueIds) ackMap.delete(q);
     },
 
     onDeliver(cb) { consumer = cb; },
 
     close() {
+      wireClosed = true;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       try { session?.close(); } catch { /* teardown */ }
       try { egressSession?.close(); } catch { /* teardown */ }
     },

@@ -53,14 +53,21 @@ benennt genau die Pflichten, die hier wohnen.
   - Ein Rahmen, der sich nicht öffnen lässt, von einem anderen Sender
     kommt oder einer anderen Beziehung gilt, wird ebenfalls mit
     Sender-VID (aus dem Klartext-Envelope, keine Secrets) geloggt und
-    geackt; nur ein Fehler des Adapters selbst bleibt ungeackt und wird
-    neu zugestellt;
+    geackt. Ein Rahmen, den der Adapter nicht übernimmt (sein Consumer
+    meldet `false` — Puffer über `max-queue-bytes`, Instanz
+    stillgelegt — oder wirft), bleibt ungeackt beim Mediator; der bietet
+    ihn beim nächsten Öffnen des Sockets wieder an;
   - **Geschlossener Socket:** `ws` verwirft ein `send` nach dem Schließen
     ohne Fehler. Deposit und Ack prüfen daher vorher, ob der Socket der
     Connection-DID offen ist; sonst werfen sie `WireError('unreachable')`
     (der Adapter meldet `awaiting-transport` bzw. behält die
     Ack-Absicht) und stoßen im Hintergrund das Neuverbinden an, der
-    nächste Versuch läuft über den neuen Socket;
+    nächste Versuch läuft über den neuen Socket. Ein Ack, dessen Socket
+    während des Sendens stirbt, gilt ebenfalls als gescheitert. Reißt
+    der Socket ab, verbindet die Wire selbst neu (einmal zur Zeit,
+    Backoff ab 50 ms bis 30 s, nach `close()` kein Timer), damit eine
+    Seite, die nur empfängt, wieder empfängt; eine Erneuerung wartet
+    auf ein laufendes Neuverbinden statt einen zweiten Socket zu öffnen;
   - **Delete-to-Ack unter der Hoheit des Adapters**: die 0.12.0-
     Session ackt sonst direkt nach dem Consumer (mit eigenem
     `_seen`-Dedup); die Subclass `RltpMediatorSession` hebt beides
@@ -68,7 +75,9 @@ benennt genau die Pflichten, die hier wohnen.
   - `queueEmpty()` für die Umschaltprüfung (RLTP-VTI-3130): wahr, wenn
     die Session der Connection-DID offen ist, kein empfangener Rahmen
     noch auf dem Weg zum Adapter ist und seit mindestens 1 s weder ein
-    TSP-Rahmen kam noch der Socket (neu) geöffnet wurde. Live Delivery
+    TSP-Rahmen kam noch der Socket (neu) geöffnet wurde, und seit dem
+    letzten Öffnen kein Rahmen beim Mediator zurückblieb, den der
+    Adapter nicht übernommen hat. Live Delivery
     schiebt beim Öffnen des Sockets, was der Mediator hält; ein ruhiger
     offener Socket gilt daher als leere Queue. Eine Näherung, keine
     Auskunft des Mediators. Ohne `queueEmpty()` schaltet der Adapter
