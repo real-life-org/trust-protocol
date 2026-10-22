@@ -31,14 +31,20 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   instant, finite and not after the restore instant, each digest once,
   nothing open in `egress-session` — any other field is refused, not
   ignored. A snapshot without it starts in `routed`. `sendMode` reads the
-  current mode. A `submit()` without a digest opens nothing.
+  current mode. A `submit()` without a digest opens nothing. An open
+  deposit falls `routedAckDeadlineMs` plus `duplicateWindowMs` after its
+  acceptance, also where no switch check runs; a restore cuts such
+  entries instead of refusing them. A routed attempt accepted after the
+  switch enters nothing.
 - **Absorption for the give-up horizon** (profile §2, §4): the adapter
   absorbs a byte-identical copy of a concluded item only within
   `give-up-horizon` of its conclusion (or while an acknowledgement for it
   is on the wire); a later copy is a new item for the holder, whose
   absorption answers it with the stored acknowledgement (RLTP-DEL-6330,
-  6335). The entry and its ack intent stand for the duplicate window as
-  before; while such a later copy waits in the buffer or is outstanding,
+  6335); its new conclusion sets the conclusion instant anew. Buffered
+  and outstanding go before concluded, so a redelivery of such a copy is
+  ignored while the holder has it. The entry and its ack intent stand for
+  the duplicate window; while such a later copy waits in the buffer or is outstanding,
   the standing intent is not sent, so it never deletes the copy before
   the holder concluded it (hand off → await → ack).
 - **"Nothing pending" is the binding's statement** (RLTP-VTI-7150):

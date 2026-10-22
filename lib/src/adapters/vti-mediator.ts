@@ -248,6 +248,10 @@ export interface SendState {
   open: Array<{ digest: string, acceptedAt: number }>
 }
 
+/** how long an open routed deposit stays in the send state at most
+ *  (RLTP-VTI-3130): the state is bounded even where no switch check runs */
+const OPEN_KEEP_MS = DECLARED.routedAckDeadlineMs + DECLARED.duplicateWindowMs
+
 const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
 
 /** A restored send state, checked fail-closed (§4): exactly `mode` and
@@ -436,7 +440,9 @@ export class MediatorCarrierAdapter {
       if (restored.send !== undefined) {
         const send = restoreSendState(restored.send, restoredAt)
         this.#mode = send.mode
-        for (const o of send.open) this.#openDeposits.set(o.digest, o.acceptedAt)
+        // an open deposit falls routed-ack-deadline plus duplicate-window
+        // after its acceptance: cut here, not refused
+        for (const o of send.open) if (restoredAt - o.acceptedAt < OPEN_KEEP_MS) this.#openDeposits.set(o.digest, o.acceptedAt)
       }
     }
     this.#wire.onDeliver(async (raw): Promise<boolean> => {
@@ -453,6 +459,10 @@ export class MediatorCarrierAdapter {
       // resubmits after a lost acknowledgement is answered. The entry and
       // its ack intent stand for the duplicate window, and the window
       // beats everything (round-14 B): beyond it, both fall.
+      // buffered and outstanding go before concluded (§3): a redelivery of
+      // a later copy the holder has not concluded yet is ignored
+      if (this.#inboxDigests.has(queueId)) return true
+      for (const col of this.#outstanding.values()) if (col.has(queueId)) return true
       const concludedAt = this.#concluded.get(queueId)
       if (concludedAt !== undefined) {
         if (this.#flightAcks.has(queueId) ||
@@ -468,8 +478,6 @@ export class MediatorCarrierAdapter {
           this.#pendingAcks.delete(queueId)
         }
       }
-      if (this.#inboxDigests.has(queueId)) return true
-      for (const col of this.#outstanding.values()) if (col.has(queueId)) return true
       const held = this.#inboxBytes + this.#outstandingBytes
       const underFloor = this.#inbox.length < DECLARED.queueFloorCount &&
         held + bytes.length <= DECLARED.queueFloorBytes
@@ -1026,6 +1034,10 @@ export class MediatorCarrierAdapter {
   advance (rawNow: number): void {
     this.#open()
     const now = this.#now(rawNow)
+    // open routed deposits fall routed-ack-deadline plus duplicate-window
+    // after their acceptance, also where no switch check can run (no
+    // statement that nothing is pending, RLTP-VTI-7150)
+    for (const [digest, at] of this.#openDeposits) if (now - at >= OPEN_KEEP_MS) this.#openDeposits.delete(digest)
     // the switch (RLTP-VTI-3130): only after a conclusion that left nothing
     // pending and while nothing is pending again at the check (an
     // acknowledgement that arrived since is collected and reported first),

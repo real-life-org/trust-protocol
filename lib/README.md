@@ -115,7 +115,9 @@ than 72 hours never switches by the deadline; the mode in a restored
 snapshot is as trustworthy as the host's store. The adapter absorbs a
 byte-identical copy of a concluded item only for the give-up horizon
 after its conclusion; a later copy reaches the holder, which absorbs it
-and answers it with the stored acknowledgement. A `submit()` without a
+and answers it with the stored acknowledgement. An open routed deposit
+falls 72 hours plus the 30-day duplicate window after its acceptance, so
+the send state stays bounded. A `submit()` without a
 digest opens nothing: an app that sends only through `submit()` never
 switches by the deadline. The consumer a wire registers with `onDeliver`
 answers whether the adapter took the frame.
