@@ -638,9 +638,14 @@ export class MediatorCarrierAdapter {
         if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#isDocument(sub)) {
             this.#firstRoutedAcceptedAt ??= this.#clock;
             const horizonAt = sub.submittedAt + DECLARED.giveUpHorizonMs;
-            // answered already (the verdict outran the deposit's resolution), or
-            // past its horizon (it would fall at the next clean conclusion): not named
-            if (sub.digest !== undefined && sub.answered !== true && this.#clock <= horizonAt && !this.#routed.has(sub.digest)) {
+            sub.routedAccepted = true;
+            if (sub.answered === true) {
+                // the verdict outran the deposit's resolution: it proves now, and
+                // the digest is answered already, so it is not named
+                this.#proven = true;
+            }
+            else if (sub.digest !== undefined && this.#clock <= horizonAt && !this.#routed.has(sub.digest)) {
+                // past its horizon it would fall at the next clean conclusion: not named
                 this.#routed.set(sub.digest, { acceptedAt: this.#clock, horizonAt });
             }
         }
@@ -655,15 +660,30 @@ export class MediatorCarrierAdapter {
     #isDocument(sub) {
         return sub.entry === undefined || sub.entry.kind === 'document';
     }
-    /** A verdict on a submission deposited in routed proves routed for
-     *  the relationship (RLTP-VTI-3130); its digest leaves the send state. */
+    /** A verdict on a document proves routed for the relationship
+     *  (RLTP-VTI-3130) only as the send state names it: its digest is among
+     *  the routed digests (then it leaves them), or — a submit() without a
+     *  digest, which the send state cannot name — it was accepted in routed
+     *  and is still within its give-up horizon. A verdict before the
+     *  acceptance is kept on the submission and proves at the acceptance,
+     *  if that acceptance is in routed. A fallen digest proves nothing. */
     #proveRouted(sub) {
-        if (sub.sentMode !== 'routed' || !this.#isDocument(sub))
+        if (!this.#isDocument(sub))
             return;
-        this.#proven = true;
-        sub.answered = true;
-        if (sub.digest !== undefined)
+        if (sub.digest !== undefined && this.#routed.has(sub.digest)) {
             this.#routed.delete(sub.digest);
+            this.#proven = true;
+            sub.answered = true;
+            return;
+        }
+        if (sub.digest === undefined && sub.routedAccepted === true &&
+            this.#clock <= sub.submittedAt + DECLARED.giveUpHorizonMs) {
+            this.#proven = true;
+            sub.answered = true;
+            return;
+        }
+        if (sub.st === null || sub.st.state === 'awaiting-transport')
+            sub.answered = true;
     }
     /** The current sending mode of the relationship (profile §3a). */
     get sendMode() { return this.#mode; }
@@ -719,6 +739,11 @@ export class MediatorCarrierAdapter {
         }
         return sub.st === null ? null : { ...sub.st };
     }
+    /** A valid acknowledgement for submission `id`. Reports that a
+     *  collection carries are applied before that collection's conclude,
+     *  at the latest before the next advance: the switch check of
+     *  RLTP-VTI-3130 counts on them, and a report applied late can let the
+     *  relationship switch although routed was proven. */
     acknowledged(id) {
         if (this.#closed)
             return;
@@ -738,7 +763,9 @@ export class MediatorCarrierAdapter {
      *  TERMINAL: retryable counterpart conditions (unavailable,
      *  internalError) are transport outcomes, never receiver verdicts
      *  — they have no entry here, and an unknown code is refused
-     *  fail-closed rather than minted into a verdict (R6-B2). */
+     *  fail-closed rather than minted into a verdict (R6-B2). Applied, like
+     *  acknowledged, before the conclude of the collection that carried
+     *  it (RLTP-VTI-3130). */
     receiverRefused(id, code) {
         if (this.#closed)
             return;
@@ -783,7 +810,11 @@ export class MediatorCarrierAdapter {
      *  is transient (Delivery RLTP-DEL-5810, 5820: `failed(rate-limited)`,
      *  or a transaction that could not commit, see `concludable`): they are
      *  not concluded and not acknowledged, they go back to the buffer and the
-     *  next collect offers them again, and the mediator keeps its copy. */
+     *  next collect offers them again, and the mediator keeps its copy.
+     *  The reports the collection carries (acknowledged, receiverRefused,
+     *  answered) are applied BEFORE this call, at the latest before the next
+     *  advance: a conclusion that leaves nothing pending opens the switch
+     *  check of RLTP-VTI-3130, which counts them as applied. */
     conclude(collection, rawNow, opts = {}) {
         this.#open();
         const now = this.#now(rawNow);

@@ -41,6 +41,16 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   An accepted submission is never deposited again; one still in the
   holder's custody goes in the new mode at its next hand-over
   (RLTP-VTI-3135, 7130).
+- **What the host owes**: the reports a collection carries are applied
+  before its `conclude`, at the latest before the next `advance`, since
+  the switch check counts them as applied. A host that persists only
+  `concluded` and `pending` starts every opening in `routed` with no
+  first acceptance, so a relationship whose openings last less than
+  24 hours never switches; `mode` and `proven` in a restored snapshot are
+  as trustworthy as the host's store. A verdict proves `routed` only for a
+  document the send state names (or, for a `submit()` without a digest,
+  one accepted in `routed` and within its give-up horizon); a verdict
+  before the acceptance proves at an acceptance in `routed`.
 - **`depositAddressing(mode, self, peerConnection, carrier)`**: the
   addressing of both layers and the session per mode, as
   `vectors/vti-routed-addressing.json` states it (RLTP-VTI-1110, 1120,

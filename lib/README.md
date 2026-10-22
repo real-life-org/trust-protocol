@@ -99,7 +99,15 @@ next opening creates a new one. The app persists the adapter's
 into the next adapter; it hands that adapter, through `answered(digest,
 now)`, the valid acknowledgements, validated refusals and validated
 `idConflict` answers that arrive for documents an earlier adapter
-deposited, before the adapter's next `advance`.
+deposited, before the adapter's next `advance`. The reports a
+collection carries (`acknowledged`, `receiverRefused`, `answered`) are
+applied before that collection's `conclude`, at the latest before the
+next `advance`: the switch check counts them as applied, and one applied
+late can let a relationship switch although `routed` was proven. A host
+that persists only `concluded` and `pending` starts every opening in
+`routed` with no first acceptance, so a relationship whose openings last
+less than 24 hours never switches; `mode` and `proven` in a restored
+snapshot are as trustworthy as the host's store.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)
