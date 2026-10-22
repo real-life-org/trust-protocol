@@ -17,47 +17,52 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   (above `max-queue-bytes`, or a retired instance) leaves the frame with
   the mediator, and a wire does not take its queue for drained until the
   frame is offered again.
-- **The send state** (RLTP-VTI-3130), per relationship: the mode, the
-  instant a document (an entry of kind `document` filed by `reconcile`;
-  never an acknowledgement, and never a `submit()` without a digest,
-  which starts no deadline and never proves) was first accepted in
-  `routed`, the digests of the documents accepted in `routed` and not yet
-  answered (with acceptance and the end of their give-up horizon), and
-  whether `routed` is proven. It travels in `AckState.send` (new type
-  `SendState`); a restore checks it fail-closed (a known mode, finite
-  instants, none after the restore instant, no digest twice, each
-  horizon within the give-up horizon after its acceptance, and routed
-  digests only with a first acceptance at or before them, and
-  `egress-session` only with a first routed acceptance) and a snapshot
-  without it starts in `routed`. `sendMode` reads the current mode.
-- **Proof and switch**: `acknowledged(id)` and `receiverRefused(id, code)`
-  prove `routed` when the document's digest is in the send state at the
-  moment of the report (RLTP-VTI-3130, "for one of those digests"); the new
-  `answered(digest, now)` carries an answer the holder hands a later
-  instance (a valid acknowledgement, a validated refusal or a validated
-  `idConflict`) and proves `routed` when the send state names the digest.
-  `advance` switches one way to `egress-session` when `routed` is not
-  proven and the first acceptance lies `DECLARED.routedAckDeadlineMs`
-  (24 h) or more in the past, checked only after the instance concluded
-  a collection that left nothing pending (an empty collection counts;
-  `queueEmpty()` true, nothing buffered or outstanding) and only while
-  nothing is pending again at the check, so an acknowledgement that
-  arrived since is collected and reported first. Such a conclusion also
-  drops the routed digests past their give-up horizon. A digest once
-  answered never enters the send state again.
-  An accepted submission is never deposited again; one still in the
-  holder's custody goes in the new mode at its next hand-over
-  (RLTP-VTI-3135, 7130).
+- **The send state** (RLTP-VTI-3130), per relationship: the mode and the
+  **open routed deposits** (`SendState.open`, each with digest,
+  acceptance instant and kind):
+  every document (an entry of kind `document` filed by `reconcile`)
+  accepted in `routed` and not yet answered, and every acknowledgement
+  whose loss the counterpart showed: `reconcile` brings the answer to a
+  duplicate (`resend`) of its document, and an earlier acknowledgement of
+  that document was accepted in `routed` a give-up horizon or more before
+  (an earlier duplicate may come from an ambiguous attempt and shows
+  nothing). Such an entry carries that earlier acceptance, so it is due
+  at once. `SendState.sentAcks` keeps the acknowledgements accepted in
+  `routed` (the earliest acceptance per digest), each for the give-up
+  horizon and the duplicate window after its acceptance. It travels in `AckState.send` (new type `SendState`); a
+  restore checks it fail-closed (a known mode, finite instants none after
+  the restore instant, each digest once per kind, nothing open or sent in
+  `egress-session`), and a snapshot without it starts in `routed`.
+  `sendMode` reads the current mode. A `submit()` without a digest opens
+  nothing.
+- **Answers and switch**: `acknowledged(id)`, `receiverRefused(id, code)`
+  and the new `answered(digest, now)` (an answer the holder hands a later
+  instance: a valid acknowledgement, a validated refusal or a validated
+  `idConflict`) answer the open deposit of that document's digest; a
+  verdict that outruns the acceptance keeps the document from being
+  opened. An open acknowledgement is answered by nothing. Each answer
+  settles its own deposit only. `advance` switches one way to
+  `egress-session` when an open routed deposit was accepted
+  `DECLARED.routedAckDeadlineMs` (72 h, equal to the give-up horizon) or
+  more ago, checked only after the instance concluded a collection that
+  left nothing pending (an empty collection counts; `queueEmpty()` true,
+  nothing buffered or outstanding) and only while nothing is pending
+  again at the check, so an acknowledgement that arrived since is
+  collected and reported first. A deposit the wire refuses with the new
+  `WireError` kind `'routed-refused'` (a validated refusal of the routed
+  form) switches at once; the submission stays
+  `awaiting-transport(carrier-refused-retriable)` and goes in
+  `egress-session` at its next hand-over. At the switch the open deposits
+  leave; nothing returns to `routed`. An accepted submission is never
+  deposited again; one still in the holder's custody goes in the new mode
+  at its next hand-over (RLTP-VTI-3135, 7130).
 - **What the host owes**: the reports a collection carries are applied
   before its `conclude`, at the latest before the next `advance`, since
   the switch check counts them as applied. A host that persists only
-  `concluded` and `pending` starts every opening in `routed` with no
-  first acceptance, so a relationship whose openings last less than
-  24 hours never switches; `mode` and `proven` in a restored snapshot are
-  as trustworthy as the host's store. A verdict proves `routed` only for a
-  digest the send state names at that moment: a verdict that outruns the
-  acceptance proves nothing (it only keeps the digest from being named
-  afterwards), and a `submit()` without a digest never proves.
+  `concluded` and `pending` starts every opening in `routed` with nothing
+  open, so a relationship whose openings last less than 72 hours never
+  switches by the deadline; the mode in a restored snapshot is as
+  trustworthy as the host's store.
 - **`depositAddressing(mode, self, peerConnection, carrier)`**: the
   addressing of both layers and the session per mode, as
   `vectors/vti-routed-addressing.json` states it (RLTP-VTI-1110, 1120,
