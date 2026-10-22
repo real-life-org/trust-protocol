@@ -1080,6 +1080,33 @@ for (const n of EC.negative) {
 }
 
 // ── suite 3a: the DTG context, pinned by digest ─────────────────────────
+section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint form, its length, the card carrying it')
+{
+  const DH = J('vectors/vti-delivery-hints.json')
+  const ED_DID_KEY = /^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$/
+  // a receiver at carrier C reads a hint of this profile (RLTP-VTI-1210, 1220, 1225)
+  const reads = (hint, carrier) => {
+    let o
+    try { o = JSON.parse(hint) } catch { return null }
+    if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o) !== hint) return null
+    if (jcs(Object.keys(o).sort()) !== jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])) return null
+    if (o.type !== 'TSPTransport' || typeof o.id !== 'string' || !o.id.endsWith('#tsp') || typeof o.rltpEgress !== 'string') return null
+    const connection = o.id.slice(0, -'#tsp'.length)
+    if (!ED_DID_KEY.test(connection) || !ED_DID_KEY.test(o.rltpEgress) || connection === o.rltpEgress) return null
+    if (o.serviceEndpoint !== carrier) return null
+    return { connection, egress: o.rltpEgress }
+  }
+  for (const s of ['A', 'B']) {
+    const h = DH.hints[s]
+    checkR(['RLTP-VTI-1210', 'RLTP-VTI-1220'], jcs(reads(h, DH.carrier)) === jcs(DH.sides[s]), `hint ${s}: the JCS form of a TSPTransport entry naming its connection DID, C and its egress identity`)
+    checkR(['RLTP-ENC-6090'], [...h].length === DH.hintLength[s] && DH.hintLength[s] <= 512, `hint ${s}: ${DH.hintLength[s]} characters, at most 512`)
+  }
+  schemaOK(DH.card, 'contact-card-0.25.schema.json', 'card with a delivery hint')
+  check(diVerify(DH.card, DH.card.anchor).ok, 'card with a delivery hint: DI proof verifies over the hints')
+  check(jcs(DH.card.deliveryHints) === jcs([DH.hints.B]), 'card with a delivery hint: carries B\'s hint')
+  for (const c of DH.ignored) checkR(c.rules, reads(c.hint, DH.carrier) === null, `ignored hint: ${c.case}`)
+}
+
 section('contexts/dtg-v1.jsonld — the DTG v1 context, byte-frozen, pinned by digest')
 {
   const bytes = readFileSync(join(ROOT, 'contexts/dtg-v1.jsonld'))

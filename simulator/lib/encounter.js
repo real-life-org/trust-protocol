@@ -48,7 +48,7 @@ const challengeOfUnchecked = (bytes17) => b64uOf(bytes17).slice(0, 22);
 // cards carry no @context (the proof carries none either — W3C-true)
 export const signCard = (ctx, body, created) => diSign(ctx, body, created);
 export function cardBody(ctx, fields = {}) {
-    const { name, challenge, sentTo, boundTo } = fields;
+    const { name, deliveryHints, challenge, sentTo, boundTo } = fields;
     // runtime guard for JS callers the union cannot reach: the sent-card
     // profile is atomic — half of it is not a card of either profile
     if ((sentTo === undefined) !== (boundTo === undefined))
@@ -56,6 +56,8 @@ export function cardBody(ctx, fields = {}) {
     const b = { version: CARD_VERSION, anchor: ctx.anchor, keyAgreement: ctx.keyAgreement };
     if (name !== undefined)
         b.name = name;
+    if (deliveryHints !== undefined)
+        b.deliveryHints = [...deliveryHints];
     if (challenge !== undefined)
         b.challenge = challenge;
     if (sentTo !== undefined) {
