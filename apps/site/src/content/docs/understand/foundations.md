@@ -283,7 +283,9 @@ Trust Infrastructure mediator, targeting TSP revision 3. Each side of
 a relationship sends under one identity and collects under another.
 A document is signed end to end under the sending identity and
 travels to the mediator inside a routed layer under the collecting
-identity. A relationship in which one of this side's own documents
+identity. Each side learns the other's two identities and the
+mediator from a delivery hint in the card of the encounter that
+started the relationship. A relationship in which one of this side's own documents
 goes unacknowledged for three days, or whose mediator refuses the
 routed form with a refusal the binding can verify, switches to a
 fallback: the document alone, signed under the sending identity, on
