@@ -157,7 +157,8 @@ const finalSt = alice.status(sid);
 if (finalSt?.state !== "delivered" || finalSt.late !== false) fail(`trias did not close: ${JSON.stringify(finalSt)}`);
 measured.trias.push("delivered");
 // in the profile form the acknowledgement proves routed for the relationship (RLTP-VTI-3130)
-if ((process.env.RLTP_WIRE_DEPOSIT ?? "routed") === "routed" && alice.ackState().send.proven !== true) fail("a valid acknowledgement of a routed document did not prove routed");
+// submit() carries no digest: it neither starts the switch deadline nor proves routed (RLTP-VTI-3130, lib 0.7.0)
+if ((process.env.RLTP_WIRE_DEPOSIT ?? "routed") === "routed" && (alice.sendMode !== "routed" || alice.ackState().send.firstRoutedAcceptedAt !== null)) fail("the probe's submit() moved the send state");
 say(`  ✓ §6.1 trias closed: accepted → delivered (in time, not late)`);
 
 alice.close(); bob.close(); wireA.close(); wireB.close();

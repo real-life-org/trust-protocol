@@ -178,7 +178,9 @@ export async function createVtiWire(cfg) {
   let dispatching = 0;
   let lastFrameAt = 0;
   // a frame the adapter did not take since the socket last opened: it waits
-  // at the mediator until the next open re-offers it
+  // at the mediator, which offers it again only at the next open; until
+  // then queueEmpty() is false, so on a stable socket the switch is held
+  // back (fail-safe). One wire serves exactly one adapter instance.
   let leftBehind = false;
   const QUIET_MS = 1000;
 

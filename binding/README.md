@@ -56,7 +56,10 @@ benennt genau die Pflichten, die hier wohnen.
     geackt. Ein Rahmen, den der Adapter nicht übernimmt (sein Consumer
     meldet `false` — Puffer über `max-queue-bytes`, Instanz
     stillgelegt — oder wirft), bleibt ungeackt beim Mediator; der bietet
-    ihn beim nächsten Öffnen des Sockets wieder an;
+    ihn erst beim nächsten Öffnen des Sockets wieder an. Bis dahin meldet
+    `queueEmpty()` false: auf einem stabilen Socket hält das die
+    Umschaltung zurück (fail-safe, kein falscher Rückfall). Eine Wire
+    gehört zu genau einer Adapter-Instanz;
   - **Geschlossener Socket:** `ws` verwirft ein `send` nach dem Schließen
     ohne Fehler. Deposit und Ack prüfen daher vorher, ob der Socket der
     Connection-DID offen ist; sonst werfen sie `WireError('unreachable')`
@@ -110,7 +113,12 @@ benennt genau die Pflichten, die hier wohnen.
   zu Ende als Umschaltung über die echte Wire (Double trägt keine
   routed-Rahmen); geschlossener Socket bei Deposit und Ack;
   abgewiesene Fremd- und Fehlrahmen; `queueEmpty()`. Das Double
-  verhält sich beim Schließen wie `ws` (`send` danach still verworfen).
+  verhält sich beim Schließen wie `ws` (`send` danach still verworfen)
+  und hält jeden Rahmen bis zum Ack des Clients, beim nächsten Öffnen
+  des Sockets bietet es die ungeackten wieder an (Store-and-forward);
+  geprüft: über der Obergrenze abgelehnt → `queueEmpty()` false →
+  abholen und abschließen → Socket neu öffnen → Rahmen übernommen →
+  `queueEmpty()` true.
 - `live-probe.mjs` — env-gated (`RLTP_LIVE_MEDIATOR=1`): zwei
   Beziehungen gegen die öffentliche Dev-Instanz, deposit → deliver
   → conclude in beide Richtungen; gibt Zustellung ja/nein,

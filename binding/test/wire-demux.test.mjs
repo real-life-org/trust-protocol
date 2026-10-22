@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { x25519 } from "@noble/curves/ed25519.js";
-import { multibase, jwk, unpack as didcommUnpack } from "@openvtc/vti-didcomm-js";
+import { multibase, jwk, didKey, unpack as didcommUnpack } from "@openvtc/vti-didcomm-js";
 import {
   pack as tspPack, unpack as tspUnpack, packInvite, packAccept, packWithHops, packRouted,
   decodeEnvelope, nextHop,
@@ -92,7 +92,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
     const step = nextHop(got.hops, got.payload);
     if (step.kind !== "forward") { dropped.push({ why: "no next hop", sender: session }); return; }
     forwarded.push({ session, outer: { sender: got.sender, receiver: got.receiver, route: [...got.hops] }, inner: step.inner, outerBytes: qb2.length });
-    sockets.get(step.next)?.onmessage?.({ data: b64u(step.inner) });
+    toClient(step.next, step.inner);
   }
 
   class FakeWs {
@@ -102,7 +102,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       sockets.set(this.did, this);
       opened.push(this.did);
       all.push(this);
-      setTimeout(() => this.onopen?.(), 0);
+      setTimeout(() => { this.onopen?.(); setTimeout(() => void reoffer(this.did), 10); }, 0);
     }
     send(data) {
       // as ws does: a send after close is dropped without an error
@@ -117,7 +117,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       if (env.sender !== this.did) { dropped.push({ why: "sender is not the socket's DID", sender: env.sender }); return; }
       if (env.receiver === mediatorDid) { void route(this.did, qb2); return; }
       direct.push({ session: this.did, sender: env.sender, receiver: env.receiver });
-      sockets.get(env.receiver)?.onmessage?.({ data: b64u(qb2) });
+      toClient(env.receiver, qb2);
     }
     close() {
       if (this.readyState === 3) return;
@@ -126,21 +126,49 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
     }
   }
 
-  /** Inject a frame into a client's socket as the mediator would deliver it. */
-  const deliver = (did, qb2) => {
+  // Store-and-forward: every frame for a client is held until the client
+  // acks it (messages-received over sha256 of the qb64 text) and offered
+  // again whenever that client's socket opens.
+  const held = new Map();                // client DID → Map(id → text)
+  function toClient(did, qb2) {
     const text = b64u(qb2);
-    sockets.get(did).onmessage({ data: text });
+    if (!held.has(did)) held.set(did, new Map());
+    void sha256hex(text).then((id) => held.get(did).set(id, text));
+    const ws = sockets.get(did);
+    if (ws?.readyState === 1) ws.onmessage?.({ data: text });
     return text;
-  };
+  }
+  async function reoffer(did) {
+    const ws = sockets.get(did);
+    const mine = held.get(did);
+    if (!mine || ws?.readyState !== 1) return;
+    const acked = new Set(await ackedBy(did));
+    for (const [id, text] of mine) {
+      if (acked.has(id)) { mine.delete(id); continue; }
+      ws.onmessage?.({ data: text });
+    }
+  }
 
-  /** The message ids a client has acked (decrypting its messages-received). */
+  /** Inject a frame into a client's socket as the mediator would deliver it (and hold it). */
+  const deliver = (did, qb2) => toClient(did, qb2);
+
+  /** The message ids a client has acked (decrypting its messages-received
+   *  with the current or an earlier key of the mediator). */
   const ackedBy = async (did, clientXPublic, clientKid) => {
+    const doc = didKey.resolve(did).didDocument;
+    clientKid ??= doc.keyAgreement?.[0]?.id ?? doc.keyAgreement?.[0];
+    clientXPublic ??= peerKeys(did).encPub;
     const ids = [];
     for (const f of sent.filter((s) => s.did === did)) {
-      const { message } = await didcommUnpack(f.data,
-        { kid, privateJwk: jwk.privateJwk("X25519", xSecret, xPublic) },
-        { kid: clientKid, publicJwk: jwk.publicJwk("X25519", clientXPublic) });
-      if (message.type.endsWith("/messages-received")) ids.push(...message.body.message_id_list);
+      for (const sk of [xSecret, ...oldSecrets]) {
+        try {
+          const { message } = await didcommUnpack(f.data,
+            { kid, privateJwk: jwk.privateJwk("X25519", sk, x25519.getPublicKey(sk)) },
+            { kid: clientKid, publicJwk: jwk.publicJwk("X25519", clientXPublic) });
+          if (message.type.endsWith("/messages-received")) ids.push(...message.body.message_id_list);
+          break;
+        } catch { /* sealed to another key */ }
+      }
     }
     return ids;
   };
@@ -159,6 +187,16 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   });
 }
 
+const gate = () => ({ closed: false, handOver: async (_e, _w, start) => start() });
+let docSeq = 0;
+/** a document entry of the holder's custody view: the deposit's bytes are jcs(envelope) */
+const docView = (bytes) => {
+  const digest = "doc-" + (++docSeq);
+  const envelope = { b: Buffer.from(bytes).toString("base64url"), digest };   // keys in JCS order
+  return { view: { ok: true, entries: [{ digest, kind: "document", envelope, type: "t", threadId: "t", recipient: {}, attempt: 0, since: Date.now(), notAfter: Date.now() + 10 * 72 * 3_600_000 }] }, envelope };
+};
+const jcsBytes = (o) => new TextEncoder().encode(JSON.stringify(o));
+
 async function pair(med, logs, { A, B, mediatorDid = MEDIATOR_DID, depositMode, restoredB } = {}) {
   A ??= { root: rand(32), nonce: rand(32) };
   B ??= { root: rand(32), nonce: rand(32) };
@@ -170,6 +208,9 @@ async function pair(med, logs, { A, B, mediatorDid = MEDIATOR_DID, depositMode, 
     transport: med.transport, log: (l) => logs.push(l), depositMode,
   });
   const wireA = await mk(A, B); const wireB = await mk(B, A);
+  // the adapter's consumer, for tests that fill its buffer directly
+  const onDeliverA = wireA.onDeliver;
+  wireA.onDeliver = (cb) => { A.consumer = cb; onDeliverA.call(wireA, cb); };
   const alice = await MediatorCarrierAdapter.create(A.root, mediatorDid, A.nonce, wireA);
   const bob = restoredB
     ? await MediatorCarrierAdapter.create(B.root, mediatorDid, B.nonce, wireB, restoredB, Date.now())
@@ -386,8 +427,9 @@ test("a closed connection socket fails the deposit as unreachable — never acce
   const med = mediatorDouble();
   const { A, B, alice, bob } = await pair(med, []);
   med.sockets.get(B.ids.conn.did).close(); await tick();
-  const envelope = rand(32);
-  const id = bob.submit(envelope, Date.now()); await bob.settle();
+  const { view, envelope: env } = docView(rand(32));
+  const envelope = jcsBytes(env);
+  const [{ submissionId: id }] = bob.reconcile(view, gate(), Date.now()); await bob.settle();
   assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "transport-unreachable" });
   assert.equal(bob.ackState().send.firstRoutedAcceptedAt, null);
   assert.equal(med.forwarded.length, 0);
@@ -411,7 +453,7 @@ test("an ack on a closed socket fails, so the intent stays and the next advance 
   med.sockets.get(A.ids.conn.did).close(); await tick();
   alice.conclude(c, Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 1, "the intent stays");
-  await tick();
+  await tick(100);                                 // reopened; the mediator offered the frame again (absorbed)
   alice.advance(Date.now()); await alice.settle(); await tick();
   assert.equal(alice.ackState().pending.length, 0);
   const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
@@ -447,8 +489,8 @@ test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed f
   med.dropRouted = true;
   const logs = [];
   const { B, alice, bob } = await pair(med, logs);
-  const first = rand(32);
-  bob.submit(first, Date.now()); await bob.settle(); await tick();
+  const bobGate = gate();
+  bob.reconcile(docView(rand(32)).view, bobGate, Date.now()); await bob.settle(); await tick();
   assert.equal(alice.collect(Date.now()).items.length, 0, "routed frames are not carried");
   await tick(1100);                               // the real queueEmpty: a quiet open socket
   let t = Date.now();
@@ -472,18 +514,25 @@ test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed f
   alice.close(); bob.close();
 });
 
-test("queueEmpty stays false while a frame the adapter did not take waits at the mediator, until the socket opens again (review 3 N1)", async () => {
+test("a frame refused above the cap keeps queueEmpty false; once the buffer is concluded the mediator offers it again at the next open, the adapter takes it, queueEmpty turns true (review 3 N1, review 4 N4)", async () => {
   const med = mediatorDouble();
   const { A, alice, bob, wireA } = await pair(med, []);
-  alice.close();                                   // a retired adapter takes nothing
-  bob.submit(rand(32), Date.now()); await bob.settle(); await tick();
+  assert.equal(await A.consumer(new Uint8Array(16 * 1024 * 1024)), true, "the buffer is filled to the cap");
+  const envelope = rand(32);
+  bob.submit(envelope, Date.now()); await bob.settle(); await tick();
   await tick(1100);
   assert.equal(wireA.queueEmpty(), false, "a frame was left with the mediator");
-  med.sockets.get(A.ids.conn.did).close();         // the next open re-covers it
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1, "only the big one");
+  alice.conclude(c, Date.now()); await alice.settle();
+  med.sockets.get(A.ids.conn.did).close();         // the next open offers it again
   await tick(300);
+  const again = alice.collect(Date.now());
+  assert.equal(again.items.length, 1);
+  assert.deepEqual(new Uint8Array(again.items[0].bytes), envelope);
   await tick(1100);
   assert.equal(wireA.queueEmpty(), true);
-  bob.close();
+  alice.close(); bob.close();
 });
 
 test("authenticate during a background reconnect waits for it: one socket, never two (review 3 N2)", async () => {
