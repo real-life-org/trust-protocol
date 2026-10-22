@@ -283,9 +283,9 @@ Trust Infrastructure mediator, targeting TSP revision 3. Each side of
 a relationship sends under one identity and collects under another.
 A document is signed end to end under the sending identity and
 travels to the mediator inside a routed layer under the collecting
-identity. A relationship whose routed messages go unanswered for
-three days, or whose mediator refuses the routed form, switches for
-good to a fallback without that layer. The mediator sees both identities.
+identity. A relationship whose documents go unanswered for three
+days, or whose mediator refuses the routed form, switches to a
+fallback without that layer. The mediator sees both identities.
 DIDComm appears only as that
 mediator's mediation and pickup protocols, not as a form for RLTP
 documents. No replication adapter is specified.
