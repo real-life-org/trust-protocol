@@ -186,8 +186,50 @@
     "sender": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
     "receiver": "did:web:carrier.example",
     "route": [
-     "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ"
+     "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU"
     ],
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+  },
+  {
+   "case": "routed: deposited on the egress identity's session",
+   "rule": "RLTP-VTI-3110",
+   "inner": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "outer": {
+    "messageType": "routed",
+    "sender": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "receiver": "did:web:carrier.example",
+    "route": [
+     "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU"
+    ],
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "session": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8"
+  },
+  {
+   "case": "routed: empty route",
+   "rule": "RLTP-VTI-3115",
+   "inner": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "outer": {
+    "messageType": "routed",
+    "sender": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "receiver": "did:web:carrier.example",
+    "route": [],
     "sealedTo": "keyAgreement[0] of receiver",
     "signedBy": "sender"
    },
@@ -239,6 +281,28 @@
    "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
   },
   {
+   "case": "routed: route names an account other than the inner receiver",
+   "rule": "RLTP-VTI-3115",
+   "inner": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "outer": {
+    "messageType": "routed",
+    "sender": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "receiver": "did:web:carrier.example",
+    "route": [
+     "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+    ],
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+  },
+  {
    "case": "single layer from the egress identity on the connection DID's session",
    "rule": "RLTP-VTI-3120",
    "message": {
@@ -249,6 +313,65 @@
     "signedBy": "sender"
    },
    "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+  }
+ ],
+ "receiveRefused": [
+  {
+   "case": "routed message at the client",
+   "message": {
+    "messageType": "routed",
+    "sender": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+   },
+   "rule": "RLTP-VTI-7140"
+  },
+  {
+   "case": "nested message",
+   "message": {
+    "messageType": "nested",
+    "sender": "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ",
+    "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+   },
+   "rule": "RLTP-VTI-7140"
+  },
+  {
+   "case": "control message",
+   "message": {
+    "messageType": "control",
+    "sender": "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ",
+    "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+   },
+   "rule": "RLTP-VTI-7140"
+  },
+  {
+   "case": "empty direct payload",
+   "message": {
+    "messageType": "direct",
+    "sender": "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ",
+    "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "payload": "empty"
+   },
+   "rule": "RLTP-VTI-7140"
+  },
+  {
+   "case": "sender is the counterpart's connection DID",
+   "message": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "payload": "non-empty"
+   },
+   "rule": "RLTP-VTI-7140"
+  },
+  {
+   "case": "receiver is this side's egress identity",
+   "message": {
+    "messageType": "direct",
+    "sender": "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ",
+    "receiver": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "payload": "non-empty"
+   },
+   "rule": "RLTP-VTI-7140"
   }
  ]
 }

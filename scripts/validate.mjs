@@ -394,11 +394,11 @@ for (const f of specFiles) {
 // ── 6. Rule traces (manifest ↔ numbered rules), Encounter, Access, Membership, Trust, Message ──
 // Always against the committed manifests conformance/encounter-rule-ids-0.31.txt,
 // conformance/access-rule-ids-0.57.txt, conformance/membership-rule-ids-0.20.txt
-// conformance/trust-rule-ids-0.31.txt, conformance/message-rule-ids-0.1.txt and
+// conformance/trust-rule-ids-0.31.txt, conformance/message-rule-ids-0.1.txt,
 // conformance/delivery-rule-ids-0.83.txt and conformance/adapter-vti-rule-ids-0.24.txt. The private rule inventory of the
 // Encounter, Access and Membership layers is checked additionally when
 // present, and is REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
-// MEMBERSHIP_INVENTORY names it. The Trust, Message and Delivery traces run against their manifests
+// MEMBERSHIP_INVENTORY names it. The Trust, Message, Delivery and Adapter traces run against their manifests
 // only (the inventory is checked by hand: check-encounter-trace.mjs --layer
 // trust --inventory <file>).
 {

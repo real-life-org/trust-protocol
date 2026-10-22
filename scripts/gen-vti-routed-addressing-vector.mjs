@@ -61,11 +61,24 @@ const refused = [
   { case: 'routed: outer sender is the egress identity', rule: 'RLTP-VTI-1120', inner: r.inner, outer: { ...r.outer, sender: A.egress }, session: r.session },
   { case: 'single layer: sender is the connection DID', rule: 'RLTP-VTI-1130', message: { ...r.inner, sender: A.connection }, session: A.connection },
   { case: 'routed: outer receiver is not C', rule: 'RLTP-VTI-3110', inner: r.inner, outer: { ...r.outer, receiver: B.connection }, session: r.session },
-  { case: 'routed: inner receiver is the counterpart\'s egress identity', rule: 'RLTP-VTI-3110', inner: { ...r.inner, receiver: B.egress }, outer: { ...r.outer, route: [B.egress] }, session: r.session },
+  { case: 'routed: inner receiver is the counterpart\'s egress identity', rule: 'RLTP-VTI-3110', inner: { ...r.inner, receiver: B.egress }, outer: r.outer, session: r.session },
+  { case: 'routed: deposited on the egress identity\'s session', rule: 'RLTP-VTI-3110', inner: r.inner, outer: r.outer, session: A.egress },
+  { case: 'routed: empty route', rule: 'RLTP-VTI-3115', inner: r.inner, outer: { ...r.outer, route: [] }, session: r.session },
   { case: 'routed: route names the counterpart\'s egress identity', rule: 'RLTP-VTI-3115', inner: r.inner, outer: { ...r.outer, route: [B.egress] }, session: r.session },
   { case: 'routed: route has a second hop', rule: 'RLTP-VTI-3115', inner: r.inner, outer: { ...r.outer, route: [B.connection, B.egress] }, session: r.session },
+  { case: 'routed: route names an account other than the inner receiver', rule: 'RLTP-VTI-3115', inner: r.inner, outer: { ...r.outer, route: [A.connection] }, session: r.session },
   { case: 'single layer from the egress identity on the connection DID\'s session', rule: 'RLTP-VTI-3120', message: egressSession(A, B).message, session: A.connection },
 ]
+
+// what a receiving binding refuses (RLTP-VTI-7140), seen from A
+const receiveRefused = [
+  { case: 'routed message at the client', message: { messageType: 'routed', sender: B.connection, receiver: A.connection } },
+  { case: 'nested message', message: { messageType: 'nested', sender: B.egress, receiver: A.connection } },
+  { case: 'control message', message: { messageType: 'control', sender: B.egress, receiver: A.connection } },
+  { case: 'empty direct payload', message: { ...accepts(A, B), payload: 'empty' } },
+  { case: 'sender is the counterpart\'s connection DID', message: { ...accepts(A, B), sender: B.connection } },
+  { case: 'receiver is this side\'s egress identity', message: { ...accepts(A, B), receiver: A.egress } },
+].map((c) => ({ ...c, rule: 'RLTP-VTI-7140' }))
 
 const vector = {
   description: 'VTI mediator adapter profile 0.24 (§1a, §3a, §7): the addressing of a deposit in mode routed and in the fallback mode egress-session, the inner message a receiving binding accepts, and the addressings the profile refuses. Identities are did:key from the lib derivation (carrierScopedIdentity); sealedTo and signedBy name the key, not bytes: the frame bytes are the TSP library\'s.',
@@ -76,6 +89,7 @@ const vector = {
   egressSession: { 'A→B': egressSession(A, B), 'B→A': egressSession(B, A) },
   accepts: { A: accepts(A, B), B: accepts(B, A) },
   refused,
+  receiveRefused,
 }
 
 const text = JSON.stringify(vector, null, 1) + '\n'
