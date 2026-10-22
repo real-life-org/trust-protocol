@@ -264,7 +264,9 @@ deposits**:
    at once; it is answered by no report and leaves the send state
    only at the switch. The acknowledgements accepted in mode
    `routed` are kept in the send state for this purpose, each for
-   `give-up-horizon` and the duplicate-window after its acceptance;
+   `give-up-horizon` and the duplicate-window after its acceptance,
+   and each duplicate is judged once, when the holder first hands
+   over its answer, which counts as its arrival;
    a redelivery the adapter absorbs itself (§2, §4) is no duplicate
    here. Acknowledgements thereby count as deposits like documents,
    and a side that only acknowledges switches by the same rule;
@@ -350,7 +352,9 @@ The intent's durability is the **host's store**: the adapter
 exposes its ack state (concluded digests with conclusion instants,
 pending intents) for the host to persist, and accepts it back at
 construction; the send state of §3a (mode, open routed deposits,
-the acknowledgements accepted in mode `routed` and still kept)
+the acknowledgements accepted in mode `routed` and still kept, and
+the duplicates already judged under RLTP-VTI-3130, so that a
+successor judges none of them again)
 travels in the same snapshot, and an
 instant in it after the restore instant is refused like a
 conclusion instant. The snapshot invariant — every pending intent names
