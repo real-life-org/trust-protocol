@@ -10,15 +10,20 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   now receives the mode of each deposit, read at the hand-over, so an
   attempt begun before a switch ends in the mode it began in. A wire may
   offer `queueEmpty()` (true when the mediator holds nothing more for
-  the connection; absent, a collection counts as complete).
+  the connection). Closed: a wire without it never completes a
+  collection, and the adapter over it never switches.
 - **The send state** (RLTP-VTI-3130), per relationship: the mode, the
-  instant a document (never an acknowledgement) was first accepted in
+  instant a document (an entry of kind `document`, or a `submit()`
+  without an entry; never an acknowledgement, which goes through
+  `reconcile`) was first accepted in
   `routed`, the digests of the documents accepted in `routed` and not yet
   answered (with acceptance and the end of their give-up horizon), and
   whether `routed` is proven. It travels in `AckState.send` (new type
   `SendState`); a restore checks it fail-closed (a known mode, finite
-  instants, none after the restore instant) and a snapshot without it
-  starts in `routed`. `sendMode` reads the current mode.
+  instants, none after the restore instant, no digest twice, each
+  horizon within the give-up horizon after its acceptance, and routed
+  digests only with a first acceptance at or before them) and a snapshot
+  without it starts in `routed`. `sendMode` reads the current mode.
 - **Proof and switch**: `acknowledged(id)` and `receiverRefused(id, code)`
   for a document deposited in `routed` prove `routed`; the new
   `answered(digest, now)` carries an answer the holder hands a later
@@ -28,8 +33,11 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   proven and the first acceptance lies `DECLARED.routedAckDeadlineMs`
   (24 h) or more in the past, checked only after the instance concluded
   a collection that left nothing pending (an empty collection counts;
-  `queueEmpty()` not false, nothing buffered or outstanding). Such a
-  conclusion also drops the routed digests past their give-up horizon.
+  `queueEmpty()` true, nothing buffered or outstanding) and only while
+  nothing is pending again at the check, so an acknowledgement that
+  arrived since is collected and reported first. Such a conclusion also
+  drops the routed digests past their give-up horizon. A digest once
+  answered never enters the send state again.
   An accepted submission is never deposited again; one still in the
   holder's custody goes in the new mode at its next hand-over
   (RLTP-VTI-3135, 7130).
@@ -37,11 +45,15 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   addressing of both layers and the session per mode, as
   `vectors/vti-routed-addressing.json` states it (RLTP-VTI-1110, 1120,
   3110, 3115, 3120); the wire binding packs from it.
-- **The app's transport contract**, stated and tested (it held before): a
-  withdrawal by `reconcile` revokes what is pending (no deposit starts
-  afterwards, a late-resolving wire call changes nothing, the send state
-  included); every report is bound to its submission id, and a
-  duplicate's answer is a submission of its own.
+- **The app's transport contract**, stated and tested (it held before):
+  after a withdrawal by `reconcile` the adapter starts no deposit for that
+  submission, and an outcome that resolves late changes nothing, the send
+  state included; a wire call already running cannot be recalled and may
+  still land at the mediator (profile §6), and the copy that arrives is a
+  duplicate the receiver absorbs (Delivery §6.2). Every deposit is a
+  submission with an id of its own, a duplicate's answer included; the
+  report handed to the holder carries the digest, and the app pairs it
+  with its deposit through the submission id it polls.
 - Breaking for wire implementations: `deposit` takes the mode as its
   fourth argument. `AckState` gains the optional `send`.
 

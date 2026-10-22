@@ -38,17 +38,25 @@
 // document, the routed digests not yet answered, proof) in its ack
 // state and switches one way to `egress-session` when `routed` stays
 // unproven for routed-ack-deadline, checked in an advance after a
-// conclusion that left nothing pending (RLTP-VTI-3130). An attempt ends
-// in the mode it began in; an accepted submission is never deposited
-// again (RLTP-VTI-3135, 7130).
+// conclusion that left nothing pending and while nothing is pending
+// again (RLTP-VTI-3130); "nothing pending" needs the wire's queueEmpty()
+// to say true — a wire without it never lets the adapter switch. A
+// document is an entry of kind `document`, or a submit() without an
+// entry (the holder's acknowledgements go through reconcile). An attempt
+// ends in the mode it began in; an accepted submission is never
+// deposited again (RLTP-VTI-3135, 7130).
 //
 // The app's transport contract (web-of-trust TRANSPORT.md, rules 5 and
-// 6) holds here: (5) a withdrawal — reconcile without the entry —
-// revokes what is pending: no deposit starts for that submission
-// afterwards, and a wire call that resolves late changes nothing (has()
-// false, report() null, no send state); (6) every report names its
-// deposit: reports and transitions are bound to the submission id, and
-// a duplicate's answer (`resend`) is a submission with an id of its own.
+// 6), as far as it holds here: (5) a withdrawal — reconcile without the
+// entry — means the adapter starts no deposit for that submission
+// afterwards, and an outcome that resolves late changes nothing here
+// (has() false, report() null, no send state). A wire call already
+// running cannot be recalled and may still land at the mediator (the §6
+// boundary); the copy that then arrives is a duplicate the receiver
+// absorbs (Delivery §6.2). (6) Every deposit is a submission with an id
+// of its own, a duplicate's answer (`resend`) included; the
+// DeliveryReport handed to the holder carries the digest, and the app
+// pairs it with its deposit through the submission id it polls.
 //
 // Beyond the profile (lib 0.5.0): conclude(collection, now, {keep}) leaves
 // the items whose disposition is transient unconcluded and offers them
@@ -160,8 +168,16 @@ function restoreSendState(send, restoredAt) {
             !finite(e.acceptedAt) || !finite(e.horizonAt) || e.acceptedAt > restoredAt) {
             return refuse('routed entry is malformed, non-finite or accepted after restoredAt');
         }
+        if (e.horizonAt < e.acceptedAt || e.horizonAt > e.acceptedAt + DECLARED.giveUpHorizonMs) {
+            return refuse('routed entry: horizon outside [acceptedAt, acceptedAt + give-up horizon]');
+        }
         return { digest: e.digest, acceptedAt: e.acceptedAt, horizonAt: e.horizonAt };
     });
+    if (new Set(routed.map((r) => r.digest)).size !== routed.length)
+        refuse('names a routed digest twice');
+    if (routed.length > 0 && (first === null || first > Math.min(...routed.map((r) => r.acceptedAt)))) {
+        refuse('routed digests without a first routed acceptance at or before them');
+    }
     return { mode: s.mode, firstRoutedAcceptedAt: first, routed, proven: s.proven };
 }
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
@@ -621,8 +637,11 @@ export class MediatorCarrierAdapter {
         // acknowledgements never count
         if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#isDocument(sub)) {
             this.#firstRoutedAcceptedAt ??= this.#clock;
-            if (sub.digest !== undefined && !this.#routed.has(sub.digest)) {
-                this.#routed.set(sub.digest, { acceptedAt: this.#clock, horizonAt: sub.submittedAt + DECLARED.giveUpHorizonMs });
+            const horizonAt = sub.submittedAt + DECLARED.giveUpHorizonMs;
+            // answered already (the verdict outran the deposit's resolution), or
+            // past its horizon (it would fall at the next clean conclusion): not named
+            if (sub.digest !== undefined && sub.answered !== true && this.#clock <= horizonAt && !this.#routed.has(sub.digest)) {
+                this.#routed.set(sub.digest, { acceptedAt: this.#clock, horizonAt });
             }
         }
         // An interim report (including a horizon-corrected one) never
@@ -642,6 +661,7 @@ export class MediatorCarrierAdapter {
         if (sub.sentMode !== 'routed' || !this.#isDocument(sub))
             return;
         this.#proven = true;
+        sub.answered = true;
         if (sub.digest !== undefined)
             this.#routed.delete(sub.digest);
     }
@@ -791,13 +811,17 @@ export class MediatorCarrierAdapter {
         this.#concludedClean(now);
         this.#startFlush(now);
     }
-    /** After a conclusion (RLTP-VTI-3130): when it left nothing pending —
-     *  the mediator holds nothing more for this connection (queueEmpty, if
-     *  the wire knows), nothing waits in the buffer, no other collection is
-     *  outstanding — the switch check may run in the next advance, and the
-     *  routed digests past their give-up horizon fall. */
+    /** Nothing pending for this connection: the wire says the mediator
+     *  holds nothing more (queueEmpty; a wire without it never says so),
+     *  nothing waits in the buffer, no collection is outstanding. */
+    #nothingPending() {
+        return this.#wire.queueEmpty?.() === true && this.#inbox.length === 0 && this.#outstanding.size === 0;
+    }
+    /** After a conclusion (RLTP-VTI-3130): when it left nothing pending,
+     *  the switch check may run in a later advance, and the routed digests
+     *  past their give-up horizon fall. */
     #concludedClean(now) {
-        if (this.#wire.queueEmpty?.() === false || this.#inbox.length > 0 || this.#outstanding.size > 0)
+        if (!this.#nothingPending())
             return;
         this.#cleanConcluded = true;
         for (const [digest, r] of this.#routed)
@@ -892,7 +916,9 @@ export class MediatorCarrierAdapter {
         // the switch (RLTP-VTI-3130): only after a conclusion that left nothing
         // pending, routed unproven, its first acceptance a deadline ago — one
         // way; checked before the retries below, which hand over in the new mode
-        if (this.#mode === 'routed' && this.#cleanConcluded && !this.#proven &&
+        // the check holds while anything is pending again at the check itself:
+        // an acknowledgement that arrived since waits to be collected and reported
+        if (this.#mode === 'routed' && this.#cleanConcluded && !this.#proven && this.#nothingPending() &&
             this.#firstRoutedAcceptedAt !== null &&
             now - this.#firstRoutedAcceptedAt >= DECLARED.routedAckDeadlineMs) {
             this.#mode = 'egress-session';
