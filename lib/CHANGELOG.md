@@ -57,8 +57,9 @@ does not change.
   is the `N` whose identities the counterpart saw; two devices writing a
   first `N` apart would make that untrue (profile Open Issue 13). A
   relationship chained into another is no `RelationshipView` of its own
-  (only an id in `chainedFrom`) and shows no `carrierNonce`: its adapter
-  instance is closed at the chaining (RLTP-VTI-1230).
+  (only an id in `chainedFrom`) and shows no `carrierNonce`: the app
+  closes the adapter instance of a relationship once its id appears in
+  another relationship's `chainedFrom` (RLTP-VTI-1230).
 
 ## 0.7.0
 

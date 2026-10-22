@@ -118,8 +118,12 @@ const edDidKey = (x) => {
  *  entry naming the connection DID (`id`, with `#tsp`), `C`
  *  (`serviceEndpoint`) and the egress identity (`rltpEgress`). */
 export async function deliveryHint(rootIkm, carrier, nonce) {
-    const connection = await carrierScopedIdentity(rootIkm, carrier, nonce, 'connection');
-    const egress = await carrierScopedIdentity(rootIkm, carrier, nonce, 'egress');
+    // snapshot at entry, as create does (R8-B2): a caller's buffer changed
+    // between the two derivations must not couple two relationships
+    const ikm = new Uint8Array(rootIkm);
+    const n = new Uint8Array(nonce);
+    const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection');
+    const egress = await carrierScopedIdentity(ikm, carrier, n, 'egress');
     return jcs({ id: connection.did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: egress.did });
 }
 /** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,

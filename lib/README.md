@@ -162,7 +162,8 @@ the own canonical carrier-nonce entry (`carrierNonce: {nonce,
 generation}`) and the counterpart's hints from the card of the enactment
 that opened it (`counterpartDeliveryHints`); a re-encounter chained into
 the relationship changes neither, and the chained relationship shows no
-`carrierNonce` (its adapter instance is closed at the chaining). The
+`carrierNonce`: the app closes the adapter instance of a relationship
+once its id appears in another relationship's `chainedFrom`. The
 library offers no rotation or replacement of N (profile RLTP-VTI-1245);
 with its one writer per holder, `carrierNonce` is the N the counterpart
 saw. The VTI adapter module builds and reads the hint:

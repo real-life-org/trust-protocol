@@ -125,8 +125,9 @@ class RltpMediatorSession extends MediatorSession {
  * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key (addressing): the
  *        `id` without `#tsp` of its delivery hint (profile 0.25 §1b, RLTP-VTI-1240)
  * @param {string}     cfg.peerEgressDid counterpart's EGRESS did:key (sender verification):
- *        the `rltpEgress` of that hint; required in every profile form
- *        (only the control form `connection` does without it)
+ *        the `rltpEgress` of that hint; required in every form that reads from
+ *        the egress identity (the profile forms and the control form `egress`);
+ *        only the control form `connection` does without it
  * @param {(line: string) => void} [cfg.log]  sink for frames that are not
  *        delivered (default: stderr)
  * @param {string}     [cfg.depositMode] overrides RLTP_WIRE_DEPOSIT (default
@@ -171,7 +172,7 @@ export async function createVtiWire(cfg) {
   if (!["routed", "egress-session", "egress", "connection"].includes(depositMode)) {
     throw new Error(`RLTP_WIRE_DEPOSIT: unknown mode ${depositMode}`);
   }
-  // in every profile form the counterpart's documents come from its egress
+  // in every form but `connection` the counterpart's documents come from its egress
   // identity: without it the counterpart has no wire identities at C, and
   // no instance exists (RLTP-VTI-1235) — refused here, never a wire that
   // refuses and acknowledges every frame it receives

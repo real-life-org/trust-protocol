@@ -577,7 +577,7 @@ test("a receive-only side reconnects by itself after its socket drops, and recei
   alice.close(); bob.close();
 });
 
-test("RLTP-VTI-1235: a wire without the counterpart's egress identity is refused at construction in every profile form; only the control form `connection` does without it", async () => {
+test("RLTP-VTI-1235: a wire without the counterpart's egress identity is refused at construction in every form that reads from the egress identity (the profile forms and the control form `egress`); only the control form `connection` does without it", async () => {
   const A = { root: rand(32), nonce: rand(32) };
   const B = { root: rand(32), nonce: rand(32) };
   B.ids = await deriveWireIdentities(B.root, MEDIATOR_DID, B.nonce);
