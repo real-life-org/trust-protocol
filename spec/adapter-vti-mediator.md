@@ -270,8 +270,8 @@ refused submission stays in the holder's custody and goes in the new
 mode at its next hand-over, reported `awaiting-transport`
 (`carrier-refused-retriable`) until then. It MUST NOT switch otherwise: not on any
 other refusal by the mediator (it maps as §5 says), not on a
-mediator status or problem-report frame that names no routed
-deposit (consumed, §5), not on an offline signal. An answer of one
+mediator status or problem-report frame that refuses no deposit
+(consumed, §5), not on an offline signal. An answer of one
 deposit settles that deposit only: a relationship in which routed
 deposits were answered before switches by the same rule when a
 later one goes unanswered. A successor applies the reports the
@@ -379,9 +379,9 @@ because the holder concluded it:
 2. the intent was already sent before the later copy arrived: that
    acknowledgement can delete the copy at the mediator before the
    holder sees it;
-3. after a restart the instance does not know that a buffered copy
-   is a later one, so the holding back of §3 does not apply, and a
-   restored intent can delete it at the mediator.
+3. after a restart only the buffer is gone: a restored intent can
+   delete the copy at the mediator if it is sent before the mediator
+   offers the copy again.
 
 **The teardown edge, priced honestly.** An acknowledgement still
 flying at `close()` cannot be carried by the snapshot; a restored
@@ -581,8 +581,8 @@ acknowledged, never delivered.
 nothing more for the connection DID (from the pickup protocol's
 status, or an approximation it names). The check of RLTP-VTI-3130
 runs only on that statement: a binding that cannot make it never
-lets the deadline switch happen, and an adapter profile that uses
-such a binding states so. The immediate switch on a validated
+lets the deadline switch happen, and an implementation that uses
+such a binding states so in its conformance notes. The immediate switch on a validated
 refusal of the routed form needs no such statement.
 
 Of the §5a.10 vector debt (Delivery §11), this profile discharges
