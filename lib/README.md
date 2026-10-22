@@ -94,7 +94,12 @@ that the adapter holds it and ends nothing (RLTP-DEL-6330), and it stays
 retained with its effect for a duplicate (6335).
 `./adapters/vti-mediator` reconciles from the view
 (`reconcile(view, holder, now)`); one adapter serves one opening, so the
-next opening creates a new one.
+next opening creates a new one. The app persists the adapter's
+`ackState()`, which carries the relationship's send state, and restores it
+into the next adapter; it hands that adapter, through `answered(digest,
+now)`, the acknowledgements and validated refusals that arrive for
+documents an earlier adapter deposited, before the adapter's next
+`advance`.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)
@@ -168,7 +173,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a carrier adapter: its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier). |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.24): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state travels in `AckState.send`, `answered(digest, now)` carries the holder's answers to a later instance, and `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing. |
 
 ## The modules and the rules they implement
 
@@ -288,6 +293,7 @@ This package uses its own semver; the specification uses castings.
 | membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
 | delivery | Delivery 0.83 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| transport adapter | VTI Mediator Adapter Profile 0.24 | the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `egress-session` to `routed` (profile Open Issue 7) |
 | message | Message Tasks 0.1 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 

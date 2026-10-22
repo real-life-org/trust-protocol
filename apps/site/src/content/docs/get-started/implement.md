@@ -53,7 +53,9 @@ mediator adapter does this in `reconcile(view, holder, now)`;
 `mayHandOver` is the check alone and authorizes nothing afterwards). At
 the lock it awaits `close`, which returns once the holder's running
 operation has finished; only then does the next opening, a new holder over
-the same store, begin. An app that does not know whether a human act
+the same store, begin. The VTI mediator adapter keeps the relationship's
+sending mode in its `ackState()`; the app persists that state and restores
+it into the adapter of the next opening. An app that does not know whether a human act
 committed (a crash, a lock) asks `replay(actId, when)`, which answers the
 act's journaled result or `unknown-act` and never runs the act again.
 `InMemoryStore` is for tests;
