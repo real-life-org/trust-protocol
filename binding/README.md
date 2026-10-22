@@ -209,6 +209,8 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
 
 ## Offen
 
+- `queueEmpty()` (RLTP-VTI-7150) ist eine Näherung (Socket offen, 1 s still, nichts zurückgelassen). Das Profil verlangt, dass eine Näherung zu „etwas offen“ hin irrt; die Ruhefrist erfüllt das nicht in jedem Fall (ein Rahmen, der nach der Ruhefrist noch kommt). Eine Statusabfrage über Pickup 3.0 steht aus.
+
 - Problem-Reports des Mediators: Profil §5 zählt einen Problem-Report, der eine Einlieferung ablehnt, als Ablehnung dieser Einlieferung. Die Bindung ordnet Problem-Reports heute keiner Einlieferung zu und verbraucht sie; eine solche Ablehnung erreicht den Adapter daher nicht (auch nicht als `routed-refused`, Profil Open Issue 4).
 
 - Sofortige Umschaltung auf eine validierte Ablehnung der routed-Form
