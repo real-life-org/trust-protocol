@@ -29,7 +29,16 @@ benennt genau die Pflichten, die hier wohnen.
     - **`egress-session`** (Rückfall nach der Umschaltung von
       RLTP-VTI-3130): nur die innere Nachricht, über eine
       send-only-Session der Egress-Identität, die erst beim ersten
-      Deposit in diesem Modus authentisiert wird;
+      Deposit in diesem Modus authentisiert wird und vor jedem Deposit
+      geprüft wird (Socket zu oder Token abgelaufen → neu
+      authentisieren und verbinden). Send-only heißt hier
+      (`SendOnlySession`): der Socket öffnet ohne
+      `live-delivery-change` (kein Live Mode), eingehende Rahmen werden
+      unbehandelt verworfen, nichts wird geackt. Auch in diesem Modus
+      authentisiert der Adapter vor jedem Deposit zuerst die
+      Connection-DID (deren Token ist das erste Argument von
+      `deposit`); die Egress-Identität authentisiert die Bindung
+      selbst;
   - `onDeliver` entpackt den TSP-Rahmen, verlangt Rev 3 und genau das
     Paar (Egress-Identität des Partners → eigene Connection-DID, in
     beiden Modi), und reicht nur bei einer Anwendungsnachricht vom Typ
@@ -47,10 +56,12 @@ benennt genau die Pflichten, die hier wohnen.
     auf — geackt wird erst, wenn der Adapter `conclude` sagt;
   - `queueEmpty()` für die Umschaltprüfung (RLTP-VTI-3130): wahr, wenn
     die Session der Connection-DID offen ist, kein empfangener Rahmen
-    noch auf dem Weg zum Adapter ist und seit mindestens 1 s kein
-    TSP-Rahmen kam. Live Delivery schiebt beim Öffnen des Sockets, was
-    der Mediator hält; ein ruhiger offener Socket gilt daher als leere
-    Queue. Eine Näherung, keine Auskunft des Mediators;
+    noch auf dem Weg zum Adapter ist und seit mindestens 1 s weder ein
+    TSP-Rahmen kam noch der Socket (neu) geöffnet wurde. Live Delivery
+    schiebt beim Öffnen des Sockets, was der Mediator hält; ein ruhiger
+    offener Socket gilt daher als leere Queue. Eine Näherung, keine
+    Auskunft des Mediators. Ohne `queueEmpty()` schaltet der Adapter
+    nie um (geschlossen);
   - `sentFrames()` — Größen der deponierten Rahmen (Nutzlast, innen,
     außen) für die Messungen der Proben;
   - `RLTP_WIRE_DEPOSIT` (oder `cfg.depositMode`) ist ein
@@ -166,6 +177,10 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
 
 - Live-Rückfall `egress-session` aus dem Adapter heraus (Frist 24 h) und
   Schlüsselrotation des Mediators: nur im Double geprüft.
+- Die send-only-Session öffnet seit dieser Fassung ohne
+  `live-delivery-change`; ob der Live-Mediator Deposits über einen
+  Socket ohne Live Mode annimmt, ist nicht gemessen (die
+  `egress-session`-Werte oben stammen aus der Fassung mit Live Mode).
 - Der §5a.10-Peer-Wechsel unter unverändertem `C` wird nicht bedient
   (RLTP-VTI-7120, Profil Open Issue 10); vti-tsp-js 0.3.0 dekodiert
   Referrals, komponiert sie nicht.

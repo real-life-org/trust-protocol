@@ -46,6 +46,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   const dropped = [];                    // { why, sender }
   const forwarded = [];                  // routed messages opened and passed on
   const direct = [];                     // direct frames relayed: { session, sender, receiver }
+  const opened = [];                     // the DID of every socket opened, in order
   let lastChallengeDid = null;
   const med = { down: false };
 
@@ -96,6 +97,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       this.did = protocols[0].slice("bearer.tok:".length);
       this.readyState = 1;
       sockets.set(this.did, this);
+      opened.push(this.did);
       setTimeout(() => this.onopen?.(), 0);
     }
     send(data) {
@@ -138,7 +140,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
 
   return Object.assign(med, {
     transport: { fetch, resolve, WebSocketImpl: FakeWs },
-    deliver, ackedBy, rotate, sockets, dropped, forwarded, direct,
+    deliver, ackedBy, rotate, sockets, dropped, forwarded, direct, opened, sent,
     publicKey: () => xPublic,
   });
 }
@@ -338,5 +340,30 @@ test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after
   assert.equal(p.wireA.queueEmpty(), false, "a frame just arrived");
   await tick(1100);
   assert.equal(p.wireA.queueEmpty(), true);
+  p.alice.close(); p.bob.close();
+});
+
+test("queueEmpty right after the session opens is false; a successor restored past the deadline does not switch at once (B1)", async () => {
+  const med = mediatorDouble();
+  const send = { mode: "routed", firstRoutedAcceptedAt: 0, routed: [], proven: false };
+  const { alice, bob, wireB } = await pair(med, [], { restoredB: { concluded: [], pending: [], send } });
+  assert.equal(wireB.queueEmpty(), false, "just opened: what the mediator holds may still be on its way");
+  bob.conclude(bob.collect(Date.now()), Date.now());
+  bob.advance(Date.now());
+  assert.equal(bob.sendMode, "routed");
+  alice.close(); bob.close();
+});
+
+test("the egress session is send-only and kept usable: no live delivery, nothing acked, reopened when closed (M3, RLTP-VTI-3120)", async () => {
+  const med = mediatorDouble();
+  const p = await pair(med, [], { depositMode: "egress-session" });
+  const egressDid = p.B.ids.egress.did;
+  p.bob.submit(rand(24), Date.now()); await p.bob.settle(); await tick();
+  assert.equal(p.alice.collect(Date.now()).items.length, 1);
+  assert.deepEqual(med.sent.filter((f) => f.did === egressDid), [], "no live-delivery-change, no ack from the egress identity");
+  med.sockets.get(egressDid).close();
+  p.bob.submit(rand(24), Date.now()); await p.bob.settle(); await tick();
+  assert.equal(p.alice.collect(Date.now()).items.length, 1, "delivered over a reopened session");
+  assert.equal(med.opened.filter((d) => d === egressDid).length, 2);
   p.alice.close(); p.bob.close();
 });

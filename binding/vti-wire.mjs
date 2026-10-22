@@ -94,6 +94,16 @@ export function peerKeys(did) {
  *  here the frame is only handed off — `ackTsp` fires when the
  *  adapter concludes. The adapter's three registers own absorption,
  *  so the session-level dedup is dropped too. */
+/** The egress identity's send-only session (RLTP-VTI-3120): the socket
+ *  opens without the live-delivery-change the stock `connect()` sends (no
+ *  Live Mode), and every inbound frame is dropped unhandled — nothing is
+ *  collected, nothing acknowledged (a DIDComm frame would otherwise be
+ *  acked by the stock session). */
+class SendOnlySession extends MediatorSession {
+  async connect() { await this._openSocket(); }
+  async _onFrame() { /* send-only: collects and acknowledges nothing */ }
+}
+
 class RltpMediatorSession extends MediatorSession {
   async _dispatchTspFrame(qb2, text) {
     if (!this.onTspFrame) return;
@@ -185,6 +195,9 @@ export async function createVtiWire(cfg) {
       onError: () => {},
     });
     await session.connect();
+    // live delivery pushes what the mediator holds from now on: the quiet
+    // period of queueEmpty() starts at the open, not at the epoch
+    lastFrameAt = Date.now();
     return session;
   }
 
@@ -233,11 +246,16 @@ export async function createVtiWire(cfg) {
   let mediatorInfo = null;
 
   /** The egress identity's send-only session (RLTP-VTI-3120), opened at
-   *  the first deposit in mode egress-session: no TSP consumer, so it
-   *  collects nothing, acknowledges nothing, holds no keylist. */
+   *  the first deposit in mode egress-session and checked before every
+   *  deposit: a closed socket or an access token at its end is
+   *  authenticated and opened anew. It collects nothing, acknowledges
+   *  nothing, holds no keylist and no Live Mode (SendOnlySession). */
+  let egressExpiresAt = 0;
   function ensureEgressSession() {
-    if (egressSession) return Promise.resolve(egressSession);
+    if (egressSession?.isOpen && Date.now() < egressExpiresAt) return Promise.resolve(egressSession);
     egressAuthing ??= (async () => {
+      try { egressSession?.close(); } catch { /* replaced below */ }
+      egressSession = null;
       const eAuth = await authenticateToMediator({
         mediatorDid: cfg.mediatorDid,
         clientDid: egress.did,
@@ -246,7 +264,8 @@ export async function createVtiWire(cfg) {
         netPolicy,
         ...atmSeams,
       });
-      const s = new MediatorSession({
+      egressExpiresAt = (eAuth.accessExpiresAt ?? 0) * 1000 || Date.now() + 600_000;
+      const s = new SendOnlySession({
         mediator: eAuth.mediator,
         mediatorJwt: eAuth.accessToken,
         client: { did: egress.did, kid: egress.kid, privateKey: egress.xSecret, publicKey: egress.xPublic },
@@ -289,6 +308,11 @@ export async function createVtiWire(cfg) {
         // delivery) and its next reconnect use what was just resolved
         session.mediator = auth.mediator;
         session.mediatorJwt = auth.accessToken;
+        if (!session.isOpen) {
+          // reconnect with the renewed token; the quiet period starts anew
+          await session.connect();
+          lastFrameAt = Date.now();
+        }
       }
       await ensureSession(auth.accessToken, auth.mediator);
       return {
@@ -345,7 +369,10 @@ export async function createVtiWire(cfg) {
         return;
       }
       // egress-session: the inner message alone on the egress identity's
-      // send-only session; `egress` (control) on the connection DID's socket
+      // send-only session; `egress` (control) on the connection DID's socket.
+      // The adapter authenticates the connection DID before every deposit,
+      // in this mode too (its token is the deposit's first argument); the
+      // egress identity's own authentication happens here
       const s = mode === "egress-session" ? await ensureEgressSession() : session;
       if (!s) throw new Error("no session");
       sent.push({ mode, payload: bytes.length, inner: inner.bytes.length, outer: null });
