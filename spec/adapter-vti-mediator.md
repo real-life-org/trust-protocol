@@ -142,7 +142,10 @@ Delivery 0.83 hangs the separation on the outer sender. The change
 this reading needs in the Delivery Contract is stated in Appendix A;
 until its next casting takes it up, an implementation of this
 profile states in its conformance notes that it applies RLTP-VTI-1110
-and 1120 in place of that clause. The sentence of §5a.10 that a
+and 1120 in place of that clause, and every other entry of
+Appendix A that turns a conformance statement of Delivery 0.83
+around (the send-only session of mode `egress-session`, the routed
+deposits under the connection DID). The sentence of §5a.10 that a
 nested private end-to-end VID is "hidden from intermediaries by
 construction" is not a property of routed mode: the mediator opens
 the routing layer and reads the inner sender (§9).
@@ -183,7 +186,7 @@ mediator-shaped error.
 | `submit` | `POST /inbound` / WS frame; the sealed RLTP envelope in the sending form of §3a, on the connection DID's session (mode `routed`) or the egress identity's send-only session (mode `egress-session`) | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, built anew for every attempt (§7) |
 | `collect` | live delivery / `delivery-request`; mediator fetches with `DoNotDelete` | redelivery before ack is re-cover, not a new item |
 | `conclude` | `messages-received` over the digest set of the collection (decision 3) | infallible at the port; see §4 |
-| `advance` | adapter clock only | give-up, retries, ack flushing, duplicate-window pruning |
+| `advance` | adapter clock only | give-up, retries (each a hand-over through the holder, RLTP-VTI-3135), the switch check of RLTP-VTI-3130, ack flushing, duplicate-window pruning |
 
 Delete-to-ack order is **hand off → await → ack** (Dogwood,
 `vti-didcomm-js` `29b92cc`), kept with three receiver registers:
@@ -238,20 +241,23 @@ resumes it. The send state holds the mode, the instant a **document**
 first accepted in mode `routed`, the digests of the documents
 accepted in mode `routed` and not yet answered, and whether `routed`
 has been **proven** for the relationship. `routed` is proven by a
-valid acknowledgement, a validated receiver refusal (§5) or an
-`idConflict` answer for one of those digests — reported to the
+valid acknowledgement, a validated receiver refusal (§5) or a
+validated `idConflict` answer for one of those digests — reported to the
 instance that deposited it, or by the holder to a later instance when
 it arrives after that one's close. A report for a document the send
 state does not name as routed proves nothing, so after a loss of the
 send state earlier reports prove nothing; answers that are no verdict
 (`unavailable`, `internalError`, §5) prove nothing either. A digest
-leaves the send state when it is answered or its give-up horizon has
-passed. An instance in mode `routed` MUST switch to `egress-session`
+leaves the send state when it is answered, or at the first
+conclusion described below that follows the end of its give-up
+horizon. An instance in mode `routed` MUST switch to `egress-session`
 when `routed` is not proven and that first acceptance lies
-`routed-ack-deadline` (§2) or more in the past, checked from the end
-of the instance's first completed collection on (an acknowledgement
-that arrived while no instance ran waits in the connection DID's own
-queue), and MUST NOT switch otherwise: not on a refusal by the
+`routed-ack-deadline` (§2) or more in the past, checked only after
+the instance has concluded (§3, `conclude`) a collection that left
+no frame pending for it at the mediator, with the reports that
+collection produced applied (an acknowledgement that arrived while
+no instance ran waits in the connection DID's own queue), and MUST
+NOT switch otherwise: not on a refusal by the
 mediator (it maps as §5 says), not on a mediator status or
 problem-report frame (consumed, §5), not on an offline signal. A
 successor applies the reports the holder hands it before it checks
@@ -494,7 +500,8 @@ under an unchanged `C`: the connection DID is derived from (root,
 case cannot be established (Appendix A). Routed deposits addressed
 to `C` then reach no one; they fail at the give-up horizon, and the
 switch of RLTP-VTI-3130 may carry what follows, since mode
-`egress-session` seals nothing to `C`. What can change under an unchanged
+`egress-session` seals nothing to `C`, if the egress identity's
+authentication at `C` still succeeds. What can change under an unchanged
 `C` is the key `C`'s DID document names first under `keyAgreement`
 (a rebinding of the intermediary). The binding resolves that key at
 every authentication and every token renewal of the connection DID's
@@ -649,7 +656,8 @@ is decidable.
 - **The ack store reveals traffic history.** `AckState` holds
   digests and instants of concluded deliveries, and the send state
   whether and since when a relationship's routed documents went
-  unacknowledged — metadata about
+  unacknowledged, and the digests of the routed documents not yet
+  answered (outbound history) — metadata about
   what arrived and when, not content. A host persisting it should
   protect it like the message store it accompanies.
 - **Instance retirement is not principal retirement.** `close()`

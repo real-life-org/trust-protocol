@@ -218,7 +218,8 @@
    "case": "routed: outer receiver is not C",
    "mode": "routed",
    "rules": [
-    "RLTP-VTI-3110"
+    "RLTP-VTI-3110",
+    "RLTP-VTI-7120"
    ],
    "inner": {
     "messageType": "direct",
@@ -331,6 +332,31 @@
     "receiver": "did:web:carrier.example",
     "route": [
      "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ"
+    ],
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+  },
+  {
+   "case": "routed: route names a control principal",
+   "mode": "routed",
+   "rules": [
+    "RLTP-VTI-3115"
+   ],
+   "inner": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "outer": {
+    "messageType": "routed",
+    "sender": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "receiver": "did:web:carrier.example",
+    "route": [
+     "did:key:z6MksbsC5mWfC3yPwQCayCqtQFGFkxge8FBqdXYgbxxWMqPF"
     ],
     "sealedTo": "keyAgreement[0] of receiver",
     "signedBy": "sender"
@@ -488,6 +514,17 @@
    "case": "nested message",
    "message": {
     "messageType": "nested",
+    "sender": "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ",
+    "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+   },
+   "rules": [
+    "RLTP-VTI-7140"
+   ]
+  },
+  {
+   "case": "padding message",
+   "message": {
+    "messageType": "padding",
     "sender": "did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ",
     "receiver": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
    },
