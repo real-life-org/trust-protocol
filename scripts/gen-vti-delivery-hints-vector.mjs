@@ -51,7 +51,7 @@ if (jcs(A) !== jcs(ROUTED.sides.A) || jcs(B) !== jcs(ROUTED.sides.B)) throw new 
 
 /** The service entry of RLTP-VTI-1210, for the negative cases. */
 const entry = (s, carrier = C) => ({ id: s.connection + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: s.egress })
-const hints = { A: deliveryHint(A, C), B: deliveryHint(B, C) }
+const hints = { A: await deliveryHint(rootA, C, nonceA), B: await deliveryHint(rootB, C, nonceB) }
 if (hints.A !== jcs(entry(A)) || hints.B !== jcs(entry(B))) throw new Error('deliveryHint is not the JCS form of the service entry')
 for (const h of Object.values(hints)) if ([...h].length > 512) throw new Error('a hint longer than 512 characters (RLTP-ENC-6090)')
 
@@ -83,18 +83,20 @@ const ignored = [
   { case: 'another type', hint: jcs({ ...e, type: 'DIDCommMessaging' }), rules: ['RLTP-VTI-1210'] },
   { case: 'id without the #tsp fragment', hint: jcs({ ...e, id: B.connection }), rules: ['RLTP-VTI-1210'] },
   { case: 'connection DID that is no Ed25519 did:key', hint: jcs({ ...e, id: 'did:web:example.org#tsp' }), rules: ['RLTP-VTI-1210'] },
+  // the pattern did:key:z6Mk + 44 base58 characters is necessary, not sufficient: these decode to another multicodec
+  { case: 'connection DID of the did:key pattern that does not decode to 0xed01 and 32 bytes', hint: jcs({ ...e, id: 'did:key:z6Mk' + '1'.repeat(44) + '#tsp' }), rules: ['RLTP-VTI-1210'] },
+  { case: 'egress identity of the did:key pattern that does not decode to 0xed01 and 32 bytes', hint: jcs({ ...e, rltpEgress: 'did:key:z6Mk' + 'z'.repeat(44) }), rules: ['RLTP-VTI-1210'] },
   { case: 'egress identity equal to the connection DID', hint: jcs({ ...e, rltpEgress: B.connection }), rules: ['RLTP-VTI-1210'] },
   { case: 'another carrier: serviceEndpoint is not C', hint: jcs(entry(B, 'did:web:mediator.example.org')), rules: ['RLTP-VTI-1225'] },
 ]
 for (const c of ignored) if (readDeliveryHint(c.hint, C) !== null) throw new Error(`${c.case}: the library reads it`)
 
 // the hint list of a card, read at C (RLTP-VTI-1225): exactly one hint of this profile for C
-const B2 = await side(rootB, label('rltp/vector/vti-delivery-hints/nonce-B2'))
 const lists = [
   { case: 'one hint for C', hints: [hints.B], expect: 'B', rules: ['RLTP-VTI-1225', 'RLTP-VTI-1240'] },
   { case: 'a hint for another carrier beside the hint for C', hints: [jcs(entry(B, 'did:web:mediator.example.org')), hints.B], expect: 'B', rules: ['RLTP-VTI-1225'] },
   { case: 'an unreadable hint beside the hint for C', hints: ['tsp:' + B.connection, hints.B], expect: 'B', rules: ['RLTP-VTI-1220', 'RLTP-VTI-1225'] },
-  { case: 'two hints for C', hints: [hints.B, deliveryHint(B2, C)], expect: null, rules: ['RLTP-VTI-1225'] },
+  { case: 'two hints for C', hints: [hints.B, await deliveryHint(rootB, C, label('rltp/vector/vti-delivery-hints/nonce-B2'))], expect: null, rules: ['RLTP-VTI-1225'] },
   { case: 'no hint for C', hints: [jcs(entry(B, 'did:web:mediator.example.org'))], expect: null, rules: ['RLTP-VTI-1225', 'RLTP-VTI-1235'] },
   { case: 'no hints', hints: [], expect: null, rules: ['RLTP-VTI-1235'] },
 ]

@@ -37,20 +37,28 @@ does not change.
   offer both are absent.
 - `cardBody` takes `deliveryHints`.
 - **The adapter builds and reads the hint** (`./adapters/vti-mediator`,
-  below the port line): `deliveryHint(self, C)` gives this side's hint
-  (RLTP-VTI-1210: the JCS form of the `TSPTransport` entry; throws on
-  identities that are not distinct canonical Ed25519 `did:key`);
+  below the port line): `deliveryHint(rootIkm, C, N)` derives this
+  side's connection DID and egress identity from (root, `C`, `N`), as
+  the factory derives the instance's trio (derived, not supplied), and
+  gives its hint (RLTP-VTI-1210: the JCS form of the `TSPTransport`
+  entry);
   `readDeliveryHint(hint, C)` reads one hint strictly (1210, 1220: JSON,
-  byte-equal to its JCS form, exactly the four members, `serviceEndpoint`
-  = `C`) into `{connectionDid, egressDid, carrier}` or null;
+  byte-equal to its JCS form, exactly the four members, both identities
+  canonical Ed25519 `did:key` that decode to `0xed01` and 32 bytes,
+  `serviceEndpoint` = `C`) into `{connectionDid, egressDid, carrier}` or null;
   `readDeliveryHints(hints, C)` reads a card's list (1225: exactly one
   hint for `C`, else null). The app passes the identities to the wire
   (`peerDid`, `peerEgressDid` of the binding).
 - **No change of N.** The library offers no rotation of a carrier nonce
   (Identity §7a.3, `generation + 1`) and no replacement after loss:
   `register.carriers` is written once per relationship, at `show` or
-  `scan`. The profile carries none either (RLTP-VTI-1245), so
-  `carrierNonce` is always the `N` whose identities the counterpart saw.
+  `scan`. The profile carries none either (RLTP-VTI-1245). With one
+  writer of the register per holder, as in this library, `carrierNonce`
+  is the `N` whose identities the counterpart saw; two devices writing a
+  first `N` apart would make that untrue (profile Open Issue 13). A
+  relationship chained into another is no `RelationshipView` of its own
+  (only an id in `chainedFrom`) and shows no `carrierNonce`: its adapter
+  instance is closed at the chaining (RLTP-VTI-1230).
 
 ## 0.7.0
 

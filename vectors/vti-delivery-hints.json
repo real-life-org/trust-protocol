@@ -147,6 +147,20 @@
    ]
   },
   {
+   "case": "connection DID of the did:key pattern that does not decode to 0xed01 and 32 bytes",
+   "hint": "{\"id\":\"did:key:z6Mk11111111111111111111111111111111111111111111#tsp\",\"rltpEgress\":\"did:key:z6MksvQNnNPCnu3WBC4DHdh27C4rri4p7xx1Bea6SqVKmCrZ\",\"serviceEndpoint\":\"did:web:carrier.example\",\"type\":\"TSPTransport\"}",
+   "rules": [
+    "RLTP-VTI-1210"
+   ]
+  },
+  {
+   "case": "egress identity of the did:key pattern that does not decode to 0xed01 and 32 bytes",
+   "hint": "{\"id\":\"did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU#tsp\",\"rltpEgress\":\"did:key:z6Mkzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\",\"serviceEndpoint\":\"did:web:carrier.example\",\"type\":\"TSPTransport\"}",
+   "rules": [
+    "RLTP-VTI-1210"
+   ]
+  },
+  {
    "case": "egress identity equal to the connection DID",
    "hint": "{\"id\":\"did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU#tsp\",\"rltpEgress\":\"did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU\",\"serviceEndpoint\":\"did:web:carrier.example\",\"type\":\"TSPTransport\"}",
    "rules": [

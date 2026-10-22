@@ -161,14 +161,20 @@ The library interprets no hint. Each relationship of a contact view names
 the own canonical carrier-nonce entry (`carrierNonce: {nonce,
 generation}`) and the counterpart's hints from the card of the enactment
 that opened it (`counterpartDeliveryHints`); a re-encounter chained into
-the relationship changes neither. The library offers no rotation or
-replacement of N (profile RLTP-VTI-1245). The VTI adapter module builds
-and reads the hint: `deliveryHint(self, C)`, `readDeliveryHint(hint, C)`,
-`readDeliveryHints(hints, C)` (profile §1b).
+the relationship changes neither, and the chained relationship shows no
+`carrierNonce` (its adapter instance is closed at the chaining). The
+library offers no rotation or replacement of N (profile RLTP-VTI-1245);
+with its one writer per holder, `carrierNonce` is the N the counterpart
+saw. The VTI adapter module builds and reads the hint:
+`deliveryHint(rootIkm, C, N)` (derived like the adapter's trio),
+`readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C)` (profile §1b).
 
 ```ts
+import { deliveryHint } from '@real-life/trust-protocol/adapters/vti-mediator'
+
+// rootIkm and C: the same inputs the app gives MediatorCarrierAdapter.create
 const nonce = crypto.getRandomValues(new Uint8Array(32))
-const hint = deliveryHint(identitiesFor(nonce), C)  // ./adapters/vti-mediator; identities the adapter derives from (root, C, N)
+const hint = await deliveryHint(rootIkm, C, nonce)
 const shown = await holder.show({ when: Date.now(), actId: crypto.randomUUID(), carrier: { nonce, deliveryHints: [hint] } })
 const [rel] = (await holder.contacts())[0]?.relationships ?? []
 // rel?.carrierNonce: this side's N; rel?.counterpartDeliveryHints: the counterpart's hints, as signed
@@ -222,7 +228,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.25): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(self, C)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C)` build and read the delivery hint of §1b. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.25): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C)` build and read the delivery hint of §1b. |
 
 ## The modules and the rules they implement
 

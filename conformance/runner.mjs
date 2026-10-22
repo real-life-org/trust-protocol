@@ -1086,7 +1086,12 @@ for (const n of EC.negative) {
 section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint form, its length, the card carrying it')
 {
   const DH = J('vectors/vti-delivery-hints.json')
-  const ED_DID_KEY = /^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$/
+  // RLTP-VTI-1210: did:key:z + canonical base58btc of 0xed 0x01 and the 32-byte key (decoded, not pattern-matched)
+  const edDidKey = (d) => {
+    if (typeof d !== 'string' || !d.startsWith('did:key:z')) return false
+    const b = fromB58(d.slice('did:key:z'.length))
+    return !!b && b.length === 34 && b[0] === 0xed && b[1] === 0x01 && 'did:key:z' + b58(Buffer.from(b)) === d
+  }
   // a receiver at carrier C reads a hint of this profile (RLTP-VTI-1210, 1220, 1225)
   const reads = (hint, carrier) => {
     let o
@@ -1095,7 +1100,7 @@ section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint for
     if (jcs(Object.keys(o).sort()) !== jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])) return null
     if (o.type !== 'TSPTransport' || typeof o.id !== 'string' || !o.id.endsWith('#tsp') || typeof o.rltpEgress !== 'string') return null
     const connection = o.id.slice(0, -'#tsp'.length)
-    if (!ED_DID_KEY.test(connection) || !ED_DID_KEY.test(o.rltpEgress) || connection === o.rltpEgress) return null
+    if (!edDidKey(connection) || !edDidKey(o.rltpEgress) || connection === o.rltpEgress) return null
     if (o.serviceEndpoint !== carrier) return null
     return { connection, egress: o.rltpEgress }
   }

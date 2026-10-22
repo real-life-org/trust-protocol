@@ -103,24 +103,24 @@ export const DECLARED = Object.freeze({
     routedAckDeadlineMs: 72 * 3_600_000,
 });
 const HINT_MEMBERS = jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type']);
-/** An Ed25519 did:key in its canonical rendering (multicodec 0xed01, 32 bytes, base58btc round trip). */
+/** An Ed25519 did:key in the form RLTP-VTI-1210 fixes: `did:key:z` and the
+ *  base58btc of multicodec 0xed01 followed by the 32-byte key, rendered
+ *  canonically (decoding and re-encoding gives the same string). */
 const edDidKey = (x) => {
     const raw = edRawOfAnchor(x);
     return raw !== null && anchorOfEd(raw) === x;
 };
-/** This side's hint for carrier `C` (RLTP-VTI-1210): the JCS form of the
- *  TSPTransport service entry naming its connection DID (`id`, with
- *  `#tsp`), `C` (`serviceEndpoint`) and its egress identity
- *  (`rltpEgress`). Throws on identities that are not distinct Ed25519
- *  did:key identifiers, or on an empty carrier. */
-export function deliveryHint(self, carrier) {
-    if (!edDidKey(self?.connection) || !edDidKey(self?.egress))
-        throw new Error('deliveryHint: both identities must be Ed25519 did:key identifiers (RLTP-VTI-1210)');
-    if (self.connection === self.egress)
-        throw new Error('deliveryHint: connection DID and egress identity must be distinct (RLTP-VTI-1210)');
-    if (typeof carrier !== 'string' || carrier.length === 0)
-        throw new Error('deliveryHint: the carrier C must be a non-empty string');
-    return jcs({ id: self.connection + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: self.egress });
+/** This side's hint for carrier `C` in the relationship of carrier nonce
+ *  `N` (RLTP-VTI-1210, 1215): the connection DID and the egress identity
+ *  derived here from (root, `C`, `N`), exactly as the factory derives the
+ *  instance's trio — derived, not supplied, so the two cannot come from
+ *  different relationships — as the JCS form of the TSPTransport service
+ *  entry naming the connection DID (`id`, with `#tsp`), `C`
+ *  (`serviceEndpoint`) and the egress identity (`rltpEgress`). */
+export async function deliveryHint(rootIkm, carrier, nonce) {
+    const connection = await carrierScopedIdentity(rootIkm, carrier, nonce, 'connection');
+    const egress = await carrierScopedIdentity(rootIkm, carrier, nonce, 'egress');
+    return jcs({ id: connection.did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: egress.did });
 }
 /** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,
  *  byte-equal to its JCS form, exactly the four members, type

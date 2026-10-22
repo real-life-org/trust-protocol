@@ -67,9 +67,13 @@
 //     the husks chained into each (chainedInto), by id; carrierNonce the
 //     canonical register entry under the relationship's id;
 //     counterpartDeliveryHints the deliveryHints of the counterparty card
-//     on the record whose relId is the relationship's id (the enactment
-//     that opened it): a re-encounter's record names the husk it opened,
-//     so its card never replaces the first contact's hints
+//     on the record of the relationship's first tuple, whose relId is the
+//     relationship's id (the enactment that opened it): a re-encounter's
+//     record names the husk it opened, so its card never replaces the
+//     first contact's hints. A chained relationship (a husk) is no
+//     RelationshipView of its own, only an id in chainedFrom: it shows no
+//     carrierNonce, because no adapter instance runs for it (profile
+//     RLTP-VTI-1230)
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
 import { triasOf } from './state.js';
@@ -127,15 +131,21 @@ const relationshipsOf = (state, c, ids, ix) => {
     }
     return { own, all };
 };
-/** The counterparty card's delivery hints on the record that opened relationship `relId`. */
-const firstHints = (state, relId) => {
-    const r = Object.values(state.encounter.records).find((x) => x.relId === relId);
-    const h = r?.card?.deliveryHints;
+/** The counterparty card's delivery hints on the record that opened
+ *  relationship `r`: the record of its first tuple's label (a chaining
+ *  appends, so the first tuple stays the one the relationship opened with),
+ *  found in the per-read label index. */
+const firstHints = (r, rix) => {
+    const first = r.tuples[0];
+    const rec = first ? rix.get(first.ownPairLabel) : undefined;
+    if (!rec || rec.relId !== r.id)
+        return undefined;
+    const h = rec.card?.deliveryHints;
     return Array.isArray(h) && h.length ? h.filter((x) => typeof x === 'string') : undefined;
 };
-const relationshipView = (state, r) => {
+const relationshipView = (state, r, rix) => {
     const n = canonicalCarrierNonce(state.register, r.id);
-    const hints = firstHints(state, r.id);
+    const hints = firstHints(r, rix);
     return {
         id: r.id, tuples: r.tuples.length,
         chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
@@ -190,7 +200,7 @@ const project = (state, c, ix, rix) => {
         commitSeq: state.commitSeq,
         id: c.id,
         aliases: [...c.aliases],
-        relationships: own.map((r) => relationshipView(state, r)),
+        relationships: own.map((r) => relationshipView(state, r, rix)),
         ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
         provenance: origin.provenance.kind,
         ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),
