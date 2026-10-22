@@ -20,9 +20,33 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.23 (twenty-third casting;
+// Profile: spec/adapter-vti-mediator.md v0.24 (twenty-fourth casting;
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port.
+//
+// Sending form (profile §3a, lib 0.7.0): every deposit names its mode to
+// the wire. Mode `routed` (the mode of every instance from construction):
+// an inner TSP `direct` message egress identity → counterpart's
+// connection DID inside an outer routed message connection DID → C with
+// the route [counterpart's connection DID], on the connection DID's
+// session. Mode `egress-session` (fallback): the inner message alone, on
+// a send-only session of the egress identity. The wire packs the layers
+// (depositAddressing says who addresses whom); the adapter keeps the
+// relationship's send state (mode, first routed acceptance of a
+// document, the routed digests not yet answered, proof) in its ack
+// state and switches one way to `egress-session` when `routed` stays
+// unproven for routed-ack-deadline, checked in an advance after a
+// conclusion that left nothing pending (RLTP-VTI-3130). An attempt ends
+// in the mode it began in; an accepted submission is never deposited
+// again (RLTP-VTI-3135, 7130).
+//
+// The app's transport contract (web-of-trust TRANSPORT.md, rules 5 and
+// 6) holds here: (5) a withdrawal — reconcile without the entry —
+// revokes what is pending: no deposit starts for that submission
+// afterwards, and a wire call that resolves late changes nothing (has()
+// false, report() null, no send state); (6) every report names its
+// deposit: reports and transitions are bound to the submission id, and
+// a duplicate's answer (`resend`) is a submission with an id of its own.
 //
 // Beyond the profile (lib 0.5.0): conclude(collection, now, {keep}) leaves
 // the items whose disposition is transient unconcluded and offers them
@@ -60,7 +84,43 @@ export const DECLARED = Object.freeze({
   queueFloorBytes: 1_048_576,
   maxQueueBytes: 16_777_216,
   duplicateWindowMs: 30 * 86_400_000,
+  routedAckDeadlineMs: 24 * 3_600_000,
 } as const)
+
+// ── The sending form (profile §3a) ───────────────────────────────────
+/** How a deposit reaches the mediator (RLTP-VTI-3110, 3120). */
+export type SendMode = 'routed' | 'egress-session'
+const SEND_MODES: ReadonlySet<string> = new Set<SendMode>(['routed', 'egress-session'])
+
+/** One TSP layer's addressing (no keys, no bytes: those are the wire's). */
+export interface LayerAddressing {
+  messageType: 'direct' | 'routed'
+  sender: string
+  receiver: string
+  route?: string[]
+}
+
+/** The addressing of a deposit in `mode` (RLTP-VTI-1110, 1120, 3110,
+ *  3115, 3120): the inner `direct` message from this side's egress
+ *  identity to the counterpart's connection DID; in mode `routed` an
+ *  outer routed message from this side's connection DID to the carrier
+ *  `C` with the route [counterpart's connection DID], deposited on the
+ *  connection DID's session; in mode `egress-session` no outer layer,
+ *  deposited on the egress identity's send-only session. */
+export function depositAddressing (
+  mode: SendMode, self: { connection: string, egress: string }, peerConnection: string, carrier: string,
+): { inner: LayerAddressing, outer: LayerAddressing | null, session: string } {
+  if (!SEND_MODES.has(mode)) throw new Error(`unknown send mode ${String(mode)}`)
+  const inner: LayerAddressing = { messageType: 'direct', sender: self.egress, receiver: peerConnection }
+  if (mode === 'routed') {
+    return {
+      inner,
+      outer: { messageType: 'routed', sender: self.connection, receiver: carrier, route: [peerConnection] },
+      session: self.connection,
+    }
+  }
+  return { inner, outer: null, session: self.egress }
+}
 
 // ── The injected wire ────────────────────────────────────────────────
 export type WireErrorKind =
@@ -82,11 +142,17 @@ export interface MediatorWire {
   // mediator refused the refresh token (the adapter re-runs the handshake).
   refresh (refreshToken: string): Promise<TokenSet>
   keylistUpdate (accessToken: string, rkids: string[]): Promise<void>
-  deposit (accessToken: string, bytes: Uint8Array, egressDid: string): Promise<void>
+  /** `mode` is the sending form of this deposit (profile §3a): the wire
+   *  packs and sends it as depositAddressing(mode, …) describes. */
+  deposit (accessToken: string, bytes: Uint8Array, egressDid: string, mode: SendMode): Promise<void>
   ackReceived (accessToken: string, queueIds: string[]): Promise<void>
   onDeliver (cb: (bytes: Uint8Array) => Promise<void>): void
   /** Optional truthful connectivity signal; absent means unknown. */
   offline? (): boolean
+  /** Optional: true when the mediator holds nothing more for this
+   *  connection (RLTP-VTI-3130: a conclusion that left no frame
+   *  pending). Absent, a collection counts as complete. */
+  queueEmpty? (): boolean
 }
 
 export interface TokenSet {
@@ -144,6 +210,44 @@ export interface Collection { id: string, items: CollectedItem[] }
 export interface AckState {
   concluded: Array<{ queueId: string, concludedAt: number }>
   pending: string[]
+  /** the relationship's send state (RLTP-VTI-3130); absent → `routed` */
+  send?: SendState
+}
+
+/** The send state of a relationship (profile §3a, RLTP-VTI-3130),
+ *  persisted with the ack state: the mode; the instant a document was
+ *  first accepted in mode `routed`; the digests of the documents accepted
+ *  in `routed` and not yet answered, each with its acceptance and the end
+ *  of its give-up horizon; whether `routed` is proven. */
+export interface SendState {
+  mode: SendMode
+  firstRoutedAcceptedAt: number | null
+  routed: Array<{ digest: string, acceptedAt: number, horizonAt: number }>
+  proven: boolean
+}
+
+const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+
+/** A restored send state, checked fail-closed (§4): a known mode,
+ *  well-formed entries, every instant finite and none after restoredAt. */
+function restoreSendState (send: unknown, restoredAt: number): SendState {
+  const refuse = (why: string): never => { throw new Error(`ack snapshot: send state ${why}`) }
+  if (typeof send !== 'object' || send === null) return refuse('is not an object')
+  const s = send as Record<string, unknown>
+  if (typeof s.mode !== 'string' || !SEND_MODES.has(s.mode)) refuse('names an unknown mode')
+  const first = s.firstRoutedAcceptedAt
+  if (first !== null && (!finite(first) || first > restoredAt)) refuse('first routed acceptance is non-finite or after restoredAt')
+  if (typeof s.proven !== 'boolean') refuse('proof is not a boolean')
+  if (!Array.isArray(s.routed)) refuse('routed digests are not a list')
+  const routed = (s.routed as unknown[]).map((r) => {
+    const e = r as Record<string, unknown> | null
+    if (typeof e !== 'object' || e === null || typeof e.digest !== 'string' ||
+        !finite(e.acceptedAt) || !finite(e.horizonAt) || e.acceptedAt > restoredAt) {
+      return refuse('routed entry is malformed, non-finite or accepted after restoredAt')
+    }
+    return { digest: e.digest, acceptedAt: e.acceptedAt, horizonAt: e.horizonAt }
+  })
+  return { mode: s.mode as SendMode, firstRoutedAcceptedAt: first as number | null, routed, proven: s.proven as boolean }
 }
 
 /** The holder's side of a hand-over (lib 0.6.0): the holder itself.
@@ -167,6 +271,8 @@ interface Submission {
   attemptStartedAt: number | null
   lastKind: WireErrorKind | null
   st: SubmissionState | null   // null = no honest report exists yet
+  /** the mode of the last deposit call started for it (RLTP-VTI-3135) */
+  sentMode: SendMode | null
 }
 
 const hex = (b: Uint8Array): string =>
@@ -213,6 +319,14 @@ export class MediatorCarrierAdapter {
   #nextColId = 1
 
   #transitions: Array<{ id: string, to: 'delivered' }> = []
+
+  // the relationship's send state (RLTP-VTI-3130)
+  #mode: SendMode = 'routed'
+  #firstRoutedAcceptedAt: number | null = null
+  #routed = new Map<string, { acceptedAt: number, horizonAt: number }>()
+  #proven = false
+  /** this instance has concluded a collection that left nothing pending */
+  #cleanConcluded = false
 
   /** The only way to build an adapter: the trio is DERIVED here from
    *  one root, one carrier, one nonce — so principal, connection DID
@@ -286,6 +400,14 @@ export class MediatorCarrierAdapter {
         if (restoredAt - concludedAt >= DECLARED.duplicateWindowMs) continue
         this.#concluded.set(queueId, concludedAt)
         if (pending.has(queueId)) this.#pendingAcks.add(queueId)
+      }
+      // absent: a host that persisted none starts again in routed
+      if (restored.send !== undefined) {
+        const send = restoreSendState(restored.send, restoredAt)
+        this.#mode = send.mode
+        this.#firstRoutedAcceptedAt = send.firstRoutedAcceptedAt
+        for (const r of send.routed) this.#routed.set(r.digest, { acceptedAt: r.acceptedAt, horizonAt: r.horizonAt })
+        this.#proven = send.proven
       }
     }
     this.#wire.onDeliver(async (raw) => {
@@ -430,6 +552,7 @@ export class MediatorCarrierAdapter {
       attemptStartedAt: null,
       lastKind: null,
       st: null,
+      sentMode: null,
     }
     this.#subs.set(id, sub)
     if (!knownOffline) this.#startAttempt(sub, now)
@@ -482,7 +605,7 @@ export class MediatorCarrierAdapter {
         bytes: new TextEncoder().encode(jcs(entry.envelope)),
         // a duplicate's ack is a hand-over of its own, from now
         submittedAt: entry.resend !== undefined ? now : Math.min(entry.since, now),
-        attemptStartedAt: null, lastKind: null, st: null,
+        attemptStartedAt: null, lastKind: null, st: null, sentMode: null,
       }
       this.#subs.set(id, sub)
       refs.push({ submissionId: id, digest: entry.digest })
@@ -522,9 +645,13 @@ export class MediatorCarrierAdapter {
     try {
       const token = await this.#ensureAuth(now)
       if (this.#closed) return   // retirement between auth and deposit: nothing new starts (R5-B2)
-      // each attempt hands the wire a copy: what it does with it never reaches the next
+      // each attempt hands the wire a copy: what it does with it never reaches the next.
+      // The mode is read at the hand-over itself: from a switch on, every
+      // hand-over uses the new mode, and a call already made ends in its own
+      // (RLTP-VTI-3135)
       const deposit = (): Promise<void> => {
-        try { return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid) } catch (e) { return Promise.reject(e) }
+        sub.sentMode = this.#mode
+        try { return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid, sub.sentMode) } catch (e) { return Promise.reject(e) }
       }
       if (sub.gate !== undefined) {
         // the holder decides, and the deposit starts in the same step of its
@@ -569,12 +696,51 @@ export class MediatorCarrierAdapter {
           }
     }
     if (this.#closed) return
+    // withdrawn meanwhile (app contract rule 5): the late outcome changes nothing
+    if (this.#subs.get(sub.id) !== sub) return
+    // a document accepted in routed enters the send state (RLTP-VTI-3130);
+    // acknowledgements never count
+    if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#isDocument(sub)) {
+      this.#firstRoutedAcceptedAt ??= this.#clock
+      if (sub.digest !== undefined && !this.#routed.has(sub.digest)) {
+        this.#routed.set(sub.digest, { acceptedAt: this.#clock, horizonAt: sub.submittedAt + DECLARED.giveUpHorizonMs })
+      }
+    }
     // An interim report (including a horizon-corrected one) never
     // outranks the attempt's real outcome; only a TERMINAL state —
     // a give-up, a refusal, a delivery — stands (R5-B1). Without
     // this, an accepted deposit would stay reported unreachable and
     // be sent a second time.
     if (sub.st === null || sub.st.state === 'awaiting-transport') sub.st = next
+  }
+
+  #isDocument (sub: Submission): boolean {
+    return sub.entry === undefined || sub.entry.kind === 'document'
+  }
+
+  /** A verdict on a submission deposited in routed proves routed for
+   *  the relationship (RLTP-VTI-3130); its digest leaves the send state. */
+  #proveRouted (sub: Submission): void {
+    if (sub.sentMode !== 'routed' || !this.#isDocument(sub)) return
+    this.#proven = true
+    if (sub.digest !== undefined) this.#routed.delete(sub.digest)
+  }
+
+  /** The current sending mode of the relationship (profile §3a). */
+  get sendMode (): SendMode { return this.#mode }
+
+  /** An answer the holder hands this instance for a document an earlier
+   *  instance deposited (RLTP-VTI-3130): a valid acknowledgement, a
+   *  validated receiver refusal or a validated `idConflict` answer for
+   *  `digest`. If the send state names the digest as routed, routed is
+   *  proven and the digest leaves; otherwise it proves nothing. A no-op on
+   *  a retired instance, like acknowledged. */
+  answered (digest: string, rawNow: number): void {
+    if (this.#closed) return
+    this.#now(rawNow)
+    if (!this.#routed.has(digest)) return
+    this.#proven = true
+    this.#routed.delete(digest)
   }
 
   /** Host teardown aid, NOT a port operation (profile §6): awaits
@@ -617,6 +783,7 @@ export class MediatorCarrierAdapter {
     if (this.#closed) return
     const sub = this.#subs.get(id)
     if (!sub) return
+    this.#proveRouted(sub)
     if (sub.st?.state === 'delivered') return   // idempotent: a duplicate ack never rewrites `late` (R9-M4)
     const late = sub.st?.state === 'failed'
     sub.st = { state: 'delivered', late }
@@ -636,6 +803,7 @@ export class MediatorCarrierAdapter {
     }
     const sub = this.#subs.get(id)
     if (!sub) return
+    this.#proveRouted(sub)
     // A VALIDATED refusal is itself the proof of receipt — the
     // mediator can have accepted and forwarded while our deposit
     // promise is still unresolved, so the report-less phase is a
@@ -676,7 +844,11 @@ export class MediatorCarrierAdapter {
     this.#open()
     const now = this.#now(rawNow)
     const col = this.#outstanding.get(collection.id)
-    if (!col) return
+    if (!col) {
+      // an empty collection is concluded too: it may be the one that leaves nothing pending
+      if (collection.id === 'c-empty') this.#concludedClean(now)
+      return
+    }
     this.#outstanding.delete(collection.id)
     const keep = new Set(opts.keep ?? [])
     for (const item of col.values()) {
@@ -691,13 +863,31 @@ export class MediatorCarrierAdapter {
       this.#concluded.set(item.queueId, now)
       this.#pendingAcks.add(item.queueId)
     }
+    this.#concludedClean(now)
     this.#startFlush(now)
+  }
+
+  /** After a conclusion (RLTP-VTI-3130): when it left nothing pending —
+   *  the mediator holds nothing more for this connection (queueEmpty, if
+   *  the wire knows), nothing waits in the buffer, no other collection is
+   *  outstanding — the switch check may run in the next advance, and the
+   *  routed digests past their give-up horizon fall. */
+  #concludedClean (now: number): void {
+    if (this.#wire.queueEmpty?.() === false || this.#inbox.length > 0 || this.#outstanding.size > 0) return
+    this.#cleanConcluded = true
+    for (const [digest, r] of this.#routed) if (now >= r.horizonAt) this.#routed.delete(digest)
   }
 
   ackState (): AckState {
     return {
       concluded: [...this.#concluded].map(([queueId, concludedAt]) => ({ queueId, concludedAt })),
       pending: [...this.#pendingAcks],
+      send: {
+        mode: this.#mode,
+        firstRoutedAcceptedAt: this.#firstRoutedAcceptedAt,
+        routed: [...this.#routed].map(([digest, r]) => ({ digest, acceptedAt: r.acceptedAt, horizonAt: r.horizonAt })),
+        proven: this.#proven,
+      },
     }
   }
 
@@ -764,6 +954,14 @@ export class MediatorCarrierAdapter {
   advance (rawNow: number): void {
     this.#open()
     const now = this.#now(rawNow)
+    // the switch (RLTP-VTI-3130): only after a conclusion that left nothing
+    // pending, routed unproven, its first acceptance a deadline ago — one
+    // way; checked before the retries below, which hand over in the new mode
+    if (this.#mode === 'routed' && this.#cleanConcluded && !this.#proven &&
+        this.#firstRoutedAcceptedAt !== null &&
+        now - this.#firstRoutedAcceptedAt >= DECLARED.routedAckDeadlineMs) {
+      this.#mode = 'egress-session'
+    }
     for (const sub of this.#subs.values()) {
       const live = sub.st === null || sub.st.state === 'awaiting-transport' || sub.st.state === 'accepted'
       if (!live) continue
