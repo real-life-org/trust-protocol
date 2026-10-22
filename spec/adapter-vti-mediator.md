@@ -48,9 +48,11 @@ What this adapter owes, completely:
    transitions, and the receiver refusal channel;
 2. a **duplicate absorption** that composes with the receiver's
    §6.2 rule and never replaces it;
-3. the **§5a.10 identity obligations** in full, under the reading
-   of §1a (which layer of a deposit the sending-side prohibitions
-   apply to).
+3. the **§5a.10 identity obligations**, under the reading of §1a
+   (which layer of a deposit the sending-side prohibitions apply
+   to), except the change of the direct TSP peer under an unchanged
+   `C`, which this profile does not serve (RLTP-VTI-7120,
+   Appendix A).
 
 What it expressly does not owe, and no holder may read into it:
 proof-bound registration, generation ordering, tombstone
@@ -205,7 +207,7 @@ layers:
    library's `packRouted`) whose payload is the inner message's
    bytes, unchanged; sender the connection DID, receiver `C`,
    sealed to the key `C`'s DID document names first under
-   `keyAgreement` as resolved at the session's authentication, and
+   `keyAgreement` as last resolved for the session (RLTP-VTI-7120), and
    route list `[` the counterpart's connection DID `]`.
 
 It is deposited on the connection DID's authenticated session.
@@ -227,20 +229,28 @@ to the instance: it is kept in the adapter's send state, which the
 host persists with the ack state (§4), and a successor instance
 resumes it. The send state holds the mode, the instant a **document**
 (never an acknowledgement, which is never itself acknowledged) was
-first accepted in mode `routed` without having been acknowledged
-since, and whether `routed` has been **proven** for the
-relationship. `routed` is proven once a valid acknowledgement or a
-validated receiver refusal (§5) is reported for a document deposited
-in mode `routed`. An instance in mode `routed` MUST switch to
-`egress-session` when `routed` is not proven and that first
-acceptance lies `routed-ack-deadline` (§2) or more in the past, and
-MUST NOT switch otherwise: not on a refusal (it maps as §5 says), not
-on a mediator status or problem-report frame (consumed, §5), not on
-an offline signal. The switch is one-way for the relationship; a
-relationship whose send state is lost (a host that persists nothing)
-starts again in `routed`.
+first accepted in mode `routed`, and whether `routed` has been
+**proven** for the relationship. `routed` is proven by a valid
+acknowledgement or a validated receiver refusal (§5) of a document
+of this relationship handed over while the relationship was in mode
+`routed` — reported to the instance that deposited it, or reported
+by the holder to a later instance when it arrives after that one's
+close; before the switch every deposit was routed, so any such
+report made while the mode is `routed` proves it. Answers that are
+no verdict (`unavailable`, `internalError`, §5) prove nothing. An
+instance in mode `routed` MUST switch to `egress-session` when
+`routed` is not proven and that first acceptance lies
+`routed-ack-deadline` (§2) or more in the past, and MUST NOT switch
+otherwise: not on a refusal by the mediator (it maps as §5 says),
+not on a mediator status or problem-report frame (consumed, §5), not
+on an offline signal. A successor applies the reports the holder
+hands it before it checks the deadline. The switch is one-way for
+the relationship; a relationship whose send state is lost (a host
+that persists nothing) starts again in `routed`.
 
-**RLTP-VTI-3135** — From the switch on, every hand-over uses the new
+**RLTP-VTI-3135** — Every attempt to deposit a submission in the
+holder's custody is a hand-over through the holder (RLTP-DEL-6125),
+a retry included. From the switch on, every hand-over uses the new
 mode; an attempt begun before the switch ends in the mode it began
 in. A submission still in the holder's custody (no report yet, or
 `awaiting-transport`) goes in the new mode at its next hand-over
@@ -258,16 +268,23 @@ counterpart's egress identity to its own connection DID (§7).
 
 The signal is honest about what it cannot tell apart: a missing
 acknowledgement is also what a counterpart produces that stays
-offline for the whole deadline, so a relationship in which `routed`
-is not yet proven can switch without need while its counterpart is
-absent. Such a switch is
-conforming — both modes satisfy §1a — and costs what §9 states for
-mode `egress-session`: a second session and a link between the two
-identities through two logins. The other side of the trade is a
-relationship whose every document fails at the give-up horizon on
-a mediator that does not carry routed messages. What was accepted in
-mode `routed` before the switch on such a mediator fails at the
-horizon; the switch saves what follows it.
+offline for the whole deadline, or what this side produces when it
+stays closed and the acknowledgement waits in its own queue, so a
+relationship in which `routed` is not yet proven can switch without
+need. Such a switch is conforming — both modes satisfy §1a — and
+costs what §9 states for mode `egress-session`: a second session and
+a link between the two identities through two logins. The other
+side of the trade is a relationship whose every document fails at
+the give-up horizon on a mediator that accepts routed messages and
+does not deliver them. What was accepted in mode `routed` before the
+switch on such a mediator fails at the horizon; the switch carries
+this side's documents that follow it. It does not carry the
+counterpart's acknowledgements: a side switches on its own
+documents only, so a counterpart that sends no documents of its own
+never switches, its acknowledgements stay routed, and this side's
+documents then arrive while their `delivered` report does not (§10).
+A mediator that refuses routed deposits outright produces no
+acceptance and no switch: the documents fail as `unroutable` (§5).
 
 ## 4. Acknowledgement intent and durability
 
@@ -459,14 +476,21 @@ longer names is never deposited again.
 
 **RLTP-VTI-7120** — The direct TSP peer of every outer layer is `C`
 itself (RLTP-VTI-3110). This profile does not serve a mediator whose
-TSP VID differs from its configured DID: deposits addressed to `C`
-then fail at the give-up horizon, and the way out is a new `C`
-(Identity §7a.2's move rule). What can change under an unchanged
+TSP VID differs from its configured DID, nor a change of that VID
+under an unchanged `C`: the connection DID is derived from (root,
+`C`, `N`), so the fresh outer VID Delivery §5a.10 asks for in that
+case cannot be established (Appendix A). Routed deposits addressed
+to `C` then reach no one; they fail at the give-up horizon, and the
+switch of RLTP-VTI-3130 may carry what follows, since mode
+`egress-session` seals nothing to `C`. What can change under an unchanged
 `C` is the key `C`'s DID document names first under `keyAgreement`
 (a rebinding of the intermediary). The binding resolves that key at
 every authentication and every token renewal of the connection DID's
 session, and the adapter renews at the latest when its access token
-expires, so a change is seen no later than then. Every outer layer
+expires, so a change is seen no later than then. The token lifetime
+is the mediator's; this profile declares no bound on it, and the
+window in which frames go to a retired key is as long as the
+mediator makes it. Every outer layer
 packed after that is sealed to the new key. A submission still in
 the holder's custody is packed for the new key at its next
 hand-over; one already accepted under the old key is not deposited
@@ -554,9 +578,10 @@ is decidable.
   connection DID and the egress identity of one relationship
   (§9). The counterpart sees the same sender in both modes; the
   cost of a forced switch is the second session.
-- **The mediator can force the switch in more than one way.**
-  Dropping routed frames, or delivering them and suppressing the
-  acknowledgements, both leave `routed` unproven past the deadline.
+- **The switch can be forced.** The mediator can drop routed
+  frames, or deliver them and suppress the acknowledgements; the
+  counterpart can withhold its acknowledgements for the deadline.
+  Each leaves `routed` unproven past the deadline.
   Either way the result is the fallback bullet above and nothing
   more.
 - **Replayed inner messages are absorbed.** The mediator can
@@ -640,8 +665,10 @@ is decidable.
    counterpart absence underlies the value.
 4. **An explicit refusal of routed messages.** A mediator that
    answers a routed deposit with a refusal is handled by §5 and
-   does not switch (RLTP-VTI-3130). Whether a refusal that names
-   the routed form should switch at once is open.
+   does not switch (RLTP-VTI-3130); one that refuses every routed
+   deposit leaves the relationship in `routed` with every document
+   failing as `unroutable`. Whether a refusal that names the routed
+   form should switch at once is open.
 5. **Keylist.** §1 and §3 name keylist updates; the target
    mediator keeps no keylist for TSP clients, and the binding
    treats the update as a no-op.
@@ -650,13 +677,22 @@ is decidable.
    mode `routed` and the egress identity in mode `egress-session`;
    a counterpart's access list that admits one does not admit the
    other. This profile sets no access list.
-7. **Return to `routed`.** The switch is one-way for a relationship;
-   whether and when a relationship in `egress-session` probes
-   `routed` again is open.
+7. **Return to `routed`, and loss of `routed` later.** The switch
+   is one-way for a relationship; whether and when a relationship in
+   `egress-session` probes `routed` again is open. A relationship in
+   which `routed` was proven never switches, also if the mediator
+   later stops carrying routed messages.
 8. **Documents accepted before a switch or a rebinding.** They end
    at the give-up horizon (RLTP-VTI-7130); depositing them again
    would need the holder's leave after acceptance, which the
    Delivery Contract does not give.
+9. **Acknowledgements of a side that sends no documents.** Such a
+   side never switches; on a mediator that does not deliver routed
+   messages its acknowledgements are lost, and the counterpart's
+   documents arrive without their `delivered` report (§3a).
+10. **A mediator VID other than `C`.** Not served (RLTP-VTI-7120);
+   serving it needs a connection DID that is not a function of
+   (root, `C`, `N`) alone.
 
 ## Appendix A: Companion changes
 
@@ -685,6 +721,25 @@ the changes its next casting takes up.
   identifier — the outer sender is the depositing side's collecting
   identifier, the route the counterpart's — not only by timing; the
   claim stays bounded to no join across relationships.
+- 5a.10, the change of the direct TSP peer under an unchanged `C`:
+  an adapter whose outer peer is the configured carrier itself, and
+  whose collecting identifier is derived from (root, `C`, `N`), does
+  not serve a carrier whose TSP VID differs from `C` or changes under
+  it; the profile states so, and the fresh-outer-VID rule applies to
+  adapters that address a hop other than `C`.
+- 5a.10, collecting side, "MUST NOT hold two live outer VIDs for one
+  principal at one carrier": the rule concerns the principal's
+  collecting identifier; a send-only session of a sending-side
+  identifier at the same carrier (ingress) is not a second live
+  outer VID of the principal.
+- 5a.10, DIDComm, "a connection DID … for this principal and for
+  nothing else": the principal's own routed deposits under its
+  connection DID are part of its mediation relationship, not
+  another purpose.
+- 5a.4, the paragraph on ack pairing by response time "with no
+  identity whatsoever": in routed mode the direct carrier pairs the
+  two directions by identifier as well (the entry above on "What
+  that buys"); 5a.4 and §10 change together.
 - §11, conformance examples under "TSP ingress", beside the line
   that calls a person-wide sender-side VID nonconformant: a routed deposit
   whose outer sender is the depositing side's collecting identifier

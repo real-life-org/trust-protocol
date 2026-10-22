@@ -284,7 +284,7 @@ a relationship sends under one identity and collects under another.
 A document is signed end to end under the sending identity and
 travels to the mediator inside a routed layer under the collecting
 identity; a fallback without that layer exists for a mediator that
-does not carry routed messages. The mediator sees both identities.
+accepts routed messages and does not deliver them. The mediator sees both identities.
 DIDComm appears only as that
 mediator's mediation and pickup protocols, not as a form for RLTP
 documents. No replication adapter is specified.
