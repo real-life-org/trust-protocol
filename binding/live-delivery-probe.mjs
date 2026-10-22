@@ -3,7 +3,11 @@
 // mediator: a real sealed RLTP envelope (lib seal), the receiver's
 // staged receive() verdict, a SIGNED delivery-ack/0.1 back, and the
 // sender's §6.1 trias closing accepted → delivered. Unit 2 after the
-// transport-only live probe.
+// transport-only live probe. Sending form of profile 0.24 §3a (default
+// routed, as the adapter names it). Prints the measurements: delivery
+// yes/no, the trias accepted → delivered, frame sizes (payload, inner,
+// outer bytes), and the times deposit → accepted, → delivery and → ack
+// (ms). No secrets.
 //
 // Network-gated: RLTP_LIVE_MEDIATOR=1.
 
@@ -30,11 +34,19 @@ const now = () => Date.now();
 const iso = () => new Date().toISOString().replace(/\.\d+Z$/, "Z").replace("Z", ".000Z").replace(".000Z", "Z");
 const uuid = () => crypto.randomUUID();
 const say = (...a) => console.log(...a);
-const fail = (m) => { console.error(`✗ ${m}`); process.exit(1); };
+const measured = { doc: null, ack: null, trias: [], ackMs: null };
+const line = (name, m) => m && say(`  ${name}: delivered=${m.delivered ? "yes" : "no"} mode=${m.mode} payload=${m.payload ?? "-"}B inner=${m.inner ?? "-"}B outer=${m.outer ?? "-"}B accepted=${m.acceptedMs ?? "-"}ms delivery=${m.deliveryMs ?? "-"}ms`);
+const report = () => {
+  say("\n── measurements ──");
+  line("document A→B", measured.doc);
+  line("delivery-ack B→A", measured.ack);
+  say(`  trias A: ${measured.trias.join(" → ") || "-"}; deposit → ack validated: ${measured.ackMs ?? "-"}ms`);
+};
+const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live delivery probe: seal → carry → receive → signed ack → delivered ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit mode: ${process.env.RLTP_WIRE_DEPOSIT ?? "egress-session"} (vti-wire.mjs; provisional default egress-session, profile form egress)`);
+say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.24 §3a)`);
 
 // ── party state: relationship root/nonce (adapter+wire), an rkid
 // (X25519, the seal target), and a signing anchor (the ack issuer)
@@ -79,14 +91,20 @@ const envelope = await seal(doc, B.rkid);
 const envBytes = te.encode(jcs(envelope));
 say(`  ✓ sealed with the lib (AES-256-GCM to B's rkid): ${envBytes.length}B`);
 
-const sid = alice.submit(envBytes, now());
+measured.doc = { delivered: false, mode: alice.sendMode };
+const t1 = now();
+const sid = alice.submit(envBytes, t1);
 await alice.settle();
+measured.doc.acceptedMs = now() - t1;
+Object.assign(measured.doc, wireA.sentFrames().at(-1) ?? {});
 if (alice.status(sid)?.state !== "accepted") fail("submit not accepted");
-say(`  ✓ accepted — §6.1 trias entered`);
+measured.trias.push("accepted");
+say(`  ✓ accepted — §6.1 trias entered (mode ${measured.doc.mode}: inner ${measured.doc.inner}B, outer ${measured.doc.outer ?? "-"}B)`);
 
 // ── 2: Bob collects and runs the staged receive() ─────────────────
 let c = { items: [] };
 if (!(await waitFor(() => { c = bob.collect(now()); return c.items.length > 0; }))) fail("no delivery in 20s");
+measured.doc.delivered = true; measured.doc.deliveryMs = now() - t1;
 const gotEnv = JSON.parse(td.decode(c.items[0].bytes));
 const verdict = await receive(gotEnv, (rkid) => (rkid === B.rkid ? B.x.priv : undefined), B.completed);
 if (verdict.disposition !== "unique") fail(`receive verdict: ${verdict.disposition}`);
@@ -108,14 +126,19 @@ const ackDoc = await diSign(
   iso(),
 );
 const ackEnv = await seal(ackDoc, A.rkid);
-const rid = bob.submit(te.encode(jcs(ackEnv)), now());
+measured.ack = { delivered: false, mode: bob.sendMode };
+const t2 = now();
+const rid = bob.submit(te.encode(jcs(ackEnv)), t2);
 await bob.settle();
+measured.ack.acceptedMs = now() - t2;
+Object.assign(measured.ack, wireB.sentFrames().at(-1) ?? {});
 if (bob.status(rid)?.state !== "accepted") fail("ack submit not accepted");
 say(`  ✓ delivery-ack signed (eddsa-jcs-2022 under B's anchor) and sealed back`);
 
 // ── 4: Alice receives the ack, validates it, closes the trias ─────
 let c2 = { items: [] };
 if (!(await waitFor(() => { c2 = alice.collect(now()); return c2.items.length > 0; }))) fail("no ack delivery in 20s");
+measured.ack.delivered = true; measured.ack.deliveryMs = now() - t2;
 const ackGot = JSON.parse(td.decode(c2.items[0].bytes));
 const ackVerdict = await receive(ackGot, (rkid) => (rkid === A.rkid ? A.x.priv : undefined), A.completed);
 if (ackVerdict.disposition !== "unique") fail(`ack receive: ${ackVerdict.disposition}`);
@@ -129,10 +152,15 @@ alice.conclude(c2, now()); await alice.settle();
 say(`  ✓ ack validated: proof under B's anchor, ref matches, thread bound`);
 
 alice.acknowledged(sid);
+measured.ackMs = now() - t1;
 const finalSt = alice.status(sid);
 if (finalSt?.state !== "delivered" || finalSt.late !== false) fail(`trias did not close: ${JSON.stringify(finalSt)}`);
+measured.trias.push("delivered");
+// in the profile form the acknowledgement proves routed for the relationship (RLTP-VTI-3130)
+if ((process.env.RLTP_WIRE_DEPOSIT ?? "routed") === "routed" && alice.ackState().send.proven !== true) fail("a valid acknowledgement of a routed document did not prove routed");
 say(`  ✓ §6.1 trias closed: accepted → delivered (in time, not late)`);
 
 alice.close(); bob.close(); wireA.close(); wireB.close();
+report();
 console.log("\nLIVE-DELIVERY-PROBE PASS — the full delivery contract ran over the live mediator: lib-sealed envelope, staged receive() verdict, signed delivery-ack/0.1, sender trias closed as delivered");
 process.exit(0);
