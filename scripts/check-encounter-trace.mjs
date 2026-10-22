@@ -96,7 +96,7 @@ export const LAYERS = {
   },
   adapter: {
     prefix: 'RLTP-VTI',
-    title: 'VTI Mediator Adapter Profile 0.24',
+    title: 'VTI Mediator Adapter Profile 0.25',
     spec: join(ROOT, 'spec/adapter-vti-mediator.md'),
     manifest: join(ROOT, 'conformance/adapter-vti-rule-ids-0.25.txt'),
     inventory: null,

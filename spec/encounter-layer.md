@@ -14,8 +14,8 @@
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
   Delivery Contract 0.79 (normative reference, Section 11); DTG
   Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
-- **Supersedes:** version 0.30 (archived as
-  `archive/encounter-layer-0.30.md`). Earlier versions: Appendix C.
+- **Supersedes:** version 0.31.0 (archived as
+  `archive/encounter-layer-0.31.0.md`). Earlier versions: Appendix C.
 
 ## Abstract
 
