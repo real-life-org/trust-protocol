@@ -108,12 +108,21 @@ auf (`SCID in DID … does not match SCID in log 'QmR5xGk8…'`).
 
 | Probe | `routed` (Default) | `egress-session` | `egress` (Kontrolle) | `connection` (Kontrolle) |
 |---|---|---|---|---|
-| `live-probe.mjs` | ausstehend | PASS (17.10.) | **FAIL** — `no delivery within 20s` (17.10.) | PASS (17.10.) |
-| `live-delivery-probe.mjs` | ausstehend | PASS (17.10.) | **FAIL** — `no delivery in 20s` (17.10.) | PASS (17.10.) |
+| `live-probe.mjs` | PASS (22.10.) | PASS (17.10.) | **FAIL** — `no delivery within 20s` (17.10.) | PASS (17.10.) |
+| `live-delivery-probe.mjs` | PASS (22.10.): `accepted → delivered`, nicht late | PASS (17.10.) | **FAIL** — `no delivery in 20s` (17.10.) | PASS (17.10.) |
 | `.sender-hypothesis.mjs` | — | eigener Socket: zugestellt | fremde Sender-VID: nicht zugestellt | Socket-DID: zugestellt |
 
 Rahmengrößen (Rev 3 direkt): 64 B Payload → 393 B, 48 B → 375 B,
 681 B versiegeltes Delivery-Dokument → 1008 B, 1224 B Ack → 1551 B.
+
+Routed (22.10., je eine Stichprobe): die Routing-Hülle kostet +408 B
+je Rahmen (64 B → innen 393 B → außen 801 B; 48 B → 375 B → 783 B;
+Delivery-Dokument 681 B → 1008 B → 1416 B; Ack 1222 B → 1551 B →
+1959 B). Eine Einlieferung = ein Rahmen auf dem Socket der
+Connection-DID, eine Session je Beziehung und Seite. Zeiten:
+`accepted` nach 5–15 ms, Zustellung beim Empfänger nach 256–266 ms,
+Einlieferung → geprüfter Ack beim Sender 546 ms (zwei Rundreisen über
+den Mediator: Dokument hin, Ack zurück).
 
 ## Gemessene Betriebsfakten
 
@@ -155,8 +164,8 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
 
 ## Offen
 
-- Live-Messung von `routed` (Zustellung, Trias, Rahmengrößen,
-  Zeiten): Werte in der Tabelle oben ausstehend.
+- Live-Rückfall `egress-session` aus dem Adapter heraus (Frist 24 h) und
+  Schlüsselrotation des Mediators: nur im Double geprüft.
 - Der §5a.10-Peer-Wechsel unter unverändertem `C` wird nicht bedient
   (RLTP-VTI-7120, Profil Open Issue 10); vti-tsp-js 0.3.0 dekodiert
   Referrals, komponiert sie nicht.
