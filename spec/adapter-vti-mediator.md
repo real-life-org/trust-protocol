@@ -349,7 +349,8 @@ where the flush lives).
 The intent's durability is the **host's store**: the adapter
 exposes its ack state (concluded digests with conclusion instants,
 pending intents) for the host to persist, and accepts it back at
-construction; the send state of §3a (mode, open routed deposits)
+construction; the send state of §3a (mode, open routed deposits,
+the acknowledgements accepted in mode `routed` and still kept)
 travels in the same snapshot, and an
 instant in it after the restore instant is refused like a
 conclusion instant. The snapshot invariant — every pending intent names
