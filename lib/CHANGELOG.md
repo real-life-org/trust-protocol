@@ -34,8 +34,8 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   (`digest#resend`, as long), so each is judged once, at the first
   `reconcile` that names it, also across instances. An ack entry carries
   the acknowledgement's digest. A document's acceptance instant is the
-  adapter clock when its deposit resolved, later than the hand-over by
-  the deposit's run time. The send state travels in `AckState.send` (new
+  adapter clock (the last port instant) when its deposit resolved;
+  without a port call in between it is the hand-over instant. The send state travels in `AckState.send` (new
   type `SendState`); a restore checks it fail-closed (a known mode, finite
   instants none after the restore instant, each digest once per kind,
   each judged duplicate once, nothing open, sent or judged in

@@ -151,11 +151,13 @@ auf (`SCID in DID … does not match SCID in log 'QmR5xGk8…'`).
 | Probe | `routed` (Default) | `egress-session` | `egress` (Kontrolle) | `connection` (Kontrolle) |
 |---|---|---|---|---|
 | `live-probe.mjs` | PASS (22.10.) | PASS (17.10.) | **FAIL** — `no delivery within 20s` (17.10.) | PASS (17.10.) |
-| `live-delivery-probe.mjs` | PASS (22.10.): `accepted → delivered`, nicht late | PASS (17.10.) | **FAIL** — `no delivery in 20s` (17.10.) | PASS (17.10.) |
+| `live-delivery-probe.mjs` | PASS (22.10.): `accepted → delivered`, nicht late | PASS (22.10., send-only ohne Live Mode) | **FAIL** — `no delivery in 20s` (17.10.) | PASS (17.10.) |
 | `.sender-hypothesis.mjs` | — | eigener Socket: zugestellt | fremde Sender-VID: nicht zugestellt | Socket-DID: zugestellt |
 
 Rahmengrößen (Rev 3 direkt): 64 B Payload → 393 B, 48 B → 375 B,
 681 B versiegeltes Delivery-Dokument → 1008 B, 1224 B Ack → 1551 B.
+
+`egress-session` (22.10., send-only-Session ohne Live Mode, eine Stichprobe): Dokument 681 B → 1008 B, Ack 1224 B → 1551 B; `accepted` nach 556/559 ms (lazy Login der Egress-Identität), Zustellung 1056/810 ms, Einlieferung → geprüfter Ack 1882 ms.
 
 Routed (22.10., je eine Stichprobe): die Routing-Hülle kostet +408 B
 je Rahmen (64 B → innen 393 B → außen 801 B; 48 B → 375 B → 783 B;
@@ -213,10 +215,10 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
   Ablehnung eines routed-Deposits gilt bis dahin wie jede andere (§5).
 - Live-Rückfall `egress-session` aus dem Adapter heraus (Frist 72 h) und
   Schlüsselrotation des Mediators: nur im Double geprüft.
-- Die send-only-Session öffnet seit dieser Fassung ohne
-  `live-delivery-change`; ob der Live-Mediator Deposits über einen
-  Socket ohne Live Mode annimmt, ist nicht gemessen (die
-  `egress-session`-Werte oben stammen aus der Fassung mit Live Mode).
+- Die send-only-Session öffnet ohne `live-delivery-change`; der
+  Live-Mediator nimmt Deposits über sie an (22.10., eine Stichprobe,
+  erzwungener Modus). Der Rückfall aus dem Adapter heraus (72 h) ist
+  live nicht gemessen.
 - Der §5a.10-Peer-Wechsel unter unverändertem `C` wird nicht bedient
   (RLTP-VTI-7120, Profil Open Issue 10); vti-tsp-js 0.3.0 dekodiert
   Referrals, komponiert sie nicht.
