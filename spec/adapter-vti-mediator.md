@@ -3,12 +3,15 @@
 **Real Life Trust Protocol — Transport Adapter Profile (below the port line)**
 
 - **Status:** Editor's Draft
-- **Version:** 0.23.0-draft (twenty-third casting)
+- **Version:** 0.24.0-draft (twenty-fourth casting)
 - **Status of This Document:** Editor's Draft, not yet converged.
   This profile changes normatively between castings and MUST NOT be
   relied upon for implementation or interoperability claims. Review
   and comment are welcome through the editors.
 - **Editors:** Anton Tranelis
+- **Companions:** RLTP Delivery Contract 0.83 (§5a.10, §6.1, §6.2,
+  §6.3, RLTP-DEL-6120 to RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335; Appendix A names the changes its
+  next casting takes up); RLTP Identity 0.54 (§7a, §13)
 
 Target carrier: the VTI/Affinidi messaging mediator as released in
 **VTI-Dogwood** (pins: `vti-didcomm-js` @ `1d110bf`,
@@ -44,8 +47,14 @@ What this adapter owes, completely:
    pre-transport reports, the declared give-up, late-ack
    transitions, and the receiver refusal channel;
 2. a **duplicate absorption** that composes with the receiver's
-   §6.2 rule and never replaces it;
-3. the **§5a.10 identity obligations** in full.
+   §6.2 rule: it absorbs a copy only for `give-up-horizon` after its
+   conclusion, and hands every later copy to the holder, whose
+   absorption answers it again (RLTP-DEL-6330, RLTP-DEL-6335);
+3. the **§5a.10 identity obligations**, under the reading of §1a
+   (which layer of a deposit the sending-side prohibitions apply
+   to), except the change of the direct TSP peer under an unchanged
+   `C`, which this profile does not serve (RLTP-VTI-7120,
+   Appendix A).
 
 What it expressly does not owe, and no holder may read into it:
 proof-bound registration, generation ordering, tombstone
@@ -54,7 +63,7 @@ those declared below. Those guarantees are obtainable only from an
 RLTP carrier; a holder that requires them must not settle for a
 foreign one.
 
-## 1. Identities (§5a.10, unchanged from the second casting)
+## 1. Identities (§5a.10)
 
 - `C` is the **mediator's DID**, exactly as configured (Identity
   §7a.2 — never a hop beyond it, never the URL it resolves to).
@@ -63,14 +72,32 @@ foreign one.
   the same root under the normative prefixes
   `rltp/v1/carrier-connection/ed25519/v1/` and
   `rltp/v1/carrier-egress/ed25519/v1/` (Identity §13 lists both),
-  the **connection DID** (all mediator protocol traffic: auth,
-  keylist, pickup, receipts) and the **egress identity** (presented
-  on every deposit — §5a.10's sender-side identifier, one per
-  relationship × carrier). Each is derivable from the root; none
-  from any other. **The trio is derived by the adapter's factory
-  itself** from one (root, `C`, `N`) — caller-supplied identities
-  are refused at the door, so a mixed trio (identities from two
-  relationships) cannot be built at all.
+  two wire identities, one per relationship × carrier each:
+  - the **connection DID** — this side's account at the mediator
+    and its address in the relationship: the session that collects
+    (auth, keylist, pickup, receipts) runs under it — the one other
+    authentication is the egress identity's send-only session in
+    mode `egress-session` (§3a) — the
+    counterpart addresses every document to it, and it is the
+    **outer** sender of every deposit in mode `routed` (§3a);
+  - the **egress identity** — the **inner**, end-to-end sender of
+    every deposit: the sender the counterpart sees and verifies,
+    §5a.10's sender-side identifier under the reading of §1a. In
+    mode `routed` it never authenticates to the mediator; in the
+    fallback mode `egress-session` it holds one send-only session
+    of its own (§3a).
+
+  The counterpart's connection DID and egress identity are inputs
+  to an instance, exchanged with the relationship above this
+  profile; this profile defines no exchange of them, and what §7
+  and §8 say of foreign senders holds as far as that exchange binds
+  them to the relationship (§10).
+
+  Each is derivable from the root; none from any other. **The trio
+  is derived by the adapter's factory itself** from one (root,
+  `C`, `N`) — caller-supplied identities are refused at the door,
+  so a mixed trio (identities from two relationships) cannot be
+  built at all.
 - Both wire identities carry §5a.10's three prohibitions — **not
   well-known**, **not person-wide**, **not reused outside this
   relationship** — and are retired with the principal, never
@@ -80,11 +107,56 @@ foreign one.
   principal-local; every status, pickup and receipt operation
   scoped to one principal's connection; Live Mode per relationship
   (MUST), one socket per principal by default (5a.7 spacing
-  declares any multiplexing).
+  declares any multiplexing). Mode `routed` holds **one session
+  per relationship and side**, the connection DID's; mode
+  `egress-session` adds the egress identity's send-only session.
 
-## 2. Declared constants (decision g1-a, revised under Option B)
+## 1a. Which layer counts (§5a.10, read for routed deposits)
 
-Five constants with transport meaning, every one enforced in the
+A routed deposit carries two senders: the inner one the counterpart
+verifies, and the outer one the direct carrier authenticates. Delivery
+§5a.10 attaches its sending-side prohibitions to "the sender-side
+outer VID an adapter presents when depositing", among them that the
+sending side and the collecting side of one person must never meet
+in one identifier. This profile applies that clause to the layer the
+counterpart opens and verifies, and lets the outer layer toward the
+direct carrier carry the collecting identifier. It is a decision on
+which identifier a document is signed under, not a claim of
+unlinkability: the counterpart knows both identifiers of this side
+(it verifies the egress identity and addresses the connection DID),
+and the mediator reads both in one frame (§9).
+
+**RLTP-VTI-1110** — The inner sender of every deposit MUST be the
+egress identity of this relationship and carrier. It MUST NOT be the
+connection DID, the control principal, or a value derivable from
+either, and it carries all three prohibitions of §5a.10.
+
+**RLTP-VTI-1120** — The outer sender of a routed deposit MUST be the
+connection DID of the same relationship and carrier, and nothing
+else. It is a hop identifier toward the direct carrier, which already
+authenticates it as this relationship's account; it carries the
+prohibitions of §5a.10 except the separation of sending and
+collecting, which RLTP-VTI-1110 places on the inner sender.
+
+**RLTP-VTI-1130** — A deposit whose only layer names the connection
+DID as its sender is nonconformant: there the counterpart would see
+the collecting identifier as the sender.
+
+Delivery 0.83 hangs the separation on the outer sender. The change
+this reading needs in the Delivery Contract is stated in Appendix A;
+until its next casting takes it up, an implementation of this
+profile states in its conformance notes that it applies RLTP-VTI-1110
+and 1120 in place of that clause, and every other entry of
+Appendix A that turns a conformance statement of Delivery 0.83
+around (the send-only session of mode `egress-session`, the routed
+deposits under the connection DID). The sentence of §5a.10 that a
+nested private end-to-end VID is "hidden from intermediaries by
+construction" is not a property of routed mode: the mediator opens
+the routing layer and reads the inner sender (§9).
+
+## 2. Declared constants
+
+Six constants with transport meaning, every one enforced in the
 implementation. They are promises of **this casting**: a revision
 is a new casting of profile and code together — there is no
 runtime revision machinery, and this profile claims none:
@@ -95,16 +167,16 @@ runtime revision machinery, and this profile claims none:
 | `status-horizon` | 60 s | `submit` returns synchronously. The pre-transport report is an **honest snapshot, derived at each observation** by one precedence order — (a) the wire knows itself offline → `offline`; (b) an attempt is overdue past the horizon → `transport-unreachable`; (c) otherwise the last completed attempt's report; (d) otherwise honestly **no report yet** (absence answered as null, never a fourth value beside §6.1's closed set). One order, every observation point — no stored patchwork, no cell a connectivity change can leave silent. No attempt is ever started against a knowingly offline wire |
 | `queue-floor` | 64 envelopes **and** 1 MiB | below both bounds an inbound frame is always buffered |
 | `max-queue-bytes` | 16 MiB | buffered **and** collected-but-unconcluded bytes together; above it a frame is not buffered and **not acknowledged** — the mediator keeps its copy and re-covers |
-| `duplicate-window` | 30 days | a concluded digest is absorbed for the window, measured from conclusion — and **the window beats everything**: at its end, entry, absorption and any unpaid ack intent fall together |
+| `duplicate-window` | 30 days | a concluded digest's entry and any unpaid ack intent stand for the window, measured from conclusion — and **the window beats everything**: at its end both fall together. The adapter absorbs a byte-identical copy only during the first `give-up-horizon` of the window; a later copy goes to the holder as a new item, so a counterpart that resubmits after a lost acknowledgement is answered again (RLTP-DEL-6330) |
+| `routed-ack-deadline` | 72 h | the deadline of RLTP-VTI-3130: an open routed deposit (a document of this side without its answer) this long after its acceptance switches the relationship to `egress-session`; equal to `give-up-horizon`; a validated refusal of the routed form switches at once |
 
-Withdrawn from the second casting, with reasons on the record:
-`challenge-lifetime` (the adapter has no wall-clock source of its
-own; a bound it cannot measure is a promise it cannot keep — the
-ATM challenge's freshness is the mediator's own concern),
-`max-binding-tombstones` and `orphan-horizon` (binding machinery of
-the carrier port this contract does not present).
+This profile declares no `challenge-lifetime` (the adapter has no
+wall-clock source of its own; the ATM challenge's freshness is the
+mediator's own concern), and no `max-binding-tombstones` or
+`orphan-horizon` (binding machinery of the carrier port this
+contract does not present).
 
-The honest limit, as before: these bind the **adapter**. Where the
+The honest limit: these bind the **adapter**. Where the
 mediator is stricter (an unpublished TTL, an ACL change, a quota),
 the holder sees only the port's own forms — never a
 mediator-shaped error.
@@ -114,18 +186,145 @@ mediator-shaped error.
 | Adapter operation | Mediator wire | Notes |
 |---|---|---|
 | `register(rkids)` | ATM auth (challenge → authcrypt `atm/1.0/authenticate` → access+refresh JWT) under the connection DID; keylist update for this principal's `rkid`s | transport admission and routing registration only — expressly **not** §5a.3 registration; no generation, no proof toward this adapter. `register` records the desired keylist and returns; synchronization is a tracked background task retried by `advance` (the no-await rule covers every port operation). The auth handshake is **single-flight**: concurrent operations share one challenge/response session |
-| `submit` | `POST /inbound` / WS frame; sealed RLTP envelope under the egress identity | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, including §5a.10's peer-change rule (only the binding sees the peer) |
+| `submit` | `POST /inbound` / WS frame; the sealed RLTP envelope in the sending form of §3a, on the connection DID's session (mode `routed`) or the egress identity's send-only session (mode `egress-session`) | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, built anew for every attempt (§7) |
 | `collect` | live delivery / `delivery-request`; mediator fetches with `DoNotDelete` | redelivery before ack is re-cover, not a new item |
-| `conclude` | `messages-received` over the digest set of the collection (decision 3) | infallible at the port; see §4 |
-| `advance` | adapter clock only | give-up, retries, ack flushing, duplicate-window pruning |
+| `conclude` | `messages-received` over the digest set of the collection | infallible at the port; see §4 |
+| `advance` | adapter clock only | give-up, retries (each a hand-over through the holder, RLTP-VTI-3135), the switch check of RLTP-VTI-3130, ack flushing, duplicate-window pruning |
 
 Delete-to-ack order is **hand off → await → ack** (Dogwood,
 `vti-didcomm-js` `29b92cc`), kept with three receiver registers:
 buffered, outstanding, concluded. Only a **concluded** digest is
 ever (re-)acknowledged; a redelivery of a buffered or outstanding
-frame is ignored without acknowledgement. Collections carry an
+frame is ignored without acknowledgement. A digest concluded
+`give-up-horizon` or more ago that arrives again is buffered as a new
+item (§4); buffered and outstanding go before concluded, so a
+redelivery of it is ignored while it is buffered or outstanding, and
+its standing ack intent is not sent until the new item is concluded,
+which sets the conclusion instant anew. Collections carry an
 adapter-issued id; conclusion uses the adapter's authoritative
-digest set, and an empty collection creates no register entry.
+digest set; an empty collection creates no register entry and
+counts as a concluded collection (RLTP-VTI-3130).
+
+## 3a. Sending form
+
+Two modes, one of them the rule. Both put the same message in
+front of the counterpart: a TSP Rev 3 `direct` message from this
+side's egress identity to the counterpart's connection DID. They
+differ in how it reaches the mediator.
+
+**RLTP-VTI-3110** — Mode `routed` is the mode of every adapter
+instance from its construction. A deposit in it is two TSP Rev 3
+layers:
+
+1. **inner:** a `direct` message whose payload is the sealed RLTP
+   envelope, sender the egress identity, receiver the
+   counterpart's connection DID, sealed (HPKE-Base) to the key the
+   counterpart's DID document names first under `keyAgreement`,
+   signed by the egress identity;
+2. **outer:** a routed message (TSP Rev 3 routed mode, the
+   library's `packRouted`) whose payload is the inner message's
+   bytes, unchanged; sender the connection DID, receiver `C`,
+   sealed to the key `C`'s DID document names first under
+   `keyAgreement` as last resolved for the session (RLTP-VTI-7120), and
+   the route list of RLTP-VTI-3115.
+
+It is deposited on the connection DID's authenticated session.
+
+**RLTP-VTI-3115** — The route list of an outer layer has exactly one
+entry, the counterpart's connection DID. It never names the
+counterpart's egress identity, a control principal, or a second hop;
+what the mediator arranges beyond itself is its own (§5a.10).
+
+**RLTP-VTI-3120** — Mode `egress-session` is a fallback, permitted
+only after the switch of RLTP-VTI-3130. A deposit in it is the inner
+message of RLTP-VTI-3110 alone, deposited on a session the egress
+identity authenticates at `C` for this purpose. That session is
+send-only: it collects nothing, acknowledges nothing, holds no
+keylist and no Live Mode.
+
+**RLTP-VTI-3130** — The sending mode belongs to the relationship, not
+to the instance: it is kept in the adapter's send state, which the
+host persists with the ack state (§4), and a successor instance
+resumes it. The send state holds the mode and the **open routed
+deposits**: every **document** accepted in mode `routed` and not yet
+answered, with its digest and acceptance instant. A valid
+acknowledgement, a validated receiver refusal (§5) or a validated
+`idConflict` answer for that digest answers it — reported to the
+instance that deposited it, or by the holder to a later instance
+when it arrives after that one's close; answers that are no verdict
+(`unavailable`, `internalError`, §5) do not. A report for a digest
+the send state does not name answers nothing, so after a loss of the
+send state earlier reports answer nothing. Acknowledgements this side
+deposits are no open routed deposits: nothing answers them, and the
+signal rests on this side's own documents only (§10).
+
+An instance in mode `routed` MUST switch to `egress-session` when an
+open routed deposit was accepted `routed-ack-deadline` (§2) or more
+in the past, checked only after the instance has concluded (§3,
+`conclude`) a collection that left no frame pending for it at the
+mediator, with the reports that collection produced applied (an
+acknowledgement that arrived while no instance ran waits in the
+connection DID's own queue). It MUST switch at once when the
+mediator answers a routed deposit with a refusal that names the
+routed form and that the binding authenticates as the mediator's
+(a validated refusal of routed: evidence against `routed`, §5); the
+refused submission stays in the holder's custody and goes in the new
+mode at its next hand-over, reported `awaiting-transport`
+(`carrier-refused-retriable`) until then. It MUST NOT switch otherwise: not on any
+other refusal by the mediator (it maps as §5 says), not on a
+mediator status or problem-report frame that refuses no deposit
+(consumed, §5), not on an offline signal. An answer of one
+deposit settles that deposit only: a relationship in which routed
+deposits were answered before switches by the same rule when a
+later one goes unanswered. A successor applies the reports the
+holder hands it before it checks the deadline. The switch is one-way
+for the relationship: nothing returns it to `routed` but a new
+principal — a new relationship, a rebind or a change of `C` (§6) —
+or a lost send state (a host that persists nothing), each of which
+starts in `routed`; at the switch the open
+routed deposits leave the send state, and a routed attempt accepted
+after the switch enters none. An open routed deposit also leaves the
+send state once `routed-ack-deadline` plus `duplicate-window` has
+passed since its acceptance, so the send state stays bounded where
+no check could run (RLTP-VTI-7150).
+
+**RLTP-VTI-3135** — Every attempt to deposit a submission in the
+holder's custody is a hand-over through the holder (RLTP-DEL-6125),
+a retry included. From the switch on, every hand-over uses the new
+mode; an attempt begun before the switch ends in the mode it began
+in. A submission still in the holder's custody (no report yet, or
+`awaiting-transport`) goes in the new mode at its next hand-over
+through the holder (RLTP-DEL-6125). A submission already `accepted`
+is not deposited again (RLTP-VTI-7130): it ends `delivered` or
+`failed` at the give-up horizon as §6.1 states, and resubmission
+after a failure is the application's recourse.
+
+**RLTP-VTI-3140** — The receiving side needs no mode. In both modes
+what reaches its connection DID's session is the inner `direct`
+message: in mode `routed` the mediator opens the routing layer and
+passes the inner message on unchanged. A receiving binding delivers
+only a Rev 3 `direct` message with a non-empty payload from the
+counterpart's egress identity to its own connection DID (§7).
+
+The signal is honest about what it cannot tell apart: a missing
+acknowledgement is also what a counterpart produces that stays
+offline, or what this side produces when it stays closed and the
+acknowledgement waits in its own queue, so a relationship can switch
+without need. The deadline equals the give-up horizon for that
+reason: a switch caused by absence is the more frequent error than a
+mediator that accepts routed messages and does not deliver them, and
+at 72 hours a document that has gone unacknowledged has already
+failed at its own horizon. A needless switch is conforming — both
+modes satisfy §1a — and costs what §9 states for mode
+`egress-session`: a second session and a link between the two
+identities through two logins. The other side of the trade is a
+relationship whose documents fail at the give-up horizon until the
+switch; what was accepted in mode `routed` before the switch on such
+a mediator fails at its horizon (§10), the switch carries what
+follows it. A mediator that refuses routed deposits with a validated
+refusal of the routed form switches the relationship at once; one
+that refuses them in any other way produces no acceptance and no
+switch, and the documents fail as `unroutable` (§5).
 
 ## 4. Acknowledgement intent and durability
 
@@ -141,7 +340,10 @@ where the flush lives).
 The intent's durability is the **host's store**: the adapter
 exposes its ack state (concluded digests with conclusion instants,
 pending intents) for the host to persist, and accepts it back at
-construction. The snapshot invariant — every pending intent names
+construction; the send state of §3a (mode, open routed deposits)
+travels in the same snapshot, and an
+instant in it after the restore instant is refused like a
+conclusion instant. The snapshot invariant — every pending intent names
 a concluded entry — is enforced **fail-closed**: an inconsistent
 snapshot is refused at construction, never silently trimmed. A
 restore names its instant; a concluded entry older than the
@@ -153,34 +355,51 @@ prune, at the restore: an ack intent is retried until the window
 closes, then intent and absorption fall together; there is no
 ageless debt whose truth the adapter would have to know, and a
 phantom debt (an ack that in fact landed just before a close) can
-never outlive the window and delete a fresh copy. A byte-identical
-arrival beyond the window is a new item — always, without
-exception; what this can produce in the worst case (one duplicate
-delivery after a lost ack, a restart and thirty days) is owned by
-the receiver's §6.2 absorption, which the Delivery Contract
-requires regardless. One boundary precision: a wire call cannot be
+never outlive the window. The adapter
+absorbs a byte-identical arrival only within `give-up-horizon` of its
+conclusion; a later one, inside the window or beyond it, is a new
+item, with the exceptions listed below, and the receiver's §6.2
+absorption owns it, answering it with the stored acknowledgement
+(RLTP-DEL-6330, RLTP-DEL-6335). That is how a counterpart that
+resubmits after a lost acknowledgement is answered; a resubmission
+that arrives sooner than `give-up-horizon` after this side's
+conclusion is still absorbed here and acknowledged only toward the
+mediator. One boundary precision: a wire call cannot be
 recalled, so **the window closes for an id no earlier than the end
 of an acknowledgement call already carrying it on the wire** — the
 stay of expiry begins at the wire call itself, never earlier (a
 hanging authentication extends no window; ids whose entry already
-fell are not sent at all), it covers absorption too (so the
-irrecallable ack can never delete a copy the holder has not
-absorbed), and the account is settled the moment the call returns.
+fell are not sent at all), it covers absorption too, and the
+account is settled the moment the call returns.
+
+The exceptions, a closed list, all at one price — the
+counterpart's resubmission goes unanswered, and no document is lost,
+because the holder concluded it:
+
+1. the later copy arrives while an acknowledgement carrying its id
+   is on the wire: it is absorbed (the stay of expiry above);
+2. the intent was already sent before the later copy arrived: that
+   acknowledgement can delete the copy at the mediator before the
+   holder sees it;
+3. after a restart only the buffer is gone: a restored intent can
+   delete the copy at the mediator if it is sent before the mediator
+   offers the copy again.
 
 **The teardown edge, priced honestly.** An acknowledgement still
 flying at `close()` cannot be carried by the snapshot; a restored
 successor retries a persisted intent until it lands or the window
 closes. Two regimes, both closed:
 
-- **Inside the window, a deletion by any of these calls is
-  port-equivalent to the declared absorption.** A deleted copy is
-  byte-identical to a digest whose entry is still concluded and
-  whose window is still open — had it been delivered instead, this
-  profile's own duplicate rule (§2) would have absorbed it without
-  surfacing it. The holder observes the same thing either way: the
-  copy does not appear. Retried acknowledgements therefore add no
-  loss beyond what the window already declares, however many times
-  a lost response makes them retry.
+- **Inside the window, a deletion by any of these calls removes
+  a copy of a document the holder already concluded.** Within
+  `give-up-horizon` of the conclusion this profile's own duplicate
+  rule (§2) would have absorbed it without surfacing it, and the
+  holder observes the same thing either way. Later, the deleted copy
+  is one the holder would have absorbed and answered again; the
+  counterpart's next resubmission is answered instead. Retried
+  acknowledgements therefore lose no document, however many times a
+  lost response makes them retry; at most they leave a resubmission
+  unanswered.
 - **Beyond the window, no intent survives to be retried** — intent,
   entry and absorption fell together — so the only calls that can
   still land are those a teardown left irrecallably flying: **at
@@ -207,12 +426,12 @@ waits for the next `advance` instead of spinning. A
 host that persists nothing re-receives concluded items after a
 restart and owes their absorption to §6.2 — stated here as the
 honest boundary, exactly as the library's byte boundary already
-carries M-2.
+carries the duty to pass received bytes unchanged.
 
 ## 5. Sender states and refusal mapping
 
-Trias per §6.1 with the closed sets, unchanged. Additionally the
-port carries the **receiver refusal channel** (review 2 B8): the
+Trias per §6.1 with the closed sets. Additionally the
+port carries the **receiver refusal channel**: the
 delivery layer, which alone can validate a counterpart's refusal,
 reports it to the adapter and the submission fails as
 `failed(rejected-by-receiver(<code>))` — for `trust-task-error/0.2`
@@ -241,13 +460,20 @@ runtime refuses them fail-closed), and the submission simply
 remains governed by the adapter clock like any other transport
 outcome.
 
-Transport conditions map as before: 401/403/ACL →
+Transport conditions map as follows: 401/403/ACL →
 retriable, persistent → `failed(unroutable)` at the horizon; 413 →
 `failed(oversize)`; upgrade drop/timeout/DNS →
 `awaiting-transport(transport-unreachable)`; 429/5xx →
 `awaiting-transport(carrier-refused-retriable)`;
 `duplicate-channel` → re-establish, no port event; mediator
-status/problem-report frames → consumed, never acked, never items.
+status frames, and problem-report frames that refuse no deposit →
+consumed, never acked, never items; a problem-report frame that
+refuses a deposit is a refusal of that deposit and maps as below;
+any other refusal of a deposit → retriable, persistent →
+`failed(unroutable)` at the horizon. A refusal of a routed deposit maps like any other deposit refusal
+above, with one exception: a validated refusal of the routed form
+switches the relationship at once and leaves the submission
+`awaiting-transport` (RLTP-VTI-3130).
 
 ## 6. Lifecycle coupling (§5a.10, applied)
 
@@ -259,12 +485,27 @@ here to run: the adapter holds no bindings — what it holds at
 teardown is its ack state (§4, the host persists it) and its
 submissions. **A close with live submissions ends their
 reporting** — a retired instance has no clock, so it does not
-pretend to fail them at a horizon it no longer drives. What the
-holder is owed then is the **host's**: surface the teardown, or
-carry the undelivered envelopes into a successor instance whose
-own clock and horizons govern their resubmission. This profile
-refuses to promise more than a retired instance can keep. The
-boundary is realized in code:
+pretend to fail them at a horizon it no longer drives. A document
+not yet accepted is still in the holder's custody (RLTP-DEL-6120);
+an accepted one left it at acceptance, and the holder ends it as
+§6.1 does: `delivered` on a valid acknowledgement, `failed` at its
+horizon otherwise. The retired instance's copies were volatile and
+authorize nothing after its close.
+
+**RLTP-VTI-6110** — A successor instance takes documents over only
+through the holder's custody view of an active opening — the
+entries the holder offers for transport (RLTP-DEL-6120), at any
+point while that opening is active (RLTP-DEL-6125, RLTP-DEL-6130). A copy, list or snapshot
+that the retired instance or the host took before the lock or the
+close authorizes no submission.
+
+**RLTP-VTI-6120** — A successor instance's give-up horizon for a
+document runs from the document's first submission as the sender
+recorded it, never from the takeover (RLTP-DEL-6130). The successor
+resumes the send state the host restores to it (RLTP-VTI-3130).
+
+This profile refuses to promise more than a retired instance can
+keep. The boundary is realized in code:
 `close()` retires the instance — subsequent port operations
 refuse, a late-resolving wire mutates nothing, and the ack state
 remains readable for the host's final persist. Beside the port
@@ -284,23 +525,84 @@ between the auth handshake and every subsequent wire call).
 
 ## 7. Due at the wire binding
 
-The concrete binding over `vti-didcomm-js` owes: TSP framing
-toward **Rev 3's cipher posture** (HPKE-Base; HPKE-Auth is removed
-in Rev 3 and the OpenVTC stack switches before its next event),
-the peer-change rule (a changed direct TSP peer under an unchanged
-`C` retires the outer VID and establishes a fresh one via Rev 3's
-Referral field where available), the CESR demux discipline of
-ref-04, and the M-2 duty (raw received bytes passed truthfully).
+The concrete binding over `vti-didcomm-js` and `vti-tsp-js` owes:
+TSP framing in the sending form of §3a under **Rev 3's cipher
+posture** (HPKE-Base; HPKE-Auth is removed in Rev 3), the CESR
+demux discipline of the measured binding (one message type per
+frame, dispatched on its CESR code), the duty to pass raw received
+bytes unchanged, and the rules below.
+
+**RLTP-VTI-7110** — The adapter's copy of a submission is the
+sealed RLTP envelope, never a TSP frame. The binding packs every
+layer its mode requires (RLTP-VTI-3110, 3120) anew for every attempt, with the keys resolved for the
+session that attempt uses; a frame sealed to a key the mediator no
+longer names is never deposited again.
+
+**RLTP-VTI-7120** — The direct TSP peer of every outer layer is `C`
+itself (RLTP-VTI-3110). This profile does not serve a mediator whose
+TSP VID differs from its configured DID, nor a change of that VID
+under an unchanged `C`: the connection DID is derived from (root,
+`C`, `N`), so the fresh outer VID Delivery §5a.10 asks for in that
+case cannot be established (Appendix A). Routed deposits addressed
+to `C` then reach no one; they fail at the give-up horizon, and the
+switch of RLTP-VTI-3130 may carry what follows, since mode
+`egress-session` seals nothing to `C`, if the egress identity's
+authentication at `C` still succeeds. What can change under an unchanged
+`C` is the key `C`'s DID document names first under `keyAgreement`
+(a key change of `C`). The binding resolves that key at
+every authentication and every token renewal of the connection DID's
+session, and the adapter renews at the latest when its access token
+expires, so a change is seen no later than then. The token lifetime
+is the mediator's; this profile declares no bound on it, and the
+window in which frames go to a retired key is as long as the
+mediator makes it. Every outer layer
+packed after that is sealed to the new key. A submission still in
+the holder's custody is packed for the new key at its next
+hand-over; one already accepted under the old key is not deposited
+again (RLTP-VTI-7130) and ends as §6.1 states. In mode
+`egress-session` no layer is sealed to `C`, and a key change of `C` changes
+nothing but the session.
+
+**RLTP-VTI-7130** — Neither the switch of RLTP-VTI-3130 nor a
+key change of `C` makes the adapter deposit anything the holder does not
+hand over. The holder's custody ends at acceptance (RLTP-DEL-6120),
+and the absence of an accepted document from what the holder offers
+is no leave to deposit it again (RLTP-DEL-6135); the adapter's copies
+are the bytes of the hand-over they came from and authorize nothing
+beyond it.
+
+**RLTP-VTI-7140** — On receipt the binding delivers to the adapter
+only a Rev 3 `direct` message with a non-empty payload whose sender
+is the counterpart's egress identity and whose receiver is this
+side's connection DID, and delivers its payload bytes unchanged.
+Control messages, padding, routed and nested messages, and empty
+`direct` messages are logged with their type and sender VID and
+acknowledged, never delivered.
+
+**RLTP-VTI-7150** — The binding states whether the mediator holds
+nothing more for the connection DID, from the pickup protocol's
+status or from an approximation it names that errs toward
+"something is pending", never toward "nothing is pending". The check of RLTP-VTI-3130
+runs only on that statement: a binding that cannot make it never
+lets the deadline switch happen, and an implementation that uses
+such a binding states so in its conformance notes. The immediate switch on a validated
+refusal of the routed form needs no such statement.
 
 Of the §5a.10 vector debt (Delivery §11), this profile discharges
 what is decidable **here**: the identity derivations are
 deterministic and vector-tested (fixed inputs → byte-exact
 principal, connection and egress DIDs, pairwise distinct,
-prefix-separated), and the adapter obligations of this contract
-are exercised against the wire double. What genuinely needs a
-carrier **interface** — proof-gated registration vectors,
-generation and tombstone cases — remains with the first
-RLTP-carrier service, which is the first place it is decidable.
+prefix-separated), the addressing of both sending modes is
+vector-tested (`vectors/vti-routed-addressing.json`: inner and
+outer sender, receiver, route list and session per mode, the
+addressings §1a and §3a refuse, and the messages RLTP-VTI-7140
+refuses on receipt), and the adapter obligations of
+this contract are exercised against the wire double. The byte form
+of a routed frame is the TSP library's and is not vectored here.
+What genuinely needs a carrier **interface** — proof-gated
+registration vectors, generation and tombstone cases — remains
+with the first RLTP-carrier service, which is the first place it
+is decidable.
 
 ## 8. Security Considerations
 
@@ -339,26 +641,83 @@ RLTP-carrier service, which is the first place it is decidable.
   instants) bound what a corrupted clock can stretch.
 - **Give-up produces failure, never silence.** Every declared
   bound ends in a §6.1 report; the teardown paragraph (§6)
-  states the one case where reporting ends, and hands it to the
-  host explicitly. There is no path on which an envelope is
+  states the one case where reporting ends, and leaves the
+  document with the holder, who ends it under §6.1. There is no path on which an envelope is
   dropped without either a report or a mediator-retained copy.
+
+- **The fallback is not a downgrade of what the mediator
+  learns.** A mediator can force the switch of §3a by dropping
+  routed frames. In mode `egress-session` it then learns through
+  two logins what it reads in one frame in mode `routed`: the
+  connection DID and the egress identity of one relationship
+  (§9). The counterpart sees the same sender in both modes; the
+  cost of a forced switch is the second session.
+- **The switch can be forced.** The mediator can drop routed
+  frames, or deliver them and suppress the acknowledgements; the
+  counterpart can withhold its acknowledgements for the deadline;
+  the mediator can refuse the routed form, which switches at once —
+  the validation of a refusal guards only against parties other
+  than the mediator. Each leaves an open routed deposit past the
+  deadline, or switches at once.
+  Either way the result is the fallback bullet above, made
+  permanent for the relationship (RLTP-VTI-3130), plus what Open
+  Issue 6 states: a counterpart's access list that admits the
+  connection DID may not admit the egress identity.
+- **Replayed inner messages are absorbed.** The mediator can
+  deliver an inner message again; the receiver's §6.2 absorption
+  makes the copy a duplicate with no second effect on the
+  document; a copy the adapter hands to the holder after
+  `give-up-horizon` (§2) is answered again with the stored
+  acknowledgement, and nothing more.
+- **Foreign inner messages fail at the receiver.** The mediator
+  opens the routing layer and could pass on an inner message of
+  its own choosing. An inner message is sealed to the
+  counterpart's connection key and signed by the egress identity;
+  the receiving binding delivers only the expected pair
+  (RLTP-VTI-7140), so a substituted or forged inner message is
+  refused before the adapter and has no effect. A mediator that
+  ignores the route list, or delivers late or not at all, is a
+  carrier that loses a document: the give-up horizon covers it.
 
 ## 9. Privacy Considerations
 
-- **What the mediator learns.** The connection DID, the egress
-  identity, the rkids on the keylist, timing, sizes and
-  frequency — a correlation record inside one relationship,
-  exactly the exposure TSP Rev 3's intermediary chapter
-  describes. Both wire identities carry §5a.10's three
-  prohibitions, so this record joins to nothing outside the
-  relationship *through identifiers*; timing and volume
-  correlation remain, as §10 of the Delivery Contract records,
-  and this profile claims no unlinkability.
+- **What the mediator learns.** In mode `routed`, from one frame:
+  the sender's connection DID (outer sender), its egress identity
+  (inner sender, once the routing layer is open), and the
+  counterpart's connection DID (route list and inner receiver);
+  besides these, timing, sizes (the routing layer adds about
+  400 bytes per frame) and frequency. Over both directions it holds
+  both connection DIDs and both egress identities of one
+  relationship. In mode `egress-session` it learns the same
+  identifiers, and links connection DID and egress identity through
+  two logins from one device instead of one frame. An operator's
+  undertaking not to store forwarded frames is not a guarantee this
+  profile can rely on; it assumes the mediator keeps what it sees.
+- **What the counterpart learns.** The egress identity as the
+  sender of every document, and the connection DID as this side's
+  address. Neither appears in any other relationship.
+- **Linkability, per party.** Every wire identity is per
+  relationship × carrier and carries §5a.10's three prohibitions.
+  **Toward counterparts** nothing joins one relationship to
+  another; inside the relationship the counterpart knows both
+  identifiers of this side, and §1a does not hide one from it.
+  **Toward the mediator** both identifiers of each side are joined
+  inside each relationship — in one frame in mode `routed`, where
+  the outer sender is this side's account and the route the
+  counterpart's, so the two directions of one relationship are
+  paired by identifier, not only by timing — while nothing joins its
+  relationships to each other through identifiers; timing, source address and volume remain, as §10 of
+  the Delivery Contract records, and this profile claims no
+  unlinkability. Only a nested inner relationship (TSP §4, §5.5),
+  in which the egress identity travels inside a layer the mediator
+  cannot open, would keep it from the mediator (§10).
 - **The principal never appears on the wire** — the mediator
   cannot see, and therefore cannot leak, the identifier under
   which port-level authority is exercised.
 - **The ack store reveals traffic history.** `AckState` holds
-  digests and instants of concluded deliveries — metadata about
+  digests and instants of concluded deliveries, and the send state
+  the digests and acceptance instants of the open routed deposits
+  (outbound history) — metadata about
   what arrived and when, not content. A host persisting it should
   protect it like the message store it accompanies.
 - **Instance retirement is not principal retirement.** `close()`
@@ -370,3 +729,120 @@ RLTP-carrier service, which is the first place it is decidable.
   worthless without the root's keys). Retired **for good** they
   are only with the principal — on a rebind or a change of `C` —
   and then never reassigned.
+
+## 10. Open Issues
+
+1. **Keeping the egress identity from the mediator.** A nested
+   inner relationship (TSP §4, §5.5) between the egress identity
+   and the counterpart would hide the egress identity from the
+   mediator, at the cost of a further sealed layer and a nested
+   relationship per pair. The TSP library this profile targets
+   offers no nested relationship forming; not measured, not part
+   of this casting.
+2. **Separate pickup identities.** A form in which each
+   relationship collects under an identity of its own with its own
+   login has not been measured live.
+3. **The value of `routed-ack-deadline`.** 72 hours, equal to the
+   give-up horizon (§3a); no measurement of how long counterparts
+   stay absent underlies it.
+4. **Recognising a refusal of the routed form.** RLTP-VTI-3130
+   switches at once on a validated refusal of the routed form; what
+   the target mediator sends in that case, and how a binding ties it
+   to the deposit and authenticates it, is not measured, and the
+   target binding attributes no refusal to the routed form yet. The
+   same holds for problem reports in general: §5 requires a
+   problem report that refuses a deposit to count as a refusal of
+   that deposit, and the target binding does not yet correlate a
+   problem report with a deposit.
+5. **Keylist.** §1 and §3 name keylist updates; the target
+   mediator keeps no keylist for TSP clients, and the binding
+   treats the update as a no-op.
+6. **Access lists.** A mediator that checks a receiving account's
+   access list against the outer sender sees the connection DID in
+   mode `routed` and the egress identity in mode `egress-session`;
+   a counterpart's access list that admits one does not admit the
+   other. This profile sets no access list.
+7. **No return to `routed`.** The switch is final for the
+   relationship; a mediator that carries routed messages again later
+   is used in mode `routed` only by a new principal (a new
+   relationship, a rebind or a change of `C`) or after a lost send
+   state (RLTP-VTI-3130).
+8. **Documents accepted before a switch or a key change of `C`.** They end
+   at the give-up horizon (RLTP-VTI-7130); depositing them again
+   would need the holder's leave after acceptance, which the
+   Delivery Contract does not give; whether its next casting gives
+   such a leave is open (Delivery 0.84).
+9. **A side that only acknowledges.** The signal rests on this
+   side's own documents (RLTP-VTI-3130); acknowledgements count for
+   nothing. A side that only acknowledges never switches, so on a
+   mediator that does not deliver routed messages its
+   acknowledgements are lost: the counterpart switches after its own
+   documents went unanswered and its later documents arrive, but
+   their delivery status stays at `accepted` (sent) and ends
+   `failed` at the horizon while they arrived.
+10. **A mediator VID other than `C`.** Not served (RLTP-VTI-7120);
+   serving it needs a connection DID that is not a function of
+   (root, `C`, `N`) alone.
+11. **The counterpart's wire identities.** Where a side obtains the
+   counterpart's connection DID and egress identity, and how they are
+   bound to the relationship, is not defined here (§1). Taken on
+   first contact without such a binding, the refusal of foreign inner
+   messages (RLTP-VTI-7140, §8) protects only as far as the
+   end-to-end checks above the adapter do.
+
+## Appendix A: Companion changes
+
+§1a reads one clause of Delivery §5a.10 differently from its
+present wording. The Delivery Contract owns that clause; these are
+the changes its next casting takes up.
+
+**Delivery Contract (next casting):**
+
+- 5a.10, TSP ingress, the prohibition "not person-wide": the clause
+  "the sending side and the collecting side of one person must never
+  meet in one identifier" applies to every sender identifier the
+  recipient opens and verifies. An outer layer addressed to
+  the direct carrier, which the recipient never opens, MAY
+  name as its sender the depositing side's collecting identifier of
+  the same relationship and carrier. The other prohibitions — not well-known, no second
+  relationship, no second carrier, never a control principal or a
+  value derivable from one, not reused outside the relationship —
+  apply to every layer the adapter presents.
+- 5a.10, the paragraph on the nested private end-to-end VID: "hidden
+  from intermediaries by construction" holds for nested envelopes;
+  in routed mode the direct carrier opens the routing layer and
+  reads the inner sender and receiver.
+- 5a.10, "What that buys", and §10: in routed mode the direct
+  carrier pairs the two directions of one relationship by
+  identifier — the outer sender is the depositing side's collecting
+  identifier, the route the counterpart's — not only by timing; the
+  claim stays bounded to no join across relationships.
+- 5a.10, the change of the direct TSP peer under an unchanged `C`:
+  an adapter whose outer peer is the configured carrier itself, and
+  whose collecting identifier is derived from (root, `C`, `N`), MAY
+  decline to serve a carrier whose TSP VID differs from `C` or
+  changes under it; an adapter profile that declines MUST state it,
+  and the fresh-outer-VID rule binds every adapter that serves the
+  case.
+- 5a.10, collecting side, "MUST NOT hold two live outer VIDs for one
+  principal at one carrier": the rule concerns the principal's
+  collecting identifier; a send-only session of a sending-side
+  identifier at the same carrier (ingress) is not a second live
+  outer VID of the principal.
+- 5a.10, DIDComm, "a connection DID … for this principal and for
+  nothing else": the principal's own routed deposits under its
+  connection DID are part of its mediation relationship, not
+  another purpose.
+- 5a.4, the paragraph on ack pairing by response time "with no
+  identity whatsoever": in routed mode the direct carrier pairs the
+  two directions by identifier as well (the entry above on "What
+  that buys"); 5a.4 and §10 change together.
+- §11, conformance examples under "TSP ingress", beside the line
+  that calls a person-wide sender-side VID nonconformant: a routed deposit
+  whose outer sender is the depositing side's collecting identifier
+  at the direct carrier and whose inner sender is an identifier
+  exclusive to sending → conformant; a single-layer deposit whose
+  sender is the collecting identifier → nonconformant; beside "two
+  live outer VIDs for one principal → nonconformant": a send-only
+  session of a sending-side identifier at the same carrier →
+  conformant.

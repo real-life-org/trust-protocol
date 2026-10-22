@@ -279,10 +279,19 @@ every device. The contract condenses this into five doors and
 maps p2panda, Keyhive, SECSYNC, NextGraph and Automerge against them.
 
 **Today.** One delivery adapter is specified, for the Verifiable
-Trust Infrastructure mediator over TSP, being moved to TSP revision
-3. DIDComm appears only as that mediator's mediation and pickup
-protocols, not as a form for RLTP documents. No replication adapter
-is specified.
+Trust Infrastructure mediator, targeting TSP revision 3. Each side of
+a relationship sends under one identity and collects under another.
+A document is signed end to end under the sending identity and
+travels to the mediator inside a routed layer under the collecting
+identity. A relationship in which one of this side's own documents
+goes unacknowledged for three days, or whose mediator refuses the
+routed form with a refusal the binding can verify, switches to a
+fallback: the document alone, signed under the sending identity, on
+a send-only session that identity opens at the mediator. The
+mediator sees both identities.
+DIDComm appears only as that
+mediator's mediation and pickup protocols, not as a form for RLTP
+documents. No replication adapter is specified.
 
 Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) ·
 [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) ·
