@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.7.0
+
+Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
+
+- **Two sending modes** (RLTP-VTI-3110 to 3140): `SendMode` is
+  `'routed' | 'egress-session'`. Every adapter instance starts in
+  `routed`; `MediatorWire.deposit(accessToken, bytes, egressDid, mode)`
+  now receives the mode of each deposit, read at the hand-over, so an
+  attempt begun before a switch ends in the mode it began in. A wire may
+  offer `queueEmpty()` (true when the mediator holds nothing more for
+  the connection). Closed: a wire without it never completes a
+  collection, and the adapter over it never switches. The consumer a
+  wire registers with `onDeliver` now answers a boolean: whether the
+  adapter took the frame (buffered, already held, or absorbed); `false`
+  (above `max-queue-bytes`, or a retired instance) leaves the frame with
+  the mediator, and a wire does not take its queue for drained until the
+  frame is offered again.
+- **The send state** (RLTP-VTI-3130), per relationship: the mode and the
+  **open routed deposits** (`SendState.open`, each with digest and
+  acceptance instant): every document (an entry of kind `document` filed
+  by `reconcile`) accepted in `routed` and not yet answered.
+  Acknowledgements are no open deposits, so a side that only
+  acknowledges never switches by the deadline (profile Open Issue 9). A
+  document's acceptance instant is the adapter clock (the last port
+  instant) when its deposit resolved; without a port call in between it
+  is the hand-over instant. The send state travels in `AckState.send`
+  (new type `SendState`); a restore checks it fail-closed: exactly `mode`
+  and `open`, a known mode, each entry exactly digest and acceptance
+  instant, finite and not after the restore instant, each digest once,
+  nothing open in `egress-session` — any other field is refused, not
+  ignored. A snapshot without it starts in `routed`. `sendMode` reads the
+  current mode. A `submit()` without a digest opens nothing. An open
+  deposit falls `routedAckDeadlineMs` plus `duplicateWindowMs` after its
+  acceptance, also where no switch check runs; a restore cuts such
+  entries instead of refusing them. A routed attempt accepted after the
+  switch enters nothing.
+- **Absorption for the give-up horizon** (profile §2, §4): the adapter
+  absorbs a byte-identical copy of a concluded item only within
+  `give-up-horizon` of its conclusion (or while an acknowledgement for it
+  is on the wire); a later copy is a new item for the holder, whose
+  absorption answers it with the stored acknowledgement (RLTP-DEL-6330,
+  6335); its new conclusion sets the conclusion instant anew. Buffered
+  and outstanding go before concluded, so a redelivery of such a copy is
+  ignored while the holder has it. The entry and its ack intent stand for
+  the duplicate window; while such a later copy waits in the buffer or is outstanding,
+  the standing intent is not sent, so it never deletes the copy before
+  the holder concluded it (hand off → await → ack).
+- **"Nothing pending" is the binding's statement** (RLTP-VTI-7150):
+  `queueEmpty()` true; without it, no switch.
+- **Answers and switch**: `acknowledged(id)`, `receiverRefused(id, code)`
+  and the new `answered(digest, now)` (an answer the holder hands a later
+  instance: a valid acknowledgement, a validated refusal or a validated
+  `idConflict`) answer the open deposit of that document's digest; a
+  verdict that outruns the acceptance (`answered` included) keeps the
+  document from being opened. An open acknowledgement is answered by nothing. Each answer
+  settles its own deposit only. `advance` switches one way to
+  `egress-session` when an open routed deposit was accepted
+  `DECLARED.routedAckDeadlineMs` (72 h, equal to the give-up horizon) or
+  more ago, checked only after the instance concluded a collection that
+  left nothing pending (an empty collection counts; `queueEmpty()` true,
+  nothing buffered or outstanding) and only while nothing is pending
+  again at the check, so an acknowledgement that arrived since is
+  collected and reported first. A deposit the wire refuses with the new
+  `WireError` kind `'routed-refused'` (a validated refusal of the routed
+  form) switches at once; the submission stays
+  `awaiting-transport(carrier-refused-retriable)` and goes in
+  `egress-session` at its next hand-over. This holds for an attempt the
+  holder withdrew while it ran as well: the refusal is evidence about the
+  mediator, not about the document. At the switch the open deposits
+  leave; nothing returns to `routed`. An accepted submission is never
+  deposited again; one still in the holder's custody goes in the new mode
+  at its next hand-over (RLTP-VTI-3135, 7130).
+- **What the host owes**: the reports a collection carries are applied
+  before its `conclude`, at the latest before the next `advance`, since
+  the switch check counts them as applied. A host that persists only
+  `concluded` and `pending` starts every opening in `routed` with nothing
+  open, so a relationship whose openings last less than 72 hours never
+  switches by the deadline; the mode in a restored snapshot is as
+  trustworthy as the host's store.
+- **`depositAddressing(mode, self, peerConnection, carrier)`**: the
+  addressing of both layers and the session per mode, as
+  `vectors/vti-routed-addressing.json` states it (RLTP-VTI-1110, 1120,
+  3110, 3115, 3120); the wire binding packs from it.
+- **The app's transport contract**, stated and tested (it held before):
+  after a withdrawal by `reconcile` the adapter starts no deposit for that
+  submission, and an outcome that resolves late changes nothing, the send
+  state included, except a validated refusal of the routed form, which
+  switches; a wire call already running cannot be recalled and may
+  still land at the mediator (profile §6), and the copy that arrives is a
+  duplicate the receiver absorbs (Delivery §6.2). Every deposit is a
+  submission with an id of its own, a duplicate's answer included; the
+  report handed to the holder carries the digest, and the app pairs it
+  with its deposit through the submission id it polls.
+- Breaking for wire implementations: `deposit` takes the mode as its
+  fourth argument. `AckState` gains the optional `send`.
+
 ## 0.6.1
 
 One actId, one result.

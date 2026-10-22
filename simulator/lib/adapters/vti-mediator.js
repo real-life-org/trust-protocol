@@ -22,9 +22,49 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.23 (twenty-third casting;
+// Profile: spec/adapter-vti-mediator.md v0.24 (twenty-fourth casting;
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port.
+//
+// Sending form (profile §3a, lib 0.7.0): every deposit names its mode to
+// the wire. Mode `routed` (the mode of every instance from construction):
+// an inner TSP `direct` message egress identity → counterpart's
+// connection DID inside an outer routed message connection DID → C with
+// the route [counterpart's connection DID], on the connection DID's
+// session. Mode `egress-session` (fallback): the inner message alone, on
+// a send-only session of the egress identity. The wire packs the layers
+// (depositAddressing says who addresses whom); the adapter keeps the
+// relationship's send state (the mode and the open routed deposits) in
+// its ack state (RLTP-VTI-3130). Open are: every document with a digest
+// (an entry of kind `document` filed by reconcile) accepted in routed and
+// not yet answered — a valid acknowledgement, a validated refusal or a
+// validated idConflict for its digest answers it. Acknowledgements are
+// no open deposits: a side that only acknowledges never switches by the
+// deadline (Open Issue 9). The adapter switches one way to
+// `egress-session` when an open deposit is routed-ack-deadline (72 h)
+// old, checked in an advance after a conclusion that left nothing
+// pending and while nothing is pending again — "nothing pending" is the
+// binding's statement through queueEmpty() (RLTP-VTI-7150); without it
+// the adapter never switches — and at once on a
+// validated refusal of the routed form (WireError 'routed-refused').
+// At the switch the open deposits leave; nothing returns to routed. A
+// submit() without a digest opens nothing. An attempt
+// ends in the mode it began in; an accepted submission is never
+// deposited again (RLTP-VTI-3135, 7130).
+//
+// The app's transport contract (web-of-trust TRANSPORT.md, rules 5 and
+// 6), as far as it holds here: (5) a withdrawal — reconcile without the
+// entry — means the adapter starts no deposit for that submission
+// afterwards, and an outcome that resolves late changes nothing here
+// (has() false, report() null, no send state) — except a validated refusal
+// of the routed form, which switches the relationship (a finding about the
+// mediator, RLTP-VTI-3130). A wire call already
+// running cannot be recalled and may still land at the mediator (the §6
+// boundary); the copy that then arrives is a duplicate the receiver
+// absorbs (Delivery §6.2). (6) Every deposit is a submission with an id
+// of its own, a duplicate's answer (`resend`) included; the
+// DeliveryReport handed to the holder carries the digest, and the app
+// pairs it with its deposit through the submission id it polls.
 //
 // Beyond the profile (lib 0.5.0): conclude(collection, now, {keep}) leaves
 // the items whose disposition is transient unconcluded and offers them
@@ -55,7 +95,29 @@ export const DECLARED = Object.freeze({
     queueFloorBytes: 1_048_576,
     maxQueueBytes: 16_777_216,
     duplicateWindowMs: 30 * 86_400_000,
+    routedAckDeadlineMs: 72 * 3_600_000,
 });
+const SEND_MODES = new Set(['routed', 'egress-session']);
+/** The addressing of a deposit in `mode` (RLTP-VTI-1110, 1120, 3110,
+ *  3115, 3120): the inner `direct` message from this side's egress
+ *  identity to the counterpart's connection DID; in mode `routed` an
+ *  outer routed message from this side's connection DID to the carrier
+ *  `C` with the route [counterpart's connection DID], deposited on the
+ *  connection DID's session; in mode `egress-session` no outer layer,
+ *  deposited on the egress identity's send-only session. */
+export function depositAddressing(mode, self, peerConnection, carrier) {
+    if (!SEND_MODES.has(mode))
+        throw new Error(`unknown send mode ${String(mode)}`);
+    const inner = { messageType: 'direct', sender: self.egress, receiver: peerConnection };
+    if (mode === 'routed') {
+        return {
+            inner,
+            outer: { messageType: 'routed', sender: self.connection, receiver: carrier, route: [peerConnection] },
+            session: self.connection,
+        };
+    }
+    return { inner, outer: null, session: self.egress };
+}
 export class WireError extends Error {
     kind;
     constructor(kind, message) {
@@ -91,6 +153,45 @@ export function concludable(r) {
 }
 /** The adapter's own copy of a wire's token set: the wire keeps no handle on it. */
 const tokenCopy = (t) => ({ accessToken: t.accessToken, accessExpiresAt: t.accessExpiresAt, refreshToken: t.refreshToken, refreshExpiresAt: t.refreshExpiresAt });
+/** how long an open routed deposit stays in the send state at most
+ *  (RLTP-VTI-3130): the state is bounded even where no switch check runs */
+const OPEN_KEEP_MS = DECLARED.routedAckDeadlineMs + DECLARED.duplicateWindowMs;
+const finite = (x) => typeof x === 'number' && Number.isFinite(x);
+/** A restored send state, checked fail-closed (§4): exactly `mode` and
+ *  `open`, a known mode, each entry exactly a digest and a finite
+ *  acceptance instant not after restoredAt, each digest once, nothing open
+ *  in egress-session. Any other field — the acknowledgement fields of an
+ *  earlier form included — is refused, not ignored. */
+function restoreSendState(send, restoredAt) {
+    const refuse = (why) => { throw new Error(`ack snapshot: send state ${why}`); };
+    if (typeof send !== 'object' || send === null)
+        return refuse('is not an object');
+    const s = send;
+    const exactly = (o, keys) => {
+        const own = Object.keys(o);
+        return own.length === keys.length && keys.every((k) => own.includes(k));
+    };
+    if (!exactly(s, ['mode', 'open']))
+        refuse('has other fields than mode and open');
+    if (typeof s.mode !== 'string' || !SEND_MODES.has(s.mode))
+        refuse('names an unknown mode');
+    if (!Array.isArray(s.open))
+        refuse('open deposits are not a list');
+    const open = s.open.map((r) => {
+        const e = r;
+        if (typeof e !== 'object' || e === null || !exactly(e, ['digest', 'acceptedAt']) ||
+            typeof e.digest !== 'string' || !finite(e.acceptedAt) || e.acceptedAt > restoredAt) {
+            return refuse('open deposit is malformed, non-finite or accepted after restoredAt');
+        }
+        return { digest: e.digest, acceptedAt: e.acceptedAt };
+    });
+    if (new Set(open.map((o) => o.digest)).size !== open.length)
+        refuse('names an open deposit twice');
+    // the switch empties it: an egress-session with open deposits was never produced
+    if (s.mode === 'egress-session' && open.length > 0)
+        refuse('is egress-session with open routed deposits');
+    return { mode: s.mode, open };
+}
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 // construction capability: only create() holds it
 const KEY = Symbol('MediatorCarrierAdapter.create');
@@ -128,6 +229,12 @@ export class MediatorCarrierAdapter {
     #flushing = false;
     #nextColId = 1;
     #transitions = [];
+    // the relationship's send state (RLTP-VTI-3130)
+    #mode = 'routed';
+    /** open routed deposits (documents), keyed by digest */
+    #openDeposits = new Map();
+    /** this instance has concluded a collection that left nothing pending */
+    #cleanConcluded = false;
     /** The only way to build an adapter: the trio is DERIVED here from
      *  one root, one carrier, one nonce — so principal, connection DID
      *  and egress identity cannot come from different relationships
@@ -191,47 +298,66 @@ export class MediatorCarrierAdapter {
                 if (pending.has(queueId))
                     this.#pendingAcks.add(queueId);
             }
+            // absent: a host that persisted none starts again in routed
+            if (restored.send !== undefined) {
+                const send = restoreSendState(restored.send, restoredAt);
+                this.#mode = send.mode;
+                // an open deposit falls routed-ack-deadline plus duplicate-window
+                // after its acceptance: cut here, not refused
+                for (const o of send.open)
+                    if (restoredAt - o.acceptedAt < OPEN_KEEP_MS)
+                        this.#openDeposits.set(o.digest, o.acceptedAt);
+            }
         }
         this.#wire.onDeliver(async (raw) => {
             if (this.#closed)
-                return;
+                return false;
             // a plain copy of its own: a Node Buffer's slice() would share memory
             const bytes = new Uint8Array(raw);
             const queueId = hex(await sha(bytes));
             if (this.#closed)
-                return;
-            // Absorption is WINDOW-checked at the moment it happens
-            // (R11-B1), and the window beats everything (round-14 B):
-            // beyond it, entry AND any leftover intent fall, and the frame
-            // is a new item — so no acknowledgement, owed or phantom, can
-            // ever delete the only fresh copy.
+                return false;
+            // Absorption is checked at the moment it happens (R11-B1): the
+            // adapter absorbs a copy only for give-up-horizon after its
+            // conclusion (profile §2, §4); a later copy is a new item for the
+            // holder, whose absorption answers it again with the stored
+            // acknowledgement (RLTP-DEL-6330, 6335) — so a counterpart that
+            // resubmits after a lost acknowledgement is answered. The entry and
+            // its ack intent stand for the duplicate window, and the window
+            // beats everything (round-14 B): beyond it, both fall.
+            // buffered and outstanding go before concluded (§3): a redelivery of
+            // a later copy the holder has not concluded yet is ignored
+            if (this.#inboxDigests.has(queueId))
+                return true;
+            for (const col of this.#outstanding.values())
+                if (col.has(queueId))
+                    return true;
             const concludedAt = this.#concluded.get(queueId);
             if (concludedAt !== undefined) {
                 if (this.#flightAcks.has(queueId) ||
-                    this.#clock - concludedAt < DECLARED.duplicateWindowMs) {
-                    // inside the window — or deferred: an id inside an
+                    this.#clock - concludedAt < DECLARED.giveUpHorizonMs) {
+                    // inside the horizon — or deferred: an id inside an
                     // in-flight flush keeps absorbing until that flush ends,
                     // because its irrecallable ack may still land (R15-B1)
                     this.#pendingAcks.add(queueId);
-                    return;
+                    return true;
                 }
-                this.#concluded.delete(queueId);
-                this.#pendingAcks.delete(queueId);
+                if (this.#clock - concludedAt >= DECLARED.duplicateWindowMs) {
+                    this.#concluded.delete(queueId);
+                    this.#pendingAcks.delete(queueId);
+                }
             }
-            if (this.#inboxDigests.has(queueId))
-                return;
-            for (const col of this.#outstanding.values())
-                if (col.has(queueId))
-                    return;
             const held = this.#inboxBytes + this.#outstandingBytes;
             const underFloor = this.#inbox.length < DECLARED.queueFloorCount &&
                 held + bytes.length <= DECLARED.queueFloorBytes;
             const underCap = held + bytes.length <= DECLARED.maxQueueBytes;
+            // not acknowledged and not taken: the mediator keeps its copy
             if (!underFloor && !underCap)
-                return;
+                return false;
             this.#inbox.push({ bytes, queueId });
             this.#inboxBytes += bytes.length;
             this.#inboxDigests.add(queueId);
+            return true;
         });
     }
     #now(raw) {
@@ -345,6 +471,7 @@ export class MediatorCarrierAdapter {
             attemptStartedAt: null,
             lastKind: null,
             st: null,
+            sentMode: null,
         };
         this.#subs.set(id, sub);
         if (!knownOffline)
@@ -410,7 +537,7 @@ export class MediatorCarrierAdapter {
                 bytes: new TextEncoder().encode(jcs(entry.envelope)),
                 // a duplicate's ack is a hand-over of its own, from now
                 submittedAt: entry.resend !== undefined ? now : Math.min(entry.since, now),
-                attemptStartedAt: null, lastKind: null, st: null,
+                attemptStartedAt: null, lastKind: null, st: null, sentMode: null,
             };
             this.#subs.set(id, sub);
             refs.push({ submissionId: id, digest: entry.digest });
@@ -451,14 +578,19 @@ export class MediatorCarrierAdapter {
         if (sub.st !== null && sub.st.state !== 'awaiting-transport')
             return;
         let next;
+        let routedRefused = false;
         try {
             const token = await this.#ensureAuth(now);
             if (this.#closed)
                 return; // retirement between auth and deposit: nothing new starts (R5-B2)
-            // each attempt hands the wire a copy: what it does with it never reaches the next
+            // each attempt hands the wire a copy: what it does with it never reaches the next.
+            // The mode is read at the hand-over itself: from a switch on, every
+            // hand-over uses the new mode, and a call already made ends in its own
+            // (RLTP-VTI-3135)
             const deposit = () => {
+                sub.sentMode = this.#mode;
                 try {
-                    return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid);
+                    return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid, sub.sentMode);
                 }
                 catch (e) {
                     return Promise.reject(e);
@@ -509,7 +641,13 @@ export class MediatorCarrierAdapter {
             next = { state: 'accepted' };
         }
         catch (e) {
-            const kind = e instanceof WireError ? e.kind : 'unreachable';
+            let kind = e instanceof WireError ? e.kind : 'unreachable';
+            // a validated refusal of the routed form: the relationship switches
+            // below, the submission stays in custody as a retriable refusal
+            if (kind === 'routed-refused') {
+                routedRefused = sub.sentMode === 'routed';
+                kind = 'refused-retriable';
+            }
             sub.lastKind = kind;
             next = kind === 'oversize'
                 ? { state: 'failed', reason: 'oversize' }
@@ -520,6 +658,24 @@ export class MediatorCarrierAdapter {
         }
         if (this.#closed)
             return;
+        // evidence against routed (RLTP-VTI-3130): the switch, at once
+        if (routedRefused)
+            this.#switchToEgress();
+        // withdrawn meanwhile (app contract rule 5): the late outcome changes nothing
+        if (this.#subs.get(sub.id) !== sub)
+            return;
+        // a document with a digest accepted in routed is an open routed deposit
+        // (RLTP-VTI-3130) — only while the relationship is still routed (an
+        // attempt begun before a switch opens nothing after it). Acknowledgements
+        // and a submit() without a digest open nothing. Answered already (the
+        // verdict outran the deposit's resolution): not opened. acceptedAt is the
+        // adapter clock when the deposit resolved, not when it was handed over:
+        // later by the deposit's own run time
+        if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#mode === 'routed' &&
+            sub.digest !== undefined && this.#isDocument(sub) && sub.answered !== true &&
+            !this.#openDeposits.has(sub.digest)) {
+            this.#openDeposits.set(sub.digest, this.#clock);
+        }
         // An interim report (including a horizon-corrected one) never
         // outranks the attempt's real outcome; only a TERMINAL state —
         // a give-up, a refusal, a delivery — stands (R5-B1). Without
@@ -527,6 +683,45 @@ export class MediatorCarrierAdapter {
         // be sent a second time.
         if (sub.st === null || sub.st.state === 'awaiting-transport')
             sub.st = next;
+    }
+    #isDocument(sub) {
+        return sub.entry === undefined || sub.entry.kind === 'document';
+    }
+    /** A verdict on a document answers its open routed deposit
+     *  (RLTP-VTI-3130), if the send state names it at that moment. A verdict
+     *  before the acceptance marks the submission, so it is not opened
+     *  afterwards. Acknowledgements are answered by nothing. */
+    #answer(sub) {
+        if (!this.#isDocument(sub))
+            return;
+        sub.answered = true;
+        if (sub.digest !== undefined)
+            this.#openDeposits.delete(sub.digest);
+    }
+    /** The switch (RLTP-VTI-3130): one way; the open routed deposits leave
+     *  the send state. */
+    #switchToEgress() {
+        this.#mode = 'egress-session';
+        this.#openDeposits.clear();
+    }
+    /** The current sending mode of the relationship (profile §3a). */
+    get sendMode() { return this.#mode; }
+    /** An answer the holder hands this instance for a document an earlier
+     *  instance deposited (RLTP-VTI-3130): a valid acknowledgement, a
+     *  validated receiver refusal or a validated `idConflict` answer for
+     *  `digest`. If the send state names the document as an open routed
+     *  deposit, it is answered and leaves; otherwise it answers nothing. A
+     *  no-op on a retired instance, like acknowledged. */
+    answered(digest, rawNow) {
+        if (this.#closed)
+            return;
+        this.#now(rawNow);
+        this.#openDeposits.delete(digest);
+        // a document of this instance whose attempt still runs is answered too:
+        // its acceptance after this opens nothing
+        for (const sub of this.#subs.values())
+            if (sub.digest === digest && this.#isDocument(sub))
+                sub.answered = true;
     }
     /** Host teardown aid, NOT a port operation (profile §6): awaits
      *  the in-flight background tasks so a host can drain before
@@ -565,12 +760,18 @@ export class MediatorCarrierAdapter {
         }
         return sub.st === null ? null : { ...sub.st };
     }
+    /** A valid acknowledgement for submission `id`. Reports that a
+     *  collection carries are applied before that collection's conclude,
+     *  at the latest before the next advance: the switch check of
+     *  RLTP-VTI-3130 counts on them, and a report applied late can let the
+     *  relationship switch although its deposits were answered. */
     acknowledged(id) {
         if (this.#closed)
             return;
         const sub = this.#subs.get(id);
         if (!sub)
             return;
+        this.#answer(sub);
         if (sub.st?.state === 'delivered')
             return; // idempotent: a duplicate ack never rewrites `late` (R9-M4)
         const late = sub.st?.state === 'failed';
@@ -583,7 +784,9 @@ export class MediatorCarrierAdapter {
      *  TERMINAL: retryable counterpart conditions (unavailable,
      *  internalError) are transport outcomes, never receiver verdicts
      *  — they have no entry here, and an unknown code is refused
-     *  fail-closed rather than minted into a verdict (R6-B2). */
+     *  fail-closed rather than minted into a verdict (R6-B2). Applied, like
+     *  acknowledged, before the conclude of the collection that carried
+     *  it (RLTP-VTI-3130). */
     receiverRefused(id, code) {
         if (this.#closed)
             return;
@@ -593,6 +796,7 @@ export class MediatorCarrierAdapter {
         const sub = this.#subs.get(id);
         if (!sub)
             return;
+        this.#answer(sub);
         // A VALIDATED refusal is itself the proof of receipt — the
         // mediator can have accepted and forwarded while our deposit
         // promise is still unresolved, so the report-less phase is a
@@ -627,13 +831,21 @@ export class MediatorCarrierAdapter {
      *  is transient (Delivery RLTP-DEL-5810, 5820: `failed(rate-limited)`,
      *  or a transaction that could not commit, see `concludable`): they are
      *  not concluded and not acknowledged, they go back to the buffer and the
-     *  next collect offers them again, and the mediator keeps its copy. */
+     *  next collect offers them again, and the mediator keeps its copy.
+     *  The reports the collection carries (acknowledged, receiverRefused,
+     *  answered) are applied BEFORE this call, at the latest before the next
+     *  advance: a conclusion that leaves nothing pending opens the switch
+     *  check of RLTP-VTI-3130, which counts them as applied. */
     conclude(collection, rawNow, opts = {}) {
         this.#open();
         const now = this.#now(rawNow);
         const col = this.#outstanding.get(collection.id);
-        if (!col)
+        if (!col) {
+            // an empty collection is concluded too: it may be the one that leaves nothing pending
+            if (collection.id === 'c-empty')
+                this.#concludedClean();
             return;
+        }
         this.#outstanding.delete(collection.id);
         const keep = new Set(opts.keep ?? []);
         for (const item of col.values()) {
@@ -648,12 +860,30 @@ export class MediatorCarrierAdapter {
             this.#concluded.set(item.queueId, now);
             this.#pendingAcks.add(item.queueId);
         }
+        this.#concludedClean();
         this.#startFlush(now);
+    }
+    /** Nothing pending for this connection: the wire says the mediator
+     *  holds nothing more (queueEmpty; a wire without it never says so),
+     *  nothing waits in the buffer, no collection is outstanding. */
+    #nothingPending() {
+        return this.#wire.queueEmpty?.() === true && this.#inbox.length === 0 && this.#outstanding.size === 0;
+    }
+    /** After a conclusion (RLTP-VTI-3130): when it left nothing pending,
+     *  the switch check may run in a later advance. */
+    #concludedClean() {
+        if (!this.#nothingPending())
+            return;
+        this.#cleanConcluded = true;
     }
     ackState() {
         return {
             concluded: [...this.#concluded].map(([queueId, concludedAt]) => ({ queueId, concludedAt })),
             pending: [...this.#pendingAcks],
+            send: {
+                mode: this.#mode,
+                open: [...this.#openDeposits].map(([digest, acceptedAt]) => ({ digest, acceptedAt })),
+            },
         };
     }
     #startFlush(now) {
@@ -689,6 +919,11 @@ export class MediatorCarrierAdapter {
             // even if no prune has swept it yet — is never sent.
             const live = ids.filter((id) => {
                 const at = this.#concluded.get(id);
+                // a later copy of it that the holder has not concluded yet (in the
+                // buffer or outstanding) is not acknowledged before it is handled:
+                // hand off → await → ack; the intent stays for the next flush
+                if (this.#inboxDigests.has(id) || [...this.#outstanding.values()].some((c) => c.has(id)))
+                    return false;
                 return at !== undefined && this.#clock - at < DECLARED.duplicateWindowMs;
             });
             if (live.length === 0)
@@ -729,6 +964,25 @@ export class MediatorCarrierAdapter {
     advance(rawNow) {
         this.#open();
         const now = this.#now(rawNow);
+        // open routed deposits fall routed-ack-deadline plus duplicate-window
+        // after their acceptance, also where no switch check can run (no
+        // statement that nothing is pending, RLTP-VTI-7150)
+        for (const [digest, at] of this.#openDeposits)
+            if (now - at >= OPEN_KEEP_MS)
+                this.#openDeposits.delete(digest);
+        // the switch (RLTP-VTI-3130): only after a conclusion that left nothing
+        // pending and while nothing is pending again at the check (an
+        // acknowledgement that arrived since is collected and reported first),
+        // when an open routed deposit is a deadline old — one way; checked
+        // before the retries below, which hand over in the new mode
+        if (this.#mode === 'routed' && this.#cleanConcluded && this.#nothingPending()) {
+            for (const acceptedAt of this.#openDeposits.values()) {
+                if (now - acceptedAt >= DECLARED.routedAckDeadlineMs) {
+                    this.#switchToEgress();
+                    break;
+                }
+            }
+        }
         for (const sub of this.#subs.values()) {
             const live = sub.st === null || sub.st.state === 'awaiting-transport' || sub.st.state === 'accepted';
             if (!live)
