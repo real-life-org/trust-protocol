@@ -75,7 +75,8 @@ benennt genau die Pflichten, die hier wohnen.
     Session ackt sonst direkt nach dem Consumer (mit eigenem
     `_seen`-Dedup); die Subclass `RltpMediatorSession` hebt beides
     auf — geackt wird erst, wenn der Adapter `conclude` sagt;
-  - `queueEmpty()` für die Umschaltprüfung (RLTP-VTI-3130): wahr, wenn
+  - `queueEmpty()` für die Umschaltprüfung (RLTP-VTI-3130, Feststellung
+    „nichts offen“ nach RLTP-VTI-7150): wahr, wenn
     die Session der Connection-DID offen ist, kein empfangener Rahmen
     noch auf dem Weg zum Adapter ist und seit mindestens 1 s weder ein
     TSP-Rahmen kam noch der Socket (neu) geöffnet wurde, und seit dem

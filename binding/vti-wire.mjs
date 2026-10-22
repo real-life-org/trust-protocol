@@ -441,7 +441,7 @@ export async function createVtiWire(cfg) {
       s.sendBinary(inner.bytes);
     },
 
-    /** RLTP-VTI-3130's "no frame pending at the mediator", as far as the
+    /** The statement of RLTP-VTI-7150 (RLTP-VTI-3130's "no frame pending at the mediator"), as far as the
      *  wire can tell: the connection DID's session is open, no received
      *  frame is still on its way to the adapter, no frame the adapter did
      *  not take has been left with the mediator since the socket last
