@@ -1923,6 +1923,74 @@
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md#3-message01"
    ],
    "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:ConnectionDid",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:EgressIdentity"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Verbindungs-DID",
+     "@language": "de"
+    },
+    {
+     "@value": "Connection DID",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Drahtidentität, unter der eine Seite einer Beziehung bei einem Mediator ihr Konto führt: Anmeldung, Abholung und Quittungen laufen unter ihr, das Gegenüber adressiert jedes Dokument an sie, und sie ist der äußere Absender jeder gerouteten Einlieferung. Je Beziehung und Träger aus der Wurzel abgeleitet, nie der Kontroll-Prinzipal.",
+     "@language": "de"
+    },
+    {
+     "@value": "The wire identity under which one side of a relationship holds its account at a mediator: login, pickup and receipts run under it, the counterpart addresses every document to it, and it is the outer sender of every routed deposit. Derived from the root per relationship and carrier, never the control principal.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1-identities-5a10"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:EgressIdentity",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:ConnectionDid"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Egress-Identität",
+     "@language": "de"
+    },
+    {
+     "@value": "Egress identity",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Drahtidentität, unter der eine Seite einer Beziehung sendet: der innere Ende-zu-Ende-Absender jeder Einlieferung, den das Gegenüber sieht und prüft. Je Beziehung und Träger aus der Wurzel abgeleitet; sie ist nie die Verbindungs-DID, unter der dieselbe Seite abholt.",
+     "@language": "de"
+    },
+    {
+     "@value": "The wire identity under which one side of a relationship sends: the inner, end-to-end sender of every deposit, the one the counterpart sees and verifies. Derived from the root per relationship and carrier; it is never the connection DID under which the same side collects.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1a-which-layer-counts-5a10-read-for-routed-deposits"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
   }
  ]
 }

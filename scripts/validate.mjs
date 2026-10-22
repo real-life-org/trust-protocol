@@ -395,7 +395,7 @@ for (const f of specFiles) {
 // Always against the committed manifests conformance/encounter-rule-ids-0.31.txt,
 // conformance/access-rule-ids-0.57.txt, conformance/membership-rule-ids-0.20.txt
 // conformance/trust-rule-ids-0.31.txt, conformance/message-rule-ids-0.1.txt and
-// conformance/delivery-rule-ids-0.83.txt. The private rule inventory of the
+// conformance/delivery-rule-ids-0.83.txt and conformance/adapter-vti-rule-ids-0.24.txt. The private rule inventory of the
 // Encounter, Access and Membership layers is checked additionally when
 // present, and is REQUIRED when ENCOUNTER_INVENTORY / ACCESS_INVENTORY /
 // MEMBERSHIP_INVENTORY names it. The Trust, Message and Delivery traces run against their manifests
@@ -403,8 +403,8 @@ for (const f of specFiles) {
 // trust --inventory <file>).
 {
   const { checkTrace, resolveInventory, LAYERS } = await import('./check-encounter-trace.mjs')
-  for (const layer of ['encounter', 'access', 'membership', 'trust', 'message', 'delivery']) {
-    const { path: inventory } = layer === 'trust' || layer === 'message' || layer === 'delivery' ? { path: null } : resolveInventory(process.env[LAYERS[layer].env], layer)
+  for (const layer of ['encounter', 'access', 'membership', 'trust', 'message', 'delivery', 'adapter']) {
+    const { path: inventory } = layer === 'trust' || layer === 'message' || layer === 'delivery' || layer === 'adapter' ? { path: null } : resolveInventory(process.env[LAYERS[layer].env], layer)
     const r = checkTrace({ layer, inventory })
     for (const e of r.errors) err(`${layer} trace: ${e}`)
     if (!r.errors.length) ok(`${layer} trace: ${r.rules} rule identifiers ↔ manifest (${r.manifest})${r.inventory === null ? '; inventory not present, not checked' : ` ↔ inventory (${r.inventory})`}, one-to-one`)

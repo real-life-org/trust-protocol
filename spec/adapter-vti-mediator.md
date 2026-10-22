@@ -3,12 +3,15 @@
 **Real Life Trust Protocol — Transport Adapter Profile (below the port line)**
 
 - **Status:** Editor's Draft
-- **Version:** 0.23.0-draft (twenty-third casting)
+- **Version:** 0.24.0-draft (twenty-fourth casting)
 - **Status of This Document:** Editor's Draft, not yet converged.
   This profile changes normatively between castings and MUST NOT be
   relied upon for implementation or interoperability claims. Review
   and comment are welcome through the editors.
 - **Editors:** Anton Tranelis
+- **Companions:** RLTP Delivery Contract 0.83 (§5a.10, §6.1, §6.2,
+  RLTP-DEL-6120 to RLTP-DEL-6135; Appendix A names the changes its
+  next casting takes up); RLTP Identity 0.54 (§7a, §13)
 
 Target carrier: the VTI/Affinidi messaging mediator as released in
 **VTI-Dogwood** (pins: `vti-didcomm-js` @ `1d110bf`,
@@ -45,7 +48,9 @@ What this adapter owes, completely:
    transitions, and the receiver refusal channel;
 2. a **duplicate absorption** that composes with the receiver's
    §6.2 rule and never replaces it;
-3. the **§5a.10 identity obligations** in full.
+3. the **§5a.10 identity obligations** in full, under the reading
+   of §1a (which layer of a deposit the sending-side prohibitions
+   apply to).
 
 What it expressly does not owe, and no holder may read into it:
 proof-bound registration, generation ordering, tombstone
@@ -54,7 +59,7 @@ those declared below. Those guarantees are obtainable only from an
 RLTP carrier; a holder that requires them must not settle for a
 foreign one.
 
-## 1. Identities (§5a.10, unchanged from the second casting)
+## 1. Identities (§5a.10)
 
 - `C` is the **mediator's DID**, exactly as configured (Identity
   §7a.2 — never a hop beyond it, never the URL it resolves to).
@@ -63,14 +68,24 @@ foreign one.
   the same root under the normative prefixes
   `rltp/v1/carrier-connection/ed25519/v1/` and
   `rltp/v1/carrier-egress/ed25519/v1/` (Identity §13 lists both),
-  the **connection DID** (all mediator protocol traffic: auth,
-  keylist, pickup, receipts) and the **egress identity** (presented
-  on every deposit — §5a.10's sender-side identifier, one per
-  relationship × carrier). Each is derivable from the root; none
-  from any other. **The trio is derived by the adapter's factory
-  itself** from one (root, `C`, `N`) — caller-supplied identities
-  are refused at the door, so a mixed trio (identities from two
-  relationships) cannot be built at all.
+  two wire identities, one per relationship × carrier each:
+  - the **connection DID** — this side's account at the mediator
+    and its address in the relationship: all mediator protocol
+    traffic (auth, keylist, pickup, receipts) runs under it, the
+    counterpart addresses every document to it, and it is the
+    **outer** sender of every deposit in mode `routed` (§3a);
+  - the **egress identity** — the **inner**, end-to-end sender of
+    every deposit: the sender the counterpart sees and verifies,
+    §5a.10's sender-side identifier under the reading of §1a. In
+    mode `routed` it never authenticates to the mediator; in the
+    fallback mode `egress-session` it holds one send-only session
+    of its own (§3a).
+
+  Each is derivable from the root; none from any other. **The trio
+  is derived by the adapter's factory itself** from one (root,
+  `C`, `N`) — caller-supplied identities are refused at the door,
+  so a mixed trio (identities from two relationships) cannot be
+  built at all.
 - Both wire identities carry §5a.10's three prohibitions — **not
   well-known**, **not person-wide**, **not reused outside this
   relationship** — and are retired with the principal, never
@@ -80,11 +95,50 @@ foreign one.
   principal-local; every status, pickup and receipt operation
   scoped to one principal's connection; Live Mode per relationship
   (MUST), one socket per principal by default (5a.7 spacing
-  declares any multiplexing).
+  declares any multiplexing). Mode `routed` holds **one session
+  per relationship and side**, the connection DID's; mode
+  `egress-session` adds the egress identity's send-only session.
+
+## 1a. Which layer counts (§5a.10, read for routed deposits)
+
+A routed deposit carries two senders: the inner one the counterpart
+verifies, and the outer one the direct carrier authenticates. Delivery
+§5a.10 attaches its sending-side prohibitions to "the sender-side
+outer VID an adapter presents when depositing", among them that the
+sending side and the collecting side of one person must never meet
+in one identifier. That clause protects what a counterpart can join:
+the identifier a document arrives under against the identifier the
+same person collects under. This profile applies it to the layer the
+counterpart sees.
+
+**RLTP-VTI-1110** — The inner sender of every deposit MUST be the
+egress identity of this relationship and carrier. It MUST NOT be the
+connection DID, the control principal, or a value derivable from
+either, and it carries all three prohibitions of §5a.10.
+
+**RLTP-VTI-1120** — The outer sender of a routed deposit MUST be the
+connection DID of the same relationship and carrier, and nothing
+else. It is a hop identifier toward the direct carrier, which already
+authenticates it as this relationship's account; it carries the
+prohibitions of §5a.10 except the separation of sending and
+collecting, which RLTP-VTI-1110 places on the inner sender.
+
+**RLTP-VTI-1130** — A deposit whose only layer names the connection
+DID as its sender is nonconformant: there the counterpart would see
+the collecting identifier as the sender.
+
+Delivery 0.83 hangs the separation on the outer sender. The change
+this reading needs in the Delivery Contract is stated in Appendix A;
+until its next casting takes it up, an implementation of this
+profile states in its conformance notes that it applies RLTP-VTI-1110
+and 1120 in place of that clause. The sentence of §5a.10 that a
+nested private end-to-end VID is "hidden from intermediaries by
+construction" is not a property of routed mode: the mediator opens
+the routing layer and reads the inner sender (§9).
 
 ## 2. Declared constants (decision g1-a, revised under Option B)
 
-Five constants with transport meaning, every one enforced in the
+Six constants with transport meaning, every one enforced in the
 implementation. They are promises of **this casting**: a revision
 is a new casting of profile and code together — there is no
 runtime revision machinery, and this profile claims none:
@@ -96,6 +150,7 @@ runtime revision machinery, and this profile claims none:
 | `queue-floor` | 64 envelopes **and** 1 MiB | below both bounds an inbound frame is always buffered |
 | `max-queue-bytes` | 16 MiB | buffered **and** collected-but-unconcluded bytes together; above it a frame is not buffered and **not acknowledged** — the mediator keeps its copy and re-covers |
 | `duplicate-window` | 30 days | a concluded digest is absorbed for the window, measured from conclusion — and **the window beats everything**: at its end, entry, absorption and any unpaid ack intent fall together |
+| `routed-ack-deadline` | 24 h | the one switch signal of §3a: a deposit in mode `routed` accepted this long without a valid acknowledgement, while no routed deposit of the instance has been acknowledged |
 
 Withdrawn from the second casting, with reasons on the record:
 `challenge-lifetime` (the adapter has no wall-clock source of its
@@ -114,7 +169,7 @@ mediator-shaped error.
 | Adapter operation | Mediator wire | Notes |
 |---|---|---|
 | `register(rkids)` | ATM auth (challenge → authcrypt `atm/1.0/authenticate` → access+refresh JWT) under the connection DID; keylist update for this principal's `rkid`s | transport admission and routing registration only — expressly **not** §5a.3 registration; no generation, no proof toward this adapter. `register` records the desired keylist and returns; synchronization is a tracked background task retried by `advance` (the no-await rule covers every port operation). The auth handshake is **single-flight**: concurrent operations share one challenge/response session |
-| `submit` | `POST /inbound` / WS frame; sealed RLTP envelope under the egress identity | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, including §5a.10's peer-change rule (only the binding sees the peer) |
+| `submit` | `POST /inbound` / WS frame; the sealed RLTP envelope in the sending form of §3a, on the connection DID's session (mode `routed`) or the egress identity's send-only session (mode `egress-session`) | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, built anew for every attempt (§7) |
 | `collect` | live delivery / `delivery-request`; mediator fetches with `DoNotDelete` | redelivery before ack is re-cover, not a new item |
 | `conclude` | `messages-received` over the digest set of the collection (decision 3) | infallible at the port; see §4 |
 | `advance` | adapter clock only | give-up, retries, ack flushing, duplicate-window pruning |
@@ -126,6 +181,81 @@ ever (re-)acknowledged; a redelivery of a buffered or outstanding
 frame is ignored without acknowledgement. Collections carry an
 adapter-issued id; conclusion uses the adapter's authoritative
 digest set, and an empty collection creates no register entry.
+
+## 3a. Sending form
+
+Two modes, one of them the rule. Both put the same message in
+front of the counterpart: a TSP Rev 3 `direct` message from this
+side's egress identity to the counterpart's connection DID. They
+differ in how it reaches the mediator.
+
+**RLTP-VTI-3110** — Mode `routed` is the mode of every adapter
+instance from its construction. A deposit in it is two TSP Rev 3
+layers:
+
+1. **inner:** a `direct` message whose payload is the sealed RLTP
+   envelope, sender the egress identity, receiver the
+   counterpart's connection DID, sealed (HPKE-Base) to the key the
+   counterpart's DID document names first under `keyAgreement`,
+   signed by the egress identity;
+2. **outer:** a routed message (TSP Rev 3 routed mode, the
+   library's `packRouted`) whose payload is the inner message's
+   bytes, unchanged; sender the connection DID, receiver `C`,
+   sealed to the key `C`'s DID document names first under
+   `keyAgreement` as resolved at the session's authentication, and
+   route list `[` the counterpart's connection DID `]`.
+
+It is deposited on the connection DID's authenticated session.
+
+**RLTP-VTI-3115** — The route list of an outer layer has exactly one
+entry, the counterpart's connection DID. It never names the
+counterpart's egress identity, a control principal, or a second hop;
+what the mediator arranges beyond itself is its own (§5a.10).
+
+**RLTP-VTI-3120** — Mode `egress-session` is a fallback, permitted
+only after the switch of RLTP-VTI-3130. A deposit in it is the inner
+message of RLTP-VTI-3110 alone, deposited on a session the egress
+identity authenticates at `C` for this purpose. That session is
+send-only: it collects nothing, acknowledges nothing, holds no
+keylist and no Live Mode.
+
+**RLTP-VTI-3130** — An instance switches from `routed` to
+`egress-session` only when both hold:
+
+1. a deposit in mode `routed` has been `accepted` for
+   `routed-ack-deadline` (§2) without a valid acknowledgement, and
+2. no deposit of this instance in mode `routed` has been
+   acknowledged.
+
+Nothing else switches: not a refusal (it maps as §5 says), not a
+mediator status or problem-report frame (consumed, §5), not an
+offline signal. The switch is one-way for the instance; an
+instance that saw one routed deposit acknowledged never switches,
+and a successor instance (§6) starts in `routed`.
+
+**RLTP-VTI-3135** — At the switch, every submission of the instance
+not yet `delivered` is deposited once more in the new mode. Its
+trias state does not move (§6.1: nothing moves `accepted` back), and
+its give-up horizon keeps running from its first submission
+(RLTP-DEL-6130). A document that thereby arrives twice is absorbed by
+the receiver (Delivery §6.2).
+
+**RLTP-VTI-3140** — The receiving side needs no mode. In both modes
+what reaches its connection DID's session is the inner `direct`
+message: in mode `routed` the mediator opens the routing layer and
+passes the inner message on unchanged. A receiving binding delivers
+only a Rev 3 `direct` message with a non-empty payload from the
+counterpart's egress identity to its own connection DID (§7).
+
+The signal is honest about what it cannot tell apart: a missing
+acknowledgement is also what a counterpart produces that stays
+offline for the whole deadline, so a fresh relationship with an
+absent counterpart can switch without need. Such a switch is
+conforming — both modes satisfy §1a — and costs what §9 states for
+mode `egress-session`: a second session and a link between the two
+identities through two logins. The other side of the trade is a
+relationship whose every document fails at the give-up horizon on
+a mediator that does not carry routed messages.
 
 ## 4. Acknowledgement intent and durability
 
@@ -248,6 +378,8 @@ retriable, persistent → `failed(unroutable)` at the horizon; 413 →
 `awaiting-transport(carrier-refused-retriable)`;
 `duplicate-channel` → re-establish, no port event; mediator
 status/problem-report frames → consumed, never acked, never items.
+A refusal of a routed deposit maps like any other deposit refusal
+above; it is not a switch signal (§3a).
 
 ## 6. Lifecycle coupling (§5a.10, applied)
 
@@ -259,12 +391,24 @@ here to run: the adapter holds no bindings — what it holds at
 teardown is its ack state (§4, the host persists it) and its
 submissions. **A close with live submissions ends their
 reporting** — a retired instance has no clock, so it does not
-pretend to fail them at a horizon it no longer drives. What the
-holder is owed then is the **host's**: surface the teardown, or
-carry the undelivered envelopes into a successor instance whose
-own clock and horizons govern their resubmission. This profile
-refuses to promise more than a retired instance can keep. The
-boundary is realized in code:
+pretend to fail them at a horizon it no longer drives. The
+documents stay in the holder's custody (RLTP-DEL-6120); the
+retired instance's copies were volatile and authorize nothing
+after its close.
+
+**RLTP-VTI-6110** — A successor instance takes documents over only
+from the holder's custody view of an active opening, at its own first
+reconcile (RLTP-DEL-6125, RLTP-DEL-6130). A copy, list or snapshot
+that the retired instance or the host took before the lock or the
+close authorizes no submission.
+
+**RLTP-VTI-6120** — A successor instance's give-up horizon for a
+document runs from the document's first submission as the sender
+recorded it, never from the takeover (RLTP-DEL-6130). The successor
+starts in mode `routed` (RLTP-VTI-3130).
+
+This profile refuses to promise more than a retired instance can
+keep. The boundary is realized in code:
 `close()` retires the instance — subsequent port operations
 refuse, a late-resolving wire mutates nothing, and the ack state
 remains readable for the host's final persist. Beside the port
@@ -284,23 +428,60 @@ between the auth handshake and every subsequent wire call).
 
 ## 7. Due at the wire binding
 
-The concrete binding over `vti-didcomm-js` owes: TSP framing
-toward **Rev 3's cipher posture** (HPKE-Base; HPKE-Auth is removed
-in Rev 3 and the OpenVTC stack switches before its next event),
-the peer-change rule (a changed direct TSP peer under an unchanged
-`C` retires the outer VID and establishes a fresh one via Rev 3's
-Referral field where available), the CESR demux discipline of
-ref-04, and the M-2 duty (raw received bytes passed truthfully).
+The concrete binding over `vti-didcomm-js` and `vti-tsp-js` owes:
+TSP framing in the sending form of §3a under **Rev 3's cipher
+posture** (HPKE-Base; HPKE-Auth is removed in Rev 3), the CESR
+demux discipline of ref-04, the M-2 duty (raw received bytes
+passed truthfully), and the rules below.
+
+**RLTP-VTI-7110** — The adapter's copy of a submission is the
+sealed RLTP envelope, never a TSP frame. The binding packs both
+layers anew for every attempt, with the keys resolved for the
+session that attempt uses; a frame sealed to a key the mediator no
+longer names is never deposited again.
+
+**RLTP-VTI-7120** — The direct TSP peer of every outer layer is `C`
+itself, so its VID cannot change under an unchanged `C`, and the
+case of §5a.10 that establishes a fresh outer VID does not arise in
+this profile; no Referral is used. What can change under an
+unchanged `C` is the key `C`'s DID document names first under
+`keyAgreement` (a rebinding of the intermediary). When an
+authentication resolves a key other than the one the instance last
+deposited under, every submission not yet `delivered` that was
+deposited under the old key is deposited once more under the new
+one, as RLTP-VTI-3135 states for the switch: state and horizon
+unchanged, a duplicate absorbed by the receiver. A submission that
+had not been accepted is simply packed for the new key at its next
+attempt.
+
+**RLTP-VTI-7130** — The re-deposit of RLTP-VTI-7120 draws on the
+instance's own copies, which it took from the holder's custody
+(RLTP-DEL-6120). The holder's custody is not touched by it, and
+nothing taken before a lock or a close authorizes it
+(RLTP-DEL-6130).
+
+**RLTP-VTI-7140** — On receipt the binding delivers to the adapter
+only a Rev 3 `direct` message with a non-empty payload whose sender
+is the counterpart's egress identity and whose receiver is this
+side's connection DID, and delivers its payload bytes unchanged.
+Control messages, padding, routed and nested messages, and empty
+`direct` messages are logged with their type and sender VID and
+acknowledged, never delivered.
 
 Of the §5a.10 vector debt (Delivery §11), this profile discharges
 what is decidable **here**: the identity derivations are
 deterministic and vector-tested (fixed inputs → byte-exact
 principal, connection and egress DIDs, pairwise distinct,
-prefix-separated), and the adapter obligations of this contract
-are exercised against the wire double. What genuinely needs a
-carrier **interface** — proof-gated registration vectors,
-generation and tombstone cases — remains with the first
-RLTP-carrier service, which is the first place it is decidable.
+prefix-separated), the addressing of both sending modes is
+vector-tested (`vectors/vti-routed-addressing.json`: inner and
+outer sender, receiver, route list and session per mode, and the
+addressings §1a and §3a refuse), and the adapter obligations of
+this contract are exercised against the wire double. The byte form
+of a routed frame is the TSP library's and is not vectored here.
+What genuinely needs a carrier **interface** — proof-gated
+registration vectors, generation and tombstone cases — remains
+with the first RLTP-carrier service, which is the first place it
+is decidable.
 
 ## 8. Security Considerations
 
@@ -343,17 +524,52 @@ RLTP-carrier service, which is the first place it is decidable.
   host explicitly. There is no path on which an envelope is
   dropped without either a report or a mediator-retained copy.
 
+- **The fallback is not a downgrade of what the mediator
+  learns.** A mediator can force the switch of §3a by dropping
+  routed frames. In mode `egress-session` it then learns through
+  two logins what it reads in one frame in mode `routed`: the
+  connection DID and the egress identity of one relationship
+  (§9). The counterpart sees the same sender in both modes; the
+  cost of a forced switch is the second session.
+- **Foreign inner messages fail at the receiver.** The mediator
+  opens the routing layer and could pass on an inner message of
+  its own choosing. An inner message is sealed to the
+  counterpart's connection key and signed by the egress identity;
+  the receiving binding delivers only the expected pair
+  (RLTP-VTI-7140), so a substituted or forged inner message is
+  refused before the adapter and has no effect. A mediator that
+  ignores the route list, or delivers late or not at all, is a
+  carrier that loses a document: the give-up horizon covers it.
+
 ## 9. Privacy Considerations
 
-- **What the mediator learns.** The connection DID, the egress
-  identity, the rkids on the keylist, timing, sizes and
-  frequency — a correlation record inside one relationship,
-  exactly the exposure TSP Rev 3's intermediary chapter
-  describes. Both wire identities carry §5a.10's three
-  prohibitions, so this record joins to nothing outside the
-  relationship *through identifiers*; timing and volume
-  correlation remain, as §10 of the Delivery Contract records,
-  and this profile claims no unlinkability.
+- **What the mediator learns.** In mode `routed`, from one frame:
+  the sender's connection DID (outer sender), its egress identity
+  (inner sender, once the routing layer is open), and the
+  counterpart's connection DID (route list and inner receiver);
+  besides these, timing, sizes (the routing layer adds about
+  400 bytes per frame) and frequency. Over both directions it holds
+  both connection DIDs and both egress identities of one
+  relationship. In mode `egress-session` it learns the same
+  identifiers, and links connection DID and egress identity through
+  two logins from one device instead of one frame. An operator's
+  undertaking not to store forwarded frames is not a guarantee this
+  profile can rely on; it assumes the mediator keeps what it sees.
+- **What the counterpart learns.** The egress identity as the
+  sender of every document, and the connection DID as this side's
+  address. Neither appears in any other relationship.
+- **Linkability, per party.** Every wire identity is per
+  relationship × carrier and carries §5a.10's three prohibitions.
+  **Toward counterparts** nothing joins one relationship to
+  another, and the sending identifier stays apart from the
+  collecting one (§1a). **Toward the mediator** the two are joined
+  inside each relationship — in one frame in mode `routed` — while
+  nothing joins its relationships to each other through
+  identifiers; timing, source address and volume remain, as §10 of
+  the Delivery Contract records, and this profile claims no
+  unlinkability. Only a nested inner relationship (TSP §4, §5.5),
+  in which the egress identity travels inside a layer the mediator
+  cannot open, would keep it from the mediator (§10).
 - **The principal never appears on the wire** — the mediator
   cannot see, and therefore cannot leak, the identifier under
   which port-level authority is exercised.
@@ -370,3 +586,54 @@ RLTP-carrier service, which is the first place it is decidable.
   worthless without the root's keys). Retired **for good** they
   are only with the principal — on a rebind or a change of `C` —
   and then never reassigned.
+
+## 10. Open Issues
+
+1. **Keeping the egress identity from the mediator.** A nested
+   inner relationship (TSP §4, §5.5) between the egress identity
+   and the counterpart would hide the egress identity from the
+   mediator, at the cost of a further sealed layer and a nested
+   relationship per pair. The TSP library this profile targets
+   offers no nested relationship forming; not measured, not part
+   of this casting.
+2. **Separate pickup identities.** A form in which each
+   relationship collects under an identity of its own with its own
+   login has not been measured live.
+3. **The value of `routed-ack-deadline`.** 24 hours trades a false
+   switch against stranded documents (§3a); no measurement of
+   counterpart absence underlies the value.
+4. **An explicit refusal of routed messages.** A mediator that
+   answers a routed deposit with a refusal is handled by §5 and
+   does not switch (RLTP-VTI-3130). Whether a refusal that names
+   the routed form should switch at once is open.
+5. **Keylist.** §1 and §3 name keylist updates; the target
+   mediator keeps no keylist for TSP clients, and the binding
+   treats the update as a no-op.
+
+## Appendix A: Companion changes
+
+§1a reads one clause of Delivery §5a.10 differently from its
+present wording. The Delivery Contract owns that clause; these are
+the changes its next casting takes up.
+
+**Delivery Contract (next casting):**
+
+- 5a.10, TSP ingress, the prohibition "not person-wide": the clause
+  "the sending side and the collecting side of one person must never
+  meet in one identifier" applies to the sender-side identifier the
+  receiving endpoint verifies, the innermost end-to-end sender of the
+  deposit. An outer layer addressed to the direct carrier MAY carry
+  the collecting identifier of the same relationship and carrier.
+  The other prohibitions — not well-known, no second relationship,
+  no second carrier, never a control principal or a value derivable
+  from one, not reused outside the relationship — apply to every
+  layer the adapter presents.
+- 5a.10, the paragraph on the nested private end-to-end VID: "hidden
+  from intermediaries by construction" holds for nested envelopes;
+  in routed mode the direct carrier opens the routing layer and
+  reads the inner sender and receiver.
+- §11, conformance examples under "TSP ingress": a routed deposit
+  whose outer sender is the depositing side's collecting identifier
+  at the direct carrier and whose inner sender is an identifier
+  exclusive to sending → conformant; a single-layer deposit whose
+  sender is the collecting identifier → nonconformant.
