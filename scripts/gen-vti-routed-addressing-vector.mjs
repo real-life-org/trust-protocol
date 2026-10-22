@@ -60,11 +60,11 @@ const accepts = (self, peer) => ({ messageType: 'direct', sender: peer.egress, r
 const r = routed(A, B)
 // each case names the mode it claims and every rule it breaks, the rule it is about first
 const refused = [
-  { case: 'routed: inner sender is the connection DID', mode: 'routed', rules: ['RLTP-VTI-1110'], inner: { ...r.inner, sender: A.connection }, outer: r.outer, session: r.session },
-  { case: 'routed: inner sender is the control principal', mode: 'routed', rules: ['RLTP-VTI-1110'], inner: { ...r.inner, sender: principalA }, outer: r.outer, session: r.session },
-  { case: 'routed: outer sender is the egress identity', mode: 'routed', rules: ['RLTP-VTI-1120'], inner: r.inner, outer: { ...r.outer, sender: A.egress }, session: r.session },
+  { case: 'routed: inner sender is the connection DID', mode: 'routed', rules: ['RLTP-VTI-1110', 'RLTP-VTI-3110'], inner: { ...r.inner, sender: A.connection }, outer: r.outer, session: r.session },
+  { case: 'routed: inner sender is the control principal', mode: 'routed', rules: ['RLTP-VTI-1110', 'RLTP-VTI-3110'], inner: { ...r.inner, sender: principalA }, outer: r.outer, session: r.session },
+  { case: 'routed: outer sender is the egress identity', mode: 'routed', rules: ['RLTP-VTI-1120', 'RLTP-VTI-3110'], inner: r.inner, outer: { ...r.outer, sender: A.egress }, session: r.session },
   { case: 'routed: outer sender is the egress identity, on its own session', mode: 'routed', rules: ['RLTP-VTI-1120', 'RLTP-VTI-3110'], inner: r.inner, outer: { ...r.outer, sender: A.egress }, session: A.egress },
-  { case: 'single layer: sender is the connection DID', mode: 'egress-session', rules: ['RLTP-VTI-1130', 'RLTP-VTI-3120'], message: { ...r.inner, sender: A.connection }, session: A.connection },
+  { case: 'single layer: sender is the connection DID', mode: 'egress-session', rules: ['RLTP-VTI-1130', 'RLTP-VTI-1110', 'RLTP-VTI-3120'], message: { ...r.inner, sender: A.connection }, session: A.connection },
   { case: 'routed: outer receiver is not C', mode: 'routed', rules: ['RLTP-VTI-3110'], inner: r.inner, outer: { ...r.outer, receiver: B.connection }, session: r.session },
   { case: 'routed: inner receiver is the counterpart\'s egress identity', mode: 'routed', rules: ['RLTP-VTI-3110'], inner: { ...r.inner, receiver: B.egress }, outer: r.outer, session: r.session },
   { case: 'routed: deposited on the egress identity\'s session', mode: 'routed', rules: ['RLTP-VTI-3110'], inner: r.inner, outer: r.outer, session: A.egress },
@@ -73,6 +73,8 @@ const refused = [
   { case: 'routed: route has a second hop', mode: 'routed', rules: ['RLTP-VTI-3115'], inner: r.inner, outer: { ...r.outer, route: [B.connection, B.egress] }, session: r.session },
   { case: 'routed: route names an account other than the inner receiver', mode: 'routed', rules: ['RLTP-VTI-3115'], inner: r.inner, outer: { ...r.outer, route: [A.connection] }, session: r.session },
   { case: 'egress-session: the inner message on the connection DID\'s session', mode: 'egress-session', rules: ['RLTP-VTI-3120'], message: egressSession(A, B).message, session: A.connection },
+  { case: 'routed after the switch', mode: 'routed', switched: true, rules: ['RLTP-VTI-3135'], inner: r.inner, outer: r.outer, session: r.session },
+  { case: 'egress-session: a routed layer from the egress identity on its session (form c-es)', mode: 'egress-session', rules: ['RLTP-VTI-3120', 'RLTP-VTI-1120'], inner: r.inner, outer: { ...r.outer, sender: A.egress }, session: A.egress },
   { case: 'egress-session before the switch', mode: 'egress-session', switched: false, rules: ['RLTP-VTI-3120'], message: egressSession(A, B).message, session: A.egress },
 ]
 

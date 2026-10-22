@@ -97,7 +97,8 @@
    "case": "routed: inner sender is the connection DID",
    "mode": "routed",
    "rules": [
-    "RLTP-VTI-1110"
+    "RLTP-VTI-1110",
+    "RLTP-VTI-3110"
    ],
    "inner": {
     "messageType": "direct",
@@ -122,7 +123,8 @@
    "case": "routed: inner sender is the control principal",
    "mode": "routed",
    "rules": [
-    "RLTP-VTI-1110"
+    "RLTP-VTI-1110",
+    "RLTP-VTI-3110"
    ],
    "inner": {
     "messageType": "direct",
@@ -147,7 +149,8 @@
    "case": "routed: outer sender is the egress identity",
    "mode": "routed",
    "rules": [
-    "RLTP-VTI-1120"
+    "RLTP-VTI-1120",
+    "RLTP-VTI-3110"
    ],
    "inner": {
     "messageType": "direct",
@@ -199,6 +202,7 @@
    "mode": "egress-session",
    "rules": [
     "RLTP-VTI-1130",
+    "RLTP-VTI-1110",
     "RLTP-VTI-3120"
    ],
    "message": {
@@ -398,6 +402,58 @@
     "signedBy": "sender"
    },
    "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+  },
+  {
+   "case": "routed after the switch",
+   "mode": "routed",
+   "switched": true,
+   "rules": [
+    "RLTP-VTI-3135"
+   ],
+   "inner": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "outer": {
+    "messageType": "routed",
+    "sender": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk",
+    "receiver": "did:web:carrier.example",
+    "route": [
+     "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU"
+    ],
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "session": "did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk"
+  },
+  {
+   "case": "egress-session: a routed layer from the egress identity on its session (form c-es)",
+   "mode": "egress-session",
+   "rules": [
+    "RLTP-VTI-3120",
+    "RLTP-VTI-1120"
+   ],
+   "inner": {
+    "messageType": "direct",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU",
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "outer": {
+    "messageType": "routed",
+    "sender": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8",
+    "receiver": "did:web:carrier.example",
+    "route": [
+     "did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU"
+    ],
+    "sealedTo": "keyAgreement[0] of receiver",
+    "signedBy": "sender"
+   },
+   "session": "did:key:z6MkrF5SPHys4HDfskQ8zC1aSjFxTmrAX5JavJ5ELV3GwDw8"
   },
   {
    "case": "egress-session before the switch",
