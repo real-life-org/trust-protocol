@@ -11,7 +11,12 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   attempt begun before a switch ends in the mode it began in. A wire may
   offer `queueEmpty()` (true when the mediator holds nothing more for
   the connection). Closed: a wire without it never completes a
-  collection, and the adapter over it never switches.
+  collection, and the adapter over it never switches. The consumer a
+  wire registers with `onDeliver` now answers a boolean: whether the
+  adapter took the frame (buffered, already held, or absorbed); `false`
+  (above `max-queue-bytes`, or a retired instance) leaves the frame with
+  the mediator, and a wire does not take its queue for drained until the
+  frame is offered again.
 - **The send state** (RLTP-VTI-3130), per relationship: the mode, the
   instant a document (an entry of kind `document`, or a `submit()`
   without an entry; never an acknowledgement, which goes through
@@ -22,10 +27,12 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   `SendState`); a restore checks it fail-closed (a known mode, finite
   instants, none after the restore instant, no digest twice, each
   horizon within the give-up horizon after its acceptance, and routed
-  digests only with a first acceptance at or before them) and a snapshot
+  digests only with a first acceptance at or before them, and
+  `egress-session` only with a first routed acceptance) and a snapshot
   without it starts in `routed`. `sendMode` reads the current mode.
 - **Proof and switch**: `acknowledged(id)` and `receiverRefused(id, code)`
-  for a document deposited in `routed` prove `routed`; the new
+  prove `routed` when the document's digest is in the send state at the
+  moment of the report (RLTP-VTI-3130, "for one of those digests"); the new
   `answered(digest, now)` carries an answer the holder hands a later
   instance (a valid acknowledgement, a validated refusal or a validated
   `idConflict`) and proves `routed` when the send state names the digest.
@@ -48,9 +55,9 @@ Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.
   first acceptance, so a relationship whose openings last less than
   24 hours never switches; `mode` and `proven` in a restored snapshot are
   as trustworthy as the host's store. A verdict proves `routed` only for a
-  document the send state names (or, for a `submit()` without a digest,
-  one accepted in `routed` and within its give-up horizon); a verdict
-  before the acceptance proves at an acceptance in `routed`.
+  digest the send state names at that moment: a verdict that outruns the
+  acceptance proves nothing (it only keeps the digest from being named
+  afterwards), and a `submit()` without a digest never proves.
 - **`depositAddressing(mode, self, peerConnection, carrier)`**: the
   addressing of both layers and the session per mode, as
   `vectors/vti-routed-addressing.json` states it (RLTP-VTI-1110, 1120,

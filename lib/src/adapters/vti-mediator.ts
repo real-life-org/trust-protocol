@@ -154,7 +154,12 @@ export interface MediatorWire {
    *  packs and sends it as depositAddressing(mode, …) describes. */
   deposit (accessToken: string, bytes: Uint8Array, egressDid: string, mode: SendMode): Promise<void>
   ackReceived (accessToken: string, queueIds: string[]): Promise<void>
-  onDeliver (cb: (bytes: Uint8Array) => Promise<void>): void
+  /** The adapter's consumer answers whether it took the frame (buffered,
+   *  already held, or absorbed as a duplicate): false means the frame is
+   *  left with the mediator (above max-queue-bytes, or a retired
+   *  instance), and a wire must not take its queue for drained until the
+   *  frame is offered again (RLTP-VTI-3130, queueEmpty). */
+  onDeliver (cb: (bytes: Uint8Array) => Promise<boolean>): void
   /** Optional truthful connectivity signal; absent means unknown. */
   offline? (): boolean
   /** Optional: true when the mediator holds nothing more for this
@@ -260,6 +265,8 @@ function restoreSendState (send: unknown, restoredAt: number): SendState {
     return { digest: e.digest, acceptedAt: e.acceptedAt, horizonAt: e.horizonAt }
   })
   if (new Set(routed.map((r) => r.digest)).size !== routed.length) refuse('names a routed digest twice')
+  // the switch needs a first routed acceptance: an egress-session without one was never produced
+  if (s.mode === 'egress-session' && first === null) refuse('is egress-session without a first routed acceptance')
   if (routed.length > 0 && (first === null || (first as number) > Math.min(...routed.map((r) => r.acceptedAt)))) {
     refuse('routed digests without a first routed acceptance at or before them')
   }
@@ -289,11 +296,8 @@ interface Submission {
   st: SubmissionState | null   // null = no honest report exists yet
   /** the mode of the last deposit call started for it (RLTP-VTI-3135) */
   sentMode: SendMode | null
-  /** a verdict on it arrived: its digest never enters the send state
-   *  again, and an acceptance in routed after it proves routed */
+  /** a verdict on it arrived: its digest never enters the send state again */
   answered?: boolean
-  /** accepted in mode routed (a document) */
-  routedAccepted?: boolean
 }
 
 const hex = (b: Uint8Array): string =>
@@ -431,12 +435,12 @@ export class MediatorCarrierAdapter {
         this.#proven = send.proven
       }
     }
-    this.#wire.onDeliver(async (raw) => {
-      if (this.#closed) return
+    this.#wire.onDeliver(async (raw): Promise<boolean> => {
+      if (this.#closed) return false
       // a plain copy of its own: a Node Buffer's slice() would share memory
       const bytes = new Uint8Array(raw)
       const queueId = hex(await sha(bytes))
-      if (this.#closed) return
+      if (this.#closed) return false
       // Absorption is WINDOW-checked at the moment it happens
       // (R11-B1), and the window beats everything (round-14 B):
       // beyond it, entry AND any leftover intent fall, and the frame
@@ -450,21 +454,23 @@ export class MediatorCarrierAdapter {
           // in-flight flush keeps absorbing until that flush ends,
           // because its irrecallable ack may still land (R15-B1)
           this.#pendingAcks.add(queueId)
-          return
+          return true
         }
         this.#concluded.delete(queueId)
         this.#pendingAcks.delete(queueId)
       }
-      if (this.#inboxDigests.has(queueId)) return
-      for (const col of this.#outstanding.values()) if (col.has(queueId)) return
+      if (this.#inboxDigests.has(queueId)) return true
+      for (const col of this.#outstanding.values()) if (col.has(queueId)) return true
       const held = this.#inboxBytes + this.#outstandingBytes
       const underFloor = this.#inbox.length < DECLARED.queueFloorCount &&
         held + bytes.length <= DECLARED.queueFloorBytes
       const underCap = held + bytes.length <= DECLARED.maxQueueBytes
-      if (!underFloor && !underCap) return
+      // not acknowledged and not taken: the mediator keeps its copy
+      if (!underFloor && !underCap) return false
       this.#inbox.push({ bytes, queueId })
       this.#inboxBytes += bytes.length
       this.#inboxDigests.add(queueId)
+      return true
     })
   }
 
@@ -724,12 +730,9 @@ export class MediatorCarrierAdapter {
     if (next.state === 'accepted' && sub.sentMode === 'routed' && this.#isDocument(sub)) {
       this.#firstRoutedAcceptedAt ??= this.#clock
       const horizonAt = sub.submittedAt + DECLARED.giveUpHorizonMs
-      sub.routedAccepted = true
-      if (sub.answered === true) {
-        // the verdict outran the deposit's resolution: it proves now, and
-        // the digest is answered already, so it is not named
-        this.#proven = true
-      } else if (sub.digest !== undefined && this.#clock <= horizonAt && !this.#routed.has(sub.digest)) {
+      // answered already (the verdict outran the deposit's resolution): not
+      // named; past its horizon it would fall at the next clean conclusion
+      if (sub.answered !== true && sub.digest !== undefined && this.#clock <= horizonAt && !this.#routed.has(sub.digest)) {
         // past its horizon it would fall at the next clean conclusion: not named
         this.#routed.set(sub.digest, { acceptedAt: this.#clock, horizonAt })
       }
@@ -746,28 +749,19 @@ export class MediatorCarrierAdapter {
     return sub.entry === undefined || sub.entry.kind === 'document'
   }
 
-  /** A verdict on a document proves routed for the relationship
-   *  (RLTP-VTI-3130) only as the send state names it: its digest is among
-   *  the routed digests (then it leaves them), or — a submit() without a
-   *  digest, which the send state cannot name — it was accepted in routed
-   *  and is still within its give-up horizon. A verdict before the
-   *  acceptance is kept on the submission and proves at the acceptance,
-   *  if that acceptance is in routed. A fallen digest proves nothing. */
+  /** A verdict proves routed for the relationship exactly as RLTP-VTI-3130
+   *  says, "for one of those digests": only when the document's digest
+   *  is in the send state at the moment of the report (it leaves it
+   *  then). A verdict before the acceptance proves nothing, and marks the
+   *  submission so its digest is not named after it; a submit() without a
+   *  digest, which the send state cannot name, never proves. */
   #proveRouted (sub: Submission): void {
     if (!this.#isDocument(sub)) return
+    sub.answered = true
     if (sub.digest !== undefined && this.#routed.has(sub.digest)) {
       this.#routed.delete(sub.digest)
       this.#proven = true
-      sub.answered = true
-      return
     }
-    if (sub.digest === undefined && sub.routedAccepted === true &&
-        this.#clock <= sub.submittedAt + DECLARED.giveUpHorizonMs) {
-      this.#proven = true
-      sub.answered = true
-      return
-    }
-    if (sub.st === null || sub.st.state === 'awaiting-transport') sub.answered = true
   }
 
   /** The current sending mode of the relationship (profile §3a). */

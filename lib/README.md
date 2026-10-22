@@ -107,7 +107,10 @@ late can let a relationship switch although `routed` was proven. A host
 that persists only `concluded` and `pending` starts every opening in
 `routed` with no first acceptance, so a relationship whose openings last
 less than 24 hours never switches; `mode` and `proven` in a restored
-snapshot are as trustworthy as the host's store.
+snapshot are as trustworthy as the host's store. A verdict proves
+`routed` only for a digest the send state names at that moment, so a
+`submit()` without a digest never proves. The consumer a wire registers
+with `onDeliver` answers whether the adapter took the frame.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)
