@@ -152,7 +152,7 @@ nested private end-to-end VID is "hidden from intermediaries by
 construction" is not a property of routed mode: the mediator opens
 the routing layer and reads the inner sender (§9).
 
-## 2. Declared constants (decision g1-a, revised under Option B)
+## 2. Declared constants
 
 Six constants with transport meaning, every one enforced in the
 implementation. They are promises of **this casting**: a revision
@@ -186,16 +186,22 @@ mediator-shaped error.
 | `register(rkids)` | ATM auth (challenge → authcrypt `atm/1.0/authenticate` → access+refresh JWT) under the connection DID; keylist update for this principal's `rkid`s | transport admission and routing registration only — expressly **not** §5a.3 registration; no generation, no proof toward this adapter. `register` records the desired keylist and returns; synchronization is a tracked background task retried by `advance` (the no-await rule covers every port operation). The auth handshake is **single-flight**: concurrent operations share one challenge/response session |
 | `submit` | `POST /inbound` / WS frame; the sealed RLTP envelope in the sending form of §3a, on the connection DID's session (mode `routed`) or the egress identity's send-only session (mode `egress-session`) | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, built anew for every attempt (§7) |
 | `collect` | live delivery / `delivery-request`; mediator fetches with `DoNotDelete` | redelivery before ack is re-cover, not a new item |
-| `conclude` | `messages-received` over the digest set of the collection (decision 3) | infallible at the port; see §4 |
+| `conclude` | `messages-received` over the digest set of the collection | infallible at the port; see §4 |
 | `advance` | adapter clock only | give-up, retries (each a hand-over through the holder, RLTP-VTI-3135), the switch check of RLTP-VTI-3130, ack flushing, duplicate-window pruning |
 
 Delete-to-ack order is **hand off → await → ack** (Dogwood,
 `vti-didcomm-js` `29b92cc`), kept with three receiver registers:
 buffered, outstanding, concluded. Only a **concluded** digest is
 ever (re-)acknowledged; a redelivery of a buffered or outstanding
-frame is ignored without acknowledgement. Collections carry an
+frame is ignored without acknowledgement. A digest concluded
+`give-up-horizon` or more ago that arrives again is buffered as a new
+item (§4); buffered and outstanding go before concluded, so a
+redelivery of it is ignored while it is buffered or outstanding, and
+its standing ack intent is not sent until the new item is concluded,
+which sets the conclusion instant anew. Collections carry an
 adapter-issued id; conclusion uses the adapter's authoritative
-digest set, and an empty collection creates no register entry.
+digest set; an empty collection creates no register entry and
+counts as a concluded collection (RLTP-VTI-3130).
 
 ## 3a. Sending form
 
@@ -274,7 +280,11 @@ for the relationship: nothing returns it to `routed` but a new
 principal — a new relationship, a rebind or a change of `C` (§6) —
 or a lost send state (a host that persists nothing), each of which
 starts in `routed`; at the switch the open
-routed deposits leave the send state.
+routed deposits leave the send state, and a routed attempt accepted
+after the switch enters none. An open routed deposit also leaves the
+send state once `routed-ack-deadline` plus `duplicate-window` has
+passed since its acceptance, so the send state stays bounded where
+no check could run (RLTP-VTI-7150).
 
 **RLTP-VTI-3135** — Every attempt to deposit a submission in the
 holder's custody is a hand-over through the holder (RLTP-DEL-6125),
@@ -343,7 +353,7 @@ prune, at the restore: an ack intent is retried until the window
 closes, then intent and absorption fall together; there is no
 ageless debt whose truth the adapter would have to know, and a
 phantom debt (an ack that in fact landed just before a close) can
-never outlive the window and delete a fresh copy. The adapter
+never outlive the window. The adapter
 absorbs a byte-identical arrival only within `give-up-horizon` of its
 conclusion; a later one, inside the window or beyond it, is a new
 item — always, without exception — and the receiver's §6.2
@@ -357,9 +367,12 @@ recalled, so **the window closes for an id no earlier than the end
 of an acknowledgement call already carrying it on the wire** — the
 stay of expiry begins at the wire call itself, never earlier (a
 hanging authentication extends no window; ids whose entry already
-fell are not sent at all), it covers absorption too (so the
-irrecallable ack can never delete a copy the holder has not
-absorbed), and the account is settled the moment the call returns.
+fell are not sent at all), it covers absorption too, and the
+account is settled the moment the call returns. An intent sent or
+flying before a later copy arrives can still delete that copy at the
+mediator before the holder sees it: no document is lost by it — the
+holder concluded the document — but that resubmission of the
+counterpart then goes unanswered, once per such intent.
 
 **The teardown edge, priced honestly.** An acknowledgement still
 flying at `close()` cannot be carried by the snapshot; a restored
@@ -372,9 +385,10 @@ closes. Two regimes, both closed:
   rule (§2) would have absorbed it without surfacing it, and the
   holder observes the same thing either way. Later, the deleted copy
   is one the holder would have absorbed and answered again; the
-  counterpart's next resubmission is answered instead. Retried acknowledgements therefore add no
-  loss beyond what the window already declares, however many times
-  a lost response makes them retry.
+  counterpart's next resubmission is answered instead. Retried
+  acknowledgements therefore lose no document, however many times a
+  lost response makes them retry; at most they leave a resubmission
+  unanswered.
 - **Beyond the window, no intent survives to be retried** — intent,
   entry and absorption fell together — so the only calls that can
   still land are those a teardown left irrecallably flying: **at
@@ -401,7 +415,7 @@ waits for the next `advance` instead of spinning. A
 host that persists nothing re-receives concluded items after a
 restart and owes their absorption to §6.2 — stated here as the
 honest boundary, exactly as the library's byte boundary already
-carries M-2.
+carries the duty to pass received bytes unchanged.
 
 ## 5. Sender states and refusal mapping
 
@@ -441,8 +455,9 @@ retriable, persistent → `failed(unroutable)` at the horizon; 413 →
 `awaiting-transport(transport-unreachable)`; 429/5xx →
 `awaiting-transport(carrier-refused-retriable)`;
 `duplicate-channel` → re-establish, no port event; mediator
-status/problem-report frames → consumed, never acked, never items.
-A refusal of a routed deposit maps like any other deposit refusal
+status/problem-report frames → consumed, never acked, never items;
+any other refusal of a deposit → retriable, persistent →
+`failed(unroutable)` at the horizon. A refusal of a routed deposit maps like any other deposit refusal
 above, with one exception: a validated refusal of the routed form
 switches the relationship at once and leaves the submission
 `awaiting-transport` (RLTP-VTI-3130).
@@ -500,8 +515,9 @@ between the auth handshake and every subsequent wire call).
 The concrete binding over `vti-didcomm-js` and `vti-tsp-js` owes:
 TSP framing in the sending form of §3a under **Rev 3's cipher
 posture** (HPKE-Base; HPKE-Auth is removed in Rev 3), the CESR
-demux discipline of ref-04, the M-2 duty (raw received bytes
-passed truthfully), and the rules below.
+demux discipline of the measured binding (one message type per
+frame, dispatched on its CESR code), the duty to pass raw received
+bytes unchanged, and the rules below.
 
 **RLTP-VTI-7110** — The adapter's copy of a submission is the
 sealed RLTP envelope, never a TSP frame. The binding packs every
@@ -768,8 +784,8 @@ the changes its next casting takes up.
   meet in one identifier" applies to every sender identifier the
   recipient opens and verifies. An outer layer addressed to
   the direct carrier, which the recipient never opens, MAY
-  carry the collecting identifier of the same relationship and
-  carrier. The other prohibitions — not well-known, no second
+  name as its sender the depositing side's collecting identifier of
+  the same relationship and carrier. The other prohibitions — not well-known, no second
   relationship, no second carrier, never a control principal or a
   value derivable from one, not reused outside the relationship —
   apply to every layer the adapter presents.
