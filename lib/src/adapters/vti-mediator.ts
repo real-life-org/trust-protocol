@@ -88,7 +88,8 @@
 //     except reading its ack state.
 
 import { jcs } from '../core.js'
-import { sha } from '../crypto.js'
+import type { Json } from '../core.js'
+import { anchorOfEd, edRawOfAnchor, sha } from '../crypto.js'
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js'
 import type { CarrierPrincipal, CarrierScopedIdentity } from '../carrier-identity.js'
 import type { DeliveryReport, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
@@ -107,6 +108,60 @@ export const DECLARED = Object.freeze({
   duplicateWindowMs: 30 * 86_400_000,
   routedAckDeadlineMs: 72 * 3_600_000,
 } as const)
+
+// ── The delivery hint (profile §1b) ──────────────────────────────────
+// Below the port line: the holder carries hints uninterpreted; this
+// adapter builds its own and reads the counterpart's.
+
+/** The counterpart's wire identities at one carrier, as its hint names them. */
+export interface DeliveryHintIdentities { connectionDid: string, egressDid: string, carrier: string }
+
+const HINT_MEMBERS = jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])
+/** An Ed25519 did:key in its canonical rendering (multicodec 0xed01, 32 bytes, base58btc round trip). */
+const edDidKey = (x: unknown): x is string => {
+  const raw = edRawOfAnchor(x)
+  return raw !== null && anchorOfEd(raw) === x
+}
+
+/** This side's hint for carrier `C` (RLTP-VTI-1210): the JCS form of the
+ *  TSPTransport service entry naming its connection DID (`id`, with
+ *  `#tsp`), `C` (`serviceEndpoint`) and its egress identity
+ *  (`rltpEgress`). Throws on identities that are not distinct Ed25519
+ *  did:key identifiers, or on an empty carrier. */
+export function deliveryHint (self: { connection: string, egress: string }, carrier: string): string {
+  if (!edDidKey(self?.connection) || !edDidKey(self?.egress)) throw new Error('deliveryHint: both identities must be Ed25519 did:key identifiers (RLTP-VTI-1210)')
+  if (self.connection === self.egress) throw new Error('deliveryHint: connection DID and egress identity must be distinct (RLTP-VTI-1210)')
+  if (typeof carrier !== 'string' || carrier.length === 0) throw new Error('deliveryHint: the carrier C must be a non-empty string')
+  return jcs({ id: self.connection + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: self.egress })
+}
+
+/** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,
+ *  byte-equal to its JCS form, exactly the four members, type
+ *  TSPTransport, an `id` ending in `#tsp`, both identities distinct
+ *  Ed25519 did:key, `serviceEndpoint` byte-equal to `C`. Anything else is
+ *  null: ignored, no fault of the card. */
+export function readDeliveryHint (hint: unknown, carrier: string): DeliveryHintIdentities | null {
+  if (typeof hint !== 'string') return null
+  let o: unknown
+  try { o = JSON.parse(hint) } catch { return null }
+  if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o as Json) !== hint) return null
+  const e = o as Record<string, unknown>
+  if (jcs(Object.keys(e).sort()) !== HINT_MEMBERS || e.type !== 'TSPTransport' || e.serviceEndpoint !== carrier) return null
+  if (typeof e.id !== 'string' || !e.id.endsWith('#tsp')) return null
+  const connectionDid = e.id.slice(0, -'#tsp'.length)
+  if (!edDidKey(connectionDid) || !edDidKey(e.rltpEgress) || connectionDid === e.rltpEgress) return null
+  return { connectionDid, egressDid: e.rltpEgress, carrier }
+}
+
+/** The counterpart's wire identities at `C` from the hints of the card
+ *  that opened the relationship (RLTP-VTI-1225, 1240): the one hint of
+ *  this profile for `C`; none, or more than one, is null — the
+ *  relationship is not carried at `C` (RLTP-VTI-1235). */
+export function readDeliveryHints (hints: readonly unknown[] | undefined, carrier: string): DeliveryHintIdentities | null {
+  if (!Array.isArray(hints)) return null
+  const read = hints.map((h) => readDeliveryHint(h, carrier)).filter((x): x is DeliveryHintIdentities => x !== null)
+  return read.length === 1 ? read[0] : null
+}
 
 // ── The sending form (profile §3a) ───────────────────────────────────
 /** How a deposit reaches the mediator (RLTP-VTI-3110, 3120). */
