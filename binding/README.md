@@ -209,6 +209,8 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
 
 ## Offen
 
+- Problem-Reports des Mediators: Profil §5 zählt einen Problem-Report, der eine Einlieferung ablehnt, als Ablehnung dieser Einlieferung. Die Bindung ordnet Problem-Reports heute keiner Einlieferung zu und verbraucht sie; eine solche Ablehnung erreicht den Adapter daher nicht (auch nicht als `routed-refused`, Profil Open Issue 4).
+
 - Sofortige Umschaltung auf eine validierte Ablehnung der routed-Form
   (`WireError('routed-refused')`, RLTP-VTI-3130): die Bindung wirft
   diese Art heute nie; was der Ziel-Mediator in dem Fall sendet und wie
