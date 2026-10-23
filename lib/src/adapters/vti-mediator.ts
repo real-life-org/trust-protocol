@@ -121,6 +121,8 @@ const HINT_MEMBERS = jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])
  *  base58btc of multicodec 0xed01 followed by the 32-byte key, rendered
  *  canonically (decoding and re-encoding gives the same string). */
 const edDidKey = (x: unknown): x is string => {
+  // the canonical form has exactly 56 characters; checked first, so no long input reaches the base58 decoder
+  if (typeof x !== 'string' || x.length !== 56) return false
   const raw = edRawOfAnchor(x)
   return raw !== null && anchorOfEd(raw) === x
 }
