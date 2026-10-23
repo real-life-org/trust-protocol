@@ -226,14 +226,19 @@ const nameFor = (state: Readonly<HolderState>, name: unknown): string | undefine
   return typeof n === 'string' && n.length ? [...n].slice(0, 200).join('') : undefined
 }
 
-/** The carrier offer's own checks, before anything is signed: the hints
- *  by 6090 (one to eight, each at most 512 characters), then N's form (32
+/** The carrier offer's own checks, before anything is signed: at least
+ *  one hint, each a string (else card-invalid without a ref: an empty offer
+ *  announces nothing, a card without hints needs no offer); the bounds of
+ *  6090 (at most eight, each at most 512 characters); then N's form (32
  *  bytes, canonical base64url). null where there is no offer or it passes. */
 function offerRefusal (carrier: unknown): Refusal | null {
   if (carrier === undefined) return null
   const c = carrier as { nonce?: unknown, deliveryHints?: unknown } | null
   const h = c?.deliveryHints
-  if (!Array.isArray(h) || h.length < 1 || h.length > 8 || !h.every((x) => typeof x === 'string' && [...x].length <= 512)) return no('card-invalid', 'RLTP-ENC-6090')
+  // an offer announces its carrier: no hint (a card without hints is a card
+  // without an offer, 6080) or a hint that is no string is no offer
+  if (!Array.isArray(h) || h.length < 1 || !h.every((x) => typeof x === 'string')) return no('card-invalid')
+  if (h.length > 8 || !h.every((x) => [...x].length <= 512)) return no('card-invalid', 'RLTP-ENC-6090')
   const n = c?.nonce
   if (typeof n !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(n) || b64uOf(fromB64u(n)) !== n) return no('carrier-nonce-invalid')
   return null

@@ -141,8 +141,8 @@ export interface HumanActOptions { when: Millis, actId: string }
 
 /** A carrier offer for the card of show or scan: the relationship's
  *  carrier nonce N, 32 bytes the app draws fresh (Identity §7a.3), and the
- *  delivery hints it built from N for the card (Encounter 6080, 6090: one
- *  to eight, each at most 512 characters; their form is the carrier
+ *  delivery hints it built from N for the card (at least one; Encounter
+ *  6090: at most eight, each at most 512 characters; their form is the carrier
  *  profile's, e.g. the VTI mediator adapter profile §1b). The library
  *  signs the hints into the card, records N in the register under the
  *  relationship the card opens, and interprets neither. */

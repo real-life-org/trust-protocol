@@ -153,8 +153,10 @@ nonce N (32 bytes the app draws fresh) and the hints the app built from
 the wire identities its adapter derives from N. The card (the displayed
 card, or the scanner's sent card) carries the hints under its proof, and
 N enters the register under the relationship the card opens — at `show`
-already, as the card's pair label does. One to eight hints of at most 512
-characters each, else `card-invalid` with `ref` `RLTP-ENC-6090`; a nonce
+already, as the card's pair label does. More than eight hints or a hint
+over 512 characters is `card-invalid` with `ref` `RLTP-ENC-6090`; an
+offer without a hint, or with a hint that is no string, is
+`card-invalid` without a `ref`; a nonce
 that is not 32 bytes or that the register already holds is
 `carrier-nonce-invalid`. The offer is act input, journaled with the act.
 The library interprets no hint. Each relationship of a contact view names
@@ -168,7 +170,8 @@ library offers no rotation or replacement of N (profile RLTP-VTI-1245);
 with its one writer per holder, `carrierNonce` is the N the counterpart
 saw. The VTI adapter module builds and reads the hint:
 `deliveryHint(rootIkm, C, N)` (derived like the adapter's trio),
-`readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C)` (profile §1b).
+`readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` (profile
+§1b; total readers, a hint naming `self`'s identities ignored).
 
 ```ts
 import { deliveryHint } from '@real-life/trust-protocol/adapters/vti-mediator'
@@ -229,7 +232,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.25): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C)` build and read the delivery hint of §1b. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.25): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers). |
 
 ## The modules and the rules they implement
 

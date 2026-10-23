@@ -129,18 +129,22 @@ export async function deliveryHint(rootIkm, carrier, nonce) {
 /** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,
  *  byte-equal to its JCS form, exactly the four members, type
  *  TSPTransport, an `id` ending in `#tsp`, both identities distinct
- *  Ed25519 did:key, `serviceEndpoint` byte-equal to `C`. Anything else is
- *  null: ignored, no fault of the card. */
+ *  canonical Ed25519 did:key, `serviceEndpoint` byte-equal to `C`.
+ *  Total (RLTP-VTI-1220): any other input — not a string, not JSON, no JCS
+ *  form (a lone surrogate), any other shape — is null, ignored; it never
+ *  throws. */
 export function readDeliveryHint(hint, carrier) {
-    if (typeof hint !== 'string')
-        return null;
-    let o;
     try {
-        o = JSON.parse(hint);
+        return readStrict(hint, carrier);
     }
     catch {
         return null;
     }
+}
+function readStrict(hint, carrier) {
+    if (typeof hint !== 'string' || typeof carrier !== 'string' || carrier.length === 0)
+        return null;
+    const o = JSON.parse(hint);
     if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o) !== hint)
         return null;
     const e = o;
@@ -154,14 +158,29 @@ export function readDeliveryHint(hint, carrier) {
     return { connectionDid, egressDid: e.rltpEgress, carrier };
 }
 /** The counterpart's wire identities at `C` from the hints of the card
- *  that opened the relationship (RLTP-VTI-1225, 1240): the one hint of
- *  this profile for `C`; none, or more than one, is null — the
- *  relationship is not carried at `C` (RLTP-VTI-1235). */
-export function readDeliveryHints(hints, carrier) {
-    if (!Array.isArray(hints))
+ *  that opened the relationship, read by the side `self` (its own
+ *  connection DID and egress identity of this relationship and carrier):
+ *  every hint read as readDeliveryHint does; a hint naming one of `self`'s
+ *  identities is ignored (RLTP-VTI-1227); of what remains, the one hint
+ *  for `C` (RLTP-VTI-1225, 1240) — none, or more than one, is null: the
+ *  relationship is not carried at `C` (RLTP-VTI-1235). Total: any input
+ *  answers null or the identities, never a throw; without a well-formed
+ *  `self` nothing is read. */
+export function readDeliveryHints(hints, carrier, self) {
+    try {
+        if (!Array.isArray(hints))
+            return null;
+        const me = self;
+        if (me === null || typeof me !== 'object' || !edDidKey(me.connection) || !edDidKey(me.egress))
+            return null;
+        const own = new Set([me.connection, me.egress]);
+        const read = hints.map((h) => readDeliveryHint(h, carrier))
+            .filter((x) => x !== null && !own.has(x.connectionDid) && !own.has(x.egressDid));
+        return read.length === 1 ? read[0] : null;
+    }
+    catch {
         return null;
-    const read = hints.map((h) => readDeliveryHint(h, carrier)).filter((x) => x !== null);
-    return read.length === 1 ? read[0] : null;
+    }
 }
 const SEND_MODES = new Set(['routed', 'egress-session']);
 /** The addressing of a deposit in `mode` (RLTP-VTI-1110, 1120, 3110,

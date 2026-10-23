@@ -88,26 +88,56 @@ const ignored = [
   { case: 'egress identity of the did:key pattern that does not decode to 0xed01 and 32 bytes', hint: jcs({ ...e, rltpEgress: 'did:key:z6Mk' + 'z'.repeat(44) }), rules: ['RLTP-VTI-1210'] },
   { case: 'egress identity equal to the connection DID', hint: jcs({ ...e, rltpEgress: B.connection }), rules: ['RLTP-VTI-1210'] },
   { case: 'another carrier: serviceEndpoint is not C', hint: jcs(entry(B, 'did:web:mediator.example.org')), rules: ['RLTP-VTI-1225'] },
+  // the reader is total (RLTP-VTI-1220): every input of another form is ignored, none is an error
+  { case: 'parses, but has no JCS form: a lone surrogate escape (another profile\'s hint)', hint: '{"profile":"other","v":"\\ud800"}', rules: ['RLTP-VTI-1220'] },
+  { case: 'parses, but has no JCS form: a lone surrogate escape in the id', hint: hints.B.replace('#tsp"', '#tsp\\udc00"'), rules: ['RLTP-VTI-1220'] },
+  { case: 'invalid UTF-16: an unpaired surrogate code unit inside a string', hint: hints.B.replace('TSPTransport', 'TSPTransport\ud800'), rules: ['RLTP-VTI-1220'] },
+  { case: 'empty string', hint: '', rules: ['RLTP-VTI-1220'] },
+  { case: 'JSON null', hint: 'null', rules: ['RLTP-VTI-1220'] },
+  { case: 'JSON number', hint: '42', rules: ['RLTP-VTI-1220'] },
+  { case: 'JSON string holding the hint', hint: JSON.stringify(hints.B), rules: ['RLTP-VTI-1220'] },
+  { case: 'JSON array holding the entry', hint: '[' + hints.B + ']', rules: ['RLTP-VTI-1220'] },
+  { case: 'empty object', hint: '{}', rules: ['RLTP-VTI-1210'] },
+  { case: 'nested object as the id', hint: jcs({ ...e, id: { did: B.connection } }), rules: ['RLTP-VTI-1210'] },
+  { case: 'number instead of a string: serviceEndpoint', hint: jcs({ ...e, serviceEndpoint: 5 }), rules: ['RLTP-VTI-1210'] },
+  { case: 'number instead of a string: rltpEgress', hint: jcs({ ...e, rltpEgress: 5 }), rules: ['RLTP-VTI-1210'] },
+  { case: 'overlong string: id', hint: jcs({ ...e, id: B.connection + 'z'.repeat(600) + '#tsp' }), rules: ['RLTP-VTI-1210'] },
+  { case: 'overlong string: type', hint: jcs({ ...e, type: 'TSPTransport' + 'x'.repeat(600) }), rules: ['RLTP-VTI-1210'] },
+  { case: 'overlong string: serviceEndpoint', hint: jcs({ ...e, serviceEndpoint: C + 'x'.repeat(600) }), rules: ['RLTP-VTI-1225'] },
+  { case: 'overlong string: rltpEgress', hint: jcs({ ...e, rltpEgress: B.egress + '1'.repeat(600) }), rules: ['RLTP-VTI-1210'] },
+  { case: 'a duplicate key', hint: hints.B.replace('{', '{"id":"' + e.id + '",'), rules: ['RLTP-VTI-1220'] },
+  { case: 'a byte order mark before the object', hint: '\ufeff' + hints.B, rules: ['RLTP-VTI-1220'] },
+  { case: 'a trailing newline', hint: hints.B + '\n', rules: ['RLTP-VTI-1220'] },
+  { case: 'a raw control character inside a string', hint: hints.B.replace('TSPTransport', 'TSP\u0001Transport'), rules: ['RLTP-VTI-1220'] },
+  { case: 'an escaped control character in the type', hint: hints.B.replace('TSPTransport', 'TSPTransport\\u0001'), rules: ['RLTP-VTI-1210'] },
 ]
 for (const c of ignored) if (readDeliveryHint(c.hint, C) !== null) throw new Error(`${c.case}: the library reads it`)
 
 // the hint list of a card, read at C (RLTP-VTI-1225): exactly one hint of this profile for C
 const lists = [
-  { case: 'one hint for C', hints: [hints.B], expect: 'B', rules: ['RLTP-VTI-1225', 'RLTP-VTI-1240'] },
-  { case: 'a hint for another carrier beside the hint for C', hints: [jcs(entry(B, 'did:web:mediator.example.org')), hints.B], expect: 'B', rules: ['RLTP-VTI-1225'] },
-  { case: 'an unreadable hint beside the hint for C', hints: ['tsp:' + B.connection, hints.B], expect: 'B', rules: ['RLTP-VTI-1220', 'RLTP-VTI-1225'] },
-  { case: 'two hints for C', hints: [hints.B, await deliveryHint(rootB, C, label('rltp/vector/vti-delivery-hints/nonce-B2'))], expect: null, rules: ['RLTP-VTI-1225'] },
-  { case: 'no hint for C', hints: [jcs(entry(B, 'did:web:mediator.example.org'))], expect: null, rules: ['RLTP-VTI-1225', 'RLTP-VTI-1235'] },
-  { case: 'no hints', hints: [], expect: null, rules: ['RLTP-VTI-1235'] },
+  { case: 'one hint for C', reader: 'A', hints: [hints.B], expect: 'B', rules: ['RLTP-VTI-1225', 'RLTP-VTI-1240'] },
+  { case: 'a hint for another carrier beside the hint for C', reader: 'A', hints: [jcs(entry(B, 'did:web:mediator.example.org')), hints.B], expect: 'B', rules: ['RLTP-VTI-1225'] },
+  { case: 'an unreadable hint beside the hint for C', reader: 'A', hints: ['tsp:' + B.connection, hints.B], expect: 'B', rules: ['RLTP-VTI-1220', 'RLTP-VTI-1225'] },
+  { case: 'a hint without JCS form (a lone surrogate) beside the hint for C', reader: 'A', hints: ['{"profile":"other","v":"\\ud800"}', hints.B], expect: 'B', rules: ['RLTP-VTI-1220', 'RLTP-VTI-1225'] },
+  { case: 'two hints for C', reader: 'A', hints: [hints.B, await deliveryHint(rootB, C, label('rltp/vector/vti-delivery-hints/nonce-B2'))], expect: null, rules: ['RLTP-VTI-1225'] },
+  { case: 'no hint for C', reader: 'A', hints: [jcs(entry(B, 'did:web:mediator.example.org'))], expect: null, rules: ['RLTP-VTI-1225', 'RLTP-VTI-1235'] },
+  { case: 'no hints', reader: 'A', hints: [], expect: null, rules: ['RLTP-VTI-1235'] },
+  // a hint naming one of the reader's own identities of this relationship is ignored (RLTP-VTI-1227)
+  { case: 'mirror: the reader\'s own connection DID with the counterpart\'s egress identity', reader: 'A', hints: [jcs({ ...entry(B), id: A.connection + '#tsp' })], expect: null, rules: ['RLTP-VTI-1227'] },
+  { case: 'mirror: the counterpart\'s connection DID with the reader\'s own egress identity', reader: 'A', hints: [jcs({ ...entry(B), rltpEgress: A.egress })], expect: null, rules: ['RLTP-VTI-1227'] },
+  { case: 'mirror: the reader\'s own hint', reader: 'A', hints: [hints.A], expect: null, rules: ['RLTP-VTI-1227'] },
+  { case: 'mirror: the reader\'s own hint beside the counterpart\'s', reader: 'A', hints: [hints.A, hints.B], expect: 'B', rules: ['RLTP-VTI-1227', 'RLTP-VTI-1225'] },
+  { case: 'mirror, read by B: B\'s own hint', reader: 'B', hints: [hints.B], expect: null, rules: ['RLTP-VTI-1227'] },
 ]
 for (const c of lists) {
-  const got = readDeliveryHints(c.hints, C)
+  const reader = ({ A, B })[c.reader]
+  const got = readDeliveryHints(c.hints, C, { connection: reader.connection, egress: reader.egress })
   const want = c.expect === null ? null : { connectionDid: ({ A, B })[c.expect].connection, egressDid: ({ A, B })[c.expect].egress, carrier: C }
   if (jcs(got) !== jcs(want)) throw new Error(`${c.case}: the library reads ${jcs(got)}`)
 }
 
 const vector = {
-  description: 'VTI mediator adapter profile 0.25 (§1b): the delivery hint each side of one relationship places in its card for carrier C — the JCS form (RFC 8785) of a TSPTransport service entry naming its connection DID (id, with #tsp), C (serviceEndpoint) and its egress identity (rltpEgress) — its length in characters (RLTP-ENC-6090: at most 512), a displayed card of B and A\'s sent card answering it, each carrying its side\'s hint under the card\'s proof, a card whose hint exceeds 512 characters (fails the card schema), the hints a receiver at C ignores, and the hint lists of a card with what a receiver at C reads from them (exactly one hint for C, RLTP-VTI-1225). Identities are did:key from the lib derivation (carrierScopedIdentity over root, C and the carrier nonce N).',
+  description: 'VTI mediator adapter profile 0.25 (§1b): the delivery hint each side of one relationship places in its card for carrier C — the JCS form (RFC 8785) of a TSPTransport service entry naming its connection DID (id, with #tsp), C (serviceEndpoint) and its egress identity (rltpEgress) — its length in characters (RLTP-ENC-6090: at most 512), a displayed card of B and A\'s sent card answering it, each carrying its side\'s hint under the card\'s proof, a card whose hint exceeds 512 characters (fails the card schema), the hints a receiver at C ignores, and the hint lists of a card with what a receiver (reader) at C reads from them (a hint naming the reader\'s own identities ignored, RLTP-VTI-1227; then exactly one hint for C, RLTP-VTI-1225). The reader is total (RLTP-VTI-1220): every ignored input is null, none an error. Identities are did:key from the lib derivation (carrierScopedIdentity over root, C and the carrier nonce N).',
   source: 'sides A and B as in vectors/vti-routed-addressing.json: side A = adapterScopedIdentities of vectors/identity-derivation.json (rootIkm, carrierRelationship.relationshipNonce as N); side B: rootIkm = sha2-256("rltp/vector/vti-routed/root-B"), N = sha2-256("rltp/vector/vti-routed/nonce-B"); the cards: B\'s and A\'s pair contexts under the pair nonces sha2-256("rltp/vector/vti-delivery-hints/pair-B") and sha2-256("rltp/vector/vti-delivery-hints/pair-A"); B2 (two hints for C): B\'s root under N = sha2-256("rltp/vector/vti-delivery-hints/nonce-B2"); ASCII labels. Generated by scripts/gen-vti-delivery-hints-vector.mjs.',
   carrier: C,
   sides: { A, B },

@@ -24,9 +24,11 @@ does not change.
   ages unscanned leaves its entry, as it leaves its label. At `scan`
   under the scanner's fresh relationship. The storage format is
   unchanged (codec 3).
-- **Refusals**: one to eight hints of at most 512 characters each
-  (Encounter RLTP-ENC-6090), else `card-invalid` with `ref`
-  `RLTP-ENC-6090`; a nonce that is not 32 bytes in canonical base64url,
+- **Refusals**: more than eight hints or a hint over 512 characters
+  (Encounter RLTP-ENC-6090) is `card-invalid` with `ref`
+  `RLTP-ENC-6090`; an offer without a hint, or with a hint that is no
+  string, is `card-invalid` without a `ref` (an empty offer announces
+  nothing; a card without hints needs no offer, 6080); a nonce that is not 32 bytes in canonical base64url,
   or that the register already holds as a carrier or pair nonce, is the
   new code `carrier-nonce-invalid`. Nothing commits on a refusal.
 - **The view**: each `RelationshipView` names the relationship's
@@ -46,9 +48,15 @@ does not change.
   byte-equal to its JCS form, exactly the four members, both identities
   canonical Ed25519 `did:key` that decode to `0xed01` and 32 bytes,
   `serviceEndpoint` = `C`) into `{connectionDid, egressDid, carrier}` or null;
-  `readDeliveryHints(hints, C)` reads a card's list (1225: exactly one
-  hint for `C`, else null). The app passes the identities to the wire
-  (`peerDid`, `peerEgressDid` of the binding).
+  `readDeliveryHints(hints, C, self)` reads a card's list as the side
+  `self` (its own connection DID and egress identity): a hint naming one
+  of them is ignored (RLTP-VTI-1227), then exactly one hint for `C`
+  (1225), else null. Both readers are total (RLTP-VTI-1220): any input
+  answers null or the complete identities, nothing throws — a hint that
+  parses but has no JCS form (a lone surrogate) included; tested over the
+  vector's corpus and 20 000 seeded mutations. The app passes the
+  identities to the wire (`peerDid`, `peerEgressDid` of the binding),
+  which refuses a counterpart identity that is one of its own.
 - **No change of N.** The library offers no rotation of a carrier nonce
   (Identity §7a.3, `generation + 1`) and no replacement after loss:
   `register.carriers` is written once per relationship, at `show` or
