@@ -2031,6 +2031,46 @@
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1b-the-delivery-hint"
    ],
    "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:DisplayedCardInstance",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:ContactCard"
+    },
+    {
+     "@id": "rltp:DeliveryHint"
+    },
+    {
+     "@id": "rltp:ConnectionDid"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Instanz der angezeigten Karte",
+     "@language": "de"
+    },
+    {
+     "@value": "Displayed card's instance",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Die Adapter-Instanz, die eine Seite ab dem Anzeigen einer Karte bis zum Ablauf ihrer Challenge unter der Verbindungs-DID dieser Karte hält, bevor sie das Gegenüber kennt. Sie nimmt nur das Begegnungsbündel an, das die Karte beantwortet, und wird durch den Datensatz der Begegnung an die Identitäten aus dem Zustellhinweis der gesendeten Karte gebunden; dann ist sie die Instanz der Beziehung.",
+     "@language": "de"
+    },
+    {
+     "@value": "The adapter instance a side holds under a displayed card's connection DID from the display until the card's challenge ages, before it knows the counterpart. It accepts only the encounter bundle that answers the card, and the enactment record binds it to the identities of the delivery hint in the sent card; it is then the relationship's instance.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1c-the-displayed-cards-instance"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
   }
  ]
 }
