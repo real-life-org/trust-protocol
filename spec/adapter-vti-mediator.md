@@ -204,10 +204,10 @@ JSON, JSON that has no JCS serialization (an unpaired surrogate), any
 other value or shape — is ignored, and no input makes the reading of a
 hint or of a card's hints fail.
 
-**RLTP-VTI-1225** — A receiver at carrier `C` takes the hint of this
-profile whose `serviceEndpoint` is byte-equal to its own `C`. Where the
-card carries none, or more than one, the counterpart has no wire
-identities at `C`.
+**RLTP-VTI-1225** — A receiver at carrier `C` takes, of the hints not
+ignored under RLTP-VTI-1220 and RLTP-VTI-1227, the hint whose
+`serviceEndpoint` is byte-equal to its own `C`. Where none or more than
+one such hint remains, the counterpart has no wire identities at `C`.
 
 **RLTP-VTI-1227** — A receiver ignores a hint that names one of its
 own wire identities of this relationship and carrier, as connection
@@ -819,8 +819,9 @@ is decidable.
     foreign account as above. The relationship runs in one direction
     only, the author's.
 
-  In each case the damage stays inside the relationship the author
-  leads itself. A co-signature of the hint by both wire identities
+  In each case the damage to a relationship stays with the one the
+  author leads itself; the load of the first case also falls on the
+  holder of the named account. A co-signature of the hint by both wire identities
   would prove possession; it is Open Issue 14.
 - **Who learns a displayed card's hint can deposit.** The displayed
   card shows the displaying side's connection DID to everyone who sees
