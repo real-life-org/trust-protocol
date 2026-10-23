@@ -22,9 +22,14 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.24 (twenty-fourth casting;
+// Profile: spec/adapter-vti-mediator.md v0.25 (twenty-fifth casting;
 // round journals under design/adapter-review*). A
-// transport adapter contract — NOT a carrier at the port.
+// transport adapter contract — NOT a carrier at the port. The
+// counterpart's connection DID and egress identity the wire needs come
+// from the counterpart's delivery hint in the card that opened the
+// relationship (profile §1b); the holder hands the hints on uninterpreted
+// (RelationshipView.counterpartDeliveryHints) and this adapter derives its
+// own trio from the relationship's carrier nonce (RelationshipView.carrierNonce).
 //
 // Sending form (profile §3a, lib 0.7.0): every deposit names its mode to
 // the wire. Mode `routed` (the mode of every instance from construction):
@@ -84,7 +89,7 @@
 //   · A retired instance mutates nothing and refuses everything
 //     except reading its ack state.
 import { jcs } from '../core.js';
-import { sha } from '../crypto.js';
+import { anchorOfEd, edRawOfAnchor, sha } from '../crypto.js';
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js';
 // ── Declared constants (profile §2) — promises of THIS casting ──────
 // frozen: the declared promises cannot be changed at run time either
@@ -97,6 +102,89 @@ export const DECLARED = Object.freeze({
     duplicateWindowMs: 30 * 86_400_000,
     routedAckDeadlineMs: 72 * 3_600_000,
 });
+const HINT_MEMBERS = jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type']);
+/** An Ed25519 did:key in the form RLTP-VTI-1210 fixes: `did:key:z` and the
+ *  base58btc of multicodec 0xed01 followed by the 32-byte key, rendered
+ *  canonically (decoding and re-encoding gives the same string). */
+const edDidKey = (x) => {
+    // the canonical form has exactly 56 characters; checked first, so no long input reaches the base58 decoder
+    if (typeof x !== 'string' || x.length !== 56)
+        return false;
+    const raw = edRawOfAnchor(x);
+    return raw !== null && anchorOfEd(raw) === x;
+};
+/** This side's hint for carrier `C` in the relationship of carrier nonce
+ *  `N` (RLTP-VTI-1210, 1215): the connection DID and the egress identity
+ *  derived here from (root, `C`, `N`), exactly as the factory derives the
+ *  instance's trio — derived, not supplied, so the two cannot come from
+ *  different relationships — as the JCS form of the TSPTransport service
+ *  entry naming the connection DID (`id`, with `#tsp`), `C`
+ *  (`serviceEndpoint`) and the egress identity (`rltpEgress`). */
+export async function deliveryHint(rootIkm, carrier, nonce) {
+    // snapshot at entry, as create does (R8-B2): a caller's buffer changed
+    // between the two derivations must not couple two relationships
+    const ikm = new Uint8Array(rootIkm);
+    const n = new Uint8Array(nonce);
+    const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection');
+    const egress = await carrierScopedIdentity(ikm, carrier, n, 'egress');
+    return jcs({ id: connection.did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: egress.did });
+}
+/** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,
+ *  byte-equal to its JCS form, exactly the four members, type
+ *  TSPTransport, an `id` ending in `#tsp`, both identities distinct
+ *  canonical Ed25519 did:key, `serviceEndpoint` byte-equal to `C`.
+ *  Total (RLTP-VTI-1220): any other input — not a string, not JSON, no JCS
+ *  form (a lone surrogate), any other shape — is null, ignored; it never
+ *  throws. */
+export function readDeliveryHint(hint, carrier) {
+    try {
+        return readStrict(hint, carrier);
+    }
+    catch {
+        return null;
+    }
+}
+function readStrict(hint, carrier) {
+    if (typeof hint !== 'string' || typeof carrier !== 'string' || carrier.length === 0)
+        return null;
+    const o = JSON.parse(hint);
+    if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o) !== hint)
+        return null;
+    const e = o;
+    if (jcs(Object.keys(e).sort()) !== HINT_MEMBERS || e.type !== 'TSPTransport' || e.serviceEndpoint !== carrier)
+        return null;
+    if (typeof e.id !== 'string' || !e.id.endsWith('#tsp'))
+        return null;
+    const connectionDid = e.id.slice(0, -'#tsp'.length);
+    if (!edDidKey(connectionDid) || !edDidKey(e.rltpEgress) || connectionDid === e.rltpEgress)
+        return null;
+    return { connectionDid, egressDid: e.rltpEgress, carrier };
+}
+/** The counterpart's wire identities at `C` from the hints of the card
+ *  that opened the relationship, read by the side `self` (its own
+ *  connection DID and egress identity of this relationship and carrier):
+ *  every hint read as readDeliveryHint does; a hint naming one of `self`'s
+ *  identities is ignored (RLTP-VTI-1227); of what remains, the one hint
+ *  for `C` (RLTP-VTI-1225, 1240) — none, or more than one, is null: the
+ *  relationship is not carried at `C` (RLTP-VTI-1235). Total: any input
+ *  answers null or the identities, never a throw; without a well-formed
+ *  `self` nothing is read. */
+export function readDeliveryHints(hints, carrier, self) {
+    try {
+        if (!Array.isArray(hints))
+            return null;
+        const me = self;
+        if (me === null || typeof me !== 'object' || !edDidKey(me.connection) || !edDidKey(me.egress))
+            return null;
+        const own = new Set([me.connection, me.egress]);
+        const read = hints.map((h) => readDeliveryHint(h, carrier))
+            .filter((x) => x !== null && !own.has(x.connectionDid) && !own.has(x.egressDid));
+        return read.length === 1 ? read[0] : null;
+    }
+    catch {
+        return null;
+    }
+}
 const SEND_MODES = new Set(['routed', 'egress-session']);
 /** The addressing of a deposit in `mode` (RLTP-VTI-1110, 1120, 3110,
  *  3115, 3120): the inner `direct` message from this side's egress

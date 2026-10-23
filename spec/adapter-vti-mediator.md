@@ -3,7 +3,7 @@
 **Real Life Trust Protocol — Transport Adapter Profile (below the port line)**
 
 - **Status:** Editor's Draft
-- **Version:** 0.24.0-draft (twenty-fourth casting)
+- **Version:** 0.25.0-draft (twenty-fifth casting)
 - **Status of This Document:** Editor's Draft, not yet converged.
   This profile changes normatively between castings and MUST NOT be
   relied upon for implementation or interoperability claims. Review
@@ -11,7 +11,9 @@
 - **Editors:** Anton Tranelis
 - **Companions:** RLTP Delivery Contract 0.83 (§5a.10, §6.1, §6.2,
   §6.3, RLTP-DEL-6120 to RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335; Appendix A names the changes its
-  next casting takes up); RLTP Identity 0.54 (§7a, §13)
+  next casting takes up); RLTP Identity 0.54 (§7a, §9.3, §13); RLTP
+  Encounter 0.31.1 (§5.8, §6, RLTP-ENC-6080, RLTP-ENC-6090); RLTP Trust
+  Layer 0.31 (§6a)
 
 Target carrier: the VTI/Affinidi messaging mediator as released in
 **VTI-Dogwood** (pins: `vti-didcomm-js` @ `1d110bf`,
@@ -88,20 +90,22 @@ foreign one.
     of its own (§3a).
 
   The counterpart's connection DID and egress identity are inputs
-  to an instance, exchanged with the relationship above this
-  profile; this profile defines no exchange of them, and what §7
-  and §8 say of foreign senders holds as far as that exchange binds
-  them to the relationship (§10).
+  to an instance. A side takes them from the counterpart's delivery
+  hint in the card that opened the relationship (§1b), and from
+  nowhere else.
 
   Each is derivable from the root; none from any other. **The trio
   is derived by the adapter's factory itself** from one (root,
-  `C`, `N`) — caller-supplied identities are refused at the door,
+  `C`, `N`), `N` the relationship's carrier nonce (Identity §7a.3,
+  RLTP-VTI-1215) — caller-supplied identities are refused at the door,
   so a mixed trio (identities from two relationships) cannot be
   built at all.
 - Both wire identities carry §5a.10's three prohibitions — **not
   well-known**, **not person-wide**, **not reused outside this
   relationship** — and are retired with the principal, never
-  reassigned. `from_prior` is **forbidden**; a new connection DID
+  reassigned. The delivery hint (§1b) names them only in the card of
+  the enactment that opens their relationship; Appendix A states the
+  reading of "not well-known" this needs. `from_prior` is **forbidden**; a new connection DID
   is a fresh mediation relationship, never a rotation statement.
 - One mediation relationship per principal; keylists
   principal-local; every status, pickup and receipt operation
@@ -153,6 +157,117 @@ deposits under the connection DID). The sentence of §5a.10 that a
 nested private end-to-end VID is "hidden from intermediaries by
 construction" is not a property of routed mode: the mediator opens
 the routing layer and reads the inner sender (§9).
+
+## 1b. The delivery hint
+
+A card MAY carry delivery hints (Encounter RLTP-ENC-6080); their form
+is the carrier profile's. This section fixes the hint by which a side
+offers this carrier to a counterpart, and how the counterpart reads it.
+The card that carries it is the card of the enactment that opens the
+relationship: for the displaying side its displayed card, for the
+scanning side its sent card (Encounter §5.8). Both are signed under the
+fresh pair anchor of that enactment, so the hint is bound to the
+enactment by the card's proof, and to nothing else.
+
+**RLTP-VTI-1210** — A hint of this profile is the JCS serialization
+(RFC 8785) of a JSON object with exactly four members: `type`, the
+string `TSPTransport`; `id`, the side's connection DID followed by
+`#tsp`; `serviceEndpoint`, `C` exactly as configured; and `rltpEgress`,
+the side's egress identity. Both identities are Ed25519 `did:key`
+identifiers in exactly the form the derivation of §1 produces:
+`did:key:z` followed by the base58btc encoding of the multicodec prefix
+`0xed 0x01` and the 32-byte public key, in its canonical rendering
+(decoding and re-encoding yields the same string); a string that only
+matches the pattern `did:key:z6Mk…` without decoding so is not one. The
+two are distinct. A card carries at most one hint of this
+profile per `C`; a side reachable through two mediators places two
+hints, and the card stays within RLTP-ENC-6090.
+
+**RLTP-VTI-1215** — The identities a hint names are the connection DID
+and the egress identity the adapter factory derives from (root, `C`,
+`N`), where `N` is the carrier nonce (Identity §7a.3) of the
+relationship the card opens. The displaying side draws `N` fresh when
+it makes the displayed card and records it in its register under the
+relationship that card's enactment opens; the scanning side draws `N`
+fresh at the scan. `N` is not derived from the card, its anchor, its
+challenge or any pair nonce, and it appears in no card and on no wire;
+only the identities derived from it do. A displayed card that ages
+unscanned leaves its `N` unused.
+
+**RLTP-VTI-1220** — A receiver reads a hint as this profile's only if
+it parses as a JSON object, its bytes are the JCS serialization of that
+object, and the object satisfies RLTP-VTI-1210. A hint that fails any
+of these is ignored; it is no fault of the card, which may carry hints
+of other profiles. The reader is a total function: every input that
+does not have exactly the form of RLTP-VTI-1210 — a string that is not
+JSON, JSON that has no JCS serialization (an unpaired surrogate), any
+other value or shape — is ignored, and no input makes the reading of a
+hint or of a card's hints fail.
+
+**RLTP-VTI-1225** — A receiver at carrier `C` takes, of the hints not
+ignored under RLTP-VTI-1220 and RLTP-VTI-1227, the hint whose
+`serviceEndpoint` is byte-equal to its own `C`. Where none or more than
+one such hint remains, the counterpart has no wire identities at `C`.
+
+**RLTP-VTI-1227** — A receiver ignores a hint that names one of its
+own wire identities of this relationship and carrier, as connection
+DID or as egress identity. The counterpart's identities are never this
+side's own.
+
+**RLTP-VTI-1230** — The hints act at first contact only. A side takes
+the counterpart's wire identities from the card of the enactment that
+opened the relationship, and keeps them, and its own `N`, for the
+relationship chain. That card is the counterpart's card on the
+enactment record whose relationship is this one: every enactment opens
+a fresh relationship (Encounter §4.4), so until the continuity machinery
+chains a later enactment into the chain (Trust §6a), that enactment's
+relationship is one of its own, and its card is its first contact.
+Once chained, the later card leaves the chain unchanged: its hints are
+ignored, and the `N` drawn for it stays with the fresh relationship it
+opened. The chain is carried under the `N` of its first contact. An
+adapter instance built for the later enactment's relationship before
+the chaining is closed at the chaining (§6): it collects and deposits
+nothing more. A document the counterpart deposited to that
+relationship's account in the window and that was not collected before
+the close fails at the sender's give-up horizon (§6.1), the resubmission
+being the sender's recourse.
+
+**RLTP-VTI-1235** — A relationship whose counterpart has no wire
+identities at `C` (RLTP-VTI-1225, an introduced relationship, a card
+without hints) is not carried by this profile at `C`: no adapter
+instance is built for it there, and its documents stay in the holder's
+custody (RLTP-DEL-6120) until another transport takes them or they
+fail at their horizon. A relationship that had no hint at first contact
+stays so, a re-encounter included (RLTP-VTI-1230); the re-announcement
+of Open Issue 13 covers this case as well.
+
+**RLTP-VTI-1240** — The counterpart's egress identity of RLTP-VTI-7140
+is the `rltpEgress` of the hint taken under RLTP-VTI-1225, 1227 and
+1230; its connection DID, the receiver of every inner message
+this side sends (RLTP-VTI-3110), is that hint's `id` without `#tsp`.
+
+**RLTP-VTI-1245** — This profile carries no change of `N` for a
+relationship whose identities a hint announced: neither the rotation of
+Identity §7a.3 (`generation + 1`) nor a fresh `N` after the loss of the
+register entry. The counterpart keeps the identities of the first
+contact (RLTP-VTI-1230), so a holder that rotates or replaces `N` ends
+the relationship's reachability over this carrier: its new identities
+reach no one, and documents to it stay in custody as under
+RLTP-VTI-1235. The same holds for a second first entry that the
+register convergence of Identity §7a.3 makes canonical over the `N` of
+the hint (two devices writing a first `N` apart): it is a change of `N`
+in this sense. A holder with one writer of its register, as this
+casting assumes, never produces one. Re-announcing the wire identities
+over the relationship, which all these cases and several writing
+devices need, is Open Issue 13.
+
+The hint is read below the port line. The holder that carries the
+card passes the hints on as signed and interprets none; building and
+reading them is the adapter's, and the mapping
+from the counterpart's `rkid` to its wire identities is the host's
+state beside the adapter instance. A sender above the port still knows
+nothing of the counterpart's carrier arrangement but the `rkid`
+(Delivery §5a.1).
 
 ## 2. Declared constants
 
@@ -480,7 +595,13 @@ switches the relationship at once and leaves the submission
 Change of the direct carrier = change of `C` = new principal, new
 adapter instance, new wire identities; the old ones are retired,
 never re-pointed. Changes beyond the direct carrier change
-nothing. A rebind is likewise a new instance. There is no wind-up
+nothing. A rebind is likewise a new instance. A relationship that the
+continuity machinery chains into another is closed at the chaining
+and gets no successor; the chain is carried by the instance of its
+first contact (RLTP-VTI-1230). The documents of the closed instance
+that are still in the holder's custody are taken over by the chain's
+instance as under RLTP-VTI-6110 and RLTP-VTI-6120, and the appended
+tuple's `rkid` maps to the chain's wire identities. There is no wind-up
 here to run: the adapter holds no bindings — what it holds at
 teardown is its ack state (§4, the host persists it) and its
 submissions. **A close with live submissions ends their
@@ -596,7 +717,12 @@ prefix-separated), the addressing of both sending modes is
 vector-tested (`vectors/vti-routed-addressing.json`: inner and
 outer sender, receiver, route list and session per mode, the
 addressings §1a and §3a refuse, and the messages RLTP-VTI-7140
-refuses on receipt), and the adapter obligations of
+refuses on receipt), the delivery hint is vector-tested
+(`vectors/vti-delivery-hints.json`: each side's hint from the derived
+identities, its length, a displayed card and the sent card answering
+it, each carrying its side's hint under its proof, a card whose hint
+exceeds 512 characters, the hints a receiver ignores, and what a
+receiver reads from a card's hint list), and the adapter obligations of
 this contract are exercised against the wire double. The byte form
 of a routed frame is the TSP library's and is not vectored here.
 What genuinely needs a carrier **interface** — proof-gated
@@ -669,6 +795,43 @@ is decidable.
   document; a copy the adapter hands to the holder after
   `give-up-horizon` (§2) is answered again with the stored
   acknowledgement, and nothing more.
+- **A hint binds through the card's proof alone.** The wire
+  identities do not sign the hint, so a card's author can name
+  identities that are not its own, for instance a connection DID read
+  off someone else's displayed card. A hint naming the reader's own
+  identities is ignored (RLTP-VTI-1227), so the author cannot point the
+  counterpart at itself. What remains steers only the counterpart's
+  documents of this one relationship:
+  - **A foreign connection DID.** The counterpart's documents go to the
+    named account. Its holder receives frames it cannot open: the inner
+    message is sealed to the named connection DID's key, but the RLTP
+    envelope inside stays sealed to the author's `rkid`. The account
+    bears the load: its adapter's buffering is bounded by §2, the
+    mediator's queue and the deposit rate are the mediator's own limits
+    (§2, the honest limit), and the mediator sees a pairing of the
+    counterpart's egress identity with that account that no
+    relationship holds (§9).
+  - **A foreign egress identity.** The counterpart's binding accepts
+    inner messages only from the named egress identity
+    (RLTP-VTI-7140), so the author's own deposits are refused.
+  - **A foreign connection DID with the author's own egress identity.**
+    The author's deposits are accepted; the counterpart's go to the
+    foreign account as above. The relationship runs in one direction
+    only, the author's.
+
+  In each case the damage to a relationship stays with the one the
+  author leads itself; the load of the first case also falls on the
+  holder of the named account. A co-signature of the hint by both wire identities
+  would prove possession; it is Open Issue 14.
+- **Who learns a displayed card's hint can deposit.** The displayed
+  card shows the displaying side's connection DID to everyone who sees
+  it (§9). A party other than the counterpart can deposit frames to
+  that account at the mediator; the binding refuses each
+  (RLTP-VTI-7140), logs and acknowledges it, and the documents it
+  carried have no effect. The cost is load: the receiving adapter's
+  buffering is bounded by §2; the mediator's queue and the deposit rate
+  are the mediator's own limits, which this profile does not bind (§2,
+  the honest limit).
 - **Foreign inner messages fail at the receiver.** The mediator
   opens the routing layer and could pass on an inner message of
   its own choosing. An inner message is sealed to the
@@ -711,6 +874,17 @@ is decidable.
   unlinkability. Only a nested inner relationship (TSP §4, §5.5),
   in which the egress identity travels inside a layer the mediator
   cannot open, would keep it from the mediator (§10).
+- **What a card reveals.** A card carrying a hint names `C` and the
+  connection DID and egress identity of the relationship it opens. A
+  sent card travels sealed inside the encounter bundle, except on the
+  optical leg (Encounter §5.8). A displayed card is readable by
+  everyone who sees it while it is displayed: bystanders, and a second
+  scanner of the same image (Open Issue 11). They learn identifiers of
+  a relationship that only one enactment can form (Encounter
+  RLTP-ENC-5170); `N` itself never appears (RLTP-VTI-1215). A hint
+  that names another party's account (§8) shows the mediator a
+  pairing between that account and the counterpart's egress identity
+  that no relationship holds.
 - **The principal never appears on the wire** — the mediator
   cannot see, and therefore cannot leak, the identifier under
   which port-level authority is exercised.
@@ -783,21 +957,61 @@ is decidable.
 10. **A mediator VID other than `C`.** Not served (RLTP-VTI-7120);
    serving it needs a connection DID that is not a function of
    (root, `C`, `N`) alone.
-11. **The counterpart's wire identities.** Where a side obtains the
-   counterpart's connection DID and egress identity, and how they are
-   bound to the relationship, is not defined here (§1). Taken on
-   first contact without such a binding, the refusal of foreign inner
-   messages (RLTP-VTI-7140, §8) protects only as far as the
-   end-to-end checks above the adapter do.
+11. **Several scanners of one displayed card.** The wire identities
+   of a displayed card belong to that card's `N` until the card is
+   replaced with its challenge, so everyone who scans or sees the same
+   image reads the same identities (§8, §9). A two-stage form — a
+   short-lived invitation identity on the displayed card, the
+   relationship's identities afterwards in a signed document of the
+   relationship — would keep them from all but the counterpart; it
+   needs a document type that does not exist and is not part of this
+   casting.
+12. **Foreign TSP clients.** A hint reads as a `TSPTransport` service
+   entry, but a client of the target TSP library drops an application
+   message from a sender with which it has formed no relationship
+   (XRFI/XRFA). This profile forms none between the egress identity
+   and the counterpart's connection DID, so a foreign client cannot be
+   reached through a hint alone.
+13. **Re-announcing the wire identities over the relationship.** A
+   rotation or replacement of `N` (RLTP-VTI-1245), a second first `N`
+   from several devices writing the register (RLTP-VTI-1245) and a
+   relationship without a hint at first contact (RLTP-VTI-1235) all need the
+   relationship's wire identities announced in a signed document of the
+   relationship rather than in a card. That document type does not
+   exist; together with the two-stage form of Open Issue 11 it is the
+   same construction, not part of this casting.
+14. **Possession of the named identities.** A hint is bound by the
+   card's proof alone (§8). A co-signature by the connection DID and
+   the egress identity would prove that the author holds both; this
+   casting does not require it.
 
 ## Appendix A: Companion changes
 
-§1a reads one clause of Delivery §5a.10 differently from its
+§1a and §1b read clauses of Delivery §5a.10 differently from their
 present wording. The Delivery Contract owns that clause; these are
 the changes its next casting takes up.
 
 **Delivery Contract (next casting):**
 
+- 5a.10, every clause that names a card or a resolvable location as a
+  forbidden place for an identifier — "not well-known", item 1 (the
+  VID "MUST NOT be published in a directory, a well-known location, a
+  profile, a card, …"); the TSP ingress clause ("in no directory,
+  profile, card, or other location that resolves it for a party which
+  is not this carrier"); and the DIDComm connection DID ("in no
+  directory, profile, or resolvable public location"): what each
+  forbids is every place that makes the identifier resolvable for a
+  party outside this relationship. The card of this relationship,
+  given to its counterpart (the sent card answering the displayed
+  card), is no such place and MAY name the identifier. A displayed
+  card is the one named exception: it MAY name the identifier, it is
+  carried to its scanner or scanners only, for the time it is
+  displayed and for one enactment (Encounter RLTP-ENC-5170), and a
+  card scanned or seen by more than one party is the bound an adapter
+  profile that uses such a card states (this profile: §9, Open
+  Issue 11). The conformance list of the same
+  casting (§11: the well-known outer VID, the well-known DIDComm
+  connection DID, TSP ingress) reads "well-known" alike.
 - 5a.10, TSP ingress, the prohibition "not person-wide": the clause
   "the sending side and the collecting side of one person must never
   meet in one identifier" applies to every sender identifier the
@@ -846,3 +1060,12 @@ the changes its next casting takes up.
   live outer VIDs for one principal → nonconformant": a send-only
   session of a sending-side identifier at the same carrier →
   conformant.
+
+## Appendix B: Changelog
+
+One line per casting; the earlier castings are archived unchanged
+under `archive/`.
+
+| Version | Date | Change |
+|---|---|---|
+| 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |

@@ -58,8 +58,8 @@ export interface Challenge { value: string, issuedAt: string }
  * the fields travel together or the card is neither profile).
  */
 export type CardFields =
-  | { name?: string, challenge?: Challenge, sentTo?: undefined, boundTo?: undefined }
-  | { name?: string, challenge?: Challenge, sentTo: string, boundTo: string }
+  | { name?: string, deliveryHints?: string[], challenge?: Challenge, sentTo?: undefined, boundTo?: undefined }
+  | { name?: string, deliveryHints?: string[], challenge?: Challenge, sentTo: string, boundTo: string }
 
 /** A card body as it goes under the signature. */
 export interface CardBody {
@@ -67,18 +67,21 @@ export interface CardBody {
   anchor: string
   keyAgreement: string
   name?: string
+  /** Encounter 6080, 6090: opaque strings whose form the carrier profile that names them defines */
+  deliveryHints?: string[]
   challenge?: Challenge
   sentTo?: string
   boundTo?: string
 }
 
 export function cardBody (ctx: { anchor: string, keyAgreement: string }, fields: CardFields = {}): CardBody {
-  const { name, challenge, sentTo, boundTo } = fields as { name?: string, challenge?: Challenge, sentTo?: string, boundTo?: string }
+  const { name, deliveryHints, challenge, sentTo, boundTo } = fields as { name?: string, deliveryHints?: string[], challenge?: Challenge, sentTo?: string, boundTo?: string }
   // runtime guard for JS callers the union cannot reach: the sent-card
   // profile is atomic — half of it is not a card of either profile
   if ((sentTo === undefined) !== (boundTo === undefined)) throw new Error('a sent card carries sentTo AND boundTo together (Encounter §5)')
   const b: CardBody = { version: CARD_VERSION, anchor: ctx.anchor, keyAgreement: ctx.keyAgreement }
   if (name !== undefined) b.name = name
+  if (deliveryHints !== undefined) b.deliveryHints = [...deliveryHints]
   if (challenge !== undefined) b.challenge = challenge
   if (sentTo !== undefined) { b.sentTo = sentTo; b.boundTo = boundTo }
   return b

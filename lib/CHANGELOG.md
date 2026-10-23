@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.8.0
+
+Takes up the VTI Mediator Adapter Profile 0.25 (§1b, the delivery hint)
+and Encounter 0.31.1: a card carries the hints by which its side is
+reachable in the relationship the card opens. A minor version: the
+public API grows (`CarrierOffer`, a new `ActError` member, new
+`RelationshipView` fields, three adapter exports); the storage format
+does not change.
+
+- **The carrier offer** of `show` and `scan`: `carrier: {nonce,
+  deliveryHints}` (new type `CarrierOffer`). `nonce` is the
+  relationship's carrier nonce N, 32 bytes the app draws fresh (Identity
+  §7a.3); `deliveryHints` are the hints the app built from the wire
+  identities its adapter derives from N. The displayed card (`show`) or
+  the scanner's sent card (`scan`) carries the hints under its proof.
+  The library interprets no hint. The offer is act input: bound and
+  journaled with the act, so a repeat under the same actId answers the
+  same card and another offer under it is `actid-conflict`.
+- **N in the register** (`register.carriers`, generation 1) under the
+  relationship the card opens: at `show` already, as the card's pair
+  label enters the register before display (Encounter 4110); a card that
+  ages unscanned leaves its entry, as it leaves its label. At `scan`
+  under the scanner's fresh relationship. The storage format is
+  unchanged (codec 3).
+- **Refusals**: more than eight hints or a hint over 512 characters
+  (Encounter RLTP-ENC-6090) is `card-invalid` with `ref`
+  `RLTP-ENC-6090`; an offer without a hint, or with a hint that is no
+  string, is `card-invalid` without a `ref` (an empty offer announces
+  nothing; a card without hints needs no offer, 6080); a nonce that is not 32 bytes in canonical base64url,
+  or that the register already holds as a carrier or pair nonce, is the
+  new code `carrier-nonce-invalid`. Nothing commits on a refusal.
+- **The view**: each `RelationshipView` names the relationship's
+  canonical carrier-nonce entry (`carrierNonce: {nonce, generation}`) and
+  the counterpart's hints from the card of the enactment that opened it
+  (`counterpartDeliveryHints`), as signed. A re-encounter chained into
+  the relationship changes neither (profile RLTP-VTI-1230). Without an
+  offer both are absent.
+- `cardBody` takes `deliveryHints`.
+- **The adapter builds and reads the hint** (`./adapters/vti-mediator`,
+  below the port line): `deliveryHint(rootIkm, C, N)` derives this
+  side's connection DID and egress identity from (root, `C`, `N`), as
+  the factory derives the instance's trio (derived, not supplied), and
+  gives its hint (RLTP-VTI-1210: the JCS form of the `TSPTransport`
+  entry);
+  `readDeliveryHint(hint, C)` reads one hint strictly (1210, 1220: JSON,
+  byte-equal to its JCS form, exactly the four members, both identities
+  canonical Ed25519 `did:key` that decode to `0xed01` and 32 bytes,
+  `serviceEndpoint` = `C`) into `{connectionDid, egressDid, carrier}` or null;
+  `readDeliveryHints(hints, C, self)` reads a card's list as the side
+  `self` (its own connection DID and egress identity): a hint naming one
+  of them is ignored (RLTP-VTI-1227), then exactly one hint for `C`
+  (1225), else null. Both readers are total (RLTP-VTI-1220): any input
+  answers null or the complete identities, nothing throws — a hint that
+  parses but has no JCS form (a lone surrogate) included; tested over the
+  vector's corpus and 20 000 seeded mutations. The app passes the
+  identities to the wire (`peerDid`, `peerEgressDid` of the binding),
+  which refuses a counterpart identity that is one of its own.
+- **No change of N.** The library offers no rotation of a carrier nonce
+  (Identity §7a.3, `generation + 1`) and no replacement after loss:
+  `register.carriers` is written once per relationship, at `show` or
+  `scan`. The profile carries none either (RLTP-VTI-1245). With one
+  writer of the register per holder, as in this library, `carrierNonce`
+  is the `N` whose identities the counterpart saw; two devices writing a
+  first `N` apart would make that untrue (profile Open Issue 13). A
+  relationship chained into another is no `RelationshipView` of its own
+  (only an id in `chainedFrom`) and shows no `carrierNonce`: the app
+  closes the adapter instance of a relationship once its id appears in
+  another relationship's `chainedFrom` (RLTP-VTI-1230).
+
 ## 0.7.0
 
 Takes up the VTI Mediator Adapter Profile 0.24: the sending form of §3a.

@@ -1991,6 +1991,46 @@
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1a-which-layer-counts-5a10-read-for-routed-deposits"
    ],
    "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:DeliveryHint",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:ContactCard"
+    },
+    {
+     "@id": "rltp:ConnectionDid"
+    },
+    {
+     "@id": "rltp:EgressIdentity"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Zustellhinweis",
+     "@language": "de"
+    },
+    {
+     "@value": "Delivery hint",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Eine Zeichenkette in einer Kontaktkarte, die sagt, über welchen Träger die Seite in der Beziehung erreichbar ist, die die Karte eröffnet. Ihre Form legt das Trägerprofil fest; beim VTI-Mediator ist es ein TSPTransport-Diensteintrag mit Verbindungs-DID, Mediator-DID und Egress-Identität. Sie gilt nur beim Erstkontakt.",
+     "@language": "de"
+    },
+    {
+     "@value": "A string in a contact card that says through which carrier a side is reachable in the relationship the card opens. Its form is the carrier profile's; for the VTI mediator it is a TSPTransport service entry naming the connection DID, the mediator's DID and the egress identity. It acts at first contact only.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1b-the-delivery-hint"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
   }
  ]
 }

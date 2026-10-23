@@ -14,8 +14,13 @@
 //                                  into the register before display (4110,
 //                                  Identity 6.1), the key's lastShown in
 //                                  `addresses` (Delivery §5), the challenge
-//                                  held open; event encounter.shown carries
-//                                  the card, the optical payload
+//                                  held open; with a carrier offer the
+//                                  card carries its delivery hints (6080)
+//                                  and its carrier nonce enters the
+//                                  register under the relationship the
+//                                  card opens (Identity §7a.3); event
+//                                  encounter.shown carries the card, the
+//                                  optical payload
 //               encounter.scan     the scanner's step (5.8 trunk 2–3):
 //                                  the displayed card checked, a fresh
 //                                  label and own challenge c_A, the record
@@ -24,8 +29,10 @@
 //                                  its prior candidates frozen, its
 //                                  continuity probe pending, 6820) and the
 //                                  bundle into the outbox, in one commit;
-//                                  event encounter.scanned carries the
-//                                  sent card for the optical leg
+//                                  a carrier offer as with show, its hints
+//                                  in the sent card; event
+//                                  encounter.scanned carries the sent card
+//                                  for the optical leg
 //               encounter.capture  the optical leg (5.8, 5710): a sent
 //                                  card presented to the displayer
 //               encounter.counter  the counter-step (5.8 step 4)
@@ -78,17 +85,27 @@
 //     needs an active tuple (tuple-deactivated), its document waits for
 //     the bundle's thread where the record arose on the optical leg (5780)
 //     and goes out with the bundle's record-aware effect
+//   - the carrier offer {nonce, deliveryHints}: the app draws the carrier
+//     nonce N and builds the hints from it (an adapter derives the wire
+//     identities from root, carrier and N), so the offer is plain act
+//     input, bound and journaled with the act; the library checks 6090 on
+//     the hints (card-invalid), N's form and freshness (carrier-nonce-
+//     invalid: 32 bytes, held nowhere in the register), and interprets no
+//     hint. N enters the register at show already, under the relationship
+//     id the card's label opens, as the label and its pair nonce do (4110);
+//     a card that ages unscanned leaves it there, like its label (the
+//     register only grows)
 //   - encounter.capture of a card already recorded with the same material
 //     is an idempotent success (5430): the act commits its journal entry only
 //   - no automatic optical switch (5690 RECOMMENDS ack-wait as its
 //     trigger): the app shows the sent card (encounter.scanned) when it
 //     sees the bundle undelivered (deliveryStatus)
-import { b64uOf, iso, jcs, makeValidator, sameDigest } from '../core.js';
+import { b64uOf, fromB64u, iso, jcs, makeValidator, sameDigest } from '../core.js';
 import { diSignWith, diVerify, digestBytes, digestDoc } from '../crypto.js';
 import { seal } from '../delivery.js';
 import { BUNDLE_TYPE, CEREMONY, CHALLENGE_MAX_AGE, SKEW_TOLERANCE, DELIVERY_TYPE, acceptTail, bundleForm, cardBody, cardOk, challengeAged, challengeOf, credHead, credentialBody, deliveryForm, dispositionOf, futureOk, issuanceEnd, issuanceOpen, windowOk, } from '../encounter.js';
 import { SCHEMAS } from '../schemas.js';
-import { withPairNonce } from '../identity-state.js';
+import { carrierNonceHeld, withCarrierNonce, withPairNonce } from '../identity-state.js';
 import { tupleByRkid } from '../receive.js';
 import { openTuple } from '../trust/continuity.js';
 import { entryOf, findContact, tupleByLabel } from '../trust/state.js';
@@ -167,6 +184,8 @@ function placeOf(state, r) {
         return { contactId: idsOf(r.label).contactId, relationshipId: r.relId };
     return { contactId: entryOf(state, at.rel)?.id ?? at.tuple.entryId, relationshipId: at.rel.id };
 }
+/** The register with the offer's carrier nonce under `relId`, or unchanged without an offer. */
+const carrierOf = (r, relId, carrier) => carrier === undefined ? r : withCarrierNonce(r, relId, carrier.nonce);
 const sealWith = (ctx, doc, keyAgreement) => seal(doc, keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, ctx.crypto.subtle);
 const signer = (ctx, label) => (b) => ctx.keys.sign(label, b);
 /** The display name a card carries: the input's, else the own profile's, at most 200 characters (6090). */
@@ -174,6 +193,29 @@ const nameFor = (state, name) => {
     const n = typeof name === 'string' ? name : state.profile.body?.name;
     return typeof n === 'string' && n.length ? [...n].slice(0, 200).join('') : undefined;
 };
+/** The carrier offer's own checks, before anything is signed: at least
+ *  one hint, each a string (else card-invalid without a ref: an empty offer
+ *  announces nothing, a card without hints needs no offer); the bounds of
+ *  6090 (at most eight, each at most 512 characters); then N's form (32
+ *  bytes, canonical base64url). null where there is no offer or it passes. */
+function offerRefusal(carrier) {
+    if (carrier === undefined)
+        return null;
+    const c = carrier;
+    const h = c?.deliveryHints;
+    // an offer announces its carrier: no hint (a card without hints is a card
+    // without an offer, 6080) or a hint that is no string is no offer
+    if (!Array.isArray(h) || h.length < 1 || !h.every((x) => typeof x === 'string'))
+        return no('card-invalid');
+    if (h.length > 8 || !h.every((x) => [...x].length <= 512))
+        return no('card-invalid', 'RLTP-ENC-6090');
+    const n = c?.nonce;
+    if (typeof n !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(n) || b64uOf(fromB64u(n)) !== n)
+        return no('carrier-nonce-invalid');
+    return null;
+}
+/** N is fresh (Identity §7a.3): no carrier or pair nonce of the register, and not this act's pair nonce. */
+const nonceStale = (state, carrier, pairNonce) => carrier !== undefined && (carrier.nonce === pairNonce || carrierNonceHeld(state.register, carrier.nonce));
 /** A fresh pair label from 32 fresh nonce bytes (Identity 6.1, Encounter 4.4). */
 async function freshLabel(ctx) {
     const n = ctx.entropy.bytes('founding.nonce', 32);
@@ -182,17 +224,25 @@ async function freshLabel(ctx) {
 const showDef = {
     human: true,
     async prepare(ctx, input) {
+        const offer = offerRefusal(input?.carrier);
+        if (offer)
+            return offer;
         const { label, nonce } = await freshLabel(ctx);
         const own = await ctx.keys.anchorOf(label);
         const value = challengeOf(ctx.entropy.bytes('challenge', 17));
         const at = iso(ctx.when);
         const name = nameFor(ctx.snapshot, input?.name);
-        const body = cardBody(own, { ...(name !== undefined ? { name } : {}), challenge: { value, issuedAt: at } });
+        const hints = input?.carrier !== undefined ? { deliveryHints: input.carrier.deliveryHints } : {};
+        const body = cardBody(own, { ...(name !== undefined ? { name } : {}), ...hints, challenge: { value, issuedAt: at } });
         const card = await diSignWith(own.anchor, signer(ctx, label), body, at, ctx.crypto.subtle);
         return { label, nonce, rkid: own.keyAgreement, value, card };
     },
-    apply(state, prepared, _input, when) {
+    apply(state, prepared, input, when) {
         const p = prepared.value;
+        if (isRefusal(p))
+            return p;
+        if (nonceStale(state, input?.carrier, p.nonce))
+            return no('carrier-nonce-invalid');
         // fresh-always (4.4, 4150) and single use (5140): fresh entropy never
         // repeats; a repeat is a broken entropy source, not a human's refusal
         if (state.register.labels.includes(p.label) || tupleByLabel(state, p.label))
@@ -202,8 +252,9 @@ const showDef = {
         return {
             state: {
                 ...state,
-                // 4110: the label in the register before the card is displayed
-                register: withPairNonce(state.register, p.label, p.nonce),
+                // 4110: the label in the register before the card is displayed;
+                // the carrier nonce beside it, under the relationship the card opens
+                register: carrierOf(withPairNonce(state.register, p.label, p.nonce), idsOf(p.label).relId, input?.carrier),
                 addresses: { ...state.addresses, keys: { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: when } } },
                 encounter: { ...state.encounter, challenges: { ...state.encounter.challenges, [p.value]: { value: p.value, tCh: when, label: p.label, card: p.card } } },
             },
@@ -220,6 +271,9 @@ const scanDef = {
         // a displayed card carries neither sentTo nor boundTo (6070)
         if (peer.sentTo !== undefined || peer.boundTo !== undefined)
             return no('card-invalid', 'RLTP-ENC-6070');
+        const offer = offerRefusal(input?.carrier);
+        if (offer)
+            return offer;
         const S = ctx.crypto.subtle;
         const { label, nonce } = await freshLabel(ctx);
         const me = await ctx.keys.anchorOf(label);
@@ -234,7 +288,8 @@ const scanDef = {
         const sign = signer(ctx, label);
         const credential = await diSignWith(me.anchor, sign, credentialBody(me.anchor, peer.anchor, CEREMONY, peer.challenge.value, bind, at), at, S);
         const name = nameFor(ctx.snapshot, input?.name);
-        const sent = cardBody(me, { ...(name !== undefined ? { name } : {}), challenge: { value: own, issuedAt: at }, sentTo: peer.anchor, boundTo: peer.challenge.value });
+        const hints = input?.carrier !== undefined ? { deliveryHints: input.carrier.deliveryHints } : {};
+        const sent = cardBody(me, { ...(name !== undefined ? { name } : {}), ...hints, challenge: { value: own, issuedAt: at }, sentTo: peer.anchor, boundTo: peer.challenge.value });
         const sentCard = await diSignWith(me.anchor, sign, sent, at, S);
         const threadId = ctx.entropy.id('thread.id');
         const doc = { id: ctx.entropy.id('doc.id'), type: BUNDLE_TYPE, issuer: me.anchor, recipient: peer.anchor, threadId, issuedAt: at, payload: { card: sentCard, credential } };
@@ -243,10 +298,12 @@ const scanDef = {
             doc: { digest: await digestDoc(doc, S), envelope: await sealWith(ctx, doc, peer.keyAgreement) },
         };
     },
-    apply(state, prepared, _input, when) {
+    apply(state, prepared, input, when) {
         const p = prepared.value;
         if (isRefusal(p))
             return p;
+        if (nonceStale(state, input?.carrier, p.nonce))
+            return no('carrier-nonce-invalid');
         const peerValue = p.peer.challenge.value;
         // 5.3 single use from the scanner's side: a displayed value already in
         // one of the own records never enters a second enactment (5170)
@@ -272,7 +329,7 @@ const scanDef = {
             thread: p.threadId, bundleDigest: p.doc.digest, threads: {}, sentCard: p.sentCard, counterPending: false,
         };
         return {
-            state: withRecord(opened.state, record),
+            state: withRecord({ ...opened.state, register: carrierOf(opened.state.register, ids.relId, input?.carrier) }, record),
             outbound: [{
                     digest: p.doc.digest, envelope: p.doc.envelope, type: BUNDLE_TYPE, threadId: p.threadId,
                     recipient: { contactId: ids.contactId, rkid: p.rkid, keyAgreement: p.peer.keyAgreement },

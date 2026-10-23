@@ -75,7 +75,9 @@
 //   generation 2^53 − 2 it is refused (scope-exhausted, Identity §5.4)
 //
 // Pure register helpers for the modules that open contexts (the encounter
-// in PR 7, continuity.newTuple until then): withLabel, withPairNonce.
+// in PR 7, continuity.newTuple until then): withLabel, withPairNonce; and
+// for the carrier nonce of a relationship (Identity §7a.3): carrierNonceHeld,
+// withCarrierNonce, canonicalCarrierNonce.
 //
 // Choices this file makes where note and spec leave them open:
 //   - a device name is stored in its 6.2 canonical form (NFC applied), so
@@ -91,10 +93,10 @@
 //     derived key is presented; a revoked name offers no key for a new
 //     binding). Reading it changes nothing
 import type { Applied, CommandDef, DutyHandler, HolderModule, PrepareCtx, Refusal } from './engine.js'
-import type { Dec, Duty, HolderState, Millis, Register, ReissueMappingDuty, Rotation, RotationDuty } from './state.js'
+import type { CarrierNonce, Dec, Duty, HolderState, Millis, Register, ReissueMappingDuty, Rotation, RotationDuty } from './state.js'
 import { canonicalLabel, communityLabel, deviceLabel, deviceName } from './identity.js'
 import type { KeyProvider, LogHead } from './ports.js'
-import { jcs } from './core.js'
+import { fromB64u, jcs } from './core.js'
 import type { Json } from './core.js'
 import { bindingOf, rawProofValue } from './anchor.js'
 import { classOnToward, entryOf, entryRelationships, lags, liveRel } from './trust/state.js'
@@ -121,6 +123,39 @@ export function withPairNonce (r: Readonly<Register>, label: string, nonce: stri
     return withLabel(r, label)
   }
   return { ...withLabel(r, label), pairNonces: { ...r.pairNonces, [label]: nonce } }
+}
+
+/** Does the register hold `nonce` (canonical base64url) as a carrier
+ *  nonce of any relationship, or as a pair nonce (Identity §7a.3: N is
+ *  fresh and never a pair nonce)? */
+export const carrierNonceHeld = (r: Readonly<Register>, nonce: string): boolean =>
+  Object.values(r.carriers).some((list) => list.some((e) => e.nonce === nonce)) || Object.values(r.pairNonces).includes(nonce)
+
+/** The register with the first carrier-nonce entry of relationship
+ *  `relId`, generation 1 (Identity §7a.3). A relationship that already
+ *  holds an entry is not given a second one here: rotation is not this. */
+export function withCarrierNonce (r: Readonly<Register>, relId: string, nonce: string): Register {
+  if (Object.hasOwn(r.carriers, relId)) throw new Error(`identity: ${relId} already holds a carrier nonce (§7a.3)`)
+  return { ...r, carriers: { ...r.carriers, [relId]: [{ nonce, generation: '1' }] } }
+}
+
+/** The canonical carrier-nonce entry of a relationship (Identity §7a.3):
+ *  the highest generation, among equal ones the nonce whose bytes are
+ *  smallest in unsigned bytewise order; undefined where none is held. */
+export function canonicalCarrierNonce (r: Readonly<Register>, relId: string): CarrierNonce | undefined {
+  const list = Object.hasOwn(r.carriers, relId) ? r.carriers[relId] : []
+  let best: CarrierNonce | undefined
+  for (const e of list) {
+    if (!best) { best = e; continue }
+    const g = BigInt(e.generation) - BigInt(best.generation)
+    if (g > 0n || (g === 0n && bytewiseLess(fromB64u(e.nonce), fromB64u(best.nonce)))) best = e
+  }
+  return best
+}
+
+const bytewiseLess = (a: Uint8Array, b: Uint8Array): boolean => {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] < b[i]
+  return a.length < b.length
 }
 
 const needName = (x: unknown, cmd: string): string => {

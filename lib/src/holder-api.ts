@@ -34,8 +34,8 @@
 //   revokeDevice(name, opts)                  identity.revokeDevice     human
 //   rotateAnchor(opts)                        identity.rotate           human
 //   setProfile({name, image?, text?}, opts)   profile.set               human
-//   show(opts{name?})                         encounter.show            human
-//   scan(card, opts{name?})                   encounter.scan            human
+//   show(opts{name?, carrier?})               encounter.show            human
+//   scan(card, opts{name?, carrier?})         encounter.scan            human
 //   captureSentCard(card, opts)               encounter.capture         human
 //   counter(contactId, opts)                  encounter.counter         human
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
@@ -118,6 +118,7 @@ import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js'
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js'
 import type { Json } from './core.js'
+import { b64uOf } from './core.js'
 import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, profileView, promptsView } from './views.js'
 import type { ContactView, DeliveryStatusView, GroupView, InboxMessageView, ProfileView, PromptView } from './views.js'
 
@@ -137,6 +138,21 @@ export interface HolderOptions {
 /** The options of a human act (note §4.2): its time and the actId the app
  *  mints when the human acts. */
 export interface HumanActOptions { when: Millis, actId: string }
+
+/** A carrier offer for the card of show or scan: the relationship's
+ *  carrier nonce N, 32 bytes the app draws fresh (Identity §7a.3), and the
+ *  delivery hints it built from N for the card (at least one; Encounter
+ *  6090: at most eight, each at most 512 characters; their form is the carrier
+ *  profile's, e.g. the VTI mediator adapter profile §1b). The library
+ *  signs the hints into the card, records N in the register under the
+ *  relationship the card opens, and interprets neither. */
+export interface CarrierOffer { nonce: Uint8Array, deliveryHints: readonly string[] }
+
+/** The offer as act input: N in canonical base64url (bound and journaled with the act). */
+const offerInput = (c: CarrierOffer | undefined): Record<string, Json> | undefined => c === undefined ? undefined : {
+  nonce: c?.nonce instanceof Uint8Array ? b64uOf(c.nonce) : null,
+  deliveryHints: Array.isArray(c?.deliveryHints) ? [...c.deliveryHints] : null,
+}
 
 export interface Holder {
   /** any registered command by name, for modules and tests; apps use the typed acts */
@@ -176,12 +192,15 @@ export interface Holder {
   /** a displayed card with a fresh own challenge under a fresh pair
    *  anchor (Encounter 5.3, 4.4): the event encounter.shown carries the
    *  card to display; `name` the card's display name (default: the own
-   *  profile's); human */
-  show (opts: HumanActOptions & { name?: string }): Promise<ActResult>
+   *  profile's); `carrier` the delivery hints the card carries and the
+   *  carrier nonce of the relationship it opens (card-invalid with ref
+   *  RLTP-ENC-6090, carrier-nonce-invalid); human */
+  show (opts: HumanActOptions & { name?: string, carrier?: CarrierOffer }): Promise<ActResult>
   /** the scanner's step on a displayed card (Encounter 5.8): the record,
    *  the fresh tuple, the bundle; encounter.scanned carries the sent card
-   *  for the optical leg; human */
-  scan (card: Json, opts: HumanActOptions & { name?: string }): Promise<ActResult>
+   *  for the optical leg; `carrier` as with show, its hints in the sent
+   *  card; human */
+  scan (card: Json, opts: HumanActOptions & { name?: string, carrier?: CarrierOffer }): Promise<ActResult>
   /** the optical leg (Encounter 5.8, 5710): a sent card shown by the scanner; human */
   captureSentCard (card: Json, opts: HumanActOptions): Promise<ActResult>
   /** the counter-step toward a contact met as displayer (Encounter 5.8 step 4); human */
@@ -300,8 +319,14 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     recover: (o: { when: Millis }) => engine.act(TRUST_COMMANDS.recover, {}, o?.when as Millis),
     rotateAnchor: (o: HumanActOptions) => human(IDENTITY_COMMANDS.rotate, {}, o),
     setProfile: (content: ProfileContent, o: HumanActOptions) => human(PROFILE_SET, content, o),
-    show: (o: HumanActOptions & { name?: string }) => human(ENCOUNTER_COMMANDS.show, o?.name === undefined ? {} : { name: o.name }, o),
-    scan: (card: Json, o: HumanActOptions & { name?: string }) => human(ENCOUNTER_COMMANDS.scan, o?.name === undefined ? { card } : { card, name: o.name }, o),
+    show: (o: HumanActOptions & { name?: string, carrier?: CarrierOffer }) => {
+      const carrier = offerInput(o?.carrier)
+      return human(ENCOUNTER_COMMANDS.show, { ...(o?.name === undefined ? {} : { name: o.name }), ...(carrier === undefined ? {} : { carrier }) }, o)
+    },
+    scan: (card: Json, o: HumanActOptions & { name?: string, carrier?: CarrierOffer }) => {
+      const carrier = offerInput(o?.carrier)
+      return human(ENCOUNTER_COMMANDS.scan, { card, ...(o?.name === undefined ? {} : { name: o.name }), ...(carrier === undefined ? {} : { carrier }) }, o)
+    },
     captureSentCard: (card: Json, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
     counter: (contactId: string, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
     foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),

@@ -58,7 +58,13 @@ send state in its `ackState()` (the sending mode and the open routed
 deposits); the app persists it with the ack state,
 restores it into the adapter of the next opening, and hands that adapter
 the answers for earlier deposits through `answered(digest, now)` before its
-next `advance` (see the
+next `advance`. The adapter of a relationship needs the counterpart's
+identities at the mediator: the app draws the relationship's carrier
+nonce, builds its own delivery hint from the identities the adapter
+derives from it, and passes both to `show` or `scan`
+(`carrier: {nonce, deliveryHints}`); the contact's relationships then
+name the counterpart's hints and the own nonce
+(`counterpartDeliveryHints`, `carrierNonce`) (see the
 [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)). An app that does not know whether a human act
 committed (a crash, a lock) asks `replay(actId, when)`, which answers the
 act's journaled result or `unknown-act` and never runs the act again.

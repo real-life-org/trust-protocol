@@ -1,12 +1,12 @@
 // vti-wire.mjs — the concrete MediatorWire over vti-didcomm-js 0.12.0
-// and vti-tsp-js 0.3.0, TSP Rev 3 (profile 0.24 §7: TSP framing, CESR demux, ack translation and
+// and vti-tsp-js 0.3.0, TSP Rev 3 (profile 0.25 §7: TSP framing, CESR demux, ack translation and
 // the M-2 duty live HERE, below the adapter's byte boundary).
 //
 // Responsibilities:
 //   · derive the wire identities' RAW seeds by re-running the lib's
 //     own HKDF (same prefixes → byte-identical DIDs to the adapter's)
 //   · ATM auth under the CONNECTION DID; one socket per principal
-//   · deposit in the sending form of profile 0.24 §3a, in the mode the
+//   · deposit in the sending form of profile 0.25 §3a, in the mode the
 //     adapter names (depositAddressing of the lib says who addresses
 //     whom), packed anew for every attempt (RLTP-VTI-7110):
 //       routed          inner TSP Rev 3 `direct` egress identity →
@@ -122,8 +122,12 @@ class RltpMediatorSession extends MediatorSession {
  * @param {Uint8Array} cfg.rootIkm       the relationship root
  * @param {string}     cfg.mediatorDid   C, exactly as configured
  * @param {Uint8Array} cfg.nonce         the 32-byte carrier nonce N
- * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key (addressing)
- * @param {string}     cfg.peerEgressDid counterpart's EGRESS did:key (sender verification)
+ * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key (addressing): the
+ *        `id` without `#tsp` of its delivery hint (profile 0.25 §1b, RLTP-VTI-1240)
+ * @param {string}     cfg.peerEgressDid counterpart's EGRESS did:key (sender verification):
+ *        the `rltpEgress` of that hint; required in every form that reads from
+ *        the egress identity (the profile forms and the control form `egress`);
+ *        only the control form `connection` does without it
  * @param {(line: string) => void} [cfg.log]  sink for frames that are not
  *        delivered (default: stderr)
  * @param {string}     [cfg.depositMode] overrides RLTP_WIRE_DEPOSIT (default
@@ -146,6 +150,11 @@ export async function createVtiWire(cfg) {
     ...(transport.resolve ? { resolve: transport.resolve } : {}),
   };
   const ackMap = new Map();       // adapter payload-digest → mediator queue-id (sha256 of qb64 text)
+  // the counterpart's identities are never this side's own (RLTP-VTI-1227)
+  const own = new Set([conn.did, egress.did]);
+  if (own.has(cfg.peerDid) || (cfg.peerEgressDid && own.has(cfg.peerEgressDid))) {
+    throw new Error("createVtiWire: a counterpart identity names one of this side's own wire identities (RLTP-VTI-1227)");
+  }
   const sentPeers = cfg.peerEgressDid ? peerKeys(cfg.peerEgressDid) : null;
   const peerConn = peerKeys(cfg.peerDid);
   // net policy for the advertised mediator endpoints (0.12.0: replaces
@@ -155,7 +164,7 @@ export async function createVtiWire(cfg) {
   // Deposit form (RLTP_WIRE_DEPOSIT, or cfg.depositMode):
   //   routed          (default) follow the mode the adapter names on each
   //                   deposit — `routed`, or `egress-session` after the
-  //                   switch of RLTP-VTI-3130 (profile 0.24 §3a)
+  //                   switch of RLTP-VTI-3130 (profile 0.25 §3a)
   //   egress-session  force the fallback for every deposit (measurement)
   //   egress          control, NOT profile-conformant: the inner message
   //                   alone on the connection DID's socket — dropped by
@@ -168,7 +177,13 @@ export async function createVtiWire(cfg) {
   if (!["routed", "egress-session", "egress", "connection"].includes(depositMode)) {
     throw new Error(`RLTP_WIRE_DEPOSIT: unknown mode ${depositMode}`);
   }
-  // in every profile form the counterpart's documents come from its egress identity
+  // in every form but `connection` the counterpart's documents come from its egress
+  // identity: without it the counterpart has no wire identities at C, and
+  // no instance exists (RLTP-VTI-1235) — refused here, never a wire that
+  // refuses and acknowledges every frame it receives
+  if (depositMode !== "connection" && !cfg.peerEgressDid) {
+    throw new Error("createVtiWire: no peerEgressDid — the counterpart has no wire identities at C (RLTP-VTI-1235)");
+  }
   const expectedPeerSender = depositMode === "connection" ? cfg.peerDid : cfg.peerEgressDid;
   const expectedPeerKeys = depositMode === "connection" ? peerConn : sentPeers;
   let egressSession = null;

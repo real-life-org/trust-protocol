@@ -36,8 +36,8 @@
 //   revokeDevice(name, opts)                  identity.revokeDevice     human
 //   rotateAnchor(opts)                        identity.rotate           human
 //   setProfile({name, image?, text?}, opts)   profile.set               human
-//   show(opts{name?})                         encounter.show            human
-//   scan(card, opts{name?})                   encounter.scan            human
+//   show(opts{name?, carrier?})               encounter.show            human
+//   scan(card, opts{name?, carrier?})         encounter.scan            human
 //   captureSentCard(card, opts)               encounter.capture         human
 //   counter(contactId, opts)                  encounter.counter         human
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
@@ -111,7 +111,13 @@ import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js';
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js';
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js';
+import { b64uOf } from './core.js';
 import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, profileView, promptsView } from './views.js';
+/** The offer as act input: N in canonical base64url (bound and journaled with the act). */
+const offerInput = (c) => c === undefined ? undefined : {
+    nonce: c?.nonce instanceof Uint8Array ? b64uOf(c.nonce) : null,
+    deliveryHints: Array.isArray(c?.deliveryHints) ? [...c.deliveryHints] : null,
+};
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
@@ -142,8 +148,14 @@ export async function createHolder(ports, opts = {}) {
         recover: (o) => engine.act(TRUST_COMMANDS.recover, {}, o?.when),
         rotateAnchor: (o) => human(IDENTITY_COMMANDS.rotate, {}, o),
         setProfile: (content, o) => human(PROFILE_SET, content, o),
-        show: (o) => human(ENCOUNTER_COMMANDS.show, o?.name === undefined ? {} : { name: o.name }, o),
-        scan: (card, o) => human(ENCOUNTER_COMMANDS.scan, o?.name === undefined ? { card } : { card, name: o.name }, o),
+        show: (o) => {
+            const carrier = offerInput(o?.carrier);
+            return human(ENCOUNTER_COMMANDS.show, { ...(o?.name === undefined ? {} : { name: o.name }), ...(carrier === undefined ? {} : { carrier }) }, o);
+        },
+        scan: (card, o) => {
+            const carrier = offerInput(o?.carrier);
+            return human(ENCOUNTER_COMMANDS.scan, { card, ...(o?.name === undefined ? {} : { name: o.name }), ...(carrier === undefined ? {} : { carrier }) }, o);
+        },
         captureSentCard: (card, o) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
         counter: (contactId, o) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
         foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),

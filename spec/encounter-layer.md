@@ -3,9 +3,9 @@
 **Real Life Trust Protocol — Layer 2: Encounter**
 
 - **Status:** Editor's Draft
-- **Version:** 0.31.0-draft
+- **Version:** 0.31.1-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-08
+- **Date:** 2026-10-23
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Conformance profile:** `rltp-encounter@0.31` (draft). Wire forms:
   `rltp-card/0.25`, `rltp-encounter-credential/0.26` (a held
@@ -14,8 +14,8 @@
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
   Delivery Contract 0.79 (normative reference, Section 11); DTG
   Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
-- **Supersedes:** version 0.30 (archived as
-  `archive/encounter-layer-0.30.md`). Earlier versions: Appendix C.
+- **Supersedes:** version 0.31.0 (archived as
+  `archive/encounter-layer-0.31.0.md`). Earlier versions: Appendix C.
 
 ## Abstract
 
@@ -1206,6 +1206,11 @@ is not its own anchor.
 **RLTP-ENC-6080** — A card MAY carry a display name and delivery
 hints.
 
+The form of a delivery hint is defined by the carrier profile that
+names it (for the VTI mediator: RLTP Transport Adapter Profile: VTI
+Mediator, §1b); this layer bounds hints by RLTP-ENC-6090 and treats
+them as opaque strings under the card's proof.
+
 **RLTP-ENC-6090** — A card's display name MUST be at most 200
 characters, and a card MUST carry at most eight delivery hints of at
 most 512 characters each.
@@ -2074,6 +2079,7 @@ One line per version; the archived text is under `archive/`.
 | 0.29 | 2026-08-23 | Community anchor and member-anchor-bound card uses named; no wire change. |
 | 0.30 | 2026-10-05 | Numbered rules with separate rationale; DTG scope vocabulary; no wire change. |
 | 0.31 | 2026-10-08 | Credential on DTG Credentials WD 0.6.0: registry context v1 pinned by digest, `issuerScope` `pairwise`; wire 0.26, 0.25 still read. |
+| 0.31.1 | 2026-10-23 | The form of a delivery hint is the carrier profile's that names it (Section 6, at RLTP-ENC-6080); no rule, schema or wire change. |
 
 ## References
 

@@ -123,7 +123,7 @@ findings.
 Delivery Contract 0.83 · Membership Tasks 0.20 · Replication Contract
 0.26 · Trust Layer 0.31 · Personhood Predicates 0.12.
 **First casting:** Message Tasks 0.1.
-**Delivery profile:** VTI Mediator Adapter 0.24.
+**Delivery profile:** VTI Mediator Adapter 0.25.
 Succession 0.2 is parked; the Data layer is not published here yet.
 
 Two things are worth knowing about how this state was reached. The

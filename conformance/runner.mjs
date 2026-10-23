@@ -1079,6 +1079,61 @@ for (const n of EC.negative) {
   } else err(`unknown negative ${n.name}`)
 }
 
+// ── suite 3v: the delivery hint of the VTI mediator adapter profile ─────
+// An independent reader of RLTP-VTI-1210, 1220 and 1225 (node alone, not
+// the library's readDeliveryHint, which lib/test checks against the same
+// vector), so the two implementations must agree on every case.
+section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint form, its length, the card carrying it')
+{
+  const DH = J('vectors/vti-delivery-hints.json')
+  // RLTP-VTI-1210: did:key:z + canonical base58btc of 0xed 0x01 and the 32-byte key (decoded, not pattern-matched)
+  const edDidKey = (d) => {
+    if (typeof d !== 'string' || !d.startsWith('did:key:z')) return false
+    const b = fromB58(d.slice('did:key:z'.length))
+    return !!b && b.length === 34 && b[0] === 0xed && b[1] === 0x01 && 'did:key:z' + b58(Buffer.from(b)) === d
+  }
+  // a receiver at carrier C reads a hint of this profile (RLTP-VTI-1210, 1220, 1225);
+  // total (1220): any input of another form is null, nothing throws
+  const reads = (hint, carrier) => { try { return readsStrict(hint, carrier) } catch { return null } }
+  const readsStrict = (hint, carrier) => {
+    if (typeof hint !== 'string') return null
+    const o = JSON.parse(hint)
+    if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o) !== hint) return null
+    if (jcs(Object.keys(o).sort()) !== jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])) return null
+    if (o.type !== 'TSPTransport' || typeof o.id !== 'string' || !o.id.endsWith('#tsp') || typeof o.rltpEgress !== 'string') return null
+    const connection = o.id.slice(0, -'#tsp'.length)
+    if (!edDidKey(connection) || !edDidKey(o.rltpEgress) || connection === o.rltpEgress) return null
+    if (o.serviceEndpoint !== carrier) return null
+    return { connection, egress: o.rltpEgress }
+  }
+  for (const s of ['A', 'B']) {
+    const h = DH.hints[s]
+    checkR(['RLTP-VTI-1210', 'RLTP-VTI-1220'], jcs(reads(h, DH.carrier)) === jcs(DH.sides[s]), `hint ${s}: the JCS form of a TSPTransport entry naming its connection DID, C and its egress identity`)
+    checkR(['RLTP-ENC-6090'], [...h].length === DH.hintLength[s] && DH.hintLength[s] <= 512, `hint ${s}: ${DH.hintLength[s]} characters, at most 512`)
+  }
+  schemaOK(DH.card, 'contact-card-0.25.schema.json', 'card with a delivery hint')
+  check(diVerify(DH.card, DH.card.anchor).ok, 'card with a delivery hint: DI proof verifies over the hints')
+  check(jcs(DH.card.deliveryHints) === jcs([DH.hints.B]), 'card with a delivery hint: carries B\'s hint')
+  for (const c of DH.ignored) checkR(c.rules, reads(c.hint, DH.carrier) === null, `ignored hint: ${c.case}`)
+  // a card's hint list: exactly one hint of this profile for C (RLTP-VTI-1225)
+  // a card's hint list read by `self`: hints naming self's identities ignored (RLTP-VTI-1227), then exactly one for C
+  const readList = (hints, carrier, self) => {
+    const own = new Set([self.connection, self.egress])
+    const r = hints.map((h) => reads(h, carrier)).filter((x) => x !== null && !own.has(x.connection) && !own.has(x.egress))
+    return r.length === 1 ? r[0] : null
+  }
+  for (const c of DH.lists) {
+    const want = c.expect === null ? null : DH.sides[c.expect]
+    checkR(c.rules, jcs(readList(c.hints, DH.carrier, DH.sides[c.reader])) === jcs(want), `hint list read by ${c.reader}: ${c.case} → ${c.expect ?? 'no wire identities'}`)
+  }
+  schemaOK(DH.sentCard, 'contact-card-0.25.schema.json', 'sent card with a delivery hint')
+  check(diVerify(DH.sentCard, DH.sentCard.anchor).ok, 'sent card with a delivery hint: DI proof verifies over the hints')
+  check(DH.sentCard.sentTo === DH.card.anchor && DH.sentCard.boundTo === DH.card.challenge.value, 'sent card answers the displayed card (sentTo, boundTo)')
+  check(jcs(readList(DH.sentCard.deliveryHints, DH.carrier, DH.sides.B)) === jcs(DH.sides.A), 'sent card: carries A\'s hint')
+  checkR(DH.tooLong.rules, [...DH.tooLong.card.deliveryHints[0]].length === 513, 'card with a 513-character hint: the hint exceeds 512 characters')
+  schemaFails(DH.tooLong.card, 'contact-card-0.25.schema.json', 'card with a 513-character hint')
+}
+
 // ── suite 3a: the DTG context, pinned by digest ─────────────────────────
 section('contexts/dtg-v1.jsonld — the DTG v1 context, byte-frozen, pinned by digest')
 {

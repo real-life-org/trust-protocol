@@ -58,6 +58,10 @@ export type ActError =
    *  keys, proof) or is not of the profile the act needs (displayed for a
    *  scan, sent and addressed to an own challenge's anchor for a capture) */
   | 'card-invalid'
+  /** encounter.show, encounter.scan: the carrier nonce of the offer is not
+   *  32 bytes in canonical base64url, or the register already holds it as
+   *  a carrier or pair nonce (Identity §7a.3: fresh) */
+  | 'carrier-nonce-invalid'
   /** encounter.scan: this displayed code was scanned already: its
    *  challenge is in a record (5.3, 5170) */
   | 'already-scanned'
