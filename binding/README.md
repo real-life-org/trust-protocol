@@ -3,8 +3,10 @@
 Die konkrete `MediatorWire`-Implementierung über `@openvtc/vti-didcomm-js`
 0.12.0 und `@openvtc/vti-tsp-js` 0.3.0 (TSP **Rev 3**: HPKE-Base,
 Außensignatur). **Dev-only** — nie eine Abhängigkeit der
-zero-dependency lib; das Profil 0.25 (`spec/adapter-vti-mediator.md` §3a, §7)
-benennt genau die Pflichten, die hier wohnen.
+zero-dependency lib; das Profil 0.26 (`spec/adapter-vti-mediator.md` §3a, §7)
+benennt genau die Pflichten, die hier wohnen. Den Modus der angezeigten
+Karte (§1c: eine Instanz ohne Gegenüber bis zur Bindung)
+trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
 
 ## Was hier liegt
 

@@ -20,7 +20,8 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.25 (twenty-fifth casting;
+// Profile: spec/adapter-vti-mediator.md v0.26 (twenty-sixth casting;
+// §1c, the displayed card's instance, is the host's and the wire's, not this module's;
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port. The
 // counterpart's connection DID and egress identity the wire needs come
