@@ -943,10 +943,10 @@ is decidable.
   no trust on first use: the counterpart's identities come from the
   sent card, signed under the counterpart's fresh pair anchor and bound
   to the card's challenge (Encounter RLTP-ENC-6050, RLTP-ENC-6060),
-  never from the sender of the first frame (RLTP-VTI-1260). A party
-  holding the bundle's bytes that deposits them under another sender
-  hands the holder the counterpart's own document and binds nothing of
-  its own (RLTP-VTI-1265).
+  never from the sender of the first frame (RLTP-VTI-1260); the sender
+  is a diagnosis only (RLTP-VTI-1265). A foreign sender that passes a
+  bundle on binds nothing, because the identities come from the signed
+  card; it pays only for the frame.
 - **Several scanners of one displayed card.** The first bundle the
   holder takes binds the instance; a second is refused by the holder or
   by RLTP-VTI-7140 (RLTP-VTI-1265). The second scanner recorded its
@@ -1102,7 +1102,7 @@ is decidable.
    relationship's identities afterwards in a signed document of the
    relationship — would keep the identities from all but the
    counterpart; it needs a document type that does not exist and is
-   planned for a casting after IIW.
+   left to a later casting.
 12. **Foreign TSP clients.** A hint reads as a `TSPTransport` service
    entry, but a client of the target TSP library drops an application
    message from a sender with which it has formed no relationship
