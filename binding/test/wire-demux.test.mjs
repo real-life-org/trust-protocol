@@ -588,3 +588,21 @@ test("RLTP-VTI-1235: a wire without the counterpart's egress identity is refused
   const control = await createVtiWire({ ...base, depositMode: "connection" });
   assert.equal(typeof control.deposit, "function");
 });
+
+test("RLTP-VTI-1227: a wire whose counterpart identities name one of this side's own is refused at construction", async () => {
+  const A = { root: rand(32), nonce: rand(32) };
+  const B = { root: rand(32), nonce: rand(32) };
+  A.ids = await deriveWireIdentities(A.root, MEDIATOR_DID, A.nonce);
+  B.ids = await deriveWireIdentities(B.root, MEDIATOR_DID, B.nonce);
+  const base = { rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, transport: mediatorDouble().transport };
+  for (const [name, peerDid, peerEgressDid] of [
+    ["own connection DID as the peer's", A.ids.conn.did, B.ids.egress.did],
+    ["own egress identity as the peer's", B.ids.conn.did, A.ids.egress.did],
+    ["own connection DID as the peer's egress", B.ids.conn.did, A.ids.conn.did],
+    ["own pair", A.ids.conn.did, A.ids.egress.did],
+  ]) {
+    await assert.rejects(createVtiWire({ ...base, peerDid, peerEgressDid }), /RLTP-VTI-1227/, name);
+  }
+  const fine = await createVtiWire({ ...base, peerDid: B.ids.conn.did, peerEgressDid: B.ids.egress.did });
+  assert.equal(fine.connectionDid, A.ids.conn.did);
+});

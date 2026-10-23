@@ -150,6 +150,11 @@ export async function createVtiWire(cfg) {
     ...(transport.resolve ? { resolve: transport.resolve } : {}),
   };
   const ackMap = new Map();       // adapter payload-digest → mediator queue-id (sha256 of qb64 text)
+  // the counterpart's identities are never this side's own (RLTP-VTI-1227)
+  const own = new Set([conn.did, egress.did]);
+  if (own.has(cfg.peerDid) || (cfg.peerEgressDid && own.has(cfg.peerEgressDid))) {
+    throw new Error("createVtiWire: a counterpart identity names one of this side's own wire identities (RLTP-VTI-1227)");
+  }
   const sentPeers = cfg.peerEgressDid ? peerKeys(cfg.peerEgressDid) : null;
   const peerConn = peerKeys(cfg.peerDid);
   // net policy for the advertised mediator endpoints (0.12.0: replaces
