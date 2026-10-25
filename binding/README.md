@@ -3,8 +3,10 @@
 Die konkrete `MediatorWire`-Implementierung über `@openvtc/vti-didcomm-js`
 0.12.0 und `@openvtc/vti-tsp-js` 0.3.0 (TSP **Rev 3**: HPKE-Base,
 Außensignatur). **Dev-only** — nie eine Abhängigkeit der
-zero-dependency lib; das Profil 0.25 (`spec/adapter-vti-mediator.md` §3a, §7)
-benennt genau die Pflichten, die hier wohnen.
+zero-dependency lib; das Profil 0.26 (`spec/adapter-vti-mediator.md` §3a, §7)
+benennt genau die Pflichten, die hier wohnen. Den Modus der angezeigten
+Karte (§1c: eine Instanz ohne Gegenüber bis zur Bindung)
+trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
 
 ## Was hier liegt
 
@@ -14,7 +16,7 @@ benennt genau die Pflichten, die hier wohnen.
     gemessen in der Probe);
   - ATM-Auth unter der Connection-DID, ein Pickup-Socket;
   - `deposit(token, bytes, egressDid, mode)` in der Sendeform von
-    Profil 0.25 §3a, im Modus, den der Adapter nennt; beide Schichten
+    Profil 0.26 §3a, im Modus, den der Adapter nennt; beide Schichten
     werden bei jedem Versuch neu gepackt (RLTP-VTI-7110), die
     Adressierung kommt aus `depositAddressing` der lib:
     - **`routed`** (Modus jeder Adapter-Instanz ab Konstruktion):
@@ -175,7 +177,7 @@ den Mediator: Dokument hin, Ack zurück).
    Sender-VID im Envelope die authentisierte DID des Sockets ist.**
    Ein Rahmen mit fremder Sender-VID verschwindet ohne Fehler, ohne
    Problem-Report; gilt für Rev 2 und Rev 3 gleich. Deshalb trägt die
-   einschichtige Form `egress` auf dieser Instanz nicht; Profil 0.25
+   einschichtige Form `egress` auf dieser Instanz nicht; Profil 0.26
    antwortet mit `routed` (äußerer Sender = Socket-DID) und dem
    Rückfall `egress-session`.
 2. Rev 2 und Rev 3 werden beide zugestellt (Sender = Socket-DID);

@@ -1,4 +1,4 @@
-# VTI Mediator Adapter Profile 0.25 — rule identifiers, one per line, generated from the specification.
+# VTI Mediator Adapter Profile 0.26 — rule identifiers, one per line, generated from the specification.
 # Regenerate: node scripts/check-encounter-trace.mjs --layer adapter --write-manifest-from-spec <spec.md>
 RLTP-VTI-1110
 RLTP-VTI-1120
@@ -12,6 +12,11 @@ RLTP-VTI-1230
 RLTP-VTI-1235
 RLTP-VTI-1240
 RLTP-VTI-1245
+RLTP-VTI-1250
+RLTP-VTI-1255
+RLTP-VTI-1260
+RLTP-VTI-1265
+RLTP-VTI-1270
 RLTP-VTI-3110
 RLTP-VTI-3115
 RLTP-VTI-3120
