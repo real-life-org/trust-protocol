@@ -88,9 +88,9 @@ export const LAYERS = {
   },
   message: {
     prefix: 'RLTP-MSG',
-    title: 'Message Tasks 0.1',
+    title: 'Message Tasks 0.2',
     spec: join(ROOT, 'spec/message-tasks.md'),
-    manifest: join(ROOT, 'conformance/message-rule-ids-0.1.txt'),
+    manifest: join(ROOT, 'conformance/message-rule-ids-0.2.txt'),
     inventory: null,
     env: 'MESSAGE_INVENTORY'
   },

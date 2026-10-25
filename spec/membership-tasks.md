@@ -30,7 +30,7 @@
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3); RLTP
   Encounter 0.31; RLTP Access Layer 0.58; RLTP Delivery Contract
   0.84; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
-  6.4); RLTP Message Tasks 0.1 (the block and the register of
+  6.4); RLTP Message Tasks 0.2 (the block and the register of
   declined invitations, its Section 6).
 - **Supersedes:** version 0.20 (archived as
   `archive/membership-tasks-0.20.md`). Earlier versions: Appendix A.
@@ -2242,7 +2242,7 @@ bindings 5.1, admission, vouch and candidacy 5.3, views 7.3, service
 9.3, material 9.4, `key-delivery/0.1` 10.1, `removal-notice/0.1`
 10.2), `rltp-encounter@0.31` with card wire 0.25 (securing profile 2.3,
 contact card §6), RLTP Identity 0.54, RLTP Trust Layer 0.31
-(relationships and tuples) and RLTP Message Tasks 0.1 (the block and
+(relationships and tuples) and RLTP Message Tasks 0.2 (the block and
 the register of declined invitations).
 
 **RLTP-MT-10020** — This profile MUST pin the Access wire `0.25` in
@@ -3384,7 +3384,7 @@ One line per version; the archived text is under `archive/`.
 | 0.18 | 2026-10-07 | Pins Access 0.56, Delivery 0.80, Identity 0.52. |
 | 0.19 | 2026-10-14 | Pins Access 0.57, Delivery 0.81, Identity 0.54, Encounter 0.31; the introduction act cited as Trust Layer §8. |
 | 0.20 | 2026-10-19 | The prelude as `membership-prelude-request/0.1` and `membership-prelude-reply/0.1` with the inviter binding; invitation attribution, rate, silent decline under a block with the register of declined invitations, one surfacing per invitation (Message Tasks 0.1); the inviter's invitation as its act of admission; Privacy Considerations; pins Delivery 0.82. |
-| 0.21 | 2026-10-25 | Trust Tasks framework 0.6.0: Type URIs under `https://real-life.org/trust-tasks/spec/`; declarations per type in the framework's vocabulary (identifier scope, side effects, exposure, retention, size bound), a declaration rule for the accept (RLTP-MT-3287); MO-10; pins Delivery 0.84, Access 0.58. |
+| 0.21 | 2026-10-25 | Trust Tasks framework 0.6.0: Type URIs under `https://real-life.org/trust-tasks/spec/`; declarations per type in the framework's vocabulary (identifier scope, side effects, exposure, retention, size bound), a declaration rule for the accept (RLTP-MT-3287); MO-10; pins Delivery 0.84, Access 0.58, Message Tasks 0.2. |
 
 
 ## References
@@ -3399,7 +3399,7 @@ EndorsementCredential) · [TT] ToIP DTGWG Trust Tasks framework, document versio
 principles 1.3, contact card §6) · **RLTP Delivery Contract 0.84
 (normative)** (document profile §3, registry 4.4, sealed envelope §5,
 dispositions, lock keys and rate §6, delivery time §7) · **RLTP
-Message Tasks 0.1 (normative)** (attribution 6.2, the block 6.3, the
+Message Tasks 0.2 (normative)** (attribution 6.2, the block 6.3, the
 register of declined invitations 6.4, the rate 4.2) · **RLTP Access Layer 0.58
 (normative)**, wire 0.25 (group identity 3.2, operation envelope
 3.3, materialization and conflict matrix 3.5–3.6, `member.add` body

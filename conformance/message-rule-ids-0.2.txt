@@ -1,4 +1,4 @@
-# Message Tasks 0.1 — rule identifiers, one per line, generated from the specification.
+# Message Tasks 0.2 — rule identifiers, one per line, generated from the specification.
 # Regenerate: node scripts/check-encounter-trace.mjs --layer message --write-manifest-from-spec <spec.md>
 RLTP-MSG-2010
 RLTP-MSG-2020
