@@ -77,7 +77,7 @@
 // holds it); `resume` re-emits, runs due duties and re-emits unsent acks;
 // `tick` expires and retains (engine.ts).
 //
-// Custody (Delivery 0.83 RLTP-DEL-6120 to 6135): the holder keeps every
+// Custody (Delivery 0.84 RLTP-DEL-6120 to 6135): the holder keeps every
 // outbound document until a service takes it or the holder gives it up,
 // across a lock and the end of a process. One createHolder is one opening.
 // After its first resume, `pendingTransport(when)` names what is to be

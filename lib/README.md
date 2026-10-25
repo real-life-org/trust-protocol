@@ -100,7 +100,7 @@ into the next adapter; it hands that adapter, through `answered(digest,
 now)`, the valid acknowledgements, validated refusals and validated
 `idConflict` answers that arrive for documents an earlier adapter
 deposited, before the adapter's next `advance`. The reports a
-collection carries (`acknowledged`, `receiverRefused`, `answered`) are
+collection carries (`acknowledged`, `receiverRefused`, `receiverRetry`, `answered`) are
 applied before that collection's `conclude`, at the latest before the
 next `advance`: the switch check counts them as applied, and one applied
 late can let a relationship switch although its deposits were answered.
@@ -232,7 +232,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.27): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers). |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.27): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
 
 ## The modules and the rules they implement
 
@@ -301,6 +301,10 @@ the state as opaque JSON and gives it back; the library decodes it
   it, and its own fixture with a migration test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
+- A codec-3 state written by lib 0.8 names its Trust Task types without
+  the `/spec/` segment of Delivery RLTP-DEL-3010 and is refused as
+  `codec-type-uri`: a clean cut, no migration. The app discards such a
+  state and starts afresh.
 - `schemas/holder-state-v3.schema.json` describes the codec as a
   non-normative JSON Schema (published with the package). The type
   `HolderStateV3` (`./internal`) is generated from it

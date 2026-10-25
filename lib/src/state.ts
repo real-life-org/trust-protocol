@@ -68,14 +68,14 @@ export interface HolderState {
   /** groups on the way in: the preludes answered and the invitations
    *  received, before a welcome makes them groups (Membership 3.5, 3.1) */
   joining: Joining
-  /** Message Tasks 0.1 on the holder: the block of relationships and the
+  /** Message Tasks 0.2 on the holder: the block of relationships and the
    *  rates per relationship (message/holder.ts) */
   messages: MessagesState
 }
 
 // ── Message Tasks: the block and the rates ─────────────────────────────
 
-/** What Message Tasks 0.1 keeps on the holder (message/holder.ts). The
+/** What Message Tasks 0.2 keeps on the holder (message/holder.ts). The
  *  time mark of RLTP-MSG-4060 is `lastWhen`: it never falls, every commit
  *  writes it, and the CAS commits only on the state it was read with. */
 export interface MessagesState {

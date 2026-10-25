@@ -18,7 +18,7 @@
 //                     and its pure checks (5.6 acceptance, the bundle's forms)
 //   membership        Membership 0.20's forms and checks: the prelude,
 //                     invite, accept, evidence, vouch@2, the member label, oids
-//   message           Message Tasks 0.1's forms: message@1, k_msg, the MAC
+//   message           Message Tasks 0.2's forms: message@1, k_msg, the MAC
 //   introduction      Trust §8's artifacts and checks, the act window, the
 //                     registry declaration's ack-delay
 //   delivery          the sealed envelope and the generic receive stages 1–4
@@ -45,7 +45,7 @@
 // Its modules: identity (Identity §2, §5.4, §5.5), trust (Trust 2, 2a,
 // 5.2–5.4, 6.1–6.5, 6a, 6b), encounter (Encounter 0.31 §5–§7), membership
 // (Membership 0.20 with an in-library Access), introduction (Trust §8) and
-// message (Message Tasks 0.1: messages, the inbox, the block).
+// message (Message Tasks 0.2: messages, the inbox, the block).
 //
 //   views             the view types (ContactView, …)
 //   keys-seed         seedKeys — the default KeyProvider over a root seed

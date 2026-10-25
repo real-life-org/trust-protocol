@@ -1,6 +1,6 @@
-// membership — the pure forms and checks of Membership Tasks 0.20 (the
+// membership — the pure forms and checks of Membership Tasks 0.21 (the
 // prelude, the invite, the accept, the evidence relay) and of the vouch@2 credential
-// (Access 0.57 5.3), used by the holder's membership module
+// (Access 0.58 5.3), used by the holder's membership module
 // (membership/holder.ts). State-free: which invitation a holder sent,
 // which group it is in, are the module's.
 import { b64uOf, calOK, fromB64u, jcs, makeValidator, sameDigest, toU, tsec } from './core.js'

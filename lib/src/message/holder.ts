@@ -1,4 +1,4 @@
-// message/holder — Message Tasks 0.1 on the holder (lib 0.5.0): the
+// message/holder — Message Tasks 0.2 on the holder (lib 0.5.0): the
 // message (Sections 3 to 5), the block of a relationship (Section 6) and
 // the rates per relationship (4.2).
 //

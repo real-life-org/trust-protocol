@@ -111,7 +111,7 @@ export type HolderStateV3 = {
     /** the register of declined invitations (Message Tasks 6.4): credential digests, holder-wide, for the life of the holder; sorted */
     declined: string[]
   }
-  /** Message Tasks 0.1 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen */
+  /** Message Tasks 0.2 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen */
   messages: {
     /** the relationships under a block (Message Tasks 6.1), by relationship id; sorted */
     blocked: string[]
