@@ -120,6 +120,7 @@ import { ASSEMBLY_LIMIT, STAR, STAR_TYPE, ackOf, rematchStars, retainInflight, s
 import type { StarBlinds } from './star.js'
 import { GROUP_STAR, GROUP_STAR_TYPE } from './group-star.js'
 import { continuityParts } from './continuity.js'
+import { TASK_NAMESPACE } from '../task-uri.js'
 
 const te = new TextEncoder()
 const V = makeValidator(SCHEMAS)
@@ -127,7 +128,7 @@ const mappingSchemaOk = (m: unknown): boolean =>
   V.validate(m, SCHEMAS['visibility-anchor-mapping.schema.json'], SCHEMAS['visibility-anchor-mapping.schema.json']).length === 0
 
 /** The registered task type that carries anchor-mapping@4 (Delivery §4.4). */
-export const ANCHOR_MAPPING_TYPE = 'https://real-life.org/trust-tasks/anchor-mapping/0.3'
+export const ANCHOR_MAPPING_TYPE = TASK_NAMESPACE + 'anchor-mapping/0.3'
 
 /** The trust module's command names. */
 export const TRUST_COMMANDS = Object.freeze({

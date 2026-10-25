@@ -141,8 +141,8 @@ import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js'
 import { groupStarRematch, withGroupHits } from '../trust/group-star.js'
 import type { GroupStarRehit } from '../trust/group-star.js'
 import type { GroupMembership } from '../group-star.js'
+import { TASK_NAMESPACE as TT } from '../task-uri.js'
 
-const TT = 'https://real-life.org/trust-tasks/'
 /** This library's experimental form of the welcome (receive.ts SIGNATURE_CLASS). */
 export const WELCOME_TYPE = TT + 'x-membership-welcome/0.1'
 export { INVITE_TYPE, ACCEPT_TYPE, EVIDENCE_TYPE, PRELUDE_REQUEST_TYPE, PRELUDE_REPLY_TYPE }

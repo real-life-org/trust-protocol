@@ -112,8 +112,8 @@ import { activeTuple, entryOf, findContact, liveRel, tupleByLabel } from '../tru
 import { idsOf } from '../encounter/ceremony.js'
 import { withPairNonce } from '../identity-state.js'
 import { tsec } from '../core.js'
+import { TASK_NAMESPACE as TT } from '../task-uri.js'
 
-const TT = 'https://real-life.org/trust-tasks/'
 export const OFFER_TYPE = TT + 'x-introduction-offer/0.1'
 export { DECLARATION_TYPE, INTRODUCTION_TYPES }
 

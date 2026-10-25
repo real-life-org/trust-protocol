@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.9.0
+
+Takes up the Delivery Contract 0.84, Membership Tasks 0.21, Access 0.58,
+Message Tasks 0.2 and the VTI Mediator Adapter Profile 0.27: every
+Trust Task type is named under `https://real-life.org/trust-tasks/spec/`
+(Delivery RLTP-DEL-3010). A wire break, so a minor version: a document
+this version sends is unknown to a 0.8 holder, and a document under the
+earlier names fails the document profile here (`failed(malformed)` at
+stage 5). Nothing accepts both forms.
+
+- **Type URIs.** `ACK_TYPE`, `PROFILE_TYPE`, `MESSAGE_TYPE`,
+  `STAR_TYPE`, `GROUP_STAR_TYPE`, `ANCHOR_MAPPING_TYPE`,
+  `CONTINUITY_PROBE_TYPE`, `CONTINUITY_MAPPING_TYPE`, the encounter,
+  membership and introduction types, the library's own `x-` forms and
+  `CARRIER_ROLE_URI` carry the `/spec/` segment; every module builds them
+  from one prefix (`task-uri`).
+- **Schemas.** The bundled schemas (`SCHEMAS`, the generated `wire`
+  types) follow `schemas/`: the document profile's `type` pattern takes
+  the slug grammar of the framework under `/spec/` and excludes the
+  reserved slugs; the payload schemas' `$id`s are the new Type URIs.
+- **Refusal codes.** `ReceiverRefusalCode` takes the terminal codes of
+  `trust-task-error/0.5`: `unsupportedVersion`, `permissionDenied`,
+  `cancelled` and `taskFailed` join the six (profile RLTP-VTI-5020). The
+  stored state accepts them (codec 3, an added enum value).
+- **Storage.** The codec stays 3 and nothing migrates. A state written by
+  0.8 keeps its outbox items under the earlier names, which a 0.9
+  counterpart refuses; a 0.8 state is not carried forward.
+
 ## 0.8.0
 
 Takes up the VTI Mediator Adapter Profile 0.25 (§1b, the delivery hint)

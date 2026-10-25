@@ -1937,10 +1937,14 @@
               "enum": [
                 "malformedRequest",
                 "unsupportedType",
+                "unsupportedVersion",
                 "proofRequired",
                 "proofInvalid",
+                "permissionDenied",
                 "wrongRecipient",
-                "identityMismatch"
+                "identityMismatch",
+                "cancelled",
+                "taskFailed"
               ]
             }
           },

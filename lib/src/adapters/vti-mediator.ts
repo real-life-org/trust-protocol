@@ -283,8 +283,9 @@ export interface TokenSet {
 // ── Sender states (§6.1 — the closed sets, nothing else) ────────────
 // ReceiverRefusalCode is the ports' (one closed set, one place)
 const RECEIVER_REFUSAL_CODES: ReadonlySet<ReceiverRefusalCode> = new Set<ReceiverRefusalCode>([
-  'malformedRequest', 'unsupportedType', 'proofRequired',
-  'proofInvalid', 'wrongRecipient', 'identityMismatch',
+  'malformedRequest', 'unsupportedType', 'unsupportedVersion',
+  'proofRequired', 'proofInvalid', 'permissionDenied',
+  'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed',
 ])
 
 export type SubmissionState =

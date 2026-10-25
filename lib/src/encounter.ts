@@ -12,6 +12,7 @@ import { digestDoc, diSign, diVerify, edRawOfAnchor, xRawOfMk } from './crypto.j
 import type { Signer } from './crypto.js'
 import { b64uOf, calOK, iso, makeValidator, sameDigest } from './core.js'
 import { SCHEMAS } from './schemas.js'
+import { TASK_NAMESPACE as TT } from './task-uri.js'
 export { iso }
 
 // ── wire builders (Encounter 0.31: card 0.25, credential 0.26) ─────────
@@ -113,7 +114,6 @@ export async function issueCredential (
 // check, the 5.6 credential checks in their normative order, and the
 // outer/inner forms of the two carriers. State-free: what needs the
 // own-challenge state or the records is the holder's (encounter/ceremony.ts).
-const TT = 'https://real-life.org/trust-tasks/'
 /** The scanner's sent card and step credential (Delivery 4.1). */
 export const BUNDLE_TYPE = TT + 'encounter-bundle/0.1'
 /** The counter-step or a standalone credential delivery (Delivery 4.3). */
