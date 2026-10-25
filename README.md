@@ -122,7 +122,7 @@ findings.
 **Converged:** Encounter 0.31 · Identity 0.54 · Access Layer 0.58 ·
 Delivery Contract 0.84 · Membership Tasks 0.21 · Replication Contract
 0.26 · Trust Layer 0.31 · Personhood Predicates 0.12.
-**First casting:** Message Tasks 0.2.
+**Early casting:** Message Tasks 0.2.
 **Delivery profile:** VTI Mediator Adapter 0.27.
 Succession 0.2 is parked; the Data layer is not published here yet.
 

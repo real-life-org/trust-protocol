@@ -250,8 +250,10 @@ silently ignored.
 **RLTP-DEL-3010** — A Type URI MUST have the form
 `https://real-life.org/trust-tasks/spec/<slug>/<MAJOR.MINOR>`. The
 slug is the path between `/spec/` and the version, satisfies the slug
-grammar of TT §6.1, and MUST NOT match `^trust-(task|ceremony)($|-|/)`.
-A `type` in any other form fails the document-profile schema and is
+grammar of TT §6.1, and MUST NOT match `^trust-(task|ceremony)($|-|/)`;
+the version has no leading zero (TT §5.1); the URI carries no fragment,
+since no type defines a response variant (RLTP-DEL-3020). A `type` in
+any other form fails the document-profile schema and is
 `failed(malformed)` (6.2 stage 5), a registered slug and version
 without the `/spec/` segment included; no other form of a registered
 type's name is accepted.
@@ -287,6 +289,18 @@ type and need not be repeated in a declaration:
 - **No extensions.** No type opts into `ext`.
 - **No JSON-LD context** is published for any type (item 10), and
   no type defines task-specific error codes (item 9).
+- **Authorization evidence (item 15).** Every type is consequential
+  (each declares `mutating` or `destructive`), and none carries
+  authority: a document grants nothing by its arrival or its form. What
+  a consumer holds to interpret one is the group's authority log
+  (Access 5.3) for the types that act on a group, and its own holder
+  state for every other type: the challenge it issued, the tuple a
+  document arrives on, the documents it sent, the act it holds. The
+  registering specification names that evidence per type (4.5,
+  Membership Tasks §3, Access §10, Message Tasks 3.4).
+- **Execution checkpoints (item 16).** A type's effect is evaluated
+  once, at 6.2 stage 9 under the lock set, and commits as one
+  transaction; no stage of it is applied partially.
 
 **RLTP-DEL-3030** — Each type declares a **document size bound**: the
 largest UTF-8 JCS serialization of a document of that type, `proof`
@@ -926,6 +940,24 @@ is at maturity level `draft`.
 | `introduction-ack/0.1` | mediator · requester on their tuple; `pairwise` · `pairwise` | absent | `mutating` | `none` | `exchange` | 65 536 |
 | `introduction-voucher/0.1` | mediator · each side on that side's tuple; `pairwise` · `pairwise` | absent | `mutating` | `metadata` | `exchange` | 65 536 |
 
+What each type does at its recipient (the rationale of item 13) and
+what a consumer holds to interpret it (item 15):
+
+| Type | Effect | Authorization evidence |
+|---|---|---|
+| `encounter-bundle/0.1` | creates the enactment record and records the accepted credential (4.1) | the recipient's own challenge the credential binds, resolved from its holder state (Encounter 5.3), and the pair anchor the card was sent to |
+| `delivery-ack/0.1` | updates the sender's status of one document it sent, nothing else (4.2) | the sender's own record of the acknowledged document on that thread |
+| `encounter-credential-delivery/0.1` | buffers the credential for Encounter acceptance (4.3) | the enactment record and the challenge it binds (Encounter 5.6) |
+| `registry-declaration/0.1` | records a party's constants per (issuer, role) under the revision rule (4.4) | none beyond the relationship: a party declares for itself alone |
+| `star/0.2`, `group-star/0.1` | buffers a chunk into its assembly; the completing chunk commits the snapshot and the salt floor (4.4) | the arrival tuple and its relationship key, from the recipient's holder state |
+| `anchor-mapping/0.3` | writes the sender's chain state for the addressee (Trust Layer §6.1, §6.4) | the arrival tuple and the held lineage |
+| `profile/0.1` | replaces the profile held for the tuple by a newer revision (Trust Layer §6b) | the arrival tuple and its relationship key |
+| `continuity-probe/0.1` | buffers the probe and raises the completed-probe floor (Trust Layer §6a.2) | the enactment tuple |
+| `continuity-mapping/0.1` | chains the new relationship to the prior one, see below (Trust Layer §6a.4) | the enactment tuple and the prior relationship's key |
+| `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1` | enters or advances the act state of the introduction (Trust Layer §8) | the act the holder holds and the tuple of each leg; the request rests on the mediator's declared `ack-delay` (4.4) |
+| `introduction-ack/0.1` | moves the requester's act from `sent` to `acked` (Trust Layer §8.4) | the act the requester sent |
+| `introduction-voucher/0.1` | holds the voucher for the act's match (Trust Layer §8.5) | the act the side holds |
+
 Every row declares `discloses: none` and `actsAsSubject: false`
 (RLTP-DEL-3020). The rationales the framework requires:
 
@@ -986,8 +1018,8 @@ RLTP-ENC-6120) and its `deliveryHints` (at most 8 of at most 512
 characters, read by the delivery adapter, opaque); an encounter
 credential's `channel` (at most 64, informative); a profile's `name`
 and `text` (at most 64 and 256); an introduction request's
-`displayName` and `note` (at most 64 and 256). The other types carry
-no free text.
+`displayName` and `note` (at most 64 and 256), which the forward
+carries unchanged. The other types carry no free text.
 
 ## 5. The Sealed Envelope
 

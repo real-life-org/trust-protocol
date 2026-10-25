@@ -152,12 +152,12 @@ collecting, which RLTP-VTI-1110 places on the inner sender.
 DID as its sender is nonconformant: there the counterpart would see
 the collecting identifier as the sender.
 
-Delivery 0.83 hangs the separation on the outer sender. The change
+Delivery 0.84 hangs the separation on the outer sender. The change
 this reading needs in the Delivery Contract is stated in Appendix A;
 until its next casting takes it up, an implementation of this
 profile states in its conformance notes that it applies RLTP-VTI-1110
 and 1120 in place of that clause, and every other entry of
-Appendix A that turns a conformance statement of Delivery 0.83
+Appendix A that turns a conformance statement of Delivery 0.84
 around (the send-only session of mode `egress-session`, the routed
 deposits under the connection DID). The sentence of §5a.10 that a
 nested private end-to-end VID is "hidden from intermediaries by
@@ -666,10 +666,20 @@ of its code. `retryable: false` is a **terminal verdict** and enters
 the refusal channel with its code; `retryable: true` produces **no
 port transition at all** — it is an availability condition of the
 counterpart's infrastructure, the delivery layer retries under its
-own schedule, a `retryAfter` does not change that schedule, and a
-submission that already entered the trias keeps its trias state
-(§6.1: pre-transport reports end at trias entry — nothing moves
-`accepted` back).
+own schedule, and a submission that already entered the trias keeps
+its trias state (§6.1: pre-transport reports end at trias entry —
+nothing moves `accepted` back). A `retryAfter` is the lower bound of
+the document's next attempt: no attempt starts before it. The bound
+is capped by the give-up horizon (§2): a `retryAfter` beyond it is
+never waited for, and the submission ends at the horizon. An accepted
+submission makes no further attempt from this side (Delivery §6.1),
+so a `retryAfter` binds nothing there.
+
+The reading of an error document is by its form: `type`
+`https://trusttasks.org/spec/trust-task-error/0.5`, a payload with
+exactly the registry's members, a standard or an extended `code`, a
+boolean `retryable`, an RFC 3339 `retryAfter`; anything else is no
+refusal and changes nothing.
 
 **RLTP-VTI-5020** — The codes of a terminal verdict are the
 standard codes `malformedRequest`, `unsupportedType`,
@@ -1291,6 +1301,6 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.1` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
+| 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.1` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |

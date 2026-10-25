@@ -18,8 +18,12 @@ and its rules. Each type also declares, in the framework's vocabulary,
 whose identifiers fill its parties, what it changes at the recipient,
 what it carries about people, what the recipient keeps, and its
 largest document: 65 536 bytes, and 16 384 bytes for the invitation
-and the acceptance
-([Delivery §4.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#45-declarations)).
+and the acceptance. The declarations stand with each registration:
+[Delivery §4.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#45-declarations)
+for its own types and the Trust Layer's,
+[Membership §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#3-registered-task-types),
+[Access §10](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#10-service-ports-and-task-types),
+and [Message Tasks §3.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md#34-declarations).
 
 The verifiable credentials some of these documents carry are listed
 under [Credentials](/reference/credentials/).

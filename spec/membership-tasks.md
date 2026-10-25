@@ -457,7 +457,15 @@ the parties of the invitation, the acceptance and the admitting
 operation; it is recognisable within the group, through its log, and
 nowhere else, and these types therefore declare it `public` in the
 framework's sense (TT §7.3 item 5): an identifier a bounded set of
-counterparties recognises is no pairwise one. The six types are the invitation, the acceptance, the carrier that brings an
+counterparties recognises is no pairwise one. The reach is intrinsic,
+not a convenience: the log authorizes by member anchor (Access 5.3),
+so every member must recognise the signer of an invitation, an
+acceptance or an admission. Every type is consequential, and none
+carries authority (Delivery RLTP-DEL-3020): for the invitation, the
+acceptance, the admitting operation and the evidence relay the
+authorization evidence is the group's authority log (Access 5.3), for
+the prelude the relationship's tuple and the inviter's binding
+(3.5). The six types are the invitation, the acceptance, the carrier that brings an
 admitting operation and its welcome to its subject, the evidence
 relay, and the request and reply of the prelude. Each subsection states the payload, the document fields, the
 receiver's checks, the declarations, and the defined effect of its
@@ -1478,13 +1486,15 @@ opening the prelude thread.
 **RLTP-MT-3920** — The declarations (TT §7.3) of the request MUST be:
 parties inviter · invitee, identifier scope `pairwise` · `pairwise`;
 side effects `mutating`; exposure `discloses: none`,
-`actsAsSubject: false`, `ingests: metadata`; retention `durable`;
+`actsAsSubject: false`, `ingests: personal`; retention `durable`;
 size bound 65 536 bytes (Delivery RLTP-DEL-3030).
 
 *Rationale.* Both anchors are the pair anchors of the tuple the
 request travels on (3900, 3910). It carries the group's DID, genesis
-digest and display `name` (at most 200 characters, stated by the
-inviter) and the inviter's binding; the binding it writes is kept
+digest and display `name` (at most 200 characters, free text the
+group's founder wrote, stated by the inviter), and the inviter's
+binding naming its member anchor; free text a person wrote is
+`personal` in the framework's grading. The binding it writes is kept
 with the relationship (3945).
 
 *Rationale.* The request travels where the two people already have

@@ -266,7 +266,10 @@ the inbox (4.3); the inbox keeps the body until the application takes
 it over, and the completion record is kept at least the age bound H
 (4.4). `text` is free text a person wrote: at most 4096 code points
 (3020), read by the addressee, the sender's statement under the MAC,
-shown as the sender's (4430). A transferable signature would hand
+shown as the sender's (4430). The type is consequential and carries no
+authority (Delivery RLTP-DEL-3020): what a consumer holds to interpret
+a message is the arrival tuple, its relationship key and the block
+state of the relationship (Section 6). A transferable signature would hand
 every recipient a permanent proof of what was said, which the purpose
 of a message never requires (Trust 3010, 3020).
 

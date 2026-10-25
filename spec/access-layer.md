@@ -4640,7 +4640,13 @@ target the Trust Tasks framework 0.6.0, are at maturity level
 address members by identities the group's log binds: a member
 anchor, or a service identity derived per group and device (7). Each
 is recognisable within the group, and nowhere else, so the types
-declare it `public` in the framework's sense (TT §7.3 item 5).
+declare it `public` in the framework's sense (TT §7.3 item 5); the
+reach is intrinsic, since the log binds and authorizes by these
+identities. Both types are consequential and carry no authority
+(Delivery RLTP-DEL-3020): the authorization evidence a consumer holds
+is the group's authority log — the transition whose `keyDist` commits
+to delivered material, the entitlement of a requesting member (5.3),
+the canonical `member.remove` a notice names.
 
 ### 10.1 `key-delivery/0.1`
 
@@ -5176,7 +5182,7 @@ idempotence, not an authority question.
 
 ## 11. Evolvability
 
-Profile `rltp-access@0.57` produces and accepts these wire forms:
+Profile `rltp-access@0.58` produces and accepts these wire forms:
 
 | Artifact | Wire version |
 |---|---|
@@ -5917,7 +5923,8 @@ in both directions.
     request as its own variant, is open. The outer `issuer` of a
     removal-notice document is not settled (RLTP-ACC-10345), and
     whether a device identity is the same across groups decides
-    between `public` and a wider scope (OI-18).
+    whether the justification of `public`, recognisable within the
+    group and nowhere else, holds for it (OI-18).
 
 
 ## Appendix A (informative): implementation notes
