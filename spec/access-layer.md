@@ -3,11 +3,11 @@
 **Real Life Trust Protocol — Layer 4: Access**
 
 - **Status:** Editor's Draft
-- **Version:** 0.57.0-draft
+- **Version:** 0.58.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-14
+- **Date:** 2026-10-25
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-access@0.57` (draft). Wire forms:
+- **Conformance profile:** `rltp-access@0.58` (draft). Wire forms:
   the operation envelope `rltp-access/0.25`, key material and key
   distribution `/0.25`, the removal notice
   `rltp-access-removal-notice/0.25`, the service registration
@@ -17,14 +17,14 @@
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3);
-  RLTP Encounter 0.31; RLTP Delivery Contract 0.83 (normative
+  RLTP Encounter 0.31; RLTP Delivery Contract 0.84 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
-  Membership Tasks 0.20 (the task types that transport this
+  Membership Tasks 0.21 (the task types that transport this
   layer's admission documents); RLTP Trust Layer 0.31 (the
   group pair, §5.2b, and the `anchor-rotation@2` artifact, §6.5).
-- **Supersedes:** version 0.56 (archived as
-  `archive/access-layer-0.56.md`). Earlier versions: Appendix C.
+- **Supersedes:** version 0.57 (archived as
+  `archive/access-layer-0.57.md`). Earlier versions: Appendix C.
 
 ## Status of This Document
 
@@ -37,7 +37,10 @@ agreement systems and are implemented against the adapter
 `beekem/0.1` in an experimental harness, not yet in the library. The
 next expected changes are device bindings and policy under
 `beekem/0.1` and an active-attacker review of the service rules
-(OI-17); each is a new version. Open questions are listed in
+(OI-17); each is a new version. This version moves its two task
+types to the Trust Tasks framework 0.6.0 with the Delivery Contract
+0.84 and declares them in the framework's vocabulary (Section 10);
+no other requirement changed. Open questions are listed in
 Section 15, and feedback is welcome via the issues of the
 publication repository (github.com/real-life-org/trust-protocol).
 
@@ -4602,8 +4605,8 @@ This layer requires, and does not define:
 
 - **Delivery port:** authenticated end-to-end-encrypted delivery to
   derived identities with durable buffering and explicit
-  disposition — satisfied by the Delivery Contract (0.81), whose
-  task types for this layer are the Membership Tasks (0.19) plus the
+  disposition — satisfied by the Delivery Contract (0.84), whose
+  task types for this layer are the Membership Tasks (0.21) plus the
   two types registered below.
 - **Replication port:** convergent replication of the encrypted
   authority log and documents; deterministic merge; offline
@@ -4630,11 +4633,14 @@ of the registration (Section 9.3); services themselves are bound by
 that provider a point of control. How a group moves from one
 service to another while views are in use is open (Section 15).
 
-*Editor's note (Trust Tasks framework).* The task types below are
-registered under type URIs that target the Trust Tasks framework
-0.4, like the Membership Tasks. The move to framework 0.7.0 is made
-together with the Delivery Contract and the Membership Tasks, not by
-this layer alone.
+The two task types are registered under
+`https://real-life.org/trust-tasks/spec/` (Delivery RLTP-DEL-3010),
+target the Trust Tasks framework 0.6.0, are at maturity level
+`draft`, and declare what Delivery RLTP-DEL-3020 asks for. Both
+address members by identities the group's log binds: a member
+anchor, or a service identity derived per group and device (7). Each
+is recognisable within the group, and nowhere else, so the types
+declare it `public` in the framework's sense (TT §7.3 item 5).
 
 ### 10.1 `key-delivery/0.1`
 
@@ -4643,7 +4649,7 @@ which it is claimed: key material to retained members, welcomes and
 re-welcomes to admitted subjects, refresh material to current
 members under the key service duty (5.3), and the authenticated
 request itself. Type URI
-`https://real-life.org/trust-tasks/key-delivery/0.1`, payload schema
+`https://real-life.org/trust-tasks/spec/key-delivery/0.1`, payload schema
 `schemas/payload-key-delivery.schema.json`.
 
 **RLTP-ACC-10030** — `key-delivery/0.1` MUST follow the Delivery
@@ -4672,6 +4678,25 @@ The material kinds are registered per adapter (Section 9.4).
 | `keydist` | the transition | the key envelope whose digest the named transition's `keyDist` carries for this recipient (the seal profile of 9.4.1) |
 | `re-welcome` | the canonical admission | a welcome seal per Membership §4, built from fresh material of the key port at the sender's current position, sealed to the accept's card or to the card of the request it answers (5.3) |
 | `refresh` | any canonical admission of the recipient, or the genesis for the founder | a seal per the `keydist` profile of 9.4.1 — same HKDF info, associated data with the requester as recipient and the sender's current epoch as `newEpoch` — whose plaintext is a fresh `material` object (9.4, with `keyState` = the sender's current key state) from the key port at the sender's current position, sealed to the requesting device's key-agreement key |
+
+**RLTP-ACC-10035** — The declarations (TT §7.3) MUST be: parties
+claiming or delivering member · entitled recipient, identifier scope
+`public` · `public`; side effects `mutating`; exposure `discloses:
+none`, `actsAsSubject: false`, `ingests: secret`; retention
+`durable`; size bound 65 536 bytes (Delivery RLTP-DEL-3030). They are
+stated per kind: a `request` carries a proof (RLTP-ACC-10080), ingests
+`personal` where its card is a first device's contact card and
+`metadata` otherwise, and is kept no longer than the Delivery
+Contract's completed-effect cache (`exchange`); a material kind
+carries no proof (RLTP-ACC-10070), ingests key material, and its
+adopted material becomes the replica's key state.
+
+*Rationale.* One type carries a demand and the material that answers
+it; the framework's item 8 knows a request and a response variant,
+not kinds, so the per-kind values stand in prose (OI-20). The card a
+request may carry has a `name` (at most 200 characters) and up to
+eight `deliveryHints` (at most 512 each), stated by the requester
+under the card's proof and read by the helper device.
 
 **RLTP-ACC-10040** — A `keyDelivery` payload MUST carry `group`,
 `genesisDigest`, `epoch`, and `kind`, with `kind` being `request` or
@@ -5033,7 +5058,7 @@ would hand a second device the first device's identity.
 ### 10.2 `removal-notice/0.1`
 
 The task type by which a removed member is told of their removal.
-Type URI `https://real-life.org/trust-tasks/removal-notice/0.1`;
+Type URI `https://real-life.org/trust-tasks/spec/removal-notice/0.1`;
 the payload is the compact notice object, schema
 `schemas/payload-removal-notice.schema.json`:
 
@@ -5059,6 +5084,20 @@ Delivery Contract's.
 document profile, dispositions, and acknowledgement rules per the
 Delivery Contract §§3–6, and with its payload schema `$id` equal to
 its type URI.
+
+**RLTP-ACC-10345** — The declarations (TT §7.3) MUST be: parties
+notifying member · removed member, identifier scope `public` ·
+`public`; side effects `mutating`; exposure `discloses: none`,
+`actsAsSubject: false`, `ingests: metadata`; retention `exchange`;
+size bound 65 536 bytes (Delivery RLTP-DEL-3030).
+
+*Rationale.* The notice changes no authorization state
+(RLTP-ACC-10410); its effect is the surfacing and the holder's
+record that the removal was told (RLTP-ACC-10450), a deduplication
+record rather than the notice's content. It names anchors, an
+operation and an epoch, and carries no free text. Which anchor the
+outer document's `issuer` is, the notice's `issuer` or the identity
+it sends under, this version does not settle (OI-20).
 
 **RLTP-ACC-10350** — A removal notice MUST name in `op` the
 `member.remove`, in `subject` the removed anchor, in `epoch` the
@@ -5222,7 +5261,7 @@ group that depends on a rule introduced by a later profile can
 refuse operations under an earlier one.
 
 **RLTP-ACC-11100** — The task type `access-operation/0.1` of the
-Membership Tasks (0.19) MUST transport envelopes of version
+Membership Tasks (0.21) MUST transport envelopes of version
 `rltp-access/0.25`, and the welcome `material` that Membership §4
 carries MUST be `rltp-access-material/0.25`; a receiver MUST reject
 an envelope or a welcome material of any other version there.
@@ -5515,15 +5554,15 @@ Membership Tasks' document schemas, `sealed-envelope.schema.json`,
 `contact-card.schema.json`, and
 `visibility-anchor-rotation.schema.json`.
 
-**RLTP-ACC-14020** — The profile `rltp-access@0.57` MUST produce and
+**RLTP-ACC-14020** — The profile `rltp-access@0.58` MUST produce and
 accept exactly the wire forms of Section 11 and MUST be read against
 the companions RLTP Identity 0.54 (whose per-device service
 identity of 5.2 awaits, so conformance claims no device-level
 service identity), RLTP
 Encounter 0.31 (`rltp-encounter@0.31`, card form `rltp-card/0.25`,
 where cards are consumed), RLTP Trust Layer 0.31 (`rltp-trust@0.31`,
-the `anchor-rotation@2` of 5.6), the Delivery Contract 0.83, and the
-Membership Tasks 0.20 (`rltp-membership@0.20`), whose pins of this layer's wire forms
+the `anchor-rotation@2` of 5.6), the Delivery Contract 0.84, and the
+Membership Tasks 0.21 (`rltp-membership@0.21`), whose pins of this layer's wire forms
 RLTP-ACC-11100 states; the two documents move together, so the
 Membership Tasks text carried in the same publication names this
 version, and the removal notice travels as
@@ -5565,7 +5604,7 @@ while B removes C.
 
 **RLTP-ACC-14060** — A vector and a conformance report MUST reference
 rules by their `RLTP-ACC` identifiers, against the identifier list
-`conformance/access-rule-ids-0.57.txt`.
+`conformance/access-rule-ids-0.58.txt`.
 
 **RLTP-ACC-14070** — Every normative statement of this document MUST
 be vector-testable or named in the state-dependent set: signal
@@ -5870,6 +5909,15 @@ in both directions.
     use cases of this layer (shared maps, calendars, marketplaces)
     need no narrowing; a module that does, such as a chat, would
     need it designed over key states, as an adapter form.
+14. **OI-20 Framework declarations per kind.** `key-delivery/0.1`
+    carries a demand and the material that answers it under one type,
+    with different proof, ingest and retention per kind; the
+    framework's declarations know request and response variants, not
+    kinds (RLTP-ACC-10035). Splitting the type, or declaring the
+    request as its own variant, is open. The outer `issuer` of a
+    removal-notice document is not settled (RLTP-ACC-10345), and
+    whether a device identity is the same across groups decides
+    between `public` and a wider scope (OI-18).
 
 
 ## Appendix A (informative): implementation notes
@@ -5975,6 +6023,7 @@ One line per version; the archived text of 0.4 and later is under
 | 0.55 | 2026-10-06 | Key request by admission reference (`admission { subject, acceptDigest }`); bootstrap of a bound device without a replica; displacement record separate from the completed-effect entry; removal notice `rltp-access-removal-notice/0.25` with `issuer`; at most 16 vouches in the evidence relay, checked at receipt; only the 0.25 envelope and material accepted; Membership Tasks 0.17 pinned; schema corrections (vouch `$id`, `vouch@2` in the envelope's credentials). |
 | 0.56 | 2026-10-07 | `anchor.rotate` (5.6); `member-mapping@1` and `rltp-access-member-mapping/0.24` removed, the crossing is Network Visibility §5.2b (RLTP-ACC-5880; 5890–5940 retired); Identity 0.52, Visibility 0.30, Delivery 0.80, Membership Tasks 0.18 pinned. |
 | 0.57 | 2026-10-14 | Layer 4 in the layer model, below it the Trust Layer 0.31 (formerly Network Visibility), cited as Trust Layer §5.2b, §6.5, §8; `anchor.rotate` carries `anchor-rotation@2` (5.6), the form Trust Layer §6.5 defines; RLTP-ACC-5960 and 5967 check its pre-rotation binding against the lineage head, RLTP-ACC-5958 its predecessor, and RLTP-ACC-5980 has a device write it only over the lineage it holds, a first entry only from generation 1 of the community whose genesis its ancestor closure holds; the rules of 5.6 carry one requirement each (RLTP-ACC-5956 from 5955; 5962, 5966 and 5968 from 5965); the editor's note of 5.2 reads the device keys of Identity 0.54 §5.5; Identity 0.54, Encounter 0.31, Delivery 0.81, Membership Tasks 0.19 pinned. No other requirement changed. |
+| 0.58 | 2026-10-25 | Trust Tasks framework 0.6.0: `key-delivery/0.1` and `removal-notice/0.1` under `https://real-life.org/trust-tasks/spec/`; their declarations (RLTP-ACC-10035, RLTP-ACC-10345); OI-20; Delivery 0.84, Membership Tasks 0.21 pinned. No other requirement changed. |
 
 
 ## References
@@ -5987,8 +6036,9 @@ Credential Specification (ToIP DTGWG, draft; EndorsementCredential)
 registry §6, the community anchor's generations §5.4, derived
 service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.31**, card wire 0.25 (securing
 profile 2.3, contact card §6, pair anchors §4.4) · **RLTP Delivery
-Contract 0.81 (normative)** (document profile, sealed envelope §5,
-dispositions §6) · **RLTP Membership Tasks 0.20 (normative)**
+Contract 0.84 (normative)** (document profile, Type URI form and
+declarations §3, sealed envelope §5, dispositions §6) · **RLTP
+Membership Tasks 0.21 (normative)**
 (document shapes §3, welcome seal §4, timing §5) · **RLTP Replication
 Contract** (replication port, service targets) · **RLTP Trust
 Layer 0.31** (§2.1 wire conventions, §3 audience classes,

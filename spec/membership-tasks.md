@@ -18,7 +18,7 @@
 - **Position:** a task-type registration on top of the **RLTP
   Delivery Contract 0.84** (normative reference; its §4.4 registry
   carries these types), carrying operations of the **RLTP Access
-  Layer 0.57** (normative reference; wire forms `rltp-access/0.25`
+  Layer 0.58** (normative reference; wire forms `rltp-access/0.25`
   and `rltp-access-material/0.25`): the operation envelope of its
   3.3 is the payload this specification transports, and the Access
   layer owns every question of authority — admission validity and
@@ -28,7 +28,7 @@
   the travel: which documents exist, what they bind, how they are
   checked on receipt, and what a receiver does with them.
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3); RLTP
-  Encounter 0.31; RLTP Access Layer 0.57; RLTP Delivery Contract
+  Encounter 0.31; RLTP Access Layer 0.58; RLTP Delivery Contract
   0.84; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
   6.4); RLTP Message Tasks 0.1 (the block and the register of
   declined invitations, its Section 6).
@@ -68,7 +68,7 @@ of an RLTP group travel between people: the **invitation** and its
 explicit **acceptance**, the carrier that delivers the **admitting
 operation and its welcome** to a new member across the replica
 boundary, and the **evidence relay** that lets any authorized member
-complete an admission. It carries operations of the RLTP Access Layer 0.57 (envelope `rltp-access/0.25`, key material
+complete an admission. It carries operations of the RLTP Access Layer 0.58 (envelope `rltp-access/0.25`, key material
 `rltp-access-material/0.25`) over the Delivery Contract 0.84.
 
 The dividing line is the replica boundary: inside a group, the
@@ -2236,7 +2236,7 @@ this specification disclose beyond what Section 3 requires.
 ## 10. Conformance
 
 **RLTP-MT-10010** — The profile `rltp-membership@0.21` MUST be read
-against `rltp-delivery@0.84`, `rltp-access@0.57` with its wire forms
+against `rltp-delivery@0.84`, `rltp-access@0.58` with its wire forms
 `0.25` (envelope 3.3, group identity 3.2, member identity and device
 bindings 5.1, admission, vouch and candidacy 5.3, views 7.3, service
 9.3, material 9.4, `key-delivery/0.1` 10.1, `removal-notice/0.1`
@@ -2265,7 +2265,7 @@ envelope or material of any other version, even where the shared
 Access transcription admits it.
 
 **RLTP-MT-10060** — An Access section number cited in this document
-MUST be read against the Access document 0.57; the wire pin of
+MUST be read against the Access document 0.58; the wire pin of
 RLTP-MT-10020 MUST cover only the envelope `rltp-access/0.25` and the
 material `rltp-access-material/0.25`, and every other Access form
 this document cites (`rltp-access-view/0.24`,
@@ -2776,7 +2776,7 @@ its transcription is a defect of the release.
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://real-life.org/trust-tasks/spec/access-operation/0.1",
   "title": "Payload: access-operation/0.1 (rltp-membership@0.21, target Trust Tasks framework 0.6.0)",
-  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). Carries exactly one thing across the replica boundary: an admitting member.add with its welcome, delivered to its own subject (Membership Tasks 3.3). The enclosed operation is an Access envelope rltp-access/0.25 (Access 0.57; const below, RLTP-MT-10020); member.add is additive and carries no keyOpDigest. Replication owns the inside, a removed member's notice is Access's removal-notice/0.1 (its 10.2), transition key material travels via key-delivery/0.1 (its 10.1), and transition-carrying envelopes never leave the replica (RLTP-ACC-5350). The schema therefore requires op = member.add, the member.add body, and the welcome seal, and additionally rejects any operation body carrying a transition. The envelope carries its own signatures, so the task document carries no proof, and the document issuer MUST be the operation's author or one of its signers. The enclosed member.add proof is a transported variant capped at 64 signatures and 16 credentials (each credential at most 2048 bytes JCS, a prose rule; RLTP-ACC-5320), never a replica's merged proof. Validity, canonicality, consumption, and every merge question are Access 5.3's; this schema is transport shape only.",
+  "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). Carries exactly one thing across the replica boundary: an admitting member.add with its welcome, delivered to its own subject (Membership Tasks 3.3). The enclosed operation is an Access envelope rltp-access/0.25 (Access 0.58; const below, RLTP-MT-10020); member.add is additive and carries no keyOpDigest. Replication owns the inside, a removed member's notice is Access's removal-notice/0.1 (its 10.2), transition key material travels via key-delivery/0.1 (its 10.1), and transition-carrying envelopes never leave the replica (RLTP-ACC-5350). The schema therefore requires op = member.add, the member.add body, and the welcome seal, and additionally rejects any operation body carrying a transition. The envelope carries its own signatures, so the task document carries no proof, and the document issuer MUST be the operation's author or one of its signers. The enclosed member.add proof is a transported variant capped at 64 signatures and 16 credentials (each credential at most 2048 bytes JCS, a prose rule; RLTP-ACC-5320), never a replica's merged proof. Validity, canonicality, consumption, and every merge question are Access 5.3's; this schema is transport shape only.",
   "type": "object",
   "required": [
     "operation",
@@ -3384,7 +3384,7 @@ One line per version; the archived text is under `archive/`.
 | 0.18 | 2026-10-07 | Pins Access 0.56, Delivery 0.80, Identity 0.52. |
 | 0.19 | 2026-10-14 | Pins Access 0.57, Delivery 0.81, Identity 0.54, Encounter 0.31; the introduction act cited as Trust Layer §8. |
 | 0.20 | 2026-10-19 | The prelude as `membership-prelude-request/0.1` and `membership-prelude-reply/0.1` with the inviter binding; invitation attribution, rate, silent decline under a block with the register of declined invitations, one surfacing per invitation (Message Tasks 0.1); the inviter's invitation as its act of admission; Privacy Considerations; pins Delivery 0.82. |
-| 0.21 | 2026-10-25 | Trust Tasks framework 0.6.0: Type URIs under `https://real-life.org/trust-tasks/spec/`; declarations per type in the framework's vocabulary (identifier scope, side effects, exposure, retention, size bound), a declaration rule for the accept (RLTP-MT-3287); MO-10; pins Delivery 0.84. |
+| 0.21 | 2026-10-25 | Trust Tasks framework 0.6.0: Type URIs under `https://real-life.org/trust-tasks/spec/`; declarations per type in the framework's vocabulary (identifier scope, side effects, exposure, retention, size bound), a declaration rule for the accept (RLTP-MT-3287); MO-10; pins Delivery 0.84, Access 0.58. |
 
 
 ## References
@@ -3400,7 +3400,7 @@ principles 1.3, contact card §6) · **RLTP Delivery Contract 0.84
 (normative)** (document profile §3, registry 4.4, sealed envelope §5,
 dispositions, lock keys and rate §6, delivery time §7) · **RLTP
 Message Tasks 0.1 (normative)** (attribution 6.2, the block 6.3, the
-register of declined invitations 6.4, the rate 4.2) · **RLTP Access Layer 0.57
+register of declined invitations 6.4, the rate 4.2) · **RLTP Access Layer 0.58
 (normative)**, wire 0.25 (group identity 3.2, operation envelope
 3.3, materialization and conflict matrix 3.5–3.6, `member.add` body
 profile 4.5, member identity and device bindings 5.1, admission,

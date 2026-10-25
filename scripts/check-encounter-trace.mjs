@@ -6,7 +6,7 @@
 //
 // Two sources of truth for the rule set:
 //   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
-//     conformance/access-rule-ids-0.57.txt,
+//     conformance/access-rule-ids-0.58.txt,
 //     conformance/membership-rule-ids-0.21.txt,
 //     conformance/trust-rule-ids-0.31.txt,
 //     conformance/delivery-rule-ids-0.84.txt,
@@ -53,9 +53,9 @@ export const LAYERS = {
   },
   access: {
     prefix: 'RLTP-ACC',
-    title: 'Access Layer 0.57',
+    title: 'Access Layer 0.58',
     spec: join(ROOT, 'spec/access-layer.md'),
-    manifest: join(ROOT, 'conformance/access-rule-ids-0.57.txt'),
+    manifest: join(ROOT, 'conformance/access-rule-ids-0.58.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'access-0.56-regelinventar.md'),
     env: 'ACCESS_INVENTORY',
     inventorySection: 'B'
