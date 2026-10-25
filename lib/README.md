@@ -147,7 +147,7 @@ Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
 
 **Delivery hints** (Encounter RLTP-ENC-6080, 6090; Identity §7a.3; VTI
-Mediator Adapter Profile 0.25 §1b). `show` and `scan` take a carrier
+Mediator Adapter Profile 0.26 §1b). `show` and `scan` take a carrier
 offer, `carrier: {nonce, deliveryHints}`: the relationship's carrier
 nonce N (32 bytes the app draws fresh) and the hints the app built from
 the wire identities its adapter derives from N. The card (the displayed

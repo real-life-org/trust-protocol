@@ -320,12 +320,12 @@ instance accepts the frame only if all three hold:
 
 After the receive the host compares the egress identity that the hint
 of the record's sent card names for `C` (RLTP-VTI-1220, 1225, 1227)
-with the frame's sender VID, and logs a difference. The comparison is a
-diagnosis: it changes neither the acceptance, nor the binding, nor the
-acknowledgement.
+with the frame's sender VID, where that hint names one, and logs a
+difference. The comparison is a diagnosis: it changes neither the
+acceptance, nor the binding, nor the acknowledgement.
 
-**RLTP-VTI-1260** — The instance is bound when the card's challenge
-first resolves `recorded`, whatever carrier, instance or leg brought
+**RLTP-VTI-1260** — The instance is bound when the host observes the
+card's challenge first resolve `recorded` (the holder's resolution), whatever carrier, instance or leg brought
 the record: a frame accepted under RLTP-VTI-1255, a bundle over another
 carrier or another transport, or the optical leg (Encounter
 RLTP-ENC-5710, RLTP-VTI-1230). Bound, it is the instance of the
@@ -349,7 +349,8 @@ egress identity of the record's hint is logged, never discarded on that
 ground. A bundle of another scanner on the same displayed card is
 refused: by the holder (`failed(consumed-challenge)`, Delivery §4.1;
 Encounter RLTP-ENC-5410) or, once the instance is bound, by
-RLTP-VTI-7140. The first bundle the holder takes binds (Open Issue 11).
+RLTP-VTI-7140. The first record binds (RLTP-VTI-1260); of bundles, the
+first the holder takes (Open Issue 11).
 A bundle the counterpart re-issues for the same enactment comes from its
 egress identity after the binding and lands as Delivery §4.1 states.
 
@@ -931,9 +932,11 @@ is decidable.
 - **Who learns a displayed card's hint can deposit.** The displayed
   card shows the displaying side's connection DID to everyone who sees
   it (§9). A party other than the counterpart can deposit frames to
-  that account at the mediator; the binding refuses each
-  (RLTP-VTI-7140), logs and acknowledges it, and the documents it
-  carried have no effect. The cost is load: the receiving adapter's
+  that account at the mediator. Once the instance is bound, the binding
+  refuses each (RLTP-VTI-7140), logs and acknowledges it, and the
+  documents it carried have no effect; before, the instance takes every
+  `direct` frame and binds from the hint alone (the next item,
+  RLTP-VTI-1255, 1265). The cost is load: the receiving adapter's
   buffering is bounded by §2; the mediator's queue and the deposit rate
   are the mediator's own limits, which this profile does not bind (§2,
   the honest limit).
@@ -1142,7 +1145,7 @@ is decidable.
 
 ## Appendix A: Companion changes
 
-§1a and §1b read clauses of Delivery §5a.10 differently from their
+§1a to §1c read clauses of Delivery §5a.9 and §5a.10 differently from their
 present wording. The Delivery Contract owns that clause; these are
 the changes its next casting takes up.
 
@@ -1193,12 +1196,17 @@ the changes its next casting takes up.
   changes under it; an adapter profile that declines MUST state it,
   and the fresh-outer-VID rule binds every adapter that serves the
   case.
-- 5a.10, the outer VID's tie to "one principal ↔ … the relationship"
-  and its retirement with the principal: a principal whose relationship
+- 5a.10, "One principal, one relationship, one carrier, one live VID",
+  and the retirement with the principal: a principal whose relationship
   is the one a displayed card opens is live at the carrier from the
   display on, before that relationship exists (this profile:
-  RLTP-VTI-1250). A card never answered leaves its account to the
-  carrier-side aging of 5a.9; no relationship retires it.
+  RLTP-VTI-1250).
+- 5a.9, the aging of orphaned bindings (`orphan-horizon`), extended: the
+  account of a displayed card's instance that is closed without a
+  relationship it carries — a card never answered (RLTP-VTI-1270), or a
+  record whose sent card names no identities at that carrier
+  (RLTP-VTI-1260) — is aged out like an orphaned binding; 5a.9 names
+  that case.
 - 5a.10, collecting side, "MUST NOT hold two live outer VIDs for one
   principal at one carrier": the rule concerns the principal's
   collecting identifier; a send-only session of a sending-side
