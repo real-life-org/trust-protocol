@@ -1,6 +1,6 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
-// message — the pure forms and checks of Message Tasks 0.1 (§3): the
+// message — the pure forms and checks of Message Tasks 0.2 (§3): the
 // message@1 body, the directional key k_msg and its MAC, used by the
 // holder's message module (message/holder.ts). State-free.
 import { b64uOf, calOK, jcs, makeValidator } from './core.js';

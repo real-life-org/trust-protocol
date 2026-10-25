@@ -14,7 +14,7 @@
 // stored documents, outbound or acks.
 //
 // Codec 3 is the format of 0.6.0 and the only one this library reads
-// (Delivery 0.83: an acknowledgement is sent when a service took it, failed,
+// (Delivery 0.84: an acknowledgement is sent when a service took it, failed,
 // or its retries ended; it may be held by the adapter meanwhile, and it
 // carries the duplicates' answers). Codecs 1 and 2 (lib 0.4.0, 0.5.0) never
 // held the state of a rolled-out app, so they have neither validator nor
@@ -23,8 +23,12 @@
 // test/fixtures/gen-state-v3.mjs, reproduced in npm test). The rule: a
 // newer codec is codec-newer, a codec without a validator codec-unknown.
 // A later codec that must read this one adds its validator, a migration
-// from codec 3, and its own fixture with a migration test.
+// from codec 3, and its own fixture with a migration test. A codec-3 state
+// written by lib 0.8 names its types without the /spec/ segment of
+// Delivery 0.84; decodeState refuses it as codec-type-uri, a clean cut
+// (fixture lib/test/fixtures/state-v3-lib-0.8.json).
 import { jcs } from './core.js';
+import { TASK_NAMESPACE } from './task-uri.js';
 /** The codec this library writes. */
 export const CODEC = 3;
 /**
@@ -442,13 +446,36 @@ export function decodeChain(raw, chain) {
     }
     return s;
 }
+/** The task-type namespace without its `/spec/` segment: a stored string
+ *  under it and outside TASK_NAMESPACE names a type in the form before
+ *  Delivery 0.84 (RLTP-DEL-3010), which lib 0.8 wrote into codec 3. */
+const TASK_ROOT = TASK_NAMESPACE.slice(0, -'spec/'.length);
+/** A clean cut, fail-closed: a state that names any type in the earlier
+ *  form is refused as codec-type-uri, at the first such string; it is
+ *  never migrated and never sent on. */
+function refuseEarlierTypeUris(x, path) {
+    if (typeof x === 'string') {
+        if (x.startsWith(TASK_ROOT) && !x.startsWith(TASK_NAMESPACE)) {
+            throw new StateCodecError('codec-type-uri', 'a Type URI in the form before Delivery 0.84 (lib 0.8); this library does not load such a state', path);
+        }
+    }
+    else if (Array.isArray(x)) {
+        x.forEach((v, i) => refuseEarlierTypeUris(v, `${path}[${i}]`));
+    }
+    else if (isObj(x)) {
+        for (const [k, v] of Object.entries(x))
+            refuseEarlierTypeUris(v, `${path}.${k}`);
+    }
+}
 const LIBRARY_CHAIN = { codec: CODEC, migrations: MIGRATIONS, validators: VALIDATORS };
 /**
  * Load a stored state: a JSON string or an already parsed value. Returns
  * an independent copy at the current codec, or throws StateCodecError.
  */
 export function decodeState(raw) {
-    return decodeChain(raw, LIBRARY_CHAIN);
+    const s = decodeChain(raw, LIBRARY_CHAIN);
+    refuseEarlierTypeUris(s, '$');
+    return s;
 }
 /** Serialize a state for storage: canonical JSON, validated first. */
 export function encodeState(state) {

@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // membership/holder — groups on the holder (lib Stage 2, PR 7a; Membership
-// Tasks 0.20 on Access 0.57, Delivery 0.82): founding, the prelude and
+// Tasks 0.21 on Access 0.58, Delivery 0.84): founding, the prelude and
 // the invite, the accept, admission and welcome, evidence and vouches, on
 // HolderState and the engine. The pure forms and checks are the root
 // module's (membership.ts).

@@ -3,7 +3,7 @@
 // RLTP transport adapter: VTI mediator — published as
 // @real-life/trust-protocol/adapters/vti-mediator (lib Stage 2, note §4.6).
 //
-// It takes the holder's documents from the holder's custody (Delivery 0.83
+// It takes the holder's documents from the holder's custody (Delivery 0.84
 // RLTP-DEL-6120 to 6135, lib 0.6.0): reconcile(view, gate, now) files every
 // entry of holder.pendingTransport(when) not yet filed, and withdraws every
 // filed submission still before the trias whose digest the view no longer
@@ -185,6 +185,104 @@ export function readDeliveryHints(hints, carrier, self) {
     catch {
         return null;
     }
+}
+// ── Counterpart refusals (profile §5, RLTP-VTI-5010 to 5030) ──────────
+// A counterpart that refuses a document answers with the registry's
+// trust-task-error/0.5. Read here, by form; validating the document (its
+// proof, its parties, that it answers a document of this side) is the
+// delivery layer's, which hands the reading to receiverRefused,
+// receiverRetry or answered.
+/** The Type URI of the error documents this profile reads. */
+export const TRUST_TASK_ERROR_TYPE = 'https://trusttasks.org/spec/trust-task-error/0.5';
+const ERROR_MEMBERS = new Set(['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']);
+const STANDARD_ERROR_CODES = new Set(['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid',
+    'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError']);
+const EXTENDED_ERROR_CODE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/;
+const RFC3339 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?(Z|[+-]([0-9]{2}):([0-9]{2}))$/;
+/** An RFC 3339 date-time as milliseconds, or null: calendar-valid, any
+ *  offset, never normalized into another day. */
+function rfc3339(t) {
+    if (typeof t !== 'string')
+        return null;
+    const m = RFC3339.exec(t);
+    if (m === null)
+        return null;
+    const [y, mo, d, h, mi, s] = m.slice(1, 7).map(Number);
+    if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 59)
+        return null;
+    const day = new Date(Date.UTC(y, mo - 1, d));
+    if (day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d)
+        return null;
+    if (m[8] !== 'Z' && (Number(m[9]) > 23 || Number(m[10]) > 59))
+        return null;
+    const ms = Date.parse(t);
+    return Number.isFinite(ms) ? ms : null;
+}
+/** One counterpart error document read by its form (registry
+ *  trust-task-error/0.5): `type` exactly TRUST_TASK_ERROR_TYPE, a payload
+ *  with exactly the registry's members, `code` a standard or an extended
+ *  code, `retryable` a boolean, `retryAfter` an RFC 3339 date-time,
+ *  `message` at most 1024 characters, `inResponseTo` with a `typeUri`,
+ *  `details` an object. `idConflict` is an answer (RLTP-VTI-5030);
+ *  otherwise `retryable: true` is a retry, whatever the code (5010);
+ *  `retryable: false` is a terminal verdict, an extended code and the
+ *  retryable codes read as `taskFailed` (5020); `expired` carries nothing.
+ *  Total, like the hint reader: any other input is null, never a throw. */
+export function readTrustTaskError(doc) {
+    try {
+        return readErrorStrict(doc);
+    }
+    catch {
+        return null;
+    }
+}
+function readErrorStrict(doc) {
+    if (doc === null || typeof doc !== 'object' || Array.isArray(doc))
+        return null;
+    const d = doc;
+    if (d.type !== TRUST_TASK_ERROR_TYPE)
+        return null;
+    const p = d.payload;
+    if (p === null || typeof p !== 'object' || Array.isArray(p))
+        return null;
+    const e = p;
+    if (Object.keys(e).some((k) => !ERROR_MEMBERS.has(k)))
+        return null;
+    const { code, retryable } = e;
+    if (typeof code !== 'string' || typeof retryable !== 'boolean')
+        return null;
+    const extended = !STANDARD_ERROR_CODES.has(code);
+    if (extended && !EXTENDED_ERROR_CODE.test(code))
+        return null;
+    if ('message' in e && (typeof e.message !== 'string' || e.message.length > 1024))
+        return null;
+    if ('details' in e && (e.details === null || typeof e.details !== 'object' || Array.isArray(e.details)))
+        return null;
+    if ('inResponseTo' in e) {
+        const r = e.inResponseTo;
+        if (r === null || typeof r !== 'object' || Array.isArray(r))
+            return null;
+        const ri = r;
+        if (Object.keys(ri).some((k) => k !== 'typeUri' && k !== 'id') || typeof ri.typeUri !== 'string' || ri.typeUri.length === 0)
+            return null;
+        if ('id' in ri && (typeof ri.id !== 'string' || ri.id.length === 0))
+            return null;
+    }
+    let retryAfter = null;
+    if ('retryAfter' in e) {
+        retryAfter = rfc3339(e.retryAfter);
+        if (retryAfter === null)
+            return null;
+    }
+    if (code === 'idConflict')
+        return { verdict: 'answered' };
+    if (retryable)
+        return { verdict: 'retry', retryAfter };
+    if (code === 'expired')
+        return { verdict: 'none' };
+    if (extended || code === 'unavailable' || code === 'internalError')
+        return { verdict: 'refused', code: 'taskFailed' };
+    return { verdict: 'refused', code: code };
 }
 const SEND_MODES = new Set(['routed', 'egress-session']);
 /** The addressing of a deposit in `mode` (RLTP-VTI-1110, 1120, 3110,
@@ -661,6 +759,9 @@ export class MediatorCarrierAdapter {
     #startAttempt(sub, now) {
         if (sub.attemptStartedAt !== null)
             return;
+        // a counterpart's retryAfter is the lower bound of the next attempt (RLTP-VTI-5010)
+        if (sub.notBefore !== undefined && now < sub.notBefore)
+            return;
         sub.attemptStartedAt = now;
         this.#track(this.#trySend(sub, now).finally(() => { sub.attemptStartedAt = null; }));
     }
@@ -871,12 +972,30 @@ export class MediatorCarrierAdapter {
     }
     /** Refusals act on live submissions only (§6.1 knows exactly one
      *  late correction — the valid ack). The code set is closed and
-     *  TERMINAL: retryable counterpart conditions (unavailable,
-     *  internalError) are transport outcomes, never receiver verdicts
-     *  — they have no entry here, and an unknown code is refused
+     *  TERMINAL: a refusal marked `retryable` is a transport outcome,
+     *  never a receiver verdict (receiverRetry, RLTP-VTI-5010), and a code
+     *  outside the set — an extended code before readTrustTaskError made
+     *  it `taskFailed`, `idConflict`, `unavailable` — is refused
      *  fail-closed rather than minted into a verdict (R6-B2). Applied, like
      *  acknowledged, before the conclude of the collection that carried
      *  it (RLTP-VTI-3130). */
+    /** A counterpart's validated retryable refusal (RLTP-VTI-5010): no port
+     *  transition; the next attempt of the document starts no earlier than
+     *  `retryAfter` (milliseconds, or null for the next advance). The give-up
+     *  horizon still ends the submission: a `retryAfter` beyond it is never
+     *  waited for. An accepted submission makes no further attempt from this
+     *  side (Delivery §6.1), and nothing moves back. */
+    receiverRetry(id, retryAfter) {
+        if (this.#closed)
+            return;
+        if (retryAfter !== null && !finite(retryAfter))
+            throw new Error('retryAfter is a finite instant in milliseconds, or null');
+        const sub = this.#subs.get(id);
+        if (!sub)
+            return;
+        if (retryAfter !== null)
+            sub.notBefore = Math.max(sub.notBefore ?? retryAfter, retryAfter);
+    }
     receiverRefused(id, code) {
         if (this.#closed)
             return;
