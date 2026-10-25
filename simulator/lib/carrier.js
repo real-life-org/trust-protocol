@@ -30,6 +30,7 @@ import { jcs } from './core.js';
 import { b64uOf, fromB64u, base58, fromBase58, sha } from './crypto.js';
 import { validCarrierIdentifier } from './carrier-identity.js';
 import { platformSubtle } from './crypto.js';
+import { TASK_NAMESPACE } from './task-uri.js';
 const S = platformSubtle;
 const te = new TextEncoder();
 const DAY = 86_400_000;
@@ -61,7 +62,7 @@ export function validateDeclaration(d) {
 }
 // the role key of the registry declaration — a role URI and never a
 // document type (round-44 B-1)
-export const CARRIER_ROLE_URI = 'https://real-life.org/trust-tasks/delivery-carrier/0.1';
+export const CARRIER_ROLE_URI = TASK_NAMESPACE + 'delivery-carrier/0.1';
 export const PROOF_V = 'rltp-carrier-proof/0.3';
 const REGISTRATION_FIELDS = new Set(['v', 'type', 'purpose', 'carrier', 'principal', 'rkid',
     'generation', 'principalChallenge', 'addressChallenge', 'sig']);

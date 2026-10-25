@@ -217,8 +217,9 @@ export class WireError extends Error {
 // ── Sender states (§6.1 — the closed sets, nothing else) ────────────
 // ReceiverRefusalCode is the ports' (one closed set, one place)
 const RECEIVER_REFUSAL_CODES = new Set([
-    'malformedRequest', 'unsupportedType', 'proofRequired',
-    'proofInvalid', 'wrongRecipient', 'identityMismatch',
+    'malformedRequest', 'unsupportedType', 'unsupportedVersion',
+    'proofRequired', 'proofInvalid', 'permissionDenied',
+    'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed',
 ]);
 /** The ports' DeliveryReport for a document `digest` in adapter state `st`
  *  (Delivery §6.1): one-to-one, `late` and the refusal code carried over. */

@@ -188,7 +188,7 @@ const outboxStep = (x, p) => {
         case 'accepted': return obj({ status: str, at: millis })(x, p);
         case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p);
         case 'failed': return s.reason === 'rejected-by-receiver'
-            ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'proofRequired', 'proofInvalid', 'wrongRecipient', 'identityMismatch') })(x, p)
+            ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'unsupportedVersion', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed') })(x, p)
             : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p);
         default: fail(`${p}.status`, 'unknown outbox status');
     }

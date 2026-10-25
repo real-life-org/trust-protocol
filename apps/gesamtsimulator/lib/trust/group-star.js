@@ -5,8 +5,9 @@ import { buildGroupStarWith, groupStarChunkOk, groupStarKeyOf, groupStarUnionOk,
 import { macU } from '../anchor.js';
 import { jcs } from '../core.js';
 import { classOnToward, entryRelationships, lags } from './state.js';
+import { TASK_NAMESPACE } from '../task-uri.js';
 /** The registered task type that carries group-star@1 (Delivery §4.4, 5740). */
-export const GROUP_STAR_TYPE = 'https://real-life.org/trust-tasks/group-star/0.1';
+export const GROUP_STAR_TYPE = TASK_NAMESPACE + 'group-star/0.1';
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /** Whether the sealed group star is on for (group, contact) (2830, 2760). */
 export function sealedOn(c, group) {

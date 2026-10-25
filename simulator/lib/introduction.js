@@ -15,7 +15,7 @@ import { b64uOf, calOK, fromB64u, fromBase58, jcs, makeValidator, tsec } from '.
 import { digestDoc, edRawOfAnchor, hkdf, platformSubtle } from './crypto.js';
 import { macU, rawProofValue } from './anchor.js';
 import { SCHEMAS } from './schemas.js';
-const TT = 'https://real-life.org/trust-tasks/';
+import { TASK_NAMESPACE as TT } from './task-uri.js';
 export const INTRODUCTION_TYPES = Object.freeze({
     request: TT + 'introduction-request/0.1',
     forward: TT + 'introduction-forward/0.1',

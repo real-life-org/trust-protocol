@@ -16,7 +16,7 @@ import { createChannel, deliver as channelDeliver, drainHeld, drainTransit } fro
 export * from './lib/index.js'
 export { InMemoryStore, memoryLog, scriptedEntropy, stateBuilder, forgeMapping }
 
-const TT = 'https://real-life.org/trust-tasks/'
+const TT = 'https://real-life.org/trust-tasks/spec/'
 /** The task types by short name. */
 export const TYPES = Object.freeze({
   bundle: TT + 'encounter-bundle/0.1',

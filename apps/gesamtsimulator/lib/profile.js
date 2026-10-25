@@ -31,8 +31,9 @@ import { jcs, makeValidator } from './core.js';
 import { hkdf, platformSubtle } from './crypto.js';
 import { macU } from './anchor.js';
 import { SCHEMAS } from './schemas.js';
+import { TASK_NAMESPACE } from './task-uri.js';
 /** The registered task type that carries profile@1 (6495, Delivery §4.4). */
-export const PROFILE_TYPE = 'https://real-life.org/trust-tasks/profile/0.1';
+export const PROFILE_TYPE = TASK_NAMESPACE + 'profile/0.1';
 /** The bounds of 6435. */
 export const PROFILE_LIMITS = Object.freeze({ name: 64, text: 256, imageChars: 60_000, pixels: 1024 });
 const SCHEMA = 'trust-profile.schema.json';

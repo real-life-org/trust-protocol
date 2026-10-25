@@ -104,7 +104,7 @@ import { activeTuple, entryOf, findContact, liveRel, tupleByLabel } from '../tru
 import { idsOf } from '../encounter/ceremony.js';
 import { withPairNonce } from '../identity-state.js';
 import { tsec } from '../core.js';
-const TT = 'https://real-life.org/trust-tasks/';
+import { TASK_NAMESPACE as TT } from '../task-uri.js';
 export const OFFER_TYPE = TT + 'x-introduction-offer/0.1';
 export { DECLARATION_TYPE, INTRODUCTION_TYPES };
 /** The mediator's declared ack-delay (Delivery §4.4, Trust 8.4). */

@@ -33,7 +33,7 @@ E.noteIssued(alice, cardB.anchor, cred); E.noteSent(alice, bundle);
 // F3 — forged ack from a third party (correctly signed under Mallory's OWN
 // fresh context) must be rejected: the ack issuer is not the recipient
 const mctx = E.freshPairContext(mallory);
-const ackBody = { id: '99999999-0000-4000-8000-000000000001', type: 'https://real-life.org/trust-tasks/delivery-ack/0.1', issuer: mctx.anchor, recipient: bundle.issuer, threadId: bundle.threadId, issuedAt: iso(now), payload: { ref: E.docDigest(bundle), meaning: 'received' } };
+const ackBody = { id: '99999999-0000-4000-8000-000000000001', type: 'https://real-life.org/trust-tasks/spec/delivery-ack/0.1', issuer: mctx.anchor, recipient: bundle.issuer, threadId: bundle.threadId, issuedAt: iso(now), payload: { ref: E.docDigest(bundle), meaning: 'received' } };
 const malloryAck = E.signDocument(mctx, ackBody, iso(now));
 const rForged = E.receiveEnvelope(alice, E.seal(malloryAck, ...sendTo(s.card)), now);
 assert(String(rForged.disposition).startsWith('failed'), 'F3: fremd signiertes Ack abgelehnt (' + rForged.disposition + ')');
@@ -80,9 +80,9 @@ E.tryAccept(ed, E.issueCredential(fayCtx, edCtx.anchor, E.CEREMONY, chY, bSame, 
 assert(E.edgeState(ed, fayCtx.anchor) === 'mutual', 'F6: gleiche Binding in beide Richtungen auf EINEM Tupel ⇒ mutual');
 
 // F7 — malformed payloads rejected before any effect
-const rGarbage = E.receiveEnvelope(bob, E.seal({ id: 'x', type: 'https://real-life.org/trust-tasks/encounter-bundle/0.1', issuer: s.ctx.anchor, recipient: cardB.anchor, threadId: 't', issuedAt: iso(now), payload: {} }, ...sendTo(cardB)), now);
+const rGarbage = E.receiveEnvelope(bob, E.seal({ id: 'x', type: 'https://real-life.org/trust-tasks/spec/encounter-bundle/0.1', issuer: s.ctx.anchor, recipient: cardB.anchor, threadId: 't', issuedAt: iso(now), payload: {} }, ...sendTo(cardB)), now);
 assert(rGarbage.disposition === 'failed(malformed)', 'F7: Bundle ohne card/credential ⇒ failed(malformed) (' + rGarbage.disposition + ')');
-const rExpires = E.receiveEnvelope(bob, E.seal({ id: 'x', type: 'https://real-life.org/trust-tasks/delivery-ack/0.1', issuer: s.ctx.anchor, recipient: cardB.anchor, threadId: 't', issuedAt: iso(now), expiresAt: iso(now + 1000), payload: { ref: uRef, meaning: 'received' } }, ...sendTo(cardB)), now);
+const rExpires = E.receiveEnvelope(bob, E.seal({ id: 'x', type: 'https://real-life.org/trust-tasks/spec/delivery-ack/0.1', issuer: s.ctx.anchor, recipient: cardB.anchor, threadId: 't', issuedAt: iso(now), expiresAt: iso(now + 1000), payload: { ref: uRef, meaning: 'received' } }, ...sendTo(cardB)), now);
 assert(rExpires.disposition === 'failed(malformed)', 'F7: verbotenes expiresAt ⇒ failed(malformed) (' + rExpires.disposition + ')');
 
 // F14 (fresh-always addition) — the enacting anchors are PAIR anchors:

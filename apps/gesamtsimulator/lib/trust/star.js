@@ -106,8 +106,9 @@ import { tupleByRkid } from '../receive.js';
 import { sha256Hex } from '../sha256.js';
 import { triasOf } from '../state.js';
 import { ADMISSION_BOUND, activeTuple, classOnToward, entryOf, entryRelationships, findContact } from './state.js';
+import { TASK_NAMESPACE } from '../task-uri.js';
 /** The registered task type that carries star@2 (Delivery §4.4, 5640). */
-export const STAR_TYPE = 'https://real-life.org/trust-tasks/star/0.2';
+export const STAR_TYPE = TASK_NAMESPACE + 'star/0.2';
 /** The receiver's resource limit (5365): the highest seq an open assembly
  *  takes, per artifact. */
 export const ASSEMBLY_LIMIT = Object.freeze({ star: 1024, groupStar: 64, probe: 64 });

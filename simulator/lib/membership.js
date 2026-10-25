@@ -8,7 +8,7 @@
 import { b64uOf, calOK, fromB64u, jcs, makeValidator, sameDigest, toU, tsec } from './core.js';
 import { diVerify } from './crypto.js';
 import { SCHEMAS } from './schemas.js';
-const TT = 'https://real-life.org/trust-tasks/';
+import { TASK_NAMESPACE as TT } from './task-uri.js';
 export const INVITE_TYPE = TT + 'membership-invite/0.2';
 export const ACCEPT_TYPE = TT + 'membership-accept/0.2';
 export const EVIDENCE_TYPE = TT + 'membership-evidence/0.2';
