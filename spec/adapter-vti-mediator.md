@@ -307,8 +307,15 @@ next card's instance beside those of the cards still open.
 hands its adapter a received frame only if it is a Rev 3 `direct`
 message with a non-empty payload whose receiver is the card's
 connection DID, from any sender, and keeps the frame's sender VID
-beside the payload. The host passes the payload to the holder's
-receive (Delivery §6.2), the only place that opens the envelope. The
+beside the payload. Before the holder sees the payload, the host reads
+its envelope's `rkid` (Delivery §5, a member in the clear) and passes
+the payload to the holder's receive (Delivery §6.2) only if that `rkid`
+is the key-agreement key of this displayed card: a bundle answering the
+card is sealed to that key (Delivery §5, the recipient key from the
+recipient's card), and no other relationship's documents are (Delivery
+§5a.2). An envelope with any other `rkid`, or one that does not parse,
+never reaches the holder and is discarded under RLTP-VTI-1265. The
+holder's receive is the only place that opens the envelope. The
 instance accepts the frame only if all three hold:
 
 1. the frame is such a `direct` message (the wire binding's filter);
@@ -342,18 +349,20 @@ binds or closes each of them.
 
 **RLTP-VTI-1265** — Every other frame that reaches the instance before
 it is bound is discarded: logged with its type and sender VID, and
-acknowledged — by the wire binding, or by the adapter's conclusion
-where its payload reached the holder, the holder refused it, and the
-refusal is concludable (§4). Such a frame never binds the instance and
-never names the counterpart. A frame whose sender differs from the
-egress identity of the record's hint is logged, never discarded on that
-ground. A bundle of another scanner on the same displayed card is
-refused: by the holder (`failed(consumed-challenge)`, Delivery §4.1;
-Encounter RLTP-ENC-5410) or, once the instance is bound, by
-RLTP-VTI-7140. The first record binds (RLTP-VTI-1260); of bundles, the
-first the holder takes (Open Issue 11).
-A bundle the counterpart re-issues for the same enactment comes from its
-egress identity after the binding and lands as Delivery §4.1 states.
+acknowledged — by the wire binding; by the adapter's conclusion without
+a receive where its envelope is not sealed to the card's key
+(RLTP-VTI-1255); or by the adapter's conclusion where its payload
+reached the holder, the holder refused it, and the refusal is
+concludable (§4). Such a frame never
+binds the instance and never names the counterpart. A frame whose sender
+differs from the egress identity of the record's hint is logged, never
+discarded on that ground. A bundle of another scanner on the same
+displayed card is refused: by the holder (`failed(consumed-challenge)`,
+Delivery §4.1; Encounter RLTP-ENC-5410) or, once the instance is bound,
+by RLTP-VTI-7140. The first record binds (RLTP-VTI-1260); of bundles,
+the first the holder takes (Open Issue 11). A bundle the counterpart
+re-issues for the same enactment comes from its egress identity after
+the binding and lands as Delivery §4.1 states.
 
 **RLTP-VTI-1270** — An instance not bound when the host observes the
 card's challenge resolve `unknown` (the holder's resolution, Encounter
@@ -925,69 +934,81 @@ is decidable.
     foreign account as above. The relationship runs in one direction
     only, the author's.
 
-In each case the damage to a relationship stays with the one the author
-leads itself; the load of the first case also falls on the holder of the
-named account. A co-signature of the hint by both wire identities would
-prove possession; it is Open Issue 14. - **Who learns a displayed card's
-hint can deposit.** The displayed card shows the displaying side's
-connection DID to everyone who sees it (§9). A party other than the
-counterpart can deposit frames to that account at the mediator. Once the
-instance is bound, the binding refuses each (RLTP-VTI-7140), logs and
-acknowledges it, and the documents it carried have no effect; before,
-the wire binding hands it every `direct` frame from any sender, a frame
-carrying no bundle the holder takes is discarded with no effect
-(RLTP-VTI-1255, 1265), and only a record of the card's challenge binds
-it, to the identities of the sent card's hint (RLTP-VTI-1260; the next
-item). The cost is load: the receiving adapter's buffering is bounded by
-§2; the mediator's queue and the deposit rate are the mediator's own
-limits, which this profile does not bind (§2, the honest limit). - **A
-displayed card's instance takes frames from anyone, and binds through
-the card alone.** Before it is bound, the instance cannot refuse a
-`direct` frame by its sender (RLTP-VTI-1255): everyone who saw the card
-can deposit to its connection DID. A frame that carries no bundle on
-this card costs a TSP opening, a receive the holder refuses and an
-acknowledgement; the adapter's buffering is bounded by §2, and the
-mediator's queue and deposit rate are its own limits. A flood of such
-frames can hold the bundle back beyond the challenge's age; the network
-leg then fails and the optical leg remains (Encounter §5.8,
-RLTP-ENC-5690). What bounds the flood is the mediator's rate and the
-challenge's age, not this profile. The binding is no trust on first use:
-the counterpart's identities come from the sent card, signed under the
-counterpart's fresh pair anchor and bound to the card's challenge
-(Encounter RLTP-ENC-6050, RLTP-ENC-6060), never from the sender of a
-frame (RLTP-VTI-1260); the sender changes nothing in it (RLTP-VTI-1255).
-A third party cannot pass the counterpart's payload on under a sender of
-its own anyway: the inner message is sealed to the card's connection DID
-and signed by the counterpart's egress identity, and a byte-identical
-copy carries the counterpart's sender. A differing sender is in practice
-the counterpart's own other egress identity (a second `N`,
-RLTP-VTI-1245) or a party the counterpart gave the envelope to; the case
-stays defined. - **Several scanners of one displayed card.** The first
-record binds the instance (RLTP-VTI-1260); of bundles, the first the
-holder takes; a bundle of another scanner is refused by the holder or by
-RLTP-VTI-7140 (RLTP-VTI-1265). The second scanner recorded its
-relationship at its scan; that relationship reaches no one over this
-carrier, and its documents fail at its give-up horizon (Open Issue 11).
-With RLTP-VTI-1250 the challenge race (Encounter §13) also runs from
-afar over this carrier: whoever saw the card, a photograph of a
-projected card included, can answer first with a bundle of its own, and
-the scanner present sees only that nothing is delivered. The protection
-is the human check at confirmation (Encounter §13, C4), not this
-profile. - **A session per displayed card.** Every displayed card holds
-an authenticated session and a socket at the mediator from the display
-until a record binds or closes it, or its challenge ages (RLTP-VTI-1250,
-1260, 1270): a rotation of the displayed card adds one per card still
-open. A card that is never answered over this carrier leaves a session
-that collected nothing. The bound is the challenge's age bound; this
-profile declares no constant of its own for it. - **Foreign inner
-messages fail at the receiver.** The mediator opens the routing layer
-and could pass on an inner message of its own choosing. An inner message
-is sealed to the counterpart's connection key and signed by the egress
-identity; the receiving binding delivers only the expected pair
-(RLTP-VTI-7140), so a substituted or forged inner message is refused
-before the adapter and has no effect. A mediator that ignores the route
-list, or delivers late or not at all, is a carrier that loses a
-document: the give-up horizon covers it.
+  In each case the damage to a relationship stays with the one the
+  author leads itself; the load of the first case also falls on the
+  holder of the named account. A co-signature of the hint by both wire identities
+  would prove possession; it is Open Issue 14.
+- **Who learns a displayed card's hint can deposit.** The displayed
+  card shows the displaying side's connection DID to everyone who sees
+  it (§9). A party other than the counterpart can deposit frames to
+  that account at the mediator. Once the instance is bound, the
+  binding refuses each (RLTP-VTI-7140), logs and acknowledges it, and
+  the documents it carried have no effect; before, the wire binding
+  hands it every `direct` frame from any sender, an envelope not
+  sealed to the card's key is discarded before the holder sees it, an
+  envelope sealed to it that carries no bundle the holder takes is
+  discarded with no effect (RLTP-VTI-1255, 1265), and only a record of
+  the card's challenge binds the instance, to the identities of the
+  sent card's hint (RLTP-VTI-1260; the next item). The cost is load:
+  the receiving adapter's buffering is bounded by §2; the mediator's
+  queue and the deposit rate are the mediator's own limits, which this
+  profile does not bind (§2, the honest limit).
+- **A displayed card's instance takes frames from anyone, and binds
+  through the card alone.** Before it is bound, the instance cannot
+  refuse a `direct` frame by its sender (RLTP-VTI-1255): everyone who
+  saw the card can deposit to its connection DID. A frame whose
+  envelope is not sealed to the card's key costs a TSP opening, a
+  parse and an acknowledgement, and never reaches the holder
+  (RLTP-VTI-1255): a valid document of another relationship of the
+  same holder, deposited to the card's connection DID, is discarded
+  before the holder could commit it. A frame sealed to the card's key
+  that carries no bundle on this card costs, beyond that, a receive
+  the holder refuses; the adapter's buffering is bounded by §2, and
+  the mediator's queue and deposit rate are its own limits. A flood of
+  such frames can hold the bundle back beyond the challenge's age; the
+  network leg then fails and the optical leg remains (Encounter §5.8,
+  RLTP-ENC-5690). What bounds the flood is the mediator's rate and the
+  challenge's age, not this profile. The binding is no trust on first
+  use: the counterpart's identities come from the sent card, signed
+  under the counterpart's fresh pair anchor and bound to the card's
+  challenge (Encounter RLTP-ENC-6050, RLTP-ENC-6060), never from the
+  sender of a frame (RLTP-VTI-1260); the sender changes nothing in it
+  (RLTP-VTI-1255). A third party cannot pass the counterpart's payload
+  on under a sender of its own anyway: the inner message is sealed to
+  the card's connection DID and signed by the counterpart's egress
+  identity, and a byte-identical copy carries the counterpart's
+  sender. A differing sender is in practice the counterpart's own
+  other egress identity (a second `N`, RLTP-VTI-1245) or a party the
+  counterpart gave the envelope to; the case stays defined.
+- **Several scanners of one displayed card.** The first record binds
+  the instance (RLTP-VTI-1260); of bundles, the first the holder
+  takes; a bundle of another scanner is refused by the holder or by
+  RLTP-VTI-7140 (RLTP-VTI-1265). The second scanner recorded its
+  relationship at its scan; that relationship reaches no one over this
+  carrier, and its documents fail at its give-up horizon (Open Issue
+  11). With RLTP-VTI-1250 the challenge race (Encounter §13) also runs
+  from afar over this carrier: whoever saw the card, a photograph of a
+  projected card included, can answer first with a bundle of its own,
+  and the scanner present sees only that nothing is delivered. The
+  protection is the human check at confirmation (Encounter §13, C4),
+  not this profile.
+- **A session per displayed card.** Every displayed card holds an
+  authenticated session and a socket at the mediator from the display
+  until a record binds or closes it, or its challenge ages
+  (RLTP-VTI-1250, 1260, 1270): a rotation of the displayed card adds
+  one per card still open. A card that is never answered over this
+  carrier leaves a session that collected nothing. The bound is the
+  challenge's age bound; this profile declares no constant of its own
+  for it.
+- **Foreign inner messages fail at the receiver.** The mediator
+  opens the routing layer and could pass on an inner message of
+  its own choosing. An inner message is sealed to the
+  counterpart's connection key and signed by the egress identity;
+  the receiving binding delivers only the expected pair
+  (RLTP-VTI-7140), so a substituted or forged inner message is
+  refused before the adapter and has no effect. A mediator that
+  ignores the route list, or delivers late or not at all, is a
+  carrier that loses a document: the give-up horizon covers it.
 
 ## 9. Privacy Considerations
 
@@ -1235,5 +1256,5 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
+| 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |
