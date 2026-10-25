@@ -251,8 +251,10 @@ silently ignored.
 `https://real-life.org/trust-tasks/spec/<slug>/<MAJOR.MINOR>`. The
 slug is the path between `/spec/` and the version, satisfies the slug
 grammar of TT §6.1, and MUST NOT match `^trust-(task|ceremony)($|-|/)`.
-A `type` naming a registered slug and version in any other form is
-not a registered type and is `failed(unknown-type)`.
+A `type` in any other form fails the document-profile schema and is
+`failed(malformed)` (6.2 stage 5), a registered slug and version
+without the `/spec/` segment included; no other form of a registered
+type's name is accepted.
 
 *Rationale.* A consumer extracts the slug as the segments between
 `/spec/` and the version (TT §6.1); without that segment a foreign
