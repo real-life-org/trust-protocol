@@ -20,7 +20,7 @@
   },
   "type": {
    "type": "string",
-   "pattern": "^https://real-life\\.org/trust-tasks/spec/(?!trust-(task|ceremony)($|-|/))[a-z][a-z0-9]*(-[a-z0-9]+)*(/[a-z][a-z0-9]*(-[a-z0-9]+)*)*/[0-9]+\\.[0-9]+$"
+   "pattern": "^https://real-life\\.org/trust-tasks/spec/(?!trust-(task|ceremony)($|-|/))[a-z][a-z0-9]*(-[a-z0-9]+)*(/[a-z][a-z0-9]*(-[a-z0-9]+)*)*/(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
   },
   "issuer": {
    "$ref": "#/$defs/didKey"

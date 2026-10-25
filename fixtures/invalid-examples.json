@@ -973,6 +973,46 @@
       }
     },
     {
+      "name": "a registered type without the /spec/ segment is no Type URI (Delivery RLTP-DEL-3010)",
+      "rules": ["RLTP-DEL-3010"],
+      "base": "delivery-document",
+      "set": {
+        "/type": "https://real-life.org/trust-tasks/delivery-ack/0.1"
+      }
+    },
+    {
+      "name": "a slug reserved for the framework (trust-task-) is never an RLTP type (RLTP-DEL-3010)",
+      "rules": ["RLTP-DEL-3010"],
+      "base": "delivery-document",
+      "set": {
+        "/type": "https://real-life.org/trust-tasks/spec/trust-task-error/0.5"
+      }
+    },
+    {
+      "name": "a slug reserved for the framework (trust-ceremony) is never an RLTP type (RLTP-DEL-3010)",
+      "rules": ["RLTP-DEL-3010"],
+      "base": "delivery-document",
+      "set": {
+        "/type": "https://real-life.org/trust-tasks/spec/trust-ceremony/0.1"
+      }
+    },
+    {
+      "name": "a Type URI carries no fragment in the RLTP profile (RLTP-DEL-3010)",
+      "rules": ["RLTP-DEL-3010"],
+      "base": "delivery-document",
+      "set": {
+        "/type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1#response"
+      }
+    },
+    {
+      "name": "a version with a leading zero is no MAJOR.MINOR (RLTP-DEL-3010, TT 5.1)",
+      "rules": ["RLTP-DEL-3010"],
+      "base": "delivery-document",
+      "set": {
+        "/type": "https://real-life.org/trust-tasks/spec/delivery-ack/00.1"
+      }
+    },
+    {
       "name": "threadId must be a UUID",
       "base": "delivery-document",
       "set": {
