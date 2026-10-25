@@ -2039,17 +2039,17 @@ section('access-conflicts.json — authority DAGs materialize as declared (Acces
     'access-conflicts: the cases review 3 added are all present')
 }
 
-// ── suite: membership-tasks.json — Membership Tasks 0.20 from a real genesis ──
+// ── suite: membership-tasks.json — Membership Tasks 0.21 from a real genesis ──
 // Every check that proves a Membership rule names it (checkR, `rules` of
 // the vector cases); `--coverage membership` prints the proven set.
-section('membership-tasks.json — Membership Tasks 0.20: prelude, genesis → invite → accept → welcome → member.add, evidence, re-welcome')
+section('membership-tasks.json — Membership Tasks 0.21: prelude, genesis → invite → accept → welcome → member.add, evidence, re-welcome')
 {
   const M = J('vectors/membership-tasks.json')
   const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
   const P = 'https://real-life.org/trust-tasks/'
   const VF = 'failed(validation-failed)'
   const MEMBERSHIP_SKEW = 300 // PT5M (RLTP-MT-5020)
-  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.20.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
+  const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.21.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
   const ptr = (p) => p.split('/').slice(1).map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'))
   const mutate = (base, m) => {
     const doc = JSON.parse(JSON.stringify(base))
@@ -2087,7 +2087,7 @@ section('membership-tasks.json — Membership Tasks 0.20: prelude, genesis → i
   const caseLists = ['negatives', 'validEvidence', 'pairNegatives', 'pairPositives', 'vouchNegatives', 'vouchPositives', 'inviteeNegatives', 'inviteePositives', 'inviteReceiptCases', 'sealCases', 'senderSealCases', 'documentNegatives', 'reWelcomeNegatives', 'evidenceDocumentNegatives', 'preludeRequestCases']
   const allCases = caseLists.flatMap((l) => M[l])
   const named = (c) => [...(c.rules ?? []), ...Object.keys(c.rulesPartial ?? {})]
-  check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.20.txt`)
+  check(allCases.every((c) => Array.isArray(c.rules) && named(c).length > 0 && named(c).every((r) => MANIFEST.has(r))), `every one of ${allCases.length} vector cases names its rules, each an identifier of conformance/membership-rule-ids-0.21.txt`)
   check(allCases.every((c) => c.rules.every((r) => !PARTIAL[r]) && Object.keys(c.rulesPartial ?? {}).every((r) => PARTIAL[r] === c.rulesPartial[r])), 'no case names a partially checked rule in `rules`; every rulesPartial entry states the obligation left unchecked')
 
   // ── the genesis: a real one, its digest the group identity ──────────────

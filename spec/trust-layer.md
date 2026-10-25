@@ -19,7 +19,7 @@
   pre-rotation binding, §5.4) · **Encounter 0.31** (fresh-always
   enactment, §4.4; Section 6a here is the other half of it) · **Access
   0.57** (the roster a group pair points into, §5.5; the
-  `anchor.rotate` entry, §5.6) · Membership 0.20 · **Delivery 0.84**
+  `anchor.rotate` entry, §5.6) · Membership 0.21 · **Delivery 0.84**
   (the §4.4 registry, including `star/0.2`, `group-star/0.1`,
   `anchor-mapping/0.3`, `profile/0.1`, and the `ack-delay` publication
   path `registry-declaration/0.1`).
@@ -5029,4 +5029,4 @@ Encounter 0.31** (fresh-always enactment §4.4, commitment §7.2,
 contact cards and their DI rules) · **RLTP Delivery Contract 0.84**
 (the §4.4 registry, the 65 536-byte plaintext limit of §5, the
 acknowledgement regime of §4.2, §10) · RLTP Access Layer 0.57 (§5.5,
-§5.6) · RLTP Membership Tasks 0.20.
+§5.6) · RLTP Membership Tasks 0.21.

@@ -7,7 +7,7 @@
 // Two sources of truth for the rule set:
 //   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
 //     conformance/access-rule-ids-0.57.txt,
-//     conformance/membership-rule-ids-0.20.txt,
+//     conformance/membership-rule-ids-0.21.txt,
 //     conformance/trust-rule-ids-0.31.txt,
 //     conformance/delivery-rule-ids-0.84.txt,
 //     conformance/adapter-vti-rule-ids-0.26.txt), one identifier per line,
@@ -62,9 +62,9 @@ export const LAYERS = {
   },
   membership: {
     prefix: 'RLTP-MT',
-    title: 'Membership Tasks 0.20',
+    title: 'Membership Tasks 0.21',
     spec: join(ROOT, 'spec/membership-tasks.md'),
-    manifest: join(ROOT, 'conformance/membership-rule-ids-0.20.txt'),
+    manifest: join(ROOT, 'conformance/membership-rule-ids-0.21.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'membership-0.20-regelinventar.md'),
     env: 'MEMBERSHIP_INVENTORY',
     inventorySection: 'B',

@@ -230,7 +230,7 @@ test('membership profile checks: a declaration the registry does not match fails
   const { membershipProfileChecks } = await import('./membership-checks.mjs')
   const { readFileSync } = await import('node:fs')
   const real = readFileSync(new URL('../spec/membership-tasks.md', import.meta.url), 'utf8')
-  const manifest = new Set(manifestIds(readFileSync(new URL('../conformance/membership-rule-ids-0.20.txt', import.meta.url), 'utf8')))
+  const manifest = new Set(manifestIds(readFileSync(new URL('../conformance/membership-rule-ids-0.21.txt', import.meta.url), 'utf8')))
   const ok = membershipProfileChecks({ specText: real, manifest })
   assert.ok(ok.every((c) => c.ok), JSON.stringify(ok.filter((c) => !c.ok)))
   const wrong = real.replace(/side effects\n?\s*\*mutating\*/, 'side effects *read-only*')
