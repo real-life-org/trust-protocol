@@ -11,7 +11,7 @@
 - **Companions:** RLTP Trust Layer 0.31 (the anchor mapping, the self
   card and the rotation artifact, which carry the pre-rotation binding
   of 5.4, its §6); RLTP Access Layer 0.57 (the `anchor.rotate` entry,
-  its §5.6; device cards, its §5.1); RLTP Delivery Contract 0.83 (the
+  its §5.6; device cards, its §5.1); RLTP Delivery Contract 0.84 (the
   consumer of Section 7a, its §5a); RLTP Membership Tasks 0.20 (the
   genesis digest a group label names); RLTP Encounter Layer 0.31 (the
   contact card and fresh-always enactment, its §4.4).

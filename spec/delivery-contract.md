@@ -3,20 +3,20 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.83.0-draft (eighty-third casting — a sender keeps
-  custody of what waits for transport, and an acknowledgement
-  outlives its retries)
+- **Version:** 0.84.0-draft (eighty-fourth casting — the task types
+  take the framework's Type URI form and declare what framework 0.6
+  asks of a specification)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-20
+- **Date:** 2026-10-25
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Task-type namespace:** `https://real-life.org/trust-tasks/`
-- **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-delivery@0.83` (draft)
+- **Task-type namespace:** `https://real-life.org/trust-tasks/spec/`
+- **Target Trust Tasks framework version:** 0.6.0
+- **Conformance profile:** `rltp-delivery@0.84` (draft)
 - **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
   Layer 0.31; RLTP Access 0.57; RLTP Membership Tasks 0.20; RLTP
   Replication 0.26; RLTP Message Tasks 0.1.
-- **Supersedes:** version 0.82 (archived as
-  `archive/delivery-contract-0.82.md`) and versions 0.81–0.1,
+- **Supersedes:** version 0.83 (archived as
+  `archive/delivery-contract-0.83.md`) and versions 0.82–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
   (wot-spec v0.1, German) in its delivery aspects.
@@ -31,8 +31,8 @@ transport state, the receiver nothing the content does not prove
 itself, and the sender **never** what the receiver decided.
 
 Messages are **Trust Task documents** of private, versioned types under
-`https://real-life.org/trust-tasks/` (ToIP DTGWG Trust Tasks framework
-0.4, §6.5 private specifications). This casting registers four types
+`https://real-life.org/trust-tasks/spec/` (ToIP DTGWG Trust Tasks
+framework 0.6.0, §6.5 private specifications). This casting registers four types
 of its own — `encounter-bundle`, `delivery-ack`,
 `encounter-credential-delivery`, `registry-declaration` — the RLTP
 document profile all types
@@ -69,12 +69,14 @@ machinery (5, 6) have been stable across many castings; the carrier
 sections (4.4's role, 5a) are the youngest part and the most likely
 to change.
 
-This casting is a two-rule casting. It settles who keeps an
-outbound document while its adapter reports that it waits for
-transport, and when a sender may hand anything over at all (6.1:
-the sender keeps it, and only an active holder state submits); and
-it separates the end of an acknowledgement's retries from the end of
-its retention (6.2). Nothing else changed. Rules new in a casting
+This casting aligns the registered types with the Trust Tasks
+framework, document version 0.6: every Type URI carries the `/spec/`
+segment from which a consumer extracts the slug (TT §6.1), the
+target framework is 0.6.0, and each type declares its parties with
+their identifier scope, its side-effect, exposure and retention
+classes, and its document size bound (3, 4.5). Delivery promises,
+dispositions and the sealed envelope are unchanged; the type names
+change, so every document's bytes change with them. Rules new in a casting
 carry identifiers (`RLTP-DEL-nnnn`); the rest of the text keeps its
 prose form until a form casting gives every rule one. **The next
 casting is expected to change the document substantially**,
@@ -155,8 +157,10 @@ multibase, RFC3339-UTC-`Z` timestamps).
 profile (Section 3). **Document digest** — the multibase-encoded
 multihash (Encounter 2.3: emit `u`, accept `u`/`z`, SHA-256) over
 `JCS(document)` of the plaintext document; the document's identity for
-idempotency and acknowledgement reference, and format-identical to
-DTGWG `digestMultibase` values. **Sealed
+idempotency and acknowledgement reference. Because it covers the
+document with any `proof`, it is the framework's `stepDigest`, not its
+`taskDigest` (TT §4.9.3); for a document without `proof` the two
+values coincide. **Sealed
 envelope** — the encrypted form in which a document travels
 (Section 5). **Disposition** — the receiver's classification of a
 processed envelope (Section 6).
@@ -189,14 +193,13 @@ Section 5a, and every normative sentence about it points there.
 ## 3. The RLTP Document Profile
 
 RLTP delivery documents are Trust Task documents [TT], target framework
-version **0.4**, under the private task-type rules of TT §6.5. The
+version **0.6.0**, under the private task-type rules of TT §6.5. The
 profile — normative wire form
 `schemas/rltp-delivery-document.schema.json` — requires:
 
 - `id` — REQUIRED; UUID v4.
-- `type` — REQUIRED; a registered RLTP task type
-  (`https://real-life.org/trust-tasks/<slug>/<MAJOR.MINOR>`). Slugs
-  never match `^trust-task(-|/)?` (TT §6.1).
+- `type` — REQUIRED; the Type URI of a registered RLTP task type, in
+  the form of RLTP-DEL-3010.
 - `issuer`, `recipient` — REQUIRED, in-band, as anchors. A consumer
   MUST reject a document whose `recipient` is not its own anchor
   (TT §7.2 rule 5 — the receiver principle at the envelope level).
@@ -244,11 +247,68 @@ Unknown `type` → the document MUST be rejected with disposition
 `failed(unknown-type)`; a document that would have an effect is never
 silently ignored.
 
+**RLTP-DEL-3010** — A Type URI MUST have the form
+`https://real-life.org/trust-tasks/spec/<slug>/<MAJOR.MINOR>`. The
+slug is the path between `/spec/` and the version, satisfies the slug
+grammar of TT §6.1, and MUST NOT match `^trust-(task|ceremony)($|-|/)`.
+A `type` naming a registered slug and version in any other form is
+not a registered type and is `failed(unknown-type)`.
+
+*Rationale.* A consumer extracts the slug as the segments between
+`/spec/` and the version (TT §6.1); without that segment a foreign
+consumer cannot name the specification at all. The form is the one
+the framework's Working Draft 0.7.0 requires of every private Type
+URI as well.
+
+**RLTP-DEL-3020** — Every registering specification MUST declare, per
+type, the framework's specification declarations (TT §7.3): the
+parties with their `identifierScope` (item 5), the proof requirement
+(item 8), the side-effect class (item 13), the exposure class with
+`discloses`, `actsAsSubject` and `ingests` (item 14), the retention
+class (item 18), the free-text members (item 19), and the document
+size bound of RLTP-DEL-3030. The following hold for every registered
+type and need not be repeated in a declaration:
+
+- **Parties.** `issuer` and `recipient` are REQUIRED in-band, as
+  `did:key` anchors (Ed25519); a declaration names the role of each
+  and its `identifierScope`.
+- **Freshness (item 17).** `issuedAt` is REQUIRED; `expiresAt` is
+  absent. No document carries an acceptance window: delivery time is
+  unbounded (Section 7), and a type that bounds age does so inside
+  its protected payload.
+- **No response variant.** No type defines a `#response`; the only
+  answer to a document is the `delivery-ack` (4.2) or a document of
+  another registered type. Every type therefore declares `discloses:
+  none`.
+- **No subject agency.** No type has its recipient act in another
+  party's name; every type declares `actsAsSubject: false`.
+- **No extensions.** No type opts into `ext`.
+- **No JSON-LD context** is published for any type (item 10), and
+  no type defines task-specific error codes (item 9).
+
+**RLTP-DEL-3030** — Each type declares a **document size bound**: the
+largest UTF-8 JCS serialization of a document of that type, `proof`
+included and the sealed envelope excluded. The bound is the plaintext
+bound of Section 5, 65 536 bytes, unless the registering
+specification declares a smaller one. A document over the plaintext
+bound is `failed(oversize)` before decryption (6.2 stage 1); a
+document within it but over its type's smaller bound is disposed as
+the registering specification states. A receiver MUST NOT refuse a
+document within its type's bound on grounds of size alone. For a
+chunked type the bound applies to each chunk, which is one document.
+
+*Rationale.* The bound is the one the framework's editor's draft
+asks a specification to declare (item 21 after Working Draft 0.7.0,
+`dtgwg-trust-tasks-spec` f0b5b8e); the JCS plaintext is exactly the
+document "as received". The number is not new: Section 5 has bounded
+every document since the first casting.
+
 ## 4. Registered Task Types
 
 Each type below is a private Trust Task specification with: Type URI,
-target framework 0.4, payload schema (shipped), proof declaration (per
-Section 3), and the consistency rules stated here.
+target framework 0.6.0, payload schema (shipped), proof declaration (per
+Section 3), the declarations of RLTP-DEL-3020 (4.5), and the
+consistency rules stated here.
 
 ### 4.1 `encounter-bundle/0.1`
 
@@ -258,9 +318,7 @@ scanner's sent card and step credential.
 - `payload`: `{ "card", "credential" }` per
   `schemas/payload-encounter-bundle.schema.json`.
 - `threadId`: fresh (opens the exchange). `proof`: absent.
-- **Declarations (TT §7.3):** side effects: *mutating* (creates the
-  enactment record); exposure: recipient-only, never retained by
-  third parties.
+- **Declarations (TT §7.3):** 4.5.
 - **Outer/inner consistency (MUST, before any effect):**
   `issuer` = `card.anchor` = `credential.issuer`;
   `recipient` = `credential.credentialSubject.id`;
@@ -386,8 +444,7 @@ The arrival acknowledgement (DO-1).
 - `payload`: `{ "ref": <document digest of the acknowledged document>,
   "meaning": "received" }` per
   `schemas/payload-delivery-ack.schema.json`.
-- **Declarations (TT §7.3):** side effects: sender status update only;
-  exposure: retained only by the acknowledged document's sender.
+- **Declarations (TT §7.3):** 4.5.
 - `threadId`: = the acknowledged document's `threadId`.
 - `proof`: **REQUIRED**, in the form the acknowledgement class rule
   (4.4) selects by the acknowledged payload's audience class:
@@ -478,8 +535,7 @@ outside any bundle thread (`"deliver"`).
 
 - `payload`: `{ "credential" }` per
   `schemas/payload-encounter-credential-delivery.schema.json`.
-- **Declarations (TT §7.3):** side effects: buffering only; exposure:
-  recipient-only.
+- **Declarations (TT §7.3):** 4.5.
 - `threadId`: fresh for standalone deliveries (`ceremony.step` =
   `"deliver"` when the member is used); = the bundle's `threadId` for
   a one-scan counter-step (`"counter"`). `proof`: absent.
@@ -503,7 +559,10 @@ disposition and acknowledgement rules (Section 6). Beyond the
 four types this document registers itself, the registry's
 members are registered **where their semantics live**, each as a
 private Trust Task specification naming its type URI, payload
-schema, proof declaration, and consistency rules:
+schema, proof declaration, the declarations of RLTP-DEL-3020, and
+consistency rules. The Trust Layer's types are the exception for
+their declarations only: their registration text is this section,
+so their declarations stand in 4.5. The registry's members:
 
 - `membership-invite/0.2` · `membership-accept/0.2` ·
   `access-operation/0.1` · `membership-evidence/0.2`, with
@@ -638,7 +697,7 @@ prospective, never retroactive for a running act. **Roles and
 their constants are named by the registering specification**: the
 role URI is the type URI of the task the party serves as
 receiver — for the introduction mediator,
-`https://real-life.org/trust-tasks/introduction-request/0.1` —
+`https://real-life.org/trust-tasks/spec/introduction-request/0.1` —
 and the registering specification closes which constant names a
 role admits and their domains; unknown constant names or
 out-of-domain values reject the declaration. The first
@@ -670,9 +729,11 @@ guarantees (normative).** A **carrier** (Section 5a) serves no
 task type — and its declaration therefore needs a role key that
 is not one (round-44 B-1): **a carrier declares its constants in
 a `registry-declaration/0.1` whose `role` is byte-equal to
-`https://real-life.org/trust-tasks/delivery-carrier/0.1`.** That
-URI names the carrier **role**, and only the role: used as a
-document `type` it stays `failed(unknown-type)` (Section 11),
+`https://real-life.org/trust-tasks/spec/delivery-carrier/0.1`.** That
+URI names the carrier **role**, and only the role: it has the
+Type URI form so that one pattern governs every `role`, names no
+specification, and used as a document `type` it stays
+`failed(unknown-type)` (Section 11),
 because a carrier is nobody's document counterparty. Constants
 for this role declared under any other `role` URI are not a
 carrier declaration, and a counterpart MUST NOT treat them as
@@ -837,6 +898,95 @@ work:
   half-done is not.
 
 
+### 4.5 Declarations
+
+**RLTP-DEL-4510** — The four types of 4.1 to 4.4 and the Trust
+Layer's types of 4.4 declare, under RLTP-DEL-3020, the values below.
+Every Type URI is `https://real-life.org/trust-tasks/spec/` followed by
+the type's slug and version as named in the first column; every type
+is at maturity level `draft`.
+
+| Type | `issuer` · `recipient`, `identifierScope` | Proof (item 8) | Side effects (item 13) | `ingests` (item 14) | Retention (item 18) | Size bound |
+|---|---|---|---|---|---|---|
+| `encounter-bundle/0.1` | scanner · displayer; `pairwise` · `pairwise` | absent | `mutating` | `personal` | `durable` | 65 536 |
+| `delivery-ack/0.1` | the acknowledged document's recipient · its issuer; `any` · `any` | REQUIRED | `mutating` | `none` | `exchange` | 65 536 |
+| `encounter-credential-delivery/0.1` | credential issuer · credential subject; `pairwise` · `pairwise` | absent | `mutating` | `personal` | `durable` | 65 536 |
+| `registry-declaration/0.1` | declaring party · counterpart; `any` · `any` | REQUIRED | `mutating` | `metadata` | `durable` | 65 536 |
+| `star/0.2` | sender · addressee, pair anchors of the tuple; `pairwise` · `pairwise` | absent | `mutating` | `personal` | `durable` | 65 536 per chunk |
+| `group-star/0.1` | as `star/0.2` | absent | `mutating` | `personal` | `durable` | 65 536 per chunk |
+| `anchor-mapping/0.3` | as `star/0.2` | absent | `mutating` | `personal` | `durable` | 65 536 |
+| `profile/0.1` | as `star/0.2` | absent | `mutating` | `personal` | `durable` | 65 536 |
+| `continuity-probe/0.1` | sender · addressee on the enactment tuple; `pairwise` · `pairwise` | absent | `mutating` | `metadata` | `exchange` | 65 536 per chunk |
+| `continuity-mapping/0.1` | as `continuity-probe/0.1` | absent | `destructive` | `personal` | `durable` | 65 536 |
+| `introduction-request/0.1` | requester · mediator on their tuple; `pairwise` · `pairwise` | absent | `mutating` | `personal` | `exchange` | 65 536 |
+| `introduction-forward/0.1` | mediator · target on their tuple; `pairwise` · `pairwise` | absent | `mutating` | `personal` | `exchange` | 65 536 |
+| `introduction-reply/0.1` | target · mediator, then mediator · requester, each on that leg's tuple; `pairwise` · `pairwise` | absent | `mutating` | `personal` | `exchange` | 65 536 |
+| `introduction-ack/0.1` | mediator · requester on their tuple; `pairwise` · `pairwise` | absent | `mutating` | `none` | `exchange` | 65 536 |
+| `introduction-voucher/0.1` | mediator · each side on that side's tuple; `pairwise` · `pairwise` | absent | `mutating` | `metadata` | `exchange` | 65 536 |
+
+Every row declares `discloses: none` and `actsAsSubject: false`
+(RLTP-DEL-3020). The rationales the framework requires:
+
+- **Proof.** REQUIRED where the document is the only carrier of
+  its authenticity (1.1): the acknowledgement, relied upon by its
+  sender, and the declaration, relied upon by every counterpart that
+  compares it with another (4.4). Absent everywhere else, because the
+  payload carries its own signatures or MACs and a second carrier
+  could diverge from the first (1.1). The declaration "absent" is
+  outside the framework's item-8 vocabulary (Section 12, DO-10).
+- **`pairwise`.** An encounter's anchors are fresh pair anchors of
+  the enactment (Encounter §4.4); the Trust Layer's types travel on
+  one tuple, whose pair anchors the outer document carries (the
+  closed acceptance bindings of 4.4, Trust Layer §6a.3 and §8.1).
+- **`any` for `delivery-ack/0.1`.** The acknowledgement's parties are
+  the acknowledged document's, reversed; its scope is that
+  document's, and the type itself takes no position.
+- **`any` for `registry-declaration/0.1`.** Which anchor a declaring
+  party signs under is not settled (Section 12, DO-11).
+- **`destructive` for `continuity-mapping/0.1`.** Its verified effect
+  on the side without the record appends the chain and deactivates
+  the prior active head, atomically and irreversibly; the side with
+  the record freezes its choice (Trust Layer §6a.4, §6.4).
+- **`ingests: personal`.** The bundle carries the scanner's card
+  (self-declared name, delivery hints) and a credential stating an
+  encounter; the credential delivery a credential stating an
+  encounter; the star a person's contact set and the group star
+  a person's group memberships, both blinded; the anchor mapping
+  links a pair anchor to a person's community anchor; the profile a
+  person's name, image and text; the continuity mapping links two
+  contexts of one person; the introduction request, forward and
+  reply carry a person's name, note and card.
+- **`ingests: metadata`.** The declaration carries a role's
+  constants; the continuity probe blinded, padded values that match
+  only for a counterpart sharing history; the voucher two fresh pair
+  anchors.
+- **`durable`.** The bundle and the credential delivery: the
+  accepted credential and the enactment record, kept for the life of
+  the relation (Encounter 5.5), because recording the encounter is
+  what the task is for. The declaration: the record per (issuer,
+  role), held so that counterparts can depend on it and prove an
+  equivocation (4.4). The star and the group star: the accepted
+  snapshot and the completed-salt floor per tuple (Trust Layer
+  §5.2a, §5.2b). The anchor mapping and the continuity mapping: the
+  chain state they write (Trust Layer §6.4). The profile: the newest
+  revision per tuple (Trust Layer §6b).
+- **`exchange`.** The acknowledgement: the completed-effect cache
+  entry and the stored acknowledgement, held `key-retention` (4.2).
+  The continuity probe: the assembly and the completed-probe floor.
+  The introduction types: the act's state until its lifetime ends
+  (Trust Layer §8).
+
+**Free-text members (item 19).** Each is bounded by its schema, read
+by the recipient's person, and stated by the party whose proof or MAC
+covers it, to whom every rendering attributes it: a card's `name`
+(at most 200 characters, self-declared, Encounter RLTP-ENC-6090 and
+RLTP-ENC-6120) and its `deliveryHints` (at most 8 of at most 512
+characters, read by the delivery adapter, opaque); an encounter
+credential's `channel` (at most 64, informative); a profile's `name`
+and `text` (at most 64 and 256); an introduction request's
+`displayName` and `note` (at most 64 and 256). The other types carry
+no free text.
+
 ## 5. The Sealed Envelope
 
 A document travels sealed to its recipient:
@@ -924,7 +1074,7 @@ A **shipped test vector** (`vectors/seal.json`) fixes recipient key,
 ephemeral key, nonce, plaintext, ciphertext, and document digest;
 implementations MUST reproduce it byte-for-byte. The vector's
 plaintext document is a **seal-only sample** (type
-`…/seal-vector-sample/0.1`, never a wire type): it exercises this
+`…/spec/seal-vector-sample/0.1`, never a wire type): it exercises this
 section's construction, not the document profile, and MUST NOT be
 processed as a delivery document.
 
@@ -3119,7 +3269,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 
 ## 11. Conformance
 
-- **Profile** `rltp-delivery@0.83`; the Identity pin is
+- **Profile** `rltp-delivery@0.84`; the Identity pin is
   **Identity 0.54** (§6.1 the context labels, §7a the control
   principal); the Encounter pin is `rltp-encounter@0.31` (wire
   0.25); companion registrations per 4.4 (Trust Layer 0.31,
@@ -3504,10 +3654,10 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   5a.10) · a change of the **direct** carrier → new principal,
   new outer VID; a change of hops beyond it → no change of
   principal, VID, or registration (5a.10) ·
-  `https://real-life.org/trust-tasks/delivery-carrier/0.1` used
+  `https://real-life.org/trust-tasks/spec/delivery-carrier/0.1` used
   as a document `type` → `failed(unknown-type)` (4.4).
 - **Rule coverage.** The rules with identifiers are listed in
-  `conformance/delivery-rule-ids-0.83.txt`. **State-dependent** —
+  `conformance/delivery-rule-ids-0.84.txt`. **State-dependent** —
   each verdict needs a holder state, a clock, a cache, a carrier, or a
   registering specification's state, and the scenarios of the vector
   plan above exercise it (planned, with the reference
@@ -3518,9 +3668,12 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   RLTP-DEL-6260 · RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 ·
   RLTP-DEL-6300 · RLTP-DEL-6305 · RLTP-DEL-6310 · RLTP-DEL-6320 ·
   RLTP-DEL-6325 · RLTP-DEL-6330 · RLTP-DEL-6335 · RLTP-DEL-7015.
+  **Schema- and fixture-checked** — the document-profile schema's
+  `type` pattern and the must-fail fixtures: RLTP-DEL-3010.
   **Declaration** — the rule binds
   what a type's registration states or which specification defines
-  a treatment: RLTP-DEL-6245 · RLTP-DEL-7010 · RLTP-DEL-7020.
+  a treatment: RLTP-DEL-3020 · RLTP-DEL-3030 · RLTP-DEL-4510 ·
+  RLTP-DEL-6245 · RLTP-DEL-7010 · RLTP-DEL-7020.
 
 
 ## 12. Open Issues
@@ -3534,6 +3687,35 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 - **DO-4 Third-party task types.** The first type retained by third
   parties beyond the ack's sender needs its proof rules stated per
   TT §4.7.1; the ack itself is retained only by its sender.
+- **DO-10 Framework gaps of the document profile.** Questions the
+  move to framework 0.6.0 names and leaves open:
+  the MAC form of the acknowledgement's `proof` (4.2) is no Data
+  Integrity proof, which a framework consumer rejects;
+  the profile rule that a present `ceremony.enactment` MUST
+  recompute (Section 3) constrains the member, which the framework's
+  Working Draft 0.7.0 forbids a specification to do;
+  this contract deduplicates by document digest (6.2 stage 4) where
+  the framework rejects an equal `id` over different bytes as
+  `idConflict` (TT §7.2 item 11);
+  a consumer does not reject a future `issuedAt` as
+  `malformedRequest` (TT §7.2 item 13), because no stage of 6.2
+  reads it;
+  "absent" is no proof requirement in the vocabulary of TT §7.3
+  item 8;
+  every type signs with `proofPurpose` `assertionMethod`, where the
+  framework's editor's draft asks a producer to sign a document for
+  `authentication`;
+  a companion schema's `$id` is not its Type URI (4.4), where TT
+  §7.3 item 7 asks that it be;
+  and whether a sealed envelope travels inside the registry's TSP
+  binding envelope or beside it.
+- **DO-11 The anchor of a declaration.** A party declares identical
+  constants to all its counterparts (4.4), and two counterparts
+  comparing declarations hold proof of an equivocation only if they
+  recognise the same signer. Which anchor signs a
+  `registry-declaration/0.1` — one per relationship or one per party —
+  is not settled; the type declares `identifierScope: any` until it
+  is.
 - **DO-5 Ordering.** No global ordering is promised; thread
   causality plus the merge rule cover every current flow.
 - **DO-8 A shared queue under a rate.** Documents on the key of an
@@ -3624,8 +3806,14 @@ HKDF · **RLTP Identity Layer 0.54** (normative; §5.2 the `rkid`'s
 key material, §5.3 the recovery context, §6.1 the context labels,
 §7 service identities,
 **§7a the carrier-relationship identity**, §9.3 recovery) ·
-[TT] ToIP DTGWG Trust Tasks framework specification 0.4
-(§4.8.2, §4.11.1, §6.1, §6.3, §6.5, §7.2–7.3) · RLTP Encounter Layer
+[TT] ToIP DTGWG Trust Tasks framework specification, document
+version 0.6 (`trustoverip/dtgwg-trust-tasks-tf` at `285f9a0a`,
+`SPEC.md`; envelope schema `specs/_framework/0.6`), target
+framework version 0.6.0 (§4.7.1, §4.8.2, §4.9.3, §4.11.1, §6.1, §6.3,
+§6.5, §7.2–7.3); the Type URI form of RLTP-DEL-3010 also satisfies
+Working Draft 0.7.0 (`trustoverip/dtgwg-trust-tasks-spec` at
+`23b33b9`), and the size bound of RLTP-DEL-3030 answers item 21 of the
+editor's draft (`f0b5b8e`) · RLTP Encounter Layer
 0.31, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Trust
 Layer 0.31 (§2.1, §5.2b, §6a, §6b, §8) · RLTP Access Layer 0.57,
