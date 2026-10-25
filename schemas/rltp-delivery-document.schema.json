@@ -1,7 +1,7 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://real-life.org/rltp/v1/schemas/rltp-delivery-document.schema.json",
- "title": "RLTP Delivery Document Profile (rltp-delivery@0.81)",
+ "title": "RLTP Delivery Document Profile (rltp-delivery@0.84)",
  "description": "RLTP document profile (Delivery 3): proof REQUIRED on delivery-ack and registry-declaration (their authenticity has no other carrier; a delivery-ack carries the DataIntegrityProof form for signature-class payloads and the deniable {mac} form (HMAC over JCS of the document without proof, under the channel ack key) for designated-verifier payloads per the 4.2/4.4 acknowledgement class rule; the schema conditions proof presence by type — which of the two ack proof forms applies is class state the receiver checks at validation (stage 8), not schema-expressible), MUST be absent on the other own types; own types' payload schemas carry \\$id = Type URI, companion-registered types dispatch through the 4.4 registry entry.",
  "type": "object",
  "required": [
@@ -20,7 +20,7 @@
   },
   "type": {
    "type": "string",
-   "pattern": "^https://real-life\\.org/trust-tasks/[a-z0-9-]+/[0-9]+\\.[0-9]+$"
+   "pattern": "^https://real-life\\.org/trust-tasks/spec/(?!trust-(task|ceremony)($|-|/))[a-z][a-z0-9]*(-[a-z0-9]+)*(/[a-z][a-z0-9]*(-[a-z0-9]+)*)*/[0-9]+\\.[0-9]+$"
   },
   "issuer": {
    "$ref": "#/$defs/didKey"
@@ -113,7 +113,7 @@
    "if": {
     "properties": {
      "type": {
-      "const": "https://real-life.org/trust-tasks/delivery-ack/0.1"
+      "const": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1"
      }
     },
     "required": [
@@ -130,7 +130,7 @@
    "if": {
     "properties": {
      "type": {
-      "const": "https://real-life.org/trust-tasks/registry-declaration/0.1"
+      "const": "https://real-life.org/trust-tasks/spec/registry-declaration/0.1"
      }
     },
     "required": [
@@ -183,7 +183,7 @@
    "if": {
     "properties": {
      "type": {
-      "const": "https://real-life.org/trust-tasks/encounter-bundle/0.1"
+      "const": "https://real-life.org/trust-tasks/spec/encounter-bundle/0.1"
      }
     },
     "required": [
@@ -200,7 +200,7 @@
    "if": {
     "properties": {
      "type": {
-      "const": "https://real-life.org/trust-tasks/encounter-credential-delivery/0.1"
+      "const": "https://real-life.org/trust-tasks/spec/encounter-credential-delivery/0.1"
      }
     },
     "required": [
