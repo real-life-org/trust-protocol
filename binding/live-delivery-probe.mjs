@@ -83,7 +83,7 @@ const waitFor = async (pred, ms = 20000, step = 250) => {
 // ── 1: Alice seals a REAL delivery document to Bob's rkid ──────────
 const doc = {
   id: uuid(),
-  type: "https://real-life.org/trust-tasks/encounter-bundle/0.1",
+  type: "https://real-life.org/trust-tasks/spec/encounter-bundle/0.1",
   issuer: A.anchor, recipient: B.anchor,
   threadId: uuid(), issuedAt: iso(),
   payload: { note: "live delivery probe", n: 1 },
@@ -119,7 +119,7 @@ const ackDoc = await diSign(
   { anchor: B.anchor, ed: { priv: B.ed.priv } },
   {
     id: uuid(),
-    type: "https://real-life.org/trust-tasks/delivery-ack/0.1",
+    type: "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
     issuer: B.anchor, recipient: A.anchor,
     threadId: doc.threadId, issuedAt: iso(),
     payload: { ref: verdict.digest, meaning: "received" },
@@ -144,7 +144,7 @@ const ackGot = JSON.parse(td.decode(c2.items[0].bytes));
 const ackVerdict = await receive(ackGot, (rkid) => (rkid === A.rkid ? A.x.priv : undefined), A.completed);
 if (ackVerdict.disposition !== "unique") fail(`ack receive: ${ackVerdict.disposition}`);
 const ack = ackVerdict.document;
-if (ack.type !== "https://real-life.org/trust-tasks/delivery-ack/0.1") fail("not a delivery-ack");
+if (ack.type !== "https://real-life.org/trust-tasks/spec/delivery-ack/0.1") fail("not a delivery-ack");
 if (!(await diVerify(ack, B.anchor))) fail("ack proof invalid");
 if (ack.payload.ref !== verdict.digest) fail("ack references a different document");
 if (ack.threadId !== doc.threadId) fail("ack thread mismatch");

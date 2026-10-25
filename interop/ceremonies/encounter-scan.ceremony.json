@@ -4,7 +4,7 @@
   "title": "RLTP encounter scan (mutual encounter, connected or offline)",
   "summary": "One person displays a contact card with a fresh challenge; the other scans it, confirms recognition, and issues an encounter credential bound to both challenges, delivered together with their sent card as a bundle through the delivery service - or, without a network, presents the sent card optically and lets the bundle follow whenever a network carries it. The displaying party may confirm back with a counter-credential, delivered over any carrier at any later time. No third party; the offline path needs no connectivity at all.",
   "status": "draft",
-  "targetFrameworkVersion": "0.4",
+  "targetFrameworkVersion": "0.6.0",
   "authors": ["Anton Tranelis (Real Life Organisation)"],
   "keywords": ["offline", "local-first", "bilateral", "adaptive", "web-of-trust", "rltp"],
   "roles": {
@@ -14,7 +14,7 @@
   "steps": {
     "bundle": {
       "kind": "task",
-      "type": "https://real-life.org/trust-tasks/encounter-bundle/0.1",
+      "type": "https://real-life.org/trust-tasks/spec/encounter-bundle/0.1",
       "issuer": "scanner",
       "recipient": "displayer",
       "description": "The scanner's sent card (rltp-card/0.25, naming its recipient and the displayed-challenge value it answers) plus the scanner's step credential (rltp-encounter-credential/0.26) binding the displayer's challenge. On the offline path the sent card alone travels optically and creates the displayer's enactment record; the bundle follows through the delivery service and is accepted via that record. Terminal: the enactment is complete once the bundle is accepted (Encounter Layer 5.2 C5, 5.8).",
@@ -23,7 +23,7 @@
     },
     "counter": {
       "kind": "task",
-      "type": "https://real-life.org/trust-tasks/encounter-credential-delivery/0.1",
+      "type": "https://real-life.org/trust-tasks/spec/encounter-credential-delivery/0.1",
       "issuer": "displayer",
       "recipient": "scanner",
       "description": "The displayer's counter-step credential (rltp-encounter-credential/0.26), binding the scanner's sent challenge, continuing the bundle's thread. Optional and terminal: one-sided outcomes are legitimate (Encounter Layer 5.2 C5), and the displayer may issue the counter-step at any later time over any carrier (RLTP-ENC-5750), which makes the outcome mutual. Its delivery has no time bound; the credential's own issuance time falls under the issuance window of Encounter Layer 5.6 step 6.",

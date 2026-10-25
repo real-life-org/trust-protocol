@@ -1272,11 +1272,11 @@
      "why": "an adapter without a declared status horizon can hold a submission silently forever (wot#355)"
     },
     {
-     "wrongRole": "https://real-life.org/trust-tasks/registry-declaration/0.1",
+     "wrongRole": "https://real-life.org/trust-tasks/spec/registry-declaration/0.1",
      "why": "round-44 B-1 / round-45 M-1: constants for the carrier role declared under any other role URI are not a carrier declaration \u2014 without one fixed key, two counterparts could hold different entries as authoritative"
     }
    ],
-   "roleURI": "https://real-life.org/trust-tasks/delivery-carrier/0.1",
+   "roleURI": "https://real-life.org/trust-tasks/spec/delivery-carrier/0.1",
    "behaviour": {
     "note": "round-48 M-2 \u2014 the declaration BINDS: enforcing stricter or looser than published is nonconformant, and status-horizon is executable in time.",
     "statusHorizon": {

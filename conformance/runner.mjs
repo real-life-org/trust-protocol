@@ -855,7 +855,7 @@ section('carrier-proof.json — Delivery §5a.3 signature input, §4.4 rate mach
     for (const r of G1.rejects.filter((r) => r.missing))
       check(G1.required.includes(r.missing),
         `guarantee 1: a declaration missing ${r.missing} rejects — a carrier does not act on values it has not published`)
-    check(G1.roleURI === 'https://real-life.org/trust-tasks/delivery-carrier/0.1',
+    check(G1.roleURI === 'https://real-life.org/trust-tasks/spec/delivery-carrier/0.1',
       'guarantee 1: the carrier declares under ONE fixed role URI — delivery-carrier/0.1, a role key and never a document type (round-44 B-1)')
     check(G1.rejects.some((r) => r.wrongRole && r.wrongRole !== G1.roleURI),
       'guarantee 1: constants under any other role URI are not a carrier declaration — the negative ships (round-45 M-1)')
@@ -1642,7 +1642,7 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
   const eqDigest = (a, b) => (a[0] === 'u' ? a : toU(a)) === (b[0] === 'u' ? b : toU(b)) && (a[0] === 'u' ? a : toU(a)) !== null
   schemaOK(accDoc, 'rltp-delivery-document.schema.json', 'accept document (delivery profile)')
   schemaOK(acc, 'payload-membership-accept.schema.json', 'accept payload')
-  check(accDoc.type === 'https://real-life.org/trust-tasks/membership-accept/0.2', 'accept document type is the registered 0.2 task type')
+  check(accDoc.type === 'https://real-life.org/trust-tasks/spec/membership-accept/0.2', 'accept document type is the registered 0.2 task type')
   check(diVerify(accDoc, accDoc.issuer).ok && accDoc.issuer === acc.accept.subject, 'accept task proof verifies under the subject (Membership 2)')
   check(accDoc.issuer === D.parties.inviteeCandidate.anchor && accDoc.recipient === D.parties.inviterVoucher.anchor, 'accept document issuer/recipient = the party oracle')
   check(accDoc.threadId === inv.taskContext, 'accept travels on the invite thread (taskContext binding)')
@@ -1664,7 +1664,7 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
   const sizeOK = (doc) => Buffer.byteLength(jcs(doc), 'utf8') <= 16384
   const bindOK = (d) => !('proof' in d) && d.issuer === inv.issuer && d.recipient === inv.credentialSubject.id && d.threadId === inv.taskContext
   schemaOK(invDoc, 'rltp-delivery-document.schema.json', 'invite document (delivery profile)')
-  check(invDoc.type === 'https://real-life.org/trust-tasks/membership-invite/0.2', 'invite document type is the registered 0.2 task type')
+  check(invDoc.type === 'https://real-life.org/trust-tasks/spec/membership-invite/0.2', 'invite document type is the registered 0.2 task type')
   check(jcs(invDoc.payload) === jcs(D.invite.payload), 'invite document wraps exactly the payload fixture')
   check(bindOK(invDoc), 'invite document: no document proof, issuer/recipient/threadId bound to the credential (Membership 2, 3.1)')
   // Membership section 2 size budget: 16 384 bytes JCS per COMPLETE document
@@ -2046,7 +2046,7 @@ section('membership-tasks.json — Membership Tasks 0.21: prelude, genesis → i
 {
   const M = J('vectors/membership-tasks.json')
   const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
-  const P = 'https://real-life.org/trust-tasks/'
+  const P = 'https://real-life.org/trust-tasks/spec/'
   const VF = 'failed(validation-failed)'
   const MEMBERSHIP_SKEW = 300 // PT5M (RLTP-MT-5020)
   const MANIFEST = new Set(readFileSync(join(ROOT, 'conformance/membership-rule-ids-0.21.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')))
