@@ -5,15 +5,21 @@ specs: [access-layer, delivery-contract, encounter-layer, membership-tasks, mess
 ---
 
 Every RLTP message is a Trust Task document of a private, versioned
-type under `https://real-life.org/trust-tasks/`, with in-band
-`issuer` and `recipient` anchors and no `expiresAt`. An unknown type
-is rejected, never silently ignored.
+type, named `https://real-life.org/trust-tasks/spec/<slug>/<version>`,
+with in-band `issuer` and `recipient` anchors and no `expiresAt`. An
+unknown type is rejected, never silently ignored. The types target
+the Trust Tasks framework 0.6.0.
 
 The types form one register, the
 [task registry](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types)
 of the Delivery Contract. Each type is registered by the specification
 where its semantics live, which names its payload schema, its proof
-and its rules.
+and its rules. Each type also declares, in the framework's vocabulary,
+whose identifiers fill its parties, what it changes at the recipient,
+what it carries about people, what the recipient keeps, and its
+largest document: 65 536 bytes, and 16 384 bytes for the invitation
+and the acceptance
+([Delivery §4.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#45-declarations)).
 
 The verifiable credentials some of these documents carry are listed
 under [Credentials](/reference/credentials/).
@@ -96,6 +102,6 @@ document earns, and a party's operational constants.
 | `delivery-ack/0.1` | `{ ref, meaning: "received" }`: arrival of one document, never acceptance | [Delivery §4.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#42-delivery-ack01) | [`payload-delivery-ack`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-delivery-ack.schema.json) |
 | `registry-declaration/0.1` | `{ declaration }`: a party's signed operational constants for one role | [Delivery §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types) | [`payload-registry-declaration`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-registry-declaration.schema.json) |
 
-`https://real-life.org/trust-tasks/delivery-carrier/0.1` names the
+`https://real-life.org/trust-tasks/spec/delivery-carrier/0.1` names the
 carrier role in a `registry-declaration/0.1`. It is not a document
 type: a document of that type is rejected as unknown.

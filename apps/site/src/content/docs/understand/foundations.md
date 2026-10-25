@@ -37,6 +37,11 @@ the group can correlate it; a persona is `public`, because its
 profile is meant for everyone. Personas are specified but not yet
 built, and whether RLTP also needs personas toward a chosen set is an
 open question; today that role falls to the member anchor.
+The Trust Tasks framework knows no `directed`: a task type declares an
+identifier that several counterparties recognise as `public`, so the
+types whose parties are member anchors declare them `public`, with the
+group as the bound
+([Membership §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#3-registered-task-types)).
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
@@ -164,7 +169,7 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 ## Trust Tasks
 
 Every RLTP message is a Trust Task document of a private, versioned
-type under `https://real-life.org/trust-tasks/`, with in-band
+type under `https://real-life.org/trust-tasks/spec/`, with in-band
 `issuer` and `recipient` anchors and no `expiresAt`. An unknown type
 is rejected, never silently ignored.
 
@@ -191,9 +196,8 @@ is rejected, never silently ignored.
 
 The full register, by layer, with schemas: [Trust Tasks](/reference/trust-tasks/).
 
-The Delivery Contract and the Membership Tasks declare Trust Tasks
-framework 0.4 as their target. The current framework is 0.7.0; the
-lift is pending, and with it the type URIs change form.
+Every specification that registers types targets the Trust Tasks
+framework 0.6.0 and declares each type in the framework's vocabulary.
 
 Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md)
