@@ -166,8 +166,21 @@ auf (`SCID in DID … does not match SCID in log 'QmR5xGk8…'`).
 
 ## Messstand
 
-Gemessen mit der Rev-3-Bindung (`vti-tsp-js` 0.3.0, Profil ≤ 0.27) gegen
-die Instanz oben. Unter TSP 1.0 ist noch kein Live-Lauf gemessen; die
+**TSP 1.0, lokal (26.10.):** Mediator 0.45.0 (`7e378c03`) als
+In-Process-Instanz des Crates `affinidi-messaging-test-mediator`
+(Beispiel `standalone`, Feature `tsp`, `did:peer:2`, ACL allow-all,
+Speicher im RAM), über `MEDIATOR_ALLOW_INSECURE=1`:
+`live-probe.mjs` PASS (routed, beide Richtungen, 64 B → 393 B → 1260 B,
+Zustellung 290/269 ms); `live-delivery-probe.mjs` routed PASS, zweimal
+(`accepted → delivered`, nicht late; Einlieferung → geprüfter Ack 600 ms).
+Der äußere Rahmen ist größer als bei storm.ws, weil `C` hier eine lange
+`did:peer:2` ist. `egress-session` lieferte nicht zu (eine Stichprobe;
+im selben Lauf meldete der Ratenbegrenzer der Instanz je IP eine
+Überschreitung, ungeklärt, ob das die Ursache ist). Eine öffentliche
+1.0-Instanz ist nicht gemessen.
+
+Die Tabelle: gemessen mit der Rev-3-Bindung (`vti-tsp-js` 0.3.0, Profil ≤ 0.27) gegen
+die Instanz oben. Die
 Rahmengrößen sind unverändert (offline nachgerechnet mit 0.4.0:
 dieselben Bytezahlen für 64 B, 48 B, 681 B und 1224 B Nutzlast, innen
 und außen), denn 1.0 ändert gegenüber Rev 3 nur das
