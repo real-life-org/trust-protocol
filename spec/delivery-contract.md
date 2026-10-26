@@ -302,12 +302,15 @@ type and need not be repeated in a declaration:
   is evaluated at 6.2 stage 9 under the lock set and commits as one
   transaction; no document's effect is applied in part. Where a layer
   judges again later, that is a stage of its own, named by the
-  registering specification, not a partial application: the
-  provisional adoption of a welcome or a re-welcome until the log
-  arrives (Access RLTP-ACC-10200 to RLTP-ACC-10310, Membership
-  RLTP-MT-3495), a document pending its group state and judged once
-  that state arrives (Access RLTP-ACC-10190, Membership 3.3), and the
-  Encounter acceptance of a buffered credential (Encounter 5.6).
+  registering specification, not a partial application. Such stages
+  are, for example, the provisional adoption of a welcome or a
+  re-welcome until the log arrives (Access RLTP-ACC-10200 to
+  RLTP-ACC-10310, Membership RLTP-MT-3495), a document pending its
+  group state and judged once that state arrives (Access
+  RLTP-ACC-10190, Membership 3.3), the Encounter acceptance of a
+  buffered credential (Encounter 5.6), and an introduction's held
+  voucher, judged again when a reply is accepted (Trust Layer
+  RLTP-TRU-8770).
 
 **RLTP-DEL-3030** — Each type declares a **document size bound**: the
 largest UTF-8 JCS serialization of a document of that type, `proof`
