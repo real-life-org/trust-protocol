@@ -673,13 +673,17 @@ the document's next attempt: no attempt starts before it. The bound
 is capped by the give-up horizon (§2): a `retryAfter` beyond it is
 never waited for, and the submission ends at the horizon. An accepted
 submission makes no further attempt from this side (Delivery §6.1),
-so a `retryAfter` binds nothing there.
+so a `retryAfter` binds nothing there. The bound holds for the
+adapter instance that took it, until the next opening: it is not
+part of the persisted ack state (§4), since a counterpart's hint is a
+SHOULD of the registry and a new opening may try again.
 
 The reading of an error document is by its form: `type`
 `https://trusttasks.org/spec/trust-task-error/0.5`, a payload with
 exactly the registry's members, a standard or an extended `code`, a
-boolean `retryable`, an RFC 3339 `retryAfter`; anything else is no
-refusal and changes nothing.
+boolean `retryable`, an RFC 3339 `retryAfter` (either case of `T`
+and `Z`, a leap second read as the next second, any offset); anything
+else is no refusal and changes nothing.
 
 **RLTP-VTI-5020** — The codes of a terminal verdict are the
 standard codes `malformedRequest`, `unsupportedType`,

@@ -298,9 +298,16 @@ type and need not be repeated in a declaration:
   document arrives on, the documents it sent, the act it holds. The
   registering specification names that evidence per type (4.5,
   Membership Tasks §3, Access §10, Message Tasks 3.4).
-- **Execution checkpoints (item 16).** A type's effect is evaluated
-  once, at 6.2 stage 9 under the lock set, and commits as one
-  transaction; no stage of it is applied partially.
+- **Execution checkpoints (item 16).** Per document, a type's effect
+  is evaluated at 6.2 stage 9 under the lock set and commits as one
+  transaction; no document's effect is applied in part. Where a layer
+  judges again later, that is a stage of its own, named by the
+  registering specification, not a partial application: the
+  provisional adoption of a welcome or a re-welcome until the log
+  arrives (Access RLTP-ACC-10200 to RLTP-ACC-10310, Membership
+  RLTP-MT-3495), a document pending its group state and judged once
+  that state arrives (Access RLTP-ACC-10190, Membership 3.3), and the
+  Encounter acceptance of a buffered credential (Encounter 5.6).
 
 **RLTP-DEL-3030** — Each type declares a **document size bound**: the
 largest UTF-8 JCS serialization of a document of that type, `proof`
@@ -945,7 +952,7 @@ what a consumer holds to interpret it (item 15):
 
 | Type | Effect | Authorization evidence |
 |---|---|---|
-| `encounter-bundle/0.1` | creates the enactment record and records the accepted credential (4.1) | the recipient's own challenge the credential binds, resolved from its holder state (Encounter 5.3), and the pair anchor the card was sent to |
+| `encounter-bundle/0.1` | creates the enactment record and records the accepted credential (4.1) | the recipient's own challenge the credential binds, resolved from its holder state (Encounter 5.3), and the pair anchor its displayed card names |
 | `delivery-ack/0.1` | updates the sender's status of one document it sent, nothing else (4.2) | the sender's own record of the acknowledged document on that thread |
 | `encounter-credential-delivery/0.1` | buffers the credential for Encounter acceptance (4.3) | the enactment record and the challenge it binds (Encounter 5.6) |
 | `registry-declaration/0.1` | records a party's constants per (issuer, role) under the revision rule (4.4) | none beyond the relationship: a party declares for itself alone |
