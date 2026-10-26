@@ -81,7 +81,7 @@
 //     documents and its verified delivery-acks alike
 //   - which types a block treats (Delivery RLTP-DEL-6245): message/0.1
 //     (Message Tasks), membership-invite/0.2 and the prelude reply
-//     (Membership 0.20, RLTP-MT-3115, 3975). The Trust Layer types of the
+//     (Membership 0.21, RLTP-MT-3115, 3975). The Trust Layer types of the
 //     table of 6.3 (the introduction's, the profile, the stars, the
 //     anchor mapping) are evaluated as without a block until the Trust
 //     Layer's casting takes the change up (RLTP-MSG-6240); the views mark

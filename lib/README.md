@@ -303,8 +303,11 @@ the state as opaque JSON and gives it back; the library decodes it
   as `codec-unknown`; nothing is read best-effort.
 - A codec-3 state written by lib 0.8 names its Trust Task types without
   the `/spec/` segment of Delivery RLTP-DEL-3010 and is refused as
-  `codec-type-uri`: a clean cut, no migration. The app discards such a
-  state and starts afresh.
+  `codec-type-uri`: a clean cut, no migration. Only the places that hold
+  a document's type are read (the outbox items, a received or issued
+  invitation, the invite and accept of buffered evidence); text a person
+  wrote never refuses a state. The app discards such a state and starts
+  afresh.
 - `schemas/holder-state-v3.schema.json` describes the codec as a
   non-normative JSON Schema (published with the package). The type
   `HolderStateV3` (`./internal`) is generated from it

@@ -439,18 +439,32 @@ export function decodeChain (raw: unknown, chain: CodecChain): unknown {
  *  Delivery 0.84 (RLTP-DEL-3010), which lib 0.8 wrote into codec 3. */
 const TASK_ROOT = TASK_NAMESPACE.slice(0, -'spec/'.length)
 
-/** A clean cut, fail-closed: a state that names any type in the earlier
- *  form is refused as codec-type-uri, at the first such string; it is
- *  never migrated and never sent on. */
-function refuseEarlierTypeUris (x: unknown, path: string): void {
-  if (typeof x === 'string') {
-    if (x.startsWith(TASK_ROOT) && !x.startsWith(TASK_NAMESPACE)) {
-      throw new StateCodecError('codec-type-uri', 'a Type URI in the form before Delivery 0.84 (lib 0.8); this library does not load such a state', path)
+/** A clean cut, fail-closed: a state that names a type in the earlier
+ *  form is refused as codec-type-uri, at the first such type; it is never
+ *  migrated and never sent on. Only the places where the state holds a
+ *  document's type are read (the state schema's OutboxItem.type and the
+ *  documents it keeps: a received invitation, an issued invitation, the
+ *  invite and accept of buffered evidence). Text a person wrote — a
+ *  message, a profile, a group's name — is never read as a type: anyone
+ *  could otherwise make a holder's state unreadable by writing it. */
+function refuseEarlierTypeUris (state: unknown, path: string): void {
+  const earlier = (t: unknown): boolean => typeof t === 'string' && t.startsWith(TASK_ROOT) && !t.startsWith(TASK_NAMESPACE)
+  const check = (t: unknown, at: string): void => {
+    if (earlier(t)) throw new StateCodecError('codec-type-uri', 'a Type URI in the form before Delivery 0.84 (lib 0.8); this library does not load such a state', at)
+  }
+  const entries = (o: unknown): Array<[string, unknown]> => (isObj(o) ? Object.entries(o) : [])
+  const typeOf = (doc: unknown): unknown => (isObj(doc) ? doc.type : undefined)
+  const s = isObj(state) ? state : {}
+  for (const [k, item] of entries(s.outbox)) check(typeOf(item), `${path}.outbox.${k}.type`)
+  for (const [k, inv] of entries(isObj(s.joining) ? s.joining.invites : undefined)) check(typeOf(isObj(inv) ? inv.invite : undefined), `${path}.joining.invites.${k}.invite.type`)
+  for (const [g, group] of entries(s.groups)) {
+    const gr = isObj(group) ? group : {}
+    for (const [k, inv] of entries(gr.invitations)) check(typeOf(isObj(inv) ? inv.invite : undefined), `${path}.groups.${g}.invitations.${k}.invite.type`)
+    for (const [k, ev] of entries(gr.evidence)) {
+      const e = isObj(ev) ? ev : {}
+      check(typeOf(e.invite), `${path}.groups.${g}.evidence.${k}.invite.type`)
+      check(typeOf(e.accept), `${path}.groups.${g}.evidence.${k}.accept.type`)
     }
-  } else if (Array.isArray(x)) {
-    x.forEach((v, i) => refuseEarlierTypeUris(v, `${path}[${i}]`))
-  } else if (isObj(x)) {
-    for (const [k, v] of Object.entries(x)) refuseEarlierTypeUris(v, `${path}.${k}`)
   }
 }
 

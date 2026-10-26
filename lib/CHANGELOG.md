@@ -27,7 +27,10 @@ stage 5). Nothing accepts both forms.
 - **Storage.** The codec stays 3 and nothing migrates. A state written by
   0.8 names its types in the earlier form; `decodeState` refuses it as
   `codec-type-uri` (a new `StateCodecErrorCode`), fail-closed, so no 0.9
-  holder opens it or sends its documents on. The app discards it.
+  holder opens it or sends its documents on. The app discards it. Only
+  the places that hold a document's type are read (outbox items, a
+  received or issued invitation, the invite and accept of buffered
+  evidence), never text a person wrote.
 - **Counterpart refusals** (profile RLTP-VTI-5010 to 5030), in
   `./adapters/vti-mediator`: `readTrustTaskError(doc)` reads a
   `trust-task-error/0.5` document by its form, totally (null for anything
@@ -35,8 +38,10 @@ stage 5). Nothing accepts both forms.
   retryable code marked not retryable as `taskFailed`), retry with its
   `retryAfter`, answered (`idConflict`), or none (`expired`).
   `receiverRetry(id, retryAfter)` takes a retry: no port transition, and
-  no attempt of the submission before `retryAfter`; the give-up horizon
-  still ends it. `TRUST_TASK_ERROR_TYPE` names the read type.
+  no attempt of the submission before `retryAfter`, within this adapter
+  instance; the give-up horizon still ends it. `retryAfter` is read as
+  RFC 3339 allows it (either case of `T` and `Z`, a leap second, any
+  offset). `TRUST_TASK_ERROR_TYPE` names the read type.
 
 ## 0.8.0
 

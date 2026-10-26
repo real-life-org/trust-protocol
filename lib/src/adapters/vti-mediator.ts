@@ -219,20 +219,28 @@ const ERROR_MEMBERS = new Set(['code', 'retryable', 'inResponseTo', 'message', '
 const STANDARD_ERROR_CODES = new Set(['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid',
   'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError'])
 const EXTENDED_ERROR_CODE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/
-const RFC3339 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?(Z|[+-]([0-9]{2}):([0-9]{2}))$/
+const RFC3339 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?([Zz]|([+-])([0-9]{2}):([0-9]{2}))$/
 
-/** An RFC 3339 date-time as milliseconds, or null: calendar-valid, any
- *  offset, never normalized into another day. */
+/** An RFC 3339 date-time as milliseconds, or null: as RFC 3339 allows it
+ *  (§5.6: `t` and `z` in either case, a leap second `:60`, any offset),
+ *  calendar-valid, never normalized into another day. A leap second
+ *  reads as the next second. */
 function rfc3339 (t: unknown): number | null {
   if (typeof t !== 'string') return null
   const m = RFC3339.exec(t)
   if (m === null) return null
   const [y, mo, d, h, mi, s] = m.slice(1, 7).map(Number)
-  if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 59) return null
+  if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 60) return null
   const day = new Date(Date.UTC(y, mo - 1, d))
   if (day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null
-  if (m[8] !== 'Z' && (Number(m[9]) > 23 || Number(m[10]) > 59)) return null
-  const ms = Date.parse(t)
+  let offsetMin = 0
+  if (m[9] !== undefined) {
+    const oh = Number(m[10]), om = Number(m[11])
+    if (oh > 23 || om > 59) return null
+    offsetMin = (m[9] === '-' ? -1 : 1) * (oh * 60 + om)
+  }
+  const frac = m[7] === undefined ? 0 : Math.floor(Number('0' + m[7]) * 1000)
+  const ms = Date.UTC(y, mo - 1, d, h, mi, s, frac) - offsetMin * 60_000
   return Number.isFinite(ms) ? ms : null
 }
 
@@ -1064,7 +1072,9 @@ export class MediatorCarrierAdapter {
    *  `retryAfter` (milliseconds, or null for the next advance). The give-up
    *  horizon still ends the submission: a `retryAfter` beyond it is never
    *  waited for. An accepted submission makes no further attempt from this
-   *  side (Delivery §6.1), and nothing moves back. */
+   *  side (Delivery §6.1), and nothing moves back. The bound lives in this
+   *  instance: it is not part of the ack state, and the next opening's
+   *  adapter starts without it (RLTP-VTI-5010). */
   receiverRetry (id: string, retryAfter: number | null): void {
     if (this.#closed) return
     if (retryAfter !== null && !finite(retryAfter)) throw new Error('retryAfter is a finite instant in milliseconds, or null')

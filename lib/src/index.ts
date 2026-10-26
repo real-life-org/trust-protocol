@@ -16,7 +16,7 @@
 //                     the picture's header read before any decoding
 //   encounter         the ceremony's wire forms: challenges, cards, credentials,
 //                     and its pure checks (5.6 acceptance, the bundle's forms)
-//   membership        Membership 0.20's forms and checks: the prelude,
+//   membership        Membership 0.21's forms and checks: the prelude,
 //                     invite, accept, evidence, vouch@2, the member label, oids
 //   message           Message Tasks 0.2's forms: message@1, k_msg, the MAC
 //   introduction      Trust §8's artifacts and checks, the act window, the
@@ -44,7 +44,7 @@
 // `invariants: true` checks invariants.ts on every commit (testing mode).
 // Its modules: identity (Identity §2, §5.4, §5.5), trust (Trust 2, 2a,
 // 5.2–5.4, 6.1–6.5, 6a, 6b), encounter (Encounter 0.31 §5–§7), membership
-// (Membership 0.20 with an in-library Access), introduction (Trust §8) and
+// (Membership 0.21 with an in-library Access), introduction (Trust §8) and
 // message (Message Tasks 0.2: messages, the inbox, the block).
 //
 //   views             the view types (ContactView, …)
