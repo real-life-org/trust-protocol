@@ -203,9 +203,10 @@ export async function createVtiWire(cfg) {
   // a refusal of direct delivery the mediator sent on the egress session
   // (problem report e.p.direct_delivery.denied): the carrier does not carry
   // the fallback form, and the switch is one-way (RLTP-VTI-3130), so every
-  // later deposit in mode egress-session fails as a retriable carrier
-  // refusal for the life of this wire (RLTP-VTI-3120, Open Issue 4). Any
-  // other problem report is logged and consumed (§5)
+  // later deposit in mode egress-session fails as WireError('direct-refused')
+  // for the life of this wire; the adapter records it in the relationship's
+  // send state, which carries it across openings (RLTP-VTI-3120, Open
+  // Issue 4). Any other problem report is logged and consumed (§5)
   let egressRefusal = null;
   // queueEmpty(): frames the session has received but not yet handed to
   // the adapter, and when the last TSP frame arrived
@@ -478,7 +479,7 @@ export async function createVtiWire(cfg) {
       // in this mode too (its token is the deposit's first argument); the
       // egress identity's own authentication happens here
       if (mode === "egress-session" && egressRefusal) {
-        throw new WireError("refused-retriable", `the mediator refuses direct delivery on the egress session (${egressRefusal})`);
+        throw new WireError("direct-refused", `the mediator refuses direct delivery on the egress session (${egressRefusal})`);
       }
       const s = mode === "egress-session" ? await ensureEgressSession() : openSession();
       if (!s.isOpen) throw new WireError("unreachable", "the egress identity's socket is closed");
