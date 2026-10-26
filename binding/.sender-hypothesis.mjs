@@ -1,5 +1,5 @@
 // .sender-hypothesis.mjs — seam measurement: which TSP envelope sender
-// does the mediator relay? Rev 3 direct frames (vti-tsp-js 0.3.0) over
+// does the mediator relay? TSP 1.0 direct frames (vti-tsp-js 0.4.0) over
 // the ATM-authenticated WS socket. MEDIATOR_DID overrides the instance.
 import { WebSocket } from "ws";
 import { authenticateToMediator, MediatorSession, multibase, didKey } from "@openvtc/vti-didcomm-js";

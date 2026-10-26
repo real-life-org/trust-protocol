@@ -3,13 +3,14 @@
 // mediator: a real sealed RLTP envelope (lib seal), the receiver's
 // staged receive() verdict, a SIGNED delivery-ack/0.1 back, and the
 // sender's §6.1 trias closing accepted → delivered. Unit 2 after the
-// transport-only live probe. Sending form of profile 0.24 §3a (default
+// transport-only live probe. Sending form of profile 0.28 §3a (default
 // routed, as the adapter names it). Prints the measurements: delivery
 // yes/no, the trias accepted → delivered, frame sizes (payload, inner,
 // outer bytes), and the times deposit → accepted, → delivery and → ack
 // (ms). No secrets.
 //
-// Network-gated: RLTP_LIVE_MEDIATOR=1.
+// Network-gated: RLTP_LIVE_MEDIATOR=1; MEDIATOR_DID names a TSP 1.0
+// mediator (>= 0.45).
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { seal, receive } from "../lib/dist/delivery.js";
@@ -24,8 +25,12 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   process.exit(0);
 }
 
-const MEDIATOR_DID = process.env.MEDIATOR_DID
-  ?? "did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator";
+// the binding speaks TSP 1.0: the instance must be a mediator >= 0.45
+const MEDIATOR_DID = process.env.MEDIATOR_DID;
+if (!MEDIATOR_DID) {
+  console.error("live-delivery-probe: set MEDIATOR_DID to a TSP 1.0 mediator (>= 0.45)");
+  process.exit(2);
+}
 
 const te = new TextEncoder();
 const td = new TextDecoder();
@@ -47,7 +52,7 @@ const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live delivery probe: seal → carry → receive → signed ack → delivered ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.24 §3a)`);
+say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.28 §3a)`);
 
 // ── party state: relationship root/nonce (adapter+wire), an rkid
 // (X25519, the seal target), and a signing anchor (the ack issuer)

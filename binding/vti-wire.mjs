@@ -1,15 +1,15 @@
-// vti-wire.mjs — the concrete MediatorWire over vti-didcomm-js 0.12.0
-// and vti-tsp-js 0.3.0, TSP Rev 3 (profile 0.25 §7: TSP framing, CESR demux, ack translation and
+// vti-wire.mjs — the concrete MediatorWire over vti-didcomm-js 0.13.0
+// and vti-tsp-js 0.4.0, TSP 1.0 (profile 0.28 §7: TSP framing, CESR demux, ack translation and
 // the M-2 duty live HERE, below the adapter's byte boundary).
 //
 // Responsibilities:
 //   · derive the wire identities' RAW seeds by re-running the lib's
 //     own HKDF (same prefixes → byte-identical DIDs to the adapter's)
 //   · ATM auth under the CONNECTION DID; one socket per principal
-//   · deposit in the sending form of profile 0.25 §3a, in the mode the
+//   · deposit in the sending form of profile 0.28 §3a, in the mode the
 //     adapter names (depositAddressing of the lib says who addresses
 //     whom), packed anew for every attempt (RLTP-VTI-7110):
-//       routed          inner TSP Rev 3 `direct` egress identity →
+//       routed          inner TSP 1.0 `direct` egress identity →
 //                       peer's connection DID (HPKE-Base to its key,
 //                       signed by the egress identity), inside an outer
 //                       routed message connection DID → C, route [peer's
@@ -21,12 +21,14 @@
 //       egress-session  the inner message alone, on a send-only session
 //                       the egress identity authenticates lazily at the
 //                       first deposit in this mode (RLTP-VTI-3120)
-//   · onDeliver hands the adapter the INNER payload bytes of a Rev 3
+//   · onDeliver hands the adapter the INNER payload bytes of a TSP 1.0
 //     `direct` message (M-2: the raw received bytes, passed truthfully)
 //     and keeps the payload-digest → mediator-queue-id translation for
 //     acks; control (XRFI/XRFA/XRFD), padding and any other message
-//     type is logged, acked and never delivered
-//   · delete-to-ack stays the ADAPTER's conclude: the stock 0.12.0
+//     type is logged, acked and never delivered; so is a frame of
+//     any other TSP version (Rev 3 included), which the library refuses
+//     from its version marker before any key is touched
+//   · delete-to-ack stays the ADAPTER's conclude: the stock 0.13.0
 //     session acks right after the consumer returns — we override that
 //     dispatch so the ack fires only when the adapter says so.
 
@@ -89,7 +91,7 @@ export function peerKeys(did) {
 }
 
 /** Delete-to-ack under the ADAPTER's control: the stock session acks
- *  a TSP frame the moment the consumer returns (0.12.0
+ *  a TSP frame the moment the consumer returns (0.13.0
  *  `_dispatchTspFrame`, with a session-level `_seen` dedup);
  *  here the frame is only handed off — `ackTsp` fires when the
  *  adapter concludes. The adapter's three registers own absorption,
@@ -123,7 +125,7 @@ class RltpMediatorSession extends MediatorSession {
  * @param {string}     cfg.mediatorDid   C, exactly as configured
  * @param {Uint8Array} cfg.nonce         the 32-byte carrier nonce N
  * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key (addressing): the
- *        `id` without `#tsp` of its delivery hint (profile 0.25 §1b, RLTP-VTI-1240)
+ *        `id` without `#tsp` of its delivery hint (profile 0.28 §1b, RLTP-VTI-1240)
  * @param {string}     cfg.peerEgressDid counterpart's EGRESS did:key (sender verification):
  *        the `rltpEgress` of that hint; required in every form that reads from
  *        the egress identity (the profile forms and the control form `egress`);
@@ -157,14 +159,14 @@ export async function createVtiWire(cfg) {
   }
   const sentPeers = cfg.peerEgressDid ? peerKeys(cfg.peerEgressDid) : null;
   const peerConn = peerKeys(cfg.peerDid);
-  // net policy for the advertised mediator endpoints (0.12.0: replaces
-  // the deprecated `allowInsecure`); the same policy guards the socket
+  // net policy for the advertised mediator endpoints (vti-didcomm-js
+  // netPolicy; replaces the deprecated `allowInsecure`); the same policy guards the socket
   const netPolicy = process.env.MEDIATOR_ALLOW_INSECURE
     ? { allowInsecure: true, allowPrivate: true } : undefined;
   // Deposit form (RLTP_WIRE_DEPOSIT, or cfg.depositMode):
   //   routed          (default) follow the mode the adapter names on each
   //                   deposit — `routed`, or `egress-session` after the
-  //                   switch of RLTP-VTI-3130 (profile 0.25 §3a)
+  //                   switch of RLTP-VTI-3130 (profile 0.28 §3a)
   //   egress-session  force the fallback for every deposit (measurement)
   //   egress          control, NOT profile-conformant: the inner message
   //                   alone on the connection DID's socket — dropped by
@@ -218,10 +220,11 @@ export async function createVtiWire(cfg) {
             if (process.env.RLTP_WIRE_DEBUG) console.error("[wire] adapter refused a frame:", e.cause?.message ?? e.cause);
             return;
           }
-          // a frame that cannot be opened, or one from another sender or for
-          // another relationship, is refused for good: logged (type and
-          // sender VID from the cleartext envelope, no secrets) and acked,
-          // so it does not stay in the queue (RLTP-VTI-7140)
+          // a frame that cannot be opened (another TSP version included),
+          // or one from another sender or for another relationship, is
+          // refused for good: logged (type and sender VID from the cleartext
+          // envelope where it reads, no secrets) and acked, so it does not
+          // stay in the queue (RLTP-VTI-7140)
           let sender = "unknown";
           try { sender = decodeEnvelope(qb2).envelope.sender || "unknown"; } catch { /* undecodable */ }
           log(`[wire] TSP frame from ${sender} refused: ${e?.message ?? "unreadable"} (acked and dropped)`);
@@ -277,21 +280,23 @@ export async function createVtiWire(cfg) {
     if (!consumer) return;
     const mediatorQid = hexOf(await sha(te.encode(text)));
     // strip the TSP frame: the adapter's byte boundary is the
-    // sealed RLTP envelope, passed truthfully (M-2). Rev 3: HPKE-Base
+    // sealed RLTP envelope, passed truthfully (M-2). TSP 1.0: HPKE-Base
     // to our connection key; the sender is proven by the outer
-    // signature under the peer's egress key (no sender key in the KEM)
+    // signature under the peer's egress key and the sender VID the
+    // confidential payload carries (ESSR; no sender key in the KEM).
+    // The library opens 1.0 only: any other version, Rev 3 included,
+    // and a NULL sender VID are refused here, before the consumer
     const got = await tspUnpack(qb2, {
       receiverDecryptionKey: conn.xSecret,
       senderSigningKey: expectedPeerKeys.signPub,
     });
-    if (got.revision !== "rev3") throw new Error(`TSP ${got.revision} frame refused: the binding speaks Rev 3`);
     if (got.sender !== expectedPeerSender || got.receiver !== conn.did) {
       throw new Error("TSP frame for another relationship");
     }
-    // Rev 3 opens every message kind; only an application message
+    // The library opens every message kind; only an application message
     // of kind `direct` carrying bytes is a sealed RLTP envelope.
     // Anything else is authenticated but never delivered: it is
-    // logged and acked so it leaves the queue (the 0.12.0 session's
+    // logged and acked so it leaves the queue (the stock session's
     // rule for frames refused for good). Relationship frames
     // (XRFI/XRFA/XRFD, referral inside an invite) and padding are
     // not acted on — the binding runs no TSP relationship state.
@@ -424,7 +429,7 @@ export async function createVtiWire(cfg) {
       }
       const addr = depositAddressing(mode === "egress" ? "egress-session" : mode,
         { connection: conn.did, egress: egress.did }, cfg.peerDid, cfg.mediatorDid);
-      // inner: TSP Rev 3 direct, egress identity → peer's connection DID,
+      // inner: TSP 1.0 direct, egress identity → peer's connection DID,
       // HPKE-Base to its key, signed by the egress identity (RLTP-VTI-1110)
       const inner = await tspPack(bytes, addr.inner.sender, addr.inner.receiver, {
         senderSigningKey: egress.edSecret,

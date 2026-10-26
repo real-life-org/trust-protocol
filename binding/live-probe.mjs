@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// live-probe.mjs — the adapter (profile 0.24) over the real wire
+// live-probe.mjs — the adapter (profile 0.28) over the real wire
 // binding against the LIVE VTI mediator.
 //
 // Two independent relationships (Alice, Bob), each: derived identity
@@ -12,7 +12,7 @@
 // times deposit → accepted and deposit → delivery (ms). No secrets.
 //
 // Network-gated: set RLTP_LIVE_MEDIATOR=1 to run.
-//   MEDIATOR_DID=...   overrides the public dev mediator.
+//   MEDIATOR_DID=...   the instance, required: a TSP 1.0 mediator (>= 0.45).
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire } from "./vti-wire.mjs";
@@ -22,8 +22,12 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   process.exit(0);
 }
 
-const MEDIATOR_DID = process.env.MEDIATOR_DID
-  ?? "did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator";
+// the binding speaks TSP 1.0: the instance must be a mediator >= 0.45
+const MEDIATOR_DID = process.env.MEDIATOR_DID;
+if (!MEDIATOR_DID) {
+  console.error("live-probe: set MEDIATOR_DID to a TSP 1.0 mediator (>= 0.45)");
+  process.exit(2);
+}
 
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 const now = () => Date.now();
@@ -39,7 +43,7 @@ const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live probe: converged adapter × real mediator ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.24 §3a)`);
+say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.28 §3a)`);
 
 // Each party: its own relationship root and carrier nonce. The wire
 // derives the identical trio the adapter's factory derives.

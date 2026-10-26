@@ -1,8 +1,8 @@
-// wire-demux.test.mjs — the wire binding of profile 0.25, offline. The
+// wire-demux.test.mjs — the wire binding of profile 0.28, offline. The
 // real wire, the real RltpMediatorSession and the real adapter run over
 // a mediator double: ATM HTTP, DID resolution and the socket are
 // replaced (cfg.transport), the TSP and DIDComm crypto is the real
-// 0.3.0 / 0.12.0 code. Covered: the receive demux (issue #95: a
+// vti-tsp-js 0.4.0 (TSP 1.0) / vti-didcomm-js 0.13.0 code. Covered: the receive demux (issue #95: a
 // relationship frame must not reach the adapter, and must not block the
 // queue; RLTP-VTI-7140), the routed sending form end to end
 // (RLTP-VTI-3110, 3115), its addressing against
@@ -17,7 +17,7 @@ import { x25519 } from "@noble/curves/ed25519.js";
 import { multibase, jwk, didKey, unpack as didcommUnpack } from "@openvtc/vti-didcomm-js";
 import {
   pack as tspPack, unpack as tspUnpack, packInvite, packAccept, packWithHops, packRouted,
-  decodeEnvelope, nextHop,
+  decodeEnvelope, nextHop, peekRevision,
 } from "@openvtc/vti-tsp-js";
 import { MediatorCarrierAdapter, depositAddressing } from "../../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire, deriveWireIdentities, peerKeys } from "../vti-wire.mjs";
@@ -265,6 +265,43 @@ test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter
   alice.conclude(c, Date.now()); await alice.settle(); await tick();
   const after = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
   assert.equal(after, texts.length + 1, "conclude acks the delivered frame");
+  alice.close(); bob.close();
+});
+
+test("TSP 1.0 (§7): both layers of a deposit declare YTSP-BAA and carry the sender's VID; a Rev 3 frame is logged with its version, acked and never delivered, and the queue keeps moving", async () => {
+  const med = mediatorDouble();
+  const logs = [];
+  const { A, B, alice, bob } = await pair(med, logs);
+  const envelope = rand(48);
+  bob.submit(envelope, Date.now()); await bob.settle(); await tick();
+  const c1 = alice.collect(Date.now());
+  assert.equal(c1.items.length, 1);
+  const [f] = med.forwarded;
+  // the double opened the outer layer with the 1.0 library; the inner one declares 1.0 too
+  assert.deepEqual(peekRevision(f.inner), { major: 1, minor: 0, recognised: true });
+  const inner = await tspUnpack(f.inner, { receiverDecryptionKey: A.ids.conn.xSecret, senderSigningKey: B.ids.egress.edPublic });
+  assert.equal(inner.sender, B.ids.egress.did, "the sender VID, bound in the confidential payload (ESSR)");
+  alice.conclude(c1, Date.now()); await alice.settle(); await tick();
+
+  // the same frame, marked Rev 3 (YTSP-AAC): refused before any key is touched
+  const bobKeys = { senderSigningKey: B.ids.egress.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
+  const v1 = await tspPack(rand(40), B.ids.egress.did, A.ids.conn.did, bobKeys);
+  const text = b64u(v1.bytes);
+  const rev3 = new Uint8Array(Buffer.from(text.replace("YTSP-BAA", "YTSP-AAC"), "base64url"));
+  const rev3Text = med.deliver(A.ids.conn.did, rev3); await tick();
+  assert.equal(alice.collect(Date.now()).items.length, 0, "a Rev 3 frame never reaches the adapter");
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /Rev 3 \(YTSP-AAC\)/, logs[0]);
+  assert.match(logs[0], /acked and dropped/);
+  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  assert.ok(acked.includes(await sha256hex(rev3Text)), "the Rev 3 frame is acked, so it leaves the queue");
+
+  // a 1.0 deposit behind it arrives
+  const next = rand(32);
+  bob.submit(next, Date.now()); await bob.settle(); await tick();
+  const c2 = alice.collect(Date.now());
+  assert.equal(c2.items.length, 1);
+  assert.deepEqual(new Uint8Array(c2.items[0].bytes), next);
   alice.close(); bob.close();
 });
 
