@@ -197,7 +197,14 @@ Life Network Protocol and the Real Life Stack live in the shared register,
 
 ## License
 
-[Creative Commons Attribution 4.0](LICENSE) (CC BY 4.0).
+The specification text in [`spec/`](spec/) and the vocabulary in
+[`terms/`](terms/) are licensed under
+[Creative Commons Attribution 4.0](LICENSE-SPEC) (CC BY 4.0). Everything else,
+including the library, schemas, contexts, vectors, fixtures, the conformance
+suite, the simulators, the apps and the scripts, is licensed under the
+[Apache License 2.0](LICENSE).
+
+Copyright 2026 Anton Tranelis and trust-protocol contributors.
 
 ## Implementations
 

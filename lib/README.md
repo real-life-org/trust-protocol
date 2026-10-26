@@ -373,5 +373,5 @@ package.
 
 ## License
 
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), specification and
-reference implementation alike.
+[Apache License 2.0](LICENSE). The specification this library implements is
+licensed under CC BY 4.0.

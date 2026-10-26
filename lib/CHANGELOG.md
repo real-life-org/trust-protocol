@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **License.** The library is licensed under the Apache License 2.0
+  instead of CC BY 4.0. Versions up to 0.9.0 keep CC BY 4.0.
+
 ## 0.9.0
 
 Takes up the Delivery Contract 0.84, Membership Tasks 0.21, Access 0.58,
