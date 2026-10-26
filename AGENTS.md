@@ -2,9 +2,10 @@
 
 ## What This Repository Is
 
-`trust-protocol` is the **public, openly licensed home** (CC BY 4.0) of the
-**Real Life Trust Protocol (RLTP)**: a decentralized trust protocol rooted
-in encounters between people, published by the
+`trust-protocol` is the **public, openly licensed home** (spec text
+CC BY 4.0, code Apache-2.0) of the **Real Life Trust Protocol (RLTP)**: a
+decentralized trust protocol rooted in encounters between people,
+published by the
 [Real Life Organisation](https://real-life.org).
 
 It holds four things:
