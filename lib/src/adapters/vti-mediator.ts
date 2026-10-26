@@ -389,6 +389,13 @@ export interface MediatorWire {
    *  pending). Closed: absent, no collection counts as complete, so an
    *  adapter over a wire without it never switches to egress-session. */
   queueEmpty? (): boolean
+  /** Optional: true from the moment the wire received the carrier's
+   *  refusal of direct delivery on the egress session (RLTP-VTI-3120), a
+   *  report that arrives after the refused deposit was accepted. The
+   *  adapter reads it at advance(), before every hand-over and in
+   *  ackState(), and records it in the send state. Absent: the refusal
+   *  reaches the adapter only as a WireError('direct-refused'). */
+  directRefused? (): boolean
 }
 
 export interface TokenSet {
@@ -913,9 +920,20 @@ export class MediatorCarrierAdapter {
   }
 
   /** RLTP-VTI-3120: the carrier refused direct delivery and the
-   *  relationship is in egress-session — nothing is handed over */
+   *  relationship is in egress-session — nothing is handed over. Reads the
+   *  wire's signal first, so a refusal received after an accepted deposit
+   *  is recorded before anything else is handed over. */
   #directRefused (): boolean {
+    this.#readDirectRefusal()
     return this.#directRefusedAt !== null && this.#mode === 'egress-session'
+  }
+
+  /** The wire's signal of a refusal of direct delivery (MediatorWire.
+   *  directRefused), recorded once, in egress-session only, at the
+   *  adapter clock. */
+  #readDirectRefusal (): void {
+    if (this.#directRefusedAt !== null || this.#mode !== 'egress-session' || !Number.isFinite(this.#clock)) return
+    if (this.#wire.directRefused?.() === true) this.#directRefusedAt = this.#clock
   }
 
   async #trySend (sub: Submission, now: number): Promise<void> {
@@ -949,9 +967,11 @@ export class MediatorCarrierAdapter {
         // be committing when the wire answers
         let started: Promise<unknown> | null = null
         let declined = false
+        let refusedNow = false
         const entry = sub.entry!
         const start = (): boolean => {
-          if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate!.closed === true || this.#directRefused() ||
+          if (this.#directRefused()) { refusedNow = declined = true; return false }
+          if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate!.closed === true ||
               (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
               this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) { declined = true; return false }
           started = deposit().then(() => null, (e: unknown) => ({ failed: e }))
@@ -960,6 +980,13 @@ export class MediatorCarrierAdapter {
         let ok: boolean | null
         try { ok = await sub.gate.handOver(entry, this.#clock, start) } catch { ok = null }
         if (started === null) {
+          // the refusal of direct delivery was recorded while this hand-over
+          // was under way: reported as every later submission is (RLTP-VTI-3120)
+          if (refusedNow && this.#subs.get(sub.id) === sub && (sub.st === null || sub.st.state === 'awaiting-transport')) {
+            sub.lastKind = 'refused-retriable'
+            sub.st = { state: 'awaiting-transport', reason: 'carrier-refused-retriable' }
+            return
+          }
           // the holder said no: withdrawn; the adapter declined or the
           // holder was unreachable: not this attempt
           if (ok === false && !declined && this.#subs.get(sub.id) === sub) this.#subs.delete(sub.id)
@@ -1222,6 +1249,7 @@ export class MediatorCarrierAdapter {
   }
 
   ackState (): AckState {
+    this.#readDirectRefusal()
     return {
       concluded: [...this.#concluded].map(([queueId, concludedAt]) => ({ queueId, concludedAt })),
       pending: [...this.#pendingAcks],
@@ -1300,6 +1328,7 @@ export class MediatorCarrierAdapter {
   advance (rawNow: number): void {
     this.#open()
     const now = this.#now(rawNow)
+    this.#readDirectRefusal()
     // open routed deposits fall routed-ack-deadline plus duplicate-window
     // after their acceptance, also where no switch check can run (no
     // statement that nothing is pending, RLTP-VTI-7150)

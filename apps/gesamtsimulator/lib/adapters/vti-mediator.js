@@ -798,9 +798,21 @@ export class MediatorCarrierAdapter {
         this.#track(this.#trySend(sub, now).finally(() => { sub.attemptStartedAt = null; }));
     }
     /** RLTP-VTI-3120: the carrier refused direct delivery and the
-     *  relationship is in egress-session — nothing is handed over */
+     *  relationship is in egress-session — nothing is handed over. Reads the
+     *  wire's signal first, so a refusal received after an accepted deposit
+     *  is recorded before anything else is handed over. */
     #directRefused() {
+        this.#readDirectRefusal();
         return this.#directRefusedAt !== null && this.#mode === 'egress-session';
+    }
+    /** The wire's signal of a refusal of direct delivery (MediatorWire.
+     *  directRefused), recorded once, in egress-session only, at the
+     *  adapter clock. */
+    #readDirectRefusal() {
+        if (this.#directRefusedAt !== null || this.#mode !== 'egress-session' || !Number.isFinite(this.#clock))
+            return;
+        if (this.#wire.directRefused?.() === true)
+            this.#directRefusedAt = this.#clock;
     }
     async #trySend(sub, now) {
         if (sub.st !== null && sub.st.state !== 'awaiting-transport')
@@ -840,9 +852,14 @@ export class MediatorCarrierAdapter {
                 // be committing when the wire answers
                 let started = null;
                 let declined = false;
+                let refusedNow = false;
                 const entry = sub.entry;
                 const start = () => {
-                    if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate.closed === true || this.#directRefused() ||
+                    if (this.#directRefused()) {
+                        refusedNow = declined = true;
+                        return false;
+                    }
+                    if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate.closed === true ||
                         (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
                         this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) {
                         declined = true;
@@ -859,6 +876,13 @@ export class MediatorCarrierAdapter {
                     ok = null;
                 }
                 if (started === null) {
+                    // the refusal of direct delivery was recorded while this hand-over
+                    // was under way: reported as every later submission is (RLTP-VTI-3120)
+                    if (refusedNow && this.#subs.get(sub.id) === sub && (sub.st === null || sub.st.state === 'awaiting-transport')) {
+                        sub.lastKind = 'refused-retriable';
+                        sub.st = { state: 'awaiting-transport', reason: 'carrier-refused-retriable' };
+                        return;
+                    }
                     // the holder said no: withdrawn; the adapter declined or the
                     // holder was unreachable: not this attempt
                     if (ok === false && !declined && this.#subs.get(sub.id) === sub)
@@ -1139,6 +1163,7 @@ export class MediatorCarrierAdapter {
         this.#cleanConcluded = true;
     }
     ackState() {
+        this.#readDirectRefusal();
         return {
             concluded: [...this.#concluded].map(([queueId, concludedAt]) => ({ queueId, concludedAt })),
             pending: [...this.#pendingAcks],
@@ -1227,6 +1252,7 @@ export class MediatorCarrierAdapter {
     advance(rawNow) {
         this.#open();
         const now = this.#now(rawNow);
+        this.#readDirectRefusal();
         // open routed deposits fall routed-ack-deadline plus duplicate-window
         // after their acceptance, also where no switch check can run (no
         // statement that nothing is pending, RLTP-VTI-7150)

@@ -6,9 +6,14 @@ Takes up the VTI Mediator Adapter Profile 0.28 (RLTP-VTI-3120): a refusal
 of direct delivery is a state of the relationship at the carrier, not of
 one opening.
 
-- **`WireError('direct-refused')`.** A wire reports with it that the
-  carrier refused direct delivery of a deposit in mode `egress-session`.
-  The adapter records the instant in the send state
+- **`MediatorWire.directRefused?(): boolean`** (optional). A wire says
+  with it, from the moment the carrier's report arrives, that the carrier
+  refused direct delivery on the egress session; the report comes after
+  the refused deposit was accepted. The adapter reads it at `advance()`,
+  before every hand-over and in `ackState()`. A wire without it can
+  still report the refusal as `WireError('direct-refused')` on a later
+  deposit in mode `egress-session`.
+- **The record.** The adapter records the instant in the send state
   (`SendState.directRefusedAt`) and from then on hands nothing over and
   deposits nothing for the relationship: every submission reads
   `awaiting-transport(carrier-refused-retriable)` and fails at its

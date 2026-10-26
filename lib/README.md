@@ -110,9 +110,11 @@ documents accepted in `routed` and not yet answered (acknowledgements are
 none, so a side that only acknowledges never switches by the deadline); an open
 deposit 72 hours old switches the relationship to `egress-session`, and
 so does a deposit the wire refuses as `'routed-refused'`, at once. A
-deposit in `egress-session` the wire refuses as `'direct-refused'` (the
-carrier does not take direct delivery, profile RLTP-VTI-3120) is recorded
-in the send state (`directRefusedAt`): from then on the adapter hands
+refusal of direct delivery in `egress-session` (the carrier does not take
+it, profile RLTP-VTI-3120), which the wire signals through
+`directRefused()` from the moment the report arrives or reports as
+`WireError('direct-refused')`, is recorded in the send state
+(`directRefusedAt`): from then on the adapter hands
 nothing over for the relationship, in this opening and every later one
 restored from the snapshot, and each submission reads
 `awaiting-transport(carrier-refused-retriable)` until its horizon. A host
@@ -239,7 +241,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.28): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a `WireError('direct-refused')` in `egress-session` is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.28): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `egress-session` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
 
 ## The modules and the rules they implement
 
