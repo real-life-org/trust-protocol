@@ -681,7 +681,9 @@ SHOULD of the registry and a new opening may try again.
 The reading of an error document is by its form: `type`
 `https://trusttasks.org/spec/trust-task-error/0.5`, a payload with
 exactly the registry's members, a standard or an extended `code`, a
-boolean `retryable`, an RFC 3339 `retryAfter` (either case of `T`
+boolean `retryable`, a `message` of at most 1024 code points (the
+registry schema's `maxLength`, which counts code points, never UTF-16
+units), an RFC 3339 `retryAfter` (either case of `T`
 and `Z`, a leap second read as the next second, any offset); anything
 else is no refusal and changes nothing.
 
@@ -1196,8 +1198,10 @@ is decidable.
    the egress identity would prove that the author holds both; this
    casting does not require it.
 15. **Deposit state from the mediator.** The registry's
-   `messaging/message/status/0.1` lets a depositor ask the mediator
-   for the state of its deposits. The pinned carrier (VTI-Dogwood,
+   `messaging/message/status/0.2` (`trustoverip/dtgwg-trust-tasks-tf`
+   @ `f27ea538`; it renames the response's `at` to `reachedAt`, the
+   instant a message reached its state) lets a depositor ask the
+   mediator for the state of its deposits. The pinned carrier (VTI-Dogwood,
    its mediator and `vti-didcomm-js` @ `1d110bf`) does not implement
    it; it arrived with later VTI releases. None of its states
    (`queued`, `delivered`, `collected`, `withdrawn`, `discarded`,
@@ -1305,6 +1309,6 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.1` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
+| 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |
