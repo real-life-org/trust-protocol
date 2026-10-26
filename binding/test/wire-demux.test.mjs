@@ -412,6 +412,27 @@ test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the egress 
   alice.close(); bob.close();
 });
 
+test("RLTP-VTI-3120: one deposit, then the refusal of direct delivery arrives: the wire signals it (directRefused) and the adapter's send state records it without a further deposit; the next opening deposits nothing", async () => {
+  const med = mediatorDouble();
+  med.refuseDirect = true;
+  const logs = [];
+  const send = { mode: "egress-session", open: [] };
+  const first = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  const id0 = first.bob.submit(rand(40), Date.now()); await first.bob.settle(); await tick(50);
+  assert.equal(first.bob.status(id0).state, "accepted");
+  assert.equal(first.wireB.directRefused(), true);
+  const snap = first.bob.ackState();
+  assert.equal(typeof snap.send.directRefusedAt, "number", JSON.stringify(snap.send));
+  first.alice.close(); first.bob.close();
+  med.refuseDirect = false;
+  const next = await pair(med, [], { A: first.A, B: first.B, restoredB: snap });
+  const { view } = docView(rand(32));
+  const [{ submissionId: id }] = next.bob.reconcile(view, gate(), Date.now()); await next.bob.settle(); await tick(50);
+  assert.deepEqual(next.bob.status(id), { state: "awaiting-transport", reason: "carrier-refused-retriable" });
+  assert.deepEqual(med.direct, []);
+  next.alice.close(); next.bob.close();
+});
+
 test("RLTP-VTI-3120 across openings: the refusal of direct delivery is in the send state; a new wire under an adapter restored from it deposits nothing", async () => {
   const med = mediatorDouble();
   med.refuseDirect = true;

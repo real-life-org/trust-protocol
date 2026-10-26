@@ -204,9 +204,10 @@ export async function createVtiWire(cfg) {
   // (problem report e.p.direct_delivery.denied): the carrier does not carry
   // the fallback form, and the switch is one-way (RLTP-VTI-3130), so every
   // later deposit in mode egress-session fails as WireError('direct-refused')
-  // for the life of this wire; the adapter records it in the relationship's
-  // send state, which carries it across openings (RLTP-VTI-3120, Open
-  // Issue 4). Any other problem report is logged and consumed (§5)
+  // for the life of this wire, and directRefused() says so from the moment
+  // the report arrived; the adapter records it in the relationship's send
+  // state, which carries it across openings (RLTP-VTI-3120, Open Issue 4).
+  // Any other problem report is logged and consumed (§5)
   let egressRefusal = null;
   // queueEmpty(): frames the session has received but not yet handed to
   // the adapter, and when the last TSP frame arrived
@@ -499,6 +500,11 @@ export async function createVtiWire(cfg) {
     queueEmpty() {
       return Boolean(session?.isOpen) && dispatching === 0 && !leftBehind && Date.now() - lastFrameAt >= QUIET_MS;
     },
+
+    /** RLTP-VTI-3120: true from the moment the mediator's refusal of
+     *  direct delivery arrived on the egress session (the adapter reads it
+     *  and records it in the relationship's send state). */
+    directRefused() { return egressRefusal !== null; },
 
     /** Sizes of the frames deposited so far (payload, inner, outer bytes). */
     sentFrames() { return sent.map((f) => ({ ...f })); },
