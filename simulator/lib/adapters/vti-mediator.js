@@ -212,8 +212,10 @@ function rfc3339(t) {
     const [y, mo, d, h, mi, s] = m.slice(1, 7).map(Number);
     if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 60)
         return null;
-    const day = new Date(Date.UTC(y, mo - 1, d));
-    if (day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d)
+    // setUTCFullYear, not Date.UTC: Date.UTC reads the years 0 to 99 as 1900 to 1999
+    const at = new Date(0);
+    at.setUTCFullYear(y, mo - 1, d);
+    if (at.getUTCFullYear() !== y || at.getUTCMonth() !== mo - 1 || at.getUTCDate() !== d)
         return null;
     let offsetMin = 0;
     if (m[9] !== undefined) {
@@ -223,7 +225,8 @@ function rfc3339(t) {
         offsetMin = (m[9] === '-' ? -1 : 1) * (oh * 60 + om);
     }
     const frac = m[7] === undefined ? 0 : Math.floor(Number('0' + m[7]) * 1000);
-    const ms = Date.UTC(y, mo - 1, d, h, mi, s, frac) - offsetMin * 60_000;
+    at.setUTCHours(h, mi, s, frac);
+    const ms = at.getTime() - offsetMin * 60_000;
     return Number.isFinite(ms) ? ms : null;
 }
 /** One counterpart error document read by its form (registry
