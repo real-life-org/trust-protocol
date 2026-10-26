@@ -472,9 +472,12 @@ keylist and no Live Mode. The carrier MUST accept a TSP `direct`
 message addressed to an account it serves (mediator 0.45:
 `local_direct_delivery_allowed = true`, `LOCAL_DIRECT_DELIVERY_ALLOWED`;
 its code default is `false`); on a carrier that does not, the fallback
-form carries nothing. A refusal of direct delivery that the binding
-receives on the send-only session is recorded in the relationship's
-send state with its instant (RLTP-VTI-3130) and survives openings:
+form carries nothing. A refusal of direct delivery is recorded in the
+relationship's send state (RLTP-VTI-3130) when the binding receives it
+on the send-only session, not at a later deposit: the binding signals
+it from that moment (§7), and the adapter records it at its next
+step, at the latest before its next hand-over and in the state it
+hands the host to persist. It survives openings:
 from then on the adapter hands nothing over and deposits nothing for
 the relationship at `C`, and reports every submission
 `awaiting-transport` (`carrier-refused-retriable`) until its give-up
@@ -581,10 +584,12 @@ where the flush lives).
 The intent's durability is the **host's store**: the adapter
 exposes its ack state (concluded digests with conclusion instants,
 pending intents) for the host to persist, and accepts it back at
-construction; the send state of §3a (mode, open routed deposits)
+construction; the send state of §3a (mode, in mode `egress-session`
+the instant of a refusal of direct delivery, open routed deposits)
 travels in the same snapshot, and an
 instant in it after the restore instant is refused like a
-conclusion instant. The snapshot invariant — every pending intent names
+conclusion instant, as is a refusal of direct delivery in a send state
+whose mode is `routed`. The snapshot invariant — every pending intent names
 a concluded entry — is enforced **fail-closed**: an inconsistent
 snapshot is refused at construction, never silently trimmed. A
 restore names its instant; a concluded entry older than the
@@ -823,7 +828,9 @@ TSP framing in the sending form of §3a under **TSP 1.0** (version
 `YTSP-BAA`; HPKE-Base only, no sealed box; the sender's VID in every
 confidential payload; TSP 1.0 has no HPKE-Auth), the CESR demux discipline of the measured binding (one message type per
 frame, dispatched on its CESR code), the duty to pass raw received
-bytes unchanged, and the rules below. On receipt, this profile reads
+bytes unchanged, a signal from the moment it receives a refusal of
+direct delivery on the send-only session (RLTP-VTI-3120), and the
+rules below. On receipt, this profile reads
 TSP's versioning (a major version MAY break backward compatibility) as:
 TSP 1.0 is major version 1 with any minor version; a 1.x message the
 binding cannot read fails a receiver check (RLTP-VTI-7140).
@@ -1139,7 +1146,8 @@ is decidable.
 - **The ack store reveals traffic history.** `AckState` holds
   digests and instants of concluded deliveries, and the send state
   the digests and acceptance instants of the open routed deposits
-  (outbound history) — metadata about
+  (outbound history) and the instant of a refusal of direct
+  delivery — metadata about
   what arrived and when, not content. A host persisting it should
   protect it like the message store it accompanies.
 - **Instance retirement is not principal retirement.** `close()`
@@ -1182,9 +1190,12 @@ is decidable.
    sent before the report arrives were reported `accepted` and end at
    the give-up horizon. The binding logs a refusal of direct delivery,
    and the adapter records it in the send state; it survives openings
-   and is never lifted under this profile: a carrier whose operator
-   later allows direct delivery carries the relationship again only
-   after a change of `C` (§6) or a later mechanism.
+   and is never lifted under this profile. Only a new principal (a new
+   relationship, a rebind, a change of `C`, §6, whose identities reach
+   the counterpart only as Open Issue 13 allows) or a lost send state
+   (RLTP-VTI-3130, Open Issue 7) starts in `routed` again; a carrier
+   whose operator later allows direct delivery does not by that carry
+   the relationship again.
 5. **Keylist.** §1 and §3 name keylist updates; the target
    mediator keeps no keylist for TSP clients, and the binding
    treats the update as a no-op.
@@ -1386,7 +1397,7 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session`, a refusal of it recorded in the send state across openings, no deposit after it (RLTP-VTI-3120, 3130, §5, Open Issue 4); §9 on the sender VID in the payload; Open Issue 15 names the mediator's `status/0.1`; Open Issues 17 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
+| 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session`, a refusal of it recorded in the send state when the binding receives it (§7), across openings, no deposit after it (RLTP-VTI-3120, 3130, §5, Open Issue 4); §9 on the sender VID in the payload; Open Issue 15 names the mediator's `status/0.1`; Open Issues 17 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
 | 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |
