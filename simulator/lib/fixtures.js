@@ -9,6 +9,7 @@
 // the domain modules that open prompts in later PRs.
 import { CODEC } from './codec.js';
 import { emptyState } from './state.js';
+import { TASK_NAMESPACE } from './task-uri.js';
 const T = Date.parse('2026-10-14T09:00:00Z');
 // placeholder key material: strings of the right family, no keys behind them
 const KA_ALICE = 'z6LSaliceAliceAliceAliceAliceAliceAliceAliceAlic';
@@ -112,7 +113,7 @@ export function sampleState() {
     s.profile = { body: { name: 'Me', text: 'about me' }, revision: '3' };
     s.outbox = {
         uDocAlice1: {
-            type: 'https://real-life.org/trust-tasks/profile/0.1',
+            type: TASK_NAMESPACE + 'profile/0.1',
             threadId: 'thread-alice-1',
             recipient: { contactId: 'c-alice', rkid: OWN_ALICE, keyAgreement: KA_ALICE },
             envelope: { rkid: KA_ALICE, epk: 'epk', nonce: 'nonce', ciphertext: 'ciphertext' },

@@ -19,11 +19,12 @@ import { jcs, b64uOf, calOK, makeValidator } from './core.js'
 import type { Json } from './core.js'
 import { hkdf, platformSubtle } from './crypto.js'
 import { SCHEMAS } from './schemas.js'
+import { TASK_NAMESPACE } from './task-uri.js'
 
 const te = new TextEncoder()
 
 /** The registered type of the acknowledgement (Delivery §4.2). */
-export const ACK_TYPE = 'https://real-life.org/trust-tasks/delivery-ack/0.1'
+export const ACK_TYPE = TASK_NAMESPACE + 'delivery-ack/0.1'
 
 /** The ack document without its proof: the MAC preimage (4.2). */
 export interface AckDocument {

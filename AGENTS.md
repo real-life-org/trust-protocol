@@ -133,8 +133,9 @@ into spec sections and of the castings the READMEs name
 (`scripts/check-doc-refs.mjs`), the `specs:` declarations of the site
 pages (`scripts/check-doc-specs.mjs`), the check of this file and `CLAUDE.md`
 against the repository (`scripts/check-agents-md.mjs`),
-the schema and vector validation, and the vector generators in `--check`
-mode: each committed vector must be reproduced byte for byte.
+the schema and vector validation, the freshness of the generated
+`lib/src/schemas.ts` and `lib/src/wire.ts`, and the vector generators in
+`--check` mode: each committed vector must be reproduced byte for byte.
 
 For a change under `lib/`, `simulator/` or `apps/gesamtsimulator/`:
 

@@ -12,7 +12,7 @@
   `rltp-encounter-credential/0.25` stays valid, Section 12), ceremony
   `encounter-scan@0.25`.
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
-  Delivery Contract 0.79 (normative reference, Section 11); DTG
+  Delivery Contract 0.84 (normative reference, Section 11); DTG
   Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
 - **Supersedes:** version 0.31.0 (archived as
   `archive/encounter-layer-0.31.0.md`). Earlier versions: Appendix C.
@@ -1757,7 +1757,7 @@ cards.
 - **Profile** `rltp-encounter@0.31`, wire forms `rltp-card/0.25` and
   `rltp-encounter-credential/0.26`, with `…/0.25` credentials still
   read (Section 12); securing profile bound to `rltp-identity@0.51`
-  (2.3); normatively references the Delivery Contract 0.79 for the
+  (2.3); normatively references the Delivery Contract 0.84 for the
   one-scan transmission (Delivery names `encounter-scan@0.25`).
 - **Normative schemas (shipped):**
   `schemas/encounter-credential-0.26.schema.json`,
@@ -2091,6 +2091,6 @@ Draft 0.6.0 (ToIP DTGWG, `trustoverip/dtgwg-cred-spec` at `4088056`),
 with its context `https://registry.trustoverip.org/dtg/context/v1` ·
 ToIP DTGWG Trust Ceremonies ADR 0001 and design note
 (Proposed) · did:key method draft · Multikey / multicodec registry ·
-**RLTP Identity 0.51** · **RLTP Delivery Contract 0.79 (normative)** ·
+**RLTP Identity 0.51** · **RLTP Delivery Contract 0.84 (normative)** ·
 RLTP Trust Layer (`rltp-trust`) · RLTP Membership Tasks
-0.16 · RLTP Access Layer 0.53.
+0.21 · RLTP Access Layer 0.58.

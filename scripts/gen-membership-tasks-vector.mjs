@@ -45,7 +45,7 @@ const DTG = J('vectors/dtg-credentials.json')
 const FIX = J('fixtures/invalid-examples.json')
 const IKM = Buffer.from(ID.rootIkm, 'hex')
 const IKM2 = Buffer.from(crypto.hkdfSync('sha256', IKM, Buffer.alloc(0), Buffer.from('rltp/vector/second-party-root-ikm', 'utf8'), 64))
-const P = 'https://real-life.org/trust-tasks/'
+const P = 'https://real-life.org/trust-tasks/spec/'
 const clone = (o) => JSON.parse(JSON.stringify(o))
 const b64u = (b) => Buffer.from(b).toString('base64url')
 const mh = (bytes) => 'u' + b64u(Buffer.concat([Buffer.from([0x12, 0x20]), sha(bytes)]))

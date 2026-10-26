@@ -1,12 +1,13 @@
-// message — the pure forms and checks of Message Tasks 0.1 (§3): the
+// message — the pure forms and checks of Message Tasks 0.2 (§3): the
 // message@1 body, the directional key k_msg and its MAC, used by the
 // holder's message module (message/holder.ts). State-free.
 import { b64uOf, calOK, jcs, makeValidator } from './core.js'
 import { hkdf, platformSubtle } from './crypto.js'
 import { SCHEMAS } from './schemas.js'
+import { TASK_NAMESPACE } from './task-uri.js'
 
 /** The registered type (Message Tasks 3, Delivery 4.4). */
-export const MESSAGE_TYPE = 'https://real-life.org/trust-tasks/message/0.1'
+export const MESSAGE_TYPE = TASK_NAMESPACE + 'message/0.1'
 /** H, the message lifetime of this version: P180D (Message Tasks 2.2). */
 export const MESSAGE_LIFETIME_MS = 180 * 86_400_000
 /** The future bound of RLTP-MSG-4050: P1D. */

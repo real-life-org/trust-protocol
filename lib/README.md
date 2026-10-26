@@ -49,7 +49,7 @@ const { outbound, nextDueAt } = await holder.resume(Date.now())
 holder.subscribe(async () => render(await holder.contacts(), await holder.prompts()))
 ```
 
-**Custody and the lock** (Delivery 0.83, RLTP-DEL-6120 to 6135). The
+**Custody and the lock** (Delivery 0.84, RLTP-DEL-6120 to 6135). The
 holder keeps every outbound document until a service takes it or the
 holder gives it up, across a lock and the end of a process; a transport
 takes what it hands over from the holder, never from a store of its own.
@@ -100,7 +100,7 @@ into the next adapter; it hands that adapter, through `answered(digest,
 now)`, the valid acknowledgements, validated refusals and validated
 `idConflict` answers that arrive for documents an earlier adapter
 deposited, before the adapter's next `advance`. The reports a
-collection carries (`acknowledged`, `receiverRefused`, `answered`) are
+collection carries (`acknowledged`, `receiverRefused`, `receiverRetry`, `answered`) are
 applied before that collection's `conclude`, at the latest before the
 next `advance`: the switch check counts them as applied, and one applied
 late can let a relationship switch although its deposits were answered.
@@ -147,7 +147,7 @@ Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
 
 **Delivery hints** (Encounter RLTP-ENC-6080, 6090; Identity §7a.3; VTI
-Mediator Adapter Profile 0.26 §1b). `show` and `scan` take a carrier
+Mediator Adapter Profile 0.27 §1b). `show` and `scan` take a carrier
 offer, `carrier: {nonce, deliveryHints}`: the relationship's carrier
 nonce N (32 bytes the app draws fresh) and the hints the app built from
 the wire identities its adapter derives from N. The card (the displayed
@@ -219,7 +219,7 @@ journal, and acting anew is the human's decision. Custody:
 - The pure wire builders and verifiers of every layer (`core`, `crypto`,
   `identity`, `profile`, `encounter`, `membership`, `message` —
   `MESSAGE_TYPE`, `messageKeyOf`, `messageMac`, `messageProblem`,
-  `messageShapeOk` and the constants of Message Tasks 0.1 —,
+  `messageShapeOk` and the constants of Message Tasks 0.2 —,
   `introduction`, `delivery`, `carrier-identity`, `carrier`,
   `carrier-holder`), and two
   namespaces of pure forms: `visibility` (anchor, star, group star,
@@ -232,7 +232,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.26): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers). |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.27): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
 
 ## The modules and the rules they implement
 
@@ -251,10 +251,10 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `trust/continuity` | Trust §6a | `continuity-probe@1` and `continuity-mapping@1`, chaining a re-encounter into the existing relationship (6a.4) |
 | `trust/profile`, `profile` | Trust §6b | `profile@1`: the one revision counter (6450), delivery on the class gates (6455), reception and the image bounds (6475) |
 | `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
-| `membership`, `membership/holder` | Membership Tasks 0.20 on Access 0.57 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
-| `message`, `message/holder` | Message Tasks 0.1 | `message@1`, `k_msg` and its MAC (3); sending on a ready, unblocked relationship with the sender lifetime (5); reception through the stages with the age and future bounds on the time mark, the completion record, the inbox taken over by the app, the rates and the inbox bound as `failed(rate-limited)` (4); the block of a relationship (6010–6030, 6510), its discard of messages and its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410) |
+| `membership`, `membership/holder` | Membership Tasks 0.21 on Access 0.58 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
+| `message`, `message/holder` | Message Tasks 0.2 | `message@1`, `k_msg` and its MAC (3); sending on a ready, unblocked relationship with the sender lifetime (5); reception through the stages with the age and future bounds on the time mark, the completion record, the inbox taken over by the app, the rates and the inbox bound as `failed(rate-limited)` (4); the block of a relationship (6010–6030, 6510), its discard of messages and its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410) |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
-| `receive`, `engine` | Delivery 0.83 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, custody before the trias and the hand-over gate (`pendingTransport`, `mayHandOver`, `close`), ack retries apart from ack retention, the act journal |
+| `receive`, `engine` | Delivery 0.84 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, custody before the trias and the hand-over gate (`pendingTransport`, `mayHandOver`, `close`), ack retries apart from ack retention, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
 | `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |
 
@@ -280,11 +280,11 @@ the state as opaque JSON and gives it back; the library decodes it
 (`decodeState`), the adapter never migrates.
 
 - **Codec 3** is the format of 0.6.0 and the only one this library
-  reads. It holds the state of Message Tasks 0.1 (`messages`: the block,
+  reads. It holds the state of Message Tasks 0.2 (`messages`: the block,
   the rates, the ready tuples, the completion record, the inbox), an
   outbox item's sender lifetime (`expiresAt`) and `failed(task-expired)`,
   the record of surfaced and the register of declined invitations, and
-  per stored ack (Delivery 0.83) why it counts as sent (`sentBy`:
+  per stored ack (Delivery 0.84) why it counts as sent (`sentBy`:
   `accepted`, `failed`, `horizon`, present exactly when `sent`), whether
   the adapter holds it (`held`), and the duplicates' answers (`answers`,
   `answerDue`). Its fixtures (`test/fixtures/state-v3*.json`,
@@ -301,6 +301,13 @@ the state as opaque JSON and gives it back; the library decodes it
   it, and its own fixture with a migration test.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
+- A codec-3 state written by lib 0.8 names its Trust Task types without
+  the `/spec/` segment of Delivery RLTP-DEL-3010 and is refused as
+  `codec-type-uri`: a clean cut, no migration. Only the places that hold
+  a document's type are read (the outbox items, a received or issued
+  invitation, the invite and accept of buffered evidence); text a person
+  wrote never refuses a state. The app discards such a state and starts
+  afresh.
 - `schemas/holder-state-v3.schema.json` describes the codec as a
   non-normative JSON Schema (published with the package). The type
   `HolderStateV3` (`./internal`) is generated from it
@@ -349,11 +356,11 @@ This package uses its own semver; the specification uses castings.
 | identity | Identity 0.54 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.31, cards 0.25, credentials 0.26 | — |
 | trust | Trust Layer 0.31 | — |
-| membership | Membership Tasks 0.20, Access 0.57 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
+| membership | Membership Tasks 0.21, Access 0.58 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.83 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
-| transport adapter | VTI Mediator Adapter Profile 0.26 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 13); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `egress-session` to `routed` (profile Open Issue 7) |
-| message | Message Tasks 0.1 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
+| delivery | Delivery 0.84 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| transport adapter | VTI Mediator Adapter Profile 0.27 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 13); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `egress-session` to `routed` (profile Open Issue 7) |
+| message | Message Tasks 0.2 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
 ## The contract: the vectors

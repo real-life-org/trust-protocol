@@ -264,10 +264,11 @@ import { assembledBodies, assemblyStep, canComplete, chunkDocument, discardAssem
 import { mergeDutiesAfter, mergeInto, settleHead } from './entries.js'
 import { afterChain, classOnDuty, followClasses, moveDuties } from './duties.js'
 import { isKnownDuty } from '../codec.js'
+import { TASK_NAMESPACE } from '../task-uri.js'
 
 /** The registered task types of 6a (Delivery §4.4, 6810). */
-export const CONTINUITY_PROBE_TYPE = 'https://real-life.org/trust-tasks/continuity-probe/0.1'
-export const CONTINUITY_MAPPING_TYPE = 'https://real-life.org/trust-tasks/continuity-mapping/0.1'
+export const CONTINUITY_PROBE_TYPE = TASK_NAMESPACE + 'continuity-probe/0.1'
+export const CONTINUITY_MAPPING_TYPE = TASK_NAMESPACE + 'continuity-mapping/0.1'
 
 /** The testing module's command (./testing). */
 export const NEW_TUPLE = 'continuity.newTuple'

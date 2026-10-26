@@ -87,7 +87,7 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
   const profile = (specText.match(/\*\*Conformance profile:\*\* `(rltp-membership@[0-9.]+)`/) ?? [])[1]
   const t10010 = ruleText(specText, 'RLTP-MT-10010') ?? ''
   const titles = OWN.filter((f) => !S[f] || !S[f].title.includes(profile ?? '\u0000'))
-  add(['RLTP-MT-10010'], profile === 'rltp-membership@0.20' && t10010.includes(profile) && titles.length === 0,
+  add(['RLTP-MT-10010'], profile === 'rltp-membership@0.21' && t10010.includes(profile) && titles.length === 0,
     `profile ${profile}: header, RLTP-MT-10010 and the titles of ${OWN.length} Membership schemas agree${titles.length ? ' — differs: ' + titles.join(', ') : ''}`)
 
   // RLTP-MT-10030: Access transcriptions keep unversioned $ids; Membership schemas $ref them by those
@@ -105,19 +105,25 @@ export function membershipProfileChecks ({ root = ROOT, specText, manifest }) {
   for (const f of named.filter((f) => S[f])) walk(f)
   add(['RLTP-MT-10070'], named.length >= 12 && missing.length === 0 && open.length === 0, `the ${named.length} schemas RLTP-MT-10070 names ship, closure of ${seen.size} schemas resolves offline${missing.length + open.length ? ' — ' + [...missing, ...open].join(', ') : ''}`)
 
-  // RLTP-MT-3085, 3375, 3760: registry declarations = the declaration rules; registry schemas carry the type URI as $id
+  // RLTP-MT-3085, 3287, 3375, 3760, 3920, 3970: registry declarations = the declaration rules (TT 0.6 §7.3
+  // vocabulary, Delivery RLTP-DEL-3020); registry schemas carry the type URI as $id
   const reg = JSON.parse(readFileSync(join(root, 'conformance/membership-task-types.json'), 'utf8'))
   for (const t of reg.types) {
     const s = S[t.schema]
     if (!s || s.$id !== t.type) { add([], false, `registry ${t.type}: schema ${t.schema} missing or its $id differs`); continue }
-    if (!t.rule) continue
     const txt = ruleText(specText, t.rule) ?? ''
-    // the whole declared value, not a prefix of it: side effects up to `; exposure` or ` and exposure`,
-    // a trailing parenthetical annotation of the rule allowed; exposure up to the first `,`, `;` or `.`
-    const se = (txt.match(/side effects (.*?)(?:; exposure| and exposure)/) ?? [])[1]
-    const ex = (txt.match(/exposure (.*?)(?:[,;.]|$)/) ?? [])[1]
-    const sameSe = se !== undefined && (se === t.sideEffects || se.replace(/\s*\([^)]*\)$/, '') === t.sideEffects)
-    add([t.rule], sameSe && ex !== undefined && ex.replace(/\s*\(.*$/, '') === t.exposure, `registry ${t.type.split('/').slice(-2).join('/')}: declared side effects "${t.sideEffects}", exposure "${t.exposure}" as ${t.rule} states; schema $id = type URI`)
+    const got = {
+      identifierScope: (txt.match(/identifier scope ([a-z]+) · ([a-z]+);/) ?? []).slice(1, 3),
+      sideEffects: (txt.match(/side effects ([a-z]+);/) ?? [])[1],
+      discloses: (txt.match(/discloses: ([a-z]+),/) ?? [])[1],
+      actsAsSubject: ((m) => m ? m[1] === 'true' : undefined)(txt.match(/actsAsSubject: (true|false),/)),
+      ingests: (txt.match(/ingests: ([a-z]+);/) ?? [])[1],
+      retention: (txt.match(/retention ([a-z]+);/) ?? [])[1],
+      sizeBound: Number(((txt.match(/size bound ([0-9 ]+) bytes/) ?? [])[1] ?? '').replace(/ /g, '')) || undefined
+    }
+    const keys = Object.keys(got)
+    const same = keys.every((k) => JSON.stringify(got[k]) === JSON.stringify(t[k]))
+    add([t.rule], same, `registry ${t.type.split('/').slice(-2).join('/')}: declarations as ${t.rule} states (${keys.map((k) => `${k} ${JSON.stringify(t[k])}`).join(', ')}); schema $id = type URI${same ? '' : ` — the rule states ${JSON.stringify(got)}`}`)
   }
 
   // RLTP-MT-10090: every rule a vector names is an identifier of the list

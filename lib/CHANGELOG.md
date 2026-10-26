@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.9.0
+
+Takes up the Delivery Contract 0.84, Membership Tasks 0.21, Access 0.58,
+Message Tasks 0.2 and the VTI Mediator Adapter Profile 0.27: every
+Trust Task type is named under `https://real-life.org/trust-tasks/spec/`
+(Delivery RLTP-DEL-3010). A wire break, so a minor version: a document
+this version sends is unknown to a 0.8 holder, and a document under the
+earlier names fails the document profile here (`failed(malformed)` at
+stage 5). Nothing accepts both forms.
+
+- **Type URIs.** `ACK_TYPE`, `PROFILE_TYPE`, `MESSAGE_TYPE`,
+  `STAR_TYPE`, `GROUP_STAR_TYPE`, `ANCHOR_MAPPING_TYPE`,
+  `CONTINUITY_PROBE_TYPE`, `CONTINUITY_MAPPING_TYPE`, the encounter,
+  membership and introduction types, the library's own `x-` forms and
+  `CARRIER_ROLE_URI` carry the `/spec/` segment; every module builds them
+  from one prefix (`task-uri`).
+- **Schemas.** The bundled schemas (`SCHEMAS`, the generated `wire`
+  types) follow `schemas/`: the document profile's `type` pattern takes
+  the slug grammar of the framework under `/spec/` and excludes the
+  reserved slugs; the payload schemas' `$id`s are the new Type URIs.
+- **Refusal codes.** `ReceiverRefusalCode` takes the terminal codes of
+  `trust-task-error/0.5`: `unsupportedVersion`, `permissionDenied`,
+  `cancelled` and `taskFailed` join the six (profile RLTP-VTI-5020). The
+  stored state accepts them (codec 3, an added enum value).
+- **Storage.** The codec stays 3 and nothing migrates. A state written by
+  0.8 names its types in the earlier form; `decodeState` refuses it as
+  `codec-type-uri` (a new `StateCodecErrorCode`), fail-closed, so no 0.9
+  holder opens it or sends its documents on. The app discards it. Only
+  the places that hold a document's type are read (outbox items, a
+  received or issued invitation, the invite and accept of buffered
+  evidence), never text a person wrote.
+- **Counterpart refusals** (profile RLTP-VTI-5010 to 5030), in
+  `./adapters/vti-mediator`: `readTrustTaskError(doc)` reads a
+  `trust-task-error/0.5` document by its form, totally (null for anything
+  else), into a verdict: refused with its code (an extended code and a
+  retryable code marked not retryable as `taskFailed`), retry with its
+  `retryAfter`, answered (`idConflict`), or none (`expired`).
+  `receiverRetry(id, retryAfter)` takes a retry: no port transition, and
+  no attempt of the submission before `retryAfter`, within this adapter
+  instance; the give-up horizon still ends it. `retryAfter` is read as
+  RFC 3339 allows it (either case of `T` and `Z`, a leap second, any
+  offset), and `message` is bounded at 1024 code points, as the registry
+  schema's `maxLength` counts. `TRUST_TASK_ERROR_TYPE` names the read
+  type.
+
 ## 0.8.0
 
 Takes up the VTI Mediator Adapter Profile 0.25 (§1b, the delivery hint)

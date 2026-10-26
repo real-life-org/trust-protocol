@@ -1,5 +1,5 @@
 // membership/holder — groups on the holder (lib Stage 2, PR 7a; Membership
-// Tasks 0.20 on Access 0.57, Delivery 0.82): founding, the prelude and
+// Tasks 0.21 on Access 0.58, Delivery 0.84): founding, the prelude and
 // the invite, the accept, admission and welcome, evidence and vouches, on
 // HolderState and the engine. The pure forms and checks are the root
 // module's (membership.ts).
@@ -141,8 +141,8 @@ import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js'
 import { groupStarRematch, withGroupHits } from '../trust/group-star.js'
 import type { GroupStarRehit } from '../trust/group-star.js'
 import type { GroupMembership } from '../group-star.js'
+import { TASK_NAMESPACE as TT } from '../task-uri.js'
 
-const TT = 'https://real-life.org/trust-tasks/'
 /** This library's experimental form of the welcome (receive.ts SIGNATURE_CLASS). */
 export const WELCOME_TYPE = TT + 'x-membership-welcome/0.1'
 export { INVITE_TYPE, ACCEPT_TYPE, EVIDENCE_TYPE, PRELUDE_REQUEST_TYPE, PRELUDE_REPLY_TYPE }

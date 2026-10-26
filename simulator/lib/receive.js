@@ -118,10 +118,10 @@ import { SCHEMAS } from './schemas.js';
 import { triasOf } from './state.js';
 import { entryOf, liveRel } from './trust/state.js';
 import { InfraError } from './results.js';
+import { TASK_NAMESPACE as TT } from './task-uri.js';
 export const isTaskDiscarded = (x) => x !== null && typeof x === 'object' && x.discarded === true;
 /** A sealed ack as the outbound the app sends, at the given attempt. */
 export const ackOutbound = (a, attempt) => structuredClone({ digest: a.digest, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt });
-const TT = 'https://real-life.org/trust-tasks/';
 /** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
  *  is a transferable signature; their acks are signed, not MACed. The
  *  `x-` slugs are this library's own experimental, unregistered forms

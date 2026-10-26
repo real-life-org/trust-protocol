@@ -1,4 +1,4 @@
-// message/holder — Message Tasks 0.1 on the holder (lib 0.5.0): the
+// message/holder — Message Tasks 0.2 on the holder (lib 0.5.0): the
 // message (Sections 3 to 5), the block of a relationship (Section 6) and
 // the rates per relationship (4.2).
 //
@@ -81,7 +81,7 @@
 //     documents and its verified delivery-acks alike
 //   - which types a block treats (Delivery RLTP-DEL-6245): message/0.1
 //     (Message Tasks), membership-invite/0.2 and the prelude reply
-//     (Membership 0.20, RLTP-MT-3115, 3975). The Trust Layer types of the
+//     (Membership 0.21, RLTP-MT-3115, 3975). The Trust Layer types of the
 //     table of 6.3 (the introduction's, the profile, the stars, the
 //     anchor mapping) are evaluated as without a block until the Trust
 //     Layer's casting takes the change up (RLTP-MSG-6240); the views mark

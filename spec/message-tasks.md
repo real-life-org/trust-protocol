@@ -3,16 +3,16 @@
 **Real Life Trust Protocol — task types: Message**
 
 - **Status:** Editor's Draft
-- **Version:** 0.1.0-draft
+- **Version:** 0.2.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-19
+- **Date:** 2026-10-25
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Task-type namespace:** `https://real-life.org/trust-tasks/`
-- **Target Trust Tasks framework version:** 0.4
-- **Conformance profile:** `rltp-message@0.1` (draft). Registered
+- **Task-type namespace:** `https://real-life.org/trust-tasks/spec/`
+- **Target Trust Tasks framework version:** 0.6.0
+- **Conformance profile:** `rltp-message@0.2` (draft). Registered
   task type: `message/0.1`, carrying the artifact `message@1`.
 - **Position:** a task-type registration on top of the **RLTP
-  Delivery Contract 0.83** (normative reference: document profile,
+  Delivery Contract 0.84** (normative reference: document profile,
   sealed envelope, staged dispositions, acknowledgement), travelling
   on the relationship channel of a tuple of the **RLTP Trust Layer
   0.31** (normative reference: tuples and relationships, its 2 and
@@ -22,18 +22,24 @@
   no other type; the companion changes that extend the block to other
   types are listed in Appendix A.
 - **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
-  Layer 0.31; RLTP Delivery Contract 0.83; RLTP Membership Tasks
-  0.20; RLTP Access Layer 0.57.
+  Layer 0.31; RLTP Delivery Contract 0.84; RLTP Membership Tasks
+  0.21; RLTP Access Layer 0.58.
+- **Supersedes:** version 0.1 (archived as
+  `archive/message-tasks-0.1.md`). Changelog: Appendix B.
 
 ## Status of This Document
 
 This is an Editor's Draft with no standing beyond its own argument.
-It is expected to change together with the next castings of the
+This version moves `message/0.1` to the Trust Tasks framework 0.6.0
+with the Delivery Contract 0.84: its Type URI carries the `/spec/`
+segment, and it declares its parties, side-effect, exposure and
+retention classes and its size bound in the framework's vocabulary
+(3.4). It is expected to change together with the next castings of the
 Delivery Contract, Membership Tasks and the Trust Layer, which take up
 the companion changes of Appendix A. The reference library implements
 it on its holder: `message/0.1` with its reception, completion record,
 inbox and sender lifetime (Sections 3 to 5), and the block with its
-treatment of `message/0.1` and, with Membership Tasks 0.20, of
+treatment of `message/0.1` and, with Membership Tasks 0.21, of
 invitations and prelude replies (Section 6); the scenario set of 10.2 is
 its test suite. Its holder keeps a message that waits for transport
 across a lock and the end of a process (Delivery RLTP-DEL-6120). Its
@@ -166,7 +172,7 @@ in the form of Trust 2.1, per `schemas/message.schema.json`:
 ```json
 {
   "id": "…UUID v4…",
-  "type": "https://real-life.org/trust-tasks/message/0.1",
+  "type": "https://real-life.org/trust-tasks/spec/message/0.1",
   "issuer": "did:key:z6Mk…sender pair anchor",
   "recipient": "did:key:z6Mk…recipient pair anchor",
   "threadId": "…UUID v4, fresh…",
@@ -238,19 +244,32 @@ like an encounter's (Trust 8050, Encounter 6020).
 ### 3.4 Declarations
 
 **RLTP-MSG-3210** — The registration of `message/0.1` MUST declare:
-payload schema `schemas/message.schema.json`; document proof absent;
-payload proof the inner MAC of 3.3; acknowledgement in the MAC form
-of Delivery 4.2 (designated-verifier class, Delivery 4.4); side
-effect *mutating* (completion record and inbox); exposure
-recipient-only.
+Type URI `https://real-life.org/trust-tasks/spec/message/0.1`,
+maturity level `draft`; payload schema `schemas/message.schema.json`;
+document proof absent; payload proof the inner MAC of 3.3;
+acknowledgement in the MAC form of Delivery 4.2 (designated-verifier
+class, Delivery 4.4); and the declarations of Delivery RLTP-DEL-3020
+(TT §7.3): parties sender · addressee, identifier scope `pairwise` ·
+`pairwise`; side effects `mutating`; exposure `discloses: none`,
+`actsAsSubject: false`, `ingests: personal`; retention `durable`;
+size bound 65 536 bytes (Delivery RLTP-DEL-3030).
 
 **RLTP-MSG-3220** — `message@1` MUST be treated as audience class S
 of Trust 3: a statement of the sender directed at one addressee,
 deniable, never presentable.
 
 *Rationale.* The framework asks every type to declare its proof
-(Trust Tasks 0.4); the profile of RLTP keeps the document free of a
-proof and authenticates the body. A transferable signature would hand
+(TT §7.3 item 8); the profile of RLTP keeps the document free of a
+proof and authenticates the body. Both anchors are the pair anchors of
+the arrival tuple (2040). The effect writes the completion record and
+the inbox (4.3); the inbox keeps the body until the application takes
+it over, and the completion record is kept at least the age bound H
+(4.4). `text` is free text a person wrote: at most 4096 code points
+(3020), read by the addressee, the sender's statement under the MAC,
+shown as the sender's (4430). The type is consequential and carries no
+authority (Delivery RLTP-DEL-3020): what a consumer holds to interpret
+a message is the arrival tuple, its relationship key and the block
+state of the relationship (Section 6). A transferable signature would hand
 every recipient a permanent proof of what was said, which the purpose
 of a message never requires (Trust 3010, 3020).
 
@@ -730,9 +749,10 @@ Section 7.
 - **Multi-device.** Block, completion record and register are state
   of one holder device until the holder state is synchronized between
   devices.
-- **Framework 0.5.** The checks of a future `issuedAt` and of
-  `idConflict` concern the document profile of every type and are a
-  question for the Delivery Contract.
+- **Framework 0.6.** The checks of a future `issuedAt` and of
+  `idConflict`, and a payload schema whose `$id` is not the Type URI,
+  concern the document profile of every type; the Delivery Contract
+  names them (its DO-10).
 
 ## 10. Conformance
 
@@ -884,14 +904,25 @@ conformance notes where it departs from the rules named here.
   target as unresolvable, the acknowledgement duty unchanged (8430,
   8650); steps of an act begun before a block continue.
 
+## Appendix B: Changelog
+
+One line per version; the archived text is under `archive/`.
+
+| Version | Date | Change |
+|---|---|---|
+| 0.1 | 2026-10-19 | First casting: `message/0.1` with `message@1`, reception, completion record, inbox, sender lifetime, the block. |
+| 0.2 | 2026-10-25 | Trust Tasks framework 0.6.0: Type URI `https://real-life.org/trust-tasks/spec/message/0.1`; the declarations of 3210 in the framework's vocabulary; pins Delivery 0.84, Membership Tasks 0.21, Access 0.58. |
+
 ## References
 
-- RLTP Delivery Contract 0.83, `spec/delivery-contract.md`.
+- RLTP Delivery Contract 0.84, `spec/delivery-contract.md`.
 - RLTP Trust Layer 0.31, `spec/trust-layer.md`.
-- RLTP Membership Tasks 0.20, `spec/membership-tasks.md`.
-- RLTP Access Layer 0.57, `spec/access-layer.md`.
+- RLTP Membership Tasks 0.21, `spec/membership-tasks.md`.
+- RLTP Access Layer 0.58, `spec/access-layer.md`.
 - RLTP Encounter Layer 0.31, `spec/encounter-layer.md`.
 - RLTP Identity Layer 0.54, `spec/identity-layer.md`.
-- Trust Tasks framework, Trust over IP Foundation, DTGWG, version 0.4.
+- Trust Tasks framework, Trust over IP Foundation, DTGWG, document
+  version 0.6 (`trustoverip/dtgwg-trust-tasks-tf` at `285f9a0a`),
+  target 0.6.0.
 - RFC 2119, RFC 8174 (BCP 14); RFC 3339; RFC 5869 (HKDF); RFC 7748
   (X25519); RFC 8785 (JCS); RFC 2104 (HMAC).

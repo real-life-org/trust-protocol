@@ -126,7 +126,7 @@
     "anchor": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
     "keyAgreement": "z6LSfauXbbBZYquA84vu1z4z21hPAHcEBM1gtdqJvtffNW38"
    },
-   "memberOp": "oid:iRrCnlRZBm5dCOs2_p9BxyGBeS402BbRn1wGhbh4-mU",
+   "memberOp": "oid:GqrVbSQsSQ_lCKdRy7GC3LE-3t_dsiQrnnIkemUG0Lc",
    "admission": {
     "v": "rltp-access/0.25",
     "op": "member.add",
@@ -141,7 +141,7 @@
      "admission": {
       "invite": {
        "id": "7c2a4d3b-9e5f-4b8c-8d2e-3f4a5b6c7d8e",
-       "type": "https://real-life.org/trust-tasks/membership-invite/0.2",
+       "type": "https://real-life.org/trust-tasks/spec/membership-invite/0.2",
        "issuer": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
        "recipient": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
        "threadId": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
@@ -201,7 +201,7 @@
       },
       "accept": {
        "id": "8d3b5e4c-af60-4c9d-9e3f-4a5b6c7d8e9f",
-       "type": "https://real-life.org/trust-tasks/membership-accept/0.2",
+       "type": "https://real-life.org/trust-tasks/spec/membership-accept/0.2",
        "issuer": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
        "recipient": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
        "threadId": "6b1f3c2a-8d4e-4a7b-9c1d-2e3f4a5b6c7d",
@@ -233,20 +233,20 @@
         "created": "2026-09-01T10:06:00Z",
         "verificationMethod": "did:key:z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc#z6MkqM14yDW1HnizzirwHG8x7dsu5pZniJ3UA54ME4JeMMNc",
         "proofPurpose": "assertionMethod",
-        "proofValue": "z2i8UpR8n3QGoUVxxuWw8BYCXmuezkNVVWAvtyTAHyFVpDFxAuFKvdVjWxFa9wvKJgEfn2YGvyvjZfevygDHCTB72"
+        "proofValue": "z3ptenoJxtJD5jubQCN8vjrrmCueJYY4rThgNi9WCMNiFpKS7aFNZYoxtioeNnrAkSFeKLYb3c9K1CZyCT9PL1crP"
        }
       },
-      "welcome": "uEiDx_Ga8JtaogiZxUncM8OsPhybWHrzPEfGYO4SgGy88uQ"
+      "welcome": "uEiBOYRYRFc1ugggBbJlrCJW_pCI21xPRWoprWOEXudZYAQ"
      }
     },
-    "id": "oid:iRrCnlRZBm5dCOs2_p9BxyGBeS402BbRn1wGhbh4-mU",
+    "id": "oid:GqrVbSQsSQ_lCKdRy7GC3LE-3t_dsiQrnnIkemUG0Lc",
     "author": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
     "proof": {
      "mechanism": "signature-set",
      "signatures": [
       {
        "signer": "did:key:z6MkwQvoHJvpWgGBWuuHC2qHvd8qZyxX6SR1XRhgLAT3DN27",
-       "sig": "ztvFeBcdbaPPa1hemJbW8EHMp4Dgd4TrQBx8FPKjpWyuAr3ak1NVrKnpEZwwmkzsdM5aXPpxMEnpKxfFrLc3kYMp"
+       "sig": "zDqKZ9BbZofTkKPByCNzGBhimxhHn1SSpKz6mmdxNBjLUamtuCj4LiWm54RnffgtxfXGAH85GJHUrSjCZ5bbVsnF"
       }
      ]
     }
@@ -590,7 +590,7 @@
       },
       {
        "d": "uu9n2Bt-9u3UqLFJKe-Dgm_U3vcQSiUvcar-rUzPdUjQ",
-       "c": "u_7kTbe-zEiIHH8Cufl_SdMr0mumECjTvACmsBPmNJZfFFEvJqZYLlX-LzuOkUw5lIYr09oP1bUNzzPDa46bZkh5MeKpq07E29YlMPZL9dPpKU0_LmI6s--ZiApR_88PJWwru_3lk7kYGuuSA5KWbEw3XHI18B9iG4IKKJqM263aoAHtyOAFzhF96S42Izjy7w4mbBmn8Lj8_WxAlZ3w0HEp7b8i5zeCaAwx87fEb_lTFPdt2U7QzZBk_92Wc9vPf8VXjhy1eVgQC0a9xNHo3QvhfiJZzC56Lxe0KUTE_c4jZwHu1AYx8dS8nGmV3kkFAKLtfnkXabTbkvdOJ3yJNVCAcCVfeKMDQ3Uq2H6VNaLHNsGQ-9rkyqtyVMOzddfrZN1E0UGQHJiuU3n-RiH5qjeXP3vnSlZCSTaecNKa7HI6qgjV14ZLnPNKwv_DBc3XDMUxnYkHP6VCNtwPzmZo-DTOrJK19rKePYQAOasngCMg"
+       "c": "u_7kTbe-zEiIHH8Cufl_SdMr0mumECjTvACmsBPmNJZfFFEvJqZYLlX-LzuOkUw5lIYr09oP1bUNzzPDa46bZkh5MeKpq07E29YlMPZL9dPpKU0_LmI6s--ZiApR_88PJWwru_3lk7kYGuuSA5KWbEw3XHI18B9iG4IKKJqM263aoAHtyOAFzhF96S42Izjy7w4mbBmn8Lj8_WxALRHwhEHV4RtmFp-iaBxscy7Zl_x_wP7QgdN9nJTIM12XDyN_S_miQmgxoVgQC0a9xNHo3Qvhf_YZnNb2Nmt92XAtgAISfxRKXDp4MTSUlCUczsBhLUNgj3Gn2Cji1m8uv0yJNVCAcCVfeKMDQ3Uq2H6VNaLHNsGQ-9rkyqtyVMOzddfrZN1E0UGQHJiuU3n-RiH5qjeXP3vnSlZCSTaecNKa7HI6qgjV14ZLnPNKwv_DBc3XDMUxnYkHP6VCNtwPzmZo-DaE29UEPv-giV2PY-BILwxY"
       },
       {
        "d": "ux7O9oBnhQIv-Pvq1nW48tlfkodj-DzcDmM7EZjy8wfs",
@@ -603,7 +603,7 @@
      ]
     },
     "proof": {
-     "mac": "u_saOUgZ6beQZQcMA5uoCZ7yk_FwYLUqaan_7JA1-Gh0"
+     "mac": "ui1qUoqSBjIrsDkxV40L0FFx0SpoAMfplO3a0FlEH8aI"
     }
    }
   ]

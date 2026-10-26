@@ -20,9 +20,10 @@
 import { jcs, b64uOf, calOK, makeValidator } from './core.js';
 import { hkdf, platformSubtle } from './crypto.js';
 import { SCHEMAS } from './schemas.js';
+import { TASK_NAMESPACE } from './task-uri.js';
 const te = new TextEncoder();
 /** The registered type of the acknowledgement (Delivery §4.2). */
-export const ACK_TYPE = 'https://real-life.org/trust-tasks/delivery-ack/0.1';
+export const ACK_TYPE = TASK_NAMESPACE + 'delivery-ack/0.1';
 /** The HKDF info of the channel ack key, issuer first (4.2). */
 export const ackInfo = (issuerPairAnchor, recipientPairAnchor) => 'rltp/v1/delivery/mac/ack/' + issuerPairAnchor + '/' + recipientPairAnchor;
 /** The channel ack key from the tuple's X25519 shared secret (4.2). */

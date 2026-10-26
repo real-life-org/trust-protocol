@@ -6,11 +6,11 @@
 //
 // Two sources of truth for the rule set:
 //   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
-//     conformance/access-rule-ids-0.57.txt,
-//     conformance/membership-rule-ids-0.20.txt,
+//     conformance/access-rule-ids-0.58.txt,
+//     conformance/membership-rule-ids-0.21.txt,
 //     conformance/trust-rule-ids-0.31.txt,
-//     conformance/delivery-rule-ids-0.83.txt,
-//     conformance/adapter-vti-rule-ids-0.26.txt), one identifier per line,
+//     conformance/delivery-rule-ids-0.84.txt,
+//     conformance/adapter-vti-rule-ids-0.27.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
 //     outside this repository) — checked additionally when present, and
@@ -53,18 +53,18 @@ export const LAYERS = {
   },
   access: {
     prefix: 'RLTP-ACC',
-    title: 'Access Layer 0.57',
+    title: 'Access Layer 0.58',
     spec: join(ROOT, 'spec/access-layer.md'),
-    manifest: join(ROOT, 'conformance/access-rule-ids-0.57.txt'),
+    manifest: join(ROOT, 'conformance/access-rule-ids-0.58.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'access-0.56-regelinventar.md'),
     env: 'ACCESS_INVENTORY',
     inventorySection: 'B'
   },
   membership: {
     prefix: 'RLTP-MT',
-    title: 'Membership Tasks 0.20',
+    title: 'Membership Tasks 0.21',
     spec: join(ROOT, 'spec/membership-tasks.md'),
-    manifest: join(ROOT, 'conformance/membership-rule-ids-0.20.txt'),
+    manifest: join(ROOT, 'conformance/membership-rule-ids-0.21.txt'),
     inventory: join(ROOT, '..', 'rltp', 'design', 'membership-0.20-regelinventar.md'),
     env: 'MEMBERSHIP_INVENTORY',
     inventorySection: 'B',
@@ -80,25 +80,25 @@ export const LAYERS = {
   },
   delivery: {
     prefix: 'RLTP-DEL',
-    title: 'Delivery Contract 0.83',
+    title: 'Delivery Contract 0.84',
     spec: join(ROOT, 'spec/delivery-contract.md'),
-    manifest: join(ROOT, 'conformance/delivery-rule-ids-0.83.txt'),
+    manifest: join(ROOT, 'conformance/delivery-rule-ids-0.84.txt'),
     inventory: null,
     env: 'DELIVERY_INVENTORY'
   },
   message: {
     prefix: 'RLTP-MSG',
-    title: 'Message Tasks 0.1',
+    title: 'Message Tasks 0.2',
     spec: join(ROOT, 'spec/message-tasks.md'),
-    manifest: join(ROOT, 'conformance/message-rule-ids-0.1.txt'),
+    manifest: join(ROOT, 'conformance/message-rule-ids-0.2.txt'),
     inventory: null,
     env: 'MESSAGE_INVENTORY'
   },
   adapter: {
     prefix: 'RLTP-VTI',
-    title: 'VTI Mediator Adapter Profile 0.26',
+    title: 'VTI Mediator Adapter Profile 0.27',
     spec: join(ROOT, 'spec/adapter-vti-mediator.md'),
-    manifest: join(ROOT, 'conformance/adapter-vti-rule-ids-0.26.txt'),
+    manifest: join(ROOT, 'conformance/adapter-vti-rule-ids-0.27.txt'),
     inventory: null,
     env: 'ADAPTER_INVENTORY'
   }

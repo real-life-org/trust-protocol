@@ -33,7 +33,7 @@ const hmac = async (key, msg) => {
 // the ack document, proof-less form = the MAC preimage (4.2)
 const doc = {
   id: '7b1c9c1e-4d5a-4a4a-9d5e-000000000001',
-  type: 'https://real-life.org/trust-tasks/delivery-ack/0.1',
+  type: 'https://real-life.org/trust-tasks/spec/delivery-ack/0.1',
   issuer: A.anchor,
   recipient: B.anchor,
   threadId: '7b1c9c1e-4d5a-4a4a-9d5e-000000000002',
@@ -79,9 +79,9 @@ const vector = {
     { name: 'wrong-direction', note: 'info with the anchors swapped — a MAC under the reversed direction MUST NOT verify', wrongMac: macWrongDirection },
     { name: 'wrong-key', note: 'a different tuple of the same holder — its ack key MUST NOT verify this document', wrongMac: macWrongKey },
     { name: 'missing-proof', note: 'a delivery-ack without proof fails the document schema (if/then on the full type URI)' },
-    { name: 'signature-form-for-dv-payload', note: 'class crossing: a VALIDLY SIGNED DataIntegrityProof ack acknowledging a designated-verifier payload — schema-valid, signature-valid, and rejected by the 4.2 class rule alone', document: diFormAck, acknowledgedType: 'https://real-life.org/trust-tasks/star/0.2', expected: 'failed(validation-failed)' },
+    { name: 'signature-form-for-dv-payload', note: 'class crossing: a VALIDLY SIGNED DataIntegrityProof ack acknowledging a designated-verifier payload — schema-valid, signature-valid, and rejected by the 4.2 class rule alone', document: diFormAck, acknowledgedType: 'https://real-life.org/trust-tasks/spec/star/0.2', expected: 'failed(validation-failed)' },
     { name: 'hybrid-proof', note: 'a proof carrying every DataIntegrityProof field AND mac is schema-INVALID: both oneOf branches are closed (additionalProperties false) — an ack can never be both deniable and transferable', document: { ...doc }, proof: { ...diFormAck.proof, mac }, expected: 'failed(malformed)' },
-    { name: 'mac-form-for-signature-payload', note: 'class crossing: the valid {mac}-form ack of this vector, acknowledging a transferably signed payload — schema-valid, MAC-valid, and rejected by the 4.2 class rule alone', document: { ...doc }, proof: { mac }, acknowledgedType: 'https://real-life.org/trust-tasks/encounter-credential-delivery/0.1', expected: 'failed(validation-failed)' },
+    { name: 'mac-form-for-signature-payload', note: 'class crossing: the valid {mac}-form ack of this vector, acknowledging a transferably signed payload — schema-valid, MAC-valid, and rejected by the 4.2 class rule alone', document: { ...doc }, proof: { mac }, acknowledgedType: 'https://real-life.org/trust-tasks/spec/encounter-credential-delivery/0.1', expected: 'failed(validation-failed)' },
   ],
   wrongKeyInputs: {
     foreignRootIkm: 'fill(64, 0x07)', foreignPairNonce: 'fill(32, 0x06)',

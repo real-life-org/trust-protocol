@@ -525,7 +525,7 @@
     },
     "messages": {
       "type": "object",
-      "description": "Message Tasks 0.1 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen",
+      "description": "Message Tasks 0.2 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen",
       "properties": {
         "blocked": {
           "type": "array",
@@ -1937,10 +1937,14 @@
               "enum": [
                 "malformedRequest",
                 "unsupportedType",
+                "unsupportedVersion",
                 "proofRequired",
                 "proofInvalid",
+                "permissionDenied",
                 "wrongRecipient",
-                "identityMismatch"
+                "identityMismatch",
+                "cancelled",
+                "taskFailed"
               ]
             }
           },

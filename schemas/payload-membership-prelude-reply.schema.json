@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://real-life.org/trust-tasks/membership-prelude-reply/0.1",
-  "title": "Payload: membership-prelude-reply/0.1 (rltp-membership@0.20, target Trust Tasks framework 0.4)",
+  "$id": "https://real-life.org/trust-tasks/spec/membership-prelude-reply/0.1",
+  "title": "Payload: membership-prelude-reply/0.1 (rltp-membership@0.21, target Trust Tasks framework 0.6.0)",
   "description": "Payload schema per Trust Tasks 6.3 ($id = Type URI, describes only the payload). The invitee's answer to a membership-prelude-request/0.1 on the same tuple and thread (Membership Tasks 3.5): genesisDigest repeats the request's, card is the invitee's displayed contact card at its member anchor of that group (Membership Tasks 2.6), whose key-agreement key the invitation is sealed to. The document carries a proof verifying under its issuer, the invitee's pair anchor of the tuple (RLTP-MT-3960). The member anchor is trusted only through the invitee's own derivation check and the accept's signature (RLTP-MT-3030, RLTP-MT-8090).",
   "type": "object",
   "required": [

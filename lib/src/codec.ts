@@ -12,7 +12,7 @@
 // stored documents, outbound or acks.
 //
 // Codec 3 is the format of 0.6.0 and the only one this library reads
-// (Delivery 0.83: an acknowledgement is sent when a service took it, failed,
+// (Delivery 0.84: an acknowledgement is sent when a service took it, failed,
 // or its retries ended; it may be held by the adapter meanwhile, and it
 // carries the duplicates' answers). Codecs 1 and 2 (lib 0.4.0, 0.5.0) never
 // held the state of a rolled-out app, so they have neither validator nor
@@ -21,8 +21,12 @@
 // test/fixtures/gen-state-v3.mjs, reproduced in npm test). The rule: a
 // newer codec is codec-newer, a codec without a validator codec-unknown.
 // A later codec that must read this one adds its validator, a migration
-// from codec 3, and its own fixture with a migration test.
+// from codec 3, and its own fixture with a migration test. A codec-3 state
+// written by lib 0.8 names its types without the /spec/ segment of
+// Delivery 0.84; decodeState refuses it as codec-type-uri, a clean cut
+// (fixture lib/test/fixtures/state-v3-lib-0.8.json).
 import { jcs } from './core.js'
+import { TASK_NAMESPACE } from './task-uri.js'
 import type { Duty, HolderState, KnownDuty } from './state.js'
 import type { HolderEventType } from './events.js'
 
@@ -47,7 +51,7 @@ export interface CodecChain {
   validators: Readonly<Record<number, StateValidator>>
 }
 
-export type StateCodecErrorCode = 'not-json' | 'codec-unknown' | 'codec-newer' | 'shape'
+export type StateCodecErrorCode = 'not-json' | 'codec-unknown' | 'codec-newer' | 'shape' | 'codec-type-uri'
 
 /** A stored state the library will not load (or a state it will not write). */
 export class StateCodecError extends Error {
@@ -189,7 +193,7 @@ const outboxStep: V = (x, p) => {
     case 'accepted': return obj({ status: str, at: millis })(x, p)
     case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p)
     case 'failed': return s.reason === 'rejected-by-receiver'
-      ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'proofRequired', 'proofInvalid', 'wrongRecipient', 'identityMismatch') })(x, p)
+      ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'unsupportedVersion', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed') })(x, p)
       : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p)
     default: fail(`${p}.status`, 'unknown outbox status')
   }
@@ -430,6 +434,40 @@ export function decodeChain (raw: unknown, chain: CodecChain): unknown {
   return s
 }
 
+/** The task-type namespace without its `/spec/` segment: a stored string
+ *  under it and outside TASK_NAMESPACE names a type in the form before
+ *  Delivery 0.84 (RLTP-DEL-3010), which lib 0.8 wrote into codec 3. */
+const TASK_ROOT = TASK_NAMESPACE.slice(0, -'spec/'.length)
+
+/** A clean cut, fail-closed: a state that names a type in the earlier
+ *  form is refused as codec-type-uri, at the first such type; it is never
+ *  migrated and never sent on. Only the places where the state holds a
+ *  document's type are read (the state schema's OutboxItem.type and the
+ *  documents it keeps: a received invitation, an issued invitation, the
+ *  invite and accept of buffered evidence). Text a person wrote — a
+ *  message, a profile, a group's name — is never read as a type: anyone
+ *  could otherwise make a holder's state unreadable by writing it. */
+function refuseEarlierTypeUris (state: unknown, path: string): void {
+  const earlier = (t: unknown): boolean => typeof t === 'string' && t.startsWith(TASK_ROOT) && !t.startsWith(TASK_NAMESPACE)
+  const check = (t: unknown, at: string): void => {
+    if (earlier(t)) throw new StateCodecError('codec-type-uri', 'a Type URI in the form before Delivery 0.84 (lib 0.8); this library does not load such a state', at)
+  }
+  const entries = (o: unknown): Array<[string, unknown]> => (isObj(o) ? Object.entries(o) : [])
+  const typeOf = (doc: unknown): unknown => (isObj(doc) ? doc.type : undefined)
+  const s = isObj(state) ? state : {}
+  for (const [k, item] of entries(s.outbox)) check(typeOf(item), `${path}.outbox.${k}.type`)
+  for (const [k, inv] of entries(isObj(s.joining) ? s.joining.invites : undefined)) check(typeOf(isObj(inv) ? inv.invite : undefined), `${path}.joining.invites.${k}.invite.type`)
+  for (const [g, group] of entries(s.groups)) {
+    const gr = isObj(group) ? group : {}
+    for (const [k, inv] of entries(gr.invitations)) check(typeOf(isObj(inv) ? inv.invite : undefined), `${path}.groups.${g}.invitations.${k}.invite.type`)
+    for (const [k, ev] of entries(gr.evidence)) {
+      const e = isObj(ev) ? ev : {}
+      check(typeOf(e.invite), `${path}.groups.${g}.evidence.${k}.invite.type`)
+      check(typeOf(e.accept), `${path}.groups.${g}.evidence.${k}.accept.type`)
+    }
+  }
+}
+
 const LIBRARY_CHAIN: CodecChain = { codec: CODEC, migrations: MIGRATIONS, validators: VALIDATORS }
 
 /**
@@ -437,7 +475,9 @@ const LIBRARY_CHAIN: CodecChain = { codec: CODEC, migrations: MIGRATIONS, valida
  * an independent copy at the current codec, or throws StateCodecError.
  */
 export function decodeState (raw: unknown): HolderState {
-  return decodeChain(raw, LIBRARY_CHAIN) as HolderState
+  const s = decodeChain(raw, LIBRARY_CHAIN)
+  refuseEarlierTypeUris(s, '$')
+  return s as HolderState
 }
 
 /** Serialize a state for storage: canonical JSON, validated first. */

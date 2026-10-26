@@ -111,7 +111,7 @@ export type HolderStateV3 = {
     /** the register of declined invitations (Message Tasks 6.4): credential digests, holder-wide, for the life of the holder; sorted */
     declined: string[]
   }
-  /** Message Tasks 0.1 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen */
+  /** Message Tasks 0.2 on the holder (message/holder.ts); the time mark of RLTP-MSG-4060 is lastWhen */
   messages: {
     /** the relationships under a block (Message Tasks 6.1), by relationship id; sorted */
     blocked: string[]
@@ -394,7 +394,7 @@ export type OutboxStepV3 = ({
   status: "failed"
   at: MillisV3
   reason: "rejected-by-receiver"
-  code: "malformedRequest" | "unsupportedType" | "proofRequired" | "proofInvalid" | "wrongRecipient" | "identityMismatch"
+  code: "malformedRequest" | "unsupportedType" | "unsupportedVersion" | "proofRequired" | "proofInvalid" | "permissionDenied" | "wrongRecipient" | "identityMismatch" | "cancelled" | "taskFailed"
 })
 
 /** an issued document; its envelope's rkid equals recipient.keyAgreement (not expressible here, checked by the codec) */

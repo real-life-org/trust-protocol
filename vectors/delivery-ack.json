@@ -10,7 +10,7 @@
   "info": "rltp/v1/delivery/mac/ack/did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy/did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5",
   "document": {
    "id": "7b1c9c1e-4d5a-4a4a-9d5e-000000000001",
-   "type": "https://real-life.org/trust-tasks/delivery-ack/0.1",
+   "type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
    "issuer": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
    "recipient": "did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5",
    "threadId": "7b1c9c1e-4d5a-4a4a-9d5e-000000000002",
@@ -22,11 +22,11 @@
   }
  },
  "intermediate": {
-  "preimage": "{\"id\":\"7b1c9c1e-4d5a-4a4a-9d5e-000000000001\",\"issuedAt\":\"2026-08-31T12:00:00Z\",\"issuer\":\"did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy\",\"payload\":{\"meaning\":\"received\",\"ref\":\"uEiByzW6EIsQH-20JhpDxEwt97X7C9_Xh0wvZ1SHwFTY3kw\"},\"recipient\":\"did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5\",\"threadId\":\"7b1c9c1e-4d5a-4a4a-9d5e-000000000002\",\"type\":\"https://real-life.org/trust-tasks/delivery-ack/0.1\"}"
+  "preimage": "{\"id\":\"7b1c9c1e-4d5a-4a4a-9d5e-000000000001\",\"issuedAt\":\"2026-08-31T12:00:00Z\",\"issuer\":\"did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy\",\"payload\":{\"meaning\":\"received\",\"ref\":\"uEiByzW6EIsQH-20JhpDxEwt97X7C9_Xh0wvZ1SHwFTY3kw\"},\"recipient\":\"did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5\",\"threadId\":\"7b1c9c1e-4d5a-4a4a-9d5e-000000000002\",\"type\":\"https://real-life.org/trust-tasks/spec/delivery-ack/0.1\"}"
  },
  "output": {
   "proof": {
-   "mac": "uE3Tg3kvpUySllD2WD6VX4MnTtq51BssKudXATdUph90"
+   "mac": "ux2pfYNB77CaD54fRpE4YvzReC45gEXiMFtOU6ciSHAo"
   }
  },
  "negatives": [
@@ -35,7 +35,7 @@
    "note": "issuedAt changed by one second — MAC over the held document MUST NOT verify",
    "document": {
     "id": "7b1c9c1e-4d5a-4a4a-9d5e-000000000001",
-    "type": "https://real-life.org/trust-tasks/delivery-ack/0.1",
+    "type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
     "issuer": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
     "recipient": "did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5",
     "threadId": "7b1c9c1e-4d5a-4a4a-9d5e-000000000002",
@@ -45,17 +45,17 @@
      "meaning": "received"
     }
    },
-   "wrongMac": "uoh6NfBe0tW_ZREIBTlIULuDUr5JunpjpMSkq-qR9-kY"
+   "wrongMac": "uAZ16SWQFcLMhEK1zZiLiq3OueGHT5dnSCHxu089T4Ek"
   },
   {
    "name": "wrong-direction",
    "note": "info with the anchors swapped — a MAC under the reversed direction MUST NOT verify",
-   "wrongMac": "u0S2vXY7ntFcSFHsgqJQ42-idZjwQnNLkUg6DeEhkuoo"
+   "wrongMac": "uxH5uaUYWu45Q6RRaCN-3Ku48yp6SNE5gNtu_zzrwpK8"
   },
   {
    "name": "wrong-key",
    "note": "a different tuple of the same holder — its ack key MUST NOT verify this document",
-   "wrongMac": "uQ_uF0FjbgwotooGIlk18rQrlz2oVo9aO8pPwxiaDCx4"
+   "wrongMac": "usPymOtsFQBJo0B_KjozgU_971K_85Zyl2KUWsF_VFTM"
   },
   {
    "name": "missing-proof",
@@ -66,7 +66,7 @@
    "note": "class crossing: a VALIDLY SIGNED DataIntegrityProof ack acknowledging a designated-verifier payload — schema-valid, signature-valid, and rejected by the 4.2 class rule alone",
    "document": {
     "id": "7b1c9c1e-4d5a-4a4a-9d5e-000000000001",
-    "type": "https://real-life.org/trust-tasks/delivery-ack/0.1",
+    "type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
     "issuer": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
     "recipient": "did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5",
     "threadId": "7b1c9c1e-4d5a-4a4a-9d5e-000000000002",
@@ -81,10 +81,10 @@
      "created": "2026-08-31T12:00:00Z",
      "verificationMethod": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy#z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
      "proofPurpose": "assertionMethod",
-     "proofValue": "z5x52QEzTaiXHv8Bzta9TxfZLT2jNkVqvadLWvZWrQ8fLFwL2y5HiLnMkpYoPhWbo5oJtBiqqccDJn5rbTyS1yTJj"
+     "proofValue": "z55LXVL8gb8AGygEGn5QopawySyfgFhkp8nbNFrAvUZcdQeRLjUPNLZzJmxDD7XBpM2J9tgTGHro4KJ7yrqePA4H"
     }
    },
-   "acknowledgedType": "https://real-life.org/trust-tasks/star/0.2",
+   "acknowledgedType": "https://real-life.org/trust-tasks/spec/star/0.2",
    "expected": "failed(validation-failed)"
   },
   {
@@ -92,7 +92,7 @@
    "note": "a proof carrying every DataIntegrityProof field AND mac is schema-INVALID: both oneOf branches are closed (additionalProperties false) — an ack can never be both deniable and transferable",
    "document": {
     "id": "7b1c9c1e-4d5a-4a4a-9d5e-000000000001",
-    "type": "https://real-life.org/trust-tasks/delivery-ack/0.1",
+    "type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
     "issuer": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
     "recipient": "did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5",
     "threadId": "7b1c9c1e-4d5a-4a4a-9d5e-000000000002",
@@ -108,8 +108,8 @@
     "created": "2026-08-31T12:00:00Z",
     "verificationMethod": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy#z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
     "proofPurpose": "assertionMethod",
-    "proofValue": "z5x52QEzTaiXHv8Bzta9TxfZLT2jNkVqvadLWvZWrQ8fLFwL2y5HiLnMkpYoPhWbo5oJtBiqqccDJn5rbTyS1yTJj",
-    "mac": "uE3Tg3kvpUySllD2WD6VX4MnTtq51BssKudXATdUph90"
+    "proofValue": "z55LXVL8gb8AGygEGn5QopawySyfgFhkp8nbNFrAvUZcdQeRLjUPNLZzJmxDD7XBpM2J9tgTGHro4KJ7yrqePA4H",
+    "mac": "ux2pfYNB77CaD54fRpE4YvzReC45gEXiMFtOU6ciSHAo"
    },
    "expected": "failed(malformed)"
   },
@@ -118,7 +118,7 @@
    "note": "class crossing: the valid {mac}-form ack of this vector, acknowledging a transferably signed payload — schema-valid, MAC-valid, and rejected by the 4.2 class rule alone",
    "document": {
     "id": "7b1c9c1e-4d5a-4a4a-9d5e-000000000001",
-    "type": "https://real-life.org/trust-tasks/delivery-ack/0.1",
+    "type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
     "issuer": "did:key:z6Mkvg1qv5JoEuw9W1qZ5sAtpkZCWEjZLrHxpqvNvTSj3zTy",
     "recipient": "did:key:z6MkmfMx4BUcwhRUfxSziDk1929UY2vCwRvrg9rEzH7x6uo5",
     "threadId": "7b1c9c1e-4d5a-4a4a-9d5e-000000000002",
@@ -129,9 +129,9 @@
     }
    },
    "proof": {
-    "mac": "uE3Tg3kvpUySllD2WD6VX4MnTtq51BssKudXATdUph90"
+    "mac": "ux2pfYNB77CaD54fRpE4YvzReC45gEXiMFtOU6ciSHAo"
    },
-   "acknowledgedType": "https://real-life.org/trust-tasks/encounter-credential-delivery/0.1",
+   "acknowledgedType": "https://real-life.org/trust-tasks/spec/encounter-credential-delivery/0.1",
    "expected": "failed(validation-failed)"
   }
  ],

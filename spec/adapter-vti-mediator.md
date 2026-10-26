@@ -3,13 +3,13 @@
 **Real Life Trust Protocol — Transport Adapter Profile (below the port line)**
 
 - **Status:** Editor's Draft
-- **Version:** 0.26.0-draft (twenty-sixth casting)
+- **Version:** 0.27.0-draft (twenty-seventh casting)
 - **Status of This Document:** Editor's Draft, not yet converged.
   This profile changes normatively between castings and MUST NOT be
   relied upon for implementation or interoperability claims. Review
   and comment are welcome through the editors.
 - **Editors:** Anton Tranelis
-- **Companions:** RLTP Delivery Contract 0.83 (§5a.10, §6.1, §6.2,
+- **Companions:** RLTP Delivery Contract 0.84 (§5a.10, §6.1, §6.2,
   §6.3, RLTP-DEL-6120 to RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335; Appendix A names the changes its
   next casting takes up); RLTP Identity 0.54 (§7a, §9.3, §13); RLTP
   Encounter 0.31.1 (§5.3, §5.5, §5.8, §6, RLTP-ENC-6050,
@@ -22,7 +22,8 @@ Target carrier: the VTI/Affinidi messaging mediator as released in
 Coordinate Mediation 2.0 @ `d5909369`, Message Pickup 3.0 @
 `9dfa409f`, TSP @ `ea01152` — `sources/pins/PINS.md`; TSP Rev 3 is
 tracked and the wire binding targets its cipher suite posture, see
-§7). Seam evidence:
+§7). Counterpart refusals: the registry's `trust-task-error/0.5`
+(`trustoverip/dtgwg-trust-tasks-tf` @ `970d014d`). Seam evidence:
 `design/mediator-naht-bestandsaufnahme-2026-08.md`.
 
 ## 0. What this contract is, and is not
@@ -151,12 +152,12 @@ collecting, which RLTP-VTI-1110 places on the inner sender.
 DID as its sender is nonconformant: there the counterpart would see
 the collecting identifier as the sender.
 
-Delivery 0.83 hangs the separation on the outer sender. The change
+Delivery 0.84 hangs the separation on the outer sender. The change
 this reading needs in the Delivery Contract is stated in Appendix A;
 until its next casting takes it up, an implementation of this
 profile states in its conformance notes that it applies RLTP-VTI-1110
 and 1120 in place of that clause, and every other entry of
-Appendix A that turns a conformance statement of Delivery 0.83
+Appendix A that turns a conformance statement of Delivery 0.84
 around (the send-only session of mode `egress-session`, the routed
 deposits under the connection DID). The sentence of §5a.10 that a
 nested private end-to-end VID is "hidden from intermediaries by
@@ -656,18 +657,54 @@ Trias per §6.1 with the closed sets. Additionally the
 port carries the **receiver refusal channel**: the
 delivery layer, which alone can validate a counterpart's refusal,
 reports it to the adapter and the submission fails as
-`failed(rejected-by-receiver(<code>))` — for `trust-task-error/0.2`
-counterparts the code is the registry code (`malformedRequest`,
-`unsupportedType`, `proofRequired`, `proofInvalid`,
-`wrongRecipient`, `identityMismatch`); `idConflict` is §6.2
-absorption, never a failure; `unavailable`/`internalError`
-(retryable) produce **no port transition at all** — they are
-availability conditions of the counterpart's infrastructure, the
-delivery layer simply retries under its own schedule, and a
-submission that already entered the trias keeps its trias state
-(§6.1: pre-transport reports end at trias entry — nothing moves
-`accepted` back); `expired` has no port equivalent (recorded
-divergence). A validated
+`failed(rejected-by-receiver(<code>))`. A counterpart refuses with
+the registry's `trust-task-error/0.5`.
+
+**RLTP-VTI-5010** — The delivery layer MUST read a refusal by the
+`retryable` member the error document carries, never by the default
+of its code. `retryable: false` is a **terminal verdict** and enters
+the refusal channel with its code; `retryable: true` produces **no
+port transition at all** — it is an availability condition of the
+counterpart's infrastructure, the delivery layer retries under its
+own schedule, and a submission that already entered the trias keeps
+its trias state (§6.1: pre-transport reports end at trias entry —
+nothing moves `accepted` back). A `retryAfter` is the lower bound of
+the document's next attempt: no attempt starts before it. The bound
+is capped by the give-up horizon (§2): a `retryAfter` beyond it is
+never waited for, and the submission ends at the horizon. An accepted
+submission makes no further attempt from this side (Delivery §6.1),
+so a `retryAfter` binds nothing there. The bound holds for the
+adapter instance that took it, until the next opening: it is not
+part of the persisted ack state (§4), since a counterpart's hint is a
+SHOULD of the registry and a new opening may try again.
+
+The reading of an error document is by its form: `type`
+`https://trusttasks.org/spec/trust-task-error/0.5`, a payload with
+exactly the registry's members, a standard or an extended `code`, a
+boolean `retryable`, a `message` of at most 1024 code points (the
+registry schema's `maxLength`, which counts code points, never UTF-16
+units), an RFC 3339 `retryAfter` (either case of `T`
+and `Z`, a leap second read as the next second, any offset); anything
+else is no refusal and changes nothing.
+
+**RLTP-VTI-5020** — The codes of a terminal verdict are the
+standard codes `malformedRequest`, `unsupportedType`,
+`unsupportedVersion`, `proofRequired`, `proofInvalid`,
+`permissionDenied`, `wrongRecipient`, `identityMismatch`,
+`cancelled` and `taskFailed`; an extended code `<slug>:<name>` MUST
+be read as `taskFailed`, with the `retryable` it carries.
+`unavailable` and `internalError` with `retryable: false` are read as
+`taskFailed`. `expired` has no port equivalent (recorded
+divergence).
+
+**RLTP-VTI-5030** — `idConflict` MUST be read as the absorption of
+Delivery §6.2 and as an answer (RLTP-VTI-3130), never as a failure.
+This is a named divergence: `trust-task-error/0.5` and TT §7.2
+item 11 make it a refusal of an equal `id` over different bytes,
+while the Delivery Contract deduplicates by document digest (its
+DO-10; Open Issue 16).
+
+A validated
 refusal acts on every **non-terminal** state — the report-less
 phase, awaiting, and accepted alike — because the validated
 refusal is itself the proof that the counterpart received the
@@ -675,12 +712,11 @@ envelope (the mediator can accept and forward while the
 depositor's own call is still unresolved), and the attempt's
 later resolution never displaces it. Terminal states stand: §6.1
 knows exactly one late correction of a terminal state — the valid
-acknowledgement — and this profile adds no second. The refusal channel carries **terminal verdicts only**: `unavailable` and
-`internalError` are availability conditions of the transport, not
-receiver verdicts — they never enter `receiverRefused` (the
-runtime refuses them fail-closed), and the submission simply
-remains governed by the adapter clock like any other transport
-outcome.
+acknowledgement — and this profile adds no second. The refusal channel carries **terminal verdicts only**: a refusal
+with `retryable: true` is an availability condition of the transport,
+not a receiver verdict — it never enters `receiverRefused` (the
+runtime refuses it fail-closed), and the submission simply remains
+governed by the adapter clock like any other transport outcome.
 
 Transport conditions map as follows: 401/403/ACL →
 retriable, persistent → `failed(unroutable)` at the horizon; 413 →
@@ -1161,6 +1197,23 @@ is decidable.
    card's proof alone (§8). A co-signature by the connection DID and
    the egress identity would prove that the author holds both; this
    casting does not require it.
+15. **Deposit state from the mediator.** The registry's
+   `messaging/message/status/0.2` (`trustoverip/dtgwg-trust-tasks-tf`
+   @ `f27ea538`; it renames the response's `at` to `reachedAt`, the
+   instant a message reached its state) lets a depositor ask the
+   mediator for the state of its deposits. The pinned carrier (VTI-Dogwood,
+   its mediator and `vti-didcomm-js` @ `1d110bf`) does not implement
+   it; it arrived with later VTI releases. None of its states
+   (`queued`, `delivered`, `collected`, `withdrawn`, `discarded`,
+   `unknown`) carries a `delivered` of the trias, which a valid
+   acknowledgement alone does (Delivery §6.1); a state could at most
+   inform a report before the trias or an earlier `failed`. Its use
+   waits for a carrier pin that has it, with the derivation of a
+   message id for a TSP deposit and the identity that signs the
+   request in each sending mode.
+16. **`idConflict`.** RLTP-VTI-5030 keeps the reading of an
+   absorption against the framework's refusal; it follows the
+   Delivery Contract's decision on duplicate keys (its DO-10).
 
 ## Appendix A: Companion changes
 
@@ -1256,5 +1309,6 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |

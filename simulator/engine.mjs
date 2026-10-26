@@ -247,7 +247,7 @@ const uuid = () => { const b = randomBytes(16); b[6] = (b[6] & 0x0f) | 0x40; b[8
 
 export function bundleDocument(p, card, credential, enactmentBinding, now) {
   return {
-    id: uuid(), type: 'https://real-life.org/trust-tasks/encounter-bundle/0.1',
+    id: uuid(), type: 'https://real-life.org/trust-tasks/spec/encounter-bundle/0.1',
     issuer: credential.issuer, recipient: credential.credentialSubject.id,
     threadId: uuid(), ceremony: { enactment: enactmentBinding, step: 'scan' },
     issuedAt: iso(now), payload: { card, credential },
@@ -256,7 +256,7 @@ export function bundleDocument(p, card, credential, enactmentBinding, now) {
 export function ackDocument(p, forDoc, now) {
   const ctx = p.contexts.get(forDoc.recipient)  // the ack is signed under the addressed pair anchor
   const body = {
-    id: uuid(), type: 'https://real-life.org/trust-tasks/delivery-ack/0.1',
+    id: uuid(), type: 'https://real-life.org/trust-tasks/spec/delivery-ack/0.1',
     issuer: ctx.anchor, recipient: forDoc.issuer, threadId: forDoc.threadId,
     issuedAt: iso(now), payload: { ref: docDigest(forDoc), meaning: 'received' },
   }
@@ -264,7 +264,7 @@ export function ackDocument(p, forDoc, now) {
 }
 export function credentialDeliveryDocument(p, credential, threadId, step, now) {
   return {
-    id: uuid(), type: 'https://real-life.org/trust-tasks/encounter-credential-delivery/0.1',
+    id: uuid(), type: 'https://real-life.org/trust-tasks/spec/encounter-credential-delivery/0.1',
     issuer: credential.issuer, recipient: credential.credentialSubject.id,
     threadId: threadId ?? uuid(), ceremony: { enactment: credential.credentialSubject.enactmentBinding, step },
     issuedAt: iso(now), payload: { credential },
@@ -290,15 +290,15 @@ export function receiveEnvelope(p, env, now) {
     || 'expiresAt' in doc || !doc.payload || typeof doc.payload !== 'object')
     return dispose(p, doc, 'failed(malformed)')
   if (!p.contexts.has(doc.recipient)) return dispose(p, doc, 'failed(wrong-recipient)')
-  if (doc.type === 'https://real-life.org/trust-tasks/encounter-bundle/0.1') {
+  if (doc.type === 'https://real-life.org/trust-tasks/spec/encounter-bundle/0.1') {
     if (!doc.payload.card || !doc.payload.credential) return dispose(p, doc, 'failed(malformed)')
     return receiveBundle(p, doc, dd, now)
   }
-  if (doc.type === 'https://real-life.org/trust-tasks/encounter-credential-delivery/0.1') {
+  if (doc.type === 'https://real-life.org/trust-tasks/spec/encounter-credential-delivery/0.1') {
     if (!doc.payload.credential) return dispose(p, doc, 'failed(malformed)')
     return receiveCredentialDelivery(p, doc, dd, now)
   }
-  if (doc.type === 'https://real-life.org/trust-tasks/delivery-ack/0.1') {
+  if (doc.type === 'https://real-life.org/trust-tasks/spec/delivery-ack/0.1') {
     if (doc.payload.meaning !== 'received' || !doc.payload.ref) return dispose(p, doc, 'failed(malformed)')
     return receiveAck(p, doc, now)
   }

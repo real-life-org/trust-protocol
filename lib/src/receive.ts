@@ -125,6 +125,7 @@ import type { Outbound } from './ports.js'
 import { InfraError } from './results.js'
 import type { ReceiveFailure, ReceiveResult, ReceiveStageNo } from './results.js'
 import type { EventDraft, PrepareCtx, Prepared } from './engine.js'
+import { TASK_NAMESPACE as TT } from './task-uri.js'
 
 // ── the task handler contract ──────────────────────────────────────────
 
@@ -177,7 +178,6 @@ export interface ReceivedDocument<T = unknown> {
 export const ackOutbound = (a: Readonly<SealedAck>, attempt: number): Outbound =>
   structuredClone({ digest: a.digest, envelope: a.envelope, type: ACK_TYPE, threadId: a.threadId, recipient: a.recipient, attempt })
 
-const TT = 'https://real-life.org/trust-tasks/'
 /** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
  *  is a transferable signature; their acks are signed, not MACed. The
  *  `x-` slugs are this library's own experimental, unregistered forms
