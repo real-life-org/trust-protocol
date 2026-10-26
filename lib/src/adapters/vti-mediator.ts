@@ -221,6 +221,17 @@ const STANDARD_ERROR_CODES = new Set(['malformedRequest', 'unsupportedType', 'un
 const EXTENDED_ERROR_CODE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/
 const RFC3339 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?([Zz]|([+-])([0-9]{2}):([0-9]{2}))$/
 
+/** Whether `s` has at most `max` code points. The registry schema bounds
+ *  `message` with JSON Schema `maxLength: 1024`, which counts characters
+ *  as RFC 8259 defines them, Unicode code points (JSON Schema Validation
+ *  2020-12 §6.3.1; TT 0.6 §7.3 item 19.1 asks free text to declare such a
+ *  `maxLength`), never UTF-16 units. Counts no further than max + 1. */
+function atMostCodePoints (s: string, max: number): boolean {
+  let n = 0
+  for (const _ of s) if (++n > max) return false
+  return true
+}
+
 /** An RFC 3339 date-time as milliseconds, or null: as RFC 3339 allows it
  *  (§5.6: `t` and `z` in either case, a leap second `:60`, any offset),
  *  calendar-valid, never normalized into another day. A leap second
@@ -251,7 +262,7 @@ function rfc3339 (t: unknown): number | null {
  *  trust-task-error/0.5): `type` exactly TRUST_TASK_ERROR_TYPE, a payload
  *  with exactly the registry's members, `code` a standard or an extended
  *  code, `retryable` a boolean, `retryAfter` an RFC 3339 date-time,
- *  `message` at most 1024 characters, `inResponseTo` with a `typeUri`,
+ *  `message` at most 1024 code points, `inResponseTo` with a `typeUri`,
  *  `details` an object. `idConflict` is an answer (RLTP-VTI-5030);
  *  otherwise `retryable: true` is a retry, whatever the code (5010);
  *  `retryable: false` is a terminal verdict, an extended code and the
@@ -277,7 +288,7 @@ function readErrorStrict (doc: unknown): TrustTaskErrorReading | null {
   if (typeof code !== 'string' || typeof retryable !== 'boolean') return null
   const extended = !STANDARD_ERROR_CODES.has(code)
   if (extended && !EXTENDED_ERROR_CODE.test(code)) return null
-  if ('message' in e && (typeof e.message !== 'string' || e.message.length > 1024)) return null
+  if ('message' in e && (typeof e.message !== 'string' || !atMostCodePoints(e.message, 1024))) return null
   if ('details' in e && (e.details === null || typeof e.details !== 'object' || Array.isArray(e.details))) return null
   if ('inResponseTo' in e) {
     const r = e.inResponseTo

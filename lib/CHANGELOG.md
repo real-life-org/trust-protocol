@@ -41,7 +41,9 @@ stage 5). Nothing accepts both forms.
   no attempt of the submission before `retryAfter`, within this adapter
   instance; the give-up horizon still ends it. `retryAfter` is read as
   RFC 3339 allows it (either case of `T` and `Z`, a leap second, any
-  offset). `TRUST_TASK_ERROR_TYPE` names the read type.
+  offset), and `message` is bounded at 1024 code points, as the registry
+  schema's `maxLength` counts. `TRUST_TASK_ERROR_TYPE` names the read
+  type.
 
 ## 0.8.0
 
