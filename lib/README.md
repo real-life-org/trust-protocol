@@ -7,7 +7,8 @@ authorship; only a human can witness a human.
 
 This package is the reference library of the specification. It lives beside
 the schemas and the test vectors it reproduces byte for byte. Published by the
-[Real Life Organisation](https://real-life.org) under CC BY 4.0.
+[Real Life Organisation](https://real-life.org) under the Apache License 2.0;
+the specification itself is licensed under CC BY 4.0.
 
 - Specification, schemas and vectors: <https://trust-protocol.real-life.org>
 - Zero runtime dependencies. WebCrypto only (Ed25519, X25519, HKDF,
@@ -379,5 +380,5 @@ package.
 
 ## License
 
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), specification and
-reference implementation alike.
+[Apache License 2.0](LICENSE). The specification this library implements is
+licensed under CC BY 4.0.

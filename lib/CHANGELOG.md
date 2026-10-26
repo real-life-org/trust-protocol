@@ -19,6 +19,8 @@ one opening.
   field only in `egress-session`, a finite instant not after `restoredAt`.
   The holder-state codec is untouched (3). Golden fixture
   `test/adapter-fixtures/ack-state-direct-refused.json`.
+- **License.** The library is licensed under the Apache License 2.0
+  instead of CC BY 4.0. Versions up to 0.9.0 keep CC BY 4.0.
 
 ## 0.9.0
 
