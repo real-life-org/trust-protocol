@@ -369,10 +369,11 @@ const tokenCopy = (t) => ({ accessToken: t.accessToken, accessExpiresAt: t.acces
 const OPEN_KEEP_MS = DECLARED.routedAckDeadlineMs + DECLARED.duplicateWindowMs;
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
 /** A restored send state, checked fail-closed (§4): exactly `mode` and
- *  `open`, a known mode, each entry exactly a digest and a finite
- *  acceptance instant not after restoredAt, each digest once, nothing open
- *  in egress-session. Any other field — the acknowledgement fields of an
- *  earlier form included — is refused, not ignored. */
+ *  `open` (and `directRefusedAt`, only in egress-session, a finite instant
+ *  not after restoredAt), a known mode, each entry exactly a digest and a
+ *  finite acceptance instant not after restoredAt, each digest once,
+ *  nothing open in egress-session. Any other field — the acknowledgement
+ *  fields of an earlier form included — is refused, not ignored. */
 function restoreSendState(send, restoredAt) {
     const refuse = (why) => { throw new Error(`ack snapshot: send state ${why}`); };
     if (typeof send !== 'object' || send === null)
@@ -382,8 +383,12 @@ function restoreSendState(send, restoredAt) {
         const own = Object.keys(o);
         return own.length === keys.length && keys.every((k) => own.includes(k));
     };
-    if (!exactly(s, ['mode', 'open']))
-        refuse('has other fields than mode and open');
+    const refusedField = Object.prototype.hasOwnProperty.call(s, 'directRefusedAt');
+    if (!exactly(s, refusedField ? ['mode', 'open', 'directRefusedAt'] : ['mode', 'open']))
+        refuse('has other fields than mode, open and directRefusedAt');
+    if (refusedField && (s.mode !== 'egress-session' || !finite(s.directRefusedAt) || s.directRefusedAt > restoredAt)) {
+        refuse('records a refusal of direct delivery outside egress-session, non-finite or after restoredAt');
+    }
     if (typeof s.mode !== 'string' || !SEND_MODES.has(s.mode))
         refuse('names an unknown mode');
     if (!Array.isArray(s.open))
@@ -401,7 +406,7 @@ function restoreSendState(send, restoredAt) {
     // the switch empties it: an egress-session with open deposits was never produced
     if (s.mode === 'egress-session' && open.length > 0)
         refuse('is egress-session with open routed deposits');
-    return { mode: s.mode, open };
+    return { mode: s.mode, open, ...(refusedField ? { directRefusedAt: s.directRefusedAt } : {}) };
 }
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 // construction capability: only create() holds it
@@ -442,6 +447,8 @@ export class MediatorCarrierAdapter {
     #transitions = [];
     // the relationship's send state (RLTP-VTI-3130)
     #mode = 'routed';
+    /** RLTP-VTI-3120: when the carrier refused direct delivery; null: never */
+    #directRefusedAt = null;
     /** open routed deposits (documents), keyed by digest */
     #openDeposits = new Map();
     /** this instance has concluded a collection that left nothing pending */
@@ -513,6 +520,8 @@ export class MediatorCarrierAdapter {
             if (restored.send !== undefined) {
                 const send = restoreSendState(restored.send, restoredAt);
                 this.#mode = send.mode;
+                if (send.directRefusedAt !== undefined)
+                    this.#directRefusedAt = send.directRefusedAt;
                 // an open deposit falls routed-ack-deadline plus duplicate-window
                 // after its acceptance: cut here, not refused
                 for (const o of send.open)
@@ -788,9 +797,21 @@ export class MediatorCarrierAdapter {
         sub.attemptStartedAt = now;
         this.#track(this.#trySend(sub, now).finally(() => { sub.attemptStartedAt = null; }));
     }
+    /** RLTP-VTI-3120: the carrier refused direct delivery and the
+     *  relationship is in egress-session — nothing is handed over */
+    #directRefused() {
+        return this.#directRefusedAt !== null && this.#mode === 'egress-session';
+    }
     async #trySend(sub, now) {
         if (sub.st !== null && sub.st.state !== 'awaiting-transport')
             return;
+        if (this.#directRefused()) {
+            // no hand-over, no deposit: the submission stays in the holder's
+            // custody and fails at its horizon like any retriable refusal (§5)
+            sub.lastKind = 'refused-retriable';
+            sub.st = { state: 'awaiting-transport', reason: 'carrier-refused-retriable' };
+            return;
+        }
         let next;
         let routedRefused = false;
         try {
@@ -821,7 +842,7 @@ export class MediatorCarrierAdapter {
                 let declined = false;
                 const entry = sub.entry;
                 const start = () => {
-                    if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate.closed === true ||
+                    if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate.closed === true || this.#directRefused() ||
                         (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
                         this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) {
                         declined = true;
@@ -860,6 +881,13 @@ export class MediatorCarrierAdapter {
             // below, the submission stays in custody as a retriable refusal
             if (kind === 'routed-refused') {
                 routedRefused = sub.sentMode === 'routed';
+                kind = 'refused-retriable';
+            }
+            // a refusal of direct delivery (RLTP-VTI-3120): recorded in the send
+            // state, so it survives openings; the submission stays a retriable refusal
+            if (kind === 'direct-refused') {
+                if (sub.sentMode === 'egress-session' && this.#directRefusedAt === null)
+                    this.#directRefusedAt = this.#clock;
                 kind = 'refused-retriable';
             }
             sub.lastKind = kind;
@@ -1117,6 +1145,7 @@ export class MediatorCarrierAdapter {
             send: {
                 mode: this.#mode,
                 open: [...this.#openDeposits].map(([digest, acceptedAt]) => ({ digest, acceptedAt })),
+                ...(this.#directRefusedAt === null ? {} : { directRefusedAt: this.#directRefusedAt }),
             },
         };
     }
