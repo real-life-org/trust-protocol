@@ -18,7 +18,9 @@
 
 Target carrier: the VTI/Affinidi messaging mediator from release
 **0.45.0** on (`affinidi/affinidi-messaging-mediator` @ `7e378c03`),
-which opens a TSP message addressed to itself only in TSP 1.0 (pins:
+which opens a TSP message addressed to itself only in TSP 1.0, run
+with local direct delivery allowed for mode `egress-session`
+(RLTP-VTI-3120) (pins:
 `vti-didcomm-js` 0.13.0 @ `8054313f`, `vti-tsp-js` 0.4.0
 (`OpenVTC/vta-browser-plugin` @ `a24e498f`); protocol texts:
 Coordinate Mediation 2.0 @ `d5909369`, Message Pickup 3.0 @
@@ -466,7 +468,13 @@ only after the switch of RLTP-VTI-3130. A deposit in it is the inner
 message of RLTP-VTI-3110 alone, deposited on a session the egress
 identity authenticates at `C` for this purpose. That session is
 send-only: it collects nothing, acknowledges nothing, holds no
-keylist and no Live Mode.
+keylist and no Live Mode. The carrier MUST accept a TSP `direct`
+message addressed to an account it serves (mediator 0.45:
+`local_direct_delivery_allowed = true`, `LOCAL_DIRECT_DELIVERY_ALLOWED`;
+its code default is `false`); on a carrier that does not, the fallback
+form carries nothing. A binding that receives such a refusal on the
+send-only session fails every later deposit in this mode as
+unreachable (Open Issue 4).
 
 **RLTP-VTI-3130** — The sending mode belongs to the relationship, not
 to the instance: it is kept in the adapter's send state, which the
@@ -800,10 +808,12 @@ between the auth handshake and every subsequent wire call).
 
 The concrete binding over `vti-didcomm-js` and `vti-tsp-js` owes:
 TSP framing in the sending form of §3a under **TSP 1.0** (version
-`YTSP-BAA`; HPKE-Base, the sender's VID in every confidential payload;
-TSP 1.0 has no HPKE-Auth), the CESR demux discipline of the measured binding (one message type per
+`YTSP-BAA`; HPKE-Base only, no sealed box; the sender's VID in every
+confidential payload; TSP 1.0 has no HPKE-Auth), the CESR demux discipline of the measured binding (one message type per
 frame, dispatched on its CESR code), the duty to pass raw received
-bytes unchanged, and the rules below.
+bytes unchanged, and the rules below. On receipt, TSP 1.0 means major
+version 1 with any minor version: TSP signals a break of backward
+compatibility by the major version only.
 
 **RLTP-VTI-7110** — The adapter's copy of a submission is the
 sealed RLTP envelope, never a TSP frame. The binding packs every
@@ -854,9 +864,12 @@ exception is a displayed card's instance before it is bound, which knows
 no counterpart: it takes such a message from any sender, under
 RLTP-VTI-1255 and 1265. Control messages, padding, routed and nested
 messages, and empty `direct` messages are logged with their type and
-sender VID and acknowledged, never delivered. A message of another TSP
-version is logged with the version it declares and acknowledged, never
-delivered; TSP has no version negotiation.
+sender VID and acknowledged, never delivered. A message that fails a
+receiver check of TSP 1.0 — among them a sender VID in the confidential
+payload other than the envelope's, or the NULL VID there — is logged
+with its envelope sender and acknowledged, never delivered. A message
+of another major version is logged with the version it declares and
+acknowledged, never delivered; TSP has no version negotiation.
 
 **RLTP-VTI-7150** — The binding states whether the mediator holds
 nothing more for the connection DID, from the pickup protocol's
@@ -1071,8 +1084,9 @@ is decidable.
   sender of every document, and the connection DID as this side's
   address. Neither appears in any other relationship. The sender VID
   that TSP 1.0 carries in every confidential payload is the
-  envelope's sender again, in each layer: it shows the counterpart, and
-  the mediator in the outer layer, no identifier the envelope does not,
+  envelope's sender again, in each layer of either mode: it shows the
+  counterpart, and the mediator in the outer layer, no identifier the
+  envelope does not,
   and Delivery §5a.10 applies to the same identifiers.
 - **Linkability, per party.** Every wire identity is per
   relationship × carrier and carries §5a.10's three prohibitions.
@@ -1148,7 +1162,13 @@ is decidable.
    same holds for problem reports in general: §5 requires a
    problem report that refuses a deposit to count as a refusal of
    that deposit, and the target binding does not yet correlate a
-   problem report with a deposit.
+   problem report with a deposit. A carrier that does not accept
+   direct delivery (RLTP-VTI-3120) refuses a deposit in mode
+   `egress-session` with a problem report on the send-only session
+   (mediator 0.45: `e.p.direct_delivery.denied`), after the deposit was
+   reported `accepted`; that deposit ends at the give-up horizon. The
+   binding logs such a report and fails every later deposit in that
+   mode as unreachable.
 5. **Keylist.** §1 and §3 name keylist updates; the target
    mediator keeps no keylist for TSP clients, and the binding
    treats the update as a no-op.
@@ -1231,6 +1251,19 @@ is decidable.
    and a binding of this profile refuse each other's frames
    (RLTP-VTI-7140). A relationship whose two sides or whose `C` do not
    all speak TSP 1.0 is not carried; this profile names no transition.
+18. **The wire identities and the VID rules of TSP 1.0.** TSP 1.0
+   requires a VID for public use to support key rotation and the
+   verification of its key state's provenance, lets a VID stay simple
+   and static only when it is private to an established TSP
+   relationship, and discards a message from a VID the destination has
+   no relationship with. The wire identities are static `did:key`s, named
+   on a card (on a displayed card readable by anyone who sees it, Open
+   Issue 11), and form no TSP relationship (Open Issue 12): they are
+   neither. The profile puts the RLTP relationship, bound by the card's
+   proof (§8), where TSP puts the established relationship, and replaces
+   them through a new `N` (Open Issue 13), not by key rotation. A TSP 1.0
+   endpoint without this reading discards their messages; how this
+   profile meets TSP-conformant counterparts is open.
 
 ## Appendix A: Companion changes
 
@@ -1280,17 +1313,15 @@ are the changes its next casting takes up.
   claim stays bounded to no join across relationships.
 - References, the **[TSP]** row: the pin follows this profile's snapshot,
   TSP 1.0 @ `ccda6b33159d860f05c328eb436dabe83548b705`. Read against
-  it, the surfaces 5a.10 consumes hold as written: the VID taxonomy
-  (a VID for public use carries key rotation and provenance; a VID
-  private to an established TSP relationship MAY stay static; the wire
-  identities of this profile are static `did:key`s of one relationship,
-  bound by the card's proof (§8), and form no TSP relationship, Open
-  Issue 12), the routed model (the last route entry is the
-  destination's own VID with its intermediary, RLTP-VTI-3115), nested
-  envelopes (the outer message is confidential, the inner MAY be
-  signed only) and the direct-neighbour relationship. New is the
-  sender's VID in every confidential payload; it names the envelope's
-  sender again.
+  it, these surfaces of 5a.10 hold as written: the routed model (the
+  last route entry is the destination's own VID with its intermediary,
+  RLTP-VTI-3115), nested envelopes (the outer message is confidential,
+  the inner MAY be signed only), the direct-neighbour relationship, and
+  the identifier rules of 5a.10 themselves. New is the sender's VID in
+  every confidential payload; it names the envelope's sender again. The
+  VID taxonomy does not hold as written: TSP 1.0's rules for public and
+  static private VIDs do not cover this profile's wire identities (Open
+  Issue 18).
 - 5a.10, the change of the direct TSP peer under an unchanged `C`:
   an adapter whose outer peer is the configured carrier itself, and
   whose collecting identifier is derived from (root, `C`, `N`), MAY
@@ -1339,7 +1370,7 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload (§3a, RLTP-VTI-7110), the binding delivers only 1.0 and refuses every other version (RLTP-VTI-7140), the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0; Open Issue 17 (peers and mediators on Rev 3); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
+| 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session` (RLTP-VTI-3120, Open Issue 4); §9 on the sender VID in the payload; Open Issue 15 names the mediator's `status/0.1`; Open Issues 17 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
 | 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |
