@@ -88,7 +88,10 @@
 //     window; representing it as a queryable fourth value was
 //     review-4 B2). has() distinguishes an unknown id.
 //   · A retired instance mutates nothing and refuses everything
-//     except reading its ack state.
+//     except reading its ack state — with one exception: ackState()
+//     still records a refusal of direct delivery the wire received
+//     (directRefused, RLTP-VTI-3120); monotone, it only blocks, and its
+//     instant is the adapter clock, never later.
 import { jcs } from '../core.js';
 import { anchorOfEd, edRawOfAnchor, sha } from '../crypto.js';
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js';
@@ -1232,7 +1235,8 @@ export class MediatorCarrierAdapter {
                 // the ack flew fall now — intent, entry and absorption
                 // together (R15-B1). Never on a retired instance: after
                 // close, ackState() is the host's final-persist surface and
-                // a late-returning wire mutates nothing (R17-B2).
+                // a late-returning wire mutates nothing (R17-B2) — except the
+                // refusal of direct delivery ackState() reads (RLTP-VTI-3120).
                 if (!this.#closed) {
                     for (const id of live) {
                         const at = this.#concluded.get(id);

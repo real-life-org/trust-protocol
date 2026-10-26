@@ -477,7 +477,11 @@ relationship's send state (RLTP-VTI-3130) when the binding receives it
 on the send-only session, not at a later deposit: the binding signals
 it from that moment (§7), and the adapter records it at its next
 step, at the latest before its next hand-over and in the state it
-hands the host to persist. It survives openings:
+hands the host to persist; a host persists that state after the
+binding closed. A report that arrives after the binding closed, or
+after the host's last reading of the state, is not recorded: the next
+opening deposits once more, and records the refusal at its report. A
+recorded refusal survives openings:
 from then on the adapter hands nothing over and deposits nothing for
 the relationship at `C`, and reports every submission
 `awaiting-transport` (`carrier-refused-retriable`) until its give-up
@@ -806,7 +810,9 @@ This profile refuses to promise more than a retired instance can
 keep. The boundary is realized in code:
 `close()` retires the instance — subsequent port operations
 refuse, a late-resolving wire mutates nothing, and the ack state
-remains readable for the host's final persist. Beside the port
+remains readable for the host's final persist; the one change it still
+takes is a refusal of direct delivery the binding received
+(RLTP-VTI-3120), recorded when the host reads the ack state. Beside the port
 stands one host teardown aid: `settle()` awaits the in-flight
 background tasks so a host can drain before persisting its ack
 state — it is not a port operation, it may wait as long as a
@@ -829,7 +835,8 @@ TSP framing in the sending form of §3a under **TSP 1.0** (version
 confidential payload; TSP 1.0 has no HPKE-Auth), the CESR demux discipline of the measured binding (one message type per
 frame, dispatched on its CESR code), the duty to pass raw received
 bytes unchanged, a signal from the moment it receives a refusal of
-direct delivery on the send-only session (RLTP-VTI-3120), and the
+direct delivery on the send-only session that stays set for the
+binding's life and that the adapter reads (RLTP-VTI-3120), and the
 rules below. On receipt, this profile reads
 TSP's versioning (a major version MAY break backward compatibility) as:
 TSP 1.0 is major version 1 with any minor version; a 1.x message the
@@ -1190,7 +1197,9 @@ is decidable.
    sent before the report arrives were reported `accepted` and end at
    the give-up horizon. The binding logs a refusal of direct delivery,
    and the adapter records it in the send state; it survives openings
-   and is never lifted under this profile. Only a new principal (a new
+   and is never lifted under this profile. A report that arrives after
+   the binding closed is lost, and each opening shorter than the
+   report's way deposits once more and fails at the horizon. Only a new principal (a new
    relationship, a rebind, a change of `C`, §6, whose identities reach
    the counterpart only as Open Issue 13 allows) or a lost send state
    (RLTP-VTI-3130, Open Issue 7) starts in `routed` again; a carrier

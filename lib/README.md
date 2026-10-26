@@ -117,7 +117,12 @@ it, profile RLTP-VTI-3120), which the wire signals through
 (`directRefusedAt`): from then on the adapter hands
 nothing over for the relationship, in this opening and every later one
 restored from the snapshot, and each submission reads
-`awaiting-transport(carrier-refused-retriable)` until its horizon. A host
+`awaiting-transport(carrier-refused-retriable)` until its horizon. The
+host reads `ackState()` for its final persist after the wire is closed
+(the binding keeps `directRefused()` set past its close, and
+`ackState()` still records it on a retired adapter); a report that
+arrives after the wire closed is lost, and the next opening deposits
+once more. A host
 that persists only `concluded` and `pending` starts every opening in
 `routed` with nothing open, so a relationship whose openings last less
 than 72 hours never switches by the deadline; the mode in a restored

@@ -421,9 +421,11 @@ test("RLTP-VTI-3120: one deposit, then the refusal of direct delivery arrives: t
   const id0 = first.bob.submit(rand(40), Date.now()); await first.bob.settle(); await tick(50);
   assert.equal(first.bob.status(id0).state, "accepted");
   assert.equal(first.wireB.directRefused(), true);
+  // the host's final persist after the close: the signal outlives it
+  first.alice.close(); first.bob.close();
+  assert.equal(first.wireB.directRefused(), true, "still set after the close");
   const snap = first.bob.ackState();
   assert.equal(typeof snap.send.directRefusedAt, "number", JSON.stringify(snap.send));
-  first.alice.close(); first.bob.close();
   med.refuseDirect = false;
   const next = await pair(med, [], { A: first.A, B: first.B, restoredB: snap });
   const { view } = docView(rand(32));
