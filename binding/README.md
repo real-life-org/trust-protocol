@@ -1,9 +1,9 @@
 # binding-vti — die Wire-Bindung unter dem Adapter
 
 Die konkrete `MediatorWire`-Implementierung über `@openvtc/vti-didcomm-js`
-0.12.0 und `@openvtc/vti-tsp-js` 0.3.0 (TSP **Rev 3**: HPKE-Base,
-Außensignatur). **Dev-only** — nie eine Abhängigkeit der
-zero-dependency lib; das Profil 0.27 (`spec/adapter-vti-mediator.md` §3a, §7)
+0.13.0 und `@openvtc/vti-tsp-js` 0.4.0 (TSP **1.0**, `YTSP-BAA`: HPKE-Base,
+Sender-VID im vertraulichen Payload, Außensignatur). **Dev-only** — nie eine Abhängigkeit der
+zero-dependency lib; das Profil 0.28 (`spec/adapter-vti-mediator.md` §3a, §7)
 benennt genau die Pflichten, die hier wohnen. Den Modus der angezeigten
 Karte (§1c: eine Instanz ohne Gegenüber bis zur Bindung)
 trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
@@ -16,11 +16,11 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
     gemessen in der Probe);
   - ATM-Auth unter der Connection-DID, ein Pickup-Socket;
   - `deposit(token, bytes, egressDid, mode)` in der Sendeform von
-    Profil 0.27 §3a, im Modus, den der Adapter nennt; beide Schichten
+    Profil 0.28 §3a, im Modus, den der Adapter nennt; beide Schichten
     werden bei jedem Versuch neu gepackt (RLTP-VTI-7110), die
     Adressierung kommt aus `depositAddressing` der lib:
     - **`routed`** (Modus jeder Adapter-Instanz ab Konstruktion):
-      innen TSP-Rev-3-`direct` Egress-Identität → Connection-DID des
+      innen TSP-1.0-`direct` Egress-Identität → Connection-DID des
       Partners (HPKE-Base an deren Schlüssel, signiert von der
       Egress-Identität), außen `packRouted` Connection-DID → `C` mit
       Route `[Connection-DID des Partners]`, versiegelt an den
@@ -35,13 +35,17 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
       geprüft wird (Socket zu oder Token abgelaufen → neu
       authentisieren und verbinden). Send-only heißt hier
       (`SendOnlySession`): der Socket öffnet ohne
-      `live-delivery-change` (kein Live Mode), eingehende Rahmen werden
-      unbehandelt verworfen, nichts wird geackt. Auch in diesem Modus
+      `live-delivery-change` (kein Live Mode), nichts wird abgeholt,
+      nichts geackt; gelesen wird nur ein Problem-Report des Mediators
+      (Ablehnung einer Einlieferung): geloggt; nur nach
+      `e.p.direct_delivery.denied` scheitert jede weitere Einlieferung in
+      diesem Modus als `refused-retriable` (bis zum Ende der Wire), jeder
+      andere Problem-Report wird nur geloggt. Auch in diesem Modus
       authentisiert der Adapter vor jedem Deposit zuerst die
       Connection-DID (deren Token ist das erste Argument von
       `deposit`); die Egress-Identität authentisiert die Bindung
       selbst;
-  - `onDeliver` entpackt den TSP-Rahmen, verlangt Rev 3 und genau das
+  - `onDeliver` entpackt den TSP-Rahmen, verlangt TSP 1.0 und genau das
     Paar (Egress-Identität des Partners → eigene Connection-DID, in
     beiden Modi), und reicht nur bei einer Anwendungsnachricht vom Typ
     `direct` mit nichtleerer Nutzlast die **inneren Payload-Bytes
@@ -54,8 +58,10 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
     über den qb64-Text);
   - Ein Rahmen, der sich nicht öffnen lässt, von einem anderen Sender
     kommt oder einer anderen Beziehung gilt, wird ebenfalls mit
-    Sender-VID (aus dem Klartext-Envelope, keine Secrets) geloggt und
-    geackt. Ein Rahmen, den der Adapter nicht übernimmt (sein Consumer
+    Sender-VID (aus dem Klartext-Envelope, soweit lesbar, keine Secrets) geloggt und
+    geackt; ebenso ein Rahmen einer anderen TSP-Version (auch Rev 3),
+    den die Bibliothek am Versionskennzeichen ablehnt, bevor ein
+    Schlüssel berührt wird (das Log nennt die Version). Ein Rahmen, den der Adapter nicht übernimmt (sein Consumer
     meldet `false` — Puffer über `max-queue-bytes`, Instanz
     stillgelegt — oder wirft), bleibt ungeackt beim Mediator; der bietet
     ihn erst beim nächsten Öffnen des Sockets wieder an. Bis dahin meldet
@@ -73,7 +79,7 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
     Backoff ab 50 ms bis 30 s, nach `close()` kein Timer), damit eine
     Seite, die nur empfängt, wieder empfängt; eine Erneuerung wartet
     auf ein laufendes Neuverbinden statt einen zweiten Socket zu öffnen;
-  - **Delete-to-Ack unter der Hoheit des Adapters**: die 0.12.0-
+  - **Delete-to-Ack unter der Hoheit des Adapters**: die 0.13.0-
     Session ackt sonst direkt nach dem Consumer (mit eigenem
     `_seen`-Dedup); die Subclass `RltpMediatorSession` hebt beides
     auf — geackt wird erst, wenn der Adapter `conclude` sagt;
@@ -100,12 +106,23 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
     Kontrollform müssen dieselbe Form fahren.
 - `test/wire-demux.test.mjs` — offline (`npm test`): echte Wire,
   echte `RltpMediatorSession`, echter Adapter über einem Mediator-
-  Double (ATM-HTTP, DID-Auflösung, Socket über `cfg.transport`). Das
+  Double (ATM-HTTP, DID-Auflösung, Socket über `cfg.transport`), mit
+  dem echten TSP-1.0-Code von `vti-tsp-js` 0.4.0. Das
   Double leitet einen Rahmen nur weiter, wenn sein Sender die DID des
   Sockets ist; einen an sich adressierten `routed`-Rahmen öffnet es mit
   seinem aktuellen X25519-Schlüssel, nimmt den nächsten Hop und stellt
   die innere Nachricht unverändert zu; `rotate()` wechselt den
-  Schlüssel, Rahmen an den alten verschwinden still. Geprüft: XRFI,
+  Schlüssel, Rahmen an den alten verschwinden still. Geprüft: beide
+  Schichten einer Einlieferung tragen `YTSP-BAA`, die innere die
+  Sender-VID; ein Rev-3-Rahmen (`YTSP-AAC`) wird mit seiner Version
+  geloggt, geackt und nie zugestellt; ein Rahmen der Hauptversion 1
+  mit Minor 1 wird zugestellt, einer der Hauptversion 2 abgewiesen; ein
+  Rahmen, dessen Sender-VID im Payload von der im Umschlag abweicht,
+  geloggt, geackt, nie zugestellt; ein Mediator ohne Direktzustellung
+  (`e.p.direct_delivery.denied` auf der Send-only-Session) → geloggt,
+  nächste `egress-session`-Einlieferung `carrier-refused-retriable`;
+  ein anderer Problem-Report (`e.p.delivery.refused`) → geloggt, die
+  nächste Einlieferung geht raus; XRFI,
   XRFA, `nested`, `routed` und leeres `direct` erreichen den Adapter
   nicht und werden geackt; routed Ende-zu-Ende bytegleich (außen
   Connection-DID → `C`, Route = Connection-DID des Partners, innen
@@ -122,8 +139,9 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
   geprüft: über der Obergrenze abgelehnt → `queueEmpty()` false →
   abholen und abschließen → Socket neu öffnen → Rahmen übernommen →
   `queueEmpty()` true.
-- `live-probe.mjs` — env-gated (`RLTP_LIVE_MEDIATOR=1`): zwei
-  Beziehungen gegen die öffentliche Dev-Instanz, deposit → deliver
+- `live-probe.mjs` — env-gated (`RLTP_LIVE_MEDIATOR=1`, `MEDIATOR_DID`
+  Pflicht: eine TSP-1.0-Instanz, Mediator ≥ 0.45): zwei
+  Beziehungen gegen diese Instanz, deposit → deliver
   → conclude in beide Richtungen; gibt Zustellung ja/nein,
   Rahmengrößen (Nutzlast, innen, außen) und die Zeiten
   Einlieferung → `accepted` und → Zustellung (ms) aus.
@@ -137,11 +155,21 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
   → Zustellung und → Ack (ms) und die Zahl offener routed-Einlieferungen
   je Seite aus (`submit()` ohne Digest öffnet keine). Keine Secrets.
 - `.sender-hypothesis.mjs` — Naht-Messung: welchen TSP-Sender leitet
-  der Mediator weiter? Drei Fälle (Sender = Socket-DID; fremde
+  der Mediator weiter? (`MEDIATOR_DID` Pflicht; die Ergebnisse in der
+  Tabelle stammen von Mediator 0.44 mit Rev 3; unter 0.45 hängen Fall 2
+  und 3 an der lokalen Direktzustellung) Drei Fälle (Sender = Socket-DID; fremde
   Sender-VID auf dem Socket; Sender-VID auf eigenem Socket).
 
 ## Instanz
 
+Die Bindung spricht TSP 1.0 und braucht einen Mediator ≥ 0.45: ab dieser
+Version öffnet der Mediator an sich selbst adressierte Rahmen (die
+routed-Außenschicht) nur in 1.0; zwischen Endpunkten leitet er jede
+Version weiter. Ein Mediator ≤ 0.44 lehnt 1.0-Rahmen am Eingang ab.
+Die Proben haben deshalb keine Default-Instanz mehr.
+
+Bisher gemessene Instanz (Mediator 0.44, TSP Rev 3; trägt die
+1.0-Bindung nicht):
 `did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator`
 (Log-Version 1 vom 27.09.2026), Endpunkte `https://mediator.vtc.storm.ws/mediator/v1`,
 `wss://mediator.vtc.storm.ws/mediator/v1/ws`; das DID-Dokument
@@ -151,13 +179,49 @@ auf (`SCID in DID … does not match SCID in log 'QmR5xGk8…'`).
 
 ## Messstand
 
+**TSP 1.0, lokal (26.10.):** Mediator 0.45.0 (`7e378c03`) als
+In-Process-Instanz des Crates `affinidi-messaging-test-mediator`
+(Beispiel `standalone`, Feature `tsp`, `did:peer:2`, ACL allow-all,
+Speicher im RAM), über `MEDIATOR_ALLOW_INSECURE=1`:
+`live-probe.mjs` PASS (routed, beide Richtungen, 64 B → 393 B → 1260 B,
+Zustellung 290/269 ms); `live-delivery-probe.mjs` routed PASS, zweimal
+(`accepted → delivered`, nicht late; Einlieferung → geprüfter Ack 600 ms).
+Der äußere Rahmen ist größer als bei storm.ws, weil `C` hier eine lange
+`did:peer:2` ist.
+
+`egress-session` braucht einen Mediator, der lokale Direktzustellung
+erlaubt (Profil RLTP-VTI-3120; Mediator 0.45:
+`LOCAL_DIRECT_DELIVERY_ALLOWED=true`, Code-Default `false`, ebenso im
+Test-Mediator). Mit Default lehnt der Mediator jede Einlieferung über die
+Send-only-Session mit `e.p.direct_delivery.denied` ab; die Bindung loggt
+den Problem-Report und lässt jede weitere Einlieferung in diesem Modus
+als `refused-retriable` scheitern (die vorher abgegangenen stehen schon
+auf `accepted`, Profil Open Issue 4). Live (26.10.): mit Default eine
+Ablehnung, geloggt wie beschrieben; mit `.local_direct_delivery(true,
+false)` acht Läufe, davon vier PASS (`accepted → delivered`, Dokument
+688 B → 1017 B, Ack 1230 B → 1557 B, Einlieferung → geprüfter Ack
+592–686 ms), keine Ablehnung `direct_delivery.denied`. Jeder der vier
+Fehlläufe fiel mit Meldungen des IP-Ratenbegrenzers der Instanz zusammen
+(„100 req/s, burst 50“ gemeldet, greift schon bei wenigen Aufrufen);
+einmal kam dabei `e.p.delivery.refused` auf der Send-only-Session an.
+Der Begrenzer ist vor dem Betrieb des eigenen Mediators zu prüfen.
+Eine öffentliche 1.0-Instanz ist nicht gemessen.
+
+Die Tabelle: gemessen mit der Rev-3-Bindung (`vti-tsp-js` 0.3.0, Profil ≤ 0.27) gegen
+die Instanz oben. Die
+Rahmengrößen sind unverändert (offline nachgerechnet mit 0.4.0:
+dieselben Bytezahlen für 64 B, 48 B, 681 B und 1224 B Nutzlast, innen
+und außen), denn 1.0 ändert gegenüber Rev 3 nur das
+Versionskennzeichen und macht die Sender-VID im vertraulichen Payload
+zur Pflicht, die 0.3.0 schon immer schrieb.
+
 | Probe | `routed` (Default) | `egress-session` | `egress` (Kontrolle) | `connection` (Kontrolle) |
 |---|---|---|---|---|
 | `live-probe.mjs` | PASS (22.10.) | PASS (17.10.) | **FAIL** — `no delivery within 20s` (17.10.) | PASS (17.10.) |
 | `live-delivery-probe.mjs` | PASS (22.10.): `accepted → delivered`, nicht late | PASS (22.10., send-only ohne Live Mode) | **FAIL** — `no delivery in 20s` (17.10.) | PASS (17.10.) |
 | `.sender-hypothesis.mjs` | — | eigener Socket: zugestellt | fremde Sender-VID: nicht zugestellt | Socket-DID: zugestellt |
 
-Rahmengrößen (Rev 3 direkt): 64 B Payload → 393 B, 48 B → 375 B,
+Rahmengrößen (direkt): 64 B Payload → 393 B, 48 B → 375 B,
 681 B versiegeltes Delivery-Dokument → 1008 B, 1224 B Ack → 1551 B.
 
 `egress-session` (22.10., send-only-Session ohne Live Mode, eine Stichprobe): Dokument 681 B → 1008 B, Ack 1224 B → 1551 B; `accepted` nach 556/559 ms (lazy Login der Egress-Identität), Zustellung 1056/810 ms, Einlieferung → geprüfter Ack 1882 ms.
@@ -176,12 +240,12 @@ den Mediator: Dokument hin, Ack zurück).
 1. **Der Mediator leitet einen TSP-Rahmen nur weiter, wenn die
    Sender-VID im Envelope die authentisierte DID des Sockets ist.**
    Ein Rahmen mit fremder Sender-VID verschwindet ohne Fehler, ohne
-   Problem-Report; gilt für Rev 2 und Rev 3 gleich. Deshalb trägt die
-   einschichtige Form `egress` auf dieser Instanz nicht; Profil 0.27
+   Problem-Report; gemessen mit Rev-2- und Rev-3-Rahmen an Mediator 0.44. Deshalb trägt die
+   einschichtige Form `egress` auf dieser Instanz nicht; Profil 0.28
    antwortet mit `routed` (äußerer Sender = Socket-DID) und dem
    Rückfall `egress-session`.
-2. Rev 2 und Rev 3 werden beide zugestellt (Sender = Socket-DID);
-   die Bindung packt und akzeptiert nur Rev 3.
+2. Mediator 0.44 stellte Rev-2- und Rev-3-Rahmen zu (Sender =
+   Socket-DID). Die Bindung packt und akzeptiert nur TSP 1.0.
 3. **`register()` ist die Transportzulassung** — erst sie öffnet
    ATM-Session und Pickup-Socket; `collect()` hat keinen eigenen
    Wire-Verkehr. Ein Empfänger, der nie registriert, empfängt nie.
@@ -198,13 +262,14 @@ den Mediator: Dokument hin, Ack zurück).
 
 ```sh
 cd binding && npm install
+export MEDIATOR_DID=...                             # TSP-1.0-Instanz (Mediator ≥ 0.45), Pflicht
 RLTP_LIVE_MEDIATOR=1 npm run probe                  # braucht Netz
 RLTP_LIVE_MEDIATOR=1 node live-delivery-probe.mjs
 RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=egress-session npm run probe   # Rückfall erzwungen
 RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=egress npm run probe   # Kontrolle, nicht profilkonform
-npm test                                            # offline: Demux, routed, Neubindung, Rückfall
+npm test                                            # offline: TSP 1.0, Demux, routed, Neubindung, Rückfall
 RLTP_WIRE_DEBUG=1 ...                               # Rahmengrößen, Dispatch-Fehler
-MEDIATOR_DID=... npm run probe                      # andere Instanz
+MEDIATOR_ALLOW_INSECURE=1 ...                       # lokale Instanz über http/ws
 ```
 
 Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
@@ -227,9 +292,9 @@ Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
   erzwungener Modus). Der Rückfall aus dem Adapter heraus (72 h) ist
   live nicht gemessen.
 - Der §5a.10-Peer-Wechsel unter unverändertem `C` wird nicht bedient
-  (RLTP-VTI-7120, Profil Open Issue 10); vti-tsp-js 0.3.0 dekodiert
+  (RLTP-VTI-7120, Profil Open Issue 10); vti-tsp-js 0.4.0 dekodiert
   Referrals, komponiert sie nicht.
-- Rev 3 §7.2.2: Endpunkte SOLLEN Anwendungsnachrichten ohne
+- TSP 1.0 (Direct Relationship Forming): Endpunkte SOLLEN Anwendungsnachrichten ohne
   TSP-Beziehung (`XRFI`/`XRFA`) verwerfen; die Bindung schickt ohne
   Beziehungs-Handshake, der Mediator verlangt ihn nicht; eingehende
   Beziehungsrahmen werden geloggt und verworfen, nicht beantwortet.

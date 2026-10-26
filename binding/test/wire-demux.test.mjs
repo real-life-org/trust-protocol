@@ -1,8 +1,8 @@
-// wire-demux.test.mjs — the wire binding of profile 0.25, offline. The
+// wire-demux.test.mjs — the wire binding of profile 0.28, offline. The
 // real wire, the real RltpMediatorSession and the real adapter run over
 // a mediator double: ATM HTTP, DID resolution and the socket are
 // replaced (cfg.transport), the TSP and DIDComm crypto is the real
-// 0.3.0 / 0.12.0 code. Covered: the receive demux (issue #95: a
+// vti-tsp-js 0.4.0 (TSP 1.0) / vti-didcomm-js 0.13.0 code. Covered: the receive demux (issue #95: a
 // relationship frame must not reach the adapter, and must not block the
 // queue; RLTP-VTI-7140), the routed sending form end to end
 // (RLTP-VTI-3110, 3115), its addressing against
@@ -14,11 +14,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { x25519 } from "@noble/curves/ed25519.js";
-import { multibase, jwk, didKey, unpack as didcommUnpack } from "@openvtc/vti-didcomm-js";
+import { multibase, jwk, didKey, unpack as didcommUnpack, pack as didcommPack } from "@openvtc/vti-didcomm-js";
 import {
   pack as tspPack, unpack as tspUnpack, packInvite, packAccept, packWithHops, packRouted,
-  decodeEnvelope, nextHop,
+  decodeEnvelope, nextHop, peekRevision, cesr, sign as tspSign,
 } from "@openvtc/vti-tsp-js";
+import * as tspHpke from "@openvtc/vti-tsp-js/hpke";
+// deep imports, test only: a frame whose ESSR sender differs from its envelope's
+// cannot be built through the public API (by design)
+import { encodeFields, finalizeFrame } from "../node_modules/@openvtc/vti-tsp-js/dist/v1/envelope.js";
+import { encodePayloadFrame } from "../node_modules/@openvtc/vti-tsp-js/dist/v1/payload.js";
 import { MediatorCarrierAdapter, depositAddressing } from "../../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire, deriveWireIdentities, peerKeys } from "../vti-wire.mjs";
 
@@ -49,7 +54,10 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   const opened = [];                     // the DID of every socket opened, in order
   let lastChallengeDid = null;
   // dropRouted: a mediator that accepts routed frames and delivers none
-  const med = { dropRouted: false, closeOnNextText: null };
+  // refuseDirect: a mediator with local direct delivery off (0.45's code default):
+  // a single-layer frame is refused with a problem report on the sender's socket
+  // refuseNextDirect: the next single-layer frame only is refused with that code
+  const med = { dropRouted: false, closeOnNextText: null, refuseDirect: false, refuseNextDirect: null };
   const all = [];                        // every socket ever opened
 
   const resolve = async () => ({
@@ -91,7 +99,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
     if (med.dropRouted) { dropped.push({ why: "routed frames not carried", sender: session }); return; }
     const step = nextHop(got.hops, got.payload);
     if (step.kind !== "forward") { dropped.push({ why: "no next hop", sender: session }); return; }
-    forwarded.push({ session, outer: { sender: got.sender, receiver: got.receiver, route: [...got.hops] }, inner: step.inner, outerBytes: qb2.length });
+    forwarded.push({ session, outer: { sender: got.sender, receiver: got.receiver, route: [...got.hops] }, inner: step.inner, outerBytes: qb2.length, outerFrame: qb2 });
     toClient(step.next, step.inner);
   }
 
@@ -116,6 +124,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       const env = decodeEnvelope(qb2).envelope;
       if (env.sender !== this.did) { dropped.push({ why: "sender is not the socket's DID", sender: env.sender }); return; }
       if (env.receiver === mediatorDid) { void route(this.did, qb2); return; }
+      if (med.refuseDirect) { dropped.push({ why: "direct delivery denied", sender: env.sender }); void problemReport(this, "e.p.direct_delivery.denied"); return; }
+      if (med.refuseNextDirect) { const code = med.refuseNextDirect; med.refuseNextDirect = null; dropped.push({ why: code, sender: env.sender }); void problemReport(this, code); return; }
       direct.push({ session: this.did, sender: env.sender, receiver: env.receiver });
       toClient(env.receiver, qb2);
     }
@@ -124,6 +134,18 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       this.readyState = 3;
       setTimeout(() => this.onclose?.({ code: 1006 }), 0);
     }
+  }
+
+  async function problemReport(ws, code) {
+    const doc = didKey.resolve(ws.did).didDocument;
+    const clientKid = doc.keyAgreement?.[0]?.id ?? doc.keyAgreement?.[0];
+    const packed = await didcommPack({
+      message: { id: crypto.randomUUID(), type: "https://didcomm.org/report-problem/2.0/problem-report", from: mediatorDid, to: [ws.did],
+        body: { code, comment: "Mediator is not accepting direct delivery of TSP messages." } },
+      sender: { kid, privateJwk: jwk.privateJwk("X25519", xSecret, xPublic) },
+      recipient: { kid: clientKid, publicJwk: jwk.publicJwk("X25519", peerKeys(ws.did).encPub) },
+    });
+    if (ws.readyState === 1) ws.onmessage?.({ data: typeof packed === "string" ? packed : JSON.stringify(packed) });
   }
 
   // Store-and-forward: every frame for a client is held until the client
@@ -265,6 +287,196 @@ test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter
   alice.conclude(c, Date.now()); await alice.settle(); await tick();
   const after = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
   assert.equal(after, texts.length + 1, "conclude acks the delivered frame");
+  alice.close(); bob.close();
+});
+
+test("TSP 1.0 (§7): both layers of a deposit declare YTSP-BAA and carry the sender's VID; a frame marked YTSP-AAC (Rev 3) is logged with its version, acked and never delivered, and the queue keeps moving", async () => {
+  const med = mediatorDouble();
+  const logs = [];
+  const { A, B, alice, bob } = await pair(med, logs);
+  const envelope = rand(48);
+  bob.submit(envelope, Date.now()); await bob.settle(); await tick();
+  const c1 = alice.collect(Date.now());
+  assert.equal(c1.items.length, 1);
+  const [f] = med.forwarded;
+  assert.deepEqual(peekRevision(f.outerFrame), { major: 1, minor: 0, recognised: true }, "outer layer");
+  assert.deepEqual(peekRevision(f.inner), { major: 1, minor: 0, recognised: true }, "inner layer");
+  const inner = await tspUnpack(f.inner, { receiverDecryptionKey: A.ids.conn.xSecret, senderSigningKey: B.ids.egress.edPublic });
+  assert.equal(inner.sender, B.ids.egress.did, "the sender VID, bound in the confidential payload (ESSR)");
+  alice.conclude(c1, Date.now()); await alice.settle(); await tick();
+
+  // the same frame, marked Rev 3 (YTSP-AAC): refused before any key is touched
+  const bobKeys = { senderSigningKey: B.ids.egress.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
+  const v1 = await tspPack(rand(40), B.ids.egress.did, A.ids.conn.did, bobKeys);
+  const text = b64u(v1.bytes);
+  const rev3 = new Uint8Array(Buffer.from(text.replace("YTSP-BAA", "YTSP-AAC"), "base64url"));
+  const rev3Text = med.deliver(A.ids.conn.did, rev3); await tick();
+  assert.equal(alice.collect(Date.now()).items.length, 0, "a Rev 3 frame never reaches the adapter");
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /Rev 3 \(YTSP-AAC\)/, logs[0]);
+  assert.match(logs[0], /acked and dropped/);
+  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  assert.ok(acked.includes(await sha256hex(rev3Text)), "the Rev 3 frame is acked, so it leaves the queue");
+
+  // a 1.0 deposit behind it arrives
+  const next = rand(32);
+  bob.submit(next, Date.now()); await bob.settle(); await tick();
+  const c2 = alice.collect(Date.now());
+  assert.equal(c2.items.length, 1);
+  assert.deepEqual(new Uint8Array(c2.items[0].bytes), next);
+  alice.close(); bob.close();
+});
+
+/** A direct frame of the given MINOR of major version 1 (test only: the
+ *  library's version constant is set for the one pack and restored). */
+async function packMinor(minor, body, from, to, keys) {
+  const saved = cesr.TSP_VERSION.minor;
+  cesr.TSP_VERSION.minor = minor;
+  try { return (await tspPack(body, from, to, keys)).bytes; } finally { cesr.TSP_VERSION.minor = saved; }
+}
+
+/** A direct frame whose ESSR sender (in the confidential payload) differs from
+ *  its envelope sender, sealed and signed like any other (test only). */
+async function packEssrMismatch(body, envelopeSender, essrSender, receiver, keys) {
+  const fields = encodeFields(envelopeSender, receiver);
+  const { frame } = encodePayloadFrame(body, "direct", [], essrSender);
+  const sealed = await tspHpke.sealBase(frame, fields, keys.receiverEncryptionKey, cesr.TSP_INFO);
+  const ct = new Uint8Array(sealed.enc.length + sealed.ciphertext.length);
+  ct.set(sealed.enc, 0); ct.set(sealed.ciphertext, sealed.enc.length);
+  const field = [];
+  cesr.encodeVariableData(cesr.TSP_HPKE_BASE_CIPHERTEXT, ct, field);
+  const wireBytes = finalizeFrame(fields, new Uint8Array(field));
+  const out = Array.from(wireBytes);
+  cesr.encodeCount(cesr.TSP_ATTACH_GRP, 23, out);
+  cesr.encodeCount(cesr.TSP_INDEX_SIG_GRP, 22, out);
+  cesr.encodeIndexedEd25519Signature(0, tspSign.sign(wireBytes, keys.senderSigningKey), out);
+  return new Uint8Array(out);
+}
+
+test("RLTP-VTI-7140, major version 1: a 1.1 direct frame is delivered; a frame of major version 2 is logged with its version, acked and never delivered", async () => {
+  const med = mediatorDouble();
+  const logs = [];
+  const { A, B, alice, bob } = await pair(med, logs);
+  const bobKeys = { senderSigningKey: B.ids.egress.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
+  const body = rand(36);
+  const v11 = await packMinor(1, body, B.ids.egress.did, A.ids.conn.did, bobKeys);
+  assert.deepEqual(peekRevision(v11), { major: 1, minor: 1, recognised: false });
+  med.deliver(A.ids.conn.did, v11); await tick();
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1, "a later MINOR of major version 1 is delivered");
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), body);
+  const v1 = await tspPack(rand(36), B.ids.egress.did, A.ids.conn.did, bobKeys);
+  const v2Text = med.deliver(A.ids.conn.did, new Uint8Array(Buffer.from(b64u(v1.bytes).replace("YTSP-BAA", "YTSP-CAA"), "base64url"))); await tick();
+  assert.equal(alice.collect(Date.now()).items.length, 0, "major version 2 never reaches the adapter");
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /MAJOR 2/, logs[0]);
+  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  assert.ok(acked.includes(await sha256hex(v2Text)));
+  alice.close(); bob.close();
+});
+
+test("RLTP-VTI-7140: a frame whose sender VID in the confidential payload differs from its envelope's is logged with its envelope sender, acked and never delivered; the queue keeps moving", async () => {
+  const med = mediatorDouble();
+  const logs = [];
+  const { A, B, alice, bob } = await pair(med, logs);
+  const bobKeys = { senderSigningKey: B.ids.egress.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
+  const bad = await packEssrMismatch(rand(36), B.ids.egress.did, B.ids.conn.did, A.ids.conn.did, bobKeys);
+  const badText = med.deliver(A.ids.conn.did, bad); await tick();
+  assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.equal(logs.length, 1);
+  assert.ok(logs[0].includes(B.ids.egress.did) && /refused/.test(logs[0]), logs[0]);
+  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  assert.ok(acked.includes(await sha256hex(badText)));
+  const next = rand(32);
+  bob.submit(next, Date.now()); await bob.settle(); await tick();
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1);
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), next);
+  alice.close(); bob.close();
+});
+
+test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the egress session with a problem report; the binding logs it, and every later deposit in egress-session fails as a retriable carrier refusal", async () => {
+  const med = mediatorDouble();
+  med.refuseDirect = true;
+  const logs = [];
+  const send = { mode: "egress-session", open: [] };
+  const { alice, bob } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  const first = bob.submit(rand(40), Date.now()); await bob.settle(); await tick(50);
+  assert.equal(bob.status(first).state, "accepted", "the refused deposit had already left");
+  assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.ok(logs.some((l) => /direct_delivery\.denied/.test(l)), JSON.stringify(logs));
+  const { view } = docView(rand(32));
+  const [{ submissionId: id }] = bob.reconcile(view, gate(), Date.now()); await bob.settle();
+  assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "carrier-refused-retriable" });
+  assert.equal(med.dropped.filter((d) => d.why === "direct delivery denied").length, 1, "nothing deposited after the refusal");
+  alice.close(); bob.close();
+});
+
+test("RLTP-VTI-3120: one deposit, then the refusal of direct delivery arrives: the wire signals it (directRefused) and the adapter's send state records it without a further deposit; the next opening deposits nothing", async () => {
+  const med = mediatorDouble();
+  med.refuseDirect = true;
+  const logs = [];
+  const send = { mode: "egress-session", open: [] };
+  const first = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  const id0 = first.bob.submit(rand(40), Date.now()); await first.bob.settle(); await tick(50);
+  assert.equal(first.bob.status(id0).state, "accepted");
+  assert.equal(first.wireB.directRefused(), true);
+  // the host's final persist after the close: the signal outlives it
+  first.alice.close(); first.bob.close();
+  assert.equal(first.wireB.directRefused(), true, "still set after the close");
+  const snap = first.bob.ackState();
+  assert.equal(typeof snap.send.directRefusedAt, "number", JSON.stringify(snap.send));
+  med.refuseDirect = false;
+  const next = await pair(med, [], { A: first.A, B: first.B, restoredB: snap });
+  const { view } = docView(rand(32));
+  const [{ submissionId: id }] = next.bob.reconcile(view, gate(), Date.now()); await next.bob.settle(); await tick(50);
+  assert.deepEqual(next.bob.status(id), { state: "awaiting-transport", reason: "carrier-refused-retriable" });
+  assert.deepEqual(med.direct, []);
+  next.alice.close(); next.bob.close();
+});
+
+test("RLTP-VTI-3120 across openings: the refusal of direct delivery is in the send state; a new wire under an adapter restored from it deposits nothing", async () => {
+  const med = mediatorDouble();
+  med.refuseDirect = true;
+  const logs = [];
+  const send = { mode: "egress-session", open: [] };
+  const first = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  first.bob.submit(rand(40), Date.now()); await first.bob.settle(); await tick(50);
+  const { view } = docView(rand(32));
+  first.bob.reconcile(view, gate(), Date.now()); await first.bob.settle();
+  const snap = first.bob.ackState();
+  assert.equal(typeof snap.send.directRefusedAt, "number", JSON.stringify(snap.send));
+  first.alice.close(); first.bob.close();
+  // the next opening: new wires, the adapter restored from the snapshot; the
+  // mediator would now take direct delivery, the relationship still deposits nothing
+  med.refuseDirect = false;
+  const next = await pair(med, [], { A: first.A, B: first.B, restoredB: snap });
+  const egressOpens = med.opened.filter((d) => d === first.B.ids.egress.did).length;
+  const { view: v2 } = docView(rand(32));
+  const [{ submissionId: id }] = next.bob.reconcile(v2, gate(), Date.now()); await next.bob.settle(); await tick(50);
+  assert.deepEqual(next.bob.status(id), { state: "awaiting-transport", reason: "carrier-refused-retriable" });
+  assert.equal(med.opened.filter((d) => d === first.B.ids.egress.did).length, egressOpens, "no egress session opened");
+  assert.deepEqual(med.direct, [], "nothing deposited");
+  assert.equal(next.alice.collect(Date.now()).items.length, 0);
+  next.alice.close(); next.bob.close();
+});
+
+test("RLTP-VTI-3120, §5: any other problem report on the egress session (e.p.delivery.refused) is logged and consumed; the next deposit in egress-session goes out", async () => {
+  const med = mediatorDouble();
+  med.refuseNextDirect = "e.p.delivery.refused";
+  const logs = [];
+  const send = { mode: "egress-session", open: [] };
+  const { A, B, alice, bob } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  bob.submit(rand(40), Date.now()); await bob.settle(); await tick(50);
+  assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.ok(logs.some((l) => /e\.p\.delivery\.refused/.test(l)), JSON.stringify(logs));
+  const next = rand(32);
+  const id = bob.submit(next, Date.now()); await bob.settle(); await tick(50);
+  assert.equal(bob.status(id).state, "accepted");
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1, "no lock: the next deposit is delivered");
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), next);
+  assert.deepEqual(med.direct.at(-1), { session: B.ids.egress.did, sender: B.ids.egress.did, receiver: A.ids.conn.did });
   alice.close(); bob.close();
 });
 

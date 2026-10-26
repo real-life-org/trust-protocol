@@ -1,7 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.9.1
 
+Takes up the VTI Mediator Adapter Profile 0.28 (RLTP-VTI-3120): a refusal
+of direct delivery is a state of the relationship at the carrier, not of
+one opening.
+
+- **`MediatorWire.directRefused?(): boolean`** (optional). A wire says
+  with it, from the moment the carrier's report arrives, that the carrier
+  refused direct delivery on the egress session; the report comes after
+  the refused deposit was accepted. The adapter reads it at `advance()`,
+  before every hand-over and in `ackState()`. A wire without it can
+  still report the refusal as `WireError('direct-refused')` on a later
+  deposit in mode `egress-session`.
+- **The record.** The adapter records the instant in the send state
+  (`SendState.directRefusedAt`) and from then on hands nothing over and
+  deposits nothing for the relationship: every submission reads
+  `awaiting-transport(carrier-refused-retriable)` and fails at its
+  give-up horizon (`expired-by-adapter-policy`). A successor restored from `ackState()` keeps it. Any
+  other `refused-retriable` records nothing.
+- **Storage.** `SendState` gains the optional `directRefusedAt`; a
+  missing field is "not refused". The restore check stays fail-closed: the
+  field only in `egress-session`, a finite instant not after `restoredAt`.
+  The holder-state codec is untouched (3). Golden fixture
+  `test/adapter-fixtures/ack-state-direct-refused.json`.
 - **License.** The library is licensed under the Apache License 2.0
   instead of CC BY 4.0. Versions up to 0.9.0 keep CC BY 4.0.
 

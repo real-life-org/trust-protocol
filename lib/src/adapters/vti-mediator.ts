@@ -86,7 +86,10 @@
 //     window; representing it as a queryable fourth value was
 //     review-4 B2). has() distinguishes an unknown id.
 //   · A retired instance mutates nothing and refuses everything
-//     except reading its ack state.
+//     except reading its ack state — with one exception: ackState()
+//     still records a refusal of direct delivery the wire received
+//     (directRefused, RLTP-VTI-3120); monotone, it only blocks, and its
+//     instant is the adapter clock, never later.
 
 import { jcs } from '../core.js'
 import type { Json } from '../core.js'
@@ -351,6 +354,10 @@ export type WireErrorKind =
    *  binding authenticated that refusal as the mediator's (RLTP-VTI-3130):
    *  the relationship switches to egress-session at once */
   | 'routed-refused'
+  /** the carrier refused direct delivery of a deposit in egress-session
+   *  (RLTP-VTI-3120): recorded in the send state, from then on the
+   *  relationship deposits nothing on this carrier, across openings */
+  | 'direct-refused'
 
 export class WireError extends Error {
   kind: WireErrorKind
@@ -385,6 +392,13 @@ export interface MediatorWire {
    *  pending). Closed: absent, no collection counts as complete, so an
    *  adapter over a wire without it never switches to egress-session. */
   queueEmpty? (): boolean
+  /** Optional: true from the moment the wire received the carrier's
+   *  refusal of direct delivery on the egress session (RLTP-VTI-3120), a
+   *  report that arrives after the refused deposit was accepted. The
+   *  adapter reads it at advance(), before every hand-over and in
+   *  ackState(), and records it in the send state. Absent: the refusal
+   *  reaches the adapter only as a WireError('direct-refused'). */
+  directRefused? (): boolean
 }
 
 export interface TokenSet {
@@ -451,10 +465,14 @@ export interface AckState {
  *  persisted with the ack state: the mode and the open routed deposits —
  *  this side's documents accepted in routed and not yet answered, each
  *  with its digest and acceptance instant. Acknowledgements are no open
- *  deposits. In egress-session `open` is empty. */
+ *  deposits. In egress-session `open` is empty. `directRefusedAt`, only in
+ *  egress-session: the adapter instant at which the carrier refused direct
+ *  delivery (RLTP-VTI-3120); while it stands nothing is handed over or
+ *  deposited. Absent: not refused. */
 export interface SendState {
   mode: SendMode
   open: Array<{ digest: string, acceptedAt: number }>
+  directRefusedAt?: number
 }
 
 /** how long an open routed deposit stays in the send state at most
@@ -464,10 +482,11 @@ const OPEN_KEEP_MS = DECLARED.routedAckDeadlineMs + DECLARED.duplicateWindowMs
 const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
 
 /** A restored send state, checked fail-closed (§4): exactly `mode` and
- *  `open`, a known mode, each entry exactly a digest and a finite
- *  acceptance instant not after restoredAt, each digest once, nothing open
- *  in egress-session. Any other field — the acknowledgement fields of an
- *  earlier form included — is refused, not ignored. */
+ *  `open` (and `directRefusedAt`, only in egress-session, a finite instant
+ *  not after restoredAt), a known mode, each entry exactly a digest and a
+ *  finite acceptance instant not after restoredAt, each digest once,
+ *  nothing open in egress-session. Any other field — the acknowledgement
+ *  fields of an earlier form included — is refused, not ignored. */
 function restoreSendState (send: unknown, restoredAt: number): SendState {
   const refuse = (why: string): never => { throw new Error(`ack snapshot: send state ${why}`) }
   if (typeof send !== 'object' || send === null) return refuse('is not an object')
@@ -476,7 +495,11 @@ function restoreSendState (send: unknown, restoredAt: number): SendState {
     const own = Object.keys(o)
     return own.length === keys.length && keys.every((k) => own.includes(k))
   }
-  if (!exactly(s, ['mode', 'open'])) refuse('has other fields than mode and open')
+  const refusedField = Object.prototype.hasOwnProperty.call(s, 'directRefusedAt')
+  if (!exactly(s, refusedField ? ['mode', 'open', 'directRefusedAt'] : ['mode', 'open'])) refuse('has other fields than mode, open and directRefusedAt')
+  if (refusedField && (s.mode !== 'egress-session' || !finite(s.directRefusedAt) || s.directRefusedAt > restoredAt)) {
+    refuse('records a refusal of direct delivery outside egress-session, non-finite or after restoredAt')
+  }
   if (typeof s.mode !== 'string' || !SEND_MODES.has(s.mode)) refuse('names an unknown mode')
   if (!Array.isArray(s.open)) refuse('open deposits are not a list')
   const open = (s.open as unknown[]).map((r) => {
@@ -490,7 +513,7 @@ function restoreSendState (send: unknown, restoredAt: number): SendState {
   if (new Set(open.map((o) => o.digest)).size !== open.length) refuse('names an open deposit twice')
   // the switch empties it: an egress-session with open deposits was never produced
   if (s.mode === 'egress-session' && open.length > 0) refuse('is egress-session with open routed deposits')
-  return { mode: s.mode as SendMode, open }
+  return { mode: s.mode as SendMode, open, ...(refusedField ? { directRefusedAt: s.directRefusedAt as number } : {}) }
 }
 
 /** The holder's side of a hand-over (lib 0.6.0): the holder itself.
@@ -569,6 +592,8 @@ export class MediatorCarrierAdapter {
 
   // the relationship's send state (RLTP-VTI-3130)
   #mode: SendMode = 'routed'
+  /** RLTP-VTI-3120: when the carrier refused direct delivery; null: never */
+  #directRefusedAt: number | null = null
   /** open routed deposits (documents), keyed by digest */
   #openDeposits = new Map<string, number>()
   /** this instance has concluded a collection that left nothing pending */
@@ -651,6 +676,7 @@ export class MediatorCarrierAdapter {
       if (restored.send !== undefined) {
         const send = restoreSendState(restored.send, restoredAt)
         this.#mode = send.mode
+        if (send.directRefusedAt !== undefined) this.#directRefusedAt = send.directRefusedAt
         // an open deposit falls routed-ack-deadline plus duplicate-window
         // after its acceptance: cut here, not refused
         for (const o of send.open) if (restoredAt - o.acceptedAt < OPEN_KEEP_MS) this.#openDeposits.set(o.digest, o.acceptedAt)
@@ -896,8 +922,32 @@ export class MediatorCarrierAdapter {
     this.#track(this.#trySend(sub, now).finally(() => { sub.attemptStartedAt = null }))
   }
 
+  /** RLTP-VTI-3120: the carrier refused direct delivery and the
+   *  relationship is in egress-session — nothing is handed over. Reads the
+   *  wire's signal first, so a refusal received after an accepted deposit
+   *  is recorded before anything else is handed over. */
+  #directRefused (): boolean {
+    this.#readDirectRefusal()
+    return this.#directRefusedAt !== null && this.#mode === 'egress-session'
+  }
+
+  /** The wire's signal of a refusal of direct delivery (MediatorWire.
+   *  directRefused), recorded once, in egress-session only, at the
+   *  adapter clock. */
+  #readDirectRefusal (): void {
+    if (this.#directRefusedAt !== null || this.#mode !== 'egress-session' || !Number.isFinite(this.#clock)) return
+    if (this.#wire.directRefused?.() === true) this.#directRefusedAt = this.#clock
+  }
+
   async #trySend (sub: Submission, now: number): Promise<void> {
     if (sub.st !== null && sub.st.state !== 'awaiting-transport') return
+    if (this.#directRefused()) {
+      // no hand-over, no deposit: the submission stays in the holder's
+      // custody and fails at its horizon like any retriable refusal (§5)
+      sub.lastKind = 'refused-retriable'
+      sub.st = { state: 'awaiting-transport', reason: 'carrier-refused-retriable' }
+      return
+    }
     let next: SubmissionState
     let routedRefused = false
     try {
@@ -920,8 +970,10 @@ export class MediatorCarrierAdapter {
         // be committing when the wire answers
         let started: Promise<unknown> | null = null
         let declined = false
+        let refusedNow = false
         const entry = sub.entry!
         const start = (): boolean => {
+          if (this.#directRefused()) { refusedNow = declined = true; return false }
           if (this.#closed || this.#subs.get(sub.id) !== sub || sub.gate!.closed === true ||
               (sub.st !== null && sub.st.state !== 'awaiting-transport') || this.#clock >= entry.notAfter ||
               this.#clock - sub.submittedAt >= DECLARED.giveUpHorizonMs) { declined = true; return false }
@@ -931,6 +983,13 @@ export class MediatorCarrierAdapter {
         let ok: boolean | null
         try { ok = await sub.gate.handOver(entry, this.#clock, start) } catch { ok = null }
         if (started === null) {
+          // the refusal of direct delivery was recorded while this hand-over
+          // was under way: reported as every later submission is (RLTP-VTI-3120)
+          if (refusedNow && this.#subs.get(sub.id) === sub && (sub.st === null || sub.st.state === 'awaiting-transport')) {
+            sub.lastKind = 'refused-retriable'
+            sub.st = { state: 'awaiting-transport', reason: 'carrier-refused-retriable' }
+            return
+          }
           // the holder said no: withdrawn; the adapter declined or the
           // holder was unreachable: not this attempt
           if (ok === false && !declined && this.#subs.get(sub.id) === sub) this.#subs.delete(sub.id)
@@ -948,6 +1007,12 @@ export class MediatorCarrierAdapter {
       // a validated refusal of the routed form: the relationship switches
       // below, the submission stays in custody as a retriable refusal
       if (kind === 'routed-refused') { routedRefused = sub.sentMode === 'routed'; kind = 'refused-retriable' }
+      // a refusal of direct delivery (RLTP-VTI-3120): recorded in the send
+      // state, so it survives openings; the submission stays a retriable refusal
+      if (kind === 'direct-refused') {
+        if (sub.sentMode === 'egress-session' && this.#directRefusedAt === null) this.#directRefusedAt = this.#clock
+        kind = 'refused-retriable'
+      }
       sub.lastKind = kind
       next = kind === 'oversize'
         ? { state: 'failed', reason: 'oversize' }
@@ -1187,12 +1252,14 @@ export class MediatorCarrierAdapter {
   }
 
   ackState (): AckState {
+    this.#readDirectRefusal()
     return {
       concluded: [...this.#concluded].map(([queueId, concludedAt]) => ({ queueId, concludedAt })),
       pending: [...this.#pendingAcks],
       send: {
         mode: this.#mode,
         open: [...this.#openDeposits].map(([digest, acceptedAt]) => ({ digest, acceptedAt })),
+        ...(this.#directRefusedAt === null ? {} : { directRefusedAt: this.#directRefusedAt }),
       },
     }
   }
@@ -1244,7 +1311,8 @@ export class MediatorCarrierAdapter {
         // the ack flew fall now — intent, entry and absorption
         // together (R15-B1). Never on a retired instance: after
         // close, ackState() is the host's final-persist surface and
-        // a late-returning wire mutates nothing (R17-B2).
+        // a late-returning wire mutates nothing (R17-B2) — except the
+        // refusal of direct delivery ackState() reads (RLTP-VTI-3120).
         if (!this.#closed) {
           for (const id of live) {
             const at = this.#concluded.get(id)
@@ -1264,6 +1332,7 @@ export class MediatorCarrierAdapter {
   advance (rawNow: number): void {
     this.#open()
     const now = this.#now(rawNow)
+    this.#readDirectRefusal()
     // open routed deposits fall routed-ack-deadline plus duplicate-window
     // after their acceptance, also where no switch check can run (no
     // statement that nothing is pending, RLTP-VTI-7150)

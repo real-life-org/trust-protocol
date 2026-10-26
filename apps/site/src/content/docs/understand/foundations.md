@@ -283,7 +283,7 @@ every device. The contract condenses this into five doors and
 maps p2panda, Keyhive, SECSYNC, NextGraph and Automerge against them.
 
 **Today.** One delivery adapter is specified, for the Verifiable
-Trust Infrastructure mediator, targeting TSP revision 3. Each side of
+Trust Infrastructure mediator, over TSP 1.0. Each side of
 a relationship sends under one identity and collects under another.
 A document is signed end to end under the sending identity and
 travels to the mediator inside a routed layer under the collecting
