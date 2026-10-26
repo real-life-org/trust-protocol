@@ -1,12 +1,18 @@
 // .sender-hypothesis.mjs — seam measurement: which TSP envelope sender
 // does the mediator relay? TSP 1.0 direct frames (vti-tsp-js 0.4.0) over
-// the ATM-authenticated WS socket. MEDIATOR_DID overrides the instance.
+// the ATM-authenticated WS socket. MEDIATOR_DID names the instance (required).
 import { WebSocket } from "ws";
 import { authenticateToMediator, MediatorSession, multibase, didKey } from "@openvtc/vti-didcomm-js";
 import { pack, unpack } from "@openvtc/vti-tsp-js";
 import { ed25519, x25519 } from "@noble/curves/ed25519.js";
-const MEDIATOR_DID = process.env.MEDIATOR_DID
-  ?? "did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator";
+// a TSP 1.0 mediator (>= 0.45), required; cases 2 and 3 are direct deliveries
+// and need local direct delivery allowed (profile RLTP-VTI-3120)
+const MEDIATOR_DID = process.env.MEDIATOR_DID;
+if (!MEDIATOR_DID) {
+  console.error(".sender-hypothesis: set MEDIATOR_DID to a TSP 1.0 mediator (>= 0.45)");
+  process.exit(2);
+}
+const netPolicy = process.env.MEDIATOR_ALLOW_INSECURE ? { allowInsecure: true, allowPrivate: true } : undefined;
 const mint = () => {
   const edSecret = ed25519.utils.randomSecretKey ? ed25519.utils.randomSecretKey() : ed25519.utils.randomPrivateKey();
   const edPublic = ed25519.getPublicKey(edSecret);
@@ -25,11 +31,11 @@ const keysOf = (did) => {
   return { signPub: multibase.decodeMultikey(sg.publicKeyMultibase).key, encPub: multibase.decodeMultikey(ag.publicKeyMultibase).key };
 };
 async function attach(id) {
-  const auth = await authenticateToMediator({ mediatorDid: MEDIATOR_DID, clientDid: id.did, clientX25519Private: id.xSecret, clientX25519Public: id.xPublic });
+  const auth = await authenticateToMediator({ mediatorDid: MEDIATOR_DID, clientDid: id.did, clientX25519Private: id.xSecret, clientX25519Public: id.xPublic, netPolicy });
   const inbox = [];
   const s = new MediatorSession({ mediator: auth.mediator, mediatorJwt: auth.accessToken,
     client: { did: id.did, kid: id.kid, privateKey: id.xSecret, publicKey: id.xPublic },
-    WebSocketImpl: WebSocket, onTspFrame: (b) => inbox.push(b), onError: () => {} });
+    WebSocketImpl: WebSocket, netPolicy, onTspFrame: (b) => inbox.push(b), onError: () => {} });
   await s.connect();
   return { s, inbox };
 }

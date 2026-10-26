@@ -35,7 +35,7 @@
 import { WebSocket } from "ws";
 import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import {
-  authenticateToMediator, MediatorSession, multibase, didKey,
+  authenticateToMediator, MediatorSession, multibase, didKey, identityOfKid,
 } from "@openvtc/vti-didcomm-js";
 import { pack as tspPack, unpack as tspUnpack, packRouted, decodeEnvelope } from "@openvtc/vti-tsp-js";
 import { depositAddressing, WireError } from "../lib/dist/adapters/vti-mediator.js";
@@ -96,14 +96,22 @@ export function peerKeys(did) {
  *  here the frame is only handed off — `ackTsp` fires when the
  *  adapter concludes. The adapter's three registers own absorption,
  *  so the session-level dedup is dropped too. */
+const PROBLEM_REPORT = "https://didcomm.org/report-problem/2.0/problem-report";
+
 /** The egress identity's send-only session (RLTP-VTI-3120): the socket
  *  opens without the live-delivery-change the stock `connect()` sends (no
- *  Live Mode), and every inbound frame is dropped unhandled — nothing is
- *  collected, nothing acknowledged (a DIDComm frame would otherwise be
- *  acked by the stock session). */
+ *  Live Mode); it collects nothing and acknowledges nothing. The one frame
+ *  it reads is the mediator's own problem report — how a mediator refuses
+ *  a deposit on this session (0.45 with local direct delivery off:
+ *  `e.p.direct_delivery.denied`); it goes to `onRefusal`. */
 class SendOnlySession extends MediatorSession {
   async connect() { await this._openSocket(); }
-  async _onFrame() { /* send-only: collects and acknowledges nothing */ }
+  async _dispatchTspFrame() { /* send-only: collects nothing */ }
+  async _dispatchFrame(result) {
+    const m = result.message;
+    if (result.senderDid === identityOfKid(this.mediator.did) && m?.type === PROBLEM_REPORT) this.onRefusal?.(m.body ?? {});
+  }
+  _ackReceived() { return Promise.resolve(); /* send-only: acknowledges nothing */ }
 }
 
 class RltpMediatorSession extends MediatorSession {
@@ -190,6 +198,11 @@ export async function createVtiWire(cfg) {
   const expectedPeerKeys = depositMode === "connection" ? peerConn : sentPeers;
   let egressSession = null;
   let egressAuthing = null;
+  // a refusal the mediator sent on the egress session (a problem report): it
+  // cannot be tied to one deposit (profile Open Issue 4), so every later
+  // deposit in mode egress-session fails as unreachable for the life of
+  // this wire — the carrier does not carry the fallback form
+  let egressRefusal = null;
   // queueEmpty(): frames the session has received but not yet handed to
   // the adapter, and when the last TSP frame arrived
   let dispatching = 0;
@@ -353,8 +366,12 @@ export async function createVtiWire(cfg) {
         client: { did: egress.did, kid: egress.kid, privateKey: egress.xSecret, publicKey: egress.xPublic },
         WebSocketImpl,
         netPolicy,
-        onError: () => {},
+        onError: (e) => log(`[wire] egress session: ${e?.message ?? e}`),
       });
+      s.onRefusal = (body) => {
+        egressRefusal = body.code ?? "unknown";
+        log(`[wire] egress session: the mediator refused a deposit (${egressRefusal}): ${body.comment ?? ""}`);
+      };
       await s.connect();
       egressSession = s;
       return s;
@@ -454,6 +471,9 @@ export async function createVtiWire(cfg) {
       // The adapter authenticates the connection DID before every deposit,
       // in this mode too (its token is the deposit's first argument); the
       // egress identity's own authentication happens here
+      if (mode === "egress-session" && egressRefusal) {
+        throw new WireError("unreachable", `the mediator refuses deposits on the egress session (${egressRefusal})`);
+      }
       const s = mode === "egress-session" ? await ensureEgressSession() : openSession();
       if (!s.isOpen) throw new WireError("unreachable", "the egress identity's socket is closed");
       sent.push({ mode, payload: bytes.length, inner: inner.bytes.length, outer: null });

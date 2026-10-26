@@ -35,8 +35,10 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
       geprüft wird (Socket zu oder Token abgelaufen → neu
       authentisieren und verbinden). Send-only heißt hier
       (`SendOnlySession`): der Socket öffnet ohne
-      `live-delivery-change` (kein Live Mode), eingehende Rahmen werden
-      unbehandelt verworfen, nichts wird geackt. Auch in diesem Modus
+      `live-delivery-change` (kein Live Mode), nichts wird abgeholt,
+      nichts geackt; gelesen wird nur ein Problem-Report des Mediators
+      (Ablehnung einer Einlieferung): geloggt, danach scheitert jede
+      Einlieferung in diesem Modus als `unreachable`. Auch in diesem Modus
       authentisiert der Adapter vor jedem Deposit zuerst die
       Connection-DID (deren Token ist das erste Argument von
       `deposit`); die Egress-Identität authentisiert die Bindung
@@ -111,7 +113,12 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
   Schlüssel, Rahmen an den alten verschwinden still. Geprüft: beide
   Schichten einer Einlieferung tragen `YTSP-BAA`, die innere die
   Sender-VID; ein Rev-3-Rahmen (`YTSP-AAC`) wird mit seiner Version
-  geloggt, geackt und nie zugestellt; XRFI,
+  geloggt, geackt und nie zugestellt; ein Rahmen der Hauptversion 1
+  mit Minor 1 wird zugestellt, einer der Hauptversion 2 abgewiesen; ein
+  Rahmen, dessen Sender-VID im Payload von der im Umschlag abweicht,
+  geloggt, geackt, nie zugestellt; ein Mediator ohne Direktzustellung
+  (Problem-Report auf der Send-only-Session) → geloggt, nächste
+  `egress-session`-Einlieferung `unreachable`; XRFI,
   XRFA, `nested`, `routed` und leeres `direct` erreichen den Adapter
   nicht und werden geackt; routed Ende-zu-Ende bytegleich (außen
   Connection-DID → `C`, Route = Connection-DID des Partners, innen
@@ -144,7 +151,9 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
   → Zustellung und → Ack (ms) und die Zahl offener routed-Einlieferungen
   je Seite aus (`submit()` ohne Digest öffnet keine). Keine Secrets.
 - `.sender-hypothesis.mjs` — Naht-Messung: welchen TSP-Sender leitet
-  der Mediator weiter? Drei Fälle (Sender = Socket-DID; fremde
+  der Mediator weiter? (`MEDIATOR_DID` Pflicht; die Ergebnisse in der
+  Tabelle stammen von Mediator 0.44 mit Rev 3; unter 0.45 hängen Fall 2
+  und 3 an der lokalen Direktzustellung) Drei Fälle (Sender = Socket-DID; fremde
   Sender-VID auf dem Socket; Sender-VID auf eigenem Socket).
 
 ## Instanz
@@ -174,10 +183,25 @@ Speicher im RAM), über `MEDIATOR_ALLOW_INSECURE=1`:
 Zustellung 290/269 ms); `live-delivery-probe.mjs` routed PASS, zweimal
 (`accepted → delivered`, nicht late; Einlieferung → geprüfter Ack 600 ms).
 Der äußere Rahmen ist größer als bei storm.ws, weil `C` hier eine lange
-`did:peer:2` ist. `egress-session` lieferte nicht zu (eine Stichprobe;
-im selben Lauf meldete der Ratenbegrenzer der Instanz je IP eine
-Überschreitung, ungeklärt, ob das die Ursache ist). Eine öffentliche
-1.0-Instanz ist nicht gemessen.
+`did:peer:2` ist.
+
+`egress-session` braucht einen Mediator, der lokale Direktzustellung
+erlaubt (Profil RLTP-VTI-3120; Mediator 0.45:
+`LOCAL_DIRECT_DELIVERY_ALLOWED=true`, Code-Default `false`, ebenso im
+Test-Mediator). Mit Default lehnt der Mediator jede Einlieferung über die
+Send-only-Session mit `e.p.direct_delivery.denied` ab; die Bindung loggt
+den Problem-Report und lässt jede weitere Einlieferung in diesem Modus
+als `unreachable` scheitern (die abgelehnte selbst stand schon auf
+`accepted`, Profil Open Issue 4). Live (26.10.): mit Default eine
+Ablehnung, geloggt wie beschrieben; mit `.local_direct_delivery(true,
+false)` acht Läufe, davon vier PASS (`accepted → delivered`, Dokument
+688 B → 1017 B, Ack 1230 B → 1557 B, Einlieferung → geprüfter Ack
+592–686 ms), keine Ablehnung `direct_delivery.denied`. Jeder der vier
+Fehlläufe fiel mit Meldungen des IP-Ratenbegrenzers der Instanz zusammen
+(„100 req/s, burst 50“ gemeldet, greift schon bei wenigen Aufrufen);
+einmal kam dabei `e.p.delivery.refused` auf der Send-only-Session an.
+Der Begrenzer ist vor dem Betrieb des eigenen Mediators zu prüfen.
+Eine öffentliche 1.0-Instanz ist nicht gemessen.
 
 Die Tabelle: gemessen mit der Rev-3-Bindung (`vti-tsp-js` 0.3.0, Profil ≤ 0.27) gegen
 die Instanz oben. Die
