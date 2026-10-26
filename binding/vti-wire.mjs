@@ -26,7 +26,7 @@
 //     and keeps the payload-digest → mediator-queue-id translation for
 //     acks; control (XRFI/XRFA/XRFD), padding and any other message
 //     type is logged, acked and never delivered; so is a frame of
-//     any other TSP version (Rev 3 included), which the library refuses
+//     any other major version (Rev 3 included), which the library refuses
 //     from its version marker before any key is touched
 //   · delete-to-ack stays the ADAPTER's conclude: the stock 0.13.0
 //     session acks right after the consumer returns — we override that
@@ -97,6 +97,8 @@ export function peerKeys(did) {
  *  adapter concludes. The adapter's three registers own absorption,
  *  so the session-level dedup is dropped too. */
 const PROBLEM_REPORT = "https://didcomm.org/report-problem/2.0/problem-report";
+/** Mediator 0.45 with local direct delivery off (RLTP-VTI-3120). */
+const DIRECT_DELIVERY_DENIED = "e.p.direct_delivery.denied";
 
 /** The egress identity's send-only session (RLTP-VTI-3120): the socket
  *  opens without the live-delivery-change the stock `connect()` sends (no
@@ -198,10 +200,12 @@ export async function createVtiWire(cfg) {
   const expectedPeerKeys = depositMode === "connection" ? peerConn : sentPeers;
   let egressSession = null;
   let egressAuthing = null;
-  // a refusal the mediator sent on the egress session (a problem report): it
-  // cannot be tied to one deposit (profile Open Issue 4), so every later
-  // deposit in mode egress-session fails as unreachable for the life of
-  // this wire — the carrier does not carry the fallback form
+  // a refusal of direct delivery the mediator sent on the egress session
+  // (problem report e.p.direct_delivery.denied): the carrier does not carry
+  // the fallback form, and the switch is one-way (RLTP-VTI-3130), so every
+  // later deposit in mode egress-session fails as a retriable carrier
+  // refusal for the life of this wire (RLTP-VTI-3120, Open Issue 4). Any
+  // other problem report is logged and consumed (§5)
   let egressRefusal = null;
   // queueEmpty(): frames the session has received but not yet handed to
   // the adapter, and when the last TSP frame arrived
@@ -233,7 +237,7 @@ export async function createVtiWire(cfg) {
             if (process.env.RLTP_WIRE_DEBUG) console.error("[wire] adapter refused a frame:", e.cause?.message ?? e.cause);
             return;
           }
-          // a frame that cannot be opened (another TSP version included),
+          // a frame that cannot be opened (another major version included),
           // or one from another sender or for another relationship, is
           // refused for good: logged (type and sender VID from the cleartext
           // envelope where it reads, no secrets) and acked, so it does not
@@ -297,8 +301,9 @@ export async function createVtiWire(cfg) {
     // to our connection key; the sender is proven by the outer
     // signature under the peer's egress key and the sender VID the
     // confidential payload carries (ESSR; no sender key in the KEM).
-    // The library opens 1.0 only: any other version, Rev 3 included,
-    // and a NULL sender VID are refused here, before the consumer
+    // The library opens major version 1 only: any other major version,
+    // Rev 3 included, a sender VID in the payload other than the
+    // envelope's, and a NULL sender VID are refused here, before the consumer
     const got = await tspUnpack(qb2, {
       receiverDecryptionKey: conn.xSecret,
       senderSigningKey: expectedPeerKeys.signPub,
@@ -369,8 +374,9 @@ export async function createVtiWire(cfg) {
         onError: (e) => log(`[wire] egress session: ${e?.message ?? e}`),
       });
       s.onRefusal = (body) => {
-        egressRefusal = body.code ?? "unknown";
-        log(`[wire] egress session: the mediator refused a deposit (${egressRefusal}): ${body.comment ?? ""}`);
+        const code = body.code ?? "unknown";
+        if (code === DIRECT_DELIVERY_DENIED) egressRefusal = code;
+        log(`[wire] egress session: the mediator refused a deposit (${code}): ${body.comment ?? ""}${egressRefusal ? "; egress-session deposits refused from now on" : " (consumed)"}`);
       };
       await s.connect();
       egressSession = s;
@@ -472,7 +478,7 @@ export async function createVtiWire(cfg) {
       // in this mode too (its token is the deposit's first argument); the
       // egress identity's own authentication happens here
       if (mode === "egress-session" && egressRefusal) {
-        throw new WireError("unreachable", `the mediator refuses deposits on the egress session (${egressRefusal})`);
+        throw new WireError("refused-retriable", `the mediator refuses direct delivery on the egress session (${egressRefusal})`);
       }
       const s = mode === "egress-session" ? await ensureEgressSession() : openSession();
       if (!s.isOpen) throw new WireError("unreachable", "the egress identity's socket is closed");

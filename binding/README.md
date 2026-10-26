@@ -37,8 +37,10 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
       (`SendOnlySession`): der Socket öffnet ohne
       `live-delivery-change` (kein Live Mode), nichts wird abgeholt,
       nichts geackt; gelesen wird nur ein Problem-Report des Mediators
-      (Ablehnung einer Einlieferung): geloggt, danach scheitert jede
-      Einlieferung in diesem Modus als `unreachable`. Auch in diesem Modus
+      (Ablehnung einer Einlieferung): geloggt; nur nach
+      `e.p.direct_delivery.denied` scheitert jede weitere Einlieferung in
+      diesem Modus als `refused-retriable` (bis zum Ende der Wire), jeder
+      andere Problem-Report wird nur geloggt. Auch in diesem Modus
       authentisiert der Adapter vor jedem Deposit zuerst die
       Connection-DID (deren Token ist das erste Argument von
       `deposit`); die Egress-Identität authentisiert die Bindung
@@ -117,8 +119,10 @@ trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
   mit Minor 1 wird zugestellt, einer der Hauptversion 2 abgewiesen; ein
   Rahmen, dessen Sender-VID im Payload von der im Umschlag abweicht,
   geloggt, geackt, nie zugestellt; ein Mediator ohne Direktzustellung
-  (Problem-Report auf der Send-only-Session) → geloggt, nächste
-  `egress-session`-Einlieferung `unreachable`; XRFI,
+  (`e.p.direct_delivery.denied` auf der Send-only-Session) → geloggt,
+  nächste `egress-session`-Einlieferung `carrier-refused-retriable`;
+  ein anderer Problem-Report (`e.p.delivery.refused`) → geloggt, die
+  nächste Einlieferung geht raus; XRFI,
   XRFA, `nested`, `routed` und leeres `direct` erreichen den Adapter
   nicht und werden geackt; routed Ende-zu-Ende bytegleich (außen
   Connection-DID → `C`, Route = Connection-DID des Partners, innen
@@ -191,8 +195,8 @@ erlaubt (Profil RLTP-VTI-3120; Mediator 0.45:
 Test-Mediator). Mit Default lehnt der Mediator jede Einlieferung über die
 Send-only-Session mit `e.p.direct_delivery.denied` ab; die Bindung loggt
 den Problem-Report und lässt jede weitere Einlieferung in diesem Modus
-als `unreachable` scheitern (die abgelehnte selbst stand schon auf
-`accepted`, Profil Open Issue 4). Live (26.10.): mit Default eine
+als `refused-retriable` scheitern (die vorher abgegangenen stehen schon
+auf `accepted`, Profil Open Issue 4). Live (26.10.): mit Default eine
 Ablehnung, geloggt wie beschrieben; mit `.local_direct_delivery(true,
 false)` acht Läufe, davon vier PASS (`accepted → delivered`, Dokument
 688 B → 1017 B, Ack 1230 B → 1557 B, Einlieferung → geprüfter Ack

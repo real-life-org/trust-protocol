@@ -56,7 +56,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   // dropRouted: a mediator that accepts routed frames and delivers none
   // refuseDirect: a mediator with local direct delivery off (0.45's code default):
   // a single-layer frame is refused with a problem report on the sender's socket
-  const med = { dropRouted: false, closeOnNextText: null, refuseDirect: false };
+  // refuseNextDirect: the next single-layer frame only is refused with that code
+  const med = { dropRouted: false, closeOnNextText: null, refuseDirect: false, refuseNextDirect: null };
   const all = [];                        // every socket ever opened
 
   const resolve = async () => ({
@@ -124,6 +125,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       if (env.sender !== this.did) { dropped.push({ why: "sender is not the socket's DID", sender: env.sender }); return; }
       if (env.receiver === mediatorDid) { void route(this.did, qb2); return; }
       if (med.refuseDirect) { dropped.push({ why: "direct delivery denied", sender: env.sender }); void problemReport(this, "e.p.direct_delivery.denied"); return; }
+      if (med.refuseNextDirect) { const code = med.refuseNextDirect; med.refuseNextDirect = null; dropped.push({ why: code, sender: env.sender }); void problemReport(this, code); return; }
       direct.push({ session: this.did, sender: env.sender, receiver: env.receiver });
       toClient(env.receiver, qb2);
     }
@@ -393,7 +395,7 @@ test("RLTP-VTI-7140: a frame whose sender VID in the confidential payload differ
   alice.close(); bob.close();
 });
 
-test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the egress session with a problem report; the binding logs it, and every later deposit in egress-session fails as unreachable", async () => {
+test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the egress session with a problem report; the binding logs it, and every later deposit in egress-session fails as a retriable carrier refusal", async () => {
   const med = mediatorDouble();
   med.refuseDirect = true;
   const logs = [];
@@ -405,8 +407,27 @@ test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the egress 
   assert.ok(logs.some((l) => /direct_delivery\.denied/.test(l)), JSON.stringify(logs));
   const { view } = docView(rand(32));
   const [{ submissionId: id }] = bob.reconcile(view, gate(), Date.now()); await bob.settle();
-  assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "transport-unreachable" });
+  assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "carrier-refused-retriable" });
   assert.equal(med.dropped.filter((d) => d.why === "direct delivery denied").length, 1, "nothing deposited after the refusal");
+  alice.close(); bob.close();
+});
+
+test("RLTP-VTI-3120, §5: any other problem report on the egress session (e.p.delivery.refused) is logged and consumed; the next deposit in egress-session goes out", async () => {
+  const med = mediatorDouble();
+  med.refuseNextDirect = "e.p.delivery.refused";
+  const logs = [];
+  const send = { mode: "egress-session", open: [] };
+  const { A, B, alice, bob } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  bob.submit(rand(40), Date.now()); await bob.settle(); await tick(50);
+  assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.ok(logs.some((l) => /e\.p\.delivery\.refused/.test(l)), JSON.stringify(logs));
+  const next = rand(32);
+  const id = bob.submit(next, Date.now()); await bob.settle(); await tick(50);
+  assert.equal(bob.status(id).state, "accepted");
+  const c = alice.collect(Date.now());
+  assert.equal(c.items.length, 1, "no lock: the next deposit is delivered");
+  assert.deepEqual(new Uint8Array(c.items[0].bytes), next);
+  assert.deepEqual(med.direct.at(-1), { session: B.ids.egress.did, sender: B.ids.egress.did, receiver: A.ids.conn.did });
   alice.close(); bob.close();
 });
 
