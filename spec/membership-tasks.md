@@ -16,7 +16,7 @@
   `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`.
   Welcome plaintext `rltp-welcome/0.1`.
 - **Position:** a task-type registration on top of the **RLTP
-  Delivery Contract 0.84** (normative reference; its §4.4 registry
+  Delivery Contract 0.85** (normative reference; its §4.4 registry
   carries these types), carrying operations of the **RLTP Access
   Layer 0.58** (normative reference; wire forms `rltp-access/0.25`
   and `rltp-access-material/0.25`): the operation envelope of its
@@ -27,9 +27,9 @@
   (its 9.4), and the removal notice (its 10.2). This document owns
   the travel: which documents exist, what they bind, how they are
   checked on receipt, and what a receiver does with them.
-- **Companions:** RLTP Identity 0.54 (securing profile, 2.3); RLTP
+- **Companions:** RLTP Identity 0.55 (securing profile, 2.3); RLTP
   Encounter 0.32; RLTP Access Layer 0.58; RLTP Delivery Contract
-  0.84; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
+  0.85; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
   6.4); RLTP Message Tasks 0.2 (the block and the register of
   declined invitations, its Section 6).
 - **Supersedes:** version 0.21.0 (archived as

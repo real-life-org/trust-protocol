@@ -16,8 +16,8 @@
   forms `…/1` (3.6), the vouch (`vouch@2`, 5.3) as a W3C VC in
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
-- **Companions:** RLTP Identity 0.54 (securing profile, 2.3);
-  RLTP Encounter 0.32; RLTP Delivery Contract 0.84 (normative
+- **Companions:** RLTP Identity 0.55 (securing profile, 2.3);
+  RLTP Encounter 0.32; RLTP Delivery Contract 0.85 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
   Membership Tasks 0.21 (the task types that transport this

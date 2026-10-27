@@ -3,20 +3,20 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.84.0-draft (eighty-fourth casting — the task types
-  take the framework's Type URI form and declare what framework 0.6
-  asks of a specification)
+- **Version:** 0.85.0-draft (eighty-fifth casting — a sealed envelope
+  travels as a Trust Task document of its own in a carrier's Trust
+  Task binding, and `accepted` carries the feature `held`)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-25
+- **Date:** 2026-10-27
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/spec/`
 - **Target Trust Tasks framework version:** 0.6.0
-- **Conformance profile:** `rltp-delivery@0.84` (draft)
-- **Companions:** RLTP Identity 0.54; RLTP Encounter 0.32; RLTP Trust
+- **Conformance profile:** `rltp-delivery@0.85` (draft)
+- **Companions:** RLTP Identity 0.55; RLTP Encounter 0.32; RLTP Trust
   Layer 0.31; RLTP Access 0.58; RLTP Membership Tasks 0.21; RLTP
   Replication 0.26; RLTP Message Tasks 0.2.
-- **Supersedes:** version 0.83 (archived as
-  `archive/delivery-contract-0.83.md`) and versions 0.82–0.1,
+- **Supersedes:** version 0.84 (archived as
+  `archive/delivery-contract-0.84.md`) and versions 0.83–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
   (wot-spec v0.1, German) in its delivery aspects.
@@ -32,9 +32,11 @@ itself, and the sender **never** what the receiver decided.
 
 Messages are **Trust Task documents** of private, versioned types under
 `https://real-life.org/trust-tasks/spec/` (ToIP DTGWG Trust Tasks
-framework 0.6.0, §6.5 private specifications). This casting registers four types
+framework 0.6.0, §6.5 private specifications). This casting registers five types
 of its own — `encounter-bundle`, `delivery-ack`,
-`encounter-credential-delivery`, `registry-declaration` — the RLTP
+`encounter-credential-delivery`, `registry-declaration`, and
+`sealed-envelope`, the form in which a carrier that carries Trust Task
+documents carries the sealed envelope of every other — the RLTP
 document profile all types
 share, the sealed envelope they travel in, and the **task registry**
 (4.4) through which companion layers register theirs: the membership
@@ -69,14 +71,21 @@ machinery (5, 6) have been stable across many castings; the carrier
 sections (4.4's role, 5a) are the youngest part and the most likely
 to change.
 
-This casting aligns the registered types with the Trust Tasks
-framework, document version 0.6: every Type URI carries the `/spec/`
-segment from which a consumer extracts the slug (TT §6.1), the
-target framework is 0.6.0, and each type declares its parties with
-their identifier scope, its side-effect, exposure and retention
-classes, and its document size bound (3, 4.5). Delivery promises,
-dispositions and the sealed envelope are unchanged; the type names
-change, so every document's bytes change with them. Rules new in a casting
+This casting carries the sealed envelope into the Trust Task bindings
+of the framework's registry. A carrier that carries Trust Task
+documents — the registry's TSP binding is the first — carries every
+sealed envelope as the payload of a document of the new type
+`sealed-envelope/0.1` (4.6, RLTP-DEL-5030), built so that every
+repeated submission of one envelope is byte-identical (RLTP-DEL-5040).
+A consumer outside RLTP reads that document's type and parties
+without opening the seal, and refuses or answers it by the
+framework's rules. The sender's `accepted` carries one closed feature,
+`held`: the counterpart's answer that the document arrived and waits
+for something it names, under which the document is no longer given
+up at a horizon (6.1, RLTP-DEL-6140). One wire identity per
+relationship and carrier may deposit and collect (5a.10). The
+sealed envelope itself, the document profile of every other type, the
+dispositions and the trias are unchanged. Rules new in a casting
 carry identifiers (`RLTP-DEL-nnnn`); the rest of the text keeps its
 prose form until a form casting gives every rule one. **The next
 casting is expected to change the document substantially**,
@@ -93,9 +102,11 @@ stages of 6.2 with the completed-effect cache and the disposition
 carrier port of 4.4 and 5a, `message/0.1` with its age bound and
 sender lifetime, `failed(rate-limited)`, `failed(task-expired)`, and
 the block for `message/0.1` and `membership-invite/0.2`, and the
-custody and retry rules of this casting (RLTP-DEL-6120 to
-RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335) on its holder and in its
-VTI mediator adapter; transports beyond that adapter are not in it. Review
+custody and retry rules (RLTP-DEL-6120 to RLTP-DEL-6135,
+RLTP-DEL-6330, RLTP-DEL-6335) on its holder and in its VTI mediator
+adapter, and the carried document of 4.6 and the feature `held` in that
+adapter and on its holder; transports beyond that adapter are not in
+it. Review
 happens against the converged companion documents; the convergence
 criterion is a review round with no blocker-level findings.
 Feedback is welcome via the issues of the publication repository
@@ -197,14 +208,18 @@ version **0.6.0**, under the private task-type rules of TT §6.5. The
 profile — normative wire form
 `schemas/rltp-delivery-document.schema.json` — requires:
 
-- `id` — REQUIRED; UUID v4.
+- `id` — REQUIRED; UUID v4, except on `sealed-envelope/0.1`, whose
+  `id` is the UUID v8 of RLTP-DEL-4620.
 - `type` — REQUIRED; the Type URI of a registered RLTP task type, in
   the form of RLTP-DEL-3010.
 - `issuer`, `recipient` — REQUIRED, in-band, as anchors. A consumer
   MUST reject a document whose `recipient` is not its own anchor
   (TT §7.2 rule 5 — the receiver principle at the envelope level).
+  The parties of `sealed-envelope/0.1` are its carrier's identifiers,
+  not anchors, and its carrier checks them (4.6, RLTP-DEL-5030).
 - `threadId` — REQUIRED: fresh (UUID v4) on thread-opening documents,
-  equal to the answered document's `threadId` on responses.
+  equal to the answered document's `threadId` on responses; on
+  `sealed-envelope/0.1` equal to its `id`.
 - `ceremony` — OPTIONAL, and **entirely unconstrained by the task
   specifications**, per TT §4.11.1: a task specification declares
   nothing about ceremonies, absence is never grounds for rejection,
@@ -224,8 +239,9 @@ profile — normative wire form
   (Section 7).
 - `proof` — REQUIRED on `delivery-ack` and on
   `registry-declaration` (4.4) — the two types whose authenticity
-  has no other carrier (1.1); MUST be absent on the other types of
-  this casting, whose authenticity is carried by the payloads'
+  has no other carrier (1.1); MUST be absent on `sealed-envelope/0.1`,
+  whose carrier authenticates its sender end to end (4.6), and on the
+  other types of this casting, whose authenticity is carried by the payloads'
   own proofs inside — signatures or designated-verifier MACs
   (the trust-layer family of 4.4 is deliberately unsigned). Where `proof` is present, TT §4.8.2 audience binding is
   satisfied by the in-band `recipient`.
@@ -274,18 +290,25 @@ size bound of RLTP-DEL-3030. The following hold for every registered
 type and need not be repeated in a declaration:
 
 - **Parties.** `issuer` and `recipient` are REQUIRED in-band, as
-  `did:key` anchors (Ed25519); a declaration names the role of each
-  and its `identifierScope`.
+  `did:key` anchors (Ed25519) — on `sealed-envelope/0.1` as the
+  carrier's `did:key` identifiers (4.6); a declaration names the role
+  of each and its `identifierScope`.
 - **Freshness (item 17).** `issuedAt` is REQUIRED; `expiresAt` is
   absent. No document carries an acceptance window: delivery time is
   unbounded (Section 7), and a type that bounds age does so inside
   its protected payload.
 - **No response variant.** No type defines a `#response`; the only
   answer to a document is the `delivery-ack` (4.2) or a document of
-  another registered type. Every type therefore declares `discloses:
-  none`.
+  another registered type, and to a `sealed-envelope/0.1` document the
+  framework's own `trust-task-error/0.5` or `trust-task-next-step/0.1`
+  of a consumer that refuses it or cannot complete it in isolation
+  (4.6). Every type therefore declares `discloses: none`.
 - **No subject agency.** No type has its recipient act in another
   party's name; every type declares `actsAsSubject: false`.
+- **Repeated execution.** Every type but `sealed-envelope/0.1` is
+  bound by TT §7.2 item 11 as this contract reads it at 6.2 stage 4,
+  by document digest (Section 12, DO-10); `sealed-envelope/0.1`
+  declares its repeated execution safe and intended (4.6).
 - **No extensions.** No type opts into `ext`.
 - **No JSON-LD context** is published for any type (item 10), and
   no type defines task-specific error codes (item 9).
@@ -316,7 +339,11 @@ type and need not be repeated in a declaration:
 largest UTF-8 JCS serialization of a document of that type, `proof`
 included and the sealed envelope excluded. The bound is the plaintext
 bound of Section 5, 65 536 bytes, unless the registering
-specification declares a smaller one. A document over the plaintext
+specification declares a smaller one. One type is named as the
+exception: `sealed-envelope/0.1` carries a sealed envelope as its
+payload, a ciphertext of a document within the plaintext bound, and
+declares 90 112 bytes (4.6); it is never sealed itself, so the
+plaintext bound does not reach it. A document over the plaintext
 bound is `failed(oversize)` before decryption (6.2 stage 1); a
 document within it but over its type's smaller bound is disposed as
 the registering specification states. A receiver MUST NOT refuse a
@@ -333,8 +360,8 @@ every document since the first casting.
 
 Each type below is a private Trust Task specification with: Type URI,
 target framework 0.6.0, payload schema (shipped), proof declaration (per
-Section 3), the declarations of RLTP-DEL-3020 (4.5), and the
-consistency rules stated here.
+Section 3), the declarations of RLTP-DEL-3020 (4.5; for
+`sealed-envelope/0.1`, 4.6), and the consistency rules stated here.
 
 ### 4.1 `encounter-bundle/0.1`
 
@@ -582,7 +609,7 @@ outside any bundle thread (`"deliver"`).
 Every type under the task-type namespace shares the document
 profile (Section 3), the sealed envelope (Section 5), and the
 disposition and acknowledgement rules (Section 6). Beyond the
-four types this document registers itself, the registry's
+types this document registers itself, the registry's
 members are registered **where their semantics live**, each as a
 private Trust Task specification naming its type URI, payload
 schema, proof declaration, the declarations of RLTP-DEL-3020, and
@@ -1031,6 +1058,104 @@ and `text` (at most 64 and 256); an introduction request's
 `displayName` and `note` (at most 64 and 256), which the forward
 carries unchanged. The other types carry no free text.
 
+### 4.6 `sealed-envelope/0.1`
+
+The form in which a carrier that carries Trust Task documents carries
+a sealed envelope (Section 5): the envelope is the payload of a
+document of this type. A consumer of the carrier's binding that does
+not know RLTP reads the document's `type` and parties without opening
+the seal, and can refuse it or answer it by the framework's rules; the
+recipient's carrier takes the envelope out and hands it to the
+receive of 6.2 (RLTP-DEL-5030). It is the one type whose documents
+are never sealed: they travel inside their carrier's own end-to-end
+protection, and they carry nothing the seal does not already carry
+but the parties of the carrier and the instant of submission.
+
+**RLTP-DEL-4610** — A producer writes a `sealed-envelope/0.1` document
+with exactly the members `id`, `type`, `issuer`, `recipient`,
+`threadId`, `issuedAt` and `payload`:
+
+- `type` — `https://real-life.org/trust-tasks/spec/sealed-envelope/0.1`;
+- `issuer` — the identifier under which the carrier authenticates the
+  sending side as the sender of the message that carries the
+  document, and `recipient` — the identifier of the receiving side to
+  which that message is addressed; both Ed25519 `did:key` identifiers
+  of the carrier's, per relationship and carrier (for the VTI
+  mediator adapter, the two sides' connection DIDs);
+- `payload` — the sealed envelope, per
+  `schemas/payload-sealed-envelope.schema.json` (whose `$id` is the
+  Type URI and which refers to `schemas/sealed-envelope.schema.json`);
+- `id` — per RLTP-DEL-4620, and `threadId` equal to `id`;
+- `issuedAt` — the instant of the envelope's first submission as the
+  sender recorded it (for an acknowledgement, the commit of its
+  effect), in whole seconds with `Z`;
+- `proof` and `expiresAt` — absent; a consumer refuses a document
+  that carries either. A `ceremony` member is never written; a consumer
+  that finds one passes it through unread (Section 3, TT §4.11.1),
+  and the profile's recomputation of `ceremony.enactment` has no
+  enclosed material here and does not apply.
+
+**RLTP-DEL-4620** — The `id` is a UUID of version 8 (RFC 9562 §5.8):
+the first 16 bytes of SHA-256 over the ASCII string
+`rltp/v1/sealed-envelope-id` followed by the UTF-8 JCS serialization
+of `{ "issuer", "recipient", "seal" }` — the document's two parties and
+its payload — with bits 48 to 51 set to `1000` (the version) and bits
+64 and 65 set to `10` (the variant), written as 32 lower-case
+hexadecimal digits in the groups 8-4-4-4-12. A receiver reads the
+`id` as it arrives and attaches no disposition to its derivation.
+
+**RLTP-DEL-4630** — `sealed-envelope/0.1` declares, under
+RLTP-DEL-3020:
+
+| Declaration | Value |
+|---|---|
+| Parties (item 5) | sender's carrier identifier · recipient's carrier identifier; `pairwise` · `pairwise` |
+| Proof (item 8) | absent |
+| Repeated execution (item 11) | safe and intended |
+| Side effects (item 13) | `destructive` |
+| Exposure (item 14) | `discloses: none`, `actsAsSubject: false`, `ingests: personal` |
+| Authorization evidence (item 15) | the carrier's authentication of the sender; nothing beyond it |
+| Execution checkpoint (item 16) | one: the hand-over of the sealed envelope to 6.2 |
+| Retention (item 18) | `transient` |
+| Free text (item 19) | none |
+| Size bound | 90 112 bytes |
+
+The rationales the framework requires:
+
+- **Proof absent.** The carrier authenticates the sender end to end
+  (TT §4.7.2): a TSP message is signed by its sender and sealed to its
+  receiver, and the carrier holds the document's parties against both
+  (RLTP-DEL-5030). The document is not kept, so no third party relies
+  on it later. A proof would also make every framework consumer
+  without a configured verifier refuse the document before reading
+  its type. The declaration "absent" is outside the framework's
+  item-8 vocabulary (Section 12, DO-10).
+- **Repeated execution safe and intended.** Executing the document
+  hands its sealed envelope to 6.2, whose stage 4 absorbs every
+  repeated envelope by the digest of the document inside it; a repeat
+  has no second effect. Every repeated submission is byte-identical
+  (RLTP-DEL-5040), so a framework consumer sees a duplicate of an
+  equal `id`, never a conflict.
+- **`pairwise`.** The carrier's identifiers are per relationship and
+  carrier (5a.10).
+- **`destructive`, `ingests: personal`.** The effect and the content
+  are those of the document inside, which may be of any registered
+  type; the most consequential, `continuity-mapping/0.1`, deactivates a
+  relationship's head irreversibly (4.5), and several types carry a
+  person's data. The outer document itself changes nothing and
+  carries nothing a consumer can read but its members.
+- **`transient`.** Nothing of the document is kept: the carrier hands
+  the envelope on and discards the rest. What the document inside
+  leaves behind is its own type's retention.
+
+A consumer that refuses a document of this type answers with the
+framework's `trust-task-error/0.5`; one that understands it and cannot
+complete it in isolation, with `trust-task-next-step/0.1`. Both answer
+the document by its `id` (`inResponseTo.id`, or `threadId`), and
+both are read and applied by the carrier adapter (VTI mediator
+adapter profile §5); RLTP sends neither in this casting. A next step
+makes the document `held` (RLTP-DEL-6140).
+
 ## 5. The Sealed Envelope
 
 A document travels sealed to its recipient:
@@ -1133,6 +1258,41 @@ authorized acts under a control principal, and 5a.3 fixes the
 proofs they require. The two are not in tension — they are the
 asymmetry the whole section rests on: anyone may put something
 into a queue, and exactly one party may take it out.
+
+**Carriage in a Trust Task binding.** A carrier whose own protocol
+carries Trust Task documents (a binding of the framework's registry)
+carries the sealed envelope in a document of that kind, so that the
+carrier's own consumers can read it.
+
+**RLTP-DEL-5030** — A carrier that carries documents as Trust Task
+documents MUST carry every sealed envelope as the payload of a
+`sealed-envelope/0.1` document (4.6), and MUST carry nothing else as
+such a payload. On receipt it MUST hold the document's `issuer` and
+`recipient` against the sender it authenticated and the receiving
+identifier, exactly as strings, and check the document against the
+profile (Section 3, 4.6); a document that passes is taken apart and
+its payload, in its JCS serialization, handed to the recipient's
+receive (6.2) as the sealed envelope. The carried document does not
+pass 6.2 itself: no stage reads it, it has no digest, earns no
+acknowledgement and no cache entry, and a document that fails a check
+delivers nothing.
+
+**RLTP-DEL-5040** — The carried document MUST be a function of the
+sealed envelope, its `issuer`, its `recipient` and the instant of the
+envelope's first submission alone, carried as its JCS serialization:
+every repeated submission of one sealed envelope to one recipient
+under one pair of carrier identifiers carries it byte-identical, and
+the same `id` (RLTP-DEL-4620).
+
+*Rationale.* A sender re-offers a sealed envelope byte-identical
+(RLTP-DEL-6120), and the receiver absorbs it by the digest of the
+document inside (6.2 stage 4). A framework consumer deduplicates by
+the outer document's `id` and treats a second document under an equal
+`id` as a conflict (TT §7.2 item 11); fixing the outer document by the
+envelope makes the two rules meet: a repeat is a repeat on both sides,
+and an answer finds its document by the `id` without the sender
+storing anything new. A change of a carrier identifier — a rebind, a
+change of carrier — yields a new `id`.
 
 ## 5a. Addressing, registration, and collection
 
@@ -2408,14 +2568,30 @@ What an adapter owes instead is that the hop identifier stays
   location that resolves it for a party which is not this
   carrier), **not person-wide** (no second relationship, no second
   carrier, and expressly never a **control principal** of the same
-  person or a value derivable from one — the sending side and the
-  collecting side of one person must never meet in one
-  identifier), and **not reused outside this relationship** (no
-  other TSP relationship, application, or account);
+  person or a value derivable from one — the sending side never meets
+  the principal under which the recipient side registers and
+  concludes, and which never appears on the wire), and **not reused
+  outside this relationship** (no other TSP relationship,
+  application, or account);
 - being **visible** to the carrier it deposits to, and to
   observers of the outer envelope, is inherent and is not
   forbidden — linkability beyond the relationship is;
 - it is retired with the relationship, never reassigned.
+
+**RLTP-DEL-5990** — One wire identifier per (relationship × carrier)
+MAY both deposit and collect: the sender-side VID of this paragraph
+MAY be the outer VID under which the adapter collects for the
+principal of the same relationship and carrier (the collecting side
+above), in every layer of a deposit. Neither MAY be the control
+principal or a value derivable from it, and each carries the three
+prohibitions.
+
+*Rationale.* The counterpart of a relationship knows the identifier it
+addresses and the one it verifies, and the carrier reads both, so
+keeping them apart hides nothing from either. Keeping them together
+lets a counterpart that follows a Trust Task binding answer a
+document where TSP's own model sends an answer, to the authenticated
+sender.
 
 **What that buys, exactly, and what it does not.** A carrier then
 sees, for one queue, deposits arriving under one stable
@@ -2555,7 +2731,7 @@ first place that exists is the mediator adapter itself.
 
 | State | Meaning |
 |---|---|
-| `accepted` | the service durably buffered it; delivery is owed |
+| `accepted` | the service durably buffered it; delivery is owed — with the feature `held`, the counterpart said it arrived and waits there (RLTP-DEL-6140) |
 | `delivered` | a **valid** `delivery-ack` (4.2 consistency) referencing its digest arrived |
 | `failed(reason)` | the service or the sender gave up; reason from the closed set below |
 
@@ -2567,11 +2743,34 @@ has run out, Section 7) ·
 one. A late valid acknowledgement after `failed`, whatever its
 reason, transitions the status to `delivered`; implementations MUST
 surface the transition. No other states exist — in particular, no
-acceptance state.
+acceptance state; `held` is a feature of `accepted`, not a state.
+
+**RLTP-DEL-6140** — `accepted` carries one closed feature, `held`: a
+validated `trust-task-next-step/0.1` of the counterpart answered the
+document (4.6; the adapter profile names the validation), stating
+that it arrived and waits there for something the counterpart names.
+A document in any state before a terminal one — before the trias, or
+`accepted` — becomes `accepted` and `held` at that answer; a terminal
+document stays as it is, and a second such answer changes nothing.
+A `held` document leaves `accepted` only for `delivered`, on a valid
+acknowledgement, or for `failed(rejected-by-receiver(<code>))`, on a
+validated terminal refusal: no horizon ends it, neither an adapter's
+nor the sender's own give-up (RLTP-DEL-6110 included), and an
+implementation MUST surface it as distinct from `accepted` without
+the feature.
+
+*Rationale.* `accepted` says a service took the document; a horizon
+ends it because a document no one acknowledges may never have
+arrived. A next step removes that doubt: the counterpart has the
+document, its own state decides when it proceeds, and failing the
+document at the sender's horizon would report a loss that did not
+happen. The feature adds no state: the trias and its exits are
+unchanged, and only the horizon's reach is narrowed.
 
 **RLTP-DEL-6110** — A sender MUST move a document whose type
 declares a sender lifetime (RLTP-DEL-7020) to `failed(task-expired)`
-once that lifetime has run out on its clock without `delivered`.
+once that lifetime has run out on its clock without `delivered`,
+unless the document is `held` (RLTP-DEL-6140).
 
 **RLTP-DEL-6115** — A sender MUST NOT hand a document to an adapter
 after moving it to `failed(task-expired)`.
@@ -3313,15 +3512,17 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 
 ## 11. Conformance
 
-- **Profile** `rltp-delivery@0.84`; the Identity pin is
-  **Identity 0.54** (§6.1 the context labels, §7a the control
+- **Profile** `rltp-delivery@0.85`; the Identity pin is
+  **Identity 0.55** (§6.1 the context labels, §7a the control
   principal); the Encounter pin is `rltp-encounter@0.32` (wire
   0.25); companion registrations per 4.4 (Trust Layer 0.31,
   Access 0.58, Membership Tasks 0.21, Replication 0.26, Message
   Tasks 0.2).
 - **Classes:** *sender* (sealing, status trias including
   `failed(task-expired)`, ack-wait switch trigger; principal-free
-  submission, 5a.4) · *receiver* (unsealing, staged dispositions
+  submission, 5a.4; `held` of 6.1) · *carrier of Trust Task
+  documents* (the carried document of 4.6, built under RLTP-DEL-5040
+  and taken apart under RLTP-DEL-5030) · *receiver* (unsealing, staged dispositions
   including `discarded` and the transient `failed(rate-limited)`,
   the lock keys and the block of 6.2, the key classes of Section 5,
   ack generation; the addressing
@@ -3393,7 +3594,12 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   itself is gone; the **carrier-entry-loss recovery**, executed
   per held state; and the **queue-floor** case that decides
   guarantee 5 — a queue one byte below its floor, admitted
-  regardless of global occupancy.
+  regardless of global occupancy · **`vectors/vti-sealed-envelope.json`**
+  (4.6, RLTP-DEL-5030, RLTP-DEL-5040) — the carried document and its
+  binding envelope byte for byte, its `id`, a repeat byte-identical,
+  the documents a carrier does not hand on, and the answers of a
+  framework consumer with the sender state each leaves, `held`
+  included (RLTP-DEL-6140).
 - **Vector plan:** seal/unseal roundtrip against the shipped
   vector · digest invariance under re-sealing · every disposition
   stage of 6.2 as a distinct vector, in-order (including oversize
@@ -3695,29 +3901,39 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   person-wide, or reused → nonconformant; a
   per-(relationship × carrier) VID → conformant, and a carrier
   authenticating its own hop is not a violation of 5a.4 (5a.4,
-  5a.10) · a change of the **direct** carrier → new principal,
+  5a.10); one VID per (relationship × carrier) that is the sender of
+  every layer of a deposit and the collecting outer VID of the same
+  relationship and carrier → conformant; a sender-side VID that is the
+  control principal or derivable from it → nonconformant
+  (RLTP-DEL-5990) · a change of the **direct** carrier → new principal,
   new outer VID; a change of hops beyond it → no change of
   principal, VID, or registration (5a.10) ·
   `https://real-life.org/trust-tasks/spec/delivery-carrier/0.1` used
   as a document `type` → `failed(unknown-type)` (4.4).
 - **Rule coverage.** The rules with identifiers are listed in
-  `conformance/delivery-rule-ids-0.84.txt`. **State-dependent** —
+  `conformance/delivery-rule-ids-0.85.txt`. **State-dependent** —
   each verdict needs a holder state, a clock, a cache, a carrier, or a
   registering specification's state, and the scenarios of the vector
   plan above exercise it (planned, with the reference
   implementation): RLTP-DEL-5010 · RLTP-DEL-5020 · RLTP-DEL-5810 ·
   RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6115 · RLTP-DEL-6120 ·
-  RLTP-DEL-6125 · RLTP-DEL-6130 · RLTP-DEL-6135 · RLTP-DEL-6210 ·
+  RLTP-DEL-6125 · RLTP-DEL-6130 · RLTP-DEL-6135 · RLTP-DEL-6140 ·
+  RLTP-DEL-6210 ·
   RLTP-DEL-6220 · RLTP-DEL-6230 · RLTP-DEL-6240 · RLTP-DEL-6250 ·
   RLTP-DEL-6260 · RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 ·
   RLTP-DEL-6300 · RLTP-DEL-6305 · RLTP-DEL-6310 · RLTP-DEL-6320 ·
   RLTP-DEL-6325 · RLTP-DEL-6330 · RLTP-DEL-6335 · RLTP-DEL-7015.
   **Schema- and fixture-checked** — the document-profile schema's
   `type` pattern and the must-fail fixtures: RLTP-DEL-3010.
+  **Vector-checked** — `vectors/vti-sealed-envelope.json`, the
+  carried document byte for byte, its `id`, its repeats, and the
+  documents a carrier does not hand on: RLTP-DEL-4610 ·
+  RLTP-DEL-4620 · RLTP-DEL-5030 · RLTP-DEL-5040.
   **Declaration** — the rule binds
   what a type's registration states or which specification defines
   a treatment: RLTP-DEL-3020 · RLTP-DEL-3030 · RLTP-DEL-4510 ·
-  RLTP-DEL-6245 · RLTP-DEL-7010 · RLTP-DEL-7020.
+  RLTP-DEL-4630 · RLTP-DEL-5990 · RLTP-DEL-6245 · RLTP-DEL-7010 ·
+  RLTP-DEL-7020.
 
 
 ## 12. Open Issues
@@ -3740,7 +3956,11 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   Working Draft 0.7.0 forbids a specification to do;
   this contract deduplicates by document digest (6.2 stage 4) where
   the framework rejects an equal `id` over different bytes as
-  `idConflict` (TT §7.2 item 11);
+  `idConflict` (TT §7.2 item 11) — for the types inside the seal,
+  which no framework consumer reads; the one type a framework
+  consumer reads on the wire, `sealed-envelope/0.1`, declares its
+  repeated execution safe and intended and repeats byte-identical
+  (4.6, RLTP-DEL-5040);
   a consumer does not reject a future `issuedAt` as
   `malformedRequest` (TT §7.2 item 13), because no stage of 6.2
   reads it;
@@ -3749,10 +3969,8 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   every type signs with `proofPurpose` `assertionMethod`, where the
   framework's editor's draft asks a producer to sign a document for
   `authentication`;
-  a companion schema's `$id` is not its Type URI (4.4), where TT
-  §7.3 item 7 asks that it be;
-  and whether a sealed envelope travels inside the registry's TSP
-  binding envelope or beside it.
+  and a companion schema's `$id` is not its Type URI (4.4), where TT
+  §7.3 item 7 asks that it be.
 - **DO-11 The anchor of a declaration.** A party declares identical
   constants to all its counterparts (4.4), and two counterparts
   comparing declarations hold proof of an equivocation only if they
@@ -3846,7 +4064,8 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 ## References
 
 [RFC2119] · [RFC8174] BCP 14 · [RFC3339] · [RFC8785] JCS · [RFC5869]
-HKDF · **RLTP Identity Layer 0.54** (normative; §5.2 the `rkid`'s
+HKDF · [RFC9562] UUID (§5.8, version 8) · **RLTP Identity Layer
+0.55** (normative; §5.2 the `rkid`'s
 key material, §5.3 the recovery context, §6.1 the context labels,
 §7 service identities,
 **§7a the carrier-relationship identity**, §9.3 recovery) ·
@@ -3857,7 +4076,12 @@ framework version 0.6.0 (§4.7.1, §4.8.2, §4.9.3, §4.11.1, §6.1, §6.3,
 §6.5, §7.2–7.3); the Type URI form of RLTP-DEL-3010 also satisfies
 Working Draft 0.7.0 (`trustoverip/dtgwg-trust-tasks-spec` at
 `23b33b9`), and the size bound of RLTP-DEL-3030 answers item 21 of the
-editor's draft (`f0b5b8e`) · RLTP Encounter Layer
+editor's draft (`f0b5b8e`) · [TT-TSP] the registry's TSP binding
+`bindings/tsp/0.1` (§2 document carriage, §3 identity mapping, §5.3,
+§7.1) and the registry entries `trust-task-error/0.5` and
+`trust-task-next-step/0.1` (`trustoverip/dtgwg-trust-tasks-tf` at
+`579d8e29`); the framework text they cite, §4.7.2, §4.9, §7.2 item 11,
+§8.1 and §8.6, read in the same commit's `SPEC.md` · RLTP Encounter Layer
 0.31, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Trust
 Layer 0.31 (§2.1, §5.2b, §6a, §6b, §8) · RLTP Access Layer 0.58,
@@ -3876,12 +4100,12 @@ meant:
 
 | Reference | Identity | Version pin |
 |---|---|---|
-| **[TSP]** ToIP Trust Spanning Protocol | `trustoverip/tswg-tsp-specification` | commit **`ea01152425d281da944f40e8da799d7fa7a79f51`** (`spec/spec.md`). The VID taxonomy, the routed model, nested envelopes, and the direct-neighbour relationship are the surfaces 5a.10 consumes |
+| **[TSP]** ToIP Trust Spanning Protocol | `trustoverip/tswg-tsp-specification` | commit **`ccda6b33159d860f05c328eb436dabe83548b705`** (`spec/spec.md`, TSP 1.0). The VID taxonomy, the routed model, nested envelopes, and the direct-neighbour relationship are the surfaces 5a.10 consumes; the sender's VID that TSP 1.0 carries in every confidential payload names the envelope's sender again. The VID taxonomy's rules for public and for static private VIDs do not cover a per-relationship wire identifier named on a card (the VTI mediator adapter profile, its Open Issue 15) |
 | **[DIDCOMM-MED]** Coordinate Mediation 2.0 | `decentralized-identity/aries-rfcs` / didcomm.org | the **immutable snapshot the adapter profile records** (below); the version label `2.0` names a moving target and is not by itself a pin |
 | **[DIDCOMM-PICKUP]** Message Pickup 3.0 | didcomm.org | as above — label plus recorded snapshot, never the label alone |
 
 **One status, stated once.** This document is read against the
-commit named in the table above — `ea01152…` — and against nothing
+commit named in the table above — `ccda6b33…` — and against nothing
 else. Two earlier castings each added a sentence around that pin
 without removing the previous one, so the same reference carried
 three statuses at once: pinned, "written against the model, not a
@@ -3938,5 +4162,5 @@ adapter profile records the snapshot **it** implements, which may
 be this commit or a later one; where it is later, **this document
 is re-read against that snapshot at the adapter stage** and the
 table above follows. Until such a re-reading happens, 5a.10 means
-what it means against `ea01152…`, and nothing about a newer draft
+what it means against `ccda6b33…`, and nothing about a newer draft
 is silently inherited.

@@ -107,7 +107,7 @@ const vector = {
 }
 
 // every rule a case names is a rule of the profile
-const manifest = new Set(readFileSync(join(ROOT, 'conformance/adapter-vti-rule-ids-0.28.txt'), 'utf8').split('\n').filter((l) => /^RLTP-VTI-/.test(l)))
+const manifest = new Set(readFileSync(join(ROOT, 'conformance/adapter-vti-rule-ids-0.29.txt'), 'utf8').split('\n').filter((l) => /^RLTP-VTI-/.test(l)))
 for (const c of [...refused, ...receiveRefused]) for (const id of c.rules) if (!manifest.has(id)) throw new Error(`${c.case}: ${id} is not in the rule manifest`)
 
 const text = JSON.stringify(vector, null, 1) + '\n'

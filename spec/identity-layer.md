@@ -3,20 +3,20 @@
 **Real Life Trust Protocol — Layer 1: Identity**
 
 - **Status:** Editor's Draft
-- **Version:** 0.54.0-draft
+- **Version:** 0.55.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-14
+- **Date:** 2026-10-27
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-identity@0.54` (draft)
+- **Conformance profile:** `rltp-identity@0.55` (draft)
 - **Companions:** RLTP Trust Layer 0.31 (the anchor mapping, the self
   card and the rotation artifact, which carry the pre-rotation binding
   of 5.4, its §6); RLTP Access Layer 0.58 (the `anchor.rotate` entry,
-  its §5.6; device cards, its §5.1); RLTP Delivery Contract 0.84 (the
+  its §5.6; device cards, its §5.1); RLTP Delivery Contract 0.85 (the
   consumer of Section 7a, its §5a); RLTP Membership Tasks 0.21 (the
   genesis digest a group label names); RLTP Encounter Layer 0.32 (the
   contact card and fresh-always enactment, its §4.4).
-- **Supersedes:** version 0.53 (archived as
-  `archive/identity-layer-0.53.md`) and versions 0.52–0.1, archived
+- **Supersedes:** version 0.54 (archived as
+  `archive/identity-layer-0.54.md`) and versions 0.53–0.1, archived
   alongside it.
 - **Supersedes on adoption:**
   `01-wot-identity/001-identitaet-und-schluesselableitung.md` and
@@ -74,7 +74,8 @@ visible to anyone who lacks the seed.
 
 This is an Editor's Draft with no standing beyond its own argument. The
 reference library implements the derivation of labeled contexts, the
-device keys (5.5) and the carrier-relationship identity, and on its
+device keys (5.5), the carrier-relationship identity and the one
+adapter-scoped wire identity beside it (7a.4, Section 13), and on its
 holder the label register (Section 2) and the community anchor's
 rotation over the log with the pre-rotation binding (5.4); the recovery
 context and the service identities are not implemented, and one writer
@@ -1308,9 +1309,8 @@ makes for labels, made here for two inputs):
    ASCII constant with no variable part, and it differs from every other
    derivation family — `rltp/anchor/ed/`, `rltp/anchor/x/`,
    `rltp/v1/service-identity/`, the four fixed recovery strings of 5.3,
-   and the two adapter-scoped siblings
-   `rltp/v1/carrier-connection/ed25519/v1/` and
-   `rltp/v1/carrier-egress/ed25519/v1/`, which share this family's
+   and the adapter-scoped sibling
+   `rltp/v1/carrier-connection/ed25519/v1/`, which shares this family's
    two-variable-part form — **before any variable part begins** (Section
    13 keeps the full list). No choice of `C` or `N` can reach another
    family.
@@ -1915,18 +1915,19 @@ The profile `rltp-identity@0.54` is claimed by an implementation that:
   by their first component), the fixed recovery strings (both
   generations, 5.3) such as `wot/identity/ed25519/v1` and
   `wot/encryption/x25519/v1` (5.3), `rltp/v1/service-identity/` (7),
-  `rltp/v1/carrier-relationship/ed25519/v1/` (7a), and the two
-  adapter-scoped wire identities
-  `rltp/v1/carrier-connection/ed25519/v1/` and
-  `rltp/v1/carrier-egress/ed25519/v1/` (the VTI-mediator adapter
-  profile; same two length-fixed variable parts as the carrier family).
+  `rltp/v1/carrier-relationship/ed25519/v1/` (7a), and the
+  adapter-scoped wire identity
+  `rltp/v1/carrier-connection/ed25519/v1/` (the VTI-mediator adapter
+  profile's connection DID, which deposits and collects for one
+  relationship at one carrier; same two length-fixed variable parts as
+  the carrier family).
   Their literal prefixes are pairwise distinct before any variable part
   begins (the fixed recovery strings contain no variable part at all),
   so no label or digest choice can collide two families; Section 5.1's
   argument records why no input can collide two labels within a family
   either, and 7a.4's why no pair of inputs can collide two principals
-  within the carrier family; the same argument covers the two
-  adapter-scoped families, which share its two-variable-part form —
+  within the carrier family; the same argument covers the
+  adapter-scoped family, which shares its two-variable-part form —
   every variable part length-fixed for exactly that reason. The
   pre-rotation binding of 5.4 is a hash of a public key, not a
   derivation, and enters no info string.
