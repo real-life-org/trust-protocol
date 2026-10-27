@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // live-delivery-probe.mjs — the FULL delivery contract over the live
-// mediator: a real sealed RLTP envelope (lib seal), the receiver's
+// mediator: a real sealed RLTP envelope (lib seal), carried as a
+// sealed-envelope/0.1 document in the TSP binding envelope by the adapter
+// (profile 0.29 §3b), one wire identity per side, the receiver's
 // staged receive() verdict, a SIGNED delivery-ack/0.1 back, and the
 // sender's §6.1 trias closing accepted → delivered. Unit 2 after the
-// transport-only live probe. Sending form of profile 0.28 §3a (default
+// transport-only live probe. Sending form of profile 0.29 §3a (default
 // routed, as the adapter names it). Prints the measurements: delivery
 // yes/no, the trias accepted → delivered, frame sizes (payload, inner,
 // outer bytes), and the times deposit → accepted, → delivery and → ack
@@ -19,6 +21,7 @@ import {
 } from "../lib/dist/crypto.js";
 import { jcs } from "../lib/dist/core.js";
 import { createVtiWire } from "./vti-wire.mjs";
+import { carrierScopedIdentity } from "../lib/dist/carrier-identity.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   console.log("live-delivery-probe: skipped (set RLTP_LIVE_MEDIATOR=1)");
@@ -52,7 +55,7 @@ const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live delivery probe: seal → carry → receive → signed ack → delivered ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.28 §3a)`);
+say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.29 §3a)`);
 
 // ── party state: relationship root/nonce (adapter+wire), an rkid
 // (X25519, the seal target), and a signing anchor (the ack issuer)
@@ -69,11 +72,9 @@ async function party() {
 
 const A = await party(); const B = await party();
 
-const preB = await createVtiWire({ rootIkm: B.root, mediatorDid: MEDIATOR_DID, nonce: B.nonce, peerDid: "did:key:z6MkfLdHWkKPXwUKGV2W6PZs6cUpUYt1oSJ2VYk3XwZm3mNa", peerEgressDid: "did:key:z6MkfLdHWkKPXwUKGV2W6PZs6cUpUYt1oSJ2VYk3XwZm3mNa" });
-const wireA = await createVtiWire({ rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, peerDid: preB.connectionDid, peerEgressDid: preB.egressDid });
-preB.close();
-const wireB = await createVtiWire({ rootIkm: B.root, mediatorDid: MEDIATOR_DID, nonce: B.nonce, peerDid: wireA.connectionDid, peerEgressDid: wireA.egressDid });
-
+const connectionOf = async (P) => (await carrierScopedIdentity(P.root, MEDIATOR_DID, P.nonce, "connection")).did;
+const wireA = await createVtiWire({ rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, peerDid: await connectionOf(B), log: (l) => say(`  · ${l}`) });
+const wireB = await createVtiWire({ rootIkm: B.root, mediatorDid: MEDIATOR_DID, nonce: B.nonce, peerDid: wireA.connectionDid, log: (l) => say(`  · ${l}`) });
 const alice = await MediatorCarrierAdapter.create(A.root, MEDIATOR_DID, A.nonce, wireA);
 const bob = await MediatorCarrierAdapter.create(B.root, MEDIATOR_DID, B.nonce, wireB);
 alice.register([A.rkid], now()); bob.register([B.rkid], now());
