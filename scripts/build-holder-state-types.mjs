@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Generates lib/src/holder-state-v<n>.ts — the TypeScript projection of
 // the NON-NORMATIVE lib/schemas/holder-state-v<n>.schema.json (the stored
-// HolderState at codec n, for every codec the library reads: 3), the
+// HolderState at codec n, for every codec the library reads: 3 and 4), the
 // way build-wire-types.mjs generates wire.ts: properties, requiredness,
 // literals, unions; every $defs entry becomes a named type with the suffix
 // V<n>. What a type cannot carry (patterns, bounds, uniqueItems, order,
@@ -18,7 +18,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-export const CODECS = [3]
+export const CODECS = [3, 4]
 const SCHEMA = (n) => join(ROOT, `lib/schemas/holder-state-v${n}.schema.json`)
 const OUT = (n) => join(ROOT, `lib/src/holder-state-v${n}.ts`)
 

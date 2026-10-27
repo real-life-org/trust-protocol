@@ -549,7 +549,9 @@ export type OutboxStatus = 'submitted' | 'accepted' | 'delivered' | 'failed'
 export type OutboxStep =
   | { status: 'submitted', at: Millis, attempt: number }
   | { status: 'awaiting-transport', at: Millis, reason: PreTransportReason }
-  | { status: 'accepted', at: Millis }
+  /** held: the counterpart answered with a validated next step — the
+   *  document arrived and waits there (Delivery RLTP-DEL-6140) */
+  | { status: 'accepted', at: Millis, held?: true }
   | { status: 'delivered', at: Millis, late: boolean }
   | { status: 'failed', at: Millis, reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> | 'task-expired' }
   | { status: 'failed', at: Millis, reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
@@ -810,6 +812,13 @@ export function triasOf (item: Readonly<OutboxItem>): OutboxStatus {
     if (s !== 'awaiting-transport') return s
   }
   return 'submitted'
+}
+
+/** Whether the item is `accepted` with the feature `held` (Delivery
+ *  RLTP-DEL-6140): no horizon ends it, only a valid acknowledgement or a
+ *  validated terminal refusal. */
+export function heldOf (item: Readonly<OutboxItem>): boolean {
+  return triasOf(item) === 'accepted' && item.history.some((s) => s.status === 'accepted' && s.held === true)
 }
 
 /** A fresh holder's state. */

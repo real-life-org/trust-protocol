@@ -43,7 +43,7 @@ export type HolderEvent = EventBase & (
   /** the human decided a prompt; it is closed (prompts.ts) */
   | { type: 'prompt.decided', promptId: string, kind: PromptKind, choice: PromptChoice }
   /** sender status trias (Delivery §6.1) */
-  | { type: 'delivery.status', digest: string, threadId: string, status: OutboxStatus, late?: boolean }
+  | { type: 'delivery.status', digest: string, threadId: string, status: OutboxStatus, late?: boolean, held?: true }
   /** contactId null: the holder's own profile */
   | { type: 'profile.updated', contactId: string | null }
   /** the community anchor's rotation completed: the head is this generation (Identity §5.4) */

@@ -75,7 +75,7 @@
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
-import { triasOf } from './state.js'
+import { heldOf, triasOf } from './state.js'
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
@@ -225,6 +225,9 @@ export interface DeliveryItemView {
   awaiting?: PreTransportReason
   /** for delivered: after a failure (the holder's own give-up included) */
   late?: boolean
+  /** for accepted: the counterpart answered with a next step — arrived,
+   *  open at the recipient; no horizon ends it (Delivery RLTP-DEL-6140) */
+  held?: true
   /** for failed; task-expired: the sender lifetime its type declares ran out (Delivery 6110) */
   reason?: DeliveryFailure | 'task-expired'
   code?: ReceiverRefusalCode
@@ -384,6 +387,7 @@ const itemView = (digest: string, it: Readonly<OutboxItem>): DeliveryItemView =>
   }
   if (last?.status === 'awaiting-transport') v.awaiting = last.reason
   if (decisive?.status === 'delivered') v.late = decisive.late
+  if (status === 'accepted' && heldOf(it)) v.held = true
   if (decisive?.status === 'failed') {
     v.reason = decisive.reason
     if (decisive.reason === 'rejected-by-receiver') v.code = decisive.code

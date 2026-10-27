@@ -244,7 +244,7 @@
 //     Delivery 0.82: addresses and identity contexts)
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
-import { emptyState, toOpaque, triasOf } from './state.js'
+import { emptyState, heldOf, toOpaque, triasOf } from './state.js'
 import type { ActRecord, Dec, Duty, Effect, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind, StoredAck } from './state.js'
 import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, PreTransportReason, Recipient, RetryPolicy, Store, StoreSnapshot } from './ports.js'
 import type { Envelope } from './delivery.js'
@@ -1274,8 +1274,11 @@ class HolderEngine implements Engine {
   /** Why a non-terminal outbox item is given up at `when`, or null: its
    *  sender lifetime, where it ends no later than the horizon
    *  (failed(task-expired), Delivery 6110), else the horizon
-   *  (failed(expired-by-adapter-policy)). */
+   *  (failed(expired-by-adapter-policy)). A held item is never given up
+   *  (Delivery RLTP-DEL-6140, 6110): only an acknowledgement or a validated
+   *  terminal refusal ends it. */
   #giveUp (it: Readonly<OutboxItem>, when: Millis): 'task-expired' | 'expired-by-adapter-policy' | null {
+    if (heldOf(it)) return null
     const first = it.history.length ? it.history[0].at : when
     const expiry = Math.min(first + this.#policy.horizonMs, Number.MAX_SAFE_INTEGER)
     const life = it.expiresAt
@@ -1422,7 +1425,8 @@ class HolderEngine implements Engine {
           }
           const first = it.history.length ? it.history[0].at : when
           const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
-          due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry)
+          // a held item has no expiry (Delivery RLTP-DEL-6140)
+          if (!heldOf(it)) due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry)
           // never re-emitted: an accepted item (the service has it) and one the
           // adapter holds (awaiting-transport, until it reports again)
           if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
@@ -1610,6 +1614,13 @@ class HolderEngine implements Engine {
             break
           }
           case 'accepted':
+            if (report.held === true) {
+              // a validated next step (Delivery RLTP-DEL-6140): from any
+              // non-terminal state, once; a terminal item stays as it is
+              if (trias === 'delivered' || trias === 'failed' || heldOf(it)) return same
+              step = { status: 'accepted', at: when, held: true }
+              break
+            }
             if (had('accepted') || trias !== 'submitted') return same
             step = { status: 'accepted', at: when }
             break
@@ -1632,6 +1643,7 @@ class HolderEngine implements Engine {
         const outbox = { ...state.outbox, [report.digest]: { ...base, history: [...it.history, step] } }
         const events: EventDraft[] = step.status === 'awaiting-transport' ? [] : [{
           type: 'delivery.status', digest: report.digest, threadId: it.threadId, status: step.status,
+          ...(step.status === 'accepted' && step.held === true ? { held: true as const } : {}),
         }]
         if (step.status === 'failed') {
           const f = failed({ ...state, outbox }, [report.digest], when)
@@ -1927,7 +1939,8 @@ const actEnd = (state: Readonly<HolderState>, a: Readonly<ActRecord>, retention:
  *  submission, or the sender lifetime its type declared if that is
  *  earlier (#giveUp's two bounds as one instant). */
 const notAfterOf = (it: Readonly<OutboxItem>, horizonMs: number): Millis | null => {
-  if (!it.history.length) return null
+  // a held item ends at no instant (Delivery RLTP-DEL-6140)
+  if (!it.history.length || heldOf(it)) return null
   const expiry = Math.min(it.history[0].at + horizonMs, Number.MAX_SAFE_INTEGER)
   return it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry
 }
