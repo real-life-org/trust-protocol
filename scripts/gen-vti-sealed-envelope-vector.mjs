@@ -179,7 +179,7 @@ for (const c of answers) {
   delete c.document
 }
 
-// an answer in a later opening (RLTP-VTI-5045, Delivery RLTP-DEL-6150): the holder offers A's
+// an answer in a later opening (RLTP-VTI-5065, Delivery RLTP-DEL-6150): the holder offers A's
 // accepted, held document; the later instance recomputes the id it travelled under and binds
 const laterOpening = {
   answerable: { digest: 'the document digest of seal.json', kind: 'document', envelope: SEAL, since: SINCE, held: true },
@@ -187,7 +187,7 @@ const laterOpening = {
   before: HELD,
   answer: answers[0].payload,
   after: REFUSED,
-  rules: ['RLTP-VTI-5045', 'RLTP-DEL-6150', 'RLTP-DEL-4620'],
+  rules: ['RLTP-VTI-5065', 'RLTP-DEL-6150', 'RLTP-DEL-4620'],
 }
 if (laterOpening.id !== OUT_ID) throw new Error('the later opening does not recompute the id')
 

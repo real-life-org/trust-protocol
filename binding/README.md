@@ -75,11 +75,16 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   `trust-protocol-interop-double` (Rust: `trust-tasks-rs` and
   `trust-tasks-tsp` 0.35.4, `affinidi-tsp` 0.3.0) dispatches the carried
   document by its `type` without opening the seal and answers the
-  authenticated sender; the probe checks that the adapter binds the answer
-  to the submission and applies it. `CROSS_OPENING=1` closes the adapter
+  authenticated sender; the probe files the document as a holder's
+  custody entry (`reconcile`), checks that the adapter binds the answer
+  and carries it in the collection (`collect().answers`, with the report a
+  host records at its holder), that the answer stays at the mediator
+  until `conclude` (it closes the opening without one and binds the
+  redelivered answer in the next), and that nothing comes after the
+  conclusion (profile RLTP-VTI-5065, 5070, 5080). `CROSS_OPENING=1` closes the adapter
   right after the acceptance and opens a new one over the same
   relationship, which files the document as the holder offers it for
-  binding (RLTP-VTI-5045) and binds the answer the mediator kept;
+  binding (RLTP-VTI-5065) and binds the answer the mediator kept;
   `REGISTER_FIRST=1` registers that opening before it reconciles, so the
   answer arrives first and is held until the reconcile.
 
@@ -93,11 +98,21 @@ Mediator 0.45.0 at
 |---|---|---|
 | `live-probe.mjs` | PASS: 657 B payload → inner 984 B → outer 1392 B, delivered after 282 ms; reply 635 B → 963 B → 1371 B, 262 ms | PASS: 657 B → 984 B, 270 ms; 635 B → 963 B, 258 ms |
 | `live-delivery-probe.mjs` | PASS: document 1105 B → 1434 B → 1842 B, ack 1647 B → 1974 B → 2382 B, deposit → ack validated 569 ms | PASS: 1105 B → 1434 B, ack 1646 B → 1974 B, 529 ms |
-| `live-interop-probe.mjs`, consumer without a handler | PASS: `unsupportedType` → `failed(rejected-by-receiver(unsupportedType))` after 219 ms | PASS: the same after 216 ms |
-| `live-interop-probe.mjs`, consumer with `--next-step` | PASS: `trust-task-next-step/0.1` → `accepted`, `held` after 240 ms | PASS: the same after 230 ms |
-| `live-interop-probe.mjs`, `CROSS_OPENING=1`, without a handler | PASS: bound in the second opening, `failed(rejected-by-receiver(unsupportedType))` | PASS: the same |
-| `live-interop-probe.mjs`, `CROSS_OPENING=1`, `--next-step` | PASS: bound in the second opening, `accepted`, `held` | PASS: the same |
-| `live-interop-probe.mjs`, `CROSS_OPENING=1 REGISTER_FIRST=1`, without a handler | PASS: the answer arrives before the reconcile, is held and bound at it | PASS: the same |
+
+`live-interop-probe.mjs` (27.10.2026, after the answer contract), each
+cell one run: the answer bound by the carried document's `id`, carried in
+the collection with its report, still at the mediator when the opening
+closed without a conclusion (delivered again and bound again in the next
+opening), acknowledged at the conclusion, and nothing delivered after it.
+
+| Variant | `routed` | `direct` |
+|---|---|---|
+| no handler (`unsupportedType`), same opening | PASS: `failed(rejected-by-receiver(unsupportedType))` | PASS |
+| no handler, `CROSS_OPENING=1` | PASS | PASS |
+| no handler, `CROSS_OPENING=1 REGISTER_FIRST=1` | PASS | PASS |
+| `--next-step`, same opening | PASS: `accepted`, `held` | PASS |
+| `--next-step`, `CROSS_OPENING=1` | PASS | PASS |
+| `--next-step`, `CROSS_OPENING=1 REGISTER_FIRST=1` | PASS | PASS |
 
 The binding envelope and the carried document add about 400 bytes to a
 sealed envelope; the routing layer about 408 bytes more. A routed message

@@ -58,7 +58,7 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   `held`; `TriasReport` `accepted` has `held?: true`. An error document
   with a `proof` is held to it like a next step; an answer to a carried
   acknowledgement changes nothing.
-- **Answers across openings** (RLTP-VTI-5045, Delivery RLTP-DEL-6150).
+- **Answers across openings** (RLTP-VTI-5065, Delivery RLTP-DEL-6150).
   `pendingTransport(when)` answers `answerable` beside `entries`: the
   accepted documents not yet terminal, `held` marked, with envelope,
   recipient and first submission (`AnswerableEntry`), derived from the
@@ -67,7 +67,7 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   their carried document's `id`, and binds a counterpart's answer to
   them; the adapter's horizon does not end them, a later view without
   them withdraws nothing.
-- **The answer contract** (RLTP-VTI-5045, 5070, 5080). Every filed
+- **The answer contract** (RLTP-VTI-5065, 5070, 5080). Every filed
   submission, custody or offered, gets its carried document's `id` when
   it is filed, independent of any attempt; answers wait, unacknowledged,
   until the opening's first `reconcile` (or `submit`) and every id is
@@ -78,7 +78,9 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   submissionId, report }`): the host records the report at the holder,
   then concludes; the answer is acknowledged only at that conclusion, so
   a crash at any point re-delivers and re-binds it, and the holder's
-  report is idempotent.
+  report is idempotent. Answers also wait while the wire names no
+  counterpart; waiting and bound answers count toward the queue floor by
+  number and by bytes (64, 1 MiB).
 - **One wire identity.** The connection DID sends and collects;
   `carrierScopedIdentity` has no `egress` scope, `EGRESS_INFO_PREFIX` and
   the adapter's `egressDid` are gone. `deliveryHint` builds the

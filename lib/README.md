@@ -153,7 +153,7 @@ byte-identical. On receipt it reads each payload with its sender
 sender and this side becomes an item, its seal the bytes the holder
 receives; everything that is no answer is logged (`wire.log`) and
 acknowledged at the next step. A counterpart's `trust-task-error/0.5` or
-`trust-task-next-step/0.1` follows one contract (profile RLTP-VTI-5045,
+`trust-task-next-step/0.1` follows one contract (profile RLTP-VTI-5065,
 5070, 5080). Every open document has the `id` it travelled under —
 custody entries and, beside them, `answerable` from `pendingTransport`:
 the accepted documents not yet terminal (held marked) with envelope and
@@ -173,12 +173,22 @@ const c = adapter.collect(now)
 for (const item of c.items) await holder.receive(...)   // as before
 for (const a of c.answers) await holder.report(a.report, now)
 adapter.conclude(c, now)                                 // acknowledges both
+await store.put(adapter.ackState())                      // the host's snapshot, after the conclusion
 ```
 
-An answer is acknowledged at the mediator only at that conclusion, so a
+Conclude also a collection whose `items` are empty when it carries
+`answers`. If a `holder.report` throws, do not conclude (or `keep` the
+answer's `queueId`): the answer stays unacknowledged and comes again. An
+answer is acknowledged at the mediator only at the conclusion, so a
 crash before it leaves the answer there; it comes again, binds again, and
-the holder's report is idempotent. An answer that binds nothing is
-acknowledged at the next step.
+the holder's report is idempotent. That an answer also answers an open
+routed deposit lives in the ack state: persist `ackState()` after the
+conclusion, and hand a successor restored from an earlier snapshot the
+holder's outcomes through `answered(digest, now)`. An answer that binds
+nothing is acknowledged at the next step. While the wire names no
+counterpart (`counterpart()` null), answers wait. Waiting and bound
+answers count toward the queue floor (64 and 1 MiB); beyond it the
+adapter does not take one, and the mediator keeps it.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)

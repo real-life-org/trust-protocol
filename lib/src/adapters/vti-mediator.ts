@@ -782,7 +782,7 @@ interface Submission {
    *  `recipient`: the one sender whose answer may change it (RLTP-VTI-5070) */
   peer?: string
   /** an accepted document the holder offers for binding answers only
-   *  (RLTP-VTI-5045, Delivery RLTP-DEL-6150): never attempted, never
+   *  (RLTP-VTI-5065, Delivery RLTP-DEL-6150): never attempted, never
    *  given up here; its `outerId` is recomputed from the seal */
   bindOnly?: true
   /** the document digest, for submissions filed by reconcile */
@@ -854,17 +854,18 @@ export class MediatorCarrierAdapter {
   /** payloads the adapter consumed itself (answers, ignored, RLTP-VTI-7160),
    *  concluded at its next step, when it has a clock */
   #consumed = new Set<string>()
-  /** answers received and not yet decided (RLTP-VTI-5045): unacknowledged */
+  /** answers received and not yet decided (RLTP-VTI-5065): unacknowledged */
   #answers = new Map<string, { reading: Extract<BindingReading, { kind: 'error' | 'next-step' }>, sender: string }>()
   /** answers bound and applied, waiting for a collection (RLTP-VTI-5080) */
   #bound: CollectedAnswer[] = []
   /** the bound answers of each outstanding collection */
   #outstandingAnswers = new Map<string, CollectedAnswer[]>()
-  /** every answer held in one of the three registers above */
-  #answerIds = new Set<string>()
+  /** every answer held in one of the three registers above, with its bytes:
+   *  together they count toward queue-floor (RLTP-VTI-5065) */
+  #answerIds = new Map<string, number>()
   /** the instance has the holder's view (a reconcile) or a submission */
   #viewKnown = false
-  /** id computations in flight (RLTP-VTI-5045) */
+  /** id computations in flight (RLTP-VTI-5065) */
   #indexing = 0
   #inbox: CollectedItem[] = []
   #inboxBytes = 0
@@ -1006,12 +1007,14 @@ export class MediatorCarrierAdapter {
       if (this.#closed) return false
       if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#answerIds.has(queueId)) return true
       // an answer is held, unacknowledged, until it is decided against the
-      // ids of every open document (RLTP-VTI-5045); beyond the floor it
+      // ids of every open document (RLTP-VTI-5065); beyond the floor it
       // stays with the mediator
       if (reading.kind === 'error' || reading.kind === 'next-step') {
-        if (this.#answers.size >= DECLARED.queueFloorCount) return false
+        let held = 0
+        for (const n of this.#answerIds.values()) held += n
+        if (this.#answerIds.size >= DECLARED.queueFloorCount || held + bytes.length > DECLARED.queueFloorBytes) return false
         this.#answers.set(queueId, { reading, sender: String(sender) })
-        this.#answerIds.add(queueId)
+        this.#answerIds.set(queueId, bytes.length)
         this.#decideAnswers()
         return true
       }
@@ -1039,7 +1042,7 @@ export class MediatorCarrierAdapter {
     try { this.#wire.log?.(`[vti-adapter] ${line}`) } catch { /* a sink's failure is not the adapter's */ }
   }
 
-  /** Bind-and-apply (RLTP-VTI-5040, 5045, 5070): the submission of this
+  /** Bind-and-apply (RLTP-VTI-5040, 5065, 5070): the submission of this
    *  instance whose carried document's id the answer names, if its
    *  authenticated sender is the recipient that carried document named;
    *  the outcome applied to it: a terminal refusal fails it, a retryable
@@ -1080,12 +1083,21 @@ export class MediatorCarrierAdapter {
   }
 
   /** Decides every held answer, once the instance knows the holder's view
-   *  and every open document has its id (RLTP-VTI-5045): one bound to a
+   *  and every open document has its id (RLTP-VTI-5065): one bound to a
    *  document of the holder waits in a collection until the host recorded
    *  its report (RLTP-VTI-5080); every other is acknowledged at the next
    *  step. Every answer takes this one path, whatever the opening's state. */
   #decideAnswers (): void {
-    if (this.#closed || !this.#viewKnown || this.#indexing > 0) return
+    if (this.#closed || !this.#viewKnown || this.#indexing > 0 || this.#answers.size === 0) return
+    // every filed submission must have its id first; while the counterpart
+    // is unknown none can, and the answers wait (RLTP-VTI-5065)
+    for (const s of this.#subs.values()) {
+      if (s.outerId !== undefined) continue
+      let peer: unknown
+      try { peer = this.#wire.counterpart() } catch { peer = null }
+      if (typeof peer === 'string' && peer.length > 0) this.#index()
+      return
+    }
     for (const [queueId, { reading, sender }] of this.#answers) {
       this.#answers.delete(queueId)
       const sub = this.#bindAndApply(reading, sender)
@@ -1097,7 +1109,7 @@ export class MediatorCarrierAdapter {
 
   /** The id of the carried document of every filed submission that has
    *  none yet, from its seal and both connection DIDs (Delivery
-   *  RLTP-DEL-4620; RLTP-VTI-5045) — custody and offered alike, whether
+   *  RLTP-DEL-4620; RLTP-VTI-5065) — custody and offered alike, whether
    *  or not an attempt runs — then the held answers are decided. */
   #index (): void {
     this.#viewKnown = true
@@ -1308,7 +1320,7 @@ export class MediatorCarrierAdapter {
       if (this.#wire.offline?.() !== true) this.#startAttempt(sub, now)
     }
     // the accepted documents the holder offers for binding answers only
-    // (RLTP-VTI-5045, Delivery RLTP-DEL-6150): filed in their state, never
+    // (RLTP-VTI-5065, Delivery RLTP-DEL-6150): filed in their state, never
     // attempted; one this instance already holds is not filed twice
     const answerable: readonly AnswerableEntry[] = Array.isArray((view as { answerable?: unknown }).answerable) ? view.answerable : []
     for (const a of answerable) {
@@ -1326,7 +1338,7 @@ export class MediatorCarrierAdapter {
       })
       refs.push({ submissionId: id, digest: a.digest })
     }
-    // every open document gets its id; the held answers are decided then (RLTP-VTI-5045)
+    // every open document gets its id; the held answers are decided then (RLTP-VTI-5065)
     this.#index()
     return refs
   }
@@ -1792,6 +1804,7 @@ export class MediatorCarrierAdapter {
     this.#open()
     const now = this.#now(rawNow)
     this.#readDirectRefusal()
+    this.#decideAnswers()
     this.#concludeConsumed(now)
     // open routed deposits fall routed-ack-deadline plus duplicate-window
     // after their acceptance, also where no switch check can run (no

@@ -1169,7 +1169,7 @@
    "code": "unsupportedType"
   },
   "rules": [
-   "RLTP-VTI-5045",
+   "RLTP-VTI-5065",
    "RLTP-DEL-6150",
    "RLTP-DEL-4620"
   ]

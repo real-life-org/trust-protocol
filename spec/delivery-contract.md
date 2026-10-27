@@ -2878,7 +2878,7 @@ offer an adapter its documents that are `accepted` and not terminal —
 `held` or not — with their sealed envelope and the first submission it
 recorded, for one purpose only: that the adapter binds a counterpart's
 answer to them (4.6; the VTI mediator adapter profile, its
-RLTP-VTI-5045). Such an offer is no custody: it authorizes no hand-over
+RLTP-VTI-5065). Such an offer is no custody: it authorizes no hand-over
 and no deposit, and a document's presence in it is no leave to submit
 it, as its absence from the custody set never is (RLTP-DEL-6135). What an answer
 bound to an offered or a custody document decides reaches the sender as

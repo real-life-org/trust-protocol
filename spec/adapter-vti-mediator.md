@@ -487,7 +487,7 @@ acknowledgement, a validated receiver refusal (§5), a validated
 `idConflict` answer or a validated next step (RLTP-VTI-5050) for that
 document answers it — reported to the
 instance that deposited it, bound by a later instance that files the
-document for binding (RLTP-VTI-5045), or reported by the holder to a
+document for binding (RLTP-VTI-5065), or reported by the holder to a
 later instance when it arrives after that one's close; answers that are no verdict
 (`unavailable`, `internalError`, §5) do not. A report for a digest
 the send state does not name answers nothing, so after a loss of the
@@ -773,74 +773,16 @@ this side's connection DID; and its `inResponseTo.typeUri`, where
 present, is exactly the Type URI of `sealed-envelope/0.1`. A bound
 answer is the validated answer of RLTP-VTI-3130 and §6.1 for that
 submission. The submissions of an instance include those it files for
-binding under RLTP-VTI-5045, also one the holder has ended since it was
+binding under RLTP-VTI-5065, also one the holder has ended since it was
 filed in this opening: an answer bound to it reaches the holder, which
 keeps the end it recorded (§6.1). Whether a bound answer may change the
-submission is RLTP-VTI-5070's; when it is acknowledged, RLTP-VTI-5080's. An answer that binds no submission of
-this instance — none matches, a check fails, or the document was
-terminal at the holder before this opening and so never offered (Open
-Issue 16) — changes nothing: it is logged and acknowledged. An answer bound to a carried acknowledgement changes
-nothing either: an acknowledgement has no trias (Delivery §6.1), and
-it ends as its own rules state.
-
-The answers of a counterpart follow one contract, whatever the state of
-the opening in which they arrive: every open document can be found
-(RLTP-VTI-5045), only the counterpart can change it (RLTP-VTI-5070), and
-an answer leaves the mediator only after its outcome is kept
-(RLTP-VTI-5080).
-
-**RLTP-VTI-5045** — Every open document of the holder has the `id` of
-its carried document in the instance, independent of sending: each
-entry of the holder's custody (RLTP-VTI-6110) and each accepted document
-the holder offers for binding (Delivery RLTP-DEL-6150) is filed, and its
-`id` computed from the sealed envelope and the two connection DIDs
-(Delivery RLTP-DEL-4620) as it was when the document travelled — whether
-or not an attempt runs, the wire is offline, or the document was
-deposited in an earlier opening and its acceptance never recorded.
-Custody decides only whether a document may be deposited, never whether
-an answer can find it. An answer is decided only against these `id`s:
-one that arrives before the instance has filed the holder's view (its
-first `reconcile`, or its first submission where the host submits
-without the holder's view), or while an `id` is still being computed, is
-held in memory and not acknowledged until then; held answers beyond
-`queue-floor` are not taken and stay with the mediator. A document filed
-for binding only is in the state the holder records — `accepted`,
-`held` where the holder marks it — and is never attempted or deposited;
-no horizon of this instance ends it (it ends as §6.1 and Delivery
-RLTP-DEL-6140 state: at the holder's horizon unless `held`), it opens no
-routed deposit, and a later view that no longer offers it withdraws
-nothing; an answer bound to it answers its open routed deposit
-(RLTP-VTI-3130).
-
-**RLTP-VTI-5070** — An answer changes a submission only if its sender,
-as TSP authenticated it (RLTP-VTI-7140), is the counterpart's connection
-DID that the submission's carried document named as `recipient`. The
-adapter checks this at the transition itself; the binding's filter of
-RLTP-VTI-7140 is a second guard, not the guard. An answer from any other
-sender, its `id` and `threadId` correct or not, changes nothing: it is
-logged and acknowledged.
-
-**RLTP-VTI-5080** — An answer that changes a document of the holder
-travels in the next collection beside its items, with the report its
-outcome makes (§3, `collect`). The host records that report at the
-holder before it concludes the collection, and the adapter acknowledges
-the answer at the mediator only at that conclusion; a `keep` returns it
-to the next collection. Every other answer — one that binds nothing,
-changes nothing, or concerns a submission without a holder entry — is
-acknowledged at the adapter's next step. Where the instance or the host
-ends at any point before the conclusion, the answer stays at the
-mediator and arrives again, is bound again under RLTP-VTI-5045 and its
-report recorded again; the holder's report is idempotent (Delivery
-§6.1), so no outcome is lost and none takes effect twice.
-
-*Rationale.* A counterpart answers when it answers: a next step now, a
-refusal hours later, typically in another opening of a device that
-opens for minutes, and possibly before the opening knows what it sent.
-Binding by an `id` that the holder's own records determine, checking the
-sender at the transition, and acknowledging only what is kept make the
-outcome independent of the order of the host's calls, of the network,
-and of where a process ends. The `id` needs no new state: it is a
-function of what the holder keeps until the document is terminal.
+submission is RLTP-VTI-5070's; when it is acknowledged, RLTP-VTI-5080's.
+An answer that binds no submission of this instance — none matches, a
+check fails, or the document was terminal at the holder before this
+opening and so never offered (Open Issue 16) — changes nothing: it is
+logged and acknowledged. An answer bound to a carried acknowledgement
+changes nothing either: an acknowledgement has no trias (Delivery
+§6.1), and it ends as its own rules state.
 
 **RLTP-VTI-5050** — A next step is read by its form: `type` exactly
 `https://trusttasks.org/spec/trust-task-next-step/0.1`; a payload with
@@ -881,6 +823,73 @@ answer for the precision or the offset of either. An `issuedAt` that is
 present and is no RFC 3339 date-time makes the document no answer. The
 reader evaluates `issuedAt` for its form only: answers carry no
 acceptance window here.
+
+The answers of a counterpart follow one contract, whatever the state of
+the opening in which they arrive: every open document can be found
+(RLTP-VTI-5065), only the counterpart can change it (RLTP-VTI-5070), and
+an answer leaves the mediator only after its outcome is kept
+(RLTP-VTI-5080).
+
+**RLTP-VTI-5065** — Every open document of the holder has the `id` of
+its carried document in the instance, independent of sending: each
+entry of the holder's custody (RLTP-VTI-6110) and each accepted document
+the holder offers for binding (Delivery RLTP-DEL-6150) is filed, and its
+`id` computed from the sealed envelope and the two connection DIDs
+(Delivery RLTP-DEL-4620) as it was when the document travelled — whether
+or not an attempt runs, the wire is offline, or the document was
+deposited in an earlier opening and its acceptance never recorded.
+Custody decides only whether a document may be deposited, never whether
+an answer can find it. An answer is decided only against these `id`s:
+one that arrives before the instance has filed the holder's view (its
+first `reconcile`, or its first submission where the host submits
+without the holder's view), while an `id` is still being computed, or
+while the counterpart's connection DID is unknown to the wire, is held
+in memory and not acknowledged until then. Held answers, and bound
+answers not yet concluded, count together toward `queue-floor` (§2), by
+number and by bytes; an answer beyond it is not taken and stays with the
+mediator. A document filed
+for binding only is in the state the holder records — `accepted`,
+`held` where the holder marks it — and is never attempted or deposited;
+no horizon of this instance ends it (it ends as §6.1 and Delivery
+RLTP-DEL-6140 state: at the holder's horizon unless `held`), it opens no
+routed deposit, and a later view that no longer offers it withdraws
+nothing; an answer bound to it answers its open routed deposit
+(RLTP-VTI-3130).
+
+**RLTP-VTI-5070** — An answer changes a submission only if its sender,
+as TSP authenticated it (RLTP-VTI-7140), is the counterpart's connection
+DID that the submission's carried document named as `recipient`. The
+adapter checks this at the transition itself; the binding's filter of
+RLTP-VTI-7140 is a second guard, not the guard. An answer from any other
+sender, its `id` and `threadId` correct or not, changes nothing: it is
+logged and acknowledged.
+
+**RLTP-VTI-5080** — An answer that changes a document of the holder
+travels in the next collection beside its items, with the report its
+outcome makes (§3, `collect`). The host records that report at the
+holder before it concludes the collection, and the adapter acknowledges
+the answer at the mediator only at that conclusion; a `keep` returns it
+to the next collection. Every other answer — one that binds nothing,
+changes nothing, or concerns a submission without a holder entry — is
+acknowledged at the adapter's next step. Where the instance or the host
+ends at any point before the conclusion, the answer stays at the
+mediator and arrives again, is bound again under RLTP-VTI-5065 and its
+report recorded again; the holder's report is idempotent (Delivery
+§6.1), so no outcome is lost and none takes effect twice. The send
+state's part of an answer — that it answers an open routed deposit
+(RLTP-VTI-3130) — is as durable as the host's snapshot of the ack state:
+the host persists the ack state after the conclusion, and a successor
+restored from an earlier snapshot learns the outcomes the holder
+recorded through the holder's answers for earlier deposits.
+
+*Rationale.* A counterpart answers when it answers: a next step now, a
+refusal hours later, typically in another opening of a device that
+opens for minutes, and possibly before the opening knows what it sent.
+Binding by an `id` that the holder's own records determine, checking the
+sender at the transition, and acknowledging only what is kept make the
+outcome independent of the order of the host's calls, of the network,
+and of where a process ends. The `id` needs no new state: it is a
+function of what the holder keeps until the document is terminal.
 
 A validated
 refusal acts on every **non-terminal** state — the report-less
@@ -1294,7 +1303,8 @@ is decidable.
   (RLTP-VTI-5070), so a third party, the mediator included, cannot
   refuse, hold or answer a document of this side, whatever the wire lets
   through. An answer leaves the mediator only after its outcome is kept
-  (RLTP-VTI-5080), so a crash loses none. The counterpart can: a refusal ends a submission, and a
+  at the holder (RLTP-VTI-5080), so a crash loses no outcome there; the
+  send state learns it again from the holder (RLTP-VTI-3130). The counterpart can: a refusal ends a submission, and a
   next step keeps it from failing at the horizon (RLTP-VTI-5050), so a
   counterpart that sends a next step and never acknowledges keeps a
   submission `accepted` (`held`) for as long as it likes. That is a
@@ -1502,7 +1512,7 @@ is decidable.
    open.
 16. **Answers after the end.** An answer binds a submission of the
    instance it reaches, those filed for binding included
-   (RLTP-VTI-5045). An answer to a document the holder already ended —
+   (RLTP-VTI-5065). An answer to a document the holder already ended —
    failed at its horizon, delivered, or refused — changes nothing: in a
    later opening it binds nothing, and within the opening that filed the
    document it binds, but the holder keeps the end it recorded. This
@@ -1586,7 +1596,7 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.29 | 2026-10-27 | One wire identity per relationship and carrier: the connection DID sends and collects, in every layer of both modes (§1, §1a, RLTP-VTI-1120); the delivery hint has three members, a fourth `rltpEgress` read and ignored (RLTP-VTI-1210, 1220, 1227, 1240); the fallback mode `direct` runs on the connection DID's session (RLTP-VTI-3120). Every document travels as a `sealed-envelope/0.1` document in the registry's TSP binding envelope (§3b, RLTP-VTI-3150; Delivery §4.6), built at every attempt and byte-identical across attempts; the adapter reads a delivered payload with its authenticated sender (RLTP-VTI-7140, 7160), holds the carried document's parties against it, and hands the seal to the holder; `payload-bound` 90 182 bytes (§2). Answers in the binding: `trust-task-error/0.5` and `trust-task-next-step/0.1` bound to the submission by the carried document's `id` (RLTP-VTI-5040); a next step makes a submission `accepted` and `held`, which the give-up horizon does not end (RLTP-VTI-5050, §2). Open Issues renumbered; 16 (answers after the end) and 17 (answers of this side) new; The answer contract (RLTP-VTI-5045, 5070, 5080): every open document, custody and the accepted documents the holder offers (Delivery RLTP-DEL-6150), has its id independent of sending; only the recipient the document named changes it; a bound answer travels in the collection with its report and is acknowledged only at the conclusion, after the host recorded it. |
+| 0.29 | 2026-10-27 | One wire identity per relationship and carrier: the connection DID sends and collects, in every layer of both modes (§1, §1a, RLTP-VTI-1120); the delivery hint has three members, a fourth `rltpEgress` read and ignored (RLTP-VTI-1210, 1220, 1227, 1240); the fallback mode `direct` runs on the connection DID's session (RLTP-VTI-3120). Every document travels as a `sealed-envelope/0.1` document in the registry's TSP binding envelope (§3b, RLTP-VTI-3150; Delivery §4.6), built at every attempt and byte-identical across attempts; the adapter reads a delivered payload with its authenticated sender (RLTP-VTI-7140, 7160), holds the carried document's parties against it, and hands the seal to the holder; `payload-bound` 90 182 bytes (§2). Answers in the binding: `trust-task-error/0.5` and `trust-task-next-step/0.1` bound to the submission by the carried document's `id` (RLTP-VTI-5040); a next step makes a submission `accepted` and `held`, which the give-up horizon does not end (RLTP-VTI-5050, §2). Open Issues renumbered; 16 (answers after the end) and 17 (answers of this side) new; the answer contract (RLTP-VTI-5065, 5070, 5080): every open document, custody and the accepted documents the holder offers (Delivery RLTP-DEL-6150), has its id independent of sending; only the recipient the document named changes it; a bound answer travels in the collection with its report and is acknowledged only at the conclusion, after the host recorded it. |
 | 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session`, a refusal of it recorded in the send state when the binding receives it (§7), across openings, no deposit after it (RLTP-VTI-3120, 3130, §5, Open Issue 2); §9 on the sender VID in the payload; Open Issue 12 names the mediator's `status/0.1`; Open Issues 14 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
 | 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |

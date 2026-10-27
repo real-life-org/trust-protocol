@@ -17,7 +17,7 @@
 // (default) or `next-step`; RLTP_WIRE_DEPOSIT `routed` (default) or `direct`;
 // CROSS_OPENING=1 closes the adapter right after the deposit is accepted and
 // opens a new one over the same relationship, which binds the answer to the
-// document the holder offers for binding (RLTP-VTI-5045, Delivery RLTP-DEL-6150);
+// document the holder offers for binding (RLTP-VTI-5065, Delivery RLTP-DEL-6150);
 // with REGISTER_FIRST=1 the new opening registers (and receives the answer)
 // before it reconciles: the adapter holds the answer until the reconcile.
 
@@ -59,57 +59,83 @@ a.register([], Date.now());
 await a.settle();
 say(`  ✓ admitted under the connection DID ${a.connectionDid}`);
 
-// a sealed envelope of the schema's form; the consumer never opens it
+// a sealed envelope of the schema's form; the consumer never opens it. It is
+// filed as a holder's custody entry would be (reconcile), so it has a digest
+// and its answer travels in the collection (RLTP-VTI-5080)
 const seal = { rkid: "z6LStLK2kxribiLHz6U4vpGfzMtmgc4q5WjR4mvhS6KG1W16", epk: b64u(rand(32)), nonce: b64u(rand(12)), ciphertext: b64u(rand(48)) };
 const t0 = Date.now();
-const id = a.submit(new TextEncoder().encode(jcs(seal)), t0);
+const DIGEST = "probe";
+const entry = { digest: DIGEST, kind: "document", envelope: seal, type: "probe", threadId: "probe", recipient: {}, attempt: 0, since: t0, notAfter: t0 + 86_400_000 };
+const gate = { handOver: async (_e, _w, start) => start() };
+const [first] = a.reconcile({ ok: true, entries: [entry], answerable: [] }, gate, t0);
 await a.settle();
 const frame = wire.sentFrames().at(-1) ?? {};
-if (a.status(id)?.state !== "accepted") fail(`deposit not accepted: ${JSON.stringify(a.status(id))}`);
+if (a.status(first.submissionId)?.state !== "accepted") fail(`deposit not accepted: ${JSON.stringify(a.status(first.submissionId))}`);
 say(`  ✓ carried document deposited and accepted (mode ${frame.mode}: payload ${frame.payload}B, inner ${frame.inner}B, outer ${frame.outer ?? "-"}B)`);
 
-let a2 = a;
-let wire2 = wire;
-let ref = id;
+const log = (l) => { logged.push(l); say(`  · ${l}`) };
+/** a new opening over the same relationship, the document offered for binding (RLTP-VTI-5065) */
+async function opening (registerFirst) {
+  const w = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log });
+  const x = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, w);
+  if (registerFirst) {
+    x.register([], Date.now()); await x.settle();
+    await new Promise((r) => setTimeout(r, 3000));
+    x.advance(Date.now()); await x.settle();
+  }
+  const g = { handOver: async () => false };
+  const [r] = x.reconcile({ ok: true, entries: [], answerable: [{ digest: DIGEST, kind: "document", envelope: seal, recipient: {}, since: t0, held: false }] }, g, Date.now());
+  x.register([], Date.now()); await x.settle();
+  return { a: x, wire: w, ref: r.submissionId };
+}
+const want = EXPECT === "unsupportedType"
+  ? (st) => st?.state === "failed" && st.reason === "rejected-by-receiver" && st.code === "unsupportedType"
+  : (st) => st?.state === "accepted" && st.held === true;
+/** wait for the bound answer; its collection, not concluded */
+async function bound (o, what) {
+  const ok = await waitFor(() => { o.a.advance(Date.now()); return want(o.a.status(o.ref)) });
+  await o.a.settle();
+  if (!ok) fail(`${what}: no ${EXPECT} within 30s; status ${JSON.stringify(o.a.status(o.ref))}`);
+  const col = o.a.collect(Date.now());
+  if (col.items.length !== 0) fail(`${what}: the answer reached the holder as an item`);
+  if (col.answers.length !== 1 || JSON.stringify(col.answers[0].report) !== JSON.stringify(o.a.report(o.ref))) fail(`${what}: the bound answer is not in the collection: ${JSON.stringify(col.answers)}`);
+  return col;
+}
+
+let cur = { a, wire, ref: first.submissionId };
 if (process.env.CROSS_OPENING === "1") {
   // the opening ends before the answer is taken: the frame stays at the mediator
   a.close(); wire.close();
   say("  ✓ opening 1 closed after the acceptance");
   await new Promise((r) => setTimeout(r, 3000));
-  wire2 = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } });
-  a2 = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire2);
-  if (process.env.REGISTER_FIRST === "1") {
-    a2.register([], Date.now());
-    await a2.settle();
-    await new Promise((r) => setTimeout(r, 3000));
-    a2.advance(Date.now()); await a2.settle();
-    say("  ✓ opening 2 registered first; the answer has arrived and waits in the adapter");
-  }
-  // the holder's offer of the accepted document, for binding only
-  const [r] = a2.reconcile({ ok: true, entries: [], answerable: [{ digest: "probe", kind: "document", envelope: seal, recipient: {}, since: t0, held: false }] }, { handOver: async () => false }, Date.now());
-  ref = r.submissionId;
-  a2.register([], Date.now());
-  await a2.settle();
-  say("  ✓ opening 2: the accepted document filed for binding; the queued answer arrives now");
+  cur = await opening(process.env.REGISTER_FIRST === "1");
+  say(`  ✓ opening 2${process.env.REGISTER_FIRST === "1" ? " (registered before the reconcile)" : ""}: the accepted document filed for binding`);
 }
-const want = EXPECT === "unsupportedType"
-  ? (st) => st?.state === "failed" && st.reason === "rejected-by-receiver" && st.code === "unsupportedType"
-  : (st) => st?.state === "accepted" && st.held === true;
-const ok = await waitFor(() => { a2.advance(Date.now()); return want(a2.status(ref)) });
-const st = a2.status(ref);
-a2.advance(Date.now()); await a2.settle();
-if (!ok) fail(`no ${EXPECT} within 30s; status ${JSON.stringify(st)}`);
-say(`  ✓ answer read and bound by the carried document's id: ${JSON.stringify(st)} after ${Date.now() - t0}ms`);
-const col = a2.collect(Date.now());
-if (col.items.length !== 0) fail("the answer reached the holder as an item");
-// a document of the holder (CROSS_OPENING: the offered one) carries its answer in the collection;
-// a submit() without a holder entry has no report to record, its answer is acknowledged at the next step
-const wantAnswers = process.env.CROSS_OPENING === "1" ? 1 : 0;
-if (col.answers.length !== wantAnswers || (wantAnswers === 1 && JSON.stringify(col.answers[0].report) !== JSON.stringify(a2.report(ref)))) fail(`the bound answer is not in the collection as expected: ${JSON.stringify(col.answers)}`);
-// the host records col.answers[i].report at its holder here (this probe has none), then concludes
-a2.conclude(col, Date.now()); await a2.settle();
-say(`  ✓ the answer is no item for the holder; ${wantAnswers ? "it travelled in the collection with its report and was acknowledged at the conclusion (RLTP-VTI-5080)" : "acknowledged at the adapter's next step"}`);
+await bound(cur, "first binding");
+const st = cur.a.status(cur.ref);
+say(`  ✓ answer bound by the carried document's id: ${JSON.stringify(st)}; in the collection with its report (${Date.now() - t0}ms)`);
 
-a2.close(); wire2.close();
-console.log(`\nLIVE-INTEROP-PROBE PASS — ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode}${process.env.CROSS_OPENING === "1" ? ", across openings" : ""})`);
+// RLTP-VTI-5080 at the mediator: before the conclusion the answer is still there
+cur.a.close(); cur.wire.close();
+await new Promise((r) => setTimeout(r, 2000));
+cur = await opening(false);
+const col2 = await bound(cur, "redelivery before the conclusion");
+say("  ✓ not concluded, the opening closed: the mediator delivered the answer again and it bound again");
+// the host records col.answers[i].report at its holder here (this probe has none), then concludes
+const ackState = () => cur.a.ackState();
+cur.a.conclude(col2, Date.now());
+await cur.a.settle();
+cur.a.advance(Date.now()); await cur.a.settle();
+if (ackState().pending.length !== 0) fail(`the acknowledgement did not land: ${JSON.stringify(ackState().pending)}`);
+say("  ✓ concluded: the acknowledgement landed");
+cur.a.close(); cur.wire.close();
+await new Promise((r) => setTimeout(r, 2000));
+// after the conclusion the mediator holds nothing more: a new opening binds nothing within 5 s
+const after = await opening(false);
+await new Promise((r) => setTimeout(r, 5000));
+after.a.advance(Date.now()); await after.a.settle();
+if (JSON.stringify(after.a.status(after.ref)) !== JSON.stringify({ state: "accepted" })) fail(`an answer came again after the conclusion: ${JSON.stringify(after.a.status(after.ref))}`);
+say("  ✓ after the conclusion the mediator delivered nothing more");
+after.a.close(); after.wire.close();
+console.log(`\nLIVE-INTEROP-PROBE PASS — ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode}${process.env.CROSS_OPENING === "1" ? ", across openings" : ""}${process.env.REGISTER_FIRST === "1" ? ", registered first" : ""}); the answer stayed at the mediator until the conclusion and was gone after it`);
 process.exit(0);
