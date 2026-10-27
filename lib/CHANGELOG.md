@@ -66,7 +66,9 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   files them as submissions without an attempt in their state, computes
   their carried document's `id`, and binds a counterpart's answer to
   them; the adapter's horizon does not end them, a later view without
-  them withdraws nothing.
+  them withdraws nothing. An answer that arrives before the opening's
+  first `reconcile` (or `submit`) is held, unacknowledged, and bound at
+  that call.
 - **One wire identity.** The connection DID sends and collects;
   `carrierScopedIdentity` has no `egress` scope, `EGRESS_INFO_PREFIX` and
   the adapter's `egressDid` are gone. `deliveryHint` builds the

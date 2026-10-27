@@ -773,10 +773,12 @@ this side's connection DID; and its `inResponseTo.typeUri`, where
 present, is exactly the Type URI of `sealed-envelope/0.1`. A bound
 answer is the validated answer of RLTP-VTI-3130 and §6.1 for that
 submission. The submissions of an instance include those it files for
-binding under RLTP-VTI-5045. An answer that binds no submission of this
-instance — none matches, a check fails, or the document is terminal at
-the holder and no longer offered (Open Issue 16) — changes nothing: it
-is logged and acknowledged. An answer bound to a carried acknowledgement changes
+binding under RLTP-VTI-5045, also one the holder has ended since it was
+filed in this opening: an answer bound to it reaches the holder, which
+keeps the end it recorded (§6.1). An answer that binds no submission of
+this instance — none matches, a check fails, or the document was
+terminal at the holder before this opening and so never offered (Open
+Issue 16) — changes nothing: it is logged and acknowledged. An answer bound to a carried acknowledgement changes
 nothing either: an acknowledgement has no trias (Delivery §6.1), and
 it ends as its own rules state.
 
@@ -788,11 +790,18 @@ hold already as a submission in the state the holder records —
 document's `id` from the sealed envelope and the two connection DIDs
 (Delivery RLTP-DEL-4620), as it was when the document travelled. Such a
 submission is never attempted or deposited, no horizon of this instance
-ends it (the holder's does, §6.1), it opens no routed deposit, and a
+ends it (it ends as §6.1 and Delivery RLTP-DEL-6140 state: at the
+holder's horizon unless `held`), it opens no routed deposit, and a
 later view that no longer offers it withdraws nothing; answers bind to
 it under RLTP-VTI-5040, and an answer bound to it answers its open
 routed deposit (RLTP-VTI-3130). Its reports reach the holder as every
-report does.
+report does. An answer that arrives before the first `reconcile` of the
+instance — the holder's offer — or before its first submission where
+the host submits without the holder's view, is held in memory and not
+acknowledged, and is bound at that step or logged and acknowledged
+then; held answers beyond `queue-floor` are not taken and stay with the
+mediator, and an instance retired before that step leaves them there.
+The order of the host's calls therefore loses no answer.
 
 *Rationale.* A counterpart answers when it answers: a next step now, a
 refusal hours later, typically in another opening of a device that
@@ -1459,9 +1468,11 @@ is decidable.
 16. **Answers after the end.** An answer binds a submission of the
    instance it reaches, those filed for binding included
    (RLTP-VTI-5045). An answer to a document the holder already ended —
-   failed at its horizon, delivered, or refused — binds nothing and
-   changes nothing, also where it would have said more than the end the
-   holder recorded (a refusal after `failed(expired-by-adapter-policy)`).
+   failed at its horizon, delivered, or refused — changes nothing: in a
+   later opening it binds nothing, and within the opening that filed the
+   document it binds, but the holder keeps the end it recorded. This
+   holds also where the answer would have said more than that end (a
+   refusal after `failed(expired-by-adapter-policy)`).
    An answer that reaches a displayed card's instance before it is bound
    binds nothing either: that instance has deposited nothing.
 17. **Answers of this side.** This side reads the framework's answers

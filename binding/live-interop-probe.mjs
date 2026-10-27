@@ -17,7 +17,9 @@
 // (default) or `next-step`; RLTP_WIRE_DEPOSIT `routed` (default) or `direct`;
 // CROSS_OPENING=1 closes the adapter right after the deposit is accepted and
 // opens a new one over the same relationship, which binds the answer to the
-// document the holder offers for binding (RLTP-VTI-5045, Delivery RLTP-DEL-6150).
+// document the holder offers for binding (RLTP-VTI-5045, Delivery RLTP-DEL-6150);
+// with REGISTER_FIRST=1 the new opening registers (and receives the answer)
+// before it reconciles: the adapter holds the answer until the reconcile.
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { jcs } from "../lib/dist/core.js";
@@ -76,6 +78,13 @@ if (process.env.CROSS_OPENING === "1") {
   await new Promise((r) => setTimeout(r, 3000));
   wire2 = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } });
   a2 = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire2);
+  if (process.env.REGISTER_FIRST === "1") {
+    a2.register([], Date.now());
+    await a2.settle();
+    await new Promise((r) => setTimeout(r, 3000));
+    a2.advance(Date.now()); await a2.settle();
+    say("  ✓ opening 2 registered first; the answer has arrived and waits in the adapter");
+  }
   // the holder's offer of the accepted document, for binding only
   const [r] = a2.reconcile({ ok: true, entries: [], answerable: [{ digest: "probe", kind: "document", envelope: seal, recipient: {}, since: t0, held: false }] }, { handOver: async () => false }, Date.now());
   ref = r.submissionId;

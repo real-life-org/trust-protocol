@@ -79,7 +79,9 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   to the submission and applies it. `CROSS_OPENING=1` closes the adapter
   right after the acceptance and opens a new one over the same
   relationship, which files the document as the holder offers it for
-  binding (RLTP-VTI-5045) and binds the answer the mediator kept.
+  binding (RLTP-VTI-5045) and binds the answer the mediator kept;
+  `REGISTER_FIRST=1` registers that opening before it reconciles, so the
+  answer arrives first and is held until the reconcile.
 
 ## Measurements
 
@@ -95,6 +97,7 @@ Mediator 0.45.0 at
 | `live-interop-probe.mjs`, consumer with `--next-step` | PASS: `trust-task-next-step/0.1` → `accepted`, `held` after 240 ms | PASS: the same after 230 ms |
 | `live-interop-probe.mjs`, `CROSS_OPENING=1`, without a handler | PASS: bound in the second opening, `failed(rejected-by-receiver(unsupportedType))` | PASS: the same |
 | `live-interop-probe.mjs`, `CROSS_OPENING=1`, `--next-step` | PASS: bound in the second opening, `accepted`, `held` | PASS: the same |
+| `live-interop-probe.mjs`, `CROSS_OPENING=1 REGISTER_FIRST=1`, without a handler | PASS: the answer arrives before the reconcile, is held and bound at it | PASS: the same |
 
 The binding envelope and the carried document add about 400 bytes to a
 sealed envelope; the routing layer about 408 bytes more. A routed message

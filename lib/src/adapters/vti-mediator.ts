@@ -846,6 +846,11 @@ export class MediatorCarrierAdapter {
   /** payloads the adapter consumed itself (answers, ignored, RLTP-VTI-7160),
    *  concluded at its next step, when it has a clock */
   #consumed = new Set<string>()
+  /** answers that arrived before the first reconcile of this opening
+   *  (RLTP-VTI-5045): held in memory, unacknowledged, bound at it */
+  #early = new Map<string, { reading: Extract<BindingReading, { kind: 'error' | 'next-step' }>, sender: string }>()
+  /** the first reconcile of this opening has run */
+  #reconciled = false
   #inbox: CollectedItem[] = []
   #inboxBytes = 0
   #inboxDigests = new Set<string>()
@@ -964,7 +969,7 @@ export class MediatorCarrierAdapter {
       // buffered, outstanding and consumed go before concluded (§3): a
       // redelivery of a later copy the holder has not concluded yet is
       // ignored
-      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId)) return true
+      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#early.has(queueId)) return true
       for (const col of this.#outstanding.values()) if (col.has(queueId)) return true
       const concludedAt = this.#concluded.get(queueId)
       if (concludedAt !== undefined) {
@@ -984,7 +989,15 @@ export class MediatorCarrierAdapter {
       // the payload read with its authenticated sender (RLTP-VTI-7160)
       const reading = await readBindingEnvelope(bytes, { sender: String(sender), self: this.#connectionDid })
       if (this.#closed) return false
-      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId)) return true
+      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#early.has(queueId)) return true
+      // an answer before the holder's offer is held, unacknowledged, until
+      // the first reconcile binds it (RLTP-VTI-5045); beyond the floor it
+      // stays with the mediator
+      if ((reading.kind === 'error' || reading.kind === 'next-step') && !this.#reconciled) {
+        if (this.#early.size >= DECLARED.queueFloorCount) return false
+        this.#early.set(queueId, { reading, sender: String(sender) })
+        return true
+      }
       if (reading.kind !== 'sealed') {
         if (reading.kind !== 'ignored') await this.#bindIds()
         if (this.#closed) return false
@@ -1168,6 +1181,8 @@ export class MediatorCarrierAdapter {
     }
     this.#subs.set(id, sub)
     if (!knownOffline) this.#startAttempt(sub, now)
+    // a host that submits without the holder's view has no offer to wait for
+    this.#releaseEarly()
     return id
   }
 
@@ -1249,7 +1264,29 @@ export class MediatorCarrierAdapter {
       })
       refs.push({ submissionId: id, digest: a.digest })
     }
+    // the answers held until now bind against what is filed (RLTP-VTI-5045)
+    this.#releaseEarly()
     return refs
+  }
+
+  /** The answers held before the first reconcile (or submit) of this
+   *  opening: bound now, or logged and acknowledged (RLTP-VTI-5045). Runs
+   *  after the caller's synchronous filing, so the documents the holder
+   *  offers are filed first. */
+  #releaseEarly (): void {
+    if (this.#reconciled) return
+    this.#reconciled = true
+    if (this.#early.size === 0) return
+    this.#track((async () => {
+      await Promise.resolve()
+      await this.#bindIds()
+      if (this.#closed) return
+      for (const [queueId, { reading, sender }] of this.#early) {
+        this.#applyAnswer(reading, sender)
+        this.#consumed.add(queueId)
+      }
+      this.#early.clear()
+    })())
   }
 
   /** The `id` of the carried document of every submission filed for

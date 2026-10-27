@@ -2846,16 +2846,6 @@ transitions due at the time of submission could not be applied, nor
 read a document's absence from what its holder offers as leave to
 keep submitting it.
 
-**RLTP-DEL-6150** — Beside the documents in its custody, a sender MAY
-offer an adapter its documents that are `accepted` and not terminal —
-`held` or not — with their sealed envelope and the first submission it
-recorded, for one purpose only: that the adapter binds a counterpart's
-answer to them (4.6; the VTI mediator adapter profile, its
-RLTP-VTI-5045). Such an offer is no custody: it authorizes no hand-over
-and no deposit, and a document's presence in it or absence from it is
-neither leave to submit nor the stop of RLTP-DEL-6135. What an answer
-bound this way decides reaches the sender as any report does (6.1).
-
 *Rationale.* `accepted` begins at the service. Until then only the
 sender knows the document is owed, and if a report that it
 waits were enough to let the sender forget it, a lock or a crash
@@ -2882,6 +2872,16 @@ transitions cannot be applied — the store refuses the write, say —
 the sender submits nothing rather than guess; and where its holder
 no longer offers a document, the absence means *stop*, never
 *carry on*.
+
+**RLTP-DEL-6150** — Beside the documents in its custody, a sender MAY
+offer an adapter its documents that are `accepted` and not terminal —
+`held` or not — with their sealed envelope and the first submission it
+recorded, for one purpose only: that the adapter binds a counterpart's
+answer to them (4.6; the VTI mediator adapter profile, its
+RLTP-VTI-5045). Such an offer is no custody: it authorizes no hand-over
+and no deposit, and a document's presence in it is no leave to submit
+it, as its absence from the custody set never is (RLTP-DEL-6135). What an answer
+bound this way decides reaches the sender as any report does (6.1).
 
 ### 6.2 Receiver: dispositions, in mandatory order
 

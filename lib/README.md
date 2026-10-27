@@ -164,7 +164,9 @@ submission, for binding answers only (Delivery RLTP-DEL-6150). The
 adapter files them at `reconcile` without ever attempting them and
 recomputes the `id` each travelled under, so an answer that arrives in a
 later opening binds (profile RLTP-VTI-5045); its report reaches the
-holder like any other. Status and
+holder like any other. An answer that arrives before the opening's
+first `reconcile` (or first `submit`) is held, unacknowledged, and bound
+at that call, so a host may `register` before it reconciles. Status and
 report change; `drainTransitions` carries only late deliveries, so a host
 polls `report()` for the answers, as for every report.
 
