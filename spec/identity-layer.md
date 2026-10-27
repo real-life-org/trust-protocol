@@ -252,7 +252,7 @@ identity or to derive any key.
 
 ### 3.2 The hierarchy
 
-The hierarchy of `rltp-identity@0.54` has two levels:
+The hierarchy of `rltp-identity@0.55` has two levels:
 
 ```text
 mnemonic → root IKM (64-byte BIP-39 seed; cold in principle)
@@ -274,7 +274,7 @@ mnemonic → root IKM (64-byte BIP-39 seed; cold in principle)
   of the holder, not a key-reuse mechanism.
 - A third level — per-device operational keys authorized by an anchor
   **without** the root IKM — is **not part of this profile**. In
-  `rltp-identity@0.54`, a device that acts for a person holds the
+  `rltp-identity@0.55`, a device that acts for a person holds the
   mnemonic or root IKM (the shared-seed model), and derives from it its
   own device keys (5.5), one per anchor context. Section 15.1 names the
   successor and the constraint any successor MUST honor.
@@ -662,7 +662,7 @@ the derivation and the register entries.
 
 ### 6.1 The closed registry
 
-The registry of `rltp-identity@0.54` is **closed**: exactly the
+The registry of `rltp-identity@0.55` is **closed**: exactly the
 following label forms are derivable, and a derivation API presented with
 any other string MUST reject it before any key derivation (fail closed,
 no normalization repair beyond Section 6.2). A closed registry is what
@@ -1759,10 +1759,10 @@ Every identity profile is graded on four functional properties (B1–B4).
 Which grade a group requires is that group's policy, not this
 protocol's. The native profile of this document (BIP-39 · HKDF labels ·
 Ed25519/X25519 · `did:key` · `eddsa-jcs-2022`) grades as follows, and
-implementations claiming `rltp-identity@0.54` claim exactly these grades
+implementations claiming `rltp-identity@0.55` claim exactly these grades
 — no better:
 
-| Property | Grades (best → weakest) | **Native profile 0.54** |
+| Property | Grades (best → weakest) | **Native profile 0.55** |
 |---|---|---|
 | **B1** Edge survival across key change | native (identifier stable across key events) · compensated (edge succession, C1) · re-encounter | **re-encounter.** C1 (*RLTP Succession*) is parked; until its revision, edges survive an anchor change only by being witnessed anew |
 | **B2** Takeover resistance under operational key possession | pre-separated successor anchor · witnessed succession quorum (C1) · none | **none.** Operational possession of an anchor key is control of the anchor. A first-mover race would also grade as *none*; this profile does not pretend otherwise |
@@ -1778,7 +1778,7 @@ profile (Section 15.2) enters by publishing its own row of this table.
 
 ## 12. Conformance
 
-The profile `rltp-identity@0.54` is claimed by an implementation that:
+The profile `rltp-identity@0.55` is claimed by an implementation that:
 
 1. creates identities per Section 3.1, presents human actions per 3.3,
    and implements the mnemonic/root-IKM contract of Section 4,

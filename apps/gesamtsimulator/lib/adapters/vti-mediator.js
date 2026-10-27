@@ -539,6 +539,9 @@ export async function readBindingEnvelope(bytes, at) {
             const reading = readTrustTaskError(d);
             if (reading === null)
                 return { kind: 'ignored', why: 'not an error document of the registry form' };
+            // a proof, where present, verifies under the issuer, as for a next step (RLTP-VTI-5010, 5050)
+            if ('proof' in d && !(await foreignProofOk(d, d.issuer)))
+                return { kind: 'ignored', why: 'error document whose proof does not verify' };
             const b = boundTo(d, at.sender, at.self);
             return 'why' in b ? { kind: 'ignored', why: b.why } : { kind: 'error', reading, answers: b.answers };
         }
@@ -886,6 +889,11 @@ export class MediatorCarrierAdapter {
             }
         if (sub === undefined) {
             this.#log(`answer from ${sender} binds no submission of this instance (${reading.kind}, ${reading.answers}): acknowledged`);
+            return;
+        }
+        // an acknowledgement has no trias (Delivery 6.1): an answer to one changes nothing (RLTP-VTI-5040)
+        if (!this.#isDocument(sub)) {
+            this.#log(`answer from ${sender} to a carried acknowledgement (${reading.kind}): acknowledged, nothing changes`);
             return;
         }
         if (reading.kind === 'next-step') {

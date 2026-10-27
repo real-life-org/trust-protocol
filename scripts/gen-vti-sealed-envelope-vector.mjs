@@ -161,6 +161,7 @@ const answers = [
   { case: 'error: recipient is not this side', document: errorDoc(unsupported, { recipient: A2 }), rules: ['RLTP-VTI-5040'] },
   { case: 'error: inResponseTo names another type', document: errorDoc({ ...unsupported, inResponseTo: { id: OUT_ID, typeUri: 'https://real-life.org/trust-tasks/spec/message/0.1' } }), rules: ['RLTP-VTI-5040'] },
   { case: 'error: issuedAt is no RFC 3339 date-time', document: errorDoc(unsupported, { issuedAt: '2026-10-27 17:27:50Z' }), rules: ['RLTP-VTI-5060'] },
+  { case: 'error: a proof that does not verify under the issuer', document: errorDoc(unsupported, { proof: badSigned.proof }), rules: ['RLTP-VTI-5010'] },
   { case: 'error: a member outside the registry form', document: errorDoc({ ...unsupported, severity: 'high' }), rules: ['RLTP-VTI-5010'] },
   { case: 'next step: expects empty', document: nextDoc({ ...proceed, expects: [] }), rules: ['RLTP-VTI-5050'] },
   { case: 'next step: an empty typeUri', document: nextDoc({ ...proceed, expects: [{ typeUri: '' }] }), rules: ['RLTP-VTI-5050'] },

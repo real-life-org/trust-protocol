@@ -337,7 +337,9 @@ type and need not be repeated in a declaration:
 
 **RLTP-DEL-3030** — Each type declares a **document size bound**: the
 largest UTF-8 JCS serialization of a document of that type, `proof`
-included and the sealed envelope excluded. The bound is the plaintext
+included and the sealed envelope the document travels in excluded; for
+`sealed-envelope/0.1`, which travels in none, the sealed envelope it
+carries as its payload is included. The bound is the plaintext
 bound of Section 5, 65 536 bytes, unless the registering
 specification declares a smaller one. One type is named as the
 exception: `sealed-envelope/0.1` carries a sealed envelope as its
@@ -3978,6 +3980,14 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   `registry-declaration/0.1` — one per relationship or one per party —
   is not settled; the type declares `identifierScope: any` until it
   is.
+- **DO-12 A `held` document without a bound.** No horizon ends a
+  `held` document (RLTP-DEL-6140): it ends only on the counterpart's
+  acknowledgement or validated terminal refusal, and the sender keeps
+  its sealed envelope until then. Neither a bound nor a withdrawal by
+  the sender is defined. A counterpart that never answers again keeps
+  the document `held`, and so does a refusal that arrives where the
+  adapter cannot bind it to the document (VTI mediator adapter profile,
+  its Open Issue 16).
 - **DO-5 Ordering.** No global ordering is promised; thread
   causality plus the merge rule cover every current flow.
 - **DO-8 A shared queue under a rate.** Documents on the key of an

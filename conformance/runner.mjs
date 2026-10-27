@@ -1216,6 +1216,9 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; D
     if ('continuation' in p && !['resubmit', 'proceed'].includes(p.continuation)) return false
     if ('message' in p && (typeof p.message !== 'string' || cps(p.message) > 1024)) return false
     if ('ext' in p && !obj(p.ext)) return false
+    return proofOk(d)
+  }
+  const proofOk = (d) => {
     if (!('proof' in d)) return true
     const { proof, ...rest } = d
     if (proof.verificationMethod !== d.issuer + '#' + String(d.issuer).slice(8)) return false
@@ -1232,7 +1235,7 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; D
       const ok = validate(d, SCHEMAS['rltp-delivery-document.schema.json'], SCHEMAS['rltp-delivery-document.schema.json']).length === 0 && d.threadId === d.id && d.issuer === sender && d.recipient === self && canon(d.payload.ciphertext)
       return ok ? { kind: 'sealed', seal: d.payload } : { kind: 'ignored' }
     }
-    const err = d.type === T.error && errorForm(d.payload) && irtForm(d.payload.inResponseTo)
+    const err = d.type === T.error && errorForm(d.payload) && irtForm(d.payload.inResponseTo) && proofOk(d)
     const next = d.type === T.nextStep && nextForm(d) && irtForm(d.payload.inResponseTo)
     if (!err && !next) return { kind: 'ignored' }
     if (('issuedAt' in d && !rfc3339(d.issuedAt)) || ('issuer' in d && d.issuer !== sender) || ('recipient' in d && d.recipient !== self)) return { kind: 'ignored' }

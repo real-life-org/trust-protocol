@@ -532,8 +532,9 @@ in. A submission still in the holder's custody (no report yet, or
 `awaiting-transport`) goes in the new mode at its next hand-over
 through the holder (RLTP-DEL-6125). A submission already `accepted`
 is not deposited again (RLTP-VTI-7130): it ends `delivered` or
-`failed` at the give-up horizon as §6.1 states, and resubmission
-after a failure is the application's recourse.
+`failed` at the give-up horizon as §6.1 states, unless it is `held`
+(RLTP-VTI-5050), which no horizon ends; resubmission after a failure is
+the application's recourse.
 
 **RLTP-VTI-3140** — The receiving side needs no mode. In both modes
 what reaches its connection DID's session is the inner `direct`
@@ -730,8 +731,12 @@ exactly the registry's members, a standard or an extended `code`, a
 boolean `retryable`, a `message` of at most 1024 code points (the
 registry schema's `maxLength`, which counts code points, never UTF-16
 units), an RFC 3339 `retryAfter` (either case of `T`
-and `Z`, a leap second read as the next second, any offset); anything
-else is no refusal and changes nothing.
+and `Z`, a leap second read as the next second, any offset), and a
+`proof`, where present, that verifies as for a next step
+(RLTP-VTI-5050); anything else is no refusal and changes nothing. TSP
+authenticates the sender of every answer alike, so a proof adds no
+authenticity here; it is held to what it claims so that the two kinds
+of answer are read by one rule.
 
 **RLTP-VTI-5020** — The codes of a terminal verdict are the
 standard codes `malformedRequest`, `unsupportedType`,
@@ -769,7 +774,9 @@ answer is the validated answer of RLTP-VTI-3130 and §6.1 for that
 submission. An answer that binds no submission of this instance —
 none matches, a check fails, or the submission was deposited by an
 earlier instance (Open Issue 16) — changes nothing: it is logged and
-acknowledged.
+acknowledged. An answer bound to a carried acknowledgement changes
+nothing either: an acknowledgement has no trias (Delivery §6.1), and
+it ends as its own rules state.
 
 **RLTP-VTI-5050** — A next step is read by its form: `type` exactly
 `https://trusttasks.org/spec/trust-task-next-step/0.1`; a payload with
@@ -872,7 +879,9 @@ clock, so it does not pretend to fail them at a horizon it no longer
 drives. A document not yet accepted is still in the holder's custody
 (RLTP-DEL-6120); an accepted one left it at acceptance, and the holder
 ends it as §6.1 does: `delivered` on a valid acknowledgement, `failed`
-at its horizon otherwise. The retired instance's copies were volatile
+at its horizon otherwise, unless it is `held`, which only an
+acknowledgement or a validated terminal refusal ends (RLTP-VTI-5050,
+Delivery RLTP-DEL-6140). The retired instance's copies were volatile
 and authorize nothing after its close.
 
 **RLTP-VTI-6110** — A successor instance takes documents over only
@@ -1078,9 +1087,12 @@ is decidable.
   duplicate-window rules (the window beats everything; no future
   instants) bound what a corrupted clock can stretch.
 - **Give-up produces failure, never silence.** Every declared
-  bound ends in a §6.1 report; the teardown paragraph (§6)
-  states the one case where reporting ends, and leaves the
-  document with the holder, who ends it under §6.1. There is no path on which an envelope is
+  bound ends in a §6.1 report, except for a `held` submission, which
+  no bound ends (RLTP-VTI-5050): the counterpart said it has the
+  document, and its acknowledgement or refusal ends it (the item on
+  answers below states what that leaves to the counterpart); the teardown
+  paragraph (§6) states the one case where reporting ends, and leaves
+  the document with the holder, who ends it under §6.1. There is no path on which an envelope is
   dropped without either a report or a mediator-retained copy.
 
 - **The fallback is not a downgrade of what the mediator

@@ -55,7 +55,9 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   `idConflict` answers it, a next step (its proof, if any, verified under
   the issuer) makes it `accepted` with `held: true`, which the give-up
   horizon does not end. `SubmissionState` and `deliveryReportOf` carry
-  `held`; `TriasReport` `accepted` has `held?: true`.
+  `held`; `TriasReport` `accepted` has `held?: true`. An error document
+  with a `proof` is held to it like a next step; an answer to a carried
+  acknowledgement changes nothing.
 - **One wire identity.** The connection DID sends and collects;
   `carrierScopedIdentity` has no `egress` scope, `EGRESS_INFO_PREFIX` and
   the adapter's `egressDid` are gone. `deliveryHint` builds the

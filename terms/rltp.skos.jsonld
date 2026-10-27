@@ -1954,6 +1954,74 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
+   "@id": "rltp:CarriedDocument",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:ConnectionDid"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Getragenes Dokument",
+     "@language": "de"
+    },
+    {
+     "@value": "Carried document",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Das Trust-Task-Dokument vom Typ sealed-envelope/0.1, in dem ein Träger, der selbst Trust-Task-Dokumente trägt, einen versiegelten Umschlag trägt: der Umschlag ist sein Payload, Aussteller und Empfänger sind die Kennungen des Trägers. Ein fremder Konsument liest seinen Typ, ohne das Siegel zu öffnen, und kann es ablehnen oder sagen, was er als Nächstes erwartet; der Träger des Empfängers nimmt den Umschlag heraus und übergibt ihn dem Empfang.",
+     "@language": "de"
+    },
+    {
+     "@value": "The Trust Task document of the type sealed-envelope/0.1 in which a carrier that itself carries Trust Task documents carries a sealed envelope: the envelope is its payload, its issuer and recipient are the carrier's identifiers. A foreign consumer reads its type without opening the seal and can refuse it or say what it expects next; the recipient's carrier takes the envelope out and hands it to the receive.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#46-sealed-envelope01"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Held",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:CarriedDocument"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Beim Empfänger offen",
+     "@language": "de"
+    },
+    {
+     "@value": "Held",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Ein Merkmal des Sendestatus angenommen: Das Gegenüber hat geantwortet, dass das Dokument bei ihm angekommen ist und auf etwas wartet, das es nennt. Keine Frist beendet ein solches Dokument; es endet nur mit einer Empfangsbestätigung oder einer Ablehnung des Gegenübers.",
+     "@language": "de"
+    },
+    {
+     "@value": "A feature of the sending status accepted: the counterpart has answered that the document arrived there and waits for something it names. No horizon ends such a document; it ends only with the counterpart's acknowledgement or refusal.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#61-sender-the-status-trias"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
    "@id": "rltp:DeliveryHint",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
