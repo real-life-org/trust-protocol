@@ -1928,11 +1928,6 @@
    "@id": "rltp:ConnectionDid",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
-   "skos:related": [
-    {
-     "@id": "rltp:EgressIdentity"
-    }
-   ],
    "skos:prefLabel": [
     {
      "@value": "Verbindungs-DID",
@@ -1945,50 +1940,16 @@
    ],
    "skos:definition": [
     {
-     "@value": "Die Drahtidentität, unter der eine Seite einer Beziehung bei einem Mediator ihr Konto führt: Anmeldung, Abholung und Quittungen laufen unter ihr, das Gegenüber adressiert jedes Dokument an sie, und sie ist der äußere Absender jeder gerouteten Einlieferung. Je Beziehung und Träger aus der Wurzel abgeleitet, nie der Kontroll-Prinzipal.",
+     "@value": "Die eine Drahtidentität einer Seite einer Beziehung bei einem Mediator: Unter ihr führt die Seite ihr Konto, meldet sich an, holt ab und quittiert, und unter ihr sendet sie jede Einlieferung, in jeder Schicht. Das Gegenüber adressiert jedes Dokument an sie und prüft sie als Absender. Je Beziehung und Träger aus der Wurzel abgeleitet, nie der Kontroll-Prinzipal.",
      "@language": "de"
     },
     {
-     "@value": "The wire identity under which one side of a relationship holds its account at a mediator: login, pickup and receipts run under it, the counterpart addresses every document to it, and it is the outer sender of every routed deposit. Derived from the root per relationship and carrier, never the control principal.",
+     "@value": "The one wire identity of one side of a relationship at a mediator: under it the side holds its account, logs in, collects and acknowledges, and sends every deposit, in every layer. The counterpart addresses every document to it and verifies it as the sender. Derived from the root per relationship and carrier, never the control principal.",
      "@language": "en"
     }
    ],
    "dct:source": [
     "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1-identities-5a10"
-   ],
-   "skos:editorialNote": "German text: draft, not normative"
-  },
-  {
-   "@id": "rltp:EgressIdentity",
-   "@type": "skos:Concept",
-   "skos:inScheme": "rltp:",
-   "skos:related": [
-    {
-     "@id": "rltp:ConnectionDid"
-    }
-   ],
-   "skos:prefLabel": [
-    {
-     "@value": "Egress-Identität",
-     "@language": "de"
-    },
-    {
-     "@value": "Egress identity",
-     "@language": "en"
-    }
-   ],
-   "skos:definition": [
-    {
-     "@value": "Die Drahtidentität, unter der eine Seite einer Beziehung sendet: der innere Ende-zu-Ende-Absender jeder Einlieferung, den das Gegenüber sieht und prüft. Je Beziehung und Träger aus der Wurzel abgeleitet; sie ist nie die Verbindungs-DID, unter der dieselbe Seite abholt.",
-     "@language": "de"
-    },
-    {
-     "@value": "The wire identity under which one side of a relationship sends: the inner, end-to-end sender of every deposit, the one the counterpart sees and verifies. Derived from the root per relationship and carrier; it is never the connection DID under which the same side collects.",
-     "@language": "en"
-    }
-   ],
-   "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1a-which-layer-counts-5a10-read-for-routed-deposits"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -2002,9 +1963,6 @@
     },
     {
      "@id": "rltp:ConnectionDid"
-    },
-    {
-     "@id": "rltp:EgressIdentity"
     }
    ],
    "skos:prefLabel": [
@@ -2019,11 +1977,11 @@
    ],
    "skos:definition": [
     {
-     "@value": "Eine Zeichenkette in einer Kontaktkarte, die sagt, über welchen Träger die Seite in der Beziehung erreichbar ist, die die Karte eröffnet. Ihre Form legt das Trägerprofil fest; beim VTI-Mediator ist es ein TSPTransport-Diensteintrag mit Verbindungs-DID, Mediator-DID und Egress-Identität. Sie gilt nur beim Erstkontakt.",
+     "@value": "Eine Zeichenkette in einer Kontaktkarte, die sagt, über welchen Träger die Seite in der Beziehung erreichbar ist, die die Karte eröffnet. Ihre Form legt das Trägerprofil fest; beim VTI-Mediator ist es ein TSPTransport-Diensteintrag mit Verbindungs-DID und Mediator-DID. Sie gilt nur beim Erstkontakt.",
      "@language": "de"
     },
     {
-     "@value": "A string in a contact card that says through which carrier a side is reachable in the relationship the card opens. Its form is the carrier profile's; for the VTI mediator it is a TSPTransport service entry naming the connection DID, the mediator's DID and the egress identity. It acts at first contact only.",
+     "@value": "A string in a contact card that says through which carrier a side is reachable in the relationship the card opens. Its form is the carrier profile's; for the VTI mediator it is a TSPTransport service entry naming the connection DID and the mediator's DID. It acts at first contact only.",
      "@language": "en"
     }
    ],

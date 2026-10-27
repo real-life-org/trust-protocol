@@ -1,305 +1,141 @@
-# binding-vti — die Wire-Bindung unter dem Adapter
+# binding — the VTI mediator wire (dev only)
 
-Die konkrete `MediatorWire`-Implementierung über `@openvtc/vti-didcomm-js`
-0.13.0 und `@openvtc/vti-tsp-js` 0.4.0 (TSP **1.0**, `YTSP-BAA`: HPKE-Base,
-Sender-VID im vertraulichen Payload, Außensignatur). **Dev-only** — nie eine Abhängigkeit der
-zero-dependency lib; das Profil 0.28 (`spec/adapter-vti-mediator.md` §3a, §7)
-benennt genau die Pflichten, die hier wohnen. Den Modus der angezeigten
-Karte (§1c: eine Instanz ohne Gegenüber bis zur Bindung)
-trägt diese Bindung nicht; sie baut nur Wires mit bekanntem Gegenüber.
+The concrete `MediatorWire` of the VTI mediator adapter
+(`spec/adapter-vti-mediator.md`, profile 0.29, §3a, §7) over
+`@openvtc/vti-didcomm-js` 0.13.0 and `@openvtc/vti-tsp-js` 0.4.0, TSP 1.0.
+It is never a dependency of the zero-dependency library: the library's
+adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
+`MediatorWire` contract, and this one is the measured one.
 
-## Was hier liegt
+## What it does
 
-- `vti-wire.mjs` — `createVtiWire(cfg)`:
-  - leitet die **Wire-Identitäten aus derselben HKDF** ab wie die
-    lib (gleiche Präfixe → byte-identische DIDs zum Adapter-Trio;
-    gemessen in der Probe);
-  - ATM-Auth unter der Connection-DID, ein Pickup-Socket;
-  - `deposit(token, bytes, egressDid, mode)` in der Sendeform von
-    Profil 0.28 §3a, im Modus, den der Adapter nennt; beide Schichten
-    werden bei jedem Versuch neu gepackt (RLTP-VTI-7110), die
-    Adressierung kommt aus `depositAddressing` der lib:
-    - **`routed`** (Modus jeder Adapter-Instanz ab Konstruktion):
-      innen TSP-1.0-`direct` Egress-Identität → Connection-DID des
-      Partners (HPKE-Base an deren Schlüssel, signiert von der
-      Egress-Identität), außen `packRouted` Connection-DID → `C` mit
-      Route `[Connection-DID des Partners]`, versiegelt an den
-      Schlüssel, den `C`s DID-Dokument zuerst unter `keyAgreement`
-      nennt — aufgelöst bei jeder Authentisierung und jeder
-      Token-Erneuerung (RLTP-VTI-7120); Versand über die Session der
-      Connection-DID. Eine Session je Beziehung und Seite;
-    - **`egress-session`** (Rückfall nach der Umschaltung von
-      RLTP-VTI-3130): nur die innere Nachricht, über eine
-      send-only-Session der Egress-Identität, die erst beim ersten
-      Deposit in diesem Modus authentisiert wird und vor jedem Deposit
-      geprüft wird (Socket zu oder Token abgelaufen → neu
-      authentisieren und verbinden). Send-only heißt hier
-      (`SendOnlySession`): der Socket öffnet ohne
-      `live-delivery-change` (kein Live Mode), nichts wird abgeholt,
-      nichts geackt; gelesen wird nur ein Problem-Report des Mediators
-      (Ablehnung einer Einlieferung): geloggt; nur nach
-      `e.p.direct_delivery.denied` scheitert jede weitere Einlieferung in
-      diesem Modus als `refused-retriable` (bis zum Ende der Wire), jeder
-      andere Problem-Report wird nur geloggt. Auch in diesem Modus
-      authentisiert der Adapter vor jedem Deposit zuerst die
-      Connection-DID (deren Token ist das erste Argument von
-      `deposit`); die Egress-Identität authentisiert die Bindung
-      selbst;
-  - `onDeliver` entpackt den TSP-Rahmen, verlangt TSP 1.0 und genau das
-    Paar (Egress-Identität des Partners → eigene Connection-DID, in
-    beiden Modi), und reicht nur bei einer Anwendungsnachricht vom Typ
-    `direct` mit nichtleerer Nutzlast die **inneren Payload-Bytes
-    wahrheitsgetreu** an den Adapter (M-2, RLTP-VTI-7140).
-    Beziehungsrahmen (`XRFI`/`XRFA`/`XRFD`, Referral im Invite),
-    Padding, `nested`/`routed` und leere `direct`-Rahmen gehen nie an
-    den Adapter: sie werden mit Typ und Sender-VID geloggt und geackt,
-    damit sie die Queue nicht blockieren — inklusive der
-    **Ack-Übersetzung** (Payload-Digest ↔ Mediator-Queue-ID = sha256
-    über den qb64-Text);
-  - Ein Rahmen, der sich nicht öffnen lässt, von einem anderen Sender
-    kommt oder einer anderen Beziehung gilt, wird ebenfalls mit
-    Sender-VID (aus dem Klartext-Envelope, soweit lesbar, keine Secrets) geloggt und
-    geackt; ebenso ein Rahmen einer anderen TSP-Version (auch Rev 3),
-    den die Bibliothek am Versionskennzeichen ablehnt, bevor ein
-    Schlüssel berührt wird (das Log nennt die Version). Ein Rahmen, den der Adapter nicht übernimmt (sein Consumer
-    meldet `false` — Puffer über `max-queue-bytes`, Instanz
-    stillgelegt — oder wirft), bleibt ungeackt beim Mediator; der bietet
-    ihn erst beim nächsten Öffnen des Sockets wieder an. Bis dahin meldet
-    `queueEmpty()` false: auf einem stabilen Socket hält das die
-    Umschaltung zurück (fail-safe, kein falscher Rückfall). Eine Wire
-    gehört zu genau einer Adapter-Instanz;
-  - **Geschlossener Socket:** `ws` verwirft ein `send` nach dem Schließen
-    ohne Fehler. Deposit und Ack prüfen daher vorher, ob der Socket der
-    Connection-DID offen ist; sonst werfen sie `WireError('unreachable')`
-    (der Adapter meldet `awaiting-transport` bzw. behält die
-    Ack-Absicht) und stoßen im Hintergrund das Neuverbinden an, der
-    nächste Versuch läuft über den neuen Socket. Ein Ack, dessen Socket
-    während des Sendens stirbt, gilt ebenfalls als gescheitert. Reißt
-    der Socket ab, verbindet die Wire selbst neu (einmal zur Zeit,
-    Backoff ab 50 ms bis 30 s, nach `close()` kein Timer), damit eine
-    Seite, die nur empfängt, wieder empfängt; eine Erneuerung wartet
-    auf ein laufendes Neuverbinden statt einen zweiten Socket zu öffnen;
-  - **Delete-to-Ack unter der Hoheit des Adapters**: die 0.13.0-
-    Session ackt sonst direkt nach dem Consumer (mit eigenem
-    `_seen`-Dedup); die Subclass `RltpMediatorSession` hebt beides
-    auf — geackt wird erst, wenn der Adapter `conclude` sagt;
-  - `queueEmpty()` für die Umschaltprüfung (RLTP-VTI-3130, Feststellung
-    „nichts offen“ nach RLTP-VTI-7150): wahr, wenn
-    die Session der Connection-DID offen ist, kein empfangener Rahmen
-    noch auf dem Weg zum Adapter ist und seit mindestens 1 s weder ein
-    TSP-Rahmen kam noch der Socket (neu) geöffnet wurde, und seit dem
-    letzten Öffnen kein Rahmen beim Mediator zurückblieb, den der
-    Adapter nicht übernommen hat. Live Delivery
-    schiebt beim Öffnen des Sockets, was der Mediator hält; ein ruhiger
-    offener Socket gilt daher als leere Queue. Eine Näherung, keine
-    Auskunft des Mediators. Ohne `queueEmpty()` schaltet der Adapter
-    nie um (geschlossen);
-  - `sentFrames()` — Größen der deponierten Rahmen (Nutzlast, innen,
-    außen) für die Messungen der Proben;
-  - `RLTP_WIRE_DEPOSIT` (oder `cfg.depositMode`) ist ein
-    Messschalter: `routed` (Default) folgt dem Modus des Adapters;
-    `egress-session` erzwingt den Rückfall für jedes Deposit;
-    `egress` (innere Nachricht allein auf dem Socket der
-    Connection-DID) und `connection` (Sender = Connection-DID, eine
-    Schicht) sind **Kontrollen und nicht profilkonform**
-    (RLTP-VTI-1130, RLTP-VTI-3120); beide Seiten einer Probe in einer
-    Kontrollform müssen dieselbe Form fahren.
-- `test/wire-demux.test.mjs` — offline (`npm test`): echte Wire,
-  echte `RltpMediatorSession`, echter Adapter über einem Mediator-
-  Double (ATM-HTTP, DID-Auflösung, Socket über `cfg.transport`), mit
-  dem echten TSP-1.0-Code von `vti-tsp-js` 0.4.0. Das
-  Double leitet einen Rahmen nur weiter, wenn sein Sender die DID des
-  Sockets ist; einen an sich adressierten `routed`-Rahmen öffnet es mit
-  seinem aktuellen X25519-Schlüssel, nimmt den nächsten Hop und stellt
-  die innere Nachricht unverändert zu; `rotate()` wechselt den
-  Schlüssel, Rahmen an den alten verschwinden still. Geprüft: beide
-  Schichten einer Einlieferung tragen `YTSP-BAA`, die innere die
-  Sender-VID; ein Rev-3-Rahmen (`YTSP-AAC`) wird mit seiner Version
-  geloggt, geackt und nie zugestellt; ein Rahmen der Hauptversion 1
-  mit Minor 1 wird zugestellt, einer der Hauptversion 2 abgewiesen; ein
-  Rahmen, dessen Sender-VID im Payload von der im Umschlag abweicht,
-  geloggt, geackt, nie zugestellt; ein Mediator ohne Direktzustellung
-  (`e.p.direct_delivery.denied` auf der Send-only-Session) → geloggt,
-  nächste `egress-session`-Einlieferung `carrier-refused-retriable`;
-  ein anderer Problem-Report (`e.p.delivery.refused`) → geloggt, die
-  nächste Einlieferung geht raus; XRFI,
-  XRFA, `nested`, `routed` und leeres `direct` erreichen den Adapter
-  nicht und werden geackt; routed Ende-zu-Ende bytegleich (außen
-  Connection-DID → `C`, Route = Connection-DID des Partners, innen
-  Egress-Identität); die Adressierung beider Richtungen gegen
-  `vectors/vti-routed-addressing.json`; Neubindung (Deposit scheitert,
-  `rotate()`, Erneuerung, das Wartende kommt mit dem neuen Schlüssel
-  an); Rückfall `egress-session` über die send-only-Session, auch Ende
-  zu Ende als Umschaltung über die echte Wire (Double trägt keine
-  routed-Rahmen); geschlossener Socket bei Deposit und Ack;
-  abgewiesene Fremd- und Fehlrahmen; `queueEmpty()`. Das Double
-  verhält sich beim Schließen wie `ws` (`send` danach still verworfen)
-  und hält jeden Rahmen bis zum Ack des Clients, beim nächsten Öffnen
-  des Sockets bietet es die ungeackten wieder an (Store-and-forward);
-  geprüft: über der Obergrenze abgelehnt → `queueEmpty()` false →
-  abholen und abschließen → Socket neu öffnen → Rahmen übernommen →
-  `queueEmpty()` true.
-- `live-probe.mjs` — env-gated (`RLTP_LIVE_MEDIATOR=1`, `MEDIATOR_DID`
-  Pflicht: eine TSP-1.0-Instanz, Mediator ≥ 0.45): zwei
-  Beziehungen gegen diese Instanz, deposit → deliver
-  → conclude in beide Richtungen; gibt Zustellung ja/nein,
-  Rahmengrößen (Nutzlast, innen, außen) und die Zeiten
-  Einlieferung → `accepted` und → Zustellung (ms) aus.
-- `live-delivery-probe.mjs` — der volle Delivery-Vertrag live
-  (env-gated wie oben): lib-`seal()` eines echten Delivery-Dokuments
-  auf Bobs rkid → Träger-Pfad → gestuftes `receive()`-Verdikt
-  (`unique`, Digest) → signierter `delivery-ack/0.1`
-  (eddsa-jcs-2022, ref+thread-gebunden) zurück → Alices §6.1-Trias
-  schließt `accepted → delivered` (nicht late). Gibt Zustellung,
-  Trias, Rahmengrößen, die Zeiten Einlieferung → `accepted`,
-  → Zustellung und → Ack (ms) und die Zahl offener routed-Einlieferungen
-  je Seite aus (`submit()` ohne Digest öffnet keine). Keine Secrets.
-- `.sender-hypothesis.mjs` — Naht-Messung: welchen TSP-Sender leitet
-  der Mediator weiter? (`MEDIATOR_DID` Pflicht; die Ergebnisse in der
-  Tabelle stammen von Mediator 0.44 mit Rev 3; unter 0.45 hängen Fall 2
-  und 3 an der lokalen Direktzustellung) Drei Fälle (Sender = Socket-DID; fremde
-  Sender-VID auf dem Socket; Sender-VID auf eigenem Socket).
+- `createVtiWire({ rootIkm, mediatorDid, nonce, peerDid, log?, depositMode?, transport? })`
+  derives the one wire identity, the connection DID, from the same root,
+  carrier and nonce as the adapter (`rltp/v1/carrier-connection/ed25519/v1/`,
+  Identity §13), authenticates under it (ATM), and holds one session per
+  relationship and side. `peerDid` is the counterpart's connection DID,
+  the `id` without `#tsp` of its delivery hint (RLTP-VTI-1240); the wire
+  refuses to be built without it, or with this side's own (1235, 1227).
+- `deposit(token, bytes, mode)` packs the payload the adapter hands over —
+  the binding envelope around the carried `sealed-envelope/0.1` document
+  (RLTP-VTI-3150) — anew for every attempt (7110):
+  - **`routed`** (the mode of every relationship from the start): an inner
+    TSP 1.0 `direct` message connection DID → peer's connection DID
+    (HPKE-Base to its key, signed by the connection DID) inside an outer
+    `packRouted` message connection DID → `C`, route [peer's connection
+    DID], sealed to the key `C` names first under `keyAgreement` as
+    resolved at the last authentication (7120);
+  - **`direct`** (the fallback after the switch of RLTP-VTI-3130): the
+    inner message alone, on the same session.
+- On receipt it opens a TSP 1.0 `direct` message from the peer's
+  connection DID to its own and hands the adapter the payload bytes
+  unchanged together with the authenticated sender (M-2, RLTP-VTI-7140);
+  the adapter reads the carried document (7160). Control frames
+  (`XRFI`/`XRFA`/`XRFD`), padding, `nested`/`routed`, empty `direct`
+  frames, frames of another sender or receiver, frames that fail a TSP 1.0
+  receiver check and frames of another major version (Rev 3 included)
+  never reach the adapter: they are logged with their type and sender VID
+  and acknowledged.
+- Delete-to-ack stays the adapter's: the session subclass acks a frame
+  only when the adapter concludes it (payload digest ↔ mediator queue id).
+- A problem report of the mediator on the session is logged; a refusal of
+  direct delivery (`e.p.direct_delivery.denied`, mediator 0.45 with local
+  direct delivery off) sets `directRefused()` for the wire's life and
+  makes every later `direct` deposit fail as `WireError('direct-refused')`
+  (RLTP-VTI-3120); `routed` deposits still go.
+- `counterpart()` names `peerDid`; `log(line)` takes the adapter's lines;
+  `queueEmpty()` is the statement of RLTP-VTI-7150 as far as the wire can
+  tell (session open, nothing on its way to the adapter, nothing left at
+  the mediator since the socket opened, 1 s without a frame);
+  `sentFrames()` gives the frame sizes for the probes.
+- A closed socket fails a deposit or an ack as `WireError('unreachable')`
+  and reconnects in the background (single-flight, backoff 50 ms to 30 s).
+- `RLTP_WIRE_DEPOSIT` (or `cfg.depositMode`): `routed` (default) follows
+  the adapter's mode; `direct` forces the fallback for every deposit.
 
-## Instanz
+## Tests and probes
 
-Die Bindung spricht TSP 1.0 und braucht einen Mediator ≥ 0.45: ab dieser
-Version öffnet der Mediator an sich selbst adressierte Rahmen (die
-routed-Außenschicht) nur in 1.0; zwischen Endpunkten leitet er jede
-Version weiter. Ein Mediator ≤ 0.44 lehnt 1.0-Rahmen am Eingang ab.
-Die Proben haben deshalb keine Default-Instanz mehr.
+- `test/wire-demux.test.mjs` — offline (`npm test`): the real wire, the
+  real adapter and the real TSP 1.0 code of `vti-tsp-js` 0.4.0 over a
+  mediator double (ATM HTTP, DID resolution and socket through
+  `cfg.transport`). Both sending forms byte for byte against
+  `vectors/vti-routed-addressing.json`, the payload carried unchanged, the
+  frames refused on receipt, problem reports, key rotation and rebinding,
+  the switch to `direct`, `queueEmpty()`, acks and the buffer cap.
+- `live-probe.mjs` — `RLTP_LIVE_MEDIATOR=1`, `MEDIATOR_DID` required (a
+  TSP 1.0 mediator ≥ 0.45): two sides of one relationship exchange a
+  carried document both ways (deposit → deliver → conclude) and print
+  delivery, frame sizes and times.
+- `live-delivery-probe.mjs` — the full delivery contract live: a
+  lib-sealed document, the staged `receive()`, a signed `delivery-ack/0.1`
+  back, the trias closing `accepted → delivered`.
+- `live-interop-probe.mjs` — the adapter against a foreign Trust Task
+  consumer on the same mediator (`FOREIGN_DID`, its did:key; `EXPECT`
+  `unsupportedType` or `next-step`): the consumer of
+  `trust-protocol-interop-double` (Rust: `trust-tasks-rs` and
+  `trust-tasks-tsp` 0.35.4, `affinidi-tsp` 0.3.0) dispatches the carried
+  document by its `type` without opening the seal and answers the
+  authenticated sender; the probe checks that the adapter binds the answer
+  to the submission and applies it.
 
-Bisher gemessene Instanz (Mediator 0.44, TSP Rev 3; trägt die
-1.0-Bindung nicht):
-`did:webvh:QmR5xGk8pkd3ymu7xpfkjr7XZmwDALA5ZJmgG7qcrD2mKA:webvh.storm.ws:mediator`
-(Log-Version 1 vom 27.09.2026), Endpunkte `https://mediator.vtc.storm.ws/mediator/v1`,
-`wss://mediator.vtc.storm.ws/mediator/v1/ws`; das DID-Dokument
-nennt zusätzlich einen `TSPTransport`-Dienst auf derselben URL.
-Die früher konfigurierte DID mit SCID `QmTS3a3H…` löst nicht mehr
-auf (`SCID in DID … does not match SCID in log 'QmR5xGk8…'`).
+## Measurements
 
-## Messstand
+Mediator 0.45.0 at
+`did:webvh:QmUTUkdHgppiciLpqcxkTi6Pbc9VuZzWXvH4L2Dk2dY2WL:mediator.web-of-trust.de`
+(local direct delivery allowed), 27.10.2026, one run each:
 
-**TSP 1.0, lokal (26.10.):** Mediator 0.45.0 (`7e378c03`) als
-In-Process-Instanz des Crates `affinidi-messaging-test-mediator`
-(Beispiel `standalone`, Feature `tsp`, `did:peer:2`, ACL allow-all,
-Speicher im RAM), über `MEDIATOR_ALLOW_INSECURE=1`:
-`live-probe.mjs` PASS (routed, beide Richtungen, 64 B → 393 B → 1260 B,
-Zustellung 290/269 ms); `live-delivery-probe.mjs` routed PASS, zweimal
-(`accepted → delivered`, nicht late; Einlieferung → geprüfter Ack 600 ms).
-Der äußere Rahmen ist größer als bei storm.ws, weil `C` hier eine lange
-`did:peer:2` ist.
+| Probe | `routed` | `direct` |
+|---|---|---|
+| `live-probe.mjs` | PASS: 657 B payload → inner 984 B → outer 1392 B, delivered after 282 ms; reply 635 B → 963 B → 1371 B, 262 ms | PASS: 657 B → 984 B, 270 ms; 635 B → 963 B, 258 ms |
+| `live-delivery-probe.mjs` | PASS: document 1105 B → 1434 B → 1842 B, ack 1647 B → 1974 B → 2382 B, deposit → ack validated 569 ms | PASS: 1105 B → 1434 B, ack 1646 B → 1974 B, 529 ms |
+| `live-interop-probe.mjs`, consumer without a handler | PASS: `unsupportedType` → `failed(rejected-by-receiver(unsupportedType))` after 219 ms | PASS: the same after 216 ms |
+| `live-interop-probe.mjs`, consumer with `--next-step` | PASS: `trust-task-next-step/0.1` → `accepted`, `held` after 240 ms | PASS: the same after 230 ms |
 
-`egress-session` braucht einen Mediator, der lokale Direktzustellung
-erlaubt (Profil RLTP-VTI-3120; Mediator 0.45:
-`LOCAL_DIRECT_DELIVERY_ALLOWED=true`, Code-Default `false`, ebenso im
-Test-Mediator). Mit Default lehnt der Mediator jede Einlieferung über die
-Send-only-Session mit `e.p.direct_delivery.denied` ab; die Bindung loggt
-den Problem-Report und lässt jede weitere Einlieferung in diesem Modus
-als `refused-retriable` scheitern (die vorher abgegangenen stehen schon
-auf `accepted`, Profil Open Issue 4). Live (26.10.): mit Default eine
-Ablehnung, geloggt wie beschrieben; mit `.local_direct_delivery(true,
-false)` acht Läufe, davon vier PASS (`accepted → delivered`, Dokument
-688 B → 1017 B, Ack 1230 B → 1557 B, Einlieferung → geprüfter Ack
-592–686 ms), keine Ablehnung `direct_delivery.denied`. Jeder der vier
-Fehlläufe fiel mit Meldungen des IP-Ratenbegrenzers der Instanz zusammen
-(„100 req/s, burst 50“ gemeldet, greift schon bei wenigen Aufrufen);
-einmal kam dabei `e.p.delivery.refused` auf der Send-only-Session an.
-Der Begrenzer ist vor dem Betrieb des eigenen Mediators zu prüfen.
-Eine öffentliche 1.0-Instanz ist nicht gemessen.
+The binding envelope and the carried document add about 400 bytes to a
+sealed envelope; the routing layer about 408 bytes more. A routed message
+whose inner and outer sender are the same connection DID is relayed.
 
-Die Tabelle: gemessen mit der Rev-3-Bindung (`vti-tsp-js` 0.3.0, Profil ≤ 0.27) gegen
-die Instanz oben. Die
-Rahmengrößen sind unverändert (offline nachgerechnet mit 0.4.0:
-dieselben Bytezahlen für 64 B, 48 B, 681 B und 1224 B Nutzlast, innen
-und außen), denn 1.0 ändert gegenüber Rev 3 nur das
-Versionskennzeichen und macht die Sender-VID im vertraulichen Payload
-zur Pflicht, die 0.3.0 schon immer schrieb.
+## Operating facts
 
-| Probe | `routed` (Default) | `egress-session` | `egress` (Kontrolle) | `connection` (Kontrolle) |
-|---|---|---|---|---|
-| `live-probe.mjs` | PASS (22.10.) | PASS (17.10.) | **FAIL** — `no delivery within 20s` (17.10.) | PASS (17.10.) |
-| `live-delivery-probe.mjs` | PASS (22.10.): `accepted → delivered`, nicht late | PASS (22.10., send-only ohne Live Mode) | **FAIL** — `no delivery in 20s` (17.10.) | PASS (17.10.) |
-| `.sender-hypothesis.mjs` | — | eigener Socket: zugestellt | fremde Sender-VID: nicht zugestellt | Socket-DID: zugestellt |
+1. The mediator relays a TSP frame only when the sender VID of its
+   envelope is the socket's authenticated DID (measured at mediator 0.44
+   with Rev 2 and Rev 3 frames): a frame with another sender vanishes
+   without a problem report. Every layer this wire sends carries the
+   connection DID, the socket's DID.
+2. `register()` is the transport admission: it opens the ATM session and
+   the pickup socket; `collect()` has no wire traffic of its own.
+3. The mediator routes on the envelope's receiver VID; a keylist is not
+   needed for did:key clients.
+4. `accepted` means the frame went onto the socket; only the signed
+   acknowledgement, or a counterpart's answer, says more.
+5. Mode `direct` needs a mediator that allows local direct delivery
+   (0.45: `LOCAL_DIRECT_DELIVERY_ALLOWED=true`; code default `false`).
 
-Rahmengrößen (direkt): 64 B Payload → 393 B, 48 B → 375 B,
-681 B versiegeltes Delivery-Dokument → 1008 B, 1224 B Ack → 1551 B.
-
-`egress-session` (22.10., send-only-Session ohne Live Mode, eine Stichprobe): Dokument 681 B → 1008 B, Ack 1224 B → 1551 B; `accepted` nach 556/559 ms (lazy Login der Egress-Identität), Zustellung 1056/810 ms, Einlieferung → geprüfter Ack 1882 ms.
-
-Routed (22.10., je eine Stichprobe): die Routing-Hülle kostet +408 B
-je Rahmen (64 B → innen 393 B → außen 801 B; 48 B → 375 B → 783 B;
-Delivery-Dokument 681 B → 1008 B → 1416 B; Ack 1222 B → 1551 B →
-1959 B). Eine Einlieferung = ein Rahmen auf dem Socket der
-Connection-DID, eine Session je Beziehung und Seite. Zeiten:
-`accepted` nach 5–15 ms, Zustellung beim Empfänger nach 256–266 ms,
-Einlieferung → geprüfter Ack beim Sender 546 ms (zwei Rundreisen über
-den Mediator: Dokument hin, Ack zurück).
-
-## Gemessene Betriebsfakten
-
-1. **Der Mediator leitet einen TSP-Rahmen nur weiter, wenn die
-   Sender-VID im Envelope die authentisierte DID des Sockets ist.**
-   Ein Rahmen mit fremder Sender-VID verschwindet ohne Fehler, ohne
-   Problem-Report; gemessen mit Rev-2- und Rev-3-Rahmen an Mediator 0.44. Deshalb trägt die
-   einschichtige Form `egress` auf dieser Instanz nicht; Profil 0.28
-   antwortet mit `routed` (äußerer Sender = Socket-DID) und dem
-   Rückfall `egress-session`.
-2. Mediator 0.44 stellte Rev-2- und Rev-3-Rahmen zu (Sender =
-   Socket-DID). Die Bindung packt und akzeptiert nur TSP 1.0.
-3. **`register()` ist die Transportzulassung** — erst sie öffnet
-   ATM-Session und Pickup-Socket; `collect()` hat keinen eigenen
-   Wire-Verkehr. Ein Empfänger, der nie registriert, empfängt nie.
-   Scheitert die ATM-Auth (etwa an der DID-Auflösung), meldet der
-   Adapter `awaiting-transport(transport-unreachable)`.
-4. Der Mediator **routet auf der Envelope-Empfänger-VID**; eine
-   Keylist ist für did:key-Clients nicht nötig.
-5. `accepted` heißt hier: der Rahmen ging auf den Socket. Ein
-   verworfener Rahmen (Fakt 1) ist für den Sender davon nicht
-   unterscheidbar; erst der signierte Ack schließt die Trias.
-6. M-2 hält live: Zufalls-Envelopes kamen byte-identisch an.
-
-## Ausführen
+## Running
 
 ```sh
-cd binding && npm install
-export MEDIATOR_DID=...                             # TSP-1.0-Instanz (Mediator ≥ 0.45), Pflicht
-RLTP_LIVE_MEDIATOR=1 npm run probe                  # braucht Netz
+cd binding && npm ci --ignore-scripts
+export MEDIATOR_DID=...                              # a TSP 1.0 mediator (≥ 0.45), required
+RLTP_LIVE_MEDIATOR=1 npm run probe
 RLTP_LIVE_MEDIATOR=1 node live-delivery-probe.mjs
-RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=egress-session npm run probe   # Rückfall erzwungen
-RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=egress npm run probe   # Kontrolle, nicht profilkonform
-npm test                                            # offline: TSP 1.0, Demux, routed, Neubindung, Rückfall
-RLTP_WIRE_DEBUG=1 ...                               # Rahmengrößen, Dispatch-Fehler
-MEDIATOR_ALLOW_INSECURE=1 ...                       # lokale Instanz über http/ws
+RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=direct npm run probe
+RLTP_LIVE_MEDIATOR=1 FOREIGN_DID=did:key:... EXPECT=unsupportedType node live-interop-probe.mjs
+npm test                                             # offline
+RLTP_WIRE_DEBUG=1 ...                                # frame sizes, dispatch errors
+MEDIATOR_ALLOW_INSECURE=1 ...                        # a local instance over http/ws
 ```
 
-Die Proben importieren `../lib/dist`; die lib muss gebaut sein.
+The probes import `../lib/dist`; build the library first.
 
-## Offen
+## Open
 
-- `queueEmpty()` (RLTP-VTI-7150) ist eine Näherung (Socket offen, 1 s still, nichts zurückgelassen). Das Profil verlangt, dass eine Näherung zu „etwas offen“ hin irrt; die Ruhefrist erfüllt das nicht in jedem Fall (ein Rahmen, der nach der Ruhefrist noch kommt). Eine Statusabfrage über Pickup 3.0 steht aus.
-
-- Problem-Reports des Mediators: Profil §5 zählt einen Problem-Report, der eine Einlieferung ablehnt, als Ablehnung dieser Einlieferung. Die Bindung ordnet Problem-Reports heute keiner Einlieferung zu und verbraucht sie; eine solche Ablehnung erreicht den Adapter daher nicht (auch nicht als `routed-refused`, Profil Open Issue 4).
-
-- Sofortige Umschaltung auf eine validierte Ablehnung der routed-Form
-  (`WireError('routed-refused')`, RLTP-VTI-3130): die Bindung wirft
-  diese Art heute nie; was der Ziel-Mediator in dem Fall sendet und wie
-  er authentisiert wird, ist nicht gemessen (Profil Open Issue 4). Eine
-  Ablehnung eines routed-Deposits gilt bis dahin wie jede andere (§5).
-- Live-Rückfall `egress-session` aus dem Adapter heraus (Frist 72 h) und
-  Schlüsselrotation des Mediators: nur im Double geprüft.
-- Die send-only-Session öffnet ohne `live-delivery-change`; der
-  Live-Mediator nimmt Deposits über sie an (22.10., eine Stichprobe,
-  erzwungener Modus). Der Rückfall aus dem Adapter heraus (72 h) ist
-  live nicht gemessen.
-- Der §5a.10-Peer-Wechsel unter unverändertem `C` wird nicht bedient
-  (RLTP-VTI-7120, Profil Open Issue 10); vti-tsp-js 0.4.0 dekodiert
-  Referrals, komponiert sie nicht.
-- TSP 1.0 (Direct Relationship Forming): Endpunkte SOLLEN Anwendungsnachrichten ohne
-  TSP-Beziehung (`XRFI`/`XRFA`) verwerfen; die Bindung schickt ohne
-  Beziehungs-Handshake, der Mediator verlangt ihn nicht; eingehende
-  Beziehungsrahmen werden geloggt und verworfen, nicht beantwortet.
-- Offline-Signal (`wire.offline()`): der Socket-Zustand ist die
-  natürliche Quelle; noch nicht verdrahtet.
-- `queueEmpty()` ist eine Näherung über die Ruhe des Sockets; eine
-  Auskunft des Mediators (Message Pickup `status-request`) wäre
-  genauer.
+- `queueEmpty()` (RLTP-VTI-7150) is an approximation; a frame that
+  arrives after the quiet second is not covered. A status request over
+  Pickup 3.0 is outstanding.
+- Problem reports are not correlated with a deposit; a refusal of the
+  routed form (`WireError('routed-refused')`) is never raised (profile
+  Open Issue 2).
+- The change of the direct TSP peer under an unchanged `C` is not served
+  (RLTP-VTI-7120, profile Open Issue 7).
+- The wire forms no TSP relationship (`XRFI`/`XRFA`); incoming
+  relationship frames are logged and dropped (profile Open Issues 9, 15).

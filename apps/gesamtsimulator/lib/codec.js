@@ -13,30 +13,37 @@
 // versions and the codec are independent; a migration never re-issues
 // stored documents, outbound or acks.
 //
-// Codec 3 is the format of 0.6.0 and the only one this library reads
-// (Delivery 0.84: an acknowledgement is sent when a service took it, failed,
-// or its retries ended; it may be held by the adapter meanwhile, and it
-// carries the duplicates' answers). Codecs 1 and 2 (lib 0.4.0, 0.5.0) never
-// held the state of a rolled-out app, so they have neither validator nor
-// migration: a state of either is codec-unknown, a clean cut. Its fixtures
-// are lib/test/fixtures/state-v3*.json (deterministic runs,
-// test/fixtures/gen-state-v3.mjs, reproduced in npm test). The rule: a
-// newer codec is codec-newer, a codec without a validator codec-unknown.
-// A later codec that must read this one adds its validator, a migration
-// from codec 3, and its own fixture with a migration test. A codec-3 state
-// written by lib 0.8 names its types without the /spec/ segment of
-// Delivery 0.84; decodeState refuses it as codec-type-uri, a clean cut
-// (fixture lib/test/fixtures/state-v3-lib-0.8.json).
+// Codec 4 is the format of 0.10.0: codec 3 (lib 0.6.0; an acknowledgement
+// is sent when a service took it, failed, or its retries ended; it may be
+// held by the adapter meanwhile, and it carries the duplicates' answers)
+// plus the feature `held` of an accepted outbox step and of its
+// delivery.status event (Delivery 0.85 RLTP-DEL-6140). This library reads
+// codecs 3 and 4 and writes 4; MIGRATIONS[3] only sets the version, since
+// codec 4 adds optional fields alone. Codecs 1 and 2 (lib 0.4.0, 0.5.0)
+// never held the state of a rolled-out app, so they have neither
+// validator nor migration: a state of either is codec-unknown, a clean
+// cut. The fixtures of codec 4 are lib/test/fixtures/state-v4*.json
+// (deterministic runs, test/fixtures/gen-state-v4.mjs, reproduced in npm
+// test); those of codec 3, state-v3*.json, are kept as written and decode
+// through the migration. The rule: a newer codec is codec-newer, a codec
+// without a validator codec-unknown. A later codec that must read this
+// one adds its validator, a migration from codec 4, and its own fixture
+// with a migration test. A codec-3 state written by lib 0.8 names its
+// types without the /spec/ segment of Delivery 0.84; decodeState refuses
+// it as codec-type-uri, a clean cut (fixture
+// lib/test/fixtures/state-v3-lib-0.8.json).
 import { jcs } from './core.js';
 import { TASK_NAMESPACE } from './task-uri.js';
 /** The codec this library writes. */
-export const CODEC = 3;
+export const CODEC = 4;
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
- * None today: codec 3 is the first codec a rolled-out app holds.
+ * 3 → 4 is the version alone: codec 4 only adds optional fields.
  */
-export const MIGRATIONS = Object.freeze({});
+export const MIGRATIONS = Object.freeze({
+    3: (state) => ({ ...state, codec: 4 }),
+});
 /** A stored state the library will not load (or a state it will not write). */
 export class StateCodecError extends Error {
     code;
@@ -181,15 +188,16 @@ const contact = obj({
     settings: obj({ star: setting, groupStar: setting, anchorMapping: setting, sealedGroupStar: setting, profile: setting }),
     groupSettings: rec(setting),
 });
-/** an outbox step */
-const outboxStep = (x, p) => {
+/** an outbox step of codec n: from codec 4 on, `accepted` may carry
+ *  `held: true` (Delivery RLTP-DEL-6140) */
+const outboxStepOf = (n) => (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
     const s = x;
     switch (s.status) {
         case 'submitted': return obj({ status: str, at: millis, attempt: positive })(x, p);
         case 'awaiting-transport': return obj({ status: str, at: millis, reason: lit('offline', 'transport-unreachable', 'carrier-refused-retriable') })(x, p);
-        case 'accepted': return obj({ status: str, at: millis })(x, p);
+        case 'accepted': return obj({ status: str, at: millis }, n >= 4 ? { held: lit(true) } : {})(x, p);
         case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p);
         case 'failed': return s.reason === 'rejected-by-receiver'
             ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'unsupportedVersion', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed') })(x, p)
@@ -199,9 +207,9 @@ const outboxStep = (x, p) => {
 };
 /** an outbox item with its sender lifetime (expiresAt);
  *  the envelope is sealed to the counterpart key, never to the own rkid */
-const outboxItem = (() => {
+const outboxItemOf = (n) => {
     const shape = obj({
-        type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStep),
+        type: str, threadId: str, recipient, envelope, attempt: positive, history: arr(outboxStepOf(n)),
     }, { nextAttemptAt: millis, expiresAt: millis });
     return (x, p) => {
         shape(x, p);
@@ -209,7 +217,7 @@ const outboxItem = (() => {
         if (o.envelope.rkid !== o.recipient.keyAgreement)
             fail(`${p}.envelope.rkid`, 'must equal recipient.keyAgreement');
     };
-})();
+};
 const DUE = { dueAt: millis };
 /** a retained ack: sealed to the counterpart key, like an outbox item */
 /** codec 3: sent exactly when it names why; held only while unsent */
@@ -281,15 +289,17 @@ const EVENT_FIELDS = {
     'message.sent': [{ contactId: str, mid: str, digest: str }],
     'message.received': [{ contactId: str, inboxId: str }],
 };
-/** a journaled event of a type this library emits */
-const event = (x, p) => {
+/** a journaled event of a type this library emits, in codec n: from
+ *  codec 4 on, `delivery.status` may carry `held: true` */
+const eventOf = (n) => (x, p) => {
     if (!isObj(x))
         fail(p, 'object expected');
     const t = x.type;
     if (typeof t !== 'string' || !Object.hasOwn(EVENT_FIELDS, t))
         fail(`${p}.type`, 'unknown event type');
     const [req, opt = {}] = EVENT_FIELDS[t];
-    obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt })(x, p);
+    const more = n >= 4 && t === 'delivery.status' ? { held: lit(true) } : {};
+    obj({ type: str, eventId: str, commitSeq: dec, ...req }, { actId: str, ...opt, ...more })(x, p);
 };
 const rosterEntry = obj({ anchor: str, op: str, keyAgreement: str, addedAt: millis }, { name: str, contactId: str, rkid: str });
 const openInvitation = obj({ invitee: str, keyAgreement: str, contactId: str, rkid: str, threadId: str, credDigest: str, invite: anyObj, validUntil: millis });
@@ -342,8 +352,10 @@ const receivedInvite = (x, p) => {
     if ((i.contactId === undefined) !== (i.rkid === undefined))
         fail(`${p}.rkid`, 'present exactly with contactId');
 };
-const codec3 = obj({
-    codec: lit(3),
+/** the HolderState of codec n (3 or 4): codec 4 adds `held` on an
+ *  accepted outbox step and on its delivery.status event */
+const codecShape = (n) => obj({
+    codec: lit(n),
     commitSeq: dec,
     lastWhen: millis,
     register: obj({
@@ -360,14 +372,14 @@ const codec3 = obj({
     groups: keyed(group, 'id'),
     profile: obj({ body: json, revision: dec }),
     effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
-    outbox: rec(outboxItem),
+    outbox: rec(outboxItemOf(n)),
     duties: keyed(duty, 'id'),
     rotations: keyed(obj({
         id: str, from: dec, to: dec, step: lit('register', 'log', 'duties'), startedAt: millis,
         entry: json, overHead: logHead, awaitHead: rec(nullable(str)),
     }), 'id'),
     prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
-    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(event), at: millis }), 'actId'),
+    acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(n)), at: millis }), 'actId'),
     encounter: obj({
         challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
         records: keyed(enactmentRecord, 'own'),
@@ -391,8 +403,11 @@ const codec3 = obj({
     }),
 });
 /** Structural validators per codec version; every readable codec has one. */
+const codec3 = codecShape(3);
+const codec4 = codecShape(4);
 export const VALIDATORS = Object.freeze({
     3: (raw) => codec3(raw, '$'),
+    4: (raw) => codec4(raw, '$'),
 });
 // ── the codec ──────────────────────────────────────────────────────────
 /** Canonical JSON text of a JSON-pure value, or not-json. */

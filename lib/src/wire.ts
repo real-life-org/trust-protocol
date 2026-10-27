@@ -474,7 +474,10 @@ export type PayloadRemovalNotice = {
   sig: string
 }
 
-/** schemas/rltp-delivery-document.schema.json — RLTP Delivery Document Profile (rltp-delivery@0.84) */
+/** schemas/payload-sealed-envelope.schema.json — Payload: sealed-envelope/0.1 (rltp-delivery@0.85, target Trust Tasks framework 0.6.0) */
+export type PayloadSealedEnvelope = SealedEnvelope
+
+/** schemas/rltp-delivery-document.schema.json — RLTP Delivery Document Profile (rltp-delivery@0.85) */
 export type RltpDeliveryDocument = ({
   id: string
   type: string

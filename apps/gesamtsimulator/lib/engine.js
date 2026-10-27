@@ -246,7 +246,7 @@
 //     Delivery 0.82: addresses and identity contexts)
 import { jcs, b64uOf } from './core.js';
 import { CODEC, decodeState, encodeState } from './codec.js';
-import { emptyState, toOpaque, triasOf } from './state.js';
+import { emptyState, heldOf, toOpaque, triasOf } from './state.js';
 import { CryptoUnavailableError, InfraError } from './results.js';
 import { randomEntropy } from './entropy.js';
 import { ED_PKCS8, X_PKCS8 } from './keys-seed.js';
@@ -1006,8 +1006,12 @@ class HolderEngine {
     /** Why a non-terminal outbox item is given up at `when`, or null: its
      *  sender lifetime, where it ends no later than the horizon
      *  (failed(task-expired), Delivery 6110), else the horizon
-     *  (failed(expired-by-adapter-policy)). */
+     *  (failed(expired-by-adapter-policy)). A held item is never given up
+     *  (Delivery RLTP-DEL-6140, 6110): only an acknowledgement or a validated
+     *  terminal refusal ends it. */
     #giveUp(it, when) {
+        if (heldOf(it))
+            return null;
         const first = it.history.length ? it.history[0].at : when;
         const expiry = Math.min(first + this.#policy.horizonMs, Number.MAX_SAFE_INTEGER);
         const life = it.expiresAt;
@@ -1175,7 +1179,9 @@ class HolderEngine {
                     }
                     const first = it.history.length ? it.history[0].at : when;
                     const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER);
-                    due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry);
+                    // a held item has no expiry (Delivery RLTP-DEL-6140)
+                    if (!heldOf(it))
+                        due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry);
                     // never re-emitted: an accepted item (the service has it) and one the
                     // adapter holds (awaiting-transport, until it reports again)
                     if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport')
@@ -1404,6 +1410,14 @@ class HolderEngine {
                         break;
                     }
                     case 'accepted':
+                        if (report.held === true) {
+                            // a validated next step (Delivery RLTP-DEL-6140): from any
+                            // non-terminal state, once; a terminal item stays as it is
+                            if (trias === 'delivered' || trias === 'failed' || heldOf(it))
+                                return same;
+                            step = { status: 'accepted', at: when, held: true };
+                            break;
+                        }
                         if (had('accepted') || trias !== 'submitted')
                             return same;
                         step = { status: 'accepted', at: when };
@@ -1428,6 +1442,7 @@ class HolderEngine {
                 const outbox = { ...state.outbox, [report.digest]: { ...base, history: [...it.history, step] } };
                 const events = step.status === 'awaiting-transport' ? [] : [{
                         type: 'delivery.status', digest: report.digest, threadId: it.threadId, status: step.status,
+                        ...(step.status === 'accepted' && step.held === true ? { held: true } : {}),
                     }];
                 if (step.status === 'failed') {
                     const f = failed({ ...state, outbox }, [report.digest], when);
@@ -1786,7 +1801,8 @@ const actEnd = (state, a, retention) => {
  *  submission, or the sender lifetime its type declared if that is
  *  earlier (#giveUp's two bounds as one instant). */
 const notAfterOf = (it, horizonMs) => {
-    if (!it.history.length)
+    // a held item ends at no instant (Delivery RLTP-DEL-6140)
+    if (!it.history.length || heldOf(it))
         return null;
     const expiry = Math.min(it.history[0].at + horizonMs, Number.MAX_SAFE_INTEGER);
     return it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry;

@@ -8,7 +8,10 @@ Every RLTP message is a Trust Task document of a private, versioned
 type, named `https://real-life.org/trust-tasks/spec/<slug>/<version>`,
 with in-band `issuer` and `recipient` anchors and no `expiresAt`. An
 unknown type is rejected, never silently ignored. The types target
-the Trust Tasks framework 0.6.0.
+the Trust Tasks framework 0.6.0. A carrier that carries Trust Task
+documents itself carries every sealed message as the payload of one
+more type, `sealed-envelope/0.1`, whose parties are the carrier's
+identifiers.
 
 The types form one register, the
 [task registry](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types)
@@ -17,8 +20,9 @@ where its semantics live, which names its payload schema, its proof
 and its rules. Each type also declares, in the framework's vocabulary,
 whose identifiers fill its parties, what it changes at the recipient,
 what it carries about people, what the recipient keeps, and its
-largest document: 65 536 bytes, and 16 384 bytes for the invitation
-and the acceptance. The declarations stand with each registration:
+largest document: 65 536 bytes, 16 384 bytes for the invitation
+and the acceptance, and 90 112 bytes for `sealed-envelope/0.1`, which
+carries an encrypted document of up to 65 536 bytes. The declarations stand with each registration:
 [Delivery §4.5](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#45-declarations)
 for its own types and the Trust Layer's,
 [Membership §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#3-registered-task-types),
@@ -99,12 +103,14 @@ and the evidence relay. A sender issues
 ## Delivery
 
 The Delivery Contract's own types: the acknowledgement every
-document earns, and a party's operational constants.
+document earns, a party's operational constants, and the form in
+which a carrier of Trust Task documents carries a sealed document.
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
 | `delivery-ack/0.1` | `{ ref, meaning: "received" }`: arrival of one document, never acceptance | [Delivery §4.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#42-delivery-ack01) | [`payload-delivery-ack`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-delivery-ack.schema.json) |
 | `registry-declaration/0.1` | `{ declaration }`: a party's signed operational constants for one role | [Delivery §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types) | [`payload-registry-declaration`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-registry-declaration.schema.json) |
+| `sealed-envelope/0.1` | `{ rkid, epk, nonce, ciphertext }`: one sealed document, carried in a Trust Task binding; its parties are the carrier's identifiers, its `id` follows from seal and parties, it carries no proof | [Delivery §4.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#46-sealed-envelope01) | [`payload-sealed-envelope`](https://github.com/real-life-org/trust-protocol/blob/main/schemas/payload-sealed-envelope.schema.json) |
 
 `https://real-life.org/trust-tasks/spec/delivery-carrier/0.1` names the
 carrier role in a `registry-declaration/0.1`. It is not a document
