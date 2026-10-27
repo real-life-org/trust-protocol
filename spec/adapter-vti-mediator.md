@@ -799,6 +799,18 @@ give-up horizon (§2): it ends `delivered` on a valid acknowledgement,
 or `failed(rejected-by-receiver(<code>))` on a validated terminal
 refusal, and in no other way (Delivery §6.1).
 
+**RLTP-VTI-5060** — An answer is a framework document, not an RLTP
+document: its timestamps follow the framework (TT §4.2, §8.2), not the
+timestamp form of the RLTP document profile (Encounter RLTP-ENC-2150
+and its reading rule). A reader MUST accept as an answer's `issuedAt`
+and `retryAfter` every RFC 3339 date-time — any number of
+fractional-second digits, `Z` or a numeric offset, either case of `T`
+and `Z`, a leap second read as the next second — and MUST NOT refuse an
+answer for the precision or the offset of either. An `issuedAt` that is
+present and is no RFC 3339 date-time makes the document no answer. The
+reader evaluates `issuedAt` for its form only: answers carry no
+acceptance window here.
+
 A validated
 refusal acts on every **non-terminal** state — the report-less
 phase, awaiting, and accepted alike — because the validated

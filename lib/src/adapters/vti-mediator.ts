@@ -478,6 +478,9 @@ const canonicalB64u = (x: unknown): boolean => {
  *  sender and `self`; `inResponseTo.typeUri` the carried type. A string,
  *  or why not. */
 function boundTo (d: Record<string, unknown>, sender: string, self: string): { answers: string } | { why: string } {
+  // a framework document's timestamp: any RFC 3339 date-time, any precision
+  // and offset (RLTP-VTI-5060), read for its form only
+  if ('issuedAt' in d && rfc3339(d.issuedAt) === null) return { why: 'answer issuedAt is no RFC 3339 date-time' }
   if ('issuer' in d && d.issuer !== sender) return { why: 'answer issuer is not the sender' }
   if ('recipient' in d && d.recipient !== self) return { why: 'answer recipient is not this side' }
   const p = d.payload as Record<string, unknown>
