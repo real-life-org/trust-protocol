@@ -150,9 +150,13 @@ export type DeliveryFailure = 'unroutable' | 'oversize' | 'expired-by-adapter-po
 /** Why a submission still waits before the trias (Delivery §6.1). */
 export type PreTransportReason = 'offline' | 'transport-unreachable' | 'carrier-refused-retriable'
 
-/** A report about a submission the service has taken: the status trias. */
+/** A report about a submission the service has taken: the status trias.
+ *  `held` on `accepted`: the counterpart answered with a validated
+ *  trust-task-next-step (Delivery RLTP-DEL-6140, VTI RLTP-VTI-5050) — the
+ *  document arrived and waits there; no horizon ends it, only a valid
+ *  acknowledgement or a validated terminal refusal. */
 export type TriasReport =
-  | { digest: string, status: 'accepted' }
+  | { digest: string, status: 'accepted', held?: true }
   | { digest: string, status: 'delivered', late: boolean }
   | { digest: string, status: 'failed', reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> }
   | { digest: string, status: 'failed', reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
