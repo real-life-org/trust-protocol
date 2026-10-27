@@ -58,6 +58,15 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   `held`; `TriasReport` `accepted` has `held?: true`. An error document
   with a `proof` is held to it like a next step; an answer to a carried
   acknowledgement changes nothing.
+- **Answers across openings** (RLTP-VTI-5045, Delivery RLTP-DEL-6150).
+  `pendingTransport(when)` answers `answerable` beside `entries`: the
+  accepted documents not yet terminal, `held` marked, with envelope,
+  recipient and first submission (`AnswerableEntry`), derived from the
+  outbox (the codec is unchanged), refused by `mayHandOver`. `reconcile`
+  files them as submissions without an attempt in their state, computes
+  their carried document's `id`, and binds a counterpart's answer to
+  them; the adapter's horizon does not end them, a later view without
+  them withdraws nothing.
 - **One wire identity.** The connection DID sends and collects;
   `carrierScopedIdentity` has no `egress` scope, `EGRESS_INFO_PREFIX` and
   the adapter's `egressDid` are gone. `deliveryHint` builds the

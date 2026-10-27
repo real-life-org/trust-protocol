@@ -113,7 +113,7 @@ import { anchorOfEd, edRawOfAnchor, sha, cat, base58, fromBase58, b64uOf, fromB6
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js'
 import type { CarrierPrincipal, CarrierScopedIdentity } from '../carrier-identity.js'
 import type { DeliveryReport, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
-import type { TransportEntry, TransportView } from '../engine.js'
+import type { AnswerableEntry, TransportEntry, TransportView } from '../engine.js'
 import type { ReceiveResult } from '../results.js'
 import type { Envelope } from '../delivery.js'
 import { SCHEMAS } from '../schemas.js'
@@ -773,6 +773,10 @@ interface Submission {
   /** the `id` of the carried document of its last attempt: answers bind
    *  to it (RLTP-VTI-5040) */
   outerId?: string
+  /** an accepted document the holder offers for binding answers only
+   *  (RLTP-VTI-5045, Delivery RLTP-DEL-6150): never attempted, never
+   *  given up here; its `outerId` is recomputed from the seal */
+  bindOnly?: true
   /** the document digest, for submissions filed by reconcile */
   digest?: string
   /** the holder's entry and its gate, for submissions filed by reconcile */
@@ -982,6 +986,8 @@ export class MediatorCarrierAdapter {
       if (this.#closed) return false
       if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId)) return true
       if (reading.kind !== 'sealed') {
+        if (reading.kind !== 'ignored') await this.#bindIds()
+        if (this.#closed) return false
         if (reading.kind === 'ignored') this.#log(`payload from ${String(sender)} not delivered: ${reading.why} (acknowledged)`)
         else this.#applyAnswer(reading, String(sender))
         this.#consumed.add(queueId)
@@ -1224,7 +1230,38 @@ export class MediatorCarrierAdapter {
       if (now - sub.submittedAt >= DECLARED.giveUpHorizonMs) { sub.st = { state: 'failed', reason: 'expired-by-adapter-policy' }; continue }
       if (this.#wire.offline?.() !== true) this.#startAttempt(sub, now)
     }
+    // the accepted documents the holder offers for binding answers only
+    // (RLTP-VTI-5045, Delivery RLTP-DEL-6150): filed in their state, never
+    // attempted; one this instance already holds is not filed twice
+    const answerable: readonly AnswerableEntry[] = Array.isArray((view as { answerable?: unknown }).answerable) ? view.answerable : []
+    for (const a of answerable) {
+      if (a === null || typeof a !== 'object' || typeof a.digest !== 'string' || !Number.isFinite(a.since)) continue
+      let held = false
+      for (const s of this.#subs.values()) if (s.digest === a.digest && s.entry?.resend === undefined) { held = true; break }
+      if (held) continue
+      let seal: Envelope
+      try { seal = sealOf(a.envelope) } catch { continue }
+      const id = 's' + this.#nextId++
+      this.#subs.set(id, {
+        id, digest: a.digest, gate, seal, since: a.since, submittedAt: a.since,
+        attemptStartedAt: null, lastKind: null, sentMode: null, bindOnly: true,
+        st: a.held === true ? { state: 'accepted', held: true } : { state: 'accepted' },
+      })
+      refs.push({ submissionId: id, digest: a.digest })
+    }
     return refs
+  }
+
+  /** The `id` of the carried document of every submission filed for
+   *  binding (RLTP-VTI-5045): the seal and both connection DIDs determine it
+   *  (Delivery RLTP-DEL-4620), as they did when it travelled. */
+  async #bindIds (): Promise<void> {
+    let peer: unknown
+    try { peer = this.#wire.counterpart() } catch { return }
+    if (typeof peer !== 'string' || peer.length === 0) return
+    for (const s of this.#subs.values()) {
+      if (s.bindOnly === true && s.outerId === undefined) s.outerId = await sealedEnvelopeId(s.seal, this.#connectionDid, peer)
+    }
   }
 
   /** The current state as the ports' DeliveryReport for holder.report(),
@@ -1244,7 +1281,7 @@ export class MediatorCarrierAdapter {
   }
 
   #startAttempt (sub: Submission, now: number): void {
-    if (sub.attemptStartedAt !== null) return
+    if (sub.attemptStartedAt !== null || sub.bindOnly === true) return
     // a counterpart's retryAfter is the lower bound of the next attempt (RLTP-VTI-5010)
     if (sub.notBefore !== undefined && now < sub.notBefore) return
     sub.attemptStartedAt = now
@@ -1688,7 +1725,7 @@ export class MediatorCarrierAdapter {
     }
     for (const sub of this.#subs.values()) {
       const live = sub.st === null || sub.st.state === 'awaiting-transport' || sub.st.state === 'accepted'
-      if (!live) continue
+      if (!live || sub.bindOnly === true) continue
       // held (RLTP-VTI-5050): the counterpart said it has the document; no
       // horizon ends it, only an acknowledgement or a terminal refusal
       if (sub.st !== null && sub.st.state === 'accepted' && sub.st.held === true) continue

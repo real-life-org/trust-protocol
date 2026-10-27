@@ -2846,6 +2846,16 @@ transitions due at the time of submission could not be applied, nor
 read a document's absence from what its holder offers as leave to
 keep submitting it.
 
+**RLTP-DEL-6150** — Beside the documents in its custody, a sender MAY
+offer an adapter its documents that are `accepted` and not terminal —
+`held` or not — with their sealed envelope and the first submission it
+recorded, for one purpose only: that the adapter binds a counterpart's
+answer to them (4.6; the VTI mediator adapter profile, its
+RLTP-VTI-5045). Such an offer is no custody: it authorizes no hand-over
+and no deposit, and a document's presence in it or absence from it is
+neither leave to submit nor the stop of RLTP-DEL-6135. What an answer
+bound this way decides reaches the sender as any report does (6.1).
+
 *Rationale.* `accepted` begins at the service. Until then only the
 sender knows the document is owed, and if a report that it
 waits were enough to let the sender forget it, a lock or a crash
@@ -3920,6 +3930,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   implementation): RLTP-DEL-5010 · RLTP-DEL-5020 · RLTP-DEL-5810 ·
   RLTP-DEL-5820 · RLTP-DEL-6110 · RLTP-DEL-6115 · RLTP-DEL-6120 ·
   RLTP-DEL-6125 · RLTP-DEL-6130 · RLTP-DEL-6135 · RLTP-DEL-6140 ·
+  RLTP-DEL-6150 ·
   RLTP-DEL-6210 ·
   RLTP-DEL-6220 · RLTP-DEL-6230 · RLTP-DEL-6240 · RLTP-DEL-6250 ·
   RLTP-DEL-6260 · RLTP-DEL-6270 · RLTP-DEL-6280 · RLTP-DEL-6290 ·
@@ -3985,9 +3996,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   acknowledgement or validated terminal refusal, and the sender keeps
   its sealed envelope until then. Neither a bound nor a withdrawal by
   the sender is defined. A counterpart that never answers again keeps
-  the document `held`, and so does a refusal that arrives where the
-  adapter cannot bind it to the document (VTI mediator adapter profile,
-  its Open Issue 16).
+  the document `held`.
 - **DO-5 Ordering.** No global ordering is promised; thread
   causality plus the merge rule cover every current flow.
 - **DO-8 A shared queue under a rate.** Documents on the key of an

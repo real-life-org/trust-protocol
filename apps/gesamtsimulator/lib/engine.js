@@ -1701,7 +1701,8 @@ class HolderEngine {
                 this.#issued.add(f);
                 return f;
             });
-            return Object.freeze({ ok: true, commitSeq: state.commitSeq, at, entries: Object.freeze(entries) });
+            const answerable = answerableEntries(state, at, (it) => this.#giveUp(it, at) === null).map((e) => freezeDeep(e));
+            return Object.freeze({ ok: true, commitSeq: state.commitSeq, at, entries: Object.freeze(entries), answerable: Object.freeze(answerable) });
         });
     }
     mayHandOver(entry, when) {
@@ -1853,6 +1854,18 @@ function transportEntryOf(state, kind, digest, when, horizonMs, resend) {
 }
 /** Everything the holder keeps for transport at `when`: the outbox items
  *  by due time, then digest, then the unsent acks by effect digest. */
+/** The accepted documents not yet terminal and not due to be given up, in
+ *  digest order (Delivery RLTP-DEL-6150): for binding answers only. */
+function answerableEntries(state, _when, live) {
+    const out = [];
+    for (const d of Object.keys(state.outbox).sort()) {
+        const it = state.outbox[d];
+        if (triasOf(it) !== 'accepted' || !live(it))
+            continue;
+        out.push(structuredClone({ digest: d, kind: 'document', envelope: it.envelope, recipient: it.recipient, since: it.history[0].at, held: heldOf(it) }));
+    }
+    return out;
+}
 function transportEntries(state, when, horizonMs) {
     const out = [];
     const order = Object.keys(state.outbox).sort((a, b) => ((state.outbox[a].nextAttemptAt ?? 0) - (state.outbox[b].nextAttemptAt ?? 0)) || (a < b ? -1 : a > b ? 1 : 0));

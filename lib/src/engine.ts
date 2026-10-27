@@ -630,13 +630,33 @@ export interface TransportEntry {
   readonly resend?: number
 }
 
+/** One accepted document the holder offers for binding a counterpart's
+ *  answers only (Delivery RLTP-DEL-6150): its sealed envelope and first
+ *  submission, from which a carrier adapter recomputes what the document
+ *  travelled under. It authorizes no hand-over (mayHandOver refuses it),
+ *  and neither its presence nor its absence is leave or stop (6135).
+ *  Derived from the outbox, deep-frozen. */
+export interface AnswerableEntry {
+  readonly digest: string
+  readonly kind: 'document'
+  readonly envelope: Envelope
+  readonly recipient: Recipient
+  /** the first submission as the holder recorded it, as on TransportEntry */
+  readonly since: Millis
+  /** accepted with the feature held (RLTP-DEL-6140) */
+  readonly held: boolean
+}
+
 /** pendingTransport's answer: the set at `at` — the `when` asked for, or
- *  the holder's lastWhen if that is later — and the commit it was read at. */
+ *  the holder's lastWhen if that is later — and the commit it was read at.
+ *  `entries` is the custody set (6120); `answerable` the accepted
+ *  documents not yet terminal, for binding answers only (6150). */
 export interface TransportView {
   readonly ok: true
   readonly commitSeq: Dec
   readonly at: Millis
   readonly entries: readonly TransportEntry[]
+  readonly answerable: readonly AnswerableEntry[]
 }
 
 /** pendingTransport refuses until a resume of this engine has completed:
@@ -1857,7 +1877,8 @@ class HolderEngine implements Engine {
         this.#issued.add(f)
         return f
       })
-      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at, entries: Object.freeze(entries) })
+      const answerable = answerableEntries(state, at, (it) => this.#giveUp(it, at) === null).map((e) => freezeDeep(e))
+      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at, entries: Object.freeze(entries), answerable: Object.freeze(answerable) })
     })
   }
 
@@ -1986,6 +2007,18 @@ function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack
 
 /** Everything the holder keeps for transport at `when`: the outbox items
  *  by due time, then digest, then the unsent acks by effect digest. */
+/** The accepted documents not yet terminal and not due to be given up, in
+ *  digest order (Delivery RLTP-DEL-6150): for binding answers only. */
+function answerableEntries (state: Readonly<HolderState>, _when: Millis, live: (it: Readonly<OutboxItem>) => boolean): AnswerableEntry[] {
+  const out: AnswerableEntry[] = []
+  for (const d of Object.keys(state.outbox).sort()) {
+    const it = state.outbox[d]
+    if (triasOf(it) !== 'accepted' || !live(it)) continue
+    out.push(structuredClone({ digest: d, kind: 'document' as const, envelope: it.envelope, recipient: it.recipient, since: it.history[0].at, held: heldOf(it) }))
+  }
+  return out
+}
+
 function transportEntries (state: Readonly<HolderState>, when: Millis, horizonMs: number): TransportEntry[] {
   const out: TransportEntry[] = []
   const order = Object.keys(state.outbox).sort((a, b) =>

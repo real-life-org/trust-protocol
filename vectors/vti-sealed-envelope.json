@@ -1143,5 +1143,35 @@
    },
    "payload": "{\"document\":{\"id\":\"urn:uuid:7e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b\",\"issuedAt\":\"2026-10-27T17:27:50.395371028Z\",\"issuer\":\"did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU\",\"payload\":{\"continuation\":\"proceed\",\"expects\":[{\"typeUri\":\"https://trusttasks.org/spec/trust-task-ok/0.1\"}],\"message\":\"sealed-envelope/0.1 understood; waiting\"},\"recipient\":\"did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk\",\"type\":\"https://trusttasks.org/spec/trust-task-next-step/0.1\"},\"type\":\"https://trusttasks.org/binding/tsp/0.1/envelope\"}"
   }
- ]
+ ],
+ "laterOpening": {
+  "answerable": {
+   "digest": "the document digest of seal.json",
+   "kind": "document",
+   "envelope": {
+    "rkid": "z6LStLK2kxribiLHz6U4vpGfzMtmgc4q5WjR4mvhS6KG1W16",
+    "epk": "c7LYt2qptTZgAyvI9di-46OuTjs6f9Sa3oH3NHo0qmg",
+    "nonce": "DAwMDAwMDAwMDAwM",
+    "ciphertext": "spEE13Z8F8xxHBCL9hOFenGvUUN0yxwi1UuB8H_6WmVmqV8t6P3iLuzliTKI42fKkSxoa3CzQXzQWQKsH0sy2gW7nY68Ge78IN9BgpKie_uOFWZC1Y1FMwiwgnkancL_n5H3A9_ZQfa3B_OcXED_gMDOeO7gWzfd_1CGuX3JHk1tNkXBQu6hku3ljK0O7dRYwK6uukHFTi67noCzCA0h4uSichwl9VeQ6TtxBL_zPrMV6GQA5yCD3lqz6aEEfshT-cVPw0tYy0ITrZVIgzRxlsumuLzuJ4hb48RXjv5-HXN1EkL7X_n9J0gyUClua0PjdYqVyZvj20PkmSczufM0ejDwgicLBRdiV4BdkrOxTiAjIAZURxkmwfZEUSRZFh9_LiKo4t4HmytUvmDCUr-37zu3SUaic4UPS5nsLK5QR0VBHq8THtqFWEHYLhkxODRDaJkP-IDnnc7fSaBqEk9qmjq2LJww3BytAKSs3c8HqWsEH_PmTek6yD22Su2nskGQ3eYJCDXzZxGEa-NGNeqiUqAKqZ6MQ0nDtE16VpTPWbXhdF6BfQ315sEaCQsDTs5exf0yVLHiz0XFLwym"
+   },
+   "since": 1793124251734,
+   "held": true
+  },
+  "id": "7fdf4602-f06e-8bb6-bc7a-2546512921d4",
+  "before": {
+   "state": "accepted",
+   "held": true
+  },
+  "answer": "{\"document\":{\"id\":\"urn:uuid:0d6c1b52-6b0e-4a8a-9d1c-3e2f4a5b6c7d\",\"issuedAt\":\"2026-10-27T17:27:50.395371028Z\",\"issuer\":\"did:key:z6MkiF8GYsr9vuYheJV91MZxnTU9wXGXB2uduXBfx5hGLsMU\",\"payload\":{\"code\":\"unsupportedType\",\"inResponseTo\":{\"id\":\"7fdf4602-f06e-8bb6-bc7a-2546512921d4\",\"typeUri\":\"https://real-life.org/trust-tasks/spec/sealed-envelope/0.1\"},\"message\":\"no handler for https://real-life.org/trust-tasks/spec/sealed-envelope/0.1\",\"retryable\":false},\"recipient\":\"did:key:z6Mko7UvFiBGm1UP6eTRFm3TecrAwaj1ckLm3YmQC7x4ZXsk\",\"threadId\":\"7fdf4602-f06e-8bb6-bc7a-2546512921d4\",\"type\":\"https://trusttasks.org/spec/trust-task-error/0.5\"},\"type\":\"https://trusttasks.org/binding/tsp/0.1/envelope\"}",
+  "after": {
+   "state": "failed",
+   "reason": "rejected-by-receiver",
+   "code": "unsupportedType"
+  },
+  "rules": [
+   "RLTP-VTI-5045",
+   "RLTP-DEL-6150",
+   "RLTP-DEL-4620"
+  ]
+ }
 }

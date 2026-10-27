@@ -14,7 +14,10 @@
 // Network-gated: RLTP_LIVE_MEDIATOR=1; MEDIATOR_DID names a TSP 1.0
 // mediator (>= 0.45) with local direct delivery allowed; FOREIGN_DID the
 // consumer's did:key (its DOUBLE_READY line); EXPECT `unsupportedType`
-// (default) or `next-step`; RLTP_WIRE_DEPOSIT `routed` (default) or `direct`.
+// (default) or `next-step`; RLTP_WIRE_DEPOSIT `routed` (default) or `direct`;
+// CROSS_OPENING=1 closes the adapter right after the deposit is accepted and
+// opens a new one over the same relationship, which binds the answer to the
+// document the holder offers for binding (RLTP-VTI-5045, Delivery RLTP-DEL-6150).
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { jcs } from "../lib/dist/core.js";
@@ -63,17 +66,34 @@ const frame = wire.sentFrames().at(-1) ?? {};
 if (a.status(id)?.state !== "accepted") fail(`deposit not accepted: ${JSON.stringify(a.status(id))}`);
 say(`  ✓ carried document deposited and accepted (mode ${frame.mode}: payload ${frame.payload}B, inner ${frame.inner}B, outer ${frame.outer ?? "-"}B)`);
 
+let a2 = a;
+let wire2 = wire;
+let ref = id;
+if (process.env.CROSS_OPENING === "1") {
+  // the opening ends before the answer is taken: the frame stays at the mediator
+  a.close(); wire.close();
+  say("  ✓ opening 1 closed after the acceptance");
+  await new Promise((r) => setTimeout(r, 3000));
+  wire2 = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } });
+  a2 = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire2);
+  // the holder's offer of the accepted document, for binding only
+  const [r] = a2.reconcile({ ok: true, entries: [], answerable: [{ digest: "probe", kind: "document", envelope: seal, recipient: {}, since: t0, held: false }] }, { handOver: async () => false }, Date.now());
+  ref = r.submissionId;
+  a2.register([], Date.now());
+  await a2.settle();
+  say("  ✓ opening 2: the accepted document filed for binding; the queued answer arrives now");
+}
 const want = EXPECT === "unsupportedType"
   ? (st) => st?.state === "failed" && st.reason === "rejected-by-receiver" && st.code === "unsupportedType"
   : (st) => st?.state === "accepted" && st.held === true;
-const ok = await waitFor(() => { a.advance(Date.now()); return want(a.status(id)) });
-const st = a.status(id);
-a.advance(Date.now()); await a.settle();
+const ok = await waitFor(() => { a2.advance(Date.now()); return want(a2.status(ref)) });
+const st = a2.status(ref);
+a2.advance(Date.now()); await a2.settle();
 if (!ok) fail(`no ${EXPECT} within 30s; status ${JSON.stringify(st)}`);
 say(`  ✓ answer read and bound by the carried document's id: ${JSON.stringify(st)} after ${Date.now() - t0}ms`);
-if (a.collect(Date.now()).items.length !== 0) fail("the answer reached the holder as an item");
+if (a2.collect(Date.now()).items.length !== 0) fail("the answer reached the holder as an item");
 say(`  ✓ the answer is no item for the holder; acknowledged at the adapter's next step`);
 
-a.close(); wire.close();
-console.log(`\nLIVE-INTEROP-PROBE PASS — ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode})`);
+a2.close(); wire2.close();
+console.log(`\nLIVE-INTEROP-PROBE PASS — ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode}${process.env.CROSS_OPENING === "1" ? ", across openings" : ""})`);
 process.exit(0);

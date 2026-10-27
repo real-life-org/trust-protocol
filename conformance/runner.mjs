@@ -1196,6 +1196,11 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; D
   }
   check(SE.carried[2].id === SE.carried[0].id && SE.carried[2].payload !== SE.carried[0].payload, 'the same seal submitted later: the same id, another issuedAt')
   check(SE.carried[3].id !== SE.carried[0].id, 'another sending identity: another id')
+  {
+    const L = SE.laterOpening
+    const id = uuid8(sha(Buffer.from('rltp/v1/sealed-envelope-id' + jcs({ issuer: SE.sides.A, recipient: SE.sides.B, seal: L.answerable.envelope }), 'utf8')))
+    checkR(L.rules, id === L.id && id === SE.carried[0].id && L.answerable.since === SE.carried[0].since, 'a later opening recomputes the id from the offered envelope and both connection DIDs')
+  }
   checkR(SE.repeat.rules, SE.repeat.payloadSha256 === SE.carried[SE.repeat.of].payloadSha256, 'a repeat carries the byte-identical payload')
   const b = SE.bounds
   const maxDoc = { id: SE.carried[0].id, type: T.carried, issuer: SE.sides.A, recipient: SE.sides.B, threadId: SE.carried[0].id, issuedAt: SE.carried[0].document.issuedAt, payload: { ...SE.carried[0].seal, ciphertext: 'A'.repeat(b.largestCiphertextLength) } }

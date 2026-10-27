@@ -157,7 +157,14 @@ it names (`inResponseTo.id`, else `threadId`) and is applied there — a
 terminal refusal fails it, a next step makes it `accepted` with `held`,
 which no horizon ends (`report()` hands `{status: 'accepted', held: true}`
 to the holder); everything else is logged (`wire.log`) and acknowledged.
-What the adapter consumes itself it concludes at its next step. Status and
+What the adapter consumes itself it concludes at its next step. Beside
+its custody set, `pendingTransport` offers `answerable`: the accepted
+documents not yet terminal (held marked) with their envelope and first
+submission, for binding answers only (Delivery RLTP-DEL-6150). The
+adapter files them at `reconcile` without ever attempting them and
+recomputes the `id` each travelled under, so an answer that arrives in a
+later opening binds (profile RLTP-VTI-5045); its report reaches the
+holder like any other. Status and
 report change; `drainTransitions` carries only late deliveries, so a host
 polls `report()` for the answers, as for every report.
 
@@ -404,7 +411,7 @@ This package uses its own semver; the specification uses castings.
 | membership | Membership Tasks 0.21, Access 0.58 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
 | delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
-| transport adapter | VTI Mediator Adapter Profile 0.29 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); answers to a document an earlier opening deposited (profile Open Issue 16); sending framework refusals (profile Open Issue 17) |
+| transport adapter | VTI Mediator Adapter Profile 0.29 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); sending framework refusals (profile Open Issue 17) |
 | message | Message Tasks 0.2 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
