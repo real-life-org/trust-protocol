@@ -119,11 +119,11 @@ document is fully **recast — never patched**. A layer counts as
 converged when consecutive review rounds produce no blocker-level
 findings.
 
-**Converged:** Encounter 0.32 · Identity 0.54 · Access Layer 0.58 ·
-Delivery Contract 0.84 · Membership Tasks 0.21 · Replication Contract
+**Converged:** Encounter 0.32 · Identity 0.55 · Access Layer 0.58 ·
+Delivery Contract 0.85 · Membership Tasks 0.21 · Replication Contract
 0.26 · Trust Layer 0.31 · Personhood Predicates 0.12.
 **Early casting:** Message Tasks 0.2.
-**Delivery profile:** VTI Mediator Adapter 0.28.
+**Delivery profile:** VTI Mediator Adapter 0.29.
 Succession 0.2 is parked; the Data layer is not published here yet.
 
 Two things are worth knowing about how this state was reached. The

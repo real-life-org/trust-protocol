@@ -12,7 +12,7 @@
   `rltp-encounter-credential/0.25` stays valid, Section 12), ceremony
   `encounter-scan@0.25`.
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
-  Delivery Contract 0.84 (normative reference, Section 11); DTG
+  Delivery Contract 0.85 (normative reference, Section 11); DTG
   Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
 - **Supersedes:** version 0.31.1 (archived as
   `archive/encounter-layer-0.31.1.md`). Earlier versions: Appendix C.

@@ -1,5 +1,5 @@
 {
  "concluded": [],
  "pending": [],
- "send": { "mode": "egress-session", "open": [], "directRefusedAt": 1000 }
+ "send": { "mode": "direct", "open": [], "directRefusedAt": 1000 }
 }

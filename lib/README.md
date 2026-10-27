@@ -50,7 +50,7 @@ const { outbound, nextDueAt } = await holder.resume(Date.now())
 holder.subscribe(async () => render(await holder.contacts(), await holder.prompts()))
 ```
 
-**Custody and the lock** (Delivery 0.84, RLTP-DEL-6120 to 6135). The
+**Custody and the lock** (Delivery 0.85, RLTP-DEL-6120 to 6135). The
 holder keeps every outbound document until a service takes it or the
 holder gives it up, across a lock and the end of a process; a transport
 takes what it hands over from the holder, never from a store of its own.
@@ -108,9 +108,9 @@ late can let a relationship switch although its deposits were answered.
 The send state holds the mode and the open routed deposits: this side's
 documents accepted in `routed` and not yet answered (acknowledgements are
 none, so a side that only acknowledges never switches by the deadline); an open
-deposit 72 hours old switches the relationship to `egress-session`, and
+deposit 72 hours old switches the relationship to `direct`, and
 so does a deposit the wire refuses as `'routed-refused'`, at once. A
-refusal of direct delivery in `egress-session` (the carrier does not take
+refusal of direct delivery in `direct` (the carrier does not take
 it, profile RLTP-VTI-3120), which the wire signals through
 `directRefused()` from the moment the report arrives or reports as
 `WireError('direct-refused')`, is recorded in the send state
@@ -133,8 +133,62 @@ and answers it with the stored acknowledgement. An open routed deposit
 falls 72 hours plus the 30-day duplicate window after its acceptance, so
 the send state stays bounded. A `submit()` without a
 digest opens nothing: an app that sends only through `submit()` never
-switches by the deadline. The consumer a wire registers with `onDeliver`
-answers whether the adapter took the frame.
+switches by the deadline. A `submit()` has no holder entry, so its
+carried document's `issuedAt` is the call's instant: the same seal
+submitted again in a later opening carries the same `id` under another
+`issuedAt`, which a framework consumer may answer as `idConflict` (read
+as an answer, RLTP-VTI-5030). The byte-identical repeat of RLTP-DEL-5040
+holds on the `reconcile` path, whose `since` is the holder's. The consumer a wire registers with `onDeliver`
+takes the payload with its authenticated sender and answers whether the
+adapter took the frame; the wire names the counterpart's connection DID
+(`counterpart()`), the `recipient` of every carried document.
+
+**The carried document** (profile 0.29 §3b, §5; Delivery 0.85 §4.6).
+The adapter wraps every sealed envelope at every attempt into the Trust
+Tasks TSP binding envelope around a `sealed-envelope/0.1` document
+(`wrapSealed(seal, {issuer, recipient, since})`: its `id` a UUID v8 of
+seal and parties, `issuedAt` the entry's `since`), so every attempt is
+byte-identical. On receipt it reads each payload with its sender
+(`readBindingEnvelope`, total): a carried document whose parties are the
+sender and this side becomes an item, its seal the bytes the holder
+receives; everything that is no answer is logged (`wire.log`) and
+acknowledged at the next step. A counterpart's `trust-task-error/0.5` or
+`trust-task-next-step/0.1` follows one contract (profile RLTP-VTI-5065,
+5070, 5080). Every open document has the `id` it travelled under —
+custody entries and, beside them, `answerable` from `pendingTransport`:
+the accepted documents not yet terminal (held marked) with envelope and
+first submission, for binding only (Delivery RLTP-DEL-6150), which
+`reconcile` files without ever attempting them — whether or not a
+deposit runs. An answer binds by `inResponseTo.id`, else `threadId`;
+until the opening's first `reconcile` (or `submit`) and while ids are
+computed it waits, unacknowledged. It changes a submission only if its
+authenticated sender is the recipient that submission's carried document
+named. A bound answer is applied — a terminal refusal fails the
+submission, a next step makes it `accepted` with `held`, which no
+horizon ends — and travels in the next collection as
+`answers: [{ queueId, submissionId, report }]`. The host's step:
+
+```
+const c = adapter.collect(now)
+for (const item of c.items) await holder.receive(...)   // as before
+for (const a of c.answers) await holder.report(a.report, now)
+adapter.conclude(c, now)                                 // acknowledges both
+await store.put(adapter.ackState())                      // the host's snapshot, after the conclusion
+```
+
+Conclude also a collection whose `items` are empty when it carries
+`answers`. If a `holder.report` throws, do not conclude (or `keep` the
+answer's `queueId`): the answer stays unacknowledged and comes again. An
+answer is acknowledged at the mediator only at the conclusion, so a
+crash before it leaves the answer there; it comes again, binds again, and
+the holder's report is idempotent. That an answer also answers an open
+routed deposit lives in the ack state: persist `ackState()` after the
+conclusion, and hand a successor restored from an earlier snapshot the
+holder's outcomes through `answered(digest, now)`. An answer that binds
+nothing is acknowledged at the next step. While the wire names no
+counterpart (`counterpart()` null), answers wait. Waiting and bound
+answers count toward the queue floor (64 and 1 MiB); beyond it the
+adapter does not take one, and the mediator keeps it.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)
@@ -161,10 +215,10 @@ Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
 
 **Delivery hints** (Encounter RLTP-ENC-6080, 6090; Identity §7a.3; VTI
-Mediator Adapter Profile 0.28 §1b). `show` and `scan` take a carrier
+Mediator Adapter Profile 0.29 §1b). `show` and `scan` take a carrier
 offer, `carrier: {nonce, deliveryHints}`: the relationship's carrier
 nonce N (32 bytes the app draws fresh) and the hints the app built from
-the wire identities its adapter derives from N. The card (the displayed
+the connection DID its adapter derives from N. The card (the displayed
 card, or the scanner's sent card) carries the hints under its proof, and
 N enters the register under the relationship the card opens — at `show`
 already, as the card's pair label does. More than eight hints or a hint
@@ -183,9 +237,10 @@ once its id appears in another relationship's `chainedFrom`. The
 library offers no rotation or replacement of N (profile RLTP-VTI-1245);
 with its one writer per holder, `carrierNonce` is the N the counterpart
 saw. The VTI adapter module builds and reads the hint:
-`deliveryHint(rootIkm, C, N)` (derived like the adapter's trio),
-`readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` (profile
-§1b; total readers, a hint naming `self`'s identities ignored).
+`deliveryHint(rootIkm, C, N)` (derived like the adapter's connection DID),
+`readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, {connection})`
+(profile §1b; total readers, three members or a fourth `rltpEgress`
+ignored, a hint naming `self`'s connection DID ignored).
 
 ```ts
 import { deliveryHint } from '@real-life/trust-protocol/adapters/vti-mediator'
@@ -246,7 +301,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.28): its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `egress-session` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `egress-session` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.29): every sealed envelope carried as a `sealed-envelope/0.1` document in the Trust Tasks TSP binding (`wrapSealed`, `readBindingEnvelope`), a counterpart's `trust-task-error` and `trust-task-next-step` bound by the carried document's `id` and applied (`readTrustTaskNextStep`; `accepted` with `held`); its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `direct` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `direct` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
 
 ## The modules and the rules they implement
 
@@ -256,7 +311,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 |---|---|---|
 | `core` | all layers | the canonical form: JCS (RFC 8785), multibase, digest equality over decoded bytes, whole-second timestamps, calendar validity, the JSON-Schema subset validator |
 | `crypto` | primitives | HKDF, key pairs, did:key and multikey, X25519, the `eddsa-jcs-2022` Data Integrity proof |
-| `identity` | Identity 0.54 §6.1, §6.2, §5.4, §5.5 | context derivation under the closed label registry: `group/<digest>` and its generations, `pair/…`, `persona/…`, `device/<n>/<c>`; the name pipeline pinned to Unicode 15.0 |
+| `identity` | Identity 0.55 §6.1, §6.2, §5.4, §5.5 | context derivation under the closed label registry: `group/<digest>` and its generations, `pair/…`, `persona/…`, `device/<n>/<c>`; the name pipeline pinned to Unicode 15.0 |
 | `identity-state` | Identity §2, §5.4, §5.5 | the label register with monotone sets, device names and revocation marks, the community anchor's rotation as a procedure over the Log port (register before log before duties) |
 | `encounter`, `encounter/ceremony` | Encounter 0.32 §4–§7 | `encounter-scan@0.25`: challenges and their aging latch (5.3), the enactment record (5.5), the 5.6 acceptance in its order, both paths of 5.8, `encounter-bundle/0.1` and `encounter-credential-delivery/0.1` with signed acks, the confirm prompt |
 | `trust/mapping` | Trust Section 2, 2a, §6.1–§6.5 | the trust act and the class settings (2720–2850), `anchor-mapping@4` issuance (6300/6310, 6420) and verification (6.3, conditions 4a, 4b, 8), the entry commit and the admission bound |
@@ -268,7 +323,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `membership`, `membership/holder` | Membership Tasks 0.21 on Access 0.58 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
 | `message`, `message/holder` | Message Tasks 0.2 | `message@1`, `k_msg` and its MAC (3); sending on a ready, unblocked relationship with the sender lifetime (5); reception through the stages with the age and future bounds on the time mark, the completion record, the inbox taken over by the app, the rates and the inbox bound as `failed(rate-limited)` (4); the block of a relationship (6010–6030, 6510), its discard of messages and its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410) |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
-| `receive`, `engine` | Delivery 0.84 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, custody before the trias and the hand-over gate (`pendingTransport`, `mayHandOver`, `close`), ack retries apart from ack retention, the act journal |
+| `receive`, `engine` | Delivery 0.85 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, custody before the trias and the hand-over gate (`pendingTransport`, `mayHandOver`, `close`), ack retries apart from ack retention, the act journal |
 | `carrier-identity`, `carrier`, `carrier-holder` | Identity §7a, Delivery §4.4, §5a, Identity §9.3 | the carrier-relationship principal, the carrier port's state machine, proofs, verdicts and recovery |
 | `views`, `prompts` | — | the read model: contacts by entry (2120, 2140), groups, prompts, the delivery status |
 
@@ -293,26 +348,29 @@ A holder's state is pure JSON under a codec version. The Store port takes
 the state as opaque JSON and gives it back; the library decodes it
 (`decodeState`), the adapter never migrates.
 
-- **Codec 3** is the format of 0.6.0 and the only one this library
-  reads. It holds the state of Message Tasks 0.2 (`messages`: the block,
-  the rates, the ready tuples, the completion record, the inbox), an
-  outbox item's sender lifetime (`expiresAt`) and `failed(task-expired)`,
-  the record of surfaced and the register of declined invitations, and
-  per stored ack (Delivery 0.84) why it counts as sent (`sentBy`:
-  `accepted`, `failed`, `horizon`, present exactly when `sent`), whether
-  the adapter holds it (`held`), and the duplicates' answers (`answers`,
-  `answerDue`). Its fixtures (`test/fixtures/state-v3*.json`,
-  deterministic runs of `test/fixtures/gen-state-v3.mjs`, reproduced in
+- **Codec 4** is the format this library writes. It holds the state of
+  Message Tasks 0.2 (`messages`: the block, the rates, the ready tuples,
+  the completion record, the inbox), an outbox item's sender lifetime
+  (`expiresAt`) and `failed(task-expired)`, the record of surfaced and the
+  register of declined invitations, per stored ack (Delivery 0.85) why it
+  counts as sent (`sentBy`: `accepted`, `failed`, `horizon`, present
+  exactly when `sent`), whether the adapter holds it (`held`), and the
+  duplicates' answers (`answers`, `answerDue`), and an `accepted` outbox
+  step that carries `held: true` (Delivery RLTP-DEL-6140), with its
+  `delivery.status` event. Its fixtures (`test/fixtures/state-v4*.json`,
+  deterministic runs of `test/fixtures/gen-state-v4.mjs`, reproduced in
   `npm test`) cover a settled holder, one with work open (prompts, a
   joining invite, duties, a rotation at step 2, a block and a declined
   invitation), one with a tombstone, a revoked device and carrier entries,
   and one with transport in custody (acks held, accepted, failed and
-  unsent, an answer due and one handed over, an own document held); each
-  decodes and re-encodes byte for byte.
-- Codecs 1 and 2 (lib 0.4.0, 0.5.0) never held a rolled-out app's state:
-  they are read no more, a state of either is `codec-unknown`. A later
-  codec that must read codec 3 brings its validator, a pure migration from
-  it, and its own fixture with a migration test.
+  unsent, an answer due and one handed over, an own document held, and one
+  accepted and held at the recipient); each decodes and re-encodes byte
+  for byte.
+- **Codec 3** (lib 0.6.0 to 0.9.1) is read through a pure migration that
+  sets the version to 4; its fixtures (`test/fixtures/state-v3*.json`)
+  stay as written and are tested to migrate and load. Codecs 1 and 2
+  (lib 0.4.0, 0.5.0) never held a rolled-out app's state: a state of
+  either is `codec-unknown`.
 - A newer codec is refused as `codec-newer`, a codec without a validator
   as `codec-unknown`; nothing is read best-effort.
 - A codec-3 state written by lib 0.8 names its Trust Task types without
@@ -322,14 +380,16 @@ the state as opaque JSON and gives it back; the library decodes it
   invitation, the invite and accept of buffered evidence); text a person
   wrote never refuses a state. The app discards such a state and starts
   afresh.
-- `schemas/holder-state-v3.schema.json` describes the codec as a
-  non-normative JSON Schema (published with the package). The type
-  `HolderStateV3` (`./internal`) is generated from it
-  (`scripts/build-holder-state-types.mjs`); the build holds it against the
-  library's `HolderState`, and the tests hold the schema against the
-  codec's validator on the fixtures and on mutations of them. Rules only
-  the codec states: a record's id equals its key, an envelope's `rkid`
-  equals its recipient's `keyAgreement`, and a set of strings is sorted.
+- `schemas/holder-state-v4.schema.json` (and `-v3` for the codec it
+  reads) describes the codec as a non-normative JSON Schema (published
+  with the package). The types `HolderStateV4` and `HolderStateV3`
+  (`./internal`) are generated from them
+  (`scripts/build-holder-state-types.mjs`); the build holds `HolderStateV4`
+  against the library's `HolderState`, and the tests hold each schema
+  against the codec's validator on the fixtures and on mutations of them.
+  Rules only the codec states: a record's id equals its key, an
+  envelope's `rkid` equals its recipient's `keyAgreement`, and a set of
+  strings is sorted.
 
 **Writing a Store adapter.** Implement `read(): Promise<{state, version}>`
 (a deep, independent copy; `null` state and version for an empty store) and
@@ -367,13 +427,13 @@ This package uses its own semver; the specification uses castings.
 
 | Area | Casting | Not in this package |
 |---|---|---|
-| identity | Identity 0.54 | recovery derivation (§5.3), service identities (§7) |
+| identity | Identity 0.55 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.32, cards 0.25, credentials 0.26 | — |
 | trust | Trust Layer 0.31 | — |
 | membership | Membership Tasks 0.21, Access 0.58 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.84 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
-| transport adapter | VTI Mediator Adapter Profile 0.28 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 13); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `egress-session` to `routed` (profile Open Issue 7) |
+| delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| transport adapter | VTI Mediator Adapter Profile 0.29 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); sending framework refusals (profile Open Issue 17) |
 | message | Message Tasks 0.2 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 

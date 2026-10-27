@@ -76,7 +76,7 @@
 //     RLTP-VTI-1230)
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
-import { triasOf } from './state.js';
+import { heldOf, triasOf } from './state.js';
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js';
 import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
@@ -233,6 +233,8 @@ const itemView = (digest, it) => {
         v.awaiting = last.reason;
     if (decisive?.status === 'delivered')
         v.late = decisive.late;
+    if (status === 'accepted' && heldOf(it))
+        v.held = true;
     if (decisive?.status === 'failed') {
         v.reason = decisive.reason;
         if (decisive.reason === 'rejected-by-receiver')

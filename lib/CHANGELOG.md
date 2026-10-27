@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
 
-Takes up Encounter 0.32 (RLTP-ENC-2150, 2155): a reader accepts a
+Takes up the Delivery Contract 0.85, the VTI Mediator Adapter Profile
+0.29 and Identity 0.55: every document travels as a Trust Task document
+in the registry's TSP binding, one wire identity per relationship and
+carrier, and `accepted` carries `held`. A wire break, so a minor version:
+a 0.9 adapter reads the carried document as no envelope, a 0.10 adapter
+refuses a bare seal as payload, and nothing accepts both forms. It also
+takes up Encounter 0.32 (RLTP-ENC-2150, 2155): a reader accepts a
 timestamp in the offset spelling `+00:00` beside `Z`.
 
 - **`calOK`** accepts `Z` and `+00:00`, at most three fractional digits
@@ -19,6 +25,93 @@ timestamp in the offset spelling `+00:00` beside `Z`.
 - **Unchanged.** `iso` writes `Z`; digests and proofs run over the
   received bytes, so a document in the offset spelling has its own
   digest; `tsec` reads both spellings as the same instant.
+
+- **The carried document** (`./adapters/vti-mediator`). Every deposit's
+  payload is the JCS of the binding envelope
+  `{ type: 'https://trusttasks.org/binding/tsp/0.1/envelope', document }`
+  around a `sealed-envelope/0.1` document whose payload is the seal,
+  `issuer` this side's and `recipient` the counterpart's connection DID,
+  `id` = `threadId` a UUID v8 of SHA-256(`rltp/v1/sealed-envelope-id` ‖
+  JCS({issuer, recipient, seal})), `issuedAt` the entry's `since` in whole
+  seconds, no proof. New: `wrapSealed`, `sealedEnvelopeId`,
+  `readBindingEnvelope`, `readTrustTaskNextStep`,
+  `TSP_BINDING_ENVELOPE_TYPE`, `TRUST_TASK_NEXT_STEP_TYPE`,
+  `SEALED_ENVELOPE_TYPE` (also from `task-uri`),
+  `SEALED_ENVELOPE_DOCUMENT_BOUND` (90 112), `DECLARED.payloadBound`
+  (90 182), `BindingReading`.
+- **Receipt** (RLTP-VTI-7160). The adapter reads every payload with its
+  authenticated sender: a carried document from the sender to this side
+  (profile, `threadId` = `id`, canonical ciphertext) becomes an item whose
+  bytes are the JCS of the seal, its queue id the digest of the payload;
+  everything else is logged through `wire.log` and acknowledged at the
+  adapter's next step, never an item.
+- **Answers** (RLTP-VTI-5040 to 5060). A counterpart's
+  `trust-task-error/0.5` or `trust-task-next-step/0.1` binds the
+  submission whose carried document's `id` it names (`inResponseTo.id`,
+  else `threadId`), its parties checked against the sender and this side,
+  its timestamps any RFC 3339 date-time (nine fractional digits, offsets).
+  The adapter applies it: a terminal refusal fails the submission
+  (`rejected-by-receiver`), a retryable one bounds its next attempt,
+  `idConflict` answers it, a next step (its proof, if any, verified under
+  the issuer) makes it `accepted` with `held: true`, which the give-up
+  horizon does not end. `SubmissionState` and `deliveryReportOf` carry
+  `held`; `TriasReport` `accepted` has `held?: true`. An error document
+  with a `proof` is held to it like a next step; an answer to a carried
+  acknowledgement changes nothing.
+- **Answers across openings** (RLTP-VTI-5065, Delivery RLTP-DEL-6150).
+  `pendingTransport(when)` answers `answerable` beside `entries`: the
+  accepted documents not yet terminal, `held` marked, with envelope,
+  recipient and first submission (`AnswerableEntry`), derived from the
+  outbox (the codec is unchanged), refused by `mayHandOver`. `reconcile`
+  files them as submissions without an attempt in their state, computes
+  their carried document's `id`, and binds a counterpart's answer to
+  them; the adapter's horizon does not end them, a later view without
+  them withdraws nothing.
+- **The answer contract** (RLTP-VTI-5065, 5070, 5080). Every filed
+  submission, custody or offered, gets its carried document's `id` when
+  it is filed, independent of any attempt; answers wait, unacknowledged,
+  until the opening's first `reconcile` (or `submit`) and every id is
+  known, then take one path (bind and apply). Only the recipient the
+  document named may change it (the sender checked at the transition,
+  whatever the wire lets through). A bound answer travels in the
+  collection, `Collection.answers: CollectedAnswer[]` (`{ queueId,
+  submissionId, report }`): the host records the report at the holder,
+  then concludes; the answer is acknowledged only at that conclusion, so
+  a crash at any point re-delivers and re-binds it, and the holder's
+  report is idempotent. Answers also wait while the wire names no
+  counterpart; waiting and bound answers count toward the queue floor by
+  number and by bytes (64, 1 MiB).
+- **One wire identity.** The connection DID sends and collects;
+  `carrierScopedIdentity` has no `egress` scope, `EGRESS_INFO_PREFIX` and
+  the adapter's `egressDid` are gone. `deliveryHint` builds the
+  three-member hint; `readDeliveryHint(s)` reads three members, or a
+  fourth `rltpEgress` ignored, and `DeliveryHintIdentities` is
+  `{ connectionDid, carrier }`; `readDeliveryHints(hints, C, {connection})`.
+  `depositAddressing(mode, self, peer, C)` takes the connection DID.
+- **Mode `direct`** replaces `egress-session` (`SendMode`): the inner
+  message alone on the connection DID's session. A restored send state
+  with mode `egress-session` (0.9) is read as `direct`; golden fixtures
+  `test/adapter-fixtures/ack-state-direct-refused*.json`.
+- **`MediatorWire`** (breaking): `deposit(accessToken, bytes, mode)` (no
+  egress parameter; `bytes` the binding envelope),
+  `onDeliver(cb(bytes, sender))`, `counterpart(): string | null`
+  (required), `log?(line)`. `submit()` takes the JCS bytes of a sealed
+  envelope and refuses anything else with a `TypeError`.
+- **Holder.** `accepted` carries the closed feature `held` (Delivery
+  RLTP-DEL-6140). A report `{ status: 'accepted', held: true }` makes a
+  document that is not yet terminal accepted and held, once, and
+  announces it as `delivery.status` with `held: true`. A held document is
+  ended neither by the holder's horizon nor by its sender lifetime
+  (RLTP-DEL-6110); only a valid acknowledgement (`delivered`) or a
+  `rejected-by-receiver` report (`failed`) ends it. `heldOf(item)`;
+  `DeliveryItemView.held`.
+- **Codec 4**: codec 3 plus the optional `held` on an accepted outbox
+  step and on its `delivery.status` event. A codec-3 state is read
+  through `MIGRATIONS[3]`, which sets only the version, so the state of
+  0.9.1 loads unchanged. New: `schemas/holder-state-v4.schema.json`,
+  `HolderStateV4`, fixtures `state-v4*.json` from
+  `test/fixtures/gen-state-v4.mjs`; the codec-3 fixtures are kept as
+  written.
 
 ## 0.9.1
 

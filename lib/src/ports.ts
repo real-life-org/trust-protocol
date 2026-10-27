@@ -150,9 +150,13 @@ export type DeliveryFailure = 'unroutable' | 'oversize' | 'expired-by-adapter-po
 /** Why a submission still waits before the trias (Delivery §6.1). */
 export type PreTransportReason = 'offline' | 'transport-unreachable' | 'carrier-refused-retriable'
 
-/** A report about a submission the service has taken: the status trias. */
+/** A report about a submission the service has taken: the status trias.
+ *  `held` on `accepted`: the counterpart answered with a validated
+ *  trust-task-next-step (Delivery RLTP-DEL-6140, VTI RLTP-VTI-5050) — the
+ *  document arrived and waits there; no horizon ends it, only a valid
+ *  acknowledgement or a validated terminal refusal. */
 export type TriasReport =
-  | { digest: string, status: 'accepted' }
+  | { digest: string, status: 'accepted', held?: true }
   | { digest: string, status: 'delivered', late: boolean }
   | { digest: string, status: 'failed', reason: Exclude<DeliveryFailure, 'rejected-by-receiver'> }
   | { digest: string, status: 'failed', reason: 'rejected-by-receiver', code: ReceiverRefusalCode }
@@ -206,7 +210,8 @@ export interface RetryPolicy {
   backoff (attempt: number): number
   /** the holder's own give-up: this long after the first submission every
    *  non-terminal item (submitted, accepted, or held by the adapter as
-   *  awaiting-transport) becomes failed(expired-by-adapter-policy).
+   *  awaiting-transport) becomes failed(expired-by-adapter-policy) — except
+   *  an accepted item that is held at the recipient (Delivery RLTP-DEL-6140).
    *  Within Delivery's give-up range [P1D, P90D]. It also sets the
    *  retention of effects and the act journal, max(P90D, horizonMs) —
    *  Delivery §7 key-retention. There is no attempt-count give-up:

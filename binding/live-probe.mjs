@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// live-probe.mjs — the adapter (profile 0.28) over the real wire
+// live-probe.mjs — the adapter (profile 0.29) over the real wire
 // binding against the LIVE VTI mediator.
 //
-// Two independent relationships (Alice, Bob), each: derived identity
-// trio, ATM auth under the connection DID, carriage of an opaque
-// "sealed RLTP envelope" in the sending form the adapter names (default
-// routed: inner TSP direct egress → peer's connection DID inside an
-// outer routed message connection DID → C), delete-to-ack timed by the
+// Two sides of one relationship (Alice, Bob), each: its derived
+// connection DID, ATM auth under it, carriage of a stand-in sealed RLTP
+// envelope as a sealed-envelope/0.1 document in the TSP binding envelope
+// (§3b), in the sending form the adapter names (default routed: inner TSP
+// direct connection DID → peer's connection DID inside an outer routed
+// message connection DID → C; RLTP_WIRE_DEPOSIT=direct: the inner alone), delete-to-ack timed by the
 // adapter's conclude — measured, not assumed. Prints the measurements:
 // delivery yes/no, frame sizes (payload, inner, outer bytes) and the
 // times deposit → accepted and deposit → delivery (ms). No secrets.
@@ -16,6 +17,8 @@
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire } from "./vti-wire.mjs";
+import { carrierScopedIdentity } from "../lib/dist/carrier-identity.js";
+import { jcs } from "../lib/dist/core.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   console.log("live-probe: skipped (set RLTP_LIVE_MEDIATOR=1 to run against the live mediator)");
@@ -43,20 +46,16 @@ const fail = (m) => { report(); console.error(`✗ ${m}`); process.exit(1); };
 
 say("── live probe: converged adapter × real mediator ──");
 say(`  mediator (C): ${MEDIATOR_DID}`);
-say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.28 §3a)`);
+say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs; routed = follow the adapter's mode, profile 0.29 §3a)`);
 
 // Each party: its own relationship root and carrier nonce. The wire
-// derives the identical trio the adapter's factory derives.
+// derives the identical connection DID the adapter's factory derives.
 const aliceRoot = rand(32); const aliceNonce = rand(32);
 const bobRoot = rand(32); const bobNonce = rand(32);
-
-// bootstrap: derive DIDs first (peer config needs them)
-const preA = await createVtiWire({ rootIkm: aliceRoot, mediatorDid: MEDIATOR_DID, nonce: aliceNonce, peerDid: "did:key:z6MkfLdHWkKPXwUKGV2W6PZs6cUpUYt1oSJ2VYk3XwZm3mNa", peerEgressDid: "did:key:z6MkfLdHWkKPXwUKGV2W6PZs6cUpUYt1oSJ2VYk3XwZm3mNa" });
-const preB = await createVtiWire({ rootIkm: bobRoot, mediatorDid: MEDIATOR_DID, nonce: bobNonce, peerDid: preA.connectionDid, peerEgressDid: preA.egressDid });
-preA.close();
-
-const wireA = await createVtiWire({ rootIkm: aliceRoot, mediatorDid: MEDIATOR_DID, nonce: aliceNonce, peerDid: preB.connectionDid, peerEgressDid: preB.egressDid });
-const wireB = preB;
+const connectionOf = async (root, nonce) => (await carrierScopedIdentity(root, MEDIATOR_DID, nonce, "connection")).did;
+const log = (l) => say(`  · ${l}`);
+const wireA = await createVtiWire({ rootIkm: aliceRoot, mediatorDid: MEDIATOR_DID, nonce: aliceNonce, peerDid: await connectionOf(bobRoot, bobNonce), log });
+const wireB = await createVtiWire({ rootIkm: bobRoot, mediatorDid: MEDIATOR_DID, nonce: bobNonce, peerDid: wireA.connectionDid, log });
 
 const alice = await MediatorCarrierAdapter.create(aliceRoot, MEDIATOR_DID, aliceNonce, wireA);
 const bob = await MediatorCarrierAdapter.create(bobRoot, MEDIATOR_DID, bobNonce, wireB);
@@ -67,15 +66,16 @@ alice.register([], now()); bob.register([], now());
 await alice.settle(); await bob.settle();
 say(`  ✓ both parties admitted (ATM auth under the connection DIDs, sockets open)`);
 
-// §5a.10: the DERIVED trio of the adapter matches the wire's, and the
-// principal appears in neither wire config
+// §5a.10: the DERIVED connection DID of the adapter matches the wire's,
+// and the principal appears in neither wire config
 if (alice.connectionDid !== wireA.connectionDid) fail("adapter/wire connection DID mismatch");
-if (alice.egressDid !== wireA.egressDid) fail("adapter/wire egress DID mismatch");
-say(`  ✓ trio coupling: adapter and wire derive byte-identical DIDs`);
-say(`    alice conn ${alice.connectionDid.slice(0, 24)}… egress ${alice.egressDid.slice(0, 24)}…`);
+say(`  ✓ identity coupling: adapter and wire derive byte-identical connection DIDs`);
+say(`    alice conn ${alice.connectionDid.slice(0, 24)}…`);
 
-// a stand-in sealed RLTP envelope: opaque bytes above the 17-byte floor
-const envelope = rand(64);
+// a stand-in sealed RLTP envelope of the schema's form; its ciphertext is random bytes
+const b64u = (b) => Buffer.from(b).toString("base64url");
+const stand = (n) => new TextEncoder().encode(jcs({ rkid: "z6LStLK2kxribiLHz6U4vpGfzMtmgc4q5WjR4mvhS6KG1W16", epk: b64u(rand(32)), nonce: b64u(rand(12)), ciphertext: b64u(rand(n)) }));
+const envelope = stand(64);
 const m1 = { dir: "A→B", delivered: false, mode: alice.sendMode };
 measured.push(m1);
 const t1 = now();
@@ -112,7 +112,7 @@ await bob.settle();
 say(`  ✓ concluded — delete-to-ack sent under the adapter's timing`);
 
 // the reply direction proves bidirectionality of both bindings
-const replyEnvelope = rand(48);
+const replyEnvelope = stand(48);
 const m2 = { dir: "B→A", delivered: false, mode: bob.sendMode };
 measured.push(m2);
 const t2 = now();

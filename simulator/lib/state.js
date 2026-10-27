@@ -12,6 +12,12 @@ export function triasOf(item) {
     }
     return 'submitted';
 }
+/** Whether the item is `accepted` with the feature `held` (Delivery
+ *  RLTP-DEL-6140): no horizon ends it, only a valid acknowledgement or a
+ *  validated terminal refusal. */
+export function heldOf(item) {
+    return triasOf(item) === 'accepted' && item.history.some((s) => s.status === 'accepted' && s.held === true);
+}
 /** A fresh holder's state. */
 export function emptyState(codec) {
     return {

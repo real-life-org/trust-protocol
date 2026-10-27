@@ -5,3 +5,7 @@
 
 /** The prefix of every RLTP Type URI: `https://real-life.org/trust-tasks/spec/`. */
 export const TASK_NAMESPACE = 'https://real-life.org/trust-tasks/spec/'
+
+/** The carried document of Delivery 4.6: a sealed envelope as the payload
+ *  of a Trust Task document, in a carrier that carries such documents. */
+export const SEALED_ENVELOPE_TYPE = TASK_NAMESPACE + 'sealed-envelope/0.1'

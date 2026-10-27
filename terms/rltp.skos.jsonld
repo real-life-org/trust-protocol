@@ -1928,11 +1928,6 @@
    "@id": "rltp:ConnectionDid",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
-   "skos:related": [
-    {
-     "@id": "rltp:EgressIdentity"
-    }
-   ],
    "skos:prefLabel": [
     {
      "@value": "Verbindungs-DID",
@@ -1945,11 +1940,11 @@
    ],
    "skos:definition": [
     {
-     "@value": "Die Drahtidentität, unter der eine Seite einer Beziehung bei einem Mediator ihr Konto führt: Anmeldung, Abholung und Quittungen laufen unter ihr, das Gegenüber adressiert jedes Dokument an sie, und sie ist der äußere Absender jeder gerouteten Einlieferung. Je Beziehung und Träger aus der Wurzel abgeleitet, nie der Kontroll-Prinzipal.",
+     "@value": "Die eine Drahtidentität einer Seite einer Beziehung bei einem Mediator: Unter ihr führt die Seite ihr Konto, meldet sich an, holt ab und quittiert, und unter ihr sendet sie jede Einlieferung, in jeder Schicht. Das Gegenüber adressiert jedes Dokument an sie und prüft sie als Absender. Je Beziehung und Träger aus der Wurzel abgeleitet, nie der Kontroll-Prinzipal.",
      "@language": "de"
     },
     {
-     "@value": "The wire identity under which one side of a relationship holds its account at a mediator: login, pickup and receipts run under it, the counterpart addresses every document to it, and it is the outer sender of every routed deposit. Derived from the root per relationship and carrier, never the control principal.",
+     "@value": "The one wire identity of one side of a relationship at a mediator: under it the side holds its account, logs in, collects and acknowledges, and sends every deposit, in every layer. The counterpart addresses every document to it and verifies it as the sender. Derived from the root per relationship and carrier, never the control principal.",
      "@language": "en"
     }
    ],
@@ -1959,7 +1954,7 @@
    "skos:editorialNote": "German text: draft, not normative"
   },
   {
-   "@id": "rltp:EgressIdentity",
+   "@id": "rltp:CarriedDocument",
    "@type": "skos:Concept",
    "skos:inScheme": "rltp:",
    "skos:related": [
@@ -1969,26 +1964,60 @@
    ],
    "skos:prefLabel": [
     {
-     "@value": "Egress-Identität",
+     "@value": "Getragenes Dokument",
      "@language": "de"
     },
     {
-     "@value": "Egress identity",
+     "@value": "Carried document",
      "@language": "en"
     }
    ],
    "skos:definition": [
     {
-     "@value": "Die Drahtidentität, unter der eine Seite einer Beziehung sendet: der innere Ende-zu-Ende-Absender jeder Einlieferung, den das Gegenüber sieht und prüft. Je Beziehung und Träger aus der Wurzel abgeleitet; sie ist nie die Verbindungs-DID, unter der dieselbe Seite abholt.",
+     "@value": "Das Trust-Task-Dokument vom Typ sealed-envelope/0.1, in dem ein Träger, der selbst Trust-Task-Dokumente trägt, einen versiegelten Umschlag trägt: der Umschlag ist sein Payload, Aussteller und Empfänger sind die Kennungen des Trägers. Ein fremder Konsument liest seinen Typ, ohne das Siegel zu öffnen, und kann es ablehnen oder sagen, was er als Nächstes erwartet; der Träger des Empfängers nimmt den Umschlag heraus und übergibt ihn dem Empfang.",
      "@language": "de"
     },
     {
-     "@value": "The wire identity under which one side of a relationship sends: the inner, end-to-end sender of every deposit, the one the counterpart sees and verifies. Derived from the root per relationship and carrier; it is never the connection DID under which the same side collects.",
+     "@value": "The Trust Task document of the type sealed-envelope/0.1 in which a carrier that itself carries Trust Task documents carries a sealed envelope: the envelope is its payload, its issuer and recipient are the carrier's identifiers. A foreign consumer reads its type without opening the seal and can refuse it or say what it expects next; the recipient's carrier takes the envelope out and hands it to the receive.",
      "@language": "en"
     }
    ],
    "dct:source": [
-    "https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md#1a-which-layer-counts-5a10-read-for-routed-deposits"
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#46-sealed-envelope01"
+   ],
+   "skos:editorialNote": "German text: draft, not normative"
+  },
+  {
+   "@id": "rltp:Held",
+   "@type": "skos:Concept",
+   "skos:inScheme": "rltp:",
+   "skos:related": [
+    {
+     "@id": "rltp:CarriedDocument"
+    }
+   ],
+   "skos:prefLabel": [
+    {
+     "@value": "Beim Empfänger offen",
+     "@language": "de"
+    },
+    {
+     "@value": "Held",
+     "@language": "en"
+    }
+   ],
+   "skos:definition": [
+    {
+     "@value": "Ein Merkmal des Sendestatus angenommen: Das Gegenüber hat geantwortet, dass das Dokument bei ihm angekommen ist und auf etwas wartet, das es nennt. Keine Frist beendet ein solches Dokument; es endet nur mit einer Empfangsbestätigung oder einer Ablehnung des Gegenübers.",
+     "@language": "de"
+    },
+    {
+     "@value": "A feature of the sending status accepted: the counterpart has answered that the document arrived there and waits for something it names. No horizon ends such a document; it ends only with the counterpart's acknowledgement or refusal.",
+     "@language": "en"
+    }
+   ],
+   "dct:source": [
+    "https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#61-sender-the-status-trias"
    ],
    "skos:editorialNote": "German text: draft, not normative"
   },
@@ -2002,9 +2031,6 @@
     },
     {
      "@id": "rltp:ConnectionDid"
-    },
-    {
-     "@id": "rltp:EgressIdentity"
     }
    ],
    "skos:prefLabel": [
@@ -2019,11 +2045,11 @@
    ],
    "skos:definition": [
     {
-     "@value": "Eine Zeichenkette in einer Kontaktkarte, die sagt, über welchen Träger die Seite in der Beziehung erreichbar ist, die die Karte eröffnet. Ihre Form legt das Trägerprofil fest; beim VTI-Mediator ist es ein TSPTransport-Diensteintrag mit Verbindungs-DID, Mediator-DID und Egress-Identität. Sie gilt nur beim Erstkontakt.",
+     "@value": "Eine Zeichenkette in einer Kontaktkarte, die sagt, über welchen Träger die Seite in der Beziehung erreichbar ist, die die Karte eröffnet. Ihre Form legt das Trägerprofil fest; beim VTI-Mediator ist es ein TSPTransport-Diensteintrag mit Verbindungs-DID und Mediator-DID. Sie gilt nur beim Erstkontakt.",
      "@language": "de"
     },
     {
-     "@value": "A string in a contact card that says through which carrier a side is reachable in the relationship the card opens. Its form is the carrier profile's; for the VTI mediator it is a TSPTransport service entry naming the connection DID, the mediator's DID and the egress identity. It acts at first contact only.",
+     "@value": "A string in a contact card that says through which carrier a side is reachable in the relationship the card opens. Its form is the carrier profile's; for the VTI mediator it is a TSPTransport service entry naming the connection DID and the mediator's DID. It acts at first contact only.",
      "@language": "en"
     }
    ],

@@ -3,31 +3,34 @@
 **Real Life Trust Protocol — Transport Adapter Profile (below the port line)**
 
 - **Status:** Editor's Draft
-- **Version:** 0.28.0-draft (twenty-eighth casting)
+- **Version:** 0.29.0-draft (twenty-ninth casting)
 - **Status of This Document:** Editor's Draft, not yet converged.
   This profile changes normatively between castings and MUST NOT be
   relied upon for implementation or interoperability claims. Review
   and comment are welcome through the editors.
 - **Editors:** Anton Tranelis
-- **Companions:** RLTP Delivery Contract 0.84 (§5a.10, §6.1, §6.2,
-  §6.3, RLTP-DEL-6120 to RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335; Appendix A names the changes its
-  next casting takes up); RLTP Identity 0.54 (§7a, §9.3, §13); RLTP
-  Encounter 0.32 (§5.3, §5.5, §5.8, §6, RLTP-ENC-6050,
-  RLTP-ENC-6060, RLTP-ENC-6080, RLTP-ENC-6090); RLTP Trust
-  Layer 0.31 (§6a)
+- **Companions:** RLTP Delivery Contract 0.85 (§4.6, §5, §5a.10, §6.1,
+  §6.2, §6.3, RLTP-DEL-5030, RLTP-DEL-5040, RLTP-DEL-6120 to
+  RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335; Appendix A names the
+  changes its next casting takes up); RLTP Identity 0.55 (§7a, §9.3,
+  §13); RLTP Encounter 0.32 (§5.3, §5.5, §5.8, §6, RLTP-ENC-6050,
+  RLTP-ENC-6060, RLTP-ENC-6080, RLTP-ENC-6090); RLTP Trust Layer 0.31
+  (§6a)
 
 Target carrier: the VTI/Affinidi messaging mediator from release
 **0.45.0** on (`affinidi/affinidi-messaging-mediator` @ `7e378c03`),
 which opens a TSP message addressed to itself only in TSP 1.0, run
-with local direct delivery allowed for mode `egress-session`
-(RLTP-VTI-3120) (pins:
-`vti-didcomm-js` 0.13.0 @ `8054313f`, `vti-tsp-js` 0.4.0
+with local direct delivery allowed for mode `direct` (RLTP-VTI-3120)
+(pins: `vti-didcomm-js` 0.13.0 @ `8054313f`, `vti-tsp-js` 0.4.0
 (`OpenVTC/vta-browser-plugin` @ `a24e498f`); protocol texts:
 Coordinate Mediation 2.0 @ `d5909369`, Message Pickup 3.0 @
 `9dfa409f`, TSP 1.0 @ `ccda6b33` — `sources/pins/PINS.md`; the wire
-binding speaks TSP 1.0 and nothing else, see §7). Counterpart
-refusals: the registry's `trust-task-error/0.5`
-(`trustoverip/dtgwg-trust-tasks-tf` @ `970d014d`). Seam evidence:
+binding speaks TSP 1.0 and nothing else, see §7). Carriage of a
+document: the registry's TSP binding `bindings/tsp/0.1` (§2 document
+carriage, §3 identity mapping), counterpart refusals
+`trust-task-error/0.5` and recipient-suggested continuations
+`trust-task-next-step/0.1` (`trustoverip/dtgwg-trust-tasks-tf` @
+`579d8e29`). Seam evidence:
 `design/mediator-naht-bestandsaufnahme-2026-08.md`.
 
 ## 0. What this contract is, and is not
@@ -58,11 +61,14 @@ What this adapter owes, completely:
    §6.2 rule: it absorbs a copy only for `give-up-horizon` after its
    conclusion, and hands every later copy to the holder, whose
    absorption answers it again (RLTP-DEL-6330, RLTP-DEL-6335);
-3. the **§5a.10 identity obligations**, under the reading of §1a
-   (which layer of a deposit the sending-side prohibitions apply
-   to), except the change of the direct TSP peer under an unchanged
-   `C`, which this profile does not serve (RLTP-VTI-7120,
-   Appendix A).
+3. the **§5a.10 identity obligations**, with one wire identity per
+   relationship and carrier that deposits and collects alike (§1a),
+   except the change of the direct TSP peer under an unchanged `C`,
+   which this profile does not serve (RLTP-VTI-7120, Appendix A);
+4. the **carriage of every document as a Trust Task document** in the
+   registry's TSP binding (Delivery §4.6, RLTP-DEL-5030), so that a
+   consumer of the binding that does not know RLTP reads a document it
+   can dispatch, refuse or answer (§3b, §5).
 
 What it expressly does not owe, and no holder may read into it:
 proof-bound registration, generation ordering, tombstone
@@ -77,96 +83,71 @@ foreign one.
   §7a.2 — never a hop beyond it, never the URL it resolves to).
 - The control principal (`carrierPrincipal(rootIkm, C, nonce)`)
   **never touches the wire.** Beside it the adapter derives, from
-  the same root under the normative prefixes
-  `rltp/v1/carrier-connection/ed25519/v1/` and
-  `rltp/v1/carrier-egress/ed25519/v1/` (Identity §13 lists both),
-  two wire identities, one per relationship × carrier each:
-  - the **connection DID** — this side's account at the mediator
-    and its address in the relationship: the session that collects
-    (auth, keylist, pickup, receipts) runs under it — the one other
-    authentication is the egress identity's send-only session in
-    mode `egress-session` (§3a) — the
-    counterpart addresses every document to it, and it is the
-    **outer** sender of every deposit in mode `routed` (§3a);
-  - the **egress identity** — the **inner**, end-to-end sender of
-    every deposit: the sender the counterpart sees and verifies,
-    §5a.10's sender-side identifier under the reading of §1a. In
-    mode `routed` it never authenticates to the mediator; in the
-    fallback mode `egress-session` it holds one send-only session
-    of its own (§3a).
+  the same root under the normative prefix
+  `rltp/v1/carrier-connection/ed25519/v1/` (Identity §13), **one wire
+  identity** per relationship × carrier, the **connection DID**: this
+  side's account at the mediator and its address in the relationship.
+  The one session of the relationship runs under it (auth, keylist,
+  pickup, receipts, and every deposit in both sending modes, §3a); it
+  is the sender of every TSP message this side deposits, in every
+  layer, and the receiver of every message the counterpart sends.
 
-  The counterpart's connection DID and egress identity are inputs
-  to an instance. A side takes them from the counterpart's delivery
-  hint in the card that opened the relationship (§1b), and from
-  nowhere else. The one instance that starts without them is a
-  displayed card's instance (§1c), which takes them from the same
-  hint when it is bound.
+  The counterpart's connection DID is an input to an instance. A side
+  takes it from the counterpart's delivery hint in the card that
+  opened the relationship (§1b), and from nowhere else. The one
+  instance that starts without it is a displayed card's instance
+  (§1c), which takes it from the same hint when it is bound.
 
-  Each is derivable from the root; none from any other. **The trio
-  is derived by the adapter's factory itself** from one (root,
-  `C`, `N`), `N` the relationship's carrier nonce (Identity §7a.3,
-  RLTP-VTI-1215) — caller-supplied identities are refused at the door,
-  so a mixed trio (identities from two relationships) cannot be
-  built at all.
-- Both wire identities carry §5a.10's three prohibitions — **not
+  The connection DID is derivable from the root; the principal is not
+  derivable from it, nor it from the principal. **The pair is derived
+  by the adapter's factory itself** from one (root, `C`, `N`), `N` the
+  relationship's carrier nonce (Identity §7a.3, RLTP-VTI-1215) —
+  caller-supplied identities are refused at the door, so a mixed pair
+  (identities from two relationships) cannot be built at all.
+- The connection DID carries §5a.10's three prohibitions — **not
   well-known**, **not person-wide**, **not reused outside this
-  relationship** — and are retired with the principal, never
-  reassigned. The delivery hint (§1b) names them only in the card of
-  the enactment that opens their relationship; Appendix A states the
-  reading of "not well-known" this needs. `from_prior` is **forbidden**; a new connection DID
-  is a fresh mediation relationship, never a rotation statement.
+  relationship** — and is retired with the principal, never
+  reassigned. The delivery hint (§1b) names it only in the card of
+  the enactment that opens its relationship; Appendix A states the
+  reading of "not well-known" this needs. `from_prior` is
+  **forbidden**; a new connection DID is a fresh mediation
+  relationship, never a rotation statement.
 - One mediation relationship per principal; keylists
   principal-local; every status, pickup and receipt operation
   scoped to one principal's connection; Live Mode per relationship
   (MUST), one socket per principal by default (5a.7 spacing
-  declares any multiplexing). Mode `routed` holds **one session
-  per relationship and side**, the connection DID's; mode
-  `egress-session` adds the egress identity's send-only session. A
+  declares any multiplexing). Each relationship holds **one session
+  per side**, the connection DID's, in both sending modes. A
   displayed card's instance (§1c) holds the connection DID's session
   and socket from the display on, before the relationship exists.
 
-## 1a. Which layer counts (§5a.10, read for routed deposits)
+## 1a. One wire identity
 
-A routed deposit carries two senders: the inner one the counterpart
-verifies, and the outer one the direct carrier authenticates. Delivery
-§5a.10 attaches its sending-side prohibitions to "the sender-side
-outer VID an adapter presents when depositing", among them that the
-sending side and the collecting side of one person must never meet
-in one identifier. This profile applies that clause to the layer the
-counterpart opens and verifies, and lets the outer layer toward the
-direct carrier carry the collecting identifier. It is a decision on
-which identifier a document is signed under, not a claim of
-unlinkability: the counterpart knows both identifiers of this side
-(it verifies the egress identity and addresses the connection DID),
-and the mediator reads both in one frame (§9).
+Delivery §5a.10 lets one wire identity per relationship and carrier
+deposit and collect: what it forbids is that the sending side meets
+the control principal, or a value derivable from it, which never
+appears on the wire here. This profile uses that permission
+completely. The counterpart sees one identifier of this side, the
+identifier it addresses and the identifier it verifies are the same,
+and its answers go where TSP's own model sends them: to the
+authenticated sender of the message it opened (TSP binding §3,
+framework §8.1).
 
-**RLTP-VTI-1110** — The inner sender of every deposit MUST be the
-egress identity of this relationship and carrier. It MUST NOT be the
-connection DID, the control principal, or a value derivable from
-either, and it carries all three prohibitions of §5a.10.
+**RLTP-VTI-1120** — The sender of every layer of every deposit MUST be
+the connection DID of the same relationship and carrier, and nothing
+else: the inner `direct` message in both modes (RLTP-VTI-3110, 3120)
+and the outer routed message in mode `routed`. It MUST NOT be the
+control principal or a value derivable from it.
 
-**RLTP-VTI-1120** — The outer sender of a routed deposit MUST be the
-connection DID of the same relationship and carrier, and nothing
-else. It is a hop identifier toward the direct carrier, which already
-authenticates it as this relationship's account; it carries the
-prohibitions of §5a.10 except the separation of sending and
-collecting, which RLTP-VTI-1110 places on the inner sender.
-
-**RLTP-VTI-1130** — A deposit whose only layer names the connection
-DID as its sender is nonconformant: there the counterpart would see
-the collecting identifier as the sender.
-
-Delivery 0.84 hangs the separation on the outer sender. The change
-this reading needs in the Delivery Contract is stated in Appendix A;
-until its next casting takes it up, an implementation of this
-profile states in its conformance notes that it applies RLTP-VTI-1110
-and 1120 in place of that clause, and every other entry of
-Appendix A that turns a conformance statement of Delivery 0.84
-around (the send-only session of mode `egress-session`, the routed
-deposits under the connection DID). The sentence of §5a.10 that a
-nested private end-to-end VID is "hidden from intermediaries by
-construction" is not a property of routed mode: the mediator opens
-the routing layer and reads the inner sender (§9).
+*Rationale.* A second identity that only sends would protect
+nothing: the counterpart would know both identifiers of this side, and
+the mediator would read both in one frame of mode `routed` (§9). It
+would cost the answers of every consumer that follows the registry's
+binding: such a consumer sends a refusal or a next step to the
+authenticated sender of the message it opened, and an identity that
+only sends collects nothing. One identity makes the delivery hint an
+ordinary `TSPTransport` service entry (§1b) and the fallback mode a
+second form on the same session (§3a).
 
 ## 1b. The delivery hint
 
@@ -180,36 +161,35 @@ fresh pair anchor of that enactment, so the hint is bound to the
 enactment by the card's proof, and to nothing else.
 
 **RLTP-VTI-1210** — A hint of this profile is the JCS serialization
-(RFC 8785) of a JSON object with exactly four members: `type`, the
+(RFC 8785) of a JSON object with exactly three members: `type`, the
 string `TSPTransport`; `id`, the side's connection DID followed by
-`#tsp`; `serviceEndpoint`, `C` exactly as configured; and `rltpEgress`,
-the side's egress identity. Both identities are Ed25519 `did:key`
-identifiers in exactly the form the derivation of §1 produces:
-`did:key:z` followed by the base58btc encoding of the multicodec prefix
-`0xed 0x01` and the 32-byte public key, in its canonical rendering
-(decoding and re-encoding yields the same string); a string that only
-matches the pattern `did:key:z6Mk…` without decoding so is not one. The
-two are distinct. A card carries at most one hint of this
-profile per `C`; a side reachable through two mediators places two
-hints, and the card stays within RLTP-ENC-6090.
+`#tsp`; and `serviceEndpoint`, `C` exactly as configured. The
+connection DID is an Ed25519 `did:key` identifier in exactly the form
+the derivation of §1 produces: `did:key:z` followed by the base58btc
+encoding of the multicodec prefix `0xed 0x01` and the 32-byte public
+key, in its canonical rendering (decoding and re-encoding yields the
+same string); a string that only matches the pattern `did:key:z6Mk…`
+without decoding so is not one. A card carries at most one hint of
+this profile per `C`; a side reachable through two mediators places
+two hints, and the card stays within RLTP-ENC-6090.
 
-**RLTP-VTI-1215** — The identities a hint names are the connection DID
-and the egress identity the adapter factory derives from (root, `C`,
-`N`), where `N` is the carrier nonce (Identity §7a.3) of the
+**RLTP-VTI-1215** — The identity a hint names is the connection DID
+the adapter factory derives from (root, `C`, `N`), where `N` is the carrier nonce (Identity §7a.3) of the
 relationship the card opens. The displaying side draws `N` fresh when
 it makes the displayed card and records it in its register under the
 relationship that card's enactment opens; the scanning side draws `N`
 fresh at the scan. `N` is not derived from the card, its anchor, its
 challenge or any pair nonce, and it appears in no card and on no wire;
-only the identities derived from it do. A displayed card that ages
+only the identity derived from it does. A displayed card that ages
 unscanned leaves its `N` to no relationship (RLTP-VTI-1270).
 
 **RLTP-VTI-1220** — A receiver reads a hint as this profile's only if
 it parses as a JSON object, its bytes are the JCS serialization of that
-object, and the object satisfies RLTP-VTI-1210. A hint that fails any
-of these is ignored; it is no fault of the card, which may carry hints
+object, and the object satisfies RLTP-VTI-1210, or does so beside a
+fourth member `rltpEgress`, which the receiver ignores whatever its
+value. A hint that fails any of these is ignored; it is no fault of the card, which may carry hints
 of other profiles. The reader is a total function: every input that
-does not have exactly the form of RLTP-VTI-1210 — a string that is not
+does not have exactly one of these forms — a string that is not
 JSON, JSON that has no JCS serialization (an unpaired surrogate), any
 other value or shape — is ignored, and no input makes the reading of a
 hint or of a card's hints fail.
@@ -219,10 +199,9 @@ ignored under RLTP-VTI-1220 and RLTP-VTI-1227, the hint whose
 `serviceEndpoint` is byte-equal to its own `C`. Where none or more than
 one such hint remains, the counterpart has no wire identities at `C`.
 
-**RLTP-VTI-1227** — A receiver ignores a hint that names one of its
-own wire identities of this relationship and carrier, as connection
-DID or as egress identity. The counterpart's identities are never this
-side's own.
+**RLTP-VTI-1227** — A receiver ignores a hint that names its own
+connection DID of this relationship and carrier. The counterpart's
+identity is never this side's own.
 
 **RLTP-VTI-1230** — The hints act at first contact only. A side takes
 the counterpart's wire identities from the card of the enactment that
@@ -250,29 +229,30 @@ record opened it is closed at that record (RLTP-VTI-1260), and its
 documents stay in the holder's custody (RLTP-DEL-6120) until another
 transport takes them or they fail at their horizon. A relationship that
 had no hint at first contact stays so, a re-encounter included
-(RLTP-VTI-1230); the re-announcement of Open Issue 13 covers this case
+(RLTP-VTI-1230); the re-announcement of Open Issue 10 covers this case
 as well. A displayed card's instance before it is bound serves no
 relationship and is governed by §1c alone.
 
-**RLTP-VTI-1240** — The counterpart's egress identity of RLTP-VTI-7140
-is the `rltpEgress` of the hint taken under RLTP-VTI-1225, 1227 and
-1230; its connection DID, the receiver of every inner message
-this side sends (RLTP-VTI-3110), is that hint's `id` without `#tsp`.
+**RLTP-VTI-1240** — The counterpart's connection DID is the `id`
+without `#tsp` of the hint taken under RLTP-VTI-1225, 1227 and 1230. It
+is the receiver of every inner message this side sends (RLTP-VTI-3110),
+the sender of every message this side accepts (RLTP-VTI-7140), and the
+`recipient` of every document this side carries to it (RLTP-VTI-3150).
 
 **RLTP-VTI-1245** — This profile carries no change of `N` for a
 relationship whose identities a hint announced: neither the rotation of
 Identity §7a.3 (`generation + 1`) nor a fresh `N` after the loss of the
 register entry. The counterpart keeps the identities of the first
 contact (RLTP-VTI-1230), so a holder that rotates or replaces `N` ends
-the relationship's reachability over this carrier: its new identities
-reach no one, and documents to it stay in custody as under
+the relationship's reachability over this carrier: its new identity
+reaches no one, and documents to it stay in custody as under
 RLTP-VTI-1235. The same holds for a second first entry that the
 register convergence of Identity §7a.3 makes canonical over the `N` of
 the hint (two devices writing a first `N` apart): it is a change of `N`
 in this sense. A holder with one writer of its register, as this
 casting assumes, never produces one. Re-announcing the wire identities
 over the relationship, which all these cases and several writing
-devices need, is Open Issue 13.
+devices need, is Open Issue 10.
 
 The hint is read below the port line. The holder that carries the
 card passes the hints on as signed and interprets none; building and
@@ -284,23 +264,24 @@ nothing of the counterpart's carrier arrangement but the `rkid`
 
 ## 1c. The displayed card's instance
 
-The scanning side reads the displaying side's wire identities from the
+The scanning side reads the displaying side's connection DID from the
 displayed card. The displaying side learns the scanning side's only from
 the sent card, which reaches it inside the encounter bundle or on the
 optical leg (Encounter §5.8). For the bundle to reach it over this
 carrier, an instance must collect for the displayed card before the
 counterpart is known. This section fixes that instance. Its adapter is
-the one every relationship has, which reads no sender; what is
-particular to it lies in the wire binding and the host: the sender VID
-kept beside each payload, the check of RLTP-VTI-1255, and the
-counterpart's identities the instance takes at RLTP-VTI-1260 (the host's
+the one every relationship has, which checks the carried document
+against the frame's sender (RLTP-VTI-7160); what is particular to it
+lies in the wire binding and the host: the wire takes a frame from any
+sender, the check of RLTP-VTI-1255, and the counterpart's connection
+DID the instance takes at RLTP-VTI-1260 (the host's
 state beside the adapter, as in §1b). The optical leg needs none of it
 and stays equivalent: an optical record binds the instance as a bundle
 does (RLTP-VTI-1260).
 
 **RLTP-VTI-1250** — A side that shows a displayed card carrying a hint
 of this profile for `C` MUST hold, from the display on, an adapter
-instance over the trio the factory derives from (root, `C`, `N`), `N`
+instance over the pair the factory derives from (root, `C`, `N`), `N`
 the carrier nonce of that card (RLTP-VTI-1215), while the card's
 challenge resolves `open` (Encounter RLTP-ENC-5190, RLTP-ENC-5240). It
 collects under the card's connection DID, knows no counterpart, and
@@ -311,11 +292,12 @@ next card's instance beside those of the cards still open.
 **RLTP-VTI-1255** — Before the instance is bound, the wire binding
 hands its adapter a received frame only if it is a TSP 1.0 `direct`
 message with a non-empty payload whose receiver is the card's
-connection DID, from any sender, and keeps the frame's sender VID
-beside the payload. Before the holder sees the payload, the host reads
-its envelope's `rkid` (Delivery §5, a member in the clear) and passes
-the payload to the holder's receive (Delivery §6.2) only if that `rkid`
-is the key-agreement key of this displayed card: a bundle answering the
+connection DID, from any sender, and hands the frame's sender VID to
+the adapter with the payload, which takes a sealed RLTP envelope from
+it only under RLTP-VTI-7160. Before the holder sees that envelope, the
+host reads its `rkid` (Delivery §5, a member in the clear) and passes
+the envelope to the holder's receive (Delivery §6.2) only if that
+`rkid` is the key-agreement key of this displayed card: a bundle answering the
 card is sealed to that key (Delivery §5, the recipient key from the
 recipient's card), and no other relationship's documents are (Delivery
 §5a.2). An envelope with any other `rkid`, or one that does not parse,
@@ -323,7 +305,8 @@ never reaches the holder and is discarded under RLTP-VTI-1265. The
 holder's receive is the only place that opens the envelope. The
 instance accepts the frame only if all three hold:
 
-1. the frame is such a `direct` message (the wire binding's filter);
+1. the frame is such a `direct` message (the wire binding's filter)
+   whose payload carries a sealed RLTP envelope under RLTP-VTI-7160;
 2. the payload is an encounter bundle that answers this displayed
    card: the holder's verdict on the bundle (Encounter RLTP-ENC-5380,
    RLTP-ENC-6050, RLTP-ENC-6060; Delivery §4.1) and the host's
@@ -331,7 +314,7 @@ instance accepts the frame only if all three hold:
 3. the holder takes the bundle: its receive answers `unique`, or
    `duplicate-known` for a bundle it took before.
 
-After the receive the host compares the egress identity that the hint
+After the receive the host compares the connection DID that the hint
 of the record's sent card names for `C` (RLTP-VTI-1220, 1225, 1227)
 with the frame's sender VID, where that hint names one, and logs a
 difference. The comparison is a diagnosis: it changes neither the
@@ -343,9 +326,9 @@ whatever carrier, instance or leg brought the record: a frame accepted
 under RLTP-VTI-1255, a bundle over another carrier or another transport,
 or the optical leg (Encounter RLTP-ENC-5710, RLTP-VTI-1230). Bound, it
 is the instance of the relationship that record opens, under the same
-`N` and the same identities; no new instance is built. The counterpart's
-identities are those the hint of the record's sent card names for the
-instance's `C` (RLTP-VTI-1240), never the sender of a frame, and from
+`N` and the same identity; no new instance is built. The counterpart's
+connection DID is the one the hint of the record's sent card names for
+the instance's `C` (RLTP-VTI-1240), never the sender of a frame, and from
 then on RLTP-VTI-7140 applies to the instance unchanged. Where that sent
 card names no wire identities at the instance's `C` (RLTP-VTI-1225), the
 instance is closed at the record (RLTP-VTI-1235). A card with hints for
@@ -354,19 +337,21 @@ binds or closes each of them.
 
 **RLTP-VTI-1265** — Every other frame that reaches the instance before
 it is bound is discarded: logged with its type and sender VID, and
-acknowledged — by the wire binding; by the adapter's conclusion without
-a receive where its envelope is not sealed to the card's key
+acknowledged — by the wire binding; by the adapter where its payload
+carries no sealed RLTP envelope (RLTP-VTI-7160); by the adapter's
+conclusion without a receive where its envelope is not sealed to the
+card's key
 (RLTP-VTI-1255); or by the adapter's conclusion where its payload
 reached the holder, the holder refused it, and the refusal is
 concludable (§4). Such a frame never
 binds the instance and never names the counterpart. A frame whose sender
-differs from the egress identity of the record's hint is logged, never
+differs from the connection DID of the record's hint is logged, never
 discarded on that ground. A bundle of another scanner on the same
 displayed card is refused: by the holder (`failed(consumed-challenge)`,
 Delivery §4.1; Encounter RLTP-ENC-5410) or, once the instance is bound,
 by RLTP-VTI-7140. The first record binds (RLTP-VTI-1260); of bundles,
-the first the holder takes (Open Issue 11). A bundle the counterpart
-re-issues for the same enactment comes from its egress identity after
+the first the holder takes (Open Issue 8). A bundle the counterpart
+re-issues for the same enactment comes from its connection DID after
 the binding and lands as Delivery §4.1 states.
 
 **RLTP-VTI-1270** — An instance not bound when the host observes the
@@ -383,19 +368,20 @@ authenticated at `C` is left behind at the carrier (Appendix A).
 
 ## 2. Declared constants
 
-Six constants with transport meaning, every one enforced in the
+Seven constants with transport meaning, every one enforced in the
 implementation. They are promises of **this casting**: a revision
 is a new casting of profile and code together — there is no
 runtime revision machinery, and this profile claims none:
 
 | Constant | Value | Enforced by |
 |---|---|---|
-| `give-up-horizon` | 72 h | every submission not confirmed delivered — `accepted` included — fails at the horizon; `unroutable` only for the persistent admission-refusal class — never overload, never an outcome in flight, and never over a standing offline signal (the give-up verdict applies the same precedence as every observation) |
+| `give-up-horizon` | 72 h | every submission not confirmed delivered — `accepted` included, except an `accepted` submission that is `held` (§5, RLTP-VTI-5050) — fails at the horizon; `unroutable` only for the persistent admission-refusal class — never overload, never an outcome in flight, and never over a standing offline signal (the give-up verdict applies the same precedence as every observation) |
 | `status-horizon` | 60 s | `submit` returns synchronously. The pre-transport report is an **honest snapshot, derived at each observation** by one precedence order — (a) the wire knows itself offline → `offline`; (b) an attempt is overdue past the horizon → `transport-unreachable`; (c) otherwise the last completed attempt's report; (d) otherwise honestly **no report yet** (absence answered as null, never a fourth value beside §6.1's closed set). One order, every observation point — no stored patchwork, no cell a connectivity change can leave silent. No attempt is ever started against a knowingly offline wire |
 | `queue-floor` | 64 envelopes **and** 1 MiB | below both bounds an inbound frame is always buffered |
 | `max-queue-bytes` | 16 MiB | buffered **and** collected-but-unconcluded bytes together; above it a frame is not buffered and **not acknowledged** — the mediator keeps its copy and re-covers |
 | `duplicate-window` | 30 days | a concluded digest's entry and any unpaid ack intent stand for the window, measured from conclusion — and **the window beats everything**: at its end both fall together. The adapter absorbs a byte-identical copy only during the first `give-up-horizon` of the window; a later copy goes to the holder as a new item, so a counterpart that resubmits after a lost acknowledgement is answered again (RLTP-DEL-6330) |
-| `routed-ack-deadline` | 72 h | the deadline of RLTP-VTI-3130: an open routed deposit (a document of this side without its answer) this long after its acceptance switches the relationship to `egress-session`; equal to `give-up-horizon`; a validated refusal of the routed form switches at once |
+| `routed-ack-deadline` | 72 h | the deadline of RLTP-VTI-3130: an open routed deposit (a document of this side without its answer) this long after its acceptance switches the relationship to `direct`; equal to `give-up-horizon`; a validated refusal of the routed form switches at once |
+| `payload-bound` | 90 182 bytes | the largest TSP payload the adapter reads (RLTP-VTI-7160): the binding envelope, 70 bytes, around a `sealed-envelope/0.1` document at its size bound of 90 112 bytes (Delivery §4.6); a larger payload is not parsed |
 
 This profile declares no `challenge-lifetime` (the adapter has no
 wall-clock source of its own; the ATM challenge's freshness is the
@@ -413,8 +399,8 @@ mediator-shaped error.
 | Adapter operation | Mediator wire | Notes |
 |---|---|---|
 | `register(rkids)` | ATM auth (challenge → authcrypt `atm/1.0/authenticate` → access+refresh JWT) under the connection DID; keylist update for this principal's `rkid`s | transport admission and routing registration only — expressly **not** §5a.3 registration; no generation, no proof toward this adapter. `register` records the desired keylist and returns; synchronization is a tracked background task retried by `advance` (the no-await rule covers every port operation). The auth handshake is **single-flight**: concurrent operations share one challenge/response session |
-| `submit` | `POST /inbound` / WS frame; the sealed RLTP envelope in the sending form of §3a, on the connection DID's session (mode `routed`) or the egress identity's send-only session (mode `egress-session`) | returns the submission id **synchronously**; the transport attempt runs behind it. TSP framing is the wire binding's duty, built anew for every attempt (§7) |
-| `collect` | live delivery / `delivery-request`; mediator fetches with `DoNotDelete` | redelivery before ack is re-cover, not a new item |
+| `submit` | `POST /inbound` / WS frame; the sealed RLTP envelope carried as §3b states, in the sending form of §3a, on the connection DID's session in both modes | returns the submission id **synchronously**; the transport attempt runs behind it. The carried document is the adapter's, built at every attempt (RLTP-VTI-3150); TSP framing is the wire binding's duty, built anew for every attempt (§7) |
+| `collect` | live delivery / `delivery-request`; mediator fetches with `DoNotDelete` | redelivery before ack is re-cover, not a new item; an item is the sealed envelope a payload carries (RLTP-VTI-7160), and a payload that carries none never becomes an item; a bound answer travels beside the items with its report (RLTP-VTI-5080) |
 | `conclude` | `messages-received` over the digest set of the collection | infallible at the port; see §4 |
 | `advance` | adapter clock only | give-up, retries (each a hand-over through the holder, RLTP-VTI-3135), the switch check of RLTP-VTI-3130, ack flushing, duplicate-window pruning |
 
@@ -430,24 +416,29 @@ its standing ack intent is not sent until the new item is concluded,
 which sets the conclusion instant anew. Collections carry an
 adapter-issued id; conclusion uses the adapter's authoritative
 digest set; an empty collection creates no register entry and
-counts as a concluded collection (RLTP-VTI-3130).
+counts as a concluded collection (RLTP-VTI-3130). The digest of a
+frame is taken over the payload the binding delivers, the binding
+envelope; a payload that carries no sealed envelope (an answer of §5,
+or one RLTP-VTI-7160 ignores) is concluded by the adapter itself at its
+next step and enters the same registers.
 
 ## 3a. Sending form
 
 Two modes, one of them the rule. Both put the same message in
 front of the counterpart: a TSP 1.0 `direct` message from this
-side's egress identity to the counterpart's connection DID. They
-differ in how it reaches the mediator.
+side's connection DID to the counterpart's connection DID, whose
+payload carries the document of §3b. They differ in how it reaches
+the mediator.
 
 **RLTP-VTI-3110** — Mode `routed` is the mode of every adapter
 instance from its construction. A deposit in it is two TSP 1.0
 layers:
 
-1. **inner:** a `direct` message whose payload is the sealed RLTP
-   envelope, sender the egress identity, receiver the
-   counterpart's connection DID, sealed (HPKE-Base) to the key the
-   counterpart's DID document names first under `keyAgreement`,
-   signed by the egress identity;
+1. **inner:** a `direct` message whose payload is the JCS
+   serialization of the binding envelope of RLTP-VTI-3150, sender the
+   connection DID, receiver the counterpart's connection DID, sealed
+   (HPKE-Base) to the key the counterpart's DID document names first
+   under `keyAgreement`, signed by the connection DID;
 2. **outer:** a routed message (TSP 1.0 routed mode, the
    library's `packRouted`) whose payload is the inner message's
    bytes, unchanged; sender the connection DID, receiver `C`,
@@ -459,54 +450,52 @@ It is deposited on the connection DID's authenticated session.
 
 **RLTP-VTI-3115** — The route list of an outer layer has exactly one
 entry, the counterpart's connection DID: TSP 1.0's `VID_exit`, the
-destination's own VID with its intermediary. It never names the
-counterpart's egress identity, a control principal, or a second hop;
-what the mediator arranges beyond itself is its own (§5a.10).
+destination's own VID with its intermediary. It never names a control
+principal or a second hop; what the mediator arranges beyond itself is
+its own (§5a.10).
 
-**RLTP-VTI-3120** — Mode `egress-session` is a fallback, permitted
-only after the switch of RLTP-VTI-3130. A deposit in it is the inner
-message of RLTP-VTI-3110 alone, deposited on a session the egress
-identity authenticates at `C` for this purpose. That session is
-send-only: it collects nothing, acknowledges nothing, holds no
-keylist and no Live Mode. The carrier MUST accept a TSP `direct`
-message addressed to an account it serves (mediator 0.45:
-`local_direct_delivery_allowed = true`, `LOCAL_DIRECT_DELIVERY_ALLOWED`;
-its code default is `false`); on a carrier that does not, the fallback
-form carries nothing. A refusal of direct delivery is recorded in the
-relationship's send state (RLTP-VTI-3130) when the binding receives it
-on the send-only session, not at a later deposit: the binding signals
-it from that moment (§7), and the adapter records it at its next
-step, at the latest before its next hand-over and in the state it
-hands the host to persist; a host persists that state after the
-binding closed. A report that arrives after the binding closed, or
-after the host's last reading of the state, is not recorded: the next
-opening deposits once more, and records the refusal at its report. A
-recorded refusal survives openings:
-from then on the adapter hands nothing over and deposits nothing for
-the relationship at `C`, and reports every submission
-`awaiting-transport` (`carrier-refused-retriable`) until its give-up
-horizon (§5; Open Issue 4). Any other problem report there maps as §5
-states.
+**RLTP-VTI-3120** — Mode `direct` is a fallback, permitted only after
+the switch of RLTP-VTI-3130. A deposit in it is the inner message of
+RLTP-VTI-3110 alone, deposited on the same session of the connection
+DID. The carrier MUST accept a TSP `direct` message addressed to an
+account it serves (mediator 0.45: `local_direct_delivery_allowed =
+true`, `LOCAL_DIRECT_DELIVERY_ALLOWED`; its code default is `false`);
+on a carrier that does not, the fallback form carries nothing. A
+refusal of direct delivery is recorded in the relationship's send
+state (RLTP-VTI-3130) when the binding receives it, not at a later
+deposit: the binding signals it from that moment (§7), and the adapter
+records it at its next step, at the latest before its next hand-over
+and in the state it hands the host to persist; a host persists that
+state after the binding closed. A report that arrives after the
+binding closed, or after the host's last reading of the state, is not
+recorded: the next opening deposits once more, and records the refusal
+at its report. A recorded refusal survives openings: from then on the
+adapter hands nothing over and deposits nothing for the relationship
+at `C`, and reports every submission `awaiting-transport`
+(`carrier-refused-retriable`) until its give-up horizon (§5; Open
+Issue 2). Any other problem report maps as §5 states.
 
 **RLTP-VTI-3130** — The sending mode belongs to the relationship, not
 to the instance: it is kept in the adapter's send state, which the
 host persists with the ack state (§4), and a successor instance
-resumes it. The send state holds the mode, in mode `egress-session`
+resumes it. The send state holds the mode, in mode `direct`
 the instant of a refusal of direct delivery if one was received
 (RLTP-VTI-3120), and the **open routed
 deposits**: every **document** accepted in mode `routed` and not yet
 answered, with its digest and acceptance instant. A valid
-acknowledgement, a validated receiver refusal (§5) or a validated
-`idConflict` answer for that digest answers it — reported to the
-instance that deposited it, or by the holder to a later instance
-when it arrives after that one's close; answers that are no verdict
+acknowledgement, a validated receiver refusal (§5), a validated
+`idConflict` answer or a validated next step (RLTP-VTI-5050) for that
+document answers it — reported to the
+instance that deposited it, bound by a later instance that files the
+document for binding (RLTP-VTI-5065), or reported by the holder to a
+later instance when it arrives after that one's close; answers that are no verdict
 (`unavailable`, `internalError`, §5) do not. A report for a digest
 the send state does not name answers nothing, so after a loss of the
 send state earlier reports answer nothing. Acknowledgements this side
 deposits are no open routed deposits: nothing answers them, and the
 signal rests on this side's own documents only (§10).
 
-An instance in mode `routed` MUST switch to `egress-session` when an
+An instance in mode `routed` MUST switch to `direct` when an
 open routed deposit was accepted `routed-ack-deadline` (§2) or more
 in the past, checked only after the instance has concluded (§3,
 `conclude`) a collection that left no frame pending for it at the
@@ -544,15 +533,17 @@ in. A submission still in the holder's custody (no report yet, or
 `awaiting-transport`) goes in the new mode at its next hand-over
 through the holder (RLTP-DEL-6125). A submission already `accepted`
 is not deposited again (RLTP-VTI-7130): it ends `delivered` or
-`failed` at the give-up horizon as §6.1 states, and resubmission
-after a failure is the application's recourse.
+`failed` at the give-up horizon as §6.1 states, unless it is `held`
+(RLTP-VTI-5050), which no horizon ends; resubmission after a failure is
+the application's recourse.
 
 **RLTP-VTI-3140** — The receiving side needs no mode. In both modes
 what reaches its connection DID's session is the inner `direct`
 message: in mode `routed` the mediator opens the routing layer and
 passes the inner message on unchanged. A receiving binding delivers
 only a TSP 1.0 `direct` message with a non-empty payload from the
-counterpart's egress identity to its own connection DID (§7).
+counterpart's connection DID to its own connection DID (§7), and the
+adapter reads its payload under RLTP-VTI-7160.
 
 The signal is honest about what it cannot tell apart: a missing
 acknowledgement is also what a counterpart produces that stays
@@ -563,16 +554,40 @@ reason: a switch caused by absence is the more frequent error than a
 mediator that accepts routed messages and does not deliver them, and
 at 72 hours a document that has gone unacknowledged has already
 failed at its own horizon. A needless switch is conforming — both
-modes satisfy §1a — and costs what §9 states for mode
-`egress-session`: a second session and a link between the two
-identities through two logins. The other side of the trade is a
-relationship whose documents fail at the give-up horizon until the
-switch; what was accepted in mode `routed` before the switch on such
-a mediator fails at its horizon (§10), the switch carries what
-follows it. A mediator that refuses routed deposits with a validated
-refusal of the routed form switches the relationship at once; one
-that refuses them in any other way produces no acceptance and no
-switch, and the documents fail as `unroutable` (§5).
+modes satisfy §1a — and costs nothing beyond the form: mode `direct`
+runs on the same session and shows the mediator no identifier mode
+`routed` does not (§9). The other side of the trade is a relationship
+whose documents fail at the give-up horizon until the switch; what was
+accepted in mode `routed` before the switch on such a mediator fails
+at its horizon (§10), the switch carries what follows it. A mediator
+that refuses routed deposits with a validated refusal of the routed
+form switches the relationship at once; one that refuses them in any
+other way produces no acceptance and no switch, and the documents fail
+as `unroutable` (§5).
+
+## 3b. The carried document
+
+A deposit carries no bare sealed envelope. It carries a Trust Task
+document of the type `sealed-envelope/0.1` (Delivery §4.6) whose
+payload is the sealed envelope, framed as the registry's TSP binding
+frames every Trust Task document. A consumer of that binding reads the
+document's `type` without opening the seal, and refuses or answers it
+by the framework's rules; the counterpart's adapter takes the seal out
+and hands it to its holder.
+
+**RLTP-VTI-3150** — The payload of every inner message this side
+deposits is the JCS serialization of the binding envelope
+`{ "type": "https://trusttasks.org/binding/tsp/0.1/envelope",
+"document": D }` (TSP binding §2), where `D` is the
+`sealed-envelope/0.1` document of Delivery §4.6 with `issuer` this
+side's connection DID, `recipient` the counterpart's connection DID
+(RLTP-VTI-1240), `payload` the sealed envelope the holder handed over,
+and `issuedAt` the instant of that envelope's first submission as the
+holder recorded it (its `since`; for an acknowledgement, the commit of
+its effect). The adapter builds `D` at every attempt from these four
+values and from nothing else, so every attempt of one sealed envelope
+toward one counterpart carries byte-identical payload (Delivery
+RLTP-DEL-5040) and the same `id` (RLTP-VTI-5040).
 
 ## 4. Acknowledgement intent and durability
 
@@ -588,7 +603,7 @@ where the flush lives).
 The intent's durability is the **host's store**: the adapter
 exposes its ack state (concluded digests with conclusion instants,
 pending intents) for the host to persist, and accepts it back at
-construction; the send state of §3a (mode, in mode `egress-session`
+construction; the send state of §3a (mode, in mode `direct`
 the instant of a refusal of direct delivery, open routed deposits)
 travels in the same snapshot, and an
 instant in it after the restore instant is refused like a
@@ -680,19 +695,25 @@ carries the duty to pass received bytes unchanged.
 
 ## 5. Sender states and refusal mapping
 
-Trias per §6.1 with the closed sets. Additionally the
-port carries the **receiver refusal channel**: the
-delivery layer, which alone can validate a counterpart's refusal,
-reports it to the adapter and the submission fails as
-`failed(rejected-by-receiver(<code>))`. A counterpart refuses with
-the registry's `trust-task-error/0.5`.
+Trias per §6.1 with the closed sets, `accepted` with its closed
+feature `held` (Delivery §6.1). Additionally the port carries the
+**receiver refusal channel**: a validated refusal of a counterpart
+fails the submission as `failed(rejected-by-receiver(<code>))`. A
+counterpart answers a carried document (§3b) with a framework
+document in the same binding: it refuses with the registry's
+`trust-task-error/0.5`, and it names what it expects before it can
+proceed with `trust-task-next-step/0.1`. The adapter reads such an
+answer from the payload that carries it (RLTP-VTI-7160), binds it to
+the submission it answers (RLTP-VTI-5040) and applies it; a host that
+reads an answer itself reports it to the adapter through the same
+channel, under the same rules.
 
-**RLTP-VTI-5010** — The delivery layer MUST read a refusal by the
+**RLTP-VTI-5010** — A reader of a refusal MUST read it by the
 `retryable` member the error document carries, never by the default
 of its code. `retryable: false` is a **terminal verdict** and enters
 the refusal channel with its code; `retryable: true` produces **no
 port transition at all** — it is an availability condition of the
-counterpart's infrastructure, the delivery layer retries under its
+counterpart's infrastructure, the adapter retries under its
 own schedule, and a submission that already entered the trias keeps
 its trias state (§6.1: pre-transport reports end at trias entry —
 nothing moves `accepted` back). A `retryAfter` is the lower bound of
@@ -711,8 +732,12 @@ exactly the registry's members, a standard or an extended `code`, a
 boolean `retryable`, a `message` of at most 1024 code points (the
 registry schema's `maxLength`, which counts code points, never UTF-16
 units), an RFC 3339 `retryAfter` (either case of `T`
-and `Z`, a leap second read as the next second, any offset); anything
-else is no refusal and changes nothing.
+and `Z`, a leap second read as the next second, any offset), and a
+`proof`, where present, that verifies as for a next step
+(RLTP-VTI-5050); anything else is no refusal and changes nothing. TSP
+authenticates the sender of every answer alike, so a proof adds no
+authenticity here; it is held to what it claims so that the two kinds
+of answer are read by one rule.
 
 **RLTP-VTI-5020** — The codes of a terminal verdict are the
 standard codes `malformedRequest`, `unsupportedType`,
@@ -729,7 +754,142 @@ Delivery §6.2 and as an answer (RLTP-VTI-3130), never as a failure.
 This is a named divergence: `trust-task-error/0.5` and TT §7.2
 item 11 make it a refusal of an equal `id` over different bytes,
 while the Delivery Contract deduplicates by document digest (its
-DO-10; Open Issue 16).
+DO-10; Open Issue 13). The carried document of §3b declares its
+repeated execution safe and intended (Delivery §4.6), so a consumer
+that follows the framework answers a repeated attempt of it, which is
+byte-identical (RLTP-VTI-3150), as a duplicate and never as
+`idConflict`.
+
+**RLTP-VTI-5040** — An answer — an error document read under
+RLTP-VTI-5010 to 5030, or a next step read under RLTP-VTI-5050 —
+answers the submission of this instance whose carried document's `id`
+(RLTP-VTI-3150) equals the answer's `payload.inResponseTo.id`, or,
+where the payload names no `inResponseTo.id`, equals the answer's
+`threadId`. It is bound only if, besides: the frame that carried it
+came from the counterpart's connection DID (RLTP-VTI-7140), the
+`recipient` of that carried document; the answer's `issuer`, where
+present, is that connection DID; its `recipient`, where present, is
+this side's connection DID; and its `inResponseTo.typeUri`, where
+present, is exactly the Type URI of `sealed-envelope/0.1`. A bound
+answer is the validated answer of RLTP-VTI-3130 and §6.1 for that
+submission. The submissions of an instance include those it files for
+binding under RLTP-VTI-5065, also one the holder has ended since it was
+filed in this opening: an answer bound to it reaches the holder, which
+keeps the end it recorded (§6.1). Whether a bound answer may change the
+submission is RLTP-VTI-5070's; when it is acknowledged, RLTP-VTI-5080's.
+An answer that binds no submission of this instance — none matches, a
+check fails, or the document was terminal at the holder before this
+opening and so never offered (Open Issue 16) — changes nothing: it is
+logged and acknowledged. An answer bound to a carried acknowledgement
+changes nothing either: an acknowledgement has no trias (Delivery
+§6.1), and it ends as its own rules state.
+
+**RLTP-VTI-5050** — A next step is read by its form: `type` exactly
+`https://trusttasks.org/spec/trust-task-next-step/0.1`; a payload with
+no members but the registry schema's, among them `expects`, a list of
+at least one object with no members but `typeUri`, a non-empty
+string, `reason`, a string of at most 1024 code points, and `hint`,
+an object; `continuation`, where present, `resubmit` or `proceed`;
+`inResponseTo`, where present, an object with no members but a
+non-empty string `typeUri` and a non-empty string `id`, the latter
+optional; `message`, where present, a string of at most 1024 code
+points; `ext`, where present, an object. A `proof`, where present,
+MUST verify as an `eddsa-jcs-2022` Data Integrity proof under the
+`did:key` the document's `issuer` names; a document whose proof does
+not, or that carries a proof and no `issuer`, is no next step.
+Anything else is no next step and changes nothing. `expects` is read
+and never followed: the adapter starts no task a next step names (a
+consumer that declines to continue simply stops).
+
+A bound next step is the counterpart's statement that the document
+arrived and waits there for something it names. It moves a
+submission in any **non-terminal** state — the report-less phase,
+awaiting, and accepted alike — to `accepted` with the feature `held`,
+and answers its open routed deposit (RLTP-VTI-3130); on a terminal
+state it changes nothing, and a later next step for a submission
+already `held` changes nothing. A `held` submission is not ended at the
+give-up horizon (§2): it ends `delivered` on a valid acknowledgement,
+or `failed(rejected-by-receiver(<code>))` on a validated terminal
+refusal, and in no other way (Delivery §6.1).
+
+**RLTP-VTI-5060** — An answer is a framework document, not an RLTP
+document: its timestamps follow the framework (TT §4.2, §8.2), not the
+timestamp form of the RLTP document profile (Encounter RLTP-ENC-2150
+and its reading rule). A reader MUST accept as an answer's `issuedAt`
+and `retryAfter` every RFC 3339 date-time — any number of
+fractional-second digits, `Z` or a numeric offset, either case of `T`
+and `Z`, a leap second read as the next second — and MUST NOT refuse an
+answer for the precision or the offset of either. An `issuedAt` that is
+present and is no RFC 3339 date-time makes the document no answer. The
+reader evaluates `issuedAt` for its form only: answers carry no
+acceptance window here.
+
+The answers of a counterpart follow one contract, whatever the state of
+the opening in which they arrive: every open document can be found
+(RLTP-VTI-5065), only the counterpart can change it (RLTP-VTI-5070), and
+an answer leaves the mediator only after its outcome is kept
+(RLTP-VTI-5080).
+
+**RLTP-VTI-5065** — Every open document of the holder has the `id` of
+its carried document in the instance, independent of sending: each
+entry of the holder's custody (RLTP-VTI-6110) and each accepted document
+the holder offers for binding (Delivery RLTP-DEL-6150) is filed, and its
+`id` computed from the sealed envelope and the two connection DIDs
+(Delivery RLTP-DEL-4620) as it was when the document travelled — whether
+or not an attempt runs, the wire is offline, or the document was
+deposited in an earlier opening and its acceptance never recorded.
+Custody decides only whether a document may be deposited, never whether
+an answer can find it. An answer is decided only against these `id`s:
+one that arrives before the instance has filed the holder's view (its
+first `reconcile`, or its first submission where the host submits
+without the holder's view), while an `id` is still being computed, or
+while the counterpart's connection DID is unknown to the wire, is held
+in memory and not acknowledged until then. Held answers, and bound
+answers not yet concluded, count together toward `queue-floor` (§2), by
+number and by bytes; an answer beyond it is not taken and stays with the
+mediator. A document filed
+for binding only is in the state the holder records — `accepted`,
+`held` where the holder marks it — and is never attempted or deposited;
+no horizon of this instance ends it (it ends as §6.1 and Delivery
+RLTP-DEL-6140 state: at the holder's horizon unless `held`), it opens no
+routed deposit, and a later view that no longer offers it withdraws
+nothing; an answer bound to it answers its open routed deposit
+(RLTP-VTI-3130).
+
+**RLTP-VTI-5070** — An answer changes a submission only if its sender,
+as TSP authenticated it (RLTP-VTI-7140), is the counterpart's connection
+DID that the submission's carried document named as `recipient`. The
+adapter checks this at the transition itself; the binding's filter of
+RLTP-VTI-7140 is a second guard, not the guard. An answer from any other
+sender, its `id` and `threadId` correct or not, changes nothing: it is
+logged and acknowledged.
+
+**RLTP-VTI-5080** — An answer that changes a document of the holder
+travels in the next collection beside its items, with the report its
+outcome makes (§3, `collect`). The host records that report at the
+holder before it concludes the collection, and the adapter acknowledges
+the answer at the mediator only at that conclusion; a `keep` returns it
+to the next collection. Every other answer — one that binds nothing,
+changes nothing, or concerns a submission without a holder entry — is
+acknowledged at the adapter's next step. Where the instance or the host
+ends at any point before the conclusion, the answer stays at the
+mediator and arrives again, is bound again under RLTP-VTI-5065 and its
+report recorded again; the holder's report is idempotent (Delivery
+§6.1), so no outcome is lost and none takes effect twice. The send
+state's part of an answer — that it answers an open routed deposit
+(RLTP-VTI-3130) — is as durable as the host's snapshot of the ack state:
+the host persists the ack state after the conclusion, and a successor
+restored from an earlier snapshot learns the outcomes the holder
+recorded through the holder's answers for earlier deposits.
+
+*Rationale.* A counterpart answers when it answers: a next step now, a
+refusal hours later, typically in another opening of a device that
+opens for minutes, and possibly before the opening knows what it sent.
+Binding by an `id` that the holder's own records determine, checking the
+sender at the transition, and acknowledging only what is kept make the
+outcome independent of the order of the host's calls, of the network,
+and of where a process ends. The `id` needs no new state: it is a
+function of what the holder keeps until the document is terminal.
 
 A validated
 refusal acts on every **non-terminal** state — the report-less
@@ -743,14 +903,15 @@ acknowledgement — and this profile adds no second. The refusal channel carries
 with `retryable: true` is an availability condition of the transport,
 not a receiver verdict — it never enters `receiverRefused` (the
 runtime refuses it fail-closed), and the submission simply remains
-governed by the adapter clock like any other transport outcome.
+governed by the adapter clock like any other transport outcome. A validated
+refusal acts on a `held` submission like on any `accepted` one.
 
 Transport conditions map as follows: 401/403/ACL →
 retriable, persistent → `failed(unroutable)` at the horizon; 413 →
 `failed(oversize)`; upgrade drop/timeout/DNS →
 `awaiting-transport(transport-unreachable)`; 429/5xx →
 `awaiting-transport(carrier-refused-retriable)`;
-a refusal of direct delivery in mode `egress-session` →
+a refusal of direct delivery in mode `direct` →
 `awaiting-transport(carrier-refused-retriable)` for every submission
 of the relationship from then on, recorded in the send state, no
 further deposit (RLTP-VTI-3120), `failed(expired-by-adapter-policy)`
@@ -768,7 +929,7 @@ switches the relationship at once and leaves the submission
 ## 6. Lifecycle coupling (§5a.10, applied)
 
 Change of the direct carrier = change of `C` = new principal, new
-adapter instance, new wire identities; the old ones are retired, never
+adapter instance, new connection DID; the old one is retired, never
 re-pointed. Changes beyond the direct carrier change nothing. A rebind
 is likewise a new instance. A relationship that the continuity machinery
 chains into another is closed at the chaining and gets no successor; the
@@ -776,10 +937,10 @@ chain is carried by the instance of its first contact (RLTP-VTI-1230).
 The documents of the closed instance that are still in the holder's
 custody are taken over by the chain's instance as under RLTP-VTI-6110
 and RLTP-VTI-6120, and the appended tuple's `rkid` maps to the chain's
-wire identities. A displayed card's instance (§1c) is built at the
+connection DIDs. A displayed card's instance (§1c) is built at the
 display, before any relationship; it becomes the instance of the
 relationship its card's record opens (RLTP-VTI-1260) without a takeover,
-is closed at that record when the counterpart names no identities at `C`
+is closed at that record when the counterpart names no connection DID at `C`
 (RLTP-VTI-1235), or is closed when the card's challenge ages
 (RLTP-VTI-1270). Bound in a re-encounter that the continuity machinery
 chains, it is closed at the chaining like any instance of the later
@@ -791,7 +952,9 @@ clock, so it does not pretend to fail them at a horizon it no longer
 drives. A document not yet accepted is still in the holder's custody
 (RLTP-DEL-6120); an accepted one left it at acceptance, and the holder
 ends it as §6.1 does: `delivered` on a valid acknowledgement, `failed`
-at its horizon otherwise. The retired instance's copies were volatile
+at its horizon otherwise, unless it is `held`, which only an
+acknowledgement or a validated terminal refusal ends (RLTP-VTI-5050,
+Delivery RLTP-DEL-6140). The retired instance's copies were volatile
 and authorize nothing after its close.
 
 **RLTP-VTI-6110** — A successor instance takes documents over only
@@ -834,17 +997,19 @@ TSP framing in the sending form of §3a under **TSP 1.0** (version
 `YTSP-BAA`; HPKE-Base only, no sealed box; the sender's VID in every
 confidential payload; TSP 1.0 has no HPKE-Auth), the CESR demux discipline of the measured binding (one message type per
 frame, dispatched on its CESR code), the duty to pass raw received
-bytes unchanged, a signal from the moment it receives a refusal of
-direct delivery on the send-only session that stays set for the
-binding's life and that the adapter reads (RLTP-VTI-3120), and the
-rules below. On receipt, this profile reads
+bytes unchanged, the authenticated sender VID of every payload it
+delivers, a signal from the moment it receives a refusal of direct
+delivery that stays set for the binding's life and that the adapter
+reads (RLTP-VTI-3120), and the rules below. On receipt, this profile reads
 TSP's versioning (a major version MAY break backward compatibility) as:
 TSP 1.0 is major version 1 with any minor version; a 1.x message the
 binding cannot read fails a receiver check (RLTP-VTI-7140).
 
 **RLTP-VTI-7110** — The adapter's copy of a submission is the
-sealed RLTP envelope, never a TSP frame. The binding packs every
-layer its mode requires (RLTP-VTI-3110, 3120) anew for every attempt, with the keys resolved for the
+sealed RLTP envelope, never a TSP frame and never the carried
+document. The adapter builds the binding envelope of RLTP-VTI-3150 at
+every attempt; the binding packs every layer its mode requires
+(RLTP-VTI-3110, 3120) around it anew for every attempt, with the keys resolved for the
 session that attempt uses, as a TSP 1.0 message that carries its
 sender's VID in the confidential payload; a frame sealed to a key the
 mediator no longer names is never deposited again.
@@ -857,7 +1022,7 @@ under an unchanged `C`: the connection DID is derived from (root,
 case cannot be established (Appendix A). Routed deposits addressed
 to `C` then reach no one; they fail at the give-up horizon, and the
 switch of RLTP-VTI-3130 may carry what follows, since mode
-`egress-session` seals nothing to `C`, if the egress identity's
+`direct` seals nothing to `C`, if the connection DID's
 authentication at `C` still succeeds. What can change under an unchanged
 `C` is the key `C`'s DID document names first under `keyAgreement`
 (a key change of `C`). The binding resolves that key at
@@ -871,7 +1036,7 @@ packed after that is sealed to the new key. A submission still in
 the holder's custody is packed for the new key at its next
 hand-over; one already accepted under the old key is not deposited
 again (RLTP-VTI-7130) and ends as §6.1 states. In mode
-`egress-session` no layer is sealed to `C`, and a key change of `C` changes
+`direct` no layer is sealed to `C`, and a key change of `C` changes
 nothing but the session.
 
 **RLTP-VTI-7130** — Neither the switch of RLTP-VTI-3130 nor a
@@ -885,8 +1050,9 @@ beyond it.
 **RLTP-VTI-7140** — On receipt the binding delivers to the adapter only
 a TSP 1.0 `direct` message with a non-empty payload whose sender, in
 the envelope and in the confidential payload alike, is the
-counterpart's egress identity and whose receiver is this side's
-connection DID, and delivers its payload bytes unchanged. The one
+counterpart's connection DID and whose receiver is this side's
+connection DID, and delivers its payload bytes unchanged together with
+that sender VID, as TSP authenticated it. The one
 exception is a displayed card's instance before it is bound, which knows
 no counterpart: it takes such a message from any sender, under
 RLTP-VTI-1255 and 1265. Control messages, padding, routed and nested
@@ -897,6 +1063,32 @@ payload other than the envelope's, or the NULL VID there — is logged
 with its envelope sender and acknowledged, never delivered. A message
 of another major version is logged with the version it declares and
 acknowledged, never delivered; TSP has no version negotiation.
+
+**RLTP-VTI-7160** — The adapter reads a delivered payload, together
+with its authenticated sender VID, before anything else touches it:
+
+1. a payload larger than `payload-bound` (§2) is not parsed;
+2. the payload MUST parse as a JSON object whose `type` is exactly
+   `https://trusttasks.org/binding/tsp/0.1/envelope` and whose
+   `document` is a JSON object (TSP binding §2);
+3. a `document` of the type `sealed-envelope/0.1` is the carried
+   document of §3b. It MUST satisfy the document profile and the type's
+   rules (Delivery §3, §4.6), its `issuer` MUST be the sender VID and
+   its `recipient` this side's connection DID, exactly as strings (TSP
+   binding §3); its payload, the sealed envelope, then becomes an item
+   for the holder (§3, `collect`), whose receive alone opens it
+   (Delivery §6.2);
+4. a `document` of the type `trust-task-error/0.5` or
+   `trust-task-next-step/0.1` is an answer, read under §5 and bound
+   under RLTP-VTI-5040; it never reaches the holder;
+5. every other payload — a document of another type, a carried
+   document that fails a check of item 3, a payload that fails item 1
+   or 2, a sealed envelope sent as the payload itself — is logged with
+   the sender VID and the reason and acknowledged, never delivered.
+
+What item 5 consumes, the adapter concludes itself (§3); an answer of
+item 4 is concluded as RLTP-VTI-5080 states; the holder receives only
+what item 3 hands it.
 
 **RLTP-VTI-7150** — The binding states whether the mediator holds
 nothing more for the connection DID, from the pickup protocol's
@@ -910,18 +1102,23 @@ refusal of the routed form needs no such statement.
 Of the §5a.10 vector debt (Delivery §11), this profile discharges
 what is decidable **here**: the identity derivations are
 deterministic and vector-tested (fixed inputs → byte-exact
-principal, connection and egress DIDs, pairwise distinct,
-prefix-separated), the addressing of both sending modes is
-vector-tested (`vectors/vti-routed-addressing.json`: inner and
-outer sender, receiver, route list and session per mode, the
-addressings §1a and §3a refuse, and the messages RLTP-VTI-7140
-refuses on receipt), the delivery hint is vector-tested
-(`vectors/vti-delivery-hints.json`: each side's hint from the derived
-identities, its length, a displayed card and the sent card answering
-it, each carrying its side's hint under its proof, a card whose hint
-exceeds 512 characters, the hints a receiver ignores, and what a
-receiver reads from a card's hint list), and the adapter obligations of
-this contract are exercised against the wire double. The byte form
+principal and connection DID, distinct, prefix-separated), the
+addressing of both sending modes is vector-tested
+(`vectors/vti-routed-addressing.json`: inner and outer sender,
+receiver, route list and session per mode, the addressings §1a and §3a
+refuse, and the messages RLTP-VTI-7140 refuses on receipt), the
+delivery hint is vector-tested (`vectors/vti-delivery-hints.json`:
+each side's hint from the derived identity, its length, a displayed
+card and the sent card answering it, each carrying its side's hint
+under its proof, a card whose hint exceeds 512 characters, the hints a
+receiver ignores, a hint with a fourth member `rltpEgress`, and
+what a receiver reads from a card's hint list), the carried document
+is vector-tested (`vectors/vti-sealed-envelope.json`: the binding
+envelope byte for byte in both modes, its deterministic `id`, a
+repeated attempt byte-identical, the payloads RLTP-VTI-7160 refuses
+with the item that refuses them, and the answers of §5 with the
+submission state each leaves), and the adapter obligations of this
+contract are exercised against the wire double. The byte form
 of a routed frame is the TSP library's and is not vectored here.
 What genuinely needs a carrier **interface** — proof-gated
 registration vectors, generation and tombstone cases — remains
@@ -931,8 +1128,8 @@ is decidable.
 ## 8. Security Considerations
 
 - **Identity coupling is constructive.** The factory derives
-  principal, connection DID and egress identity from one
-  (root, `C`, `N`), snapshotted at entry; caller-supplied
+  principal and connection DID from one (root, `C`, `N`),
+  snapshotted at entry; caller-supplied
   identities are refused. The wire paths read the private fields
   directly, so overriding the public getters changes what an
   external reader sees, never what reaches the wire. The honest
@@ -964,63 +1161,55 @@ is decidable.
   duplicate-window rules (the window beats everything; no future
   instants) bound what a corrupted clock can stretch.
 - **Give-up produces failure, never silence.** Every declared
-  bound ends in a §6.1 report; the teardown paragraph (§6)
-  states the one case where reporting ends, and leaves the
-  document with the holder, who ends it under §6.1. There is no path on which an envelope is
+  bound ends in a §6.1 report, except for a `held` submission, which
+  no bound ends (RLTP-VTI-5050): the counterpart said it has the
+  document, and its acknowledgement or refusal ends it (the item on
+  answers below states what that leaves to the counterpart); the teardown
+  paragraph (§6) states the one case where reporting ends, and leaves
+  the document with the holder, who ends it under §6.1. There is no path on which an envelope is
   dropped without either a report or a mediator-retained copy.
 
 - **The fallback is not a downgrade of what the mediator
   learns.** A mediator can force the switch of §3a by dropping
-  routed frames. In mode `egress-session` it then learns through
-  two logins what it reads in one frame in mode `routed`: the
-  connection DID and the egress identity of one relationship
-  (§9). The counterpart sees the same sender in both modes; the
-  cost of a forced switch is the second session.
+  routed frames. In mode `direct` it reads the same identifiers on the
+  same session as in mode `routed` (§9); the counterpart sees the same
+  sender in both modes.
 - **The switch can be forced.** The mediator can drop routed
   frames, or deliver them and suppress the acknowledgements; the
   counterpart can withhold its acknowledgements for the deadline;
   the mediator can refuse the routed form, which switches at once —
   the validation of a refusal guards only against parties other
   than the mediator. Each leaves an open routed deposit past the
-  deadline, or switches at once.
-  Either way the result is the fallback bullet above, made
-  permanent for the relationship (RLTP-VTI-3130), plus what Open
-  Issue 6 states: a counterpart's access list that admits the
-  connection DID may not admit the egress identity.
+  deadline, or switches at once. Either way the result is the
+  fallback bullet above, made permanent for the relationship
+  (RLTP-VTI-3130).
 - **Replayed inner messages are absorbed.** The mediator can
   deliver an inner message again; the receiver's §6.2 absorption
   makes the copy a duplicate with no second effect on the
   document; a copy the adapter hands to the holder after
   `give-up-horizon` (§2) is answered again with the stored
   acknowledgement, and nothing more.
-- **A hint binds through the card's proof alone.** The wire
-  identities do not sign the hint, so a card's author can name
-  identities that are not its own, for instance a connection DID read
-  off someone else's displayed card. A hint naming the reader's own
-  identities is ignored (RLTP-VTI-1227), so the author cannot point the
+- **A hint binds through the card's proof alone.** The connection
+  DID does not sign the hint, so a card's author can name an identity
+  that is not its own, for instance a connection DID read off someone
+  else's displayed card. A hint naming the reader's own connection DID
+  is ignored (RLTP-VTI-1227), so the author cannot point the
   counterpart at itself. What remains steers only the counterpart's
-  documents of this one relationship:
-  - **A foreign connection DID.** The counterpart's documents go to the
-    named account. Its holder receives frames it cannot open: the inner
-    message is sealed to the named connection DID's key, but the RLTP
-    envelope inside stays sealed to the author's `rkid`. The account
-    bears the load: its adapter's buffering is bounded by §2, the
-    mediator's queue and the deposit rate are the mediator's own limits
-    (§2, the honest limit), and the mediator sees a pairing of the
-    counterpart's egress identity with that account that no
-    relationship holds (§9).
-  - **A foreign egress identity.** The counterpart's binding accepts
-    inner messages only from the named egress identity
-    (RLTP-VTI-7140), so the author's own deposits are refused.
-  - **A foreign connection DID with the author's own egress identity.**
-    The author's deposits are accepted; the counterpart's go to the
-    foreign account as above. The relationship runs in one direction
-    only, the author's.
-
-  In each case the damage to a relationship stays with the one the
-  author leads itself; the load of the first case also falls on the
-  holder of the named account. A co-signature of the hint by both wire identities
-  would prove possession; it is Open Issue 14.
+  documents of this one relationship: they go to the named account.
+  Its holder receives frames it cannot open: the inner message is
+  sealed to the named connection DID's key, but the RLTP envelope
+  inside stays sealed to the author's `rkid`. The account bears the
+  load: its adapter's buffering is bounded by §2, the mediator's queue
+  and the deposit rate are the mediator's own limits (§2, the honest
+  limit), and the mediator sees a pairing of the counterpart's
+  connection DID with that account that no relationship holds (§9).
+  The counterpart's binding accepts inner messages only from the named
+  connection DID (RLTP-VTI-7140), so the author's own deposits are
+  refused: the relationship runs in neither direction over this
+  carrier, and the damage stays with the relationship the author leads
+  itself; the load also falls on the holder of the named account. A
+  signature of the hint by the connection DID would prove possession;
+  it is Open Issue 11.
 - **Who learns a displayed card's hint can deposit.** The displayed
   card shows the displaying side's connection DID to everyone who sees
   it (§9). A party other than the counterpart can deposit frames to
@@ -1031,7 +1220,7 @@ is decidable.
   sealed to the card's key is discarded before the holder sees it, an
   envelope sealed to it that carries no bundle the holder takes is
   discarded with no effect (RLTP-VTI-1255, 1265), and only a record of
-  the card's challenge binds the instance, to the identities of the
+  the card's challenge binds the instance, to the connection DID of the
   sent card's hint (RLTP-VTI-1260; the next item). The cost is load:
   the receiving adapter's buffering is bounded by §2; the mediator's
   queue and the deposit rate are the mediator's own limits, which this
@@ -1052,24 +1241,26 @@ is decidable.
   network leg then fails and the optical leg remains (Encounter §5.8,
   RLTP-ENC-5690). What bounds the flood is the mediator's rate and the
   challenge's age, not this profile. The binding is no trust on first
-  use: the counterpart's identities come from the sent card, signed
+  use: the counterpart's connection DID comes from the sent card, signed
   under the counterpart's fresh pair anchor and bound to the card's
   challenge (Encounter RLTP-ENC-6050, RLTP-ENC-6060), never from the
   sender of a frame (RLTP-VTI-1260); the sender changes nothing in it
   (RLTP-VTI-1255). A third party cannot pass the counterpart's payload
-  on under a sender of its own anyway: the inner message is sealed to
-  the card's connection DID and signed by the counterpart's egress
-  identity, and a byte-identical copy carries the counterpart's
-  sender. A differing sender is in practice the counterpart's own
-  other egress identity (a second `N`, RLTP-VTI-1245) or a party the
-  counterpart gave the envelope to; the case stays defined.
+  on under its own sender unchanged: the inner message is sealed to the
+  card's connection DID and signed by the counterpart's connection DID,
+  and the carried document names that connection DID as its `issuer`,
+  which RLTP-VTI-7160 holds against the sender. A differing sender is
+  in practice the counterpart's own other connection DID (a second
+  `N`, RLTP-VTI-1245) or a party the counterpart gave the sealed
+  envelope to, which carries it in a document of its own; the case
+  stays defined.
 - **Several scanners of one displayed card.** The first record binds
   the instance (RLTP-VTI-1260); of bundles, the first the holder
   takes; a bundle of another scanner is refused by the holder or by
   RLTP-VTI-7140 (RLTP-VTI-1265). The second scanner recorded its
   relationship at its scan; that relationship reaches no one over this
   carrier, and its documents fail at its give-up horizon (Open Issue
-  11). With RLTP-VTI-1250 the challenge race (Encounter §13) also runs
+  8). With RLTP-VTI-1250 the challenge race (Encounter §13) also runs
   from afar over this carrier: whoever saw the card, a photograph of a
   projected card included, can answer first with a bundle of its own,
   and the scanner present sees only that nothing is delivered. The
@@ -1086,60 +1277,86 @@ is decidable.
 - **Foreign inner messages fail at the receiver.** The mediator
   opens the routing layer and could pass on an inner message of
   its own choosing. An inner message is sealed to the
-  counterpart's connection key and signed by the egress identity;
-  the receiving binding delivers only the expected pair
+  counterpart's connection key and signed by this side's connection
+  DID; the receiving binding delivers only the expected pair
   (RLTP-VTI-7140), so a substituted or forged inner message is
   refused before the adapter and has no effect. A mediator that
   ignores the route list, or delivers late or not at all, is a
   carrier that loses a document: the give-up horizon covers it.
+- **The carried document is authenticated by TSP alone.** It carries
+  no proof (Delivery §4.6): TSP authenticates its sender end to end,
+  and the adapter holds the document's `issuer` and `recipient` against
+  the authenticated sender and its own connection DID (RLTP-VTI-7160).
+  A document whose parties differ is never delivered, so a party that
+  holds a sealed envelope of someone else cannot make it arrive under
+  that someone's name; it can carry it under its own, where the
+  holder's receive and the inner document's own proofs decide
+  (Delivery §6.2). The seal is unchanged by the carriage: the
+  carried document adds no member the receive reads.
+- **Answers bind to this side's own documents.** An answer changes a
+  submission only when it comes from the counterpart's connection DID
+  and names the `id` of a document this instance carried to it
+  (RLTP-VTI-5040). The `id` is not secret — it is a function of the
+  seal and the parties, and the counterpart reads it — but only the
+  counterpart can send under its connection DID, and the adapter holds
+  the sender against the document's recipient at the transition
+  (RLTP-VTI-5070), so a third party, the mediator included, cannot
+  refuse, hold or answer a document of this side, whatever the wire lets
+  through. An answer leaves the mediator only after its outcome is kept
+  at the holder (RLTP-VTI-5080), so a crash loses no outcome there; the
+  send state learns it again from the holder (RLTP-VTI-3130). The counterpart can: a refusal ends a submission, and a
+  next step keeps it from failing at the horizon (RLTP-VTI-5050), so a
+  counterpart that sends a next step and never acknowledges keeps a
+  submission `accepted` (`held`) for as long as it likes. That is a
+  statement the counterpart makes about its own state, and the
+  holder shows it as such; the document was in its hands.
 
 ## 9. Privacy Considerations
 
 - **What the mediator learns.** In mode `routed`, from one frame:
-  the sender's connection DID (outer sender), its egress identity
-  (inner sender, once the routing layer is open), and the
-  counterpart's connection DID (route list and inner receiver);
-  besides these, timing, sizes (the routing layer adds about
-  400 bytes per frame) and frequency. Over both directions it holds
-  both connection DIDs and both egress identities of one
-  relationship. In mode `egress-session` it learns the same
-  identifiers, and links connection DID and egress identity through
-  two logins from one device instead of one frame. An operator's
-  undertaking not to store forwarded frames is not a guarantee this
-  profile can rely on; it assumes the mediator keeps what it sees.
-- **What the counterpart learns.** The egress identity as the
-  sender of every document, and the connection DID as this side's
-  address. Neither appears in any other relationship. The sender VID
-  that TSP 1.0 carries in every confidential payload is the
-  envelope's sender again, in each layer of either mode: it shows the
-  counterpart, and the mediator in the outer layer, no identifier the
-  envelope does not,
-  and Delivery §5a.10 applies to the same identifiers.
+  the sender's connection DID (outer sender, and inner sender once the
+  routing layer is open) and the counterpart's connection DID (route
+  list and inner receiver); besides these, timing, sizes (the routing
+  layer adds about 400 bytes per frame, the binding envelope and the
+  carried document about 400 bytes more inside the inner message) and
+  frequency. Over both directions it holds both connection DIDs of one
+  relationship. In mode `direct` it learns the same identifiers on the
+  same session. It never reads the carried document: the inner message
+  is sealed to the counterpart. An operator's undertaking not to store
+  forwarded frames is not a guarantee this profile can rely on; it
+  assumes the mediator keeps what it sees.
+- **What the counterpart learns.** The connection DID as the sender
+  of every document and as this side's address; it appears in no
+  other relationship. The sender VID that TSP 1.0 carries in every
+  confidential payload is the envelope's sender again, in each layer
+  of either mode: it shows the counterpart, and the mediator in the
+  outer layer, no identifier the envelope does not, and Delivery
+  §5a.10 applies to the same identifier. The carried document shows
+  the counterpart, before it opens the seal, the two connection DIDs,
+  the type `sealed-envelope/0.1`, the instant of the first submission
+  in whole seconds, and an `id` that is the same for every attempt of
+  one sealed envelope; a consumer that is not RLTP's learns these and
+  nothing of the content.
 - **Linkability, per party.** Every wire identity is per
   relationship × carrier and carries §5a.10's three prohibitions.
   **Toward counterparts** nothing joins one relationship to
-  another; inside the relationship the counterpart knows both
-  identifiers of this side, and §1a does not hide one from it.
-  **Toward the mediator** both identifiers of each side are joined
-  inside each relationship — in one frame in mode `routed`, where
-  the outer sender is this side's account and the route the
-  counterpart's, so the two directions of one relationship are
-  paired by identifier, not only by timing — while nothing joins its
-  relationships to each other through identifiers; timing, source address and volume remain, as §10 of
-  the Delivery Contract records, and this profile claims no
-  unlinkability. Only a nested inner relationship (TSP §4, §5.5),
-  in which the egress identity travels inside a layer the mediator
-  cannot open, would keep it from the mediator (§10).
+  another. **Toward the mediator** the two directions of one
+  relationship are paired by identifier, not only by timing — in mode
+  `routed` the outer sender is this side's account and the route the
+  counterpart's — while nothing joins its relationships to each other
+  through identifiers; timing, source address and volume remain, as
+  §10 of the Delivery Contract records, and this profile claims no
+  unlinkability.
 - **What a card reveals.** A card carrying a hint names `C` and the
-  connection DID and egress identity of the relationship it opens. A
-  sent card travels sealed inside the encounter bundle, except on the
-  optical leg (Encounter §5.8). A displayed card is readable by
-  everyone who sees it while it is displayed: bystanders, and a second
-  scanner of the same image (Open Issue 11). They learn identifiers of
-  a relationship that only one enactment can form (Encounter
+  connection DID of the relationship it opens. A sent card travels
+  sealed inside the encounter bundle, except on the optical leg
+  (Encounter §5.8). A displayed card is readable by everyone who sees
+  it while it is displayed: bystanders, and a second scanner of the
+  same image (Open Issue 8). They learn an identifier of a
+  relationship that only one enactment can form (Encounter
   RLTP-ENC-5170); `N` itself never appears (RLTP-VTI-1215). A hint
   that names another party's account (§8) shows the mediator a
-  pairing between that account and the counterpart's egress identity
+  pairing between that account and the counterpart's connection DID
   that no relationship holds.
 - **What a displayed card's instance shows the mediator.** The card's
   connection DID authenticates at the mediator from the display on,
@@ -1169,20 +1386,10 @@ is decidable.
 
 ## 10. Open Issues
 
-1. **Keeping the egress identity from the mediator.** A nested
-   inner relationship (TSP §4, §5.5) between the egress identity
-   and the counterpart would hide the egress identity from the
-   mediator, at the cost of a further sealed layer and a nested
-   relationship per pair. The TSP library this profile targets
-   offers no nested relationship forming; not measured, not part
-   of this casting.
-2. **Separate pickup identities.** A form in which each
-   relationship collects under an identity of its own with its own
-   login has not been measured live.
-3. **The value of `routed-ack-deadline`.** 72 hours, equal to the
+1. **The value of `routed-ack-deadline`.** 72 hours, equal to the
    give-up horizon (§3a); no measurement of how long counterparts
    stay absent underlies it.
-4. **Recognising a refusal of the routed form.** RLTP-VTI-3130
+2. **Recognising a refusal of the routed form.** RLTP-VTI-3130
    switches at once on a validated refusal of the routed form; what
    the target mediator sends in that case, and how a binding ties it
    to the deposit and authenticates it, is not measured, and the
@@ -1191,39 +1398,33 @@ is decidable.
    problem report that refuses a deposit to count as a refusal of
    that deposit, and the target binding does not yet correlate a
    problem report with a deposit. A carrier that does not accept
-   direct delivery (RLTP-VTI-3120) answers a deposit in mode
-   `egress-session` with a refusal of direct delivery on the send-only
-   session (mediator 0.45: `e.p.direct_delivery.denied`); all deposits
-   sent before the report arrives were reported `accepted` and end at
-   the give-up horizon. The binding logs a refusal of direct delivery,
+   direct delivery (RLTP-VTI-3120) answers a deposit in mode `direct`
+   with a refusal of direct delivery on the connection DID's session
+   (mediator 0.45: `e.p.direct_delivery.denied`); all deposits sent
+   before the report arrives were reported `accepted` and end at the
+   give-up horizon. The binding logs a refusal of direct delivery,
    and the adapter records it in the send state; it survives openings
    and is never lifted under this profile. A report that arrives after
    the binding closed is lost, and each opening shorter than the
-   report's way deposits once more and fails at the horizon. Only a new principal (a new
-   relationship, a rebind, a change of `C`, §6, whose identities reach
-   the counterpart only as Open Issue 13 allows) or a lost send state
-   (RLTP-VTI-3130, Open Issue 7) starts in `routed` again; a carrier
-   whose operator later allows direct delivery does not by that carry
-   the relationship again.
-5. **Keylist.** §1 and §3 name keylist updates; the target
+   report's way deposits once more and fails at the horizon. Only a
+   new principal (a new relationship, a rebind, a change of `C`, §6,
+   whose identity reaches the counterpart only as Open Issue 10
+   allows) or a lost send state (RLTP-VTI-3130, Open Issue 4) starts
+   in `routed` again; a carrier whose operator later allows direct
+   delivery does not by that carry the relationship again.
+3. **Keylist.** §1 and §3 name keylist updates; the target
    mediator keeps no keylist for TSP clients, and the binding
    treats the update as a no-op.
-6. **Access lists.** A mediator that checks a receiving account's
-   access list against the outer sender sees the connection DID in
-   mode `routed` and the egress identity in mode `egress-session`;
-   a counterpart's access list that admits one does not admit the
-   other. This profile sets no access list.
-7. **No return to `routed`.** The switch is final for the
+4. **No return to `routed`.** The switch is final for the
    relationship; a mediator that carries routed messages again later
    is used in mode `routed` only by a new principal (a new
    relationship, a rebind or a change of `C`) or after a lost send
    state (RLTP-VTI-3130).
-8. **Documents accepted before a switch or a key change of `C`.** They end
-   at the give-up horizon (RLTP-VTI-7130); depositing them again
+5. **Documents accepted before a switch or a key change of `C`.** They
+   end at the give-up horizon (RLTP-VTI-7130); depositing them again
    would need the holder's leave after acceptance, which the
-   Delivery Contract does not give; whether its next casting gives
-   such a leave is open (Delivery 0.84).
-9. **A side that only acknowledges.** The signal rests on this
+   Delivery Contract does not give (Delivery 0.85).
+6. **A side that only acknowledges.** The signal rests on this
    side's own documents (RLTP-VTI-3130); acknowledgements count for
    nothing. A side that only acknowledges never switches, so on a
    mediator that does not deliver routed messages its
@@ -1231,40 +1432,39 @@ is decidable.
    documents went unanswered and its later documents arrive, but
    their delivery status stays at `accepted` (sent) and ends
    `failed` at the horizon while they arrived.
-10. **A mediator VID other than `C`.** Not served (RLTP-VTI-7120);
+7. **A mediator VID other than `C`.** Not served (RLTP-VTI-7120);
    serving it needs a connection DID that is not a function of
    (root, `C`, `N`) alone.
-11. **Several scanners of one displayed card.** The wire identities
-   of a displayed card belong to that card's `N` until the card is
+8. **Several scanners of one displayed card.** The connection DID
+   of a displayed card belongs to that card's `N` until the card is
    replaced with its challenge, so everyone who scans or sees the same
-   image reads the same identities (§8, §9). The displayed card's
+   image reads the same identifier (§8, §9). The displayed card's
    instance is bound by the first bundle the holder takes; a second
    scanner's bundle is refused (RLTP-VTI-1265), and the relationship
    that scanner recorded reaches no one over this carrier. A two-stage
    form — a short-lived invitation identity on the displayed card, the
-   relationship's identities afterwards in a signed document of the
-   relationship — would keep the identities from all but the
+   relationship's identity afterwards in a signed document of the
+   relationship — would keep the identity from all but the
    counterpart; it needs a document type that does not exist and is
    not part of this casting.
-12. **Foreign TSP clients.** A hint reads as a `TSPTransport` service
-   entry, but a client of the target TSP library drops an application
-   message from a sender with which it has formed no relationship
-   (XRFI/XRFA). This profile forms none between the egress identity
-   and the counterpart's connection DID, so a foreign client cannot be
-   reached through a hint alone.
-13. **Re-announcing the wire identities over the relationship.** A
+9. **Foreign TSP clients.** A hint is a `TSPTransport` service entry
+   that a TSP client reads as it is, and this side sends and collects
+   under the identity it names. A client of the target TSP library
+   still drops an application message from a sender with which it has
+   formed no relationship (XRFI/XRFA), and this profile forms none, so
+   such a client cannot be reached through a hint alone.
+10. **Re-announcing the wire identity over the relationship.** A
    rotation or replacement of `N` (RLTP-VTI-1245), a second first `N`
    from several devices writing the register (RLTP-VTI-1245) and a
-   relationship without a hint at first contact (RLTP-VTI-1235) all need the
-   relationship's wire identities announced in a signed document of the
-   relationship rather than in a card. That document type does not
-   exist; together with the two-stage form of Open Issue 11 it is the
-   same construction, not part of this casting.
-14. **Possession of the named identities.** A hint is bound by the
-   card's proof alone (§8). A co-signature by the connection DID and
-   the egress identity would prove that the author holds both; this
-   casting does not require it.
-15. **Deposit state from the mediator.** The registry's
+   relationship without a hint at first contact (RLTP-VTI-1235) all
+   need the relationship's connection DID announced in a signed
+   document of the relationship rather than in a card. That document
+   type does not exist; together with the two-stage form of Open
+   Issue 8 it is the same construction, not part of this casting.
+11. **Possession of the named identity.** A hint is bound by the
+   card's proof alone (§8). A signature by the connection DID would
+   prove that the author holds it; this casting does not require it.
+12. **Deposit state from the mediator.** The registry's
    `messaging/message/status/0.2` (`trustoverip/dtgwg-trust-tasks-tf`
    @ `f27ea538`; it renames the response's `at` to `reachedAt`, the
    instant a message reached its state) lets a depositor ask the
@@ -1278,33 +1478,58 @@ is decidable.
    waits for a carrier pin that has 0.2, with the derivation of a
    message id for a TSP deposit and the identity that signs the
    request in each sending mode.
-16. **`idConflict`.** RLTP-VTI-5030 keeps the reading of an
+13. **`idConflict`.** RLTP-VTI-5030 keeps the reading of an
    absorption against the framework's refusal; it follows the
-   Delivery Contract's decision on duplicate keys (its DO-10).
-17. **Peers and mediators on TSP Rev 3.** A mediator before 0.45
+   Delivery Contract's decision on duplicate keys (its DO-10). On the
+   wire the question does not arise for a consumer that follows the
+   framework: the carried document declares repeated execution safe
+   and intended, and every repeated attempt is byte-identical
+   (Delivery §4.6, RLTP-DEL-5040).
+14. **Peers and mediators on TSP Rev 3.** A mediator before 0.45
    refuses a TSP 1.0 message at its ingress; from 0.45 on it opens a
    routed layer addressed to itself only in 1.0. A binding on Rev 3
    and a binding of this profile refuse each other's frames
    (RLTP-VTI-7140). A relationship whose two sides or whose `C` do not
    all speak TSP 1.0 is not carried; this profile names no transition.
-18. **The wire identities and the VID rules of TSP 1.0.** TSP 1.0
+   The same holds for consumers of the registry's binding: its
+   TypeScript implementation (`@openvtc/trust-tasks-tsp` 0.1.1)
+   depends on `vti-tsp-js` from 0.2.0, which speaks Rev 3, while its
+   Rust implementation (`trust-tasks-tsp`) uses `affinidi-tsp` 0.3.0,
+   the TSP of mediator 0.45.
+15. **The wire identity and the VID rules of TSP 1.0.** TSP 1.0
    requires a VID for public use to support key rotation and the
    verification of its key state's provenance, lets a VID stay simple
    and static only when it is private to an established TSP
    relationship, and discards a message from a VID the destination has
-   no relationship with. The wire identities are static `did:key`s, named
-   on a card (on a displayed card readable by anyone who sees it, Open
-   Issue 11), and form no TSP relationship (Open Issue 12): they are
+   no relationship with. The connection DIDs are static `did:key`s,
+   named on a card (on a displayed card readable by anyone who sees it,
+   Open Issue 8), and form no TSP relationship (Open Issue 9): they are
    neither. The profile puts the RLTP relationship, bound by the card's
-   proof (§8), where TSP puts the established relationship, and replaces
-   them through a new `N` (Open Issue 13), not by key rotation. A TSP 1.0
-   endpoint without this reading discards their messages; how this
-   profile meets TSP-conformant counterparts is open.
+   proof (§8), where TSP puts the established relationship, and
+   replaces them through a new `N` (Open Issue 10), not by key
+   rotation. A TSP 1.0 endpoint without this reading discards their
+   messages; how this profile meets TSP-conformant counterparts is
+   open.
+16. **Answers after the end.** An answer binds a submission of the
+   instance it reaches, those filed for binding included
+   (RLTP-VTI-5065). An answer to a document the holder already ended —
+   failed at its horizon, delivered, or refused — changes nothing: in a
+   later opening it binds nothing, and within the opening that filed the
+   document it binds, but the holder keeps the end it recorded. This
+   holds also where the answer would have said more than that end (a
+   refusal after `failed(expired-by-adapter-policy)`).
+   An answer that reaches a displayed card's instance before it is bound
+   binds nothing either: that instance has deposited nothing.
+17. **Answers of this side.** This side reads the framework's answers
+   and sends none: a carried document it does not deliver is logged
+   and acknowledged (RLTP-VTI-7160), and a foreign document of another
+   type is not refused with `trust-task-error/0.5`. Sending refusals is
+   not part of this casting.
 
 ## Appendix A: Companion changes
 
-§1a to §1c read clauses of Delivery §5a.9 and §5a.10 differently from
-their present wording. The Delivery Contract owns those clauses; these
+§1b, §1c and §3a read clauses of Delivery §5a.4, §5a.9 and §5a.10
+differently from their present wording. The Delivery Contract owns those clauses; these
 are the changes its next casting takes up.
 
 **Delivery Contract (next casting):**
@@ -1325,19 +1550,9 @@ are the changes its next casting takes up.
   displayed and for one enactment (Encounter RLTP-ENC-5170), and a
   card scanned or seen by more than one party is the bound an adapter
   profile that uses such a card states (this profile: §9, Open
-  Issue 11). The conformance list of the same
+  Issue 8). The conformance list of the same
   casting (§11: the well-known outer VID, the well-known DIDComm
   connection DID, TSP ingress) reads "well-known" alike.
-- 5a.10, TSP ingress, the prohibition "not person-wide": the clause
-  "the sending side and the collecting side of one person must never
-  meet in one identifier" applies to every sender identifier the
-  recipient opens and verifies. An outer layer addressed to
-  the direct carrier, which the recipient never opens, MAY
-  name as its sender the depositing side's collecting identifier of
-  the same relationship and carrier. The other prohibitions — not well-known, no second
-  relationship, no second carrier, never a control principal or a
-  value derivable from one, not reused outside the relationship —
-  apply to every layer the adapter presents.
 - 5a.10, the paragraph on the nested private end-to-end VID: "hidden
   from intermediaries by construction" holds for nested envelopes;
   in routed mode the direct carrier opens the routing layer and
@@ -1347,17 +1562,6 @@ are the changes its next casting takes up.
   identifier — the outer sender is the depositing side's collecting
   identifier, the route the counterpart's — not only by timing; the
   claim stays bounded to no join across relationships.
-- References, the **[TSP]** row: the pin follows this profile's snapshot,
-  TSP 1.0 @ `ccda6b33159d860f05c328eb436dabe83548b705`. Read against
-  it, these surfaces of 5a.10 hold as written: the routed model (the
-  last route entry is the destination's own VID with its intermediary,
-  RLTP-VTI-3115), nested envelopes (the outer message is confidential,
-  the inner MAY be signed only), the direct-neighbour relationship, and
-  the identifier rules of 5a.10 themselves. New is the sender's VID in
-  every confidential payload; it names the envelope's sender again. The
-  VID taxonomy does not hold as written: TSP 1.0's rules for public and
-  static private VIDs do not cover this profile's wire identities (Open
-  Issue 18).
 - 5a.10, the change of the direct TSP peer under an unchanged `C`:
   an adapter whose outer peer is the configured carrier itself, and
   whose collecting identifier is derived from (root, `C`, `N`), MAY
@@ -1376,28 +1580,14 @@ are the changes its next casting takes up.
   record whose sent card names no identities at that carrier
   (RLTP-VTI-1260) — is aged out like an orphaned binding; 5a.9 names
   that case.
-- 5a.10, collecting side, "MUST NOT hold two live outer VIDs for one
-  principal at one carrier": the rule concerns the principal's
-  collecting identifier; a send-only session of a sending-side
-  identifier at the same carrier (ingress) is not a second live
-  outer VID of the principal.
 - 5a.10, DIDComm, "a connection DID … for this principal and for
-  nothing else": the principal's own routed deposits under its
-  connection DID are part of its mediation relationship, not
-  another purpose.
+  nothing else": the principal's own deposits, routed and direct,
+  under its connection DID are part of its mediation relationship,
+  not another purpose.
 - 5a.4, the paragraph on ack pairing by response time "with no
   identity whatsoever": in routed mode the direct carrier pairs the
   two directions by identifier as well (the entry above on "What
   that buys"); 5a.4 and §10 change together.
-- §11, conformance examples under "TSP ingress", beside the line
-  that calls a person-wide sender-side VID nonconformant: a routed deposit
-  whose outer sender is the depositing side's collecting identifier
-  at the direct carrier and whose inner sender is an identifier
-  exclusive to sending → conformant; a single-layer deposit whose
-  sender is the collecting identifier → nonconformant; beside "two
-  live outer VIDs for one principal → nonconformant": a send-only
-  session of a sending-side identifier at the same carrier →
-  conformant.
 
 ## Appendix B: Changelog
 
@@ -1406,7 +1596,8 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session`, a refusal of it recorded in the send state when the binding receives it (§7), across openings, no deposit after it (RLTP-VTI-3120, 3130, §5, Open Issue 4); §9 on the sender VID in the payload; Open Issue 15 names the mediator's `status/0.1`; Open Issues 17 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
+| 0.29 | 2026-10-27 | One wire identity per relationship and carrier: the connection DID sends and collects, in every layer of both modes (§1, §1a, RLTP-VTI-1120); the delivery hint has three members, a fourth `rltpEgress` read and ignored (RLTP-VTI-1210, 1220, 1227, 1240); the fallback mode `direct` runs on the connection DID's session (RLTP-VTI-3120). Every document travels as a `sealed-envelope/0.1` document in the registry's TSP binding envelope (§3b, RLTP-VTI-3150; Delivery §4.6), built at every attempt and byte-identical across attempts; the adapter reads a delivered payload with its authenticated sender (RLTP-VTI-7140, 7160), holds the carried document's parties against it, and hands the seal to the holder; `payload-bound` 90 182 bytes (§2). Answers in the binding: `trust-task-error/0.5` and `trust-task-next-step/0.1` bound to the submission by the carried document's `id` (RLTP-VTI-5040); a next step makes a submission `accepted` and `held`, which the give-up horizon does not end (RLTP-VTI-5050, §2). Open Issues renumbered; 16 (answers after the end) and 17 (answers of this side) new; the answer contract (RLTP-VTI-5065, 5070, 5080): every open document, custody and the accepted documents the holder offers (Delivery RLTP-DEL-6150), has its id independent of sending; only the recipient the document named changes it; a bound answer travels in the collection with its report and is acknowledged only at the conclusion, after the host recorded it. |
+| 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session`, a refusal of it recorded in the send state when the binding receives it (§7), across openings, no deposit after it (RLTP-VTI-3120, 3130, §5, Open Issue 2); §9 on the sender VID in the payload; Open Issue 12 names the mediator's `status/0.1`; Open Issues 14 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
 | 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |
 | 0.26 | 2026-10-23 | The displayed card's instance (§1c, RLTP-VTI-1250 to 1270): an instance per displayed card from the display until its challenge ages, collecting without a counterpart; only an envelope sealed to the card's key reaches the holder, and it accepts a frame only for a bundle answering the card that the holder takes, the frame's sender a diagnosis; any record of the card's challenge, by whatever carrier or leg, binds it to the hint's identities and makes it the relationship's instance, or closes it; every other frame is discarded; RLTP-VTI-1235 and 7140 name it as their one exception; Delivery 5a.9 and 5a.10 on the account of a displayed card in Appendix A. |
 | 0.25 | 2026-10-23 | The delivery hint (§1b, RLTP-VTI-1210 to 1245): a `TSPTransport` service entry per carrier in the card that opens the relationship, identities from a fresh `N`, first contact only, a total reader that ignores a hint naming the reader's own identities, a chained relationship's instance closes at the chaining, no change of `N`; Delivery 5a.10 card and resolvable-location clauses in Appendix A. |

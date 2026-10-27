@@ -22,40 +22,56 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.26 (twenty-sixth casting;
+// Profile: spec/adapter-vti-mediator.md v0.29 (twenty-ninth casting;
 // §1c, the displayed card's instance, is the host's and the wire's, not this module's;
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port. The
-// counterpart's connection DID and egress identity the wire needs come
-// from the counterpart's delivery hint in the card that opened the
-// relationship (profile §1b); the holder hands the hints on uninterpreted
+// counterpart's connection DID the wire needs comes from the
+// counterpart's delivery hint in the card that opened the relationship
+// (profile §1b); the holder hands the hints on uninterpreted
 // (RelationshipView.counterpartDeliveryHints) and this adapter derives its
-// own trio from the relationship's carrier nonce (RelationshipView.carrierNonce).
+// own pair (principal, connection DID) from the relationship's carrier
+// nonce (RelationshipView.carrierNonce). One wire identity per relationship
+// and carrier: the connection DID sends and collects (§1a, RLTP-VTI-1120).
 //
-// Sending form (profile §3a, lib 0.7.0): every deposit names its mode to
-// the wire. Mode `routed` (the mode of every instance from construction):
-// an inner TSP `direct` message egress identity → counterpart's
-// connection DID inside an outer routed message connection DID → C with
-// the route [counterpart's connection DID], on the connection DID's
-// session. Mode `egress-session` (fallback): the inner message alone, on
-// a send-only session of the egress identity. The wire packs the layers
-// (depositAddressing says who addresses whom); the adapter keeps the
+// The carried document (profile §3b, Delivery 0.85 §4.6): every deposit's
+// payload is the JCS of the registry's TSP binding envelope around a
+// sealed-envelope/0.1 document whose payload is the holder's sealed
+// envelope, built at every attempt from the seal, the two connection DIDs
+// and the entry's `since` (wrapSealed) — byte-identical across attempts,
+// its `id` a UUID v8 of seal and parties (RLTP-VTI-3150, RLTP-DEL-5040).
+// On receipt (RLTP-VTI-7160) the wire hands the payload with its
+// authenticated sender; a carried document whose parties are the sender
+// and this side becomes an item for the holder (its seal), a counterpart's
+// trust-task-error/0.5 or trust-task-next-step/0.1 is bound by the carried
+// document's id to the submission it answers and applied here
+// (RLTP-VTI-5040, 5050: a next step makes it accepted and held, which the
+// give-up horizon does not end), and everything else is logged and
+// acknowledged. What the adapter consumes itself it concludes at its next
+// step.
+//
+// Sending form (profile §3a): every deposit names its mode to the wire.
+// Mode `routed` (the mode of every instance from construction): an inner
+// TSP `direct` message connection DID → counterpart's connection DID
+// inside an outer routed message connection DID → C with the route
+// [counterpart's connection DID]. Mode `direct` (fallback): the inner
+// message alone. Both on the connection DID's session. The wire packs the
+// layers (depositAddressing says who addresses whom); the adapter keeps the
 // relationship's send state (the mode and the open routed deposits) in
 // its ack state (RLTP-VTI-3130). Open are: every document with a digest
 // (an entry of kind `document` filed by reconcile) accepted in routed and
-// not yet answered — a valid acknowledgement, a validated refusal or a
-// validated idConflict for its digest answers it. Acknowledgements are
-// no open deposits: a side that only acknowledges never switches by the
-// deadline (Open Issue 9). The adapter switches one way to
-// `egress-session` when an open deposit is routed-ack-deadline (72 h)
+// not yet answered — a valid acknowledgement, a validated refusal, a
+// validated idConflict or a validated next step for it answers it.
+// Acknowledgements are no open deposits: a side that only acknowledges
+// never switches by the deadline (Open Issue 6). The adapter switches one
+// way to `direct` when an open deposit is routed-ack-deadline (72 h)
 // old, checked in an advance after a conclusion that left nothing
 // pending and while nothing is pending again — "nothing pending" is the
 // binding's statement through queueEmpty() (RLTP-VTI-7150); without it
 // the adapter never switches — and at once on a
 // validated refusal of the routed form (WireError 'routed-refused').
-// At the switch the open deposits leave; nothing returns to routed. A
-// submit() without a digest opens nothing. An attempt
-// ends in the mode it began in; an accepted submission is never
+// At the switch the open deposits leave; nothing returns to routed. An
+// attempt ends in the mode it began in; an accepted submission is never
 // deposited again (RLTP-VTI-3135, 7130).
 //
 // The app's transport contract (web-of-trust TRANSPORT.md, rules 5 and
@@ -92,9 +108,12 @@
 //     still records a refusal of direct delivery the wire received
 //     (directRefused, RLTP-VTI-3120); monotone, it only blocks, and its
 //     instant is the adapter clock, never later.
-import { jcs } from '../core.js';
-import { anchorOfEd, edRawOfAnchor, sha } from '../crypto.js';
+import { jcs, iso, makeValidator } from '../core.js';
+import { anchorOfEd, edRawOfAnchor, sha, cat, base58, fromBase58, b64uOf, fromB64u, platformSubtle } from '../crypto.js';
 import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js';
+import { SCHEMAS } from '../schemas.js';
+import { SEALED_ENVELOPE_TYPE } from '../task-uri.js';
+export { SEALED_ENVELOPE_TYPE } from '../task-uri.js';
 // ── Declared constants (profile §2) — promises of THIS casting ──────
 // frozen: the declared promises cannot be changed at run time either
 export const DECLARED = Object.freeze({
@@ -105,8 +124,15 @@ export const DECLARED = Object.freeze({
     maxQueueBytes: 16_777_216,
     duplicateWindowMs: 30 * 86_400_000,
     routedAckDeadlineMs: 72 * 3_600_000,
+    /** the largest TSP payload the adapter reads (RLTP-VTI-7160): the binding
+     *  envelope, 70 bytes, around a carried document at its size bound */
+    payloadBound: 90_182,
 });
-const HINT_MEMBERS = jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type']);
+/** The size bound of a sealed-envelope/0.1 document (Delivery
+ *  RLTP-DEL-3030, 4.6): its UTF-8 JCS serialization, in bytes. */
+export const SEALED_ENVELOPE_DOCUMENT_BOUND = 90_112;
+const HINT_MEMBERS = jcs(['id', 'serviceEndpoint', 'type']);
+const HINT_MEMBERS_WITH_EGRESS = jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type']);
 /** An Ed25519 did:key in the form RLTP-VTI-1210 fixes: `did:key:z` and the
  *  base58btc of multicodec 0xed01 followed by the 32-byte key, rendered
  *  canonically (decoding and re-encoding gives the same string). */
@@ -118,28 +144,25 @@ const edDidKey = (x) => {
     return raw !== null && anchorOfEd(raw) === x;
 };
 /** This side's hint for carrier `C` in the relationship of carrier nonce
- *  `N` (RLTP-VTI-1210, 1215): the connection DID and the egress identity
- *  derived here from (root, `C`, `N`), exactly as the factory derives the
- *  instance's trio — derived, not supplied, so the two cannot come from
- *  different relationships — as the JCS form of the TSPTransport service
- *  entry naming the connection DID (`id`, with `#tsp`), `C`
- *  (`serviceEndpoint`) and the egress identity (`rltpEgress`). */
+ *  `N` (RLTP-VTI-1210, 1215): the connection DID derived here from (root,
+ *  `C`, `N`), exactly as the factory derives the instance's — derived, not
+ *  supplied, so the two cannot come from different relationships — as the
+ *  JCS form of the TSPTransport service entry naming the connection DID
+ *  (`id`, with `#tsp`) and `C` (`serviceEndpoint`). */
 export async function deliveryHint(rootIkm, carrier, nonce) {
-    // snapshot at entry, as create does (R8-B2): a caller's buffer changed
-    // between the two derivations must not couple two relationships
+    // snapshot at entry, as create does (R8-B2)
     const ikm = new Uint8Array(rootIkm);
     const n = new Uint8Array(nonce);
     const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection');
-    const egress = await carrierScopedIdentity(ikm, carrier, n, 'egress');
-    return jcs({ id: connection.did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier, rltpEgress: egress.did });
+    return jcs({ id: connection.did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier });
 }
 /** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,
- *  byte-equal to its JCS form, exactly the four members, type
- *  TSPTransport, an `id` ending in `#tsp`, both identities distinct
- *  canonical Ed25519 did:key, `serviceEndpoint` byte-equal to `C`.
- *  Total (RLTP-VTI-1220): any other input — not a string, not JSON, no JCS
- *  form (a lone surrogate), any other shape — is null, ignored; it never
- *  throws. */
+ *  byte-equal to its JCS form, exactly the three members — or those and a
+ *  fourth `rltpEgress`, ignored whatever its value — type TSPTransport, an
+ *  `id` ending in `#tsp` whose rest is a canonical Ed25519 did:key,
+ *  `serviceEndpoint` byte-equal to `C`. Total (RLTP-VTI-1220): any other
+ *  input — not a string, not JSON, no JCS form (a lone surrogate), any
+ *  other shape — is null, ignored; it never throws. */
 export function readDeliveryHint(hint, carrier) {
     try {
         return readStrict(hint, carrier);
@@ -155,34 +178,33 @@ function readStrict(hint, carrier) {
     if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o) !== hint)
         return null;
     const e = o;
-    if (jcs(Object.keys(e).sort()) !== HINT_MEMBERS || e.type !== 'TSPTransport' || e.serviceEndpoint !== carrier)
+    const members = jcs(Object.keys(e).sort());
+    if ((members !== HINT_MEMBERS && members !== HINT_MEMBERS_WITH_EGRESS) || e.type !== 'TSPTransport' || e.serviceEndpoint !== carrier)
         return null;
     if (typeof e.id !== 'string' || !e.id.endsWith('#tsp'))
         return null;
     const connectionDid = e.id.slice(0, -'#tsp'.length);
-    if (!edDidKey(connectionDid) || !edDidKey(e.rltpEgress) || connectionDid === e.rltpEgress)
+    if (!edDidKey(connectionDid))
         return null;
-    return { connectionDid, egressDid: e.rltpEgress, carrier };
+    return { connectionDid, carrier };
 }
-/** The counterpart's wire identities at `C` from the hints of the card
+/** The counterpart's connection DID at `C` from the hints of the card
  *  that opened the relationship, read by the side `self` (its own
- *  connection DID and egress identity of this relationship and carrier):
- *  every hint read as readDeliveryHint does; a hint naming one of `self`'s
- *  identities is ignored (RLTP-VTI-1227); of what remains, the one hint
- *  for `C` (RLTP-VTI-1225, 1240) — none, or more than one, is null: the
- *  relationship is not carried at `C` (RLTP-VTI-1235). Total: any input
- *  answers null or the identities, never a throw; without a well-formed
- *  `self` nothing is read. */
+ *  connection DID of this relationship and carrier): every hint read as
+ *  readDeliveryHint does; a hint naming `self`'s connection DID is ignored
+ *  (RLTP-VTI-1227); of what remains, the one hint for `C` (RLTP-VTI-1225,
+ *  1240) — none, or more than one, is null: the relationship is not
+ *  carried at `C` (RLTP-VTI-1235). Total: any input answers null or the
+ *  identity, never a throw; without a well-formed `self` nothing is read. */
 export function readDeliveryHints(hints, carrier, self) {
     try {
         if (!Array.isArray(hints))
             return null;
         const me = self;
-        if (me === null || typeof me !== 'object' || !edDidKey(me.connection) || !edDidKey(me.egress))
+        if (me === null || typeof me !== 'object' || !edDidKey(me.connection))
             return null;
-        const own = new Set([me.connection, me.egress]);
         const read = hints.map((h) => readDeliveryHint(h, carrier))
-            .filter((x) => x !== null && !own.has(x.connectionDid) && !own.has(x.egressDid));
+            .filter((x) => x !== null && x.connectionDid !== me.connection);
         return read.length === 1 ? read[0] : null;
     }
     catch {
@@ -310,26 +332,250 @@ function readErrorStrict(doc) {
         return { verdict: 'refused', code: 'taskFailed' };
     return { verdict: 'refused', code: code };
 }
-const SEND_MODES = new Set(['routed', 'egress-session']);
-/** The addressing of a deposit in `mode` (RLTP-VTI-1110, 1120, 3110,
- *  3115, 3120): the inner `direct` message from this side's egress
- *  identity to the counterpart's connection DID; in mode `routed` an
- *  outer routed message from this side's connection DID to the carrier
- *  `C` with the route [counterpart's connection DID], deposited on the
- *  connection DID's session; in mode `egress-session` no outer layer,
- *  deposited on the egress identity's send-only session. */
+// ── Next steps (profile §5, RLTP-VTI-5050) ────────────────────────────
+/** The Type URI of the recipient-suggested continuations this profile reads. */
+export const TRUST_TASK_NEXT_STEP_TYPE = 'https://trusttasks.org/spec/trust-task-next-step/0.1';
+const NEXT_STEP_MEMBERS = new Set(['expects', 'continuation', 'inResponseTo', 'message', 'ext']);
+const EXPECTS_MEMBERS = new Set(['typeUri', 'reason', 'hint']);
+const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+const nonEmpty = (x) => typeof x === 'string' && x.length > 0;
+/** An `inResponseTo` of the registry's form: exactly a non-empty `typeUri`
+ *  and an optional non-empty `id`; false for any other value. */
+function inResponseToOk(r) {
+    if (!isObject(r))
+        return false;
+    if (Object.keys(r).some((k) => k !== 'typeUri' && k !== 'id') || !nonEmpty(r.typeUri))
+        return false;
+    return !('id' in r) || nonEmpty(r.id);
+}
+/** An eddsa-jcs-2022 Data Integrity proof over `doc` under the did:key
+ *  `issuer` (RLTP-VTI-5050): the verification method is the issuer's own
+ *  key, the signature 64 canonical base58btc bytes over the hash of the
+ *  proof configuration and of the document without its proof. The purpose
+ *  and the `created` form are the producer's. Never throws. */
+async function foreignProofOk(doc, issuer) {
+    try {
+        const { proof, ...rest } = doc;
+        if (!isObject(proof) || typeof issuer !== 'string')
+            return false;
+        if (proof.type !== 'DataIntegrityProof' || proof.cryptosuite !== 'eddsa-jcs-2022')
+            return false;
+        if (typeof proof.created !== 'string' || typeof proof.proofPurpose !== 'string')
+            return false;
+        if (proof.verificationMethod !== issuer + '#' + issuer.slice('did:key:'.length))
+            return false;
+        if ('@context' in rest && jcs(proof['@context'] ?? null) !== jcs(rest['@context']))
+            return false;
+        const raw = edRawOfAnchor(issuer);
+        const zsig = proof.proofValue;
+        if (raw === null || typeof zsig !== 'string' || zsig[0] !== 'z')
+            return false;
+        const sig = fromBase58(zsig.slice(1));
+        if (!sig || sig.length !== 64 || 'z' + base58(sig) !== zsig)
+            return false;
+        const { proofValue: _, ...cfg } = proof;
+        const te = new TextEncoder();
+        const S = platformSubtle();
+        const hashData = cat(await sha(te.encode(jcs(cfg)), S), await sha(te.encode(jcs(rest)), S));
+        const pub = await S.importKey('raw', raw, { name: 'Ed25519' }, false, ['verify']);
+        return await S.verify({ name: 'Ed25519' }, pub, sig, hashData);
+    }
+    catch {
+        return false;
+    }
+}
+/** A next step read by its form (registry trust-task-next-step/0.1,
+ *  RLTP-VTI-5050): `type` exactly TRUST_TASK_NEXT_STEP_TYPE; a payload
+ *  with no members but the registry's — `expects` a list of at least one
+ *  object of `typeUri` (non-empty), `reason` (at most 1024 code points)
+ *  and `hint` (an object); `continuation` `resubmit` or `proceed`;
+ *  `inResponseTo`; `message` (at most 1024 code points); `ext` (an
+ *  object); a `proof`, where present, verifying as eddsa-jcs-2022 under
+ *  the did:key of `issuer`. `expects` is read, never followed. Answers
+ *  what it answers by (`inResponseTo`, `threadId`), or null. Total. */
+export async function readTrustTaskNextStep(doc) {
+    try {
+        if (!isObject(doc) || doc.type !== TRUST_TASK_NEXT_STEP_TYPE)
+            return null;
+        const p = doc.payload;
+        if (!isObject(p) || Object.keys(p).some((k) => !NEXT_STEP_MEMBERS.has(k)))
+            return null;
+        if (!Array.isArray(p.expects) || p.expects.length === 0)
+            return null;
+        for (const e of p.expects) {
+            if (!isObject(e) || Object.keys(e).some((k) => !EXPECTS_MEMBERS.has(k)) || !nonEmpty(e.typeUri))
+                return null;
+            if ('reason' in e && (typeof e.reason !== 'string' || !atMostCodePoints(e.reason, 1024)))
+                return null;
+            if ('hint' in e && !isObject(e.hint))
+                return null;
+        }
+        if ('continuation' in p && p.continuation !== 'resubmit' && p.continuation !== 'proceed')
+            return null;
+        if ('inResponseTo' in p && !inResponseToOk(p.inResponseTo))
+            return null;
+        if ('message' in p && (typeof p.message !== 'string' || !atMostCodePoints(p.message, 1024)))
+            return null;
+        if ('ext' in p && !isObject(p.ext))
+            return null;
+        if ('proof' in doc && !(await foreignProofOk(doc, doc.issuer)))
+            return null;
+        const r = p.inResponseTo;
+        return {
+            ...(r === undefined ? {} : { inResponseTo: { typeUri: r.typeUri, ...(r.id === undefined ? {} : { id: r.id }) } }),
+            ...(typeof doc.threadId === 'string' ? { threadId: doc.threadId } : {}),
+        };
+    }
+    catch {
+        return null;
+    }
+}
+// ── The carried document (profile §3b, Delivery 4.6) ─────────────────
+/** The Type URI of the registry's TSP binding envelope (bindings/tsp/0.1 §2). */
+export const TSP_BINDING_ENVELOPE_TYPE = 'https://trusttasks.org/binding/tsp/0.1/envelope';
+const ID_DOMAIN = 'rltp/v1/sealed-envelope-id';
+const hexOf = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+/** The `id` of a carried document (Delivery RLTP-DEL-4620): a UUID v8 from
+ *  the first 16 bytes of SHA-256 over `rltp/v1/sealed-envelope-id` and the
+ *  JCS of { issuer, recipient, seal }, version and variant bits set. */
+export async function sealedEnvelopeId(seal, issuer, recipient) {
+    const te = new TextEncoder();
+    const h = (await sha(cat(te.encode(ID_DOMAIN), te.encode(jcs({ issuer, recipient, seal }))))).slice(0, 16);
+    h[6] = (h[6] & 0x0f) | 0x80;
+    h[8] = (h[8] & 0x3f) | 0x80;
+    const x = hexOf(h);
+    return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+/** The binding envelope that carries `seal` from `issuer` to `recipient`
+ *  (RLTP-VTI-3150, Delivery RLTP-DEL-4610, 5040): a pure function of the
+ *  seal, the two connection DIDs and `since` (the first submission, in
+ *  milliseconds; `issuedAt` is its whole second with `Z`). `bytes` is the
+ *  UTF-8 JCS a deposit carries; `outerId` the carried document's `id`,
+ *  which answers bind to. */
+export async function wrapSealed(seal, at) {
+    if (!Number.isFinite(at.since))
+        throw new Error('wrapSealed: since is a finite instant in milliseconds');
+    const s = { rkid: seal.rkid, epk: seal.epk, nonce: seal.nonce, ciphertext: seal.ciphertext };
+    const outerId = await sealedEnvelopeId(s, at.issuer, at.recipient);
+    const document = {
+        id: outerId, type: SEALED_ENVELOPE_TYPE, issuer: at.issuer, recipient: at.recipient,
+        threadId: outerId, issuedAt: iso(Math.floor(at.since / 1000) * 1000), payload: { ...s },
+    };
+    const envelope = { type: TSP_BINDING_ENVELOPE_TYPE, document };
+    return { envelope, outerId, bytes: new TextEncoder().encode(jcs(envelope)) };
+}
+const VALIDATOR = makeValidator(SCHEMAS);
+const PROFILE = SCHEMAS['rltp-delivery-document.schema.json'];
+const canonicalB64u = (x) => {
+    try {
+        return typeof x === 'string' && b64uOf(fromB64u(x)) === x;
+    }
+    catch {
+        return false;
+    }
+};
+/** The answer an error document or a next step binds to (RLTP-VTI-5040):
+ *  `inResponseTo.id`, else `threadId`; the parties checked against the
+ *  sender and `self`; `inResponseTo.typeUri` the carried type. A string,
+ *  or why not. */
+function boundTo(d, sender, self) {
+    // a framework document's timestamp: any RFC 3339 date-time, any precision
+    // and offset (RLTP-VTI-5060), read for its form only
+    if ('issuedAt' in d && rfc3339(d.issuedAt) === null)
+        return { why: 'answer issuedAt is no RFC 3339 date-time' };
+    if ('issuer' in d && d.issuer !== sender)
+        return { why: 'answer issuer is not the sender' };
+    if ('recipient' in d && d.recipient !== self)
+        return { why: 'answer recipient is not this side' };
+    const p = d.payload;
+    const r = p.inResponseTo;
+    if (r !== undefined && r.typeUri !== SEALED_ENVELOPE_TYPE)
+        return { why: 'answer to another type' };
+    if (r !== undefined && typeof r.id === 'string')
+        return { answers: r.id };
+    if (nonEmpty(d.threadId))
+        return { answers: d.threadId };
+    return { why: 'answer names no document' };
+}
+/** One delivered payload read with its authenticated sender VID (RLTP-VTI-
+ *  7160): at most DECLARED.payloadBound bytes; a JSON object of the binding
+ *  envelope's `type` with an object `document`; a sealed-envelope/0.1
+ *  document satisfying the document profile, `threadId` = `id`, its
+ *  `issuer` the sender and its `recipient` `self` (exact strings), its
+ *  ciphertext canonical → `sealed`; a trust-task-error/0.5 or a
+ *  trust-task-next-step/0.1 read by form and bound (RLTP-VTI-5040) →
+ *  `error` / `next-step`; anything else → `ignored`. Total: never throws. */
+export async function readBindingEnvelope(bytes, at) {
+    try {
+        if (bytes.length > DECLARED.payloadBound)
+            return { kind: 'ignored', why: 'payload over payload-bound' };
+        let o;
+        try {
+            o = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+        }
+        catch {
+            return { kind: 'ignored', why: 'not JSON' };
+        }
+        if (!isObject(o) || o.type !== TSP_BINDING_ENVELOPE_TYPE)
+            return { kind: 'ignored', why: 'not a binding envelope' };
+        const d = o.document;
+        if (!isObject(d))
+            return { kind: 'ignored', why: 'binding envelope without a document object' };
+        if (d.type === SEALED_ENVELOPE_TYPE) {
+            if (VALIDATOR.validate(d, PROFILE, PROFILE).length > 0)
+                return { kind: 'ignored', why: 'carried document fails the profile' };
+            if (d.threadId !== d.id)
+                return { kind: 'ignored', why: 'carried document: threadId is not id' };
+            if (d.issuer !== at.sender)
+                return { kind: 'ignored', why: 'carried document: issuer is not the sender' };
+            if (d.recipient !== at.self)
+                return { kind: 'ignored', why: 'carried document: recipient is not this side' };
+            const seal = d.payload;
+            if (!canonicalB64u(seal.ciphertext))
+                return { kind: 'ignored', why: 'carried document: ciphertext not canonical' };
+            return { kind: 'sealed', seal: { rkid: seal.rkid, epk: seal.epk, nonce: seal.nonce, ciphertext: seal.ciphertext }, outerId: d.id };
+        }
+        if (d.type === TRUST_TASK_ERROR_TYPE) {
+            const reading = readTrustTaskError(d);
+            if (reading === null)
+                return { kind: 'ignored', why: 'not an error document of the registry form' };
+            // a proof, where present, verifies under the issuer, as for a next step (RLTP-VTI-5010, 5050)
+            if ('proof' in d && !(await foreignProofOk(d, d.issuer)))
+                return { kind: 'ignored', why: 'error document whose proof does not verify' };
+            const b = boundTo(d, at.sender, at.self);
+            return 'why' in b ? { kind: 'ignored', why: b.why } : { kind: 'error', reading, answers: b.answers };
+        }
+        if (d.type === TRUST_TASK_NEXT_STEP_TYPE) {
+            if ((await readTrustTaskNextStep(d)) === null)
+                return { kind: 'ignored', why: 'not a next step of the registry form' };
+            const b = boundTo(d, at.sender, at.self);
+            return 'why' in b ? { kind: 'ignored', why: b.why } : { kind: 'next-step', answers: b.answers };
+        }
+        return { kind: 'ignored', why: 'document of another type' };
+    }
+    catch {
+        return { kind: 'ignored', why: 'unreadable' };
+    }
+}
+const SEND_MODES = new Set(['routed', 'direct']);
+/** The addressing of a deposit in `mode` (RLTP-VTI-1120, 3110, 3115,
+ *  3120): the inner `direct` message from this side's connection DID to
+ *  the counterpart's connection DID; in mode `routed` an outer routed
+ *  message from this side's connection DID to the carrier `C` with the
+ *  route [counterpart's connection DID]; in mode `direct` no outer layer.
+ *  Both on the connection DID's session. */
 export function depositAddressing(mode, self, peerConnection, carrier) {
     if (!SEND_MODES.has(mode))
         throw new Error(`unknown send mode ${String(mode)}`);
-    const inner = { messageType: 'direct', sender: self.egress, receiver: peerConnection };
+    const inner = { messageType: 'direct', sender: self, receiver: peerConnection };
     if (mode === 'routed') {
         return {
             inner,
-            outer: { messageType: 'routed', sender: self.connection, receiver: carrier, route: [peerConnection] },
-            session: self.connection,
+            outer: { messageType: 'routed', sender: self, receiver: carrier, route: [peerConnection] },
+            session: self,
         };
     }
-    return { inner, outer: null, session: self.egress };
+    return { inner, outer: null, session: self };
 }
 export class WireError extends Error {
     kind;
@@ -350,7 +596,7 @@ const RECEIVER_REFUSAL_CODES = new Set([
 export function deliveryReportOf(digest, st) {
     switch (st.state) {
         case 'awaiting-transport': return { digest, status: 'awaiting-transport', reason: st.reason };
-        case 'accepted': return { digest, status: 'accepted' };
+        case 'accepted': return st.held === true ? { digest, status: 'accepted', held: true } : { digest, status: 'accepted' };
         case 'delivered': return { digest, status: 'delivered', late: st.late };
         case 'failed': return st.reason === 'rejected-by-receiver'
             ? { digest, status: 'failed', reason: 'rejected-by-receiver', code: st.code }
@@ -372,11 +618,12 @@ const tokenCopy = (t) => ({ accessToken: t.accessToken, accessExpiresAt: t.acces
 const OPEN_KEEP_MS = DECLARED.routedAckDeadlineMs + DECLARED.duplicateWindowMs;
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
 /** A restored send state, checked fail-closed (§4): exactly `mode` and
- *  `open` (and `directRefusedAt`, only in egress-session, a finite instant
- *  not after restoredAt), a known mode, each entry exactly a digest and a
+ *  `open` (and `directRefusedAt`, only in direct, a finite instant not
+ *  after restoredAt), a known mode — `egress-session`, the name lib 0.9
+ *  persisted for it, read as `direct` — each entry exactly a digest and a
  *  finite acceptance instant not after restoredAt, each digest once,
- *  nothing open in egress-session. Any other field — the acknowledgement
- *  fields of an earlier form included — is refused, not ignored. */
+ *  nothing open in direct. Any other field — the acknowledgement fields
+ *  of an earlier form included — is refused, not ignored. */
 function restoreSendState(send, restoredAt) {
     const refuse = (why) => { throw new Error(`ack snapshot: send state ${why}`); };
     if (typeof send !== 'object' || send === null)
@@ -389,10 +636,11 @@ function restoreSendState(send, restoredAt) {
     const refusedField = Object.prototype.hasOwnProperty.call(s, 'directRefusedAt');
     if (!exactly(s, refusedField ? ['mode', 'open', 'directRefusedAt'] : ['mode', 'open']))
         refuse('has other fields than mode, open and directRefusedAt');
-    if (refusedField && (s.mode !== 'egress-session' || !finite(s.directRefusedAt) || s.directRefusedAt > restoredAt)) {
-        refuse('records a refusal of direct delivery outside egress-session, non-finite or after restoredAt');
+    const mode = s.mode === 'egress-session' ? 'direct' : s.mode;
+    if (refusedField && (mode !== 'direct' || !finite(s.directRefusedAt) || s.directRefusedAt > restoredAt)) {
+        refuse('records a refusal of direct delivery outside direct, non-finite or after restoredAt');
     }
-    if (typeof s.mode !== 'string' || !SEND_MODES.has(s.mode))
+    if (typeof mode !== 'string' || !SEND_MODES.has(mode))
         refuse('names an unknown mode');
     if (!Array.isArray(s.open))
         refuse('open deposits are not a list');
@@ -406,10 +654,33 @@ function restoreSendState(send, restoredAt) {
     });
     if (new Set(open.map((o) => o.digest)).size !== open.length)
         refuse('names an open deposit twice');
-    // the switch empties it: an egress-session with open deposits was never produced
-    if (s.mode === 'egress-session' && open.length > 0)
-        refuse('is egress-session with open routed deposits');
-    return { mode: s.mode, open, ...(refusedField ? { directRefusedAt: s.directRefusedAt } : {}) };
+    // the switch empties it: a direct send state with open deposits was never produced
+    if (mode === 'direct' && open.length > 0)
+        refuse('is direct with open routed deposits');
+    return { mode: mode, open, ...(refusedField ? { directRefusedAt: s.directRefusedAt } : {}) };
+}
+/** The sealed envelope of a value (Delivery §5): exactly its four string
+ *  members, copied; anything else is refused. */
+function sealOf(v) {
+    const o = v;
+    if (o === null || typeof o !== 'object' || Array.isArray(o))
+        throw new TypeError('not a sealed envelope (Delivery §5)');
+    const keys = Object.keys(o).sort().join(',');
+    if (keys !== 'ciphertext,epk,nonce,rkid' || [o.rkid, o.epk, o.nonce, o.ciphertext].some((x) => typeof x !== 'string')) {
+        throw new TypeError('not a sealed envelope (Delivery §5): exactly rkid, epk, nonce and ciphertext, strings');
+    }
+    return { rkid: o.rkid, epk: o.epk, nonce: o.nonce, ciphertext: o.ciphertext };
+}
+/** The sealed envelope of the JCS bytes submit() takes. */
+function sealOfBytes(bytes) {
+    let v;
+    try {
+        v = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    }
+    catch {
+        throw new TypeError('not a sealed envelope (Delivery §5): not JSON');
+    }
+    return sealOf(v);
 }
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 // construction capability: only create() holds it
@@ -421,10 +692,8 @@ export class MediatorCarrierAdapter {
     // in true privates behind getters (R8-B1)
     #principal;
     #connectionDid;
-    #egressDid;
     get principal() { return this.#principal; }
     get connectionDid() { return this.#connectionDid; }
-    get egressDid() { return this.#egressDid; }
     #wire;
     #tokens = null;
     #clock = Number.NEGATIVE_INFINITY;
@@ -437,6 +706,22 @@ export class MediatorCarrierAdapter {
     #desiredRkids = null;
     #keylistSynced = false;
     #keylistSyncing = false;
+    /** payloads the adapter consumed itself (answers, ignored, RLTP-VTI-7160),
+     *  concluded at its next step, when it has a clock */
+    #consumed = new Set();
+    /** answers received and not yet decided (RLTP-VTI-5065): unacknowledged */
+    #answers = new Map();
+    /** answers bound and applied, waiting for a collection (RLTP-VTI-5080) */
+    #bound = [];
+    /** the bound answers of each outstanding collection */
+    #outstandingAnswers = new Map();
+    /** every answer held in one of the three registers above, with its bytes:
+     *  together they count toward queue-floor (RLTP-VTI-5065) */
+    #answerIds = new Map();
+    /** the instance has the holder's view (a reconcile) or a submission */
+    #viewKnown = false;
+    /** id computations in flight (RLTP-VTI-5065) */
+    #indexing = 0;
     #inbox = [];
     #inboxBytes = 0;
     #inboxDigests = new Set();
@@ -456,36 +741,33 @@ export class MediatorCarrierAdapter {
     #openDeposits = new Map();
     /** this instance has concluded a collection that left nothing pending */
     #cleanConcluded = false;
-    /** The only way to build an adapter: the trio is DERIVED here from
-     *  one root, one carrier, one nonce — so principal, connection DID
-     *  and egress identity cannot come from different relationships
-     *  (R7-B2: the coupling is enforced by construction, not by
-     *  inspecting caller-supplied identities). */
+    /** The only way to build an adapter: the pair is DERIVED here from
+     *  one root, one carrier, one nonce — so principal and connection DID
+     *  cannot come from different relationships (R7-B2: the coupling is
+     *  enforced by construction, not by inspecting caller-supplied
+     *  identities). */
     static async create(rootIkm, carrier, nonce, wire, restored, restoredAt) {
         // ONE tuple, snapshotted at entry: a caller mutating its buffers
-        // between the three awaited derivations must not be able to mix
+        // between the awaited derivations must not be able to mix
         // identities from two tuples (R8-B2)
         const ikm = new Uint8Array(rootIkm);
         const n = new Uint8Array(nonce);
         const principal = await carrierPrincipal(ikm, carrier, n);
         const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection');
-        const egress = await carrierScopedIdentity(ikm, carrier, n, 'egress');
-        return new MediatorCarrierAdapter(KEY, principal, connection, egress, wire, restored, restoredAt);
+        return new MediatorCarrierAdapter(KEY, principal, connection, wire, restored, restoredAt);
     }
-    constructor(key, principal, connection, egress, wire, restored, restoredAt) {
+    constructor(key, principal, connection, wire, restored, restoredAt) {
         if (key !== KEY) {
-            throw new Error('use MediatorCarrierAdapter.create — the identity trio must be derived, not supplied (5a.10)');
+            throw new Error('use MediatorCarrierAdapter.create — the identities must be derived, not supplied (5a.10)');
         }
-        if (connection.scope !== 'connection' || egress.scope !== 'egress') {
-            throw new Error('scoped identities passed in the wrong roles');
+        if (connection.scope !== 'connection') {
+            throw new Error('the scoped identity passed in the wrong role');
         }
-        const three = new Set([principal.principal, connection.did, egress.did]);
-        if (three.size !== 3) {
-            throw new Error('principal, connection DID and egress identity must be pairwise distinct (5a.10)');
+        if (principal.principal === connection.did) {
+            throw new Error('principal and connection DID must be distinct (5a.10)');
         }
         this.#principal = principal.principal;
         this.#connectionDid = connection.did;
-        this.#egressDid = egress.did;
         this.#wire = wire;
         if (restored) {
             // The restore instant anchors the duplicate-window: an expired,
@@ -532,7 +814,7 @@ export class MediatorCarrierAdapter {
                         this.#openDeposits.set(o.digest, o.acceptedAt);
             }
         }
-        this.#wire.onDeliver(async (raw) => {
+        this.#wire.onDeliver(async (raw, sender) => {
             if (this.#closed)
                 return false;
             // a plain copy of its own: a Node Buffer's slice() would share memory
@@ -548,9 +830,10 @@ export class MediatorCarrierAdapter {
             // resubmits after a lost acknowledgement is answered. The entry and
             // its ack intent stand for the duplicate window, and the window
             // beats everything (round-14 B): beyond it, both fall.
-            // buffered and outstanding go before concluded (§3): a redelivery of
-            // a later copy the holder has not concluded yet is ignored
-            if (this.#inboxDigests.has(queueId))
+            // buffered, outstanding and consumed go before concluded (§3): a
+            // redelivery of a later copy the holder has not concluded yet is
+            // ignored
+            if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#answerIds.has(queueId))
                 return true;
             for (const col of this.#outstanding.values())
                 if (col.has(queueId))
@@ -570,18 +853,181 @@ export class MediatorCarrierAdapter {
                     this.#pendingAcks.delete(queueId);
                 }
             }
+            // the payload read with its authenticated sender (RLTP-VTI-7160)
+            const reading = await readBindingEnvelope(bytes, { sender: String(sender), self: this.#connectionDid });
+            if (this.#closed)
+                return false;
+            if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#answerIds.has(queueId))
+                return true;
+            // an answer is held, unacknowledged, until it is decided against the
+            // ids of every open document (RLTP-VTI-5065); beyond the floor it
+            // stays with the mediator
+            if (reading.kind === 'error' || reading.kind === 'next-step') {
+                let held = 0;
+                for (const n of this.#answerIds.values())
+                    held += n;
+                if (this.#answerIds.size >= DECLARED.queueFloorCount || held + bytes.length > DECLARED.queueFloorBytes)
+                    return false;
+                this.#answers.set(queueId, { reading, sender: String(sender) });
+                this.#answerIds.set(queueId, bytes.length);
+                this.#decideAnswers();
+                return true;
+            }
+            if (reading.kind === 'ignored') {
+                this.#log(`payload from ${String(sender)} not delivered: ${reading.why} (acknowledged)`);
+                this.#consumed.add(queueId);
+                return true;
+            }
+            // the seal, as the holder's receive takes it (Delivery §5, RLTP-DEL-5030)
+            const item = new TextEncoder().encode(jcs(reading.seal));
             const held = this.#inboxBytes + this.#outstandingBytes;
             const underFloor = this.#inbox.length < DECLARED.queueFloorCount &&
-                held + bytes.length <= DECLARED.queueFloorBytes;
-            const underCap = held + bytes.length <= DECLARED.maxQueueBytes;
+                held + item.length <= DECLARED.queueFloorBytes;
+            const underCap = held + item.length <= DECLARED.maxQueueBytes;
             // not acknowledged and not taken: the mediator keeps its copy
             if (!underFloor && !underCap)
                 return false;
-            this.#inbox.push({ bytes, queueId });
-            this.#inboxBytes += bytes.length;
+            this.#inbox.push({ bytes: item, queueId });
+            this.#inboxBytes += item.length;
             this.#inboxDigests.add(queueId);
             return true;
         });
+    }
+    #log(line) {
+        try {
+            this.#wire.log?.(`[vti-adapter] ${line}`);
+        }
+        catch { /* a sink's failure is not the adapter's */ }
+    }
+    /** Bind-and-apply (RLTP-VTI-5040, 5065, 5070): the submission of this
+     *  instance whose carried document's id the answer names, if its
+     *  authenticated sender is the recipient that carried document named;
+     *  the outcome applied to it: a terminal refusal fails it, a retryable
+     *  one bounds its next attempt, idConflict answers it, a next step makes
+     *  it accepted and held (RLTP-VTI-5050). Answers the submission it
+     *  changed (a document), or null where it binds nothing. */
+    #bindAndApply(reading, sender) {
+        let sub;
+        for (const x of this.#subs.values())
+            if (x.outerId !== undefined && x.outerId === reading.answers) {
+                sub = x;
+                break;
+            }
+        if (sub === undefined) {
+            this.#log(`answer from ${sender} binds no submission of this instance (${reading.kind}, ${reading.answers}): acknowledged`);
+            return null;
+        }
+        // the transition is the counterpart's alone, whatever the wire filtered (RLTP-VTI-5070)
+        if (sub.peer === undefined || sender !== sub.peer) {
+            this.#log(`answer from ${sender}, not the recipient of the document it names (${reading.kind}): acknowledged, nothing changes`);
+            return null;
+        }
+        // an acknowledgement has no trias (Delivery 6.1): an answer to one changes nothing (RLTP-VTI-5040)
+        if (!this.#isDocument(sub)) {
+            this.#log(`answer from ${sender} to a carried acknowledgement (${reading.kind}): acknowledged, nothing changes`);
+            return null;
+        }
+        if (reading.kind === 'next-step') {
+            this.#answer(sub);
+            const terminal = sub.st !== null && (sub.st.state === 'delivered' || sub.st.state === 'failed');
+            const held = sub.st !== null && sub.st.state === 'accepted' && sub.st.held === true;
+            if (!terminal && !held)
+                sub.st = { state: 'accepted', held: true };
+            return sub;
+        }
+        const r = reading.reading;
+        switch (r.verdict) {
+            case 'refused':
+                this.receiverRefused(sub.id, r.code);
+                return sub;
+            case 'retry':
+                this.receiverRetry(sub.id, r.retryAfter);
+                return null;
+            case 'answered':
+                this.#answer(sub);
+                return null;
+            case 'none': return null;
+        }
+    }
+    /** Decides every held answer, once the instance knows the holder's view
+     *  and every open document has its id (RLTP-VTI-5065): one bound to a
+     *  document of the holder waits in a collection until the host recorded
+     *  its report (RLTP-VTI-5080); every other is acknowledged at the next
+     *  step. Every answer takes this one path, whatever the opening's state. */
+    #decideAnswers() {
+        if (this.#closed || !this.#viewKnown || this.#indexing > 0 || this.#answers.size === 0)
+            return;
+        // every filed submission must have its id first; while the counterpart
+        // is unknown none can, and the answers wait (RLTP-VTI-5065)
+        for (const s of this.#subs.values()) {
+            if (s.outerId !== undefined)
+                continue;
+            let peer;
+            try {
+                peer = this.#wire.counterpart();
+            }
+            catch {
+                peer = null;
+            }
+            if (typeof peer === 'string' && peer.length > 0)
+                this.#index();
+            return;
+        }
+        for (const [queueId, { reading, sender }] of this.#answers) {
+            this.#answers.delete(queueId);
+            const sub = this.#bindAndApply(reading, sender);
+            const report = sub !== null && sub.digest !== undefined ? this.report(sub.id) : null;
+            if (sub !== null && report !== null)
+                this.#bound.push({ queueId, submissionId: sub.id, report });
+            else {
+                this.#answerIds.delete(queueId);
+                this.#consumed.add(queueId);
+            }
+        }
+    }
+    /** The id of the carried document of every filed submission that has
+     *  none yet, from its seal and both connection DIDs (Delivery
+     *  RLTP-DEL-4620; RLTP-VTI-5065) — custody and offered alike, whether
+     *  or not an attempt runs — then the held answers are decided. */
+    #index() {
+        this.#viewKnown = true;
+        this.#indexing++;
+        this.#track((async () => {
+            try {
+                await Promise.resolve();
+                let peer;
+                try {
+                    peer = this.#wire.counterpart();
+                }
+                catch {
+                    peer = null;
+                }
+                if (typeof peer === 'string' && peer.length > 0) {
+                    for (const s of [...this.#subs.values()]) {
+                        if (s.outerId !== undefined)
+                            continue;
+                        const id = await sealedEnvelopeId(s.seal, this.#connectionDid, peer);
+                        if (s.outerId === undefined) {
+                            s.outerId = id;
+                            s.peer = peer;
+                        }
+                    }
+                }
+            }
+            finally {
+                this.#indexing--;
+                this.#decideAnswers();
+            }
+        })());
+    }
+    /** The payloads consumed since the last step become concluded entries
+     *  with their ack intent (§3): at a step, when the adapter has a clock. */
+    #concludeConsumed(now) {
+        for (const id of this.#consumed) {
+            this.#concluded.set(id, now);
+            this.#pendingAcks.add(id);
+        }
+        this.#consumed.clear();
     }
     #now(raw) {
         if (!Number.isFinite(raw))
@@ -678,18 +1124,22 @@ export class MediatorCarrierAdapter {
         })());
     }
     // ── sender side ─────────────────────────────────────────────────
-    /** Returns the submission id synchronously. Before the first
-     *  honest report exists, status() returns null — §6.1's own
-     *  pre-report window, represented as absence, not as a value. */
+    /** Takes the JCS bytes of a sealed envelope (Delivery §5) and returns
+     *  the submission id synchronously; bytes that are no sealed envelope
+     *  are refused at once. Its carried document's issuedAt is this call's
+     *  instant. Before the first honest report exists, status() returns
+     *  null — §6.1's own pre-report window, represented as absence, not as
+     *  a value. */
     submit(envelopeBytes, rawNow) {
         this.#open();
+        const seal = sealOfBytes(envelopeBytes);
         const now = this.#now(rawNow);
         const id = 's' + this.#nextId++;
         const knownOffline = this.#wire.offline?.() === true;
         const sub = {
             id,
-            // a plain copy of its own (a Node Buffer's slice() shares memory)
-            bytes: new Uint8Array(envelopeBytes),
+            seal,
+            since: now,
             submittedAt: now,
             attemptStartedAt: null,
             lastKind: null,
@@ -699,6 +1149,7 @@ export class MediatorCarrierAdapter {
         this.#subs.set(id, sub);
         if (!knownOffline)
             this.#startAttempt(sub, now);
+        this.#index();
         return id;
     }
     /** Takes the holder's custody set (holder.pendingTransport, after a
@@ -757,7 +1208,11 @@ export class MediatorCarrierAdapter {
             const id = 's' + this.#nextId++;
             const sub = {
                 id, digest: entry.digest, entry, gate,
-                bytes: new TextEncoder().encode(jcs(entry.envelope)),
+                seal: sealOf(entry.envelope),
+                // the carried document's issuedAt: the first submission as the
+                // holder recorded it (an ack: its effect's commit), never this
+                // hand-over (RLTP-VTI-3150)
+                since: entry.since,
                 // a duplicate's ack is a hand-over of its own, from now
                 submittedAt: entry.resend !== undefined ? now : Math.min(entry.since, now),
                 attemptStartedAt: null, lastKind: null, st: null, sentMode: null,
@@ -773,6 +1228,38 @@ export class MediatorCarrierAdapter {
             if (this.#wire.offline?.() !== true)
                 this.#startAttempt(sub, now);
         }
+        // the accepted documents the holder offers for binding answers only
+        // (RLTP-VTI-5065, Delivery RLTP-DEL-6150): filed in their state, never
+        // attempted; one this instance already holds is not filed twice
+        const answerable = Array.isArray(view.answerable) ? view.answerable : [];
+        for (const a of answerable) {
+            if (a === null || typeof a !== 'object' || typeof a.digest !== 'string' || !Number.isFinite(a.since))
+                continue;
+            let held = false;
+            for (const s of this.#subs.values())
+                if (s.digest === a.digest && s.entry?.resend === undefined) {
+                    held = true;
+                    break;
+                }
+            if (held)
+                continue;
+            let seal;
+            try {
+                seal = sealOf(a.envelope);
+            }
+            catch {
+                continue;
+            }
+            const id = 's' + this.#nextId++;
+            this.#subs.set(id, {
+                id, digest: a.digest, gate, seal, since: a.since, submittedAt: a.since,
+                attemptStartedAt: null, lastKind: null, sentMode: null, bindOnly: true,
+                st: a.held === true ? { state: 'accepted', held: true } : { state: 'accepted' },
+            });
+            refs.push({ submissionId: id, digest: a.digest });
+        }
+        // every open document gets its id; the held answers are decided then (RLTP-VTI-5065)
+        this.#index();
         return refs;
     }
     /** The current state as the ports' DeliveryReport for holder.report(),
@@ -792,7 +1279,7 @@ export class MediatorCarrierAdapter {
         return this.#subs.has(id);
     }
     #startAttempt(sub, now) {
-        if (sub.attemptStartedAt !== null)
+        if (sub.attemptStartedAt !== null || sub.bindOnly === true)
             return;
         // a counterpart's retryAfter is the lower bound of the next attempt (RLTP-VTI-5010)
         if (sub.notBefore !== undefined && now < sub.notBefore)
@@ -801,18 +1288,18 @@ export class MediatorCarrierAdapter {
         this.#track(this.#trySend(sub, now).finally(() => { sub.attemptStartedAt = null; }));
     }
     /** RLTP-VTI-3120: the carrier refused direct delivery and the
-     *  relationship is in egress-session — nothing is handed over. Reads the
+     *  relationship is in direct — nothing is handed over. Reads the
      *  wire's signal first, so a refusal received after an accepted deposit
      *  is recorded before anything else is handed over. */
     #directRefused() {
         this.#readDirectRefusal();
-        return this.#directRefusedAt !== null && this.#mode === 'egress-session';
+        return this.#directRefusedAt !== null && this.#mode === 'direct';
     }
     /** The wire's signal of a refusal of direct delivery (MediatorWire.
-     *  directRefused), recorded once, in egress-session only, at the
+     *  directRefused), recorded once, in direct only, at the
      *  adapter clock. */
     #readDirectRefusal() {
-        if (this.#directRefusedAt !== null || this.#mode !== 'egress-session' || !Number.isFinite(this.#clock))
+        if (this.#directRefusedAt !== null || this.#mode !== 'direct' || !Number.isFinite(this.#clock))
             return;
         if (this.#wire.directRefused?.() === true)
             this.#directRefusedAt = this.#clock;
@@ -830,6 +1317,16 @@ export class MediatorCarrierAdapter {
         let next;
         let routedRefused = false;
         try {
+            // the carried document of this attempt (RLTP-VTI-3150): a function of
+            // the seal, both connection DIDs and `since`, so every attempt carries
+            // the same bytes; without a counterpart (a displayed card's instance
+            // not yet bound) nothing is deposited
+            const peer = this.#wire.counterpart();
+            if (typeof peer !== 'string' || peer.length === 0)
+                throw new WireError('unreachable', 'no counterpart: nothing is deposited before the instance is bound');
+            const carried = await wrapSealed(sub.seal, { issuer: this.#connectionDid, recipient: peer, since: sub.since });
+            sub.outerId = carried.outerId;
+            sub.peer = peer;
             const token = await this.#ensureAuth(now);
             if (this.#closed)
                 return; // retirement between auth and deposit: nothing new starts (R5-B2)
@@ -840,7 +1337,7 @@ export class MediatorCarrierAdapter {
             const deposit = () => {
                 sub.sentMode = this.#mode;
                 try {
-                    return this.#wire.deposit(token, new Uint8Array(sub.bytes), this.#egressDid, sub.sentMode);
+                    return this.#wire.deposit(token, new Uint8Array(carried.bytes), sub.sentMode);
                 }
                 catch (e) {
                     return Promise.reject(e);
@@ -913,7 +1410,7 @@ export class MediatorCarrierAdapter {
             // a refusal of direct delivery (RLTP-VTI-3120): recorded in the send
             // state, so it survives openings; the submission stays a retriable refusal
             if (kind === 'direct-refused') {
-                if (sub.sentMode === 'egress-session' && this.#directRefusedAt === null)
+                if (sub.sentMode === 'direct' && this.#directRefusedAt === null)
                     this.#directRefusedAt = this.#clock;
                 kind = 'refused-retriable';
             }
@@ -929,7 +1426,7 @@ export class MediatorCarrierAdapter {
             return;
         // evidence against routed (RLTP-VTI-3130): the switch, at once
         if (routedRefused)
-            this.#switchToEgress();
+            this.#switchToDirect();
         // withdrawn meanwhile (app contract rule 5): the late outcome changes nothing
         if (this.#subs.get(sub.id) !== sub)
             return;
@@ -969,8 +1466,8 @@ export class MediatorCarrierAdapter {
     }
     /** The switch (RLTP-VTI-3130): one way; the open routed deposits leave
      *  the send state. */
-    #switchToEgress() {
-        this.#mode = 'egress-session';
+    #switchToDirect() {
+        this.#mode = 'direct';
         this.#openDeposits.clear();
     }
     /** The current sending mode of the relationship (profile §3a). */
@@ -1102,18 +1599,20 @@ export class MediatorCarrierAdapter {
     // ── receiver side ───────────────────────────────────────────────
     collect(rawNow) {
         this.#open();
-        this.#now(rawNow);
-        if (this.#inbox.length === 0)
-            return { id: 'c-empty', items: [] };
+        this.#concludeConsumed(this.#now(rawNow));
+        if (this.#inbox.length === 0 && this.#bound.length === 0)
+            return { id: 'c-empty', items: [], answers: [] };
         const items = this.#inbox.splice(0);
+        const answers = this.#bound.splice(0);
         this.#outstandingBytes += this.#inboxBytes;
         this.#inboxBytes = 0;
         this.#inboxDigests.clear();
         const id = 'c' + this.#nextColId++;
         this.#outstanding.set(id, new Map(items.map((i) => [i.queueId, i])));
+        this.#outstandingAnswers.set(id, answers);
         // the caller gets its own copies: the outstanding entries stay intact,
         // whatever it does with the bytes, for a conclusion that keeps them
-        return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })) };
+        return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })), answers: answers.map((a) => ({ ...a, report: { ...a.report } })) };
     }
     /** Concludes a collection (profile §4, Delivery 5a.8): its items'
      *  digests become ack intent. `keep` names the items whose disposition
@@ -1128,7 +1627,24 @@ export class MediatorCarrierAdapter {
     conclude(collection, rawNow, opts = {}) {
         this.#open();
         const now = this.#now(rawNow);
+        this.#concludeConsumed(now);
         const col = this.#outstanding.get(collection.id);
+        // the bound answers: acknowledged now, the host having recorded their
+        // reports (RLTP-VTI-5080); a kept one waits for the next collection
+        const ans = this.#outstandingAnswers.get(collection.id);
+        if (ans !== undefined) {
+            this.#outstandingAnswers.delete(collection.id);
+            const keepA = new Set(opts.keep ?? []);
+            for (const a of ans) {
+                if (keepA.has(a.queueId)) {
+                    this.#bound.push(a);
+                    continue;
+                }
+                this.#answerIds.delete(a.queueId);
+                this.#concluded.set(a.queueId, now);
+                this.#pendingAcks.add(a.queueId);
+            }
+        }
         if (!col) {
             // an empty collection is concluded too: it may be the one that leaves nothing pending
             if (collection.id === 'c-empty')
@@ -1156,7 +1672,8 @@ export class MediatorCarrierAdapter {
      *  holds nothing more (queueEmpty; a wire without it never says so),
      *  nothing waits in the buffer, no collection is outstanding. */
     #nothingPending() {
-        return this.#wire.queueEmpty?.() === true && this.#inbox.length === 0 && this.#outstanding.size === 0;
+        return this.#wire.queueEmpty?.() === true && this.#inbox.length === 0 && this.#outstanding.size === 0 &&
+            this.#answers.size === 0 && this.#bound.length === 0 && this.#outstandingAnswers.size === 0;
     }
     /** After a conclusion (RLTP-VTI-3130): when it left nothing pending,
      *  the switch check may run in a later advance. */
@@ -1257,6 +1774,8 @@ export class MediatorCarrierAdapter {
         this.#open();
         const now = this.#now(rawNow);
         this.#readDirectRefusal();
+        this.#decideAnswers();
+        this.#concludeConsumed(now);
         // open routed deposits fall routed-ack-deadline plus duplicate-window
         // after their acceptance, also where no switch check can run (no
         // statement that nothing is pending, RLTP-VTI-7150)
@@ -1271,14 +1790,18 @@ export class MediatorCarrierAdapter {
         if (this.#mode === 'routed' && this.#cleanConcluded && this.#nothingPending()) {
             for (const acceptedAt of this.#openDeposits.values()) {
                 if (now - acceptedAt >= DECLARED.routedAckDeadlineMs) {
-                    this.#switchToEgress();
+                    this.#switchToDirect();
                     break;
                 }
             }
         }
         for (const sub of this.#subs.values()) {
             const live = sub.st === null || sub.st.state === 'awaiting-transport' || sub.st.state === 'accepted';
-            if (!live)
+            if (!live || sub.bindOnly === true)
+                continue;
+            // held (RLTP-VTI-5050): the counterpart said it has the document; no
+            // horizon ends it, only an acknowledgement or a terminal refusal
+            if (sub.st !== null && sub.st.state === 'accepted' && sub.st.held === true)
                 continue;
             if (now - sub.submittedAt >= DECLARED.giveUpHorizonMs) {
                 // unroutable only when the LAST COMPLETED attempt was an

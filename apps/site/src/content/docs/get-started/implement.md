@@ -58,9 +58,13 @@ send state in its `ackState()` (the sending mode and the open routed
 deposits); the app persists it with the ack state,
 restores it into the adapter of the next opening, and hands that adapter
 the answers for earlier deposits through `answered(digest, now)` before its
-next `advance`. The adapter of a relationship needs the counterpart's
-identities at the mediator: the app draws the relationship's carrier
-nonce, builds its own delivery hint from the identities the adapter
+next `advance`. It carries every sealed envelope as a
+`sealed-envelope/0.1` document in the Trust Tasks TSP binding and applies
+a counterpart's `trust-task-error` and `trust-task-next-step` answers
+itself; its report `accepted` with `held: true` goes to the holder like
+any other. The adapter of a relationship needs the counterpart's
+identity at the mediator: the app draws the relationship's carrier
+nonce, builds its own delivery hint from the identity the adapter
 derives from it, and passes both to `show` or `scan`
 (`carrier: {nonce, deliveryHints}`); the contact's relationships then
 name the counterpart's hints and the own nonce

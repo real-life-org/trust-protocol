@@ -1,6 +1,6 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
-export { emptyState, triasOf, toOpaque } from './state.js';
+export { emptyState, heldOf, triasOf, toOpaque } from './state.js';
 export { CODEC, MIGRATIONS, VALIDATORS, decodeState, encodeState, sameState, isKnownDuty, StateCodecError } from './codec.js';
 export { SIGNATURE_CLASS } from './receive.js';
 export { contactsView, contactView, groupsView, profileView, promptsView, inboxView, deliveryStatusView } from './views.js';

@@ -244,7 +244,7 @@
 //     Delivery 0.82: addresses and identity contexts)
 import { jcs, b64uOf } from './core.js'
 import { CODEC, decodeState, encodeState } from './codec.js'
-import { emptyState, toOpaque, triasOf } from './state.js'
+import { emptyState, heldOf, toOpaque, triasOf } from './state.js'
 import type { ActRecord, Dec, Duty, Effect, HolderState, Millis, OutboxItem, OutboxStep, Prompt, PromptChoice, PromptKind, StoredAck } from './state.js'
 import type { Access, CarrierKey, DeliveryReport, KeyProvider, KeyRelease, Log, Outbound, PreTransportReason, Recipient, RetryPolicy, Store, StoreSnapshot } from './ports.js'
 import type { Envelope } from './delivery.js'
@@ -630,13 +630,33 @@ export interface TransportEntry {
   readonly resend?: number
 }
 
+/** One accepted document the holder offers for binding a counterpart's
+ *  answers only (Delivery RLTP-DEL-6150): its sealed envelope and first
+ *  submission, from which a carrier adapter recomputes what the document
+ *  travelled under. It authorizes no hand-over (mayHandOver refuses it),
+ *  and neither its presence nor its absence is leave or stop (6135).
+ *  Derived from the outbox, deep-frozen. */
+export interface AnswerableEntry {
+  readonly digest: string
+  readonly kind: 'document'
+  readonly envelope: Envelope
+  readonly recipient: Recipient
+  /** the first submission as the holder recorded it, as on TransportEntry */
+  readonly since: Millis
+  /** accepted with the feature held (RLTP-DEL-6140) */
+  readonly held: boolean
+}
+
 /** pendingTransport's answer: the set at `at` — the `when` asked for, or
- *  the holder's lastWhen if that is later — and the commit it was read at. */
+ *  the holder's lastWhen if that is later — and the commit it was read at.
+ *  `entries` is the custody set (6120); `answerable` the accepted
+ *  documents not yet terminal, for binding answers only (6150). */
 export interface TransportView {
   readonly ok: true
   readonly commitSeq: Dec
   readonly at: Millis
   readonly entries: readonly TransportEntry[]
+  readonly answerable: readonly AnswerableEntry[]
 }
 
 /** pendingTransport refuses until a resume of this engine has completed:
@@ -1274,8 +1294,11 @@ class HolderEngine implements Engine {
   /** Why a non-terminal outbox item is given up at `when`, or null: its
    *  sender lifetime, where it ends no later than the horizon
    *  (failed(task-expired), Delivery 6110), else the horizon
-   *  (failed(expired-by-adapter-policy)). */
+   *  (failed(expired-by-adapter-policy)). A held item is never given up
+   *  (Delivery RLTP-DEL-6140, 6110): only an acknowledgement or a validated
+   *  terminal refusal ends it. */
   #giveUp (it: Readonly<OutboxItem>, when: Millis): 'task-expired' | 'expired-by-adapter-policy' | null {
+    if (heldOf(it)) return null
     const first = it.history.length ? it.history[0].at : when
     const expiry = Math.min(first + this.#policy.horizonMs, Number.MAX_SAFE_INTEGER)
     const life = it.expiresAt
@@ -1422,7 +1445,8 @@ class HolderEngine implements Engine {
           }
           const first = it.history.length ? it.history[0].at : when
           const expiry = Math.min(first + p.horizonMs, Number.MAX_SAFE_INTEGER)
-          due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry)
+          // a held item has no expiry (Delivery RLTP-DEL-6140)
+          if (!heldOf(it)) due(it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry)
           // never re-emitted: an accepted item (the service has it) and one the
           // adapter holds (awaiting-transport, until it reports again)
           if (trias === 'accepted' || it.history[it.history.length - 1]?.status === 'awaiting-transport') continue
@@ -1610,6 +1634,13 @@ class HolderEngine implements Engine {
             break
           }
           case 'accepted':
+            if (report.held === true) {
+              // a validated next step (Delivery RLTP-DEL-6140): from any
+              // non-terminal state, once; a terminal item stays as it is
+              if (trias === 'delivered' || trias === 'failed' || heldOf(it)) return same
+              step = { status: 'accepted', at: when, held: true }
+              break
+            }
             if (had('accepted') || trias !== 'submitted') return same
             step = { status: 'accepted', at: when }
             break
@@ -1632,6 +1663,7 @@ class HolderEngine implements Engine {
         const outbox = { ...state.outbox, [report.digest]: { ...base, history: [...it.history, step] } }
         const events: EventDraft[] = step.status === 'awaiting-transport' ? [] : [{
           type: 'delivery.status', digest: report.digest, threadId: it.threadId, status: step.status,
+          ...(step.status === 'accepted' && step.held === true ? { held: true as const } : {}),
         }]
         if (step.status === 'failed') {
           const f = failed({ ...state, outbox }, [report.digest], when)
@@ -1845,7 +1877,8 @@ class HolderEngine implements Engine {
         this.#issued.add(f)
         return f
       })
-      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at, entries: Object.freeze(entries) })
+      const answerable = answerableEntries(state, at, (it) => this.#giveUp(it, at) === null).map((e) => freezeDeep(e))
+      return Object.freeze({ ok: true as const, commitSeq: state.commitSeq, at, entries: Object.freeze(entries), answerable: Object.freeze(answerable) })
     })
   }
 
@@ -1927,7 +1960,8 @@ const actEnd = (state: Readonly<HolderState>, a: Readonly<ActRecord>, retention:
  *  submission, or the sender lifetime its type declared if that is
  *  earlier (#giveUp's two bounds as one instant). */
 const notAfterOf = (it: Readonly<OutboxItem>, horizonMs: number): Millis | null => {
-  if (!it.history.length) return null
+  // a held item ends at no instant (Delivery RLTP-DEL-6140)
+  if (!it.history.length || heldOf(it)) return null
   const expiry = Math.min(it.history[0].at + horizonMs, Number.MAX_SAFE_INTEGER)
   return it.expiresAt !== undefined ? Math.min(it.expiresAt, expiry) : expiry
 }
@@ -1973,6 +2007,18 @@ function transportEntryOf (state: Readonly<HolderState>, kind: 'document' | 'ack
 
 /** Everything the holder keeps for transport at `when`: the outbox items
  *  by due time, then digest, then the unsent acks by effect digest. */
+/** The accepted documents not yet terminal and not due to be given up, in
+ *  digest order (Delivery RLTP-DEL-6150): for binding answers only. */
+function answerableEntries (state: Readonly<HolderState>, _when: Millis, live: (it: Readonly<OutboxItem>) => boolean): AnswerableEntry[] {
+  const out: AnswerableEntry[] = []
+  for (const d of Object.keys(state.outbox).sort()) {
+    const it = state.outbox[d]
+    if (triasOf(it) !== 'accepted' || !live(it)) continue
+    out.push(structuredClone({ digest: d, kind: 'document' as const, envelope: it.envelope, recipient: it.recipient, since: it.history[0].at, held: heldOf(it) }))
+  }
+  return out
+}
+
 function transportEntries (state: Readonly<HolderState>, when: Millis, horizonMs: number): TransportEntry[] {
   const out: TransportEntry[] = []
   const order = Object.keys(state.outbox).sort((a, b) =>

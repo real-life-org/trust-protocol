@@ -1116,7 +1116,7 @@ for (const n of EC.negative) {
 // An independent reader of RLTP-VTI-1210, 1220 and 1225 (node alone, not
 // the library's readDeliveryHint, which lib/test checks against the same
 // vector), so the two implementations must agree on every case.
-section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint form, its length, the card carrying it')
+section('vti-delivery-hints.json — VTI adapter profile 0.29 §1b: the hint form, its length, the card carrying it')
 {
   const DH = J('vectors/vti-delivery-hints.json')
   // RLTP-VTI-1210: did:key:z + canonical base58btc of 0xed 0x01 and the 32-byte key (decoded, not pattern-matched)
@@ -1132,32 +1132,34 @@ section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint for
     if (typeof hint !== 'string') return null
     const o = JSON.parse(hint)
     if (o === null || typeof o !== 'object' || Array.isArray(o) || jcs(o) !== hint) return null
-    if (jcs(Object.keys(o).sort()) !== jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])) return null
-    if (o.type !== 'TSPTransport' || typeof o.id !== 'string' || !o.id.endsWith('#tsp') || typeof o.rltpEgress !== 'string') return null
+    // three members, or those and a fourth rltpEgress whose value is ignored (1220)
+    const keys = jcs(Object.keys(o).sort())
+    if (keys !== jcs(['id', 'serviceEndpoint', 'type']) && keys !== jcs(['id', 'rltpEgress', 'serviceEndpoint', 'type'])) return null
+    if (o.type !== 'TSPTransport' || typeof o.id !== 'string' || !o.id.endsWith('#tsp')) return null
     const connection = o.id.slice(0, -'#tsp'.length)
-    if (!edDidKey(connection) || !edDidKey(o.rltpEgress) || connection === o.rltpEgress) return null
+    if (!edDidKey(connection)) return null
     if (o.serviceEndpoint !== carrier) return null
-    return { connection, egress: o.rltpEgress }
+    return { connection }
   }
   for (const s of ['A', 'B']) {
     const h = DH.hints[s]
-    checkR(['RLTP-VTI-1210', 'RLTP-VTI-1220'], jcs(reads(h, DH.carrier)) === jcs(DH.sides[s]), `hint ${s}: the JCS form of a TSPTransport entry naming its connection DID, C and its egress identity`)
+    checkR(['RLTP-VTI-1210', 'RLTP-VTI-1220'], jcs(reads(h, DH.carrier)) === jcs(DH.sides[s]), `hint ${s}: the JCS form of a TSPTransport entry naming its connection DID and C`)
     checkR(['RLTP-ENC-6090'], [...h].length === DH.hintLength[s] && DH.hintLength[s] <= 512, `hint ${s}: ${DH.hintLength[s]} characters, at most 512`)
   }
   schemaOK(DH.card, 'contact-card-0.25.schema.json', 'card with a delivery hint')
   check(diVerify(DH.card, DH.card.anchor).ok, 'card with a delivery hint: DI proof verifies over the hints')
   check(jcs(DH.card.deliveryHints) === jcs([DH.hints.B]), 'card with a delivery hint: carries B\'s hint')
   for (const c of DH.ignored) checkR(c.rules, reads(c.hint, DH.carrier) === null, `ignored hint: ${c.case}`)
+  for (const c of DH.withEgress) checkR(c.rules, jcs(reads(c.hint, DH.carrier)) === jcs(DH.sides[c.reads]), `hint with rltpEgress read, the member ignored: ${c.case}`)
   // a card's hint list: exactly one hint of this profile for C (RLTP-VTI-1225)
-  // a card's hint list read by `self`: hints naming self's identities ignored (RLTP-VTI-1227), then exactly one for C
+  // a card's hint list read by `self`: a hint naming self's connection DID ignored (RLTP-VTI-1227), then exactly one for C
   const readList = (hints, carrier, self) => {
-    const own = new Set([self.connection, self.egress])
-    const r = hints.map((h) => reads(h, carrier)).filter((x) => x !== null && !own.has(x.connection) && !own.has(x.egress))
+    const r = hints.map((h) => reads(h, carrier)).filter((x) => x !== null && x.connection !== self.connection)
     return r.length === 1 ? r[0] : null
   }
   for (const c of DH.lists) {
     const want = c.expect === null ? null : DH.sides[c.expect]
-    checkR(c.rules, jcs(readList(c.hints, DH.carrier, DH.sides[c.reader])) === jcs(want), `hint list read by ${c.reader}: ${c.case} → ${c.expect ?? 'no wire identities'}`)
+    checkR(c.rules, jcs(readList(c.hints, DH.carrier, DH.sides[c.reader])) === jcs(want), `hint list read by ${c.reader}: ${c.case} → ${c.expect ?? 'no wire identity'}`)
   }
   schemaOK(DH.sentCard, 'contact-card-0.25.schema.json', 'sent card with a delivery hint')
   check(diVerify(DH.sentCard, DH.sentCard.anchor).ok, 'sent card with a delivery hint: DI proof verifies over the hints')
@@ -1165,6 +1167,96 @@ section('vti-delivery-hints.json — VTI adapter profile 0.25 §1b: the hint for
   check(jcs(readList(DH.sentCard.deliveryHints, DH.carrier, DH.sides.B)) === jcs(DH.sides.A), 'sent card: carries A\'s hint')
   checkR(DH.tooLong.rules, [...DH.tooLong.card.deliveryHints[0]].length === 513, 'card with a 513-character hint: the hint exceeds 512 characters')
   schemaFails(DH.tooLong.card, 'contact-card-0.25.schema.json', 'card with a 513-character hint')
+}
+
+// ── suite 3w: the carried document of the VTI mediator adapter profile ──
+// An independent writer and reader of RLTP-VTI-3150 and 7160 and of the
+// answers of 5040 to 5060 (node alone, not the library's wrapSealed and
+// readBindingEnvelope, which lib/test replays against the same vector).
+section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; Delivery 0.85 §4.6: the carried document, its id, what a receiver reads')
+{
+  const SE = J('vectors/vti-sealed-envelope.json')
+  const T = SE.types
+  const uuid8 = (bytes) => {
+    const h = Buffer.from(bytes.subarray(0, 16))
+    h[6] = (h[6] & 0x0f) | 0x80; h[8] = (h[8] & 0x3f) | 0x80
+    const x = h.toString('hex')
+    return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`
+  }
+  const isoSec = (ms) => new Date(Math.floor(ms / 1000) * 1000).toISOString().replace('.000Z', 'Z')
+  for (const c of SE.carried) {
+    const pre = 'rltp/v1/sealed-envelope-id' + jcs({ issuer: c.issuer, recipient: c.recipient, seal: c.seal })
+    const id = uuid8(sha(Buffer.from(pre, 'utf8')))
+    checkR(['RLTP-DEL-4620'], pre === c.idPreimage && id === c.id, `${c.case}: id = UUID v8 of SHA-256 of the preimage (${id})`)
+    const doc = { id, type: T.carried, issuer: c.issuer, recipient: c.recipient, threadId: id, issuedAt: isoSec(c.since), payload: c.seal }
+    checkR(['RLTP-DEL-4610'], jcs(doc) === jcs(c.document), `${c.case}: the document's members, threadId = id, issuedAt the whole second of since`)
+    schemaOK(c.document, 'rltp-delivery-document.schema.json', `${c.case}: the carried document`)
+    const payload = jcs({ type: T.bindingEnvelope, document: doc })
+    checkR(['RLTP-VTI-3150', 'RLTP-DEL-5040'], payload === c.payload && sha(Buffer.from(payload, 'utf8')).toString('hex') === c.payloadSha256 && Buffer.byteLength(payload) === c.payloadLength, `${c.case}: the binding envelope byte for byte, ${c.payloadLength} bytes`)
+  }
+  check(SE.carried[2].id === SE.carried[0].id && SE.carried[2].payload !== SE.carried[0].payload, 'the same seal submitted later: the same id, another issuedAt')
+  check(SE.carried[3].id !== SE.carried[0].id, 'another sending identity: another id')
+  {
+    const L = SE.laterOpening
+    const id = uuid8(sha(Buffer.from('rltp/v1/sealed-envelope-id' + jcs({ issuer: SE.sides.A, recipient: SE.sides.B, seal: L.answerable.envelope }), 'utf8')))
+    checkR(L.rules, id === L.id && id === SE.carried[0].id && L.answerable.since === SE.carried[0].since, 'a later opening recomputes the id from the offered envelope and both connection DIDs')
+  }
+  checkR(SE.repeat.rules, SE.repeat.payloadSha256 === SE.carried[SE.repeat.of].payloadSha256, 'a repeat carries the byte-identical payload')
+  const b = SE.bounds
+  const maxDoc = { id: SE.carried[0].id, type: T.carried, issuer: SE.sides.A, recipient: SE.sides.B, threadId: SE.carried[0].id, issuedAt: SE.carried[0].document.issuedAt, payload: { ...SE.carried[0].seal, ciphertext: 'A'.repeat(b.largestCiphertextLength) } }
+  checkR(b.rules, Buffer.byteLength(jcs(maxDoc)) === b.largestDocumentLength && b.largestDocumentLength <= b.documentBound, `the largest carried document: ${b.largestDocumentLength} bytes, within ${b.documentBound}`)
+  check(Buffer.byteLength(jcs({ type: T.bindingEnvelope, document: maxDoc })) === b.largestPayloadLength && b.largestPayloadLength <= b.payloadBound && b.payloadBound - b.documentBound === 70 && jcs({ type: T.bindingEnvelope, document: {} }).length - 2 === 70, `the binding envelope adds 70 bytes; payload-bound ${b.payloadBound}`)
+  // RLTP-VTI-7160 as an independent reader: what a payload is to `self` from `sender`
+  const canon = (s) => typeof s === 'string' && Buffer.from(s, 'base64url').toString('base64url') === s
+  const rfc3339 = (t) => typeof t === 'string' && /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$/.test(t)
+  const obj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
+  const cps = (s) => [...s].length
+  const errorForm = (p) => obj(p) && Object.keys(p).every((k) => ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details'].includes(k)) &&
+    typeof p.code === 'string' && typeof p.retryable === 'boolean' && (!('message' in p) || (typeof p.message === 'string' && cps(p.message) <= 1024)) && (!('retryAfter' in p) || rfc3339(p.retryAfter))
+  const irtForm = (r) => r === undefined || (obj(r) && Object.keys(r).every((k) => k === 'id' || k === 'typeUri') && typeof r.typeUri === 'string' && r.typeUri !== '' && (!('id' in r) || (typeof r.id === 'string' && r.id !== '')))
+  const nextForm = (d) => {
+    const p = d.payload
+    if (!obj(p) || !Object.keys(p).every((k) => ['expects', 'continuation', 'inResponseTo', 'message', 'ext'].includes(k))) return false
+    if (!Array.isArray(p.expects) || p.expects.length === 0 || !p.expects.every((e) => obj(e) && Object.keys(e).every((k) => ['typeUri', 'reason', 'hint'].includes(k)) && typeof e.typeUri === 'string' && e.typeUri !== '' && (!('reason' in e) || cps(e.reason) <= 1024) && (!('hint' in e) || obj(e.hint)))) return false
+    if ('continuation' in p && !['resubmit', 'proceed'].includes(p.continuation)) return false
+    if ('message' in p && (typeof p.message !== 'string' || cps(p.message) > 1024)) return false
+    if ('ext' in p && !obj(p.ext)) return false
+    return proofOk(d)
+  }
+  const proofOk = (d) => {
+    if (!('proof' in d)) return true
+    const { proof, ...rest } = d
+    if (proof.verificationMethod !== d.issuer + '#' + String(d.issuer).slice(8)) return false
+    const { proofValue, ...cfg } = proof
+    return verifyRaw(d.issuer, Buffer.concat([sha(Buffer.from(jcs(cfg))), sha(Buffer.from(jcs(rest)))]), proofValue)
+  }
+  const reads = (payload, sender, self) => {
+    if (Buffer.byteLength(payload) > b.payloadBound) return { kind: 'ignored' }
+    let o
+    try { o = JSON.parse(payload) } catch { return { kind: 'ignored' } }
+    if (!obj(o) || o.type !== T.bindingEnvelope || !obj(o.document)) return { kind: 'ignored' }
+    const d = o.document
+    if (d.type === T.carried) {
+      const ok = validate(d, SCHEMAS['rltp-delivery-document.schema.json'], SCHEMAS['rltp-delivery-document.schema.json']).length === 0 && d.threadId === d.id && d.issuer === sender && d.recipient === self && canon(d.payload.ciphertext)
+      return ok ? { kind: 'sealed', seal: d.payload } : { kind: 'ignored' }
+    }
+    const err = d.type === T.error && errorForm(d.payload) && irtForm(d.payload.inResponseTo) && proofOk(d)
+    const next = d.type === T.nextStep && nextForm(d) && irtForm(d.payload.inResponseTo)
+    if (!err && !next) return { kind: 'ignored' }
+    if (('issuedAt' in d && !rfc3339(d.issuedAt)) || ('issuer' in d && d.issuer !== sender) || ('recipient' in d && d.recipient !== self)) return { kind: 'ignored' }
+    const r = d.payload.inResponseTo
+    if (r !== undefined && r.typeUri !== T.carried) return { kind: 'ignored' }
+    const answers = r?.id ?? (typeof d.threadId === 'string' && d.threadId !== '' ? d.threadId : null)
+    return answers === null ? { kind: 'ignored' } : { kind: err ? 'error' : 'next-step', answers }
+  }
+  const dv = reads(SE.delivered.payload, SE.delivered.sender, SE.delivered.self)
+  checkR(SE.delivered.rules, dv.kind === 'sealed' && jcs(dv.seal) === SE.delivered.item, 'the carried document from the sender to this side: its seal is the item')
+  for (const c of SE.refused) checkR(c.rules, reads(c.payload, c.sender, c.self).kind === 'ignored', `not delivered (item ${c.item}): ${c.case}`)
+  for (const c of SE.answers) {
+    const r = reads(c.payload, SE.sides.B, SE.sides.A)
+    const want = c.reading.kind === 'ignored' ? { kind: 'ignored' } : { kind: c.reading.kind, answers: c.reading.answers }
+    checkR(c.rules, jcs(r) === jcs(want), `answer: ${c.case} → ${want.kind}`)
+  }
 }
 
 // ── suite 3a: the DTG context, pinned by digest ─────────────────────────

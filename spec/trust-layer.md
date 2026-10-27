@@ -14,12 +14,12 @@
   `continuity-mapping@1` · `introduction-request@1` ·
   `introduction-reply@1` · `introduction-ack@1` ·
   `introduction-voucher@1`.
-- **Companions (pinned):** **Identity 0.54** (normative reference: the
+- **Companions (pinned):** **Identity 0.55** (normative reference: the
   `pair/` registry, §6.1; the community anchor's generations and their
   pre-rotation binding, §5.4) · **Encounter 0.32** (fresh-always
   enactment, §4.4; Section 6a here is the other half of it) · **Access
   0.58** (the roster a group pair points into, §5.5; the
-  `anchor.rotate` entry, §5.6) · Membership 0.21 · **Delivery 0.84**
+  `anchor.rotate` entry, §5.6) · Membership 0.21 · **Delivery 0.85**
   (the §4.4 registry, including `star/0.2`, `group-star/0.1`,
   `anchor-mapping/0.3`, `profile/0.1`, and the `ack-delay` publication
   path `registry-declaration/0.1`).

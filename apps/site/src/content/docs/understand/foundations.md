@@ -283,18 +283,21 @@ every device. The contract condenses this into five doors and
 maps p2panda, Keyhive, SECSYNC, NextGraph and Automerge against them.
 
 **Today.** One delivery adapter is specified, for the Verifiable
-Trust Infrastructure mediator, over TSP 1.0. Each side of
-a relationship sends under one identity and collects under another.
-A document is signed end to end under the sending identity and
-travels to the mediator inside a routed layer under the collecting
-identity. Each side learns the other's two identities and the
-mediator from a delivery hint in the card of the encounter that
-started the relationship. A relationship in which one of this side's own documents
-goes unacknowledged for three days, or whose mediator refuses the
-routed form with a refusal the binding can verify, switches to a
-fallback: the document alone, signed under the sending identity, on
-a send-only session that identity opens at the mediator. The
-mediator sees both identities.
+Trust Infrastructure mediator, over TSP 1.0. Each side of a
+relationship sends and collects under one identity per relationship
+and mediator. Every sealed envelope travels as the payload of a Trust
+Task document of the type `sealed-envelope/0.1`, in the envelope of the
+Trust Tasks registry's TSP binding, so a Trust Task consumer that does
+not know RLTP can read its type, refuse it or say what it expects next,
+without opening the seal; the adapter reads such an answer and applies
+it to the document it answers. A document the counterpart says it holds
+is no longer given up after three days. The message is signed end to
+end and travels to the mediator inside a routed layer. Each side learns
+the other's identity and the mediator from a delivery hint in the card
+of the encounter that started the relationship. A relationship in which
+one of this side's own documents goes unacknowledged for three days, or
+whose mediator refuses the routed form with a refusal the binding can
+verify, switches to a fallback: the message alone, on the same session.
 DIDComm appears only as that
 mediator's mediation and pickup protocols, not as a form for RLTP
 documents. No replication adapter is specified.
