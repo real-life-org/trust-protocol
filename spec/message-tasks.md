@@ -21,7 +21,7 @@
   holder applies to a relationship. It changes the defined effect of
   no other type; the companion changes that extend the block to other
   types are listed in Appendix A.
-- **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
+- **Companions:** RLTP Identity 0.54; RLTP Encounter 0.32; RLTP Trust
   Layer 0.31; RLTP Delivery Contract 0.84; RLTP Membership Tasks
   0.21; RLTP Access Layer 0.58.
 - **Supersedes:** version 0.1 (archived as
@@ -919,7 +919,7 @@ One line per version; the archived text is under `archive/`.
 - RLTP Trust Layer 0.31, `spec/trust-layer.md`.
 - RLTP Membership Tasks 0.21, `spec/membership-tasks.md`.
 - RLTP Access Layer 0.58, `spec/access-layer.md`.
-- RLTP Encounter Layer 0.31, `spec/encounter-layer.md`.
+- RLTP Encounter Layer 0.32, `spec/encounter-layer.md`.
 - RLTP Identity Layer 0.54, `spec/identity-layer.md`.
 - Trust Tasks framework, Trust over IP Foundation, DTGWG, document
   version 0.6 (`trustoverip/dtgwg-trust-tasks-tf` at `285f9a0a`),

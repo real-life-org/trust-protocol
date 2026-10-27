@@ -3,19 +3,19 @@
 **Real Life Trust Protocol — Layer 2: Encounter**
 
 - **Status:** Editor's Draft
-- **Version:** 0.31.1-draft
+- **Version:** 0.32.0-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-23
+- **Date:** 2026-10-27
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
-- **Conformance profile:** `rltp-encounter@0.31` (draft). Wire forms:
+- **Conformance profile:** `rltp-encounter@0.32` (draft). Wire forms:
   `rltp-card/0.25`, `rltp-encounter-credential/0.26` (a held
   `rltp-encounter-credential/0.25` stays valid, Section 12), ceremony
   `encounter-scan@0.25`.
 - **Companions:** RLTP Identity 0.51 (securing profile, 2.3); RLTP
   Delivery Contract 0.84 (normative reference, Section 11); DTG
   Credentials Working Draft 0.6.0 (credential form, 2.3 and 7).
-- **Supersedes:** version 0.31.0 (archived as
-  `archive/encounter-layer-0.31.0.md`). Earlier versions: Appendix C.
+- **Supersedes:** version 0.31.1 (archived as
+  `archive/encounter-layer-0.31.1.md`). Earlier versions: Appendix C.
 
 ## Abstract
 
@@ -51,8 +51,8 @@ is not, as one writer per holder stands in for them. The credential
 follows DTG Credentials Working Draft 0.6.0. The next expected change
 is the wire step to the DTG context of the DTG Implementer's Draft
 and the fields it defines, leaving the ceremony as it is. Open
-questions are listed in Section 16, and
-feedback is welcome via the issues of the publication repository
+questions are listed in Section 16, and feedback is welcome via the
+issues of the publication repository
 (github.com/real-life-org/trust-protocol).
 
 ## 1. Introduction (informative)
@@ -302,9 +302,16 @@ proof.
 
 #### Timestamps
 
-**RLTP-ENC-2150** — Every timestamp MUST be an [RFC3339] date-time in
-UTC with `Z`, seconds `00`–`59`, and at most three fractional-second
-digits — at most 24 characters.
+**RLTP-ENC-2150** — Every timestamp an implementation produces MUST be
+an [RFC3339] date-time in UTC with `Z`, seconds `00`–`59`, and at most
+three fractional-second digits — at most 24 characters.
+
+**RLTP-ENC-2155** — A reader MUST accept a timestamp in the form of
+RLTP-ENC-2150 and the same form with the offset `+00:00` in place of
+`Z` — at most 29 characters — and MUST reject every other form,
+among them the offset `-00:00`, any other offset, an offset without
+its colon, a lowercase `t` or `z`, and more than three
+fractional-second digits.
 
 **RLTP-ENC-2160** — An implementation MUST reject a calendar-invalid
 date when parsing a timestamp.
@@ -356,7 +363,8 @@ Access Layer's service views, duty slots, provisional window and
 retention bounds), which are not computed from Section 9. Half
 normalization recreates exactly the fraction dependency the rule
 removes. Truncation is a lexical operation on the wire form — delete
-the `.` and everything between it and the `Z` — so it needs no
+the `.` and everything between it and the zone designator, `Z` or
+`+00:00` — so it needs no
 arithmetic and no agreed rounding mode; it is the same operation an
 over-precise producer performs, so producer truncation and verifier
 normalization compose to one instant; and on whole-second values it
@@ -371,9 +379,27 @@ producing side. Normalizing before JCS breaks every proof
 (`ERR_SIG`). The three-digit bound is byte economy: an unbounded
 fraction is an unbounded field in a size-capped artifact (7.5);
 three digits are what common ISO 8601 serializers emit unaided, and
-nine would buy precision no rule reads. Whole seconds are the
-canonical form in which one instant has exactly one serialization
-and hence one digest.
+nine would buy precision no rule reads. Whole seconds in `Z` are the
+canonical form in which one instant a producer writes has exactly one
+serialization and hence one digest.
+
+The reader's second spelling exists for other Trust Task
+implementations: common date-time serializers write UTC as `+00:00`,
+and RFC 3339 gives `Z` and `+00:00` the same meaning. Both spellings
+name the same instant and compare equal under RLTP-ENC-2180, so the
+gates and windows of this layer read them alike. They are different
+bytes: a document that carries a timestamp as `+00:00` has its own
+proof input and its own digest (RLTP-ENC-2140, 2230), and a reader
+never rewrites it to `Z` before verifying or digesting, since that
+breaks the proof of every signed document that arrived in the other
+spelling. Only this one further spelling is read: `-00:00` is the
+RFC 3339 convention for a time whose local offset is unknown, which
+no serializer writes for UTC; any other offset names local time; and
+admitting either would make every reader convert offsets where it
+now compares the first 19 characters. The 29-character bound keeps every
+timestamp field bounded (7.5). Two timestamps are never ordered as
+strings: `12:00:00.500+00:00` sorts before `12:00:00Z` although it
+names the later instant.
 
 #### Contexts
 
@@ -1234,9 +1260,9 @@ to someone else; a card whose `boundTo` differs from the credential's
 bound challenge mixes two enactments; a displayed card is not
 addressed. Every field of a card is bounded, by the shared rules of
 2.3 for its proof and timestamp and by the card's own maxima, so a
-card has a finite largest JCS serialization: 26 683 bytes at the
+card has a finite largest JCS serialization: 26 693 bytes at the
 adversarial escaping maximum of its free text (C0 control characters,
-six bytes each), 5203 bytes when that text is unescaped one-byte
+six bytes each), 5213 bytes when that text is unescaped one-byte
 ASCII — the qualifier matters, because a quote or a backslash is
 one-byte ASCII and still costs two bytes under JCS (7.5). No layer
 places an acceptance cap on a card, so unlike the credential (7.5) the
@@ -1431,7 +1457,7 @@ acceptance cap on the strength of the source guarantee.
 | `type` | exactly four members, all fixed | 7.1 |
 | `issuer`, `credentialSubject.id` | 56 characters | `did:key` over Ed25519 (2.3) |
 | `issuerScope` | one constant | 7.2 |
-| `validFrom`, `proof.created` | 24 characters | RFC3339 UTC, ≤ 3 fractional digits (2.3) |
+| `validFrom`, `proof.created` | 29 characters | RFC3339 UTC as read, `Z` or `+00:00`, ≤ 3 fractional digits (2.3) |
 | `credentialSubject.format` | one constant | 7.2 |
 | `credentialSubject.ceremony` | 56 characters | ≤ 48 label characters, ≤ 3 digits per version part (19 in the one registered ceremony, 5.1) |
 | `credentialSubject.challenge` | 88 characters | 5.3 |
@@ -1465,26 +1491,29 @@ the whole escaping range, at 64 `channel` characters:
 
 | `channel` alphabet | bytes per character | schema maximum (without `commitment`) | valid maximum (without `commitment`) |
 |---|---|---|---|
-| unescaped one-byte ASCII | 1 | 1318 | 1279 |
-| quote or backslash | 2 | 1382 | 1343 |
-| three-byte BMP code point | 3 | 1446 | 1407 |
-| non-BMP code point | 4 | 1510 | 1471 |
-| C0 control character | 6 | **1638** | **1599** |
+| unescaped one-byte ASCII | 1 | 1328 | 1289 |
+| quote or backslash | 2 | 1392 | 1353 |
+| three-byte BMP code point | 3 | 1456 | 1417 |
+| non-BMP code point | 4 | 1520 | 1481 |
+| C0 control character | 6 | **1648** | **1609** |
 
 The two columns are two different claims, and only one of them is a
 credential:
 
-- The **schema maximum without `commitment`, 1638 bytes**, takes
+- The **schema maximum without `commitment`, 1648 bytes**, takes
   every property at the bound its schema admits — a 56-character
-  `ceremony`, a 49-character `enactmentBinding`. It is a size
+  `ceremony`, a 49-character `enactmentBinding`, both timestamps at
+  the 29 characters a reader accepts (2.3). It is a size
   construction, not a valid credential: a 56-character ceremony
   identifier names no ceremony this profile registers and is rejected
   at 5.6 step 1, and 49 characters cannot hold the prescribed
   multihash. It is nevertheless the number the guarantee rests on,
   because the cap is argued against the format: no document the
   schema admits can exceed it.
-- The **valid maximum without `commitment`, 1599 bytes**, takes every
-  property at the bound a credential that passes 5.6 can reach:
+- The **valid maximum without `commitment`, 1609 bytes**, takes every
+  property at the bound a credential that passes 5.6 can reach,
+  timestamps in the `+00:00` spelling included; a producer, which
+  writes `Z`, stays 10 bytes below it:
   `ceremony` is `encounter-scan@0.25`, 19 characters, the one
   ceremony this version registers (5.1); and `enactmentBinding` is 47
   characters, because a SHA-256 multihash is `0x12 0x20` plus 32
@@ -1498,8 +1527,8 @@ credential:
 
 **The `commitment` adjustment, measured:** the maximal `commitment`
 fragment `,"commitment":{"suite":"<32>","value":"<97>"}` measures
-**166 bytes**; adding it once gives schema maximum **1804**, valid
-maximum **1765** — under 2048 with margin. Emission is gated (7.2), so
+**166 bytes**; adding it once gives schema maximum **1814**, valid
+maximum **1775** — under 2048 with margin. Emission is gated (7.2), so
 no producible credential reaches these bounds until a suite is
 registered; the bounds cover the format either way. All base numbers
 are measured, not estimated.
@@ -1616,7 +1645,7 @@ An encounter must not depend on an operator.
 ## 12. Evolvability
 
 Wire version and profile version are distinct: the profile is
-`rltp-encounter@0.31`, the card is `rltp-card/0.25`, the credential
+`rltp-encounter@0.32`, the card is `rltp-card/0.25`, the credential
 `rltp-encounter-credential/0.26`. The unversioned schema files
 `schemas/encounter-credential.schema.json` and
 `schemas/contact-card.schema.json` carry the current forms under
@@ -1718,6 +1747,18 @@ presence.
   measured against an exact-instant comparison it can widen acceptance
   by less than one second, at a boundary `skew-tolerance` has already
   widened by minutes, and it can never narrow it (2.3).
+- **A second spelling of a timestamp is a second document.** Whoever
+  holds the plaintext of an artifact can re-serialize a timestamp from
+  `Z` to `+00:00` (2.3). Every timestamp of this layer sits under a
+  proof — a card's `challenge.issuedAt` and `proof.created`, a
+  credential's `validFrom` and `proof.created` — so a re-spelled one
+  fails verification, and only the signer can produce the pair, as it
+  can today with any other timestamp it chooses. Such a pair is two
+  documents with two digests; the challenge binding and the
+  uniqueness check of 5.6 treat the second credential for one step as
+  they treat any second credential for it. A reader that compared
+  timestamps as strings, or normalized them before hashing, would let
+  the spelling decide a verdict; 2.3 forbids both.
 
 ## 14. Privacy Considerations
 
@@ -1754,7 +1795,7 @@ cards.
 
 ## 15. Conformance
 
-- **Profile** `rltp-encounter@0.31`, wire forms `rltp-card/0.25` and
+- **Profile** `rltp-encounter@0.32`, wire forms `rltp-card/0.25` and
   `rltp-encounter-credential/0.26`, with `…/0.25` credentials still
   read (Section 12); securing profile bound to `rltp-identity@0.51`
   (2.3); normatively references the Delivery Contract 0.84 for the
@@ -1835,7 +1876,7 @@ distinct conformance vector.
   `card.boundTo` ≠ credential's bound challenge rejected · sent card
   without `sentTo` rejected; foreign `sentTo` rejected; displayed card
   with `sentTo` rejected · a card at every maximum is valid and
-  serializes to 26 683 bytes (5203 with unescaped one-byte free text),
+  serializes to 26 693 bytes (5213 with unescaped one-byte free text),
   and the `encounter-bundle` payload built from a maximal card and a
   maximal credential stays under 28 KiB.
 - *Paths and merge:* a lost acknowledgement switches carriers within
@@ -1864,26 +1905,27 @@ distinct conformance vector.
 - *Size:* **at the schema maximum**, a document with every bounded
   field at the bound its schema admits — 56-character ceremony
   identifier, 88-character challenge, 49-character binding,
-  64-character `channel`, 24-character `validFrom` and
+  64-character `channel`, 29-character `validFrom` and
   `proof.created`, 89-character `proofValue`, and the `commitment`
-  object at its caps — serializes to **1804 bytes** with `channel` in
-  C0 control characters and **1484 bytes** with `channel` in
-  unescaped one-byte ASCII (without `commitment`: 1638/1318) ·
+  object at its caps — serializes to **1814 bytes** with `channel` in
+  C0 control characters and **1494 bytes** with `channel` in
+  unescaped one-byte ASCII (without `commitment`: 1648/1328) ·
   **at the valid maximum**, the largest credential that passes all of
   5.6 — ceremony `encounter-scan@0.25` (19 characters), 47-character
-  binding, everything else at its bound — serializes to **1765
-  bytes** (**1445** with `channel` in unescaped one-byte ASCII;
-  without `commitment` 1599/1279, and while the suite registry is
+  binding, everything else at its bound — serializes to **1775
+  bytes** (**1455** with `channel` in unescaped one-byte ASCII;
+  without `commitment` 1609/1289, and while the suite registry is
   empty the commitment member is not producible (7.2), so the largest
   producible valid credential is the figure without it) and is
   accepted · **the escaping range:** the same 64-character `channel`
   in quotes/backslashes, three-byte BMP code points and non-BMP code
-  points measures 1548 / 1612 / 1676 bytes at the schema maximum,
+  points measures 1558 / 1622 / 1686 bytes at the schema maximum,
   confirming the C0 case is the maximum over all alphabets · **over
   the bound, field by field, each `ERR_VERSION` at 5.6 step 1:**
   `proofValue` of 90 characters; `proofValue` of 64 characters (below
   the shortest encoding of 64 bytes, so not a signature);
-  `proof.created` or `validFrom` with four or more fractional digits;
+  `proof.created` or `validFrom` with four or more fractional digits
+  or in a spelling other than `Z` and `+00:00`;
   a ceremony label of 49 characters or a version part of four digits.
 
 **RLTP-ENC-13030** — The schema-maximum size vector MUST be rejected
@@ -1921,6 +1963,16 @@ fractional digits.
   `proof.created` carries a non-zero fraction verifies on its own
   bytes; an implementation that truncates before JCS produces
   `ERR_SIG` and is non-conformant.
+- *Two spellings of UTC:* the step credential signed with
+  `validFrom` and `proof.created` as `+00:00`, with and without three
+  fractional digits, passes 5.6 step 1, verifies on its own bytes,
+  and has a digest other than the `Z` spelling's; `-00:00`, `+01:00`,
+  an offset without its colon, a lowercase `z` or `t`, and 30
+  characters each fail at 5.6 step 1 (`ERR_VERSION`); the `Z`
+  credential with `validFrom` re-spelled to `+00:00` and its proof
+  kept passes the schema and fails at the proof (`ERR_SIG`); two spellings
+  of one whole second compare equal although their strings order the
+  other way.
 - *The aging latch, once set, survives a backward clock,* in three
   steps on one held value with the bound again at `12:10:00`: *(1)* at
   `now` = `12:10:00.400` the value resolves `open` and no latch is
@@ -1960,8 +2012,8 @@ drifts.
    repeated-encounter semantics (renewal) remain undefined.
 5. **OI-5 Card format alignment.**
 6. **OI-6 Card size against the document maxima above this layer.**
-   A card's maximum (26 683 bytes; 5203 in unescaped one-byte ASCII,
-   9499 if that text is quotes or backslashes) exceeds the
+   A card's maximum (26 693 bytes; 5213 in unescaped one-byte ASCII,
+   9509 if that text is quotes or backslashes) exceeds the
    16 384-byte document maximum the Membership Tasks place on an
    invite and an accept, both of which carry a card. Nothing is
    unsound — those documents make fit a sender duty, declare an
@@ -1994,7 +2046,7 @@ carry them; it describes the library as it is.
 | This specification | `lib/` module | Symbols |
 |---|---|---|
 | Canonical form, digest equality over decoded bytes (2.3) | `core` | `jcs`, `toU`, `sameDigest` |
-| Whole-second normalization and emission, calendar validity (2.3) | `core` | `tsec` (truncation), `iso` (whole-second emission), `calOK` |
+| Whole-second normalization and emission, calendar validity, the spellings a reader accepts (2.3) | `core` | `tsec` (truncation), `iso` (whole-second emission in `Z`), `calOK` (`Z` or `+00:00`) |
 | Anchor and Multikey decoding, `eddsa-jcs-2022` proofs (2.3) | `crypto` | `anchorOfEd`, `edRawOfAnchor`, `mkOfX`, `xRawOfMk`, `diSign`, `diVerify`, `digestDoc` (emits `u`) |
 | Pair anchor derivation (4.4) | `identity` | `pairContext`, `labeledContext`, `canonicalLabel` |
 | Wire strings, challenges, cards, binding, credentials (5.3, 5.4, 6, 7) | `encounter` | `CEREMONY`, `CARD_VERSION`, `CRED_FORMAT`, `CRED_CONTEXT`, `DTG_CONTEXT`, `challengeOf` (17 random bytes → 22 characters), `cardBody` (the sent profile carries `sentTo` and `boundTo` together), `signCard`, `binding`, `issueCredential` |
@@ -2080,6 +2132,7 @@ One line per version; the archived text is under `archive/`.
 | 0.30 | 2026-10-05 | Numbered rules with separate rationale; DTG scope vocabulary; no wire change. |
 | 0.31 | 2026-10-08 | Credential on DTG Credentials WD 0.6.0: registry context v1 pinned by digest, `issuerScope` `pairwise`; wire 0.26, 0.25 still read. |
 | 0.31.1 | 2026-10-23 | The form of a delivery hint is the carrier profile's that names it (Section 6, at RLTP-ENC-6080); no rule, schema or wire change. |
+| 0.32 | 2026-10-27 | A reader also accepts timestamps with the offset `+00:00` (at most 29 characters), a producer writes `Z` (RLTP-ENC-2150 split, RLTP-ENC-2155); proof and digest over the received bytes; size figures of 6, 7.5, 15 and OI-6 at 29-character timestamps; wire forms unchanged. |
 
 ## References
 

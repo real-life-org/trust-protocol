@@ -17,7 +17,7 @@
   DTG form. Registered key adapters: `linear/0.1`, `beekem/0.1`
   (experimental).
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3);
-  RLTP Encounter 0.31; RLTP Delivery Contract 0.84 (normative
+  RLTP Encounter 0.32; RLTP Delivery Contract 0.84 (normative
   reference for every frame this layer addresses to one party:
   key delivery, removal notice, view and registration transport);
   Membership Tasks 0.21 (the task types that transport this
@@ -5565,7 +5565,7 @@ accept exactly the wire forms of Section 11 and MUST be read against
 the companions RLTP Identity 0.54 (whose per-device service
 identity of 5.2 awaits, so conformance claims no device-level
 service identity), RLTP
-Encounter 0.31 (`rltp-encounter@0.31`, card form `rltp-card/0.25`,
+Encounter 0.32 (`rltp-encounter@0.32`, card form `rltp-card/0.25`,
 where cards are consumed), RLTP Trust Layer 0.31 (`rltp-trust@0.31`,
 the `anchor-rotation@2` of 5.6), the Delivery Contract 0.84, and the
 Membership Tasks 0.21 (`rltp-membership@0.21`), whose pins of this layer's wire forms
@@ -6041,7 +6041,7 @@ One line per version; the archived text of 0.4 and later is under
 Credential Specification (ToIP DTGWG, draft; EndorsementCredential)
 · **RLTP Identity 0.54** (root IKM §4, contexts and the label
 registry §6, the community anchor's generations §5.4, derived
-service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.31**, card wire 0.25 (securing
+service identities §7, migration §10, device keys §15.1) · **RLTP Encounter Layer 0.32**, card wire 0.25 (securing
 profile 2.3, contact card §6, pair anchors §4.4) · **RLTP Delivery
 Contract 0.84 (normative)** (document profile, Type URI form and
 declarations §3, sealed envelope §5, dispositions §6) · **RLTP

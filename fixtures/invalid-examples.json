@@ -132,6 +132,24 @@
         }
       }
     },
+    "delivery-document-utc-offset": {
+      "schema": "https://real-life.org/rltp/v1/schemas/rltp-delivery-document.schema.json",
+      "document": {
+        "id": "11111111-2222-4333-8444-555555555555",
+        "type": "https://real-life.org/trust-tasks/spec/delivery-ack/0.1",
+        "issuer": "did:key:z6Mkjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj",
+        "recipient": "did:key:z6Mkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        "threadId": "99999999-8888-4777-a666-555555555555",
+        "issuedAt": "2026-08-10T12:00:00+00:00",
+        "payload": {
+          "ref": "uEiAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "meaning": "received"
+        },
+        "proof": {
+          "mac": "uE3Tg3kvpUySllD2WD6VX4MnTtq51BssKudXATdUph90"
+        }
+      }
+    },
     "access-genesis": {
       "schema": "https://real-life.org/rltp/v1/schemas/access-operation-envelope.schema.json",
       "document": {
@@ -890,6 +908,34 @@
       "base": "credential",
       "set": {
         "/validFrom": "2026-12-31T23:59:60Z"
+      }
+    },
+    {
+      "name": "timestamp spelling: an offset other than +00:00 is not read (RLTP-ENC-2155)",
+      "base": "delivery-document",
+      "set": {
+        "/issuedAt": "2026-08-23T13:00:00+01:00"
+      }
+    },
+    {
+      "name": "timestamp spelling: -00:00 is not read (RLTP-ENC-2155)",
+      "base": "card",
+      "set": {
+        "/proof/created": "2026-08-23T11:59:00-00:00"
+      }
+    },
+    {
+      "name": "timestamp spelling: a lowercase z is not read (RLTP-ENC-2155)",
+      "base": "card",
+      "set": {
+        "/challenge/issuedAt": "2026-08-23T11:58:00z"
+      }
+    },
+    {
+      "name": "timestamp spelling: 30 characters exceed the reader's 29 (RLTP-ENC-2155)",
+      "base": "credential",
+      "set": {
+        "/validFrom": "2026-08-23T12:00:00.0000+00:00"
       }
     },
     {

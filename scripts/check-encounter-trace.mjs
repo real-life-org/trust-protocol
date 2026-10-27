@@ -5,7 +5,7 @@
 // `--layer membership`) and the Trust Layer (`RLTP-TRU`, `--layer trust`).
 //
 // Two sources of truth for the rule set:
-//   · the public manifest (conformance/encounter-rule-ids-0.31.txt,
+//   · the public manifest (conformance/encounter-rule-ids-0.32.txt,
 //     conformance/access-rule-ids-0.58.txt,
 //     conformance/membership-rule-ids-0.21.txt,
 //     conformance/trust-rule-ids-0.31.txt,
@@ -45,10 +45,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const LAYERS = {
   encounter: {
     prefix: 'RLTP-ENC',
-    title: 'Encounter Layer 0.31',
+    title: 'Encounter Layer 0.32',
     spec: join(ROOT, 'spec/encounter-layer.md'),
-    manifest: join(ROOT, 'conformance/encounter-rule-ids-0.31.txt'),
-    inventory: join(ROOT, '..', 'rltp', 'design', 'encounter-0.31-regelinventar.md'),
+    manifest: join(ROOT, 'conformance/encounter-rule-ids-0.32.txt'),
+    inventory: join(ROOT, '..', 'rltp', 'design', 'encounter-0.32-regelinventar.md'),
     env: 'ENCOUNTER_INVENTORY'
   },
   access: {

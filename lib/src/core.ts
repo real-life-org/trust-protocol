@@ -129,11 +129,14 @@ export const iso = (ms: number): string => new Date(ms).toISOString().replace(/\
 // ── timestamps (Encounter 2.3) ──────────────────────────────────────────
 // tsec: whole-second truncation of EVERY comparison operand (incl. now).
 export const tsec = (v: string | number): number => Math.floor((typeof v === 'number' ? v : Date.parse(v)) / 1000) * 1000
-// calOK: calendar-valid round-trip AND the ≤3-fractional-digit cap —
-// Date.parse silently normalizes impossible dates, so demand the round-trip.
+// calOK: the reader's timestamp language (RLTP-ENC-2155): `Z` or
+// `+00:00`, at most three fractional digits, at most 29 characters, and a
+// calendar-valid round-trip — Date.parse silently normalizes impossible
+// dates, so demand it. Both spellings are UTC, so the first 19 characters
+// are the instant's own. A producer writes `Z` (iso, RLTP-ENC-2150).
 export const calOK = (t: unknown): boolean => {
   if (typeof t !== 'string') return false
-  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$/.test(t)) return false
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?(Z|\+00:00)$/.test(t)) return false
   const d = new Date(t)
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 19) === t.slice(0, 19)
 }

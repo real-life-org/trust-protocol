@@ -12,7 +12,7 @@
 - **Task-type namespace:** `https://real-life.org/trust-tasks/spec/`
 - **Target Trust Tasks framework version:** 0.6.0
 - **Conformance profile:** `rltp-delivery@0.84` (draft)
-- **Companions:** RLTP Identity 0.54; RLTP Encounter 0.31; RLTP Trust
+- **Companions:** RLTP Identity 0.54; RLTP Encounter 0.32; RLTP Trust
   Layer 0.31; RLTP Access 0.58; RLTP Membership Tasks 0.21; RLTP
   Replication 0.26; RLTP Message Tasks 0.2.
 - **Supersedes:** version 0.83 (archived as
@@ -3315,7 +3315,7 @@ no ack and consumes nothing; B's prompt is C4, never automated.
 
 - **Profile** `rltp-delivery@0.84`; the Identity pin is
   **Identity 0.54** (§6.1 the context labels, §7a the control
-  principal); the Encounter pin is `rltp-encounter@0.31` (wire
+  principal); the Encounter pin is `rltp-encounter@0.32` (wire
   0.25); companion registrations per 4.4 (Trust Layer 0.31,
   Access 0.58, Membership Tasks 0.21, Replication 0.26, Message
   Tasks 0.2).
