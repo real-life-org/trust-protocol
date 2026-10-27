@@ -1,30 +1,29 @@
 // vti-wire.mjs — the concrete MediatorWire over vti-didcomm-js 0.13.0
-// and vti-tsp-js 0.4.0, TSP 1.0 (profile 0.28 §7: TSP framing, CESR demux, ack translation and
+// and vti-tsp-js 0.4.0, TSP 1.0 (profile 0.29 §7: TSP framing, CESR demux, ack translation and
 // the M-2 duty live HERE, below the adapter's byte boundary).
 //
 // Responsibilities:
-//   · derive the wire identities' RAW seeds by re-running the lib's
-//     own HKDF (same prefixes → byte-identical DIDs to the adapter's)
-//   · ATM auth under the CONNECTION DID; one socket per principal
-//   · deposit in the sending form of profile 0.28 §3a, in the mode the
+//   · derive the wire identity's RAW seed by re-running the lib's
+//     own HKDF (same prefix → byte-identical DID to the adapter's)
+//   · ATM auth under the CONNECTION DID; one socket per principal; the
+//     one wire identity sends and collects (profile 0.29 §1a)
+//   · deposit in the sending form of profile 0.29 §3a, in the mode the
 //     adapter names (depositAddressing of the lib says who addresses
-//     whom), packed anew for every attempt (RLTP-VTI-7110):
-//       routed          inner TSP 1.0 `direct` egress identity →
-//                       peer's connection DID (HPKE-Base to its key,
-//                       signed by the egress identity), inside an outer
-//                       routed message connection DID → C, route [peer's
-//                       connection DID], sealed to the key C's DID
-//                       document names first under keyAgreement as
-//                       resolved at the last authentication or renewal
-//                       (RLTP-VTI-7120); sent on the connection DID's
-//                       session
-//       egress-session  the inner message alone, on a send-only session
-//                       the egress identity authenticates lazily at the
-//                       first deposit in this mode (RLTP-VTI-3120)
-//   · onDeliver hands the adapter the INNER payload bytes of a TSP 1.0
+//     whom), packed anew for every attempt (RLTP-VTI-7110); the payload
+//     is the binding envelope the adapter built (RLTP-VTI-3150):
+//       routed  inner TSP 1.0 `direct` connection DID → peer's
+//               connection DID (HPKE-Base to its key, signed by the
+//               connection DID), inside an outer routed message
+//               connection DID → C, route [peer's connection DID],
+//               sealed to the key C's DID document names first under
+//               keyAgreement as resolved at the last authentication or
+//               renewal (RLTP-VTI-7120)
+//       direct  the inner message alone (RLTP-VTI-3120)
+//     both on the connection DID's session
+//   · onDeliver hands the adapter the payload bytes of a TSP 1.0
 //     `direct` message (M-2: the raw received bytes, passed truthfully)
-//     and keeps the payload-digest → mediator-queue-id translation for
-//     acks; control (XRFI/XRFA/XRFD), padding and any other message
+//     with its authenticated sender VID (RLTP-VTI-7140), and keeps the
+//     payload-digest → mediator-queue-id translation for acks; control (XRFI/XRFA/XRFD), padding and any other message
 //     type is logged, acked and never delivered; so is a frame of
 //     any other major version (Rev 3 included), which the library refuses
 //     from its version marker before any key is touched
@@ -40,9 +39,7 @@ import {
 import { pack as tspPack, unpack as tspUnpack, packRouted, decodeEnvelope } from "@openvtc/vti-tsp-js";
 import { depositAddressing, WireError } from "../lib/dist/adapters/vti-mediator.js";
 import { hkdf, sha } from "../lib/dist/crypto.js";
-import {
-  CONNECTION_INFO_PREFIX, EGRESS_INFO_PREFIX, CARRIER_INFO_PREFIX,
-} from "../lib/dist/carrier-identity.js";
+import { CONNECTION_INFO_PREFIX } from "../lib/dist/carrier-identity.js";
 
 const te = new TextEncoder();
 const hexOf = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -68,13 +65,10 @@ async function wireIdentity(rootIkm, carrier, nonce, prefix) {
   return { did, kid: agreementId, edSecret, edPublic, xSecret, xPublic };
 }
 
-/** The wire pair (connection, egress) of one relationship × carrier,
+/** The wire identity (the connection DID) of one relationship × carrier,
  *  including RAW secrets — for tests that act as the counterpart. */
 export async function deriveWireIdentities(rootIkm, mediatorDid, nonce) {
-  return {
-    conn: await wireIdentity(rootIkm, mediatorDid, nonce, CONNECTION_INFO_PREFIX),
-    egress: await wireIdentity(rootIkm, mediatorDid, nonce, EGRESS_INFO_PREFIX),
-  };
+  return { conn: await wireIdentity(rootIkm, mediatorDid, nonce, CONNECTION_INFO_PREFIX) };
 }
 
 /** Public TSP keys of a peer did:key, resolved offline. */
@@ -100,28 +94,23 @@ const PROBLEM_REPORT = "https://didcomm.org/report-problem/2.0/problem-report";
 /** Mediator 0.45 with local direct delivery off (RLTP-VTI-3120). */
 const DIRECT_DELIVERY_DENIED = "e.p.direct_delivery.denied";
 
-/** The egress identity's send-only session (RLTP-VTI-3120): the socket
- *  opens without the live-delivery-change the stock `connect()` sends (no
- *  Live Mode); it collects nothing and acknowledges nothing. The one frame
- *  it reads is the mediator's own problem report — how a mediator refuses
- *  a deposit on this session (0.45 with local direct delivery off:
- *  `e.p.direct_delivery.denied`); it goes to `onRefusal`. */
-class SendOnlySession extends MediatorSession {
-  async connect() { await this._openSocket(); }
-  async _dispatchTspFrame() { /* send-only: collects nothing */ }
-  async _dispatchFrame(result) {
-    const m = result.message;
-    if (result.senderDid === identityOfKid(this.mediator.did) && m?.type === PROBLEM_REPORT) this.onRefusal?.(m.body ?? {});
-  }
-  _ackReceived() { return Promise.resolve(); /* send-only: acknowledges nothing */ }
-}
-
+/** The connection DID's session: TSP frames go to the adapter under its
+ *  control (above); the mediator's own problem reports — how mediator 0.45
+ *  refuses a deposit in mode direct (`e.p.direct_delivery.denied`) — go
+ *  to `onProblem` before the stock handling. */
 class RltpMediatorSession extends MediatorSession {
   async _dispatchTspFrame(qb2, text) {
     if (!this.onTspFrame) return;
     try { await this.onTspFrame(qb2, text); } catch (e) {
       if (process.env.RLTP_WIRE_DEBUG) console.error("[wire] tsp dispatch failed:", e?.message ?? e);
     }
+  }
+  async _dispatchFrame(result, text) {
+    const m = result.message;
+    if (result.senderDid === identityOfKid(this.mediator.did) && m?.type === PROBLEM_REPORT) {
+      try { this.onProblem?.(m.body ?? {}); } catch { /* a sink's failure is not the session's */ }
+    }
+    return super._dispatchFrame(result, text);
   }
   ackTsp(ids) { return this._ackReceived(ids); }
 }
@@ -134,23 +123,21 @@ class RltpMediatorSession extends MediatorSession {
  * @param {Uint8Array} cfg.rootIkm       the relationship root
  * @param {string}     cfg.mediatorDid   C, exactly as configured
  * @param {Uint8Array} cfg.nonce         the 32-byte carrier nonce N
- * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key (addressing): the
- *        `id` without `#tsp` of its delivery hint (profile 0.28 §1b, RLTP-VTI-1240)
- * @param {string}     cfg.peerEgressDid counterpart's EGRESS did:key (sender verification):
- *        the `rltpEgress` of that hint; required in every form that reads from
- *        the egress identity (the profile forms and the control form `egress`);
- *        only the control form `connection` does without it
+ * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key, the
+ *        `id` without `#tsp` of its delivery hint (profile 0.29 §1b,
+ *        RLTP-VTI-1240): the receiver of every message this side sends, the
+ *        sender of every message it accepts, the `recipient` of every carried
+ *        document (counterpart())
  * @param {(line: string) => void} [cfg.log]  sink for frames that are not
- *        delivered (default: stderr)
+ *        delivered and for the adapter's log (default: stderr)
  * @param {string}     [cfg.depositMode] overrides RLTP_WIRE_DEPOSIT (default
- *        `routed`: follow the adapter's mode)
+ *        `routed`: follow the adapter's mode; `direct` forces the fallback)
  * @param {Object}     [cfg.transport]   test seam: `{ fetch, resolve,
  *        WebSocketImpl }` replace the network (ATM HTTP, DID resolution,
  *        socket); omitted, the real ones are used
  */
 export async function createVtiWire(cfg) {
   const conn = await wireIdentity(cfg.rootIkm, cfg.mediatorDid, cfg.nonce, CONNECTION_INFO_PREFIX);
-  const egress = await wireIdentity(cfg.rootIkm, cfg.mediatorDid, cfg.nonce, EGRESS_INFO_PREFIX);
 
   let session = null;
   let consumer = null;
@@ -162,53 +149,40 @@ export async function createVtiWire(cfg) {
     ...(transport.resolve ? { resolve: transport.resolve } : {}),
   };
   const ackMap = new Map();       // adapter payload-digest → mediator queue-id (sha256 of qb64 text)
-  // the counterpart's identities are never this side's own (RLTP-VTI-1227)
-  const own = new Set([conn.did, egress.did]);
-  if (own.has(cfg.peerDid) || (cfg.peerEgressDid && own.has(cfg.peerEgressDid))) {
-    throw new Error("createVtiWire: a counterpart identity names one of this side's own wire identities (RLTP-VTI-1227)");
+  // the counterpart's identity is never this side's own (RLTP-VTI-1227)
+  if (typeof cfg.peerDid !== "string") {
+    throw new Error("createVtiWire: no peerDid — the counterpart has no wire identity at C (RLTP-VTI-1235)");
   }
-  const sentPeers = cfg.peerEgressDid ? peerKeys(cfg.peerEgressDid) : null;
-  const peerConn = peerKeys(cfg.peerDid);
+  if (cfg.peerDid === conn.did) {
+    throw new Error("createVtiWire: the counterpart identity is this side's own connection DID (RLTP-VTI-1227)");
+  }
+  const peer = peerKeys(cfg.peerDid);
   // net policy for the advertised mediator endpoints (vti-didcomm-js
   // netPolicy; replaces the deprecated `allowInsecure`); the same policy guards the socket
   const netPolicy = process.env.MEDIATOR_ALLOW_INSECURE
     ? { allowInsecure: true, allowPrivate: true } : undefined;
   // Deposit form (RLTP_WIRE_DEPOSIT, or cfg.depositMode):
-  //   routed          (default) follow the mode the adapter names on each
-  //                   deposit — `routed`, or `egress-session` after the
-  //                   switch of RLTP-VTI-3130 (profile 0.28 §3a)
-  //   egress-session  force the fallback for every deposit (measurement)
-  //   egress          control, NOT profile-conformant: the inner message
-  //                   alone on the connection DID's socket — dropped by
-  //                   the mediator, which relays only frames whose
-  //                   sender is the socket's DID
-  //   connection      control, NOT profile-conformant (RLTP-VTI-1130):
-  //                   sender = connection DID, single layer, own socket
-  // Both sides of a probe in a control form must run the same form.
+  //   routed  (default) follow the mode the adapter names on each deposit —
+  //           `routed`, or `direct` after the switch of RLTP-VTI-3130
+  //   direct  force the fallback for every deposit (measurement)
   const depositMode = cfg.depositMode ?? process.env.RLTP_WIRE_DEPOSIT ?? "routed";
-  if (!["routed", "egress-session", "egress", "connection"].includes(depositMode)) {
+  if (!["routed", "direct"].includes(depositMode)) {
     throw new Error(`RLTP_WIRE_DEPOSIT: unknown mode ${depositMode}`);
   }
-  // in every form but `connection` the counterpart's documents come from its egress
-  // identity: without it the counterpart has no wire identities at C, and
-  // no instance exists (RLTP-VTI-1235) — refused here, never a wire that
-  // refuses and acknowledges every frame it receives
-  if (depositMode !== "connection" && !cfg.peerEgressDid) {
-    throw new Error("createVtiWire: no peerEgressDid — the counterpart has no wire identities at C (RLTP-VTI-1235)");
-  }
-  const expectedPeerSender = depositMode === "connection" ? cfg.peerDid : cfg.peerEgressDid;
-  const expectedPeerKeys = depositMode === "connection" ? peerConn : sentPeers;
-  let egressSession = null;
-  let egressAuthing = null;
-  // a refusal of direct delivery the mediator sent on the egress session
-  // (problem report e.p.direct_delivery.denied): the carrier does not carry
-  // the fallback form, and the switch is one-way (RLTP-VTI-3130), so every
-  // later deposit in mode egress-session fails as WireError('direct-refused')
-  // for the life of this wire, and directRefused() says so from the moment
-  // the report arrived; the adapter records it in the relationship's send
-  // state, which carries it across openings (RLTP-VTI-3120, Open Issue 4).
+  // a refusal of direct delivery the mediator sent on the session (problem
+  // report e.p.direct_delivery.denied): the carrier does not carry the
+  // fallback form, and the switch is one-way (RLTP-VTI-3130), so every
+  // later deposit in mode direct fails as WireError('direct-refused') for
+  // the life of this wire, and directRefused() says so from the moment the
+  // report arrived; the adapter records it in the relationship's send
+  // state, which carries it across openings (RLTP-VTI-3120, Open Issue 2).
   // Any other problem report is logged and consumed (§5)
-  let egressRefusal = null;
+  let directRefusal = null;
+  const onProblem = (body) => {
+    const code = body.code ?? "unknown";
+    if (code === DIRECT_DELIVERY_DENIED) directRefusal = code;
+    log(`[wire] the mediator reported a problem (${code}): ${body.comment ?? ""}${directRefusal ? "; direct deposits refused from now on" : " (consumed)"}`);
+  };
   // queueEmpty(): frames the session has received but not yet handed to
   // the adapter, and when the last TSP frame arrived
   let dispatching = 0;
@@ -253,6 +227,7 @@ export async function createVtiWire(cfg) {
       onError: () => {},
       onClose: () => scheduleReconnect(),
     });
+    session.onProblem = onProblem;
     await session.connect();
     // live delivery pushes what the mediator holds from now on: the quiet
     // period of queueEmpty() starts at the open, not at the epoch
@@ -298,28 +273,29 @@ export async function createVtiWire(cfg) {
   async function dispatchFrame(qb2, text) {
     if (!consumer) return;
     const mediatorQid = hexOf(await sha(te.encode(text)));
-    // strip the TSP frame: the adapter's byte boundary is the
-    // sealed RLTP envelope, passed truthfully (M-2). TSP 1.0: HPKE-Base
-    // to our connection key; the sender is proven by the outer
-    // signature under the peer's egress key and the sender VID the
-    // confidential payload carries (ESSR; no sender key in the KEM).
-    // The library opens major version 1 only: any other major version,
-    // Rev 3 included, a sender VID in the payload other than the
-    // envelope's, and a NULL sender VID are refused here, before the consumer
+    // strip the TSP frame: the adapter's byte boundary is the payload, the
+    // binding envelope, passed truthfully (M-2) with the sender TSP
+    // authenticated (RLTP-VTI-7140). TSP 1.0: HPKE-Base to our connection
+    // key; the sender is proven by the outer signature under the peer's
+    // connection key and the sender VID the confidential payload carries
+    // (ESSR; no sender key in the KEM). The library opens major version 1
+    // only: any other major version, Rev 3 included, a sender VID in the
+    // payload other than the envelope's, and a NULL sender VID are refused
+    // here, before the consumer
     const got = await tspUnpack(qb2, {
       receiverDecryptionKey: conn.xSecret,
-      senderSigningKey: expectedPeerKeys.signPub,
+      senderSigningKey: peer.signPub,
     });
-    if (got.sender !== expectedPeerSender || got.receiver !== conn.did) {
+    if (got.sender !== cfg.peerDid || got.receiver !== conn.did) {
       throw new Error("TSP frame for another relationship");
     }
     // The library opens every message kind; only an application message
-    // of kind `direct` carrying bytes is a sealed RLTP envelope.
-    // Anything else is authenticated but never delivered: it is
-    // logged and acked so it leaves the queue (the stock session's
-    // rule for frames refused for good). Relationship frames
-    // (XRFI/XRFA/XRFD, referral inside an invite) and padding are
-    // not acted on — the binding runs no TSP relationship state.
+    // of kind `direct` carrying bytes reaches the adapter. Anything else
+    // is authenticated but never delivered: it is logged and acked so it
+    // leaves the queue (the stock session's rule for frames refused for
+    // good). Relationship frames (XRFI/XRFA/XRFD, referral inside an
+    // invite) and padding are not acted on — the binding runs no TSP
+    // relationship state.
     const refuse = async (what) => {
       log(`[wire] TSP ${what} from ${got.sender} not delivered (acked and dropped)`);
       await session.ackTsp([mediatorQid]);
@@ -336,7 +312,7 @@ export async function createVtiWire(cfg) {
     ackMap.set(payloadQid, mediatorQid);
     // the adapter's own failure is not a refusal of the frame: unacked, redelivered
     let took;
-    try { took = await consumer(payload); } catch (e) { throw Object.assign(new Error("consumer failed"), { consumer: true, cause: e }); }
+    try { took = await consumer(payload, got.sender); } catch (e) { throw Object.assign(new Error("consumer failed"), { consumer: true, cause: e }); }
     // not taken (the adapter's queue is full, or it is retired): the frame
     // stays with the mediator, which offers it again at the next open
     if (took === false) leftBehind = true;
@@ -347,52 +323,11 @@ export async function createVtiWire(cfg) {
   // after that is sealed to it
   let mediatorInfo = null;
 
-  /** The egress identity's send-only session (RLTP-VTI-3120), opened at
-   *  the first deposit in mode egress-session and checked before every
-   *  deposit: a closed socket or an access token at its end is
-   *  authenticated and opened anew. It collects nothing, acknowledges
-   *  nothing, holds no keylist and no Live Mode (SendOnlySession). */
-  let egressExpiresAt = 0;
-  function ensureEgressSession() {
-    if (egressSession?.isOpen && Date.now() < egressExpiresAt) return Promise.resolve(egressSession);
-    egressAuthing ??= (async () => {
-      try { egressSession?.close(); } catch { /* replaced below */ }
-      egressSession = null;
-      const eAuth = await authenticateToMediator({
-        mediatorDid: cfg.mediatorDid,
-        clientDid: egress.did,
-        clientX25519Private: egress.xSecret,
-        clientX25519Public: egress.xPublic,
-        netPolicy,
-        ...atmSeams,
-      });
-      egressExpiresAt = (eAuth.accessExpiresAt ?? 0) * 1000 || Date.now() + 600_000;
-      const s = new SendOnlySession({
-        mediator: eAuth.mediator,
-        mediatorJwt: eAuth.accessToken,
-        client: { did: egress.did, kid: egress.kid, privateKey: egress.xSecret, publicKey: egress.xPublic },
-        WebSocketImpl,
-        netPolicy,
-        onError: (e) => log(`[wire] egress session: ${e?.message ?? e}`),
-      });
-      s.onRefusal = (body) => {
-        const code = body.code ?? "unknown";
-        if (code === DIRECT_DELIVERY_DENIED) egressRefusal = code;
-        log(`[wire] egress session: the mediator refused a deposit (${code}): ${body.comment ?? ""}${egressRefusal ? "; egress-session deposits refused from now on" : " (consumed)"}`);
-      };
-      await s.connect();
-      egressSession = s;
-      return s;
-    })().finally(() => { egressAuthing = null; });
-    return egressAuthing;
-  }
-
   /** The last frames' sizes and modes, for the probes' measurements. */
   const sent = [];
 
   return {
     connectionDid: conn.did,
-    egressDid: egress.did,
 
     async authChallenge() {
       // the ATM handshake is one call in the vti lib; the adapter's
@@ -439,26 +374,14 @@ export async function createVtiWire(cfg) {
       // required for did:key clients. Recorded as a no-op with note.
     },
 
-    async deposit(_token, bytes, egressDid, adapterMode = "routed") {
-      if (egressDid !== egress.did) throw new Error("deposit under a foreign egress identity");
+    async deposit(_token, bytes, adapterMode = "routed") {
       const mode = depositMode === "routed" ? adapterMode : depositMode;
-      if (mode === "connection") {
-        // control form, not profile-conformant (RLTP-VTI-1130)
-        openSession();
-        const packed = await tspPack(bytes, conn.did, cfg.peerDid, {
-          senderSigningKey: conn.edSecret, receiverEncryptionKey: peerConn.encPub,
-        });
-        sent.push({ mode, payload: bytes.length, inner: packed.bytes.length, outer: null });
-        openSession().sendBinary(packed.bytes);
-        return;
-      }
-      const addr = depositAddressing(mode === "egress" ? "egress-session" : mode,
-        { connection: conn.did, egress: egress.did }, cfg.peerDid, cfg.mediatorDid);
-      // inner: TSP 1.0 direct, egress identity → peer's connection DID,
-      // HPKE-Base to its key, signed by the egress identity (RLTP-VTI-1110)
+      const addr = depositAddressing(mode, conn.did, cfg.peerDid, cfg.mediatorDid);
+      // inner: TSP 1.0 direct, connection DID → peer's connection DID,
+      // HPKE-Base to its key, signed by the connection DID (RLTP-VTI-1120, 3110)
       const inner = await tspPack(bytes, addr.inner.sender, addr.inner.receiver, {
-        senderSigningKey: egress.edSecret,
-        receiverEncryptionKey: peerConn.encPub,
+        senderSigningKey: conn.edSecret,
+        receiverEncryptionKey: peer.encPub,
       });
       if (mode === "routed") {
         if (!mediatorInfo) throw new WireError("unreachable", "not authenticated");
@@ -474,18 +397,13 @@ export async function createVtiWire(cfg) {
         openSession().sendBinary(outer.bytes);
         return;
       }
-      // egress-session: the inner message alone on the egress identity's
-      // send-only session; `egress` (control) on the connection DID's socket.
-      // The adapter authenticates the connection DID before every deposit,
-      // in this mode too (its token is the deposit's first argument); the
-      // egress identity's own authentication happens here
-      if (mode === "egress-session" && egressRefusal) {
-        throw new WireError("direct-refused", `the mediator refuses direct delivery on the egress session (${egressRefusal})`);
+      // direct: the inner message alone, on the same session (RLTP-VTI-3120)
+      if (directRefusal) {
+        throw new WireError("direct-refused", `the mediator refuses direct delivery (${directRefusal})`);
       }
-      const s = mode === "egress-session" ? await ensureEgressSession() : openSession();
-      if (!s.isOpen) throw new WireError("unreachable", "the egress identity's socket is closed");
+      const s = openSession();
       sent.push({ mode, payload: bytes.length, inner: inner.bytes.length, outer: null });
-      if (process.env.RLTP_WIRE_DEBUG) console.error(`[wire] deposit ${mode} ${bytes.length}B → ${inner.bytes.length}B`);
+      if (process.env.RLTP_WIRE_DEBUG) console.error(`[wire] deposit direct ${bytes.length}B → ${inner.bytes.length}B`);
       s.sendBinary(inner.bytes);
     },
 
@@ -502,9 +420,14 @@ export async function createVtiWire(cfg) {
     },
 
     /** RLTP-VTI-3120: true from the moment the mediator's refusal of
-     *  direct delivery arrived on the egress session (the adapter reads it
-     *  and records it in the relationship's send state). */
-    directRefused() { return egressRefusal !== null; },
+     *  direct delivery arrived (the adapter reads it and records it in the
+     *  relationship's send state). */
+    directRefused() { return directRefusal !== null; },
+
+    /** RLTP-VTI-1240: the counterpart's connection DID. */
+    counterpart() { return cfg.peerDid; },
+
+    log(line) { log(line); },
 
     /** Sizes of the frames deposited so far (payload, inner, outer bytes). */
     sentFrames() { return sent.map((f) => ({ ...f })); },
@@ -527,7 +450,6 @@ export async function createVtiWire(cfg) {
       wireClosed = true;
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       try { session?.close(); } catch { /* teardown */ }
-      try { egressSession?.close(); } catch { /* teardown */ }
     },
   };
 }
