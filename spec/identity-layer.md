@@ -13,7 +13,7 @@
   of 5.4, its §6); RLTP Access Layer 0.58 (the `anchor.rotate` entry,
   its §5.6; device cards, its §5.1); RLTP Delivery Contract 0.84 (the
   consumer of Section 7a, its §5a); RLTP Membership Tasks 0.21 (the
-  genesis digest a group label names); RLTP Encounter Layer 0.31 (the
+  genesis digest a group label names); RLTP Encounter Layer 0.32 (the
   contact card and fresh-always enactment, its §4.4).
 - **Supersedes:** version 0.53 (archived as
   `archive/identity-layer-0.53.md`) and versions 0.52–0.1, archived

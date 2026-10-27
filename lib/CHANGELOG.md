@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+Takes up Encounter 0.32 (RLTP-ENC-2150, 2155): a reader accepts a
+timestamp in the offset spelling `+00:00` beside `Z`.
+
+- **`calOK`** accepts `Z` and `+00:00`, at most three fractional digits
+  and at most 29 characters, and still rejects `-00:00`, every other
+  offset, a lowercase `t` or `z` and a calendar-invalid date. Every
+  reader of the library goes through it: cards, credentials, delivery
+  documents, acknowledgements, membership documents, proofs.
+- **Schemas.** The timestamp pattern of the Encounter 2.3 schemas
+  (contact card, encounter credential, delivery document, access vouch,
+  membership invite and prelude request) takes `(Z|\+00:00)$` with
+  `maxLength` 29; `schemas.ts` and `wire.ts` regenerated. The Trust
+  Layer and Message Tasks schemas keep their own `Z` rules
+  (RLTP-TRU-2530, RLTP-MSG-3030).
+- **Unchanged.** `iso` writes `Z`; digests and proofs run over the
+  received bytes, so a document in the offset spelling has its own
+  digest; `tsec` reads both spellings as the same instant.
+
 ## 0.9.1
 
 Takes up the VTI Mediator Adapter Profile 0.28 (RLTP-VTI-3120): a refusal

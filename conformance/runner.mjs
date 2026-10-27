@@ -1078,6 +1078,30 @@ for (const n of EC.negative) {
     schemaFails(a, 'contact-card-0.25.schema.json', n.name)
   } else err(`unknown negative ${n.name}`)
 }
+// the two spellings of a UTC timestamp (RLTP-ENC-2150, 2155, 2230): a
+// reader takes `+00:00` beside `Z`; the proof and the digest run over the
+// received bytes, so the offset spelling is a document of its own; every
+// other spelling fails at the schema
+{
+  const TS = EC.timestampSpelling
+  check(Array.isArray(TS?.accepted) && TS.accepted.length > 0, 'timestampSpelling: accepted spellings shipped')
+  for (const a of TS?.accepted ?? []) {
+    schemaOK(a.credential, 'encounter-credential-0.26.schema.json', `${a.name}`)
+    schemaOK(a.credential, 'encounter-credential.schema.json', `${a.name} (mobile)`)
+    check(a.credential.validFrom.length <= 29 && a.credential.validFrom.endsWith('+00:00'), `${a.name}: validFrom in the offset spelling, at most 29 characters`)
+    check(diVerify(a.credential, a.credential.issuer).ok, `${a.name}: DI proof verifies over the received bytes`)
+    check(digestU(a.credential) === a.digest && a.digest !== digestU(EC.credential), `${a.name}: digest over the received bytes, not the Z spelling's`)
+    check(Math.floor(Date.parse(a.credential.validFrom) / 1000) === Math.floor(Date.parse(EC.credential.validFrom) / 1000), `${a.name}: the same whole second as the Z spelling`)
+  }
+  for (const n of TS?.negative ?? []) {
+    const c = structuredClone(EC.credential); c.validFrom = n.value
+    check(n.expect === 'reject: schema', `${n.name}: declared at the schema stage`)
+    schemaFails(c, 'encounter-credential-0.26.schema.json', `${n.name} (${n.value})`)
+    schemaFails(c, 'encounter-credential.schema.json', `${n.name} (${n.value}, mobile)`)
+  }
+  const o = TS?.order ?? {}
+  check(typeof o.a === 'string' && Math.floor(Date.parse(o.a) / 1000) === Math.floor(Date.parse(o.b) / 1000) && o.b < o.a, 'timestampSpelling order: equal at whole seconds although the strings order otherwise')
+}
 
 // ── suite 3v: the delivery hint of the VTI mediator adapter profile ─────
 // An independent reader of RLTP-VTI-1210, 1220 and 1225 (node alone, not
@@ -1626,7 +1650,7 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
   // calendar validity is a parse-time check (schema descriptions; the
   // syntactic patterns admit day 31 in every month) — Date.parse silently
   // NORMALIZES impossible dates, so demand a round-trip
-  const calOK = (t) => { const d = new Date(t); return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 19) === t.slice(0, 19) && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$/.test(t) }
+  const calOK = (t) => { const d = new Date(t); return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 19) === t.slice(0, 19) && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?(Z|\+00:00)$/.test(t) }
   check(tsec(inv.validUntil) >= tsec(inv.validFrom), 'invite validUntil ≥ validFrom (Membership 3.1, whole-second comparison)')
   // cross-field bindings: signed material is tied BACK to the party and
   // digest oracles — a coherently re-signed detachment fails here
@@ -1711,7 +1735,7 @@ section('dtg-credentials.json — DTG forms, u/z equivalence, canonical-u constr
   // (3) document bindings: each mutation flips the SHARED predicate
   check(!bindOK({ ...invDoc, proof: {} }) && !bindOK({ ...invDoc, issuer: invDoc.recipient }) && !bindOK({ ...invDoc, recipient: invDoc.issuer }) && !bindOK({ ...invDoc, threadId: '00000000-0000-4000-8000-000000000000' }), 'self-test: proof/issuer/recipient/threadId mutations each fail the binding predicate')
   // (4) timestamp predicate boundaries
-  check(calOK('2026-08-25T12:06:00.123Z') && !calOK('2026-08-25T12:06:00.1234Z') && !calOK('2026-02-30T12:00:00Z') && calOK('2028-02-29T12:00:00Z') && !calOK('2026-02-29T12:00:00Z'), 'self-test: fraction cap and calendar boundaries (three digits pass, four fail; leap day 2028 passes, 2026 fails)')
+  check(calOK('2026-08-25T12:06:00.123Z') && !calOK('2026-08-25T12:06:00.1234Z') && !calOK('2026-02-30T12:00:00Z') && calOK('2028-02-29T12:00:00Z') && !calOK('2026-02-29T12:00:00Z') && calOK('2026-08-25T12:06:00.123+00:00') && !calOK('2026-08-25T12:06:00-00:00') && !calOK('2026-08-25T13:06:00+01:00') && !calOK('2026-08-25T12:06:00z'), 'self-test: fraction cap, calendar boundaries and spellings (three digits pass, four fail; leap day 2028 passes, 2026 fails; Z and +00:00 pass, -00:00, +01:00 and z fail)')
 
   // vouch: u and z variants, same binding over decoded bytes
   for (const [v, label] of [[D.vouch.u, 'vouch (u digests)'], [D.vouch.z, 'vouch (z digests)']]) {
@@ -2064,8 +2088,8 @@ section('membership-tasks.json — Membership Tasks 0.21: prelude, genesis → i
   const valid = (data, file) => errsOf(data, file).length === 0
   const toU = (z) => { if (typeof z !== 'string') return null; if (z[0] === 'u') return z; if (z[0] !== 'z') return null; const b = fromB58(z.slice(1)); return b && b.length === 34 && b[0] === 0x12 && b[1] === 0x20 && 'z' + b58(b) === z ? 'u' + b.toString('base64url') : null }
   const sameDigest = (a, b) => toU(a) !== null && toU(a) === toU(b)
-  // exact RFC 3339 instants: millisecond precision (the schemas cap fractions at three digits), a missing fraction is .000, nothing rounded (RLTP-MT-5050)
-  const inst = (t) => (typeof t === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$/.test(t) ? Date.parse(t) : NaN)
+  // exact RFC 3339 instants in either UTC spelling (Encounter RLTP-ENC-2155): millisecond precision (the schemas cap fractions at three digits), a missing fraction is .000, nothing rounded (RLTP-MT-5050)
+  const inst = (t) => (typeof t === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?(Z|\+00:00)$/.test(t) ? Date.parse(t) : NaN)
   const SKEW_MS = MEMBERSHIP_SKEW * 1000
   const mh = (bytes) => 'u' + Buffer.concat([Buffer.from([0x12, 0x20]), sha(bytes)]).toString('base64url')
   // a z6LS key-agreement Multikey decodes to x25519-pub + 32 bytes, canonically (RLTP-ENC-2040)

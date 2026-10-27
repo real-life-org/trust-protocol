@@ -16,7 +16,7 @@
   `introduction-voucher@1`.
 - **Companions (pinned):** **Identity 0.54** (normative reference: the
   `pair/` registry, §6.1; the community anchor's generations and their
-  pre-rotation binding, §5.4) · **Encounter 0.31** (fresh-always
+  pre-rotation binding, §5.4) · **Encounter 0.32** (fresh-always
   enactment, §4.4; Section 6a here is the other half of it) · **Access
   0.58** (the roster a group pair points into, §5.5; the
   `anchor.rotate` entry, §5.6) · Membership 0.21 · **Delivery 0.84**
@@ -5025,7 +5025,7 @@ another.
 [RFC5869] HKDF · [RFC7748] X25519 · [RFC8032] Ed25519 · [RFC2397]
 `data` URL scheme · **RLTP Identity 0.54** (§2, §5.2, §5.4 including
 the pre-rotation binding, §6.1, §8.6, §9.3, §10, §11, §13) · **RLTP
-Encounter 0.31** (fresh-always enactment §4.4, commitment §7.2,
+Encounter 0.32** (fresh-always enactment §4.4, commitment §7.2,
 contact cards and their DI rules) · **RLTP Delivery Contract 0.84**
 (the §4.4 registry, the 65 536-byte plaintext limit of §5, the
 acknowledgement regime of §4.2, §10) · RLTP Access Layer 0.58 (§5.5,

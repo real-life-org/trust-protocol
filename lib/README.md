@@ -258,7 +258,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `crypto` | primitives | HKDF, key pairs, did:key and multikey, X25519, the `eddsa-jcs-2022` Data Integrity proof |
 | `identity` | Identity 0.54 §6.1, §6.2, §5.4, §5.5 | context derivation under the closed label registry: `group/<digest>` and its generations, `pair/…`, `persona/…`, `device/<n>/<c>`; the name pipeline pinned to Unicode 15.0 |
 | `identity-state` | Identity §2, §5.4, §5.5 | the label register with monotone sets, device names and revocation marks, the community anchor's rotation as a procedure over the Log port (register before log before duties) |
-| `encounter`, `encounter/ceremony` | Encounter 0.31 §4–§7 | `encounter-scan@0.25`: challenges and their aging latch (5.3), the enactment record (5.5), the 5.6 acceptance in its order, both paths of 5.8, `encounter-bundle/0.1` and `encounter-credential-delivery/0.1` with signed acks, the confirm prompt |
+| `encounter`, `encounter/ceremony` | Encounter 0.32 §4–§7 | `encounter-scan@0.25`: challenges and their aging latch (5.3), the enactment record (5.5), the 5.6 acceptance in its order, both paths of 5.8, `encounter-bundle/0.1` and `encounter-credential-delivery/0.1` with signed acks, the confirm prompt |
 | `trust/mapping` | Trust Section 2, 2a, §6.1–§6.5 | the trust act and the class settings (2720–2850), `anchor-mapping@4` issuance (6300/6310, 6420) and verification (6.3, conditions 4a, 4b, 8), the entry commit and the admission bound |
 | `trust/star`, `trust/group-star` | Trust §5.1–§5.4, §5.2b | `star@2` and `group-star@1` reconciled per recipient (5.4: salt scope, baseline automaton, completion by the ack), reception with assemblies and lower bounds |
 | `trust/entries` | Trust Section 2, §6a.1 | merge (net and manual, 6640), split (2080–2115), departure (2260), the head rule and the binding rule (6605) |
@@ -368,7 +368,7 @@ This package uses its own semver; the specification uses castings.
 | Area | Casting | Not in this package |
 |---|---|---|
 | identity | Identity 0.54 | recovery derivation (§5.3), service identities (§7) |
-| encounter | Encounter 0.31, cards 0.25, credentials 0.26 | — |
+| encounter | Encounter 0.32, cards 0.25, credentials 0.26 | — |
 | trust | Trust Layer 0.31 | — |
 | membership | Membership Tasks 0.21, Access 0.58 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |

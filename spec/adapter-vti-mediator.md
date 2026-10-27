@@ -12,7 +12,7 @@
 - **Companions:** RLTP Delivery Contract 0.84 (§5a.10, §6.1, §6.2,
   §6.3, RLTP-DEL-6120 to RLTP-DEL-6135, RLTP-DEL-6330, RLTP-DEL-6335; Appendix A names the changes its
   next casting takes up); RLTP Identity 0.54 (§7a, §9.3, §13); RLTP
-  Encounter 0.31.1 (§5.3, §5.5, §5.8, §6, RLTP-ENC-6050,
+  Encounter 0.32 (§5.3, §5.5, §5.8, §6, RLTP-ENC-6050,
   RLTP-ENC-6060, RLTP-ENC-6080, RLTP-ENC-6090); RLTP Trust
   Layer 0.31 (§6a)
 

@@ -1,4 +1,4 @@
-# Encounter Layer 0.31 — rule identifiers, one per line, generated from the specification.
+# Encounter Layer 0.32 — rule identifiers, one per line, generated from the specification.
 # Regenerate: node scripts/check-encounter-trace.mjs --write-manifest-from-spec <spec.md>
 RLTP-ENC-2010
 RLTP-ENC-2020
@@ -15,6 +15,7 @@ RLTP-ENC-2120
 RLTP-ENC-2130
 RLTP-ENC-2140
 RLTP-ENC-2150
+RLTP-ENC-2155
 RLTP-ENC-2160
 RLTP-ENC-2170
 RLTP-ENC-2180

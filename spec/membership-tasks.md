@@ -3,9 +3,9 @@
 **Real Life Trust Protocol — task types: Membership**
 
 - **Status:** Editor's Draft
-- **Version:** 0.21.0-draft
+- **Version:** 0.21.1-draft
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-25
+- **Date:** 2026-10-27
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/spec/`
 - **Target Trust Tasks framework version:** 0.6.0
@@ -28,12 +28,12 @@
   the travel: which documents exist, what they bind, how they are
   checked on receipt, and what a receiver does with them.
 - **Companions:** RLTP Identity 0.54 (securing profile, 2.3); RLTP
-  Encounter 0.31; RLTP Access Layer 0.58; RLTP Delivery Contract
+  Encounter 0.32; RLTP Access Layer 0.58; RLTP Delivery Contract
   0.84; RLTP Trust Layer 0.31 (relationships and tuples, its 2 and
   6.4); RLTP Message Tasks 0.2 (the block and the register of
   declined invitations, its Section 6).
-- **Supersedes:** version 0.20 (archived as
-  `archive/membership-tasks-0.20.md`). Earlier versions: Appendix A.
+- **Supersedes:** version 0.21.0 (archived as
+  `archive/membership-tasks-0.21.0.md`). Earlier versions: Appendix A.
 
 ## Status of This Document
 
@@ -315,7 +315,7 @@ them; this document does not redefine them.
 ### 2.4 Securing and document profile
 
 This document consumes the securing profile of the Encounter layer
-(Encounter 0.31, 2.3), which restates the surface of Identity 0.51 it
+(Encounter 0.32, 2.3), which restates the surface of Identity 0.51 it
 consumes, and the document profile of the Delivery Contract 0.84.
 
 **RLTP-MT-2110** — The securing profile of Encounter 2.3 MUST apply
@@ -2250,7 +2250,7 @@ against `rltp-delivery@0.84`, `rltp-access@0.58` with its wire forms
 `0.25` (envelope 3.3, group identity 3.2, member identity and device
 bindings 5.1, admission, vouch and candidacy 5.3, views 7.3, service
 9.3, material 9.4, `key-delivery/0.1` 10.1, `removal-notice/0.1`
-10.2), `rltp-encounter@0.31` with card wire 0.25 (securing profile 2.3,
+10.2), `rltp-encounter@0.32` with card wire 0.25 (securing profile 2.3,
 contact card §6), RLTP Identity 0.54, RLTP Trust Layer 0.31
 (relationships and tuples) and RLTP Message Tasks 0.2 (the block and
 the register of declined invitations).
@@ -2567,9 +2567,9 @@ its transcription is a defect of the release.
     },
     "rfc3339utc": {
       "type": "string",
-      "maxLength": 24,
-      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,3})?Z$",
-      "description": "RFC3339 UTC 'Z', at most 3 fractional-second digits, 24 characters maximum — the Encounter 2.3 securing profile's timestamp language, shared verbatim by all three RLTP credential schemas: a syntactic gate, calendar validity is a parse-time check."
+      "maxLength": 29,
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,3})?(Z|\\+00:00)$",
+      "description": "RFC3339 UTC as read (RLTP-ENC-2155): 'Z' or '+00:00', at most 3 fractional-second digits, 29 characters maximum; a producer writes 'Z' (RLTP-ENC-2150) — the Encounter 2.3 securing profile's timestamp language, shared verbatim by all three RLTP credential schemas: a syntactic gate, calendar validity is a parse-time check."
     },
     "uuid": {
       "type": "string",
@@ -3136,9 +3136,9 @@ its transcription is a defect of the release.
     },
     "rfc3339utc": {
       "type": "string",
-      "maxLength": 24,
-      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,3})?Z$",
-      "description": "RFC3339 UTC 'Z', at most 3 fractional-second digits, 24 characters maximum — the Encounter 2.3 securing profile's timestamp language, shared verbatim by all three RLTP credential schemas: a syntactic gate, calendar validity is a parse-time check."
+      "maxLength": 29,
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,3})?(Z|\\+00:00)$",
+      "description": "RFC3339 UTC as read (RLTP-ENC-2155): 'Z' or '+00:00', at most 3 fractional-second digits, 29 characters maximum; a producer writes 'Z' (RLTP-ENC-2150) — the Encounter 2.3 securing profile's timestamp language, shared verbatim by all three RLTP credential schemas: a syntactic gate, calendar validity is a parse-time check."
     },
     "uuid": {
       "type": "string",
@@ -3395,6 +3395,7 @@ One line per version; the archived text is under `archive/`.
 | 0.19 | 2026-10-14 | Pins Access 0.57, Delivery 0.81, Identity 0.54, Encounter 0.31; the introduction act cited as Trust Layer §8. |
 | 0.20 | 2026-10-19 | The prelude as `membership-prelude-request/0.1` and `membership-prelude-reply/0.1` with the inviter binding; invitation attribution, rate, silent decline under a block with the register of declined invitations, one surfacing per invitation (Message Tasks 0.1); the inviter's invitation as its act of admission; Privacy Considerations; pins Delivery 0.82. |
 | 0.21 | 2026-10-25 | Trust Tasks framework 0.6.0: Type URIs under `https://real-life.org/trust-tasks/spec/`; declarations per type in the framework's vocabulary (identifier scope, side effects, exposure, retention, size bound), a declaration rule for the accept (RLTP-MT-3287); MO-10; pins Delivery 0.84, Access 0.58, Message Tasks 0.2. |
+| 0.21.1 | 2026-10-27 | The schema copies of 10.1 read timestamps as Encounter 0.32 does (`Z` or `+00:00`, at most 29 characters); pins Encounter 0.32; no rule change. |
 
 
 ## References
@@ -3405,7 +3406,7 @@ Credentials Data Model 2.0 · DTG Credential Specification (ToIP
 DTGWG, Core Credentials WD01: InvitationCredential,
 EndorsementCredential) · [TT] ToIP DTGWG Trust Tasks framework, document version 0.6 (`trustoverip/dtgwg-trust-tasks-tf` at `285f9a0a`), target 0.6.0 (§6.1, §6.3, §7.3) ·
 **RLTP Identity 0.54** (contexts and the `group/<digest>` label §6) ·
-**RLTP Encounter Layer 0.31**, card wire 0.25 (securing profile 2.3,
+**RLTP Encounter Layer 0.32**, card wire 0.25 (securing profile 2.3,
 principles 1.3, contact card §6) · **RLTP Delivery Contract 0.84
 (normative)** (document profile §3, registry 4.4, sealed envelope §5,
 dispositions, lock keys and rate §6, delivery time §7) · **RLTP

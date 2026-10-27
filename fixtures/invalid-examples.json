@@ -893,6 +893,34 @@
       }
     },
     {
+      "name": "timestamp spelling: an offset other than +00:00 is not read (RLTP-ENC-2155)",
+      "base": "delivery-document",
+      "set": {
+        "/issuedAt": "2026-08-23T13:00:00+01:00"
+      }
+    },
+    {
+      "name": "timestamp spelling: -00:00 is not read (RLTP-ENC-2155)",
+      "base": "card",
+      "set": {
+        "/proof/created": "2026-08-23T11:59:00-00:00"
+      }
+    },
+    {
+      "name": "timestamp spelling: a lowercase z is not read (RLTP-ENC-2155)",
+      "base": "card",
+      "set": {
+        "/challenge/issuedAt": "2026-08-23T11:58:00z"
+      }
+    },
+    {
+      "name": "timestamp spelling: 30 characters exceed the reader's 29 (RLTP-ENC-2155)",
+      "base": "credential",
+      "set": {
+        "/validFrom": "2026-08-23T12:00:00.0000+00:00"
+      }
+    },
+    {
       "name": "wrong cryptosuite rejected",
       "base": "credential",
       "set": {
