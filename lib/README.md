@@ -151,24 +151,34 @@ seal and parties, `issuedAt` the entry's `since`), so every attempt is
 byte-identical. On receipt it reads each payload with its sender
 (`readBindingEnvelope`, total): a carried document whose parties are the
 sender and this side becomes an item, its seal the bytes the holder
-receives; a counterpart's `trust-task-error/0.5` or
-`trust-task-next-step/0.1` answers the submission whose carried document
-it names (`inResponseTo.id`, else `threadId`) and is applied there — a
-terminal refusal fails it, a next step makes it `accepted` with `held`,
-which no horizon ends (`report()` hands `{status: 'accepted', held: true}`
-to the holder); everything else is logged (`wire.log`) and acknowledged.
-What the adapter consumes itself it concludes at its next step. Beside
-its custody set, `pendingTransport` offers `answerable`: the accepted
-documents not yet terminal (held marked) with their envelope and first
-submission, for binding answers only (Delivery RLTP-DEL-6150). The
-adapter files them at `reconcile` without ever attempting them and
-recomputes the `id` each travelled under, so an answer that arrives in a
-later opening binds (profile RLTP-VTI-5045); its report reaches the
-holder like any other. An answer that arrives before the opening's
-first `reconcile` (or first `submit`) is held, unacknowledged, and bound
-at that call, so a host may `register` before it reconciles. Status and
-report change; `drainTransitions` carries only late deliveries, so a host
-polls `report()` for the answers, as for every report.
+receives; everything that is no answer is logged (`wire.log`) and
+acknowledged at the next step. A counterpart's `trust-task-error/0.5` or
+`trust-task-next-step/0.1` follows one contract (profile RLTP-VTI-5045,
+5070, 5080). Every open document has the `id` it travelled under —
+custody entries and, beside them, `answerable` from `pendingTransport`:
+the accepted documents not yet terminal (held marked) with envelope and
+first submission, for binding only (Delivery RLTP-DEL-6150), which
+`reconcile` files without ever attempting them — whether or not a
+deposit runs. An answer binds by `inResponseTo.id`, else `threadId`;
+until the opening's first `reconcile` (or `submit`) and while ids are
+computed it waits, unacknowledged. It changes a submission only if its
+authenticated sender is the recipient that submission's carried document
+named. A bound answer is applied — a terminal refusal fails the
+submission, a next step makes it `accepted` with `held`, which no
+horizon ends — and travels in the next collection as
+`answers: [{ queueId, submissionId, report }]`. The host's step:
+
+```
+const c = adapter.collect(now)
+for (const item of c.items) await holder.receive(...)   // as before
+for (const a of c.answers) await holder.report(a.report, now)
+adapter.conclude(c, now)                                 // acknowledges both
+```
+
+An answer is acknowledged at the mediator only at that conclusion, so a
+crash before it leaves the answer there; it comes again, binds again, and
+the holder's report is idempotent. An answer that binds nothing is
+acknowledged at the next step.
 
 **The timer.** Every act, receive and resume may name `nextDueAt`: the
 earliest time something is due, delivery work (retries, duties, acks)

@@ -2881,7 +2881,10 @@ answer to them (4.6; the VTI mediator adapter profile, its
 RLTP-VTI-5045). Such an offer is no custody: it authorizes no hand-over
 and no deposit, and a document's presence in it is no leave to submit
 it, as its absence from the custody set never is (RLTP-DEL-6135). What an answer
-bound this way decides reaches the sender as any report does (6.1).
+bound to an offered or a custody document decides reaches the sender as
+any report does (6.1); the adapter profile states when the carrier's
+copy of the answer may go (the VTI mediator adapter: after the sender
+recorded the report, its RLTP-VTI-5080).
 
 ### 6.2 Receiver: dispositions, in mandatory order
 

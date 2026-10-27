@@ -100,8 +100,15 @@ const st = a2.status(ref);
 a2.advance(Date.now()); await a2.settle();
 if (!ok) fail(`no ${EXPECT} within 30s; status ${JSON.stringify(st)}`);
 say(`  ✓ answer read and bound by the carried document's id: ${JSON.stringify(st)} after ${Date.now() - t0}ms`);
-if (a2.collect(Date.now()).items.length !== 0) fail("the answer reached the holder as an item");
-say(`  ✓ the answer is no item for the holder; acknowledged at the adapter's next step`);
+const col = a2.collect(Date.now());
+if (col.items.length !== 0) fail("the answer reached the holder as an item");
+// a document of the holder (CROSS_OPENING: the offered one) carries its answer in the collection;
+// a submit() without a holder entry has no report to record, its answer is acknowledged at the next step
+const wantAnswers = process.env.CROSS_OPENING === "1" ? 1 : 0;
+if (col.answers.length !== wantAnswers || (wantAnswers === 1 && JSON.stringify(col.answers[0].report) !== JSON.stringify(a2.report(ref)))) fail(`the bound answer is not in the collection as expected: ${JSON.stringify(col.answers)}`);
+// the host records col.answers[i].report at its holder here (this probe has none), then concludes
+a2.conclude(col, Date.now()); await a2.settle();
+say(`  ✓ the answer is no item for the holder; ${wantAnswers ? "it travelled in the collection with its report and was acknowledged at the conclusion (RLTP-VTI-5080)" : "acknowledged at the adapter's next step"}`);
 
 a2.close(); wire2.close();
 console.log(`\nLIVE-INTEROP-PROBE PASS — ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode}${process.env.CROSS_OPENING === "1" ? ", across openings" : ""})`);

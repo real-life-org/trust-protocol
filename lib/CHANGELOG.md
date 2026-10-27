@@ -66,9 +66,19 @@ timestamp in the offset spelling `+00:00` beside `Z`.
   files them as submissions without an attempt in their state, computes
   their carried document's `id`, and binds a counterpart's answer to
   them; the adapter's horizon does not end them, a later view without
-  them withdraws nothing. An answer that arrives before the opening's
-  first `reconcile` (or `submit`) is held, unacknowledged, and bound at
-  that call.
+  them withdraws nothing.
+- **The answer contract** (RLTP-VTI-5045, 5070, 5080). Every filed
+  submission, custody or offered, gets its carried document's `id` when
+  it is filed, independent of any attempt; answers wait, unacknowledged,
+  until the opening's first `reconcile` (or `submit`) and every id is
+  known, then take one path (bind and apply). Only the recipient the
+  document named may change it (the sender checked at the transition,
+  whatever the wire lets through). A bound answer travels in the
+  collection, `Collection.answers: CollectedAnswer[]` (`{ queueId,
+  submissionId, report }`): the host records the report at the holder,
+  then concludes; the answer is acknowledged only at that conclusion, so
+  a crash at any point re-delivers and re-binds it, and the holder's
+  report is idempotent.
 - **One wire identity.** The connection DID sends and collects;
   `carrierScopedIdentity` has no `egress` scope, `EGRESS_INFO_PREFIX` and
   the adapter's `egressDid` are gone. `deliveryHint` builds the

@@ -684,7 +684,12 @@ export function concludable (r: ReceiveResult): boolean {
 const tokenCopy = (t: TokenSet): TokenSet => ({ accessToken: t.accessToken, accessExpiresAt: t.accessExpiresAt, refreshToken: t.refreshToken, refreshExpiresAt: t.refreshExpiresAt })
 
 export interface CollectedItem { bytes: Uint8Array, queueId: string }
-export interface Collection { id: string, items: CollectedItem[] }
+/** A counterpart's answer bound to a submission of this instance
+ *  (RLTP-VTI-5080): the report its outcome makes, for the host to record at
+ *  the holder before it concludes the collection that carries it; the
+ *  answer is acknowledged at the mediator only at that conclusion. */
+export interface CollectedAnswer { queueId: string, submissionId: string, report: DeliveryReport }
+export interface Collection { id: string, items: CollectedItem[], answers: CollectedAnswer[] }
 
 /** Ack state for the host to persist (profile §4). Invariant: every
  *  pending id names a concluded entry; violations are refused at
@@ -773,6 +778,9 @@ interface Submission {
   /** the `id` of the carried document of its last attempt: answers bind
    *  to it (RLTP-VTI-5040) */
   outerId?: string
+  /** the counterpart's connection DID its carried document named as
+   *  `recipient`: the one sender whose answer may change it (RLTP-VTI-5070) */
+  peer?: string
   /** an accepted document the holder offers for binding answers only
    *  (RLTP-VTI-5045, Delivery RLTP-DEL-6150): never attempted, never
    *  given up here; its `outerId` is recomputed from the seal */
@@ -846,11 +854,18 @@ export class MediatorCarrierAdapter {
   /** payloads the adapter consumed itself (answers, ignored, RLTP-VTI-7160),
    *  concluded at its next step, when it has a clock */
   #consumed = new Set<string>()
-  /** answers that arrived before the first reconcile of this opening
-   *  (RLTP-VTI-5045): held in memory, unacknowledged, bound at it */
-  #early = new Map<string, { reading: Extract<BindingReading, { kind: 'error' | 'next-step' }>, sender: string }>()
-  /** the first reconcile of this opening has run */
-  #reconciled = false
+  /** answers received and not yet decided (RLTP-VTI-5045): unacknowledged */
+  #answers = new Map<string, { reading: Extract<BindingReading, { kind: 'error' | 'next-step' }>, sender: string }>()
+  /** answers bound and applied, waiting for a collection (RLTP-VTI-5080) */
+  #bound: CollectedAnswer[] = []
+  /** the bound answers of each outstanding collection */
+  #outstandingAnswers = new Map<string, CollectedAnswer[]>()
+  /** every answer held in one of the three registers above */
+  #answerIds = new Set<string>()
+  /** the instance has the holder's view (a reconcile) or a submission */
+  #viewKnown = false
+  /** id computations in flight (RLTP-VTI-5045) */
+  #indexing = 0
   #inbox: CollectedItem[] = []
   #inboxBytes = 0
   #inboxDigests = new Set<string>()
@@ -969,7 +984,7 @@ export class MediatorCarrierAdapter {
       // buffered, outstanding and consumed go before concluded (§3): a
       // redelivery of a later copy the holder has not concluded yet is
       // ignored
-      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#early.has(queueId)) return true
+      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#answerIds.has(queueId)) return true
       for (const col of this.#outstanding.values()) if (col.has(queueId)) return true
       const concludedAt = this.#concluded.get(queueId)
       if (concludedAt !== undefined) {
@@ -989,20 +1004,19 @@ export class MediatorCarrierAdapter {
       // the payload read with its authenticated sender (RLTP-VTI-7160)
       const reading = await readBindingEnvelope(bytes, { sender: String(sender), self: this.#connectionDid })
       if (this.#closed) return false
-      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#early.has(queueId)) return true
-      // an answer before the holder's offer is held, unacknowledged, until
-      // the first reconcile binds it (RLTP-VTI-5045); beyond the floor it
+      if (this.#inboxDigests.has(queueId) || this.#consumed.has(queueId) || this.#answerIds.has(queueId)) return true
+      // an answer is held, unacknowledged, until it is decided against the
+      // ids of every open document (RLTP-VTI-5045); beyond the floor it
       // stays with the mediator
-      if ((reading.kind === 'error' || reading.kind === 'next-step') && !this.#reconciled) {
-        if (this.#early.size >= DECLARED.queueFloorCount) return false
-        this.#early.set(queueId, { reading, sender: String(sender) })
+      if (reading.kind === 'error' || reading.kind === 'next-step') {
+        if (this.#answers.size >= DECLARED.queueFloorCount) return false
+        this.#answers.set(queueId, { reading, sender: String(sender) })
+        this.#answerIds.add(queueId)
+        this.#decideAnswers()
         return true
       }
-      if (reading.kind !== 'sealed') {
-        if (reading.kind !== 'ignored') await this.#bindIds()
-        if (this.#closed) return false
-        if (reading.kind === 'ignored') this.#log(`payload from ${String(sender)} not delivered: ${reading.why} (acknowledged)`)
-        else this.#applyAnswer(reading, String(sender))
+      if (reading.kind === 'ignored') {
+        this.#log(`payload from ${String(sender)} not delivered: ${reading.why} (acknowledged)`)
         this.#consumed.add(queueId)
         return true
       }
@@ -1025,37 +1039,86 @@ export class MediatorCarrierAdapter {
     try { this.#wire.log?.(`[vti-adapter] ${line}`) } catch { /* a sink's failure is not the adapter's */ }
   }
 
-  /** A counterpart's answer, bound to the submission of this instance whose
-   *  carried document's id it names (RLTP-VTI-5040), applied: a terminal
-   *  refusal fails it, a retryable one bounds its next attempt, idConflict
-   *  answers it, a next step makes it accepted and held (RLTP-VTI-5050).
-   *  An answer that binds no submission changes nothing. */
-  #applyAnswer (reading: Extract<BindingReading, { kind: 'error' | 'next-step' }>, sender: string): void {
+  /** Bind-and-apply (RLTP-VTI-5040, 5045, 5070): the submission of this
+   *  instance whose carried document's id the answer names, if its
+   *  authenticated sender is the recipient that carried document named;
+   *  the outcome applied to it: a terminal refusal fails it, a retryable
+   *  one bounds its next attempt, idConflict answers it, a next step makes
+   *  it accepted and held (RLTP-VTI-5050). Answers the submission it
+   *  changed (a document), or null where it binds nothing. */
+  #bindAndApply (reading: Extract<BindingReading, { kind: 'error' | 'next-step' }>, sender: string): Submission | null {
     let sub: Submission | undefined
     for (const x of this.#subs.values()) if (x.outerId !== undefined && x.outerId === reading.answers) { sub = x; break }
     if (sub === undefined) {
       this.#log(`answer from ${sender} binds no submission of this instance (${reading.kind}, ${reading.answers}): acknowledged`)
-      return
+      return null
+    }
+    // the transition is the counterpart's alone, whatever the wire filtered (RLTP-VTI-5070)
+    if (sub.peer === undefined || sender !== sub.peer) {
+      this.#log(`answer from ${sender}, not the recipient of the document it names (${reading.kind}): acknowledged, nothing changes`)
+      return null
     }
     // an acknowledgement has no trias (Delivery 6.1): an answer to one changes nothing (RLTP-VTI-5040)
     if (!this.#isDocument(sub)) {
       this.#log(`answer from ${sender} to a carried acknowledgement (${reading.kind}): acknowledged, nothing changes`)
-      return
+      return null
     }
     if (reading.kind === 'next-step') {
       this.#answer(sub)
-      if (sub.st !== null && (sub.st.state === 'delivered' || sub.st.state === 'failed')) return
-      if (sub.st !== null && sub.st.state === 'accepted' && sub.st.held === true) return
-      sub.st = { state: 'accepted', held: true }
-      return
+      const terminal = sub.st !== null && (sub.st.state === 'delivered' || sub.st.state === 'failed')
+      const held = sub.st !== null && sub.st.state === 'accepted' && sub.st.held === true
+      if (!terminal && !held) sub.st = { state: 'accepted', held: true }
+      return sub
     }
     const r = reading.reading
     switch (r.verdict) {
-      case 'refused': this.receiverRefused(sub.id, r.code); return
-      case 'retry': this.receiverRetry(sub.id, r.retryAfter); return
-      case 'answered': this.#answer(sub); return
-      case 'none': return
+      case 'refused': this.receiverRefused(sub.id, r.code); return sub
+      case 'retry': this.receiverRetry(sub.id, r.retryAfter); return null
+      case 'answered': this.#answer(sub); return null
+      case 'none': return null
     }
+  }
+
+  /** Decides every held answer, once the instance knows the holder's view
+   *  and every open document has its id (RLTP-VTI-5045): one bound to a
+   *  document of the holder waits in a collection until the host recorded
+   *  its report (RLTP-VTI-5080); every other is acknowledged at the next
+   *  step. Every answer takes this one path, whatever the opening's state. */
+  #decideAnswers (): void {
+    if (this.#closed || !this.#viewKnown || this.#indexing > 0) return
+    for (const [queueId, { reading, sender }] of this.#answers) {
+      this.#answers.delete(queueId)
+      const sub = this.#bindAndApply(reading, sender)
+      const report = sub !== null && sub.digest !== undefined ? this.report(sub.id) : null
+      if (sub !== null && report !== null) this.#bound.push({ queueId, submissionId: sub.id, report })
+      else { this.#answerIds.delete(queueId); this.#consumed.add(queueId) }
+    }
+  }
+
+  /** The id of the carried document of every filed submission that has
+   *  none yet, from its seal and both connection DIDs (Delivery
+   *  RLTP-DEL-4620; RLTP-VTI-5045) — custody and offered alike, whether
+   *  or not an attempt runs — then the held answers are decided. */
+  #index (): void {
+    this.#viewKnown = true
+    this.#indexing++
+    this.#track((async () => {
+      try {
+        await Promise.resolve()
+        let peer: unknown
+        try { peer = this.#wire.counterpart() } catch { peer = null }
+        if (typeof peer === 'string' && peer.length > 0) {
+          for (const s of [...this.#subs.values()]) {
+            if (s.outerId !== undefined) continue
+            const id = await sealedEnvelopeId(s.seal, this.#connectionDid, peer)
+            if (s.outerId === undefined) { s.outerId = id; s.peer = peer }
+          }
+        }
+      } finally {
+        this.#indexing--
+        this.#decideAnswers()
+      }
+    })())
   }
 
   /** The payloads consumed since the last step become concluded entries
@@ -1181,8 +1244,7 @@ export class MediatorCarrierAdapter {
     }
     this.#subs.set(id, sub)
     if (!knownOffline) this.#startAttempt(sub, now)
-    // a host that submits without the holder's view has no offer to wait for
-    this.#releaseEarly()
+    this.#index()
     return id
   }
 
@@ -1264,41 +1326,9 @@ export class MediatorCarrierAdapter {
       })
       refs.push({ submissionId: id, digest: a.digest })
     }
-    // the answers held until now bind against what is filed (RLTP-VTI-5045)
-    this.#releaseEarly()
+    // every open document gets its id; the held answers are decided then (RLTP-VTI-5045)
+    this.#index()
     return refs
-  }
-
-  /** The answers held before the first reconcile (or submit) of this
-   *  opening: bound now, or logged and acknowledged (RLTP-VTI-5045). Runs
-   *  after the caller's synchronous filing, so the documents the holder
-   *  offers are filed first. */
-  #releaseEarly (): void {
-    if (this.#reconciled) return
-    this.#reconciled = true
-    if (this.#early.size === 0) return
-    this.#track((async () => {
-      await Promise.resolve()
-      await this.#bindIds()
-      if (this.#closed) return
-      for (const [queueId, { reading, sender }] of this.#early) {
-        this.#applyAnswer(reading, sender)
-        this.#consumed.add(queueId)
-      }
-      this.#early.clear()
-    })())
-  }
-
-  /** The `id` of the carried document of every submission filed for
-   *  binding (RLTP-VTI-5045): the seal and both connection DIDs determine it
-   *  (Delivery RLTP-DEL-4620), as they did when it travelled. */
-  async #bindIds (): Promise<void> {
-    let peer: unknown
-    try { peer = this.#wire.counterpart() } catch { return }
-    if (typeof peer !== 'string' || peer.length === 0) return
-    for (const s of this.#subs.values()) {
-      if (s.bindOnly === true && s.outerId === undefined) s.outerId = await sealedEnvelopeId(s.seal, this.#connectionDid, peer)
-    }
   }
 
   /** The current state as the ports' DeliveryReport for holder.report(),
@@ -1362,6 +1392,7 @@ export class MediatorCarrierAdapter {
       if (typeof peer !== 'string' || peer.length === 0) throw new WireError('unreachable', 'no counterpart: nothing is deposited before the instance is bound')
       const carried = await wrapSealed(sub.seal, { issuer: this.#connectionDid, recipient: peer, since: sub.since })
       sub.outerId = carried.outerId
+      sub.peer = peer
       const token = await this.#ensureAuth(now)
       if (this.#closed) return   // retirement between auth and deposit: nothing new starts (R5-B2)
       // each attempt hands the wire a copy: what it does with it never reaches the next.
@@ -1599,16 +1630,18 @@ export class MediatorCarrierAdapter {
   collect (rawNow: number): Collection {
     this.#open()
     this.#concludeConsumed(this.#now(rawNow))
-    if (this.#inbox.length === 0) return { id: 'c-empty', items: [] }
+    if (this.#inbox.length === 0 && this.#bound.length === 0) return { id: 'c-empty', items: [], answers: [] }
     const items = this.#inbox.splice(0)
+    const answers = this.#bound.splice(0)
     this.#outstandingBytes += this.#inboxBytes
     this.#inboxBytes = 0
     this.#inboxDigests.clear()
     const id = 'c' + this.#nextColId++
     this.#outstanding.set(id, new Map(items.map((i) => [i.queueId, i])))
+    this.#outstandingAnswers.set(id, answers)
     // the caller gets its own copies: the outstanding entries stay intact,
     // whatever it does with the bytes, for a conclusion that keeps them
-    return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })) }
+    return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })), answers: answers.map((a) => ({ ...a, report: { ...a.report } })) }
   }
 
   /** Concludes a collection (profile §4, Delivery 5a.8): its items'
@@ -1626,6 +1659,19 @@ export class MediatorCarrierAdapter {
     const now = this.#now(rawNow)
     this.#concludeConsumed(now)
     const col = this.#outstanding.get(collection.id)
+    // the bound answers: acknowledged now, the host having recorded their
+    // reports (RLTP-VTI-5080); a kept one waits for the next collection
+    const ans = this.#outstandingAnswers.get(collection.id)
+    if (ans !== undefined) {
+      this.#outstandingAnswers.delete(collection.id)
+      const keepA = new Set(opts.keep ?? [])
+      for (const a of ans) {
+        if (keepA.has(a.queueId)) { this.#bound.push(a); continue }
+        this.#answerIds.delete(a.queueId)
+        this.#concluded.set(a.queueId, now)
+        this.#pendingAcks.add(a.queueId)
+      }
+    }
     if (!col) {
       // an empty collection is concluded too: it may be the one that leaves nothing pending
       if (collection.id === 'c-empty') this.#concludedClean()
@@ -1653,7 +1699,8 @@ export class MediatorCarrierAdapter {
    *  holds nothing more (queueEmpty; a wire without it never says so),
    *  nothing waits in the buffer, no collection is outstanding. */
   #nothingPending (): boolean {
-    return this.#wire.queueEmpty?.() === true && this.#inbox.length === 0 && this.#outstanding.size === 0
+    return this.#wire.queueEmpty?.() === true && this.#inbox.length === 0 && this.#outstanding.size === 0 &&
+      this.#answers.size === 0 && this.#bound.length === 0 && this.#outstandingAnswers.size === 0
   }
 
   /** After a conclusion (RLTP-VTI-3130): when it left nothing pending,
