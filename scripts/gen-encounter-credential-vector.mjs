@@ -73,7 +73,7 @@ const spelled = (suffix) => {
   return { credential: c, digest: digestU(c) }
 }
 const timestampSpelling = {
-  note: 'Encounter 2.3: a producer writes Z (RLTP-ENC-2150); a reader also accepts +00:00, at most 29 characters, and no other spelling (RLTP-ENC-2155). The accepted credentials are the step credential signed with its timestamps in the offset spelling: they pass 5.6 step 1, their proofs verify and their digests are taken over the received bytes (RLTP-ENC-2140, 2230), so each differs from the digest of `credential` while naming the same whole second (RLTP-ENC-2180). Each negative replaces `credential.validFrom` and is rejected by the schema at 5.6 step 1 (ERR_VERSION). The order case names one whole second in both spellings whose strings order the other way: times are compared as instants, never as strings.',
+  note: 'Encounter 2.3: a producer writes Z (RLTP-ENC-2150); a reader also accepts +00:00, at most 29 characters, and no other spelling (RLTP-ENC-2155). The accepted credentials are the step credential signed with its timestamps in the offset spelling: they pass 5.6 step 1, their proofs verify and their digests are taken over the received bytes (RLTP-ENC-2140, 2230), so each differs from the digest of `credential` while naming the same whole second (RLTP-ENC-2180). Each negative replaces `credential.validFrom` and is rejected by the schema at 5.6 step 1 (ERR_VERSION). `rewritten` is the Z credential with `validFrom` re-spelled and its proof kept: it passes the schema and fails at the proof (ERR_SIG). The order case names one whole second in both spellings whose strings order the other way: times are compared as instants, never as strings.',
   accepted: [
     { name: 'offset-spelling', ...spelled('+00:00') },
     { name: 'offset-spelling-with-fraction', ...spelled('.000+00:00') },
@@ -86,6 +86,7 @@ const timestampSpelling = {
     { name: 'lowercase-t', value: '2026-08-23t12:00:00Z', expect: 'reject: schema' },
     { name: 'thirty-characters', value: '2026-08-23T12:00:00.0000+00:00', expect: 'reject: schema' },
   ],
+  rewritten: { name: 'rewritten-without-signing', credential: { ...cred026, validFrom: cred026.validFrom.replace(/Z$/, '+00:00') }, expect: 'reject: ERR_SIG', note: 'the credential with validFrom re-spelled to +00:00 and its Z proof kept: the schema passes, the proof fails (RLTP-ENC-2140, 2230); a reader that normalizes before JCS would accept it' },
   order: { a: '2026-08-23T12:00:00Z', b: '2026-08-23T12:00:00.500+00:00', note: 'one whole second; as strings b < a, though b is the later instant' },
 }
 

@@ -308,9 +308,10 @@ three fractional-second digits — at most 24 characters.
 
 **RLTP-ENC-2155** — A reader MUST accept a timestamp in the form of
 RLTP-ENC-2150 and the same form with the offset `+00:00` in place of
-`Z` — at most 29 characters — and MUST reject every other form: the
-offset `-00:00`, any other offset, an offset without its colon, a
-lowercase `t` or `z`, and more than three fractional-second digits.
+`Z` — at most 29 characters — and MUST reject every other form,
+among them the offset `-00:00`, any other offset, an offset without
+its colon, a lowercase `t` or `z`, and more than three
+fractional-second digits.
 
 **RLTP-ENC-2160** — An implementation MUST reject a calendar-invalid
 date when parsing a timestamp.
@@ -1259,9 +1260,9 @@ to someone else; a card whose `boundTo` differs from the credential's
 bound challenge mixes two enactments; a displayed card is not
 addressed. Every field of a card is bounded, by the shared rules of
 2.3 for its proof and timestamp and by the card's own maxima, so a
-card has a finite largest JCS serialization: 26 683 bytes at the
+card has a finite largest JCS serialization: 26 693 bytes at the
 adversarial escaping maximum of its free text (C0 control characters,
-six bytes each), 5203 bytes when that text is unescaped one-byte
+six bytes each), 5213 bytes when that text is unescaped one-byte
 ASCII — the qualifier matters, because a quote or a backslash is
 one-byte ASCII and still costs two bytes under JCS (7.5). No layer
 places an acceptance cap on a card, so unlike the credential (7.5) the
@@ -1875,7 +1876,7 @@ distinct conformance vector.
   `card.boundTo` ≠ credential's bound challenge rejected · sent card
   without `sentTo` rejected; foreign `sentTo` rejected; displayed card
   with `sentTo` rejected · a card at every maximum is valid and
-  serializes to 26 683 bytes (5203 with unescaped one-byte free text),
+  serializes to 26 693 bytes (5213 with unescaped one-byte free text),
   and the `encounter-bundle` payload built from a maximal card and a
   maximal credential stays under 28 KiB.
 - *Paths and merge:* a lost acknowledgement switches carriers within
@@ -1967,7 +1968,9 @@ fractional digits.
   fractional digits, passes 5.6 step 1, verifies on its own bytes,
   and has a digest other than the `Z` spelling's; `-00:00`, `+01:00`,
   an offset without its colon, a lowercase `z` or `t`, and 30
-  characters each fail at 5.6 step 1 (`ERR_VERSION`); two spellings
+  characters each fail at 5.6 step 1 (`ERR_VERSION`); the `Z`
+  credential with `validFrom` re-spelled to `+00:00` and its proof
+  kept passes the schema and fails at the proof (`ERR_SIG`); two spellings
   of one whole second compare equal although their strings order the
   other way.
 - *The aging latch, once set, survives a backward clock,* in three
@@ -2009,8 +2012,8 @@ drifts.
    repeated-encounter semantics (renewal) remain undefined.
 5. **OI-5 Card format alignment.**
 6. **OI-6 Card size against the document maxima above this layer.**
-   A card's maximum (26 683 bytes; 5203 in unescaped one-byte ASCII,
-   9499 if that text is quotes or backslashes) exceeds the
+   A card's maximum (26 693 bytes; 5213 in unescaped one-byte ASCII,
+   9509 if that text is quotes or backslashes) exceeds the
    16 384-byte document maximum the Membership Tasks place on an
    invite and an accept, both of which carry a card. Nothing is
    unsound — those documents make fit a sender duty, declare an
@@ -2129,7 +2132,7 @@ One line per version; the archived text is under `archive/`.
 | 0.30 | 2026-10-05 | Numbered rules with separate rationale; DTG scope vocabulary; no wire change. |
 | 0.31 | 2026-10-08 | Credential on DTG Credentials WD 0.6.0: registry context v1 pinned by digest, `issuerScope` `pairwise`; wire 0.26, 0.25 still read. |
 | 0.31.1 | 2026-10-23 | The form of a delivery hint is the carrier profile's that names it (Section 6, at RLTP-ENC-6080); no rule, schema or wire change. |
-| 0.32 | 2026-10-27 | A reader also accepts timestamps with the offset `+00:00` (at most 29 characters), a producer writes `Z` (RLTP-ENC-2150 split, RLTP-ENC-2155); proof and digest over the received bytes; size figures of 7.5 and 15 at 29-character timestamps; wire forms unchanged. |
+| 0.32 | 2026-10-27 | A reader also accepts timestamps with the offset `+00:00` (at most 29 characters), a producer writes `Z` (RLTP-ENC-2150 split, RLTP-ENC-2155); proof and digest over the received bytes; size figures of 6, 7.5, 15 and OI-6 at 29-character timestamps; wire forms unchanged. |
 
 ## References
 

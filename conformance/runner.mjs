@@ -1099,6 +1099,15 @@ for (const n of EC.negative) {
     schemaFails(c, 'encounter-credential-0.26.schema.json', `${n.name} (${n.value})`)
     schemaFails(c, 'encounter-credential.schema.json', `${n.name} (${n.value}, mobile)`)
   }
+  // a reader that normalizes +00:00 to Z before JCS would accept the old
+  // proof here: the rewritten credential passes the schema and fails at
+  // the proof (ERR_SIG)
+  const rw = TS?.rewritten
+  check(rw?.expect === 'reject: ERR_SIG' && rw.credential.validFrom.endsWith('+00:00'), 'timestampSpelling rewritten: validFrom re-spelled, declared ERR_SIG')
+  if (rw) {
+    schemaOK(rw.credential, 'encounter-credential-0.26.schema.json', 'timestampSpelling rewritten')
+    check(!diVerify(rw.credential, rw.credential.issuer).ok, 'timestampSpelling rewritten: the proof of the Z spelling does not verify over the re-spelled bytes')
+  }
   const o = TS?.order ?? {}
   check(typeof o.a === 'string' && Math.floor(Date.parse(o.a) / 1000) === Math.floor(Date.parse(o.b) / 1000) && o.b < o.a, 'timestampSpelling order: equal at whole seconds although the strings order otherwise')
 }
