@@ -1942,6 +1942,7 @@
                 "malformedRequest",
                 "unsupportedType",
                 "unsupportedVersion",
+                "unsupportedExtension",
                 "proofRequired",
                 "proofInvalid",
                 "permissionDenied",

@@ -43,7 +43,7 @@
 // On receipt (RLTP-VTI-7160) the wire hands the payload with its
 // authenticated sender; a carried document whose parties are the sender
 // and this side becomes an item for the holder (its seal), a counterpart's
-// trust-task-error/0.5 or trust-task-next-step/0.1 is bound by the carried
+// trust-task-error (0.5, 0.6) or trust-task-next-step/0.1 is bound by the carried
 // document's id to the submission it answers and applied here
 // (RLTP-VTI-5040, 5050: a next step makes it accepted and held, which the
 // give-up horizon does not end), and everything else is logged and
@@ -213,15 +213,28 @@ export function readDeliveryHints(hints, carrier, self) {
 }
 // ── Counterpart refusals (profile §5, RLTP-VTI-5010 to 5030) ──────────
 // A counterpart that refuses a document answers with the registry's
-// trust-task-error/0.5. Read here, by form; validating the document (its
-// proof, its parties, that it answers a document of this side) is the
+// trust-task-error, 0.5 or 0.6 (RLTP-VTI-5015). Read here, by form;
+// validating the document (its proof, its parties, that it answers a document of this side) is the
 // delivery layer's, which hands the reading to receiverRefused,
 // receiverRetry or answered.
-/** The Type URI of the error documents this profile reads. */
+/** The Type URI of trust-task-error/0.5, the version every version this
+ *  profile reads extends (RLTP-VTI-5015). */
 export const TRUST_TASK_ERROR_TYPE = 'https://trusttasks.org/spec/trust-task-error/0.5';
+const ERROR_CODES_05 = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid',
+    'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError'];
+/** The trust-task-error versions this profile reads (RLTP-VTI-5015): those
+ *  whose declared extension chain (TT §5.2, `extends`) reaches 0.5, as the
+ *  registry publishes them — 0.6 `extends: "0.5"`. Each with the standard
+ *  codes of its registry schema; the payload members are the same in both.
+ *  A later version joins here with the members and codes it adds. */
+const ERROR_VERSIONS = new Map([
+    [TRUST_TASK_ERROR_TYPE, new Set(ERROR_CODES_05)],
+    ['https://trusttasks.org/spec/trust-task-error/0.6', new Set([...ERROR_CODES_05, 'unsupportedExtension', 'indeterminate'])],
+]);
+/** The Type URIs of the error documents this profile reads, oldest first
+ *  (RLTP-VTI-5015). */
+export const TRUST_TASK_ERROR_TYPES = Object.freeze([...ERROR_VERSIONS.keys()]);
 const ERROR_MEMBERS = new Set(['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']);
-const STANDARD_ERROR_CODES = new Set(['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid',
-    'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError']);
 const EXTENDED_ERROR_CODE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/;
 const RFC3339 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?([Zz]|([+-])([0-9]{2}):([0-9]{2}))$/;
 /** Whether `s` has at most `max` code points. The registry schema bounds
@@ -267,14 +280,16 @@ function rfc3339(t) {
     return Number.isFinite(ms) ? ms : null;
 }
 /** One counterpart error document read by its form (registry
- *  trust-task-error/0.5): `type` exactly TRUST_TASK_ERROR_TYPE, a payload
- *  with exactly the registry's members, `code` a standard or an extended
- *  code, `retryable` a boolean, `retryAfter` an RFC 3339 date-time,
- *  `message` at most 1024 code points, `inResponseTo` with a `typeUri`,
- *  `details` an object. `idConflict` is an answer (RLTP-VTI-5030);
- *  otherwise `retryable: true` is a retry, whatever the code (5010);
- *  `retryable: false` is a terminal verdict, an extended code and the
- *  retryable codes read as `taskFailed` (5020); `expired` carries nothing.
+ *  trust-task-error/0.5 and 0.6): `type` exactly one of
+ *  TRUST_TASK_ERROR_TYPES (RLTP-VTI-5015), a payload with exactly the
+ *  registry's members, `code` a standard code of that version or an
+ *  extended code, `retryable` a boolean, `retryAfter` an RFC 3339
+ *  date-time, `message` at most 1024 code points, `inResponseTo` with a
+ *  `typeUri`, `details` an object. `idConflict` is an answer
+ *  (RLTP-VTI-5030); otherwise `retryable: true` is a retry, whatever the
+ *  code (5010); `retryable: false` is a terminal verdict, an extended code
+ *  and the retryable codes (`unavailable`, `internalError`,
+ *  `indeterminate`) read as `taskFailed` (5020); `expired` carries nothing.
  *  Total, like the hint reader: any other input is null, never a throw. */
 export function readTrustTaskError(doc) {
     try {
@@ -288,7 +303,10 @@ function readErrorStrict(doc) {
     if (doc === null || typeof doc !== 'object' || Array.isArray(doc))
         return null;
     const d = doc;
-    if (d.type !== TRUST_TASK_ERROR_TYPE)
+    if (typeof d.type !== 'string')
+        return null;
+    const standard = ERROR_VERSIONS.get(d.type);
+    if (standard === undefined)
         return null;
     const p = d.payload;
     if (p === null || typeof p !== 'object' || Array.isArray(p))
@@ -299,7 +317,7 @@ function readErrorStrict(doc) {
     const { code, retryable } = e;
     if (typeof code !== 'string' || typeof retryable !== 'boolean')
         return null;
-    const extended = !STANDARD_ERROR_CODES.has(code);
+    const extended = !standard.has(code);
     if (extended && !EXTENDED_ERROR_CODE.test(code))
         return null;
     if ('message' in e && (typeof e.message !== 'string' || !atMostCodePoints(e.message, 1024)))
@@ -328,7 +346,7 @@ function readErrorStrict(doc) {
         return { verdict: 'retry', retryAfter };
     if (code === 'expired')
         return { verdict: 'none' };
-    if (extended || code === 'unavailable' || code === 'internalError')
+    if (extended || code === 'unavailable' || code === 'internalError' || code === 'indeterminate')
         return { verdict: 'refused', code: 'taskFailed' };
     return { verdict: 'refused', code: code };
 }
@@ -502,7 +520,7 @@ function boundTo(d, sender, self) {
  *  envelope's `type` with an object `document`; a sealed-envelope/0.1
  *  document satisfying the document profile, `threadId` = `id`, its
  *  `issuer` the sender and its `recipient` `self` (exact strings), its
- *  ciphertext canonical → `sealed`; a trust-task-error/0.5 or a
+ *  ciphertext canonical → `sealed`; a trust-task-error (0.5, 0.6) or a
  *  trust-task-next-step/0.1 read by form and bound (RLTP-VTI-5040) →
  *  `error` / `next-step`; anything else → `ignored`. Total: never throws. */
 export async function readBindingEnvelope(bytes, at) {
@@ -535,7 +553,7 @@ export async function readBindingEnvelope(bytes, at) {
                 return { kind: 'ignored', why: 'carried document: ciphertext not canonical' };
             return { kind: 'sealed', seal: { rkid: seal.rkid, epk: seal.epk, nonce: seal.nonce, ciphertext: seal.ciphertext }, outerId: d.id };
         }
-        if (d.type === TRUST_TASK_ERROR_TYPE) {
+        if (typeof d.type === 'string' && ERROR_VERSIONS.has(d.type)) {
             const reading = readTrustTaskError(d);
             if (reading === null)
                 return { kind: 'ignored', why: 'not an error document of the registry form' };
@@ -587,7 +605,7 @@ export class WireError extends Error {
 // ── Sender states (§6.1 — the closed sets, nothing else) ────────────
 // ReceiverRefusalCode is the ports' (one closed set, one place)
 const RECEIVER_REFUSAL_CODES = new Set([
-    'malformedRequest', 'unsupportedType', 'unsupportedVersion',
+    'malformedRequest', 'unsupportedType', 'unsupportedVersion', 'unsupportedExtension',
     'proofRequired', 'proofInvalid', 'permissionDenied',
     'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed',
 ]);

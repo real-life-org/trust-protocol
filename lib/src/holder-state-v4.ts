@@ -396,7 +396,7 @@ export type OutboxStepV4 = ({
   status: "failed"
   at: MillisV4
   reason: "rejected-by-receiver"
-  code: "malformedRequest" | "unsupportedType" | "unsupportedVersion" | "proofRequired" | "proofInvalid" | "permissionDenied" | "wrongRecipient" | "identityMismatch" | "cancelled" | "taskFailed"
+  code: "malformedRequest" | "unsupportedType" | "unsupportedVersion" | "unsupportedExtension" | "proofRequired" | "proofInvalid" | "permissionDenied" | "wrongRecipient" | "identityMismatch" | "cancelled" | "taskFailed"
 })
 
 /** an issued document; its envelope's rkid equals recipient.keyAgreement (not expressible here, checked by the codec) */

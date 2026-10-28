@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.10.1
+
+Takes up the VTI Mediator Adapter Profile 0.30 and the Delivery Contract
+0.85.1: a counterpart's refusal is read in `trust-task-error/0.6` as in
+0.5. The registry's libraries write 0.6 since the registry published it
+(`extends: "0.5"`, the standard codes `unsupportedExtension` and
+`indeterminate`); 0.10.0 read only 0.5, so a 0.6 refusal was logged and
+acknowledged and the document stayed open until the horizon. No wire
+change of this side, so a patch.
+
+- **`readTrustTaskError`** and `readBindingEnvelope` read
+  `trust-task-error/0.5` and `0.6` (RLTP-VTI-5015), each with the
+  standard codes of its registry schema: `unsupportedExtension` or
+  `indeterminate` in a 0.5 document is still no refusal. Other versions
+  (0.4 and earlier, 0.7 and later) are no refusal.
+- **`TRUST_TASK_ERROR_TYPES`** (new): the Type URIs read, oldest first.
+  `TRUST_TASK_ERROR_TYPE` stays the 0.5 URI.
+- **Codes** (RLTP-VTI-5020). `unsupportedExtension` is a terminal
+  verdict and joins `ReceiverRefusalCode`; `indeterminate` is read by
+  its `retryable` like `unavailable`: a retry with `true`, its default,
+  `taskFailed` with `false`, never a refusal of its own.
+- **Storage.** The stored state accepts the code `unsupportedExtension`
+  on a refused outbox step (codec 4, an added enum value; the codec
+  stays 4).
+- **Vectors.** `vti-sealed-envelope.json` carries 0.6 answers as
+  trust-tasks-rs 0.36.0 sends them (`unsupportedType`, `indeterminate`
+  retryable and not, `unsupportedExtension`) and the 0.5 and other
+  versions it does not read; `types.errors` replaces `types.error`.
+
 ## 0.10.0
 
 Takes up the Delivery Contract 0.85, the VTI Mediator Adapter Profile

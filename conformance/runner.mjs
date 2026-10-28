@@ -1173,7 +1173,7 @@ section('vti-delivery-hints.json — VTI adapter profile 0.29 §1b: the hint for
 // An independent writer and reader of RLTP-VTI-3150 and 7160 and of the
 // answers of 5040 to 5060 (node alone, not the library's wrapSealed and
 // readBindingEnvelope, which lib/test replays against the same vector).
-section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; Delivery 0.85 §4.6: the carried document, its id, what a receiver reads')
+section('vti-sealed-envelope.json — VTI adapter profile 0.30 §3b, §5, §7; Delivery 0.85 §4.6: the carried document, its id, what a receiver reads')
 {
   const SE = J('vectors/vti-sealed-envelope.json')
   const T = SE.types
@@ -1211,8 +1211,13 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; D
   const rfc3339 = (t) => typeof t === 'string' && /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$/.test(t)
   const obj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
   const cps = (s) => [...s].length
-  const errorForm = (p) => obj(p) && Object.keys(p).every((k) => ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details'].includes(k)) &&
-    typeof p.code === 'string' && typeof p.retryable === 'boolean' && (!('message' in p) || (typeof p.message === 'string' && cps(p.message) <= 1024)) && (!('retryAfter' in p) || rfc3339(p.retryAfter))
+  // RLTP-VTI-5015: the error versions read, each with the standard codes of its registry schema
+  const codes05 = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError']
+  const errorCodes = { 'https://trusttasks.org/spec/trust-task-error/0.5': codes05, 'https://trusttasks.org/spec/trust-task-error/0.6': [...codes05, 'unsupportedExtension', 'indeterminate'] }
+  check(jcs(T.errors) === jcs(Object.keys(errorCodes)), 'the error versions read: trust-task-error/0.5 and 0.6 (RLTP-VTI-5015)')
+  const extendedCode = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/
+  const errorForm = (type, p) => obj(p) && Object.keys(p).every((k) => ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details'].includes(k)) &&
+    typeof p.code === 'string' && (errorCodes[type].includes(p.code) || extendedCode.test(p.code)) && typeof p.retryable === 'boolean' && (!('message' in p) || (typeof p.message === 'string' && cps(p.message) <= 1024)) && (!('retryAfter' in p) || rfc3339(p.retryAfter))
   const irtForm = (r) => r === undefined || (obj(r) && Object.keys(r).every((k) => k === 'id' || k === 'typeUri') && typeof r.typeUri === 'string' && r.typeUri !== '' && (!('id' in r) || (typeof r.id === 'string' && r.id !== '')))
   const nextForm = (d) => {
     const p = d.payload
@@ -1240,21 +1245,29 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.29 §3b, §5, §7; D
       const ok = validate(d, SCHEMAS['rltp-delivery-document.schema.json'], SCHEMAS['rltp-delivery-document.schema.json']).length === 0 && d.threadId === d.id && d.issuer === sender && d.recipient === self && canon(d.payload.ciphertext)
       return ok ? { kind: 'sealed', seal: d.payload } : { kind: 'ignored' }
     }
-    const err = d.type === T.error && errorForm(d.payload) && irtForm(d.payload.inResponseTo) && proofOk(d)
+    const err = Object.hasOwn(errorCodes, d.type) && errorForm(d.type, d.payload) && irtForm(d.payload.inResponseTo) && proofOk(d)
     const next = d.type === T.nextStep && nextForm(d) && irtForm(d.payload.inResponseTo)
     if (!err && !next) return { kind: 'ignored' }
     if (('issuedAt' in d && !rfc3339(d.issuedAt)) || ('issuer' in d && d.issuer !== sender) || ('recipient' in d && d.recipient !== self)) return { kind: 'ignored' }
     const r = d.payload.inResponseTo
     if (r !== undefined && r.typeUri !== T.carried) return { kind: 'ignored' }
     const answers = r?.id ?? (typeof d.threadId === 'string' && d.threadId !== '' ? d.threadId : null)
-    return answers === null ? { kind: 'ignored' } : { kind: err ? 'error' : 'next-step', answers }
+    if (answers === null) return { kind: 'ignored' }
+    return err ? { kind: 'error', verdict: verdictOf(d.type, d.payload), answers } : { kind: 'next-step', answers }
   }
+  // RLTP-VTI-5010 to 5030: by retryable, never by the code's default; the terminal codes; the rest taskFailed
+  const terminal = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'unsupportedExtension', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed']
+  const verdictOf = (type, p) => p.code === 'idConflict' ? 'answered' : p.retryable ? 'retry' : p.code === 'expired' ? 'none'
+    : `refused:${errorCodes[type].includes(p.code) && terminal.includes(p.code) ? p.code : 'taskFailed'}`
   const dv = reads(SE.delivered.payload, SE.delivered.sender, SE.delivered.self)
   checkR(SE.delivered.rules, dv.kind === 'sealed' && jcs(dv.seal) === SE.delivered.item, 'the carried document from the sender to this side: its seal is the item')
   for (const c of SE.refused) checkR(c.rules, reads(c.payload, c.sender, c.self).kind === 'ignored', `not delivered (item ${c.item}): ${c.case}`)
   for (const c of SE.answers) {
     const r = reads(c.payload, SE.sides.B, SE.sides.A)
-    const want = c.reading.kind === 'ignored' ? { kind: 'ignored' } : { kind: c.reading.kind, answers: c.reading.answers }
+    const v = c.reading.reading
+    const want = c.reading.kind === 'ignored' ? { kind: 'ignored' } : c.reading.kind === 'error'
+      ? { kind: 'error', verdict: v.verdict === 'refused' ? `refused:${v.code}` : v.verdict, answers: c.reading.answers }
+      : { kind: c.reading.kind, answers: c.reading.answers }
     checkR(c.rules, jcs(r) === jcs(want), `answer: ${c.case} → ${want.kind}`)
   }
 }

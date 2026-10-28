@@ -143,7 +143,7 @@ takes the payload with its authenticated sender and answers whether the
 adapter took the frame; the wire names the counterpart's connection DID
 (`counterpart()`), the `recipient` of every carried document.
 
-**The carried document** (profile 0.29 §3b, §5; Delivery 0.85 §4.6).
+**The carried document** (profile 0.30 §3b, §5; Delivery 0.85 §4.6).
 The adapter wraps every sealed envelope at every attempt into the Trust
 Tasks TSP binding envelope around a `sealed-envelope/0.1` document
 (`wrapSealed(seal, {issuer, recipient, since})`: its `id` a UUID v8 of
@@ -152,9 +152,9 @@ byte-identical. On receipt it reads each payload with its sender
 (`readBindingEnvelope`, total): a carried document whose parties are the
 sender and this side becomes an item, its seal the bytes the holder
 receives; everything that is no answer is logged (`wire.log`) and
-acknowledged at the next step. A counterpart's `trust-task-error/0.5` or
-`trust-task-next-step/0.1` follows one contract (profile RLTP-VTI-5065,
-5070, 5080). Every open document has the `id` it travelled under —
+acknowledged at the next step. A counterpart's `trust-task-error`
+(0.5 or 0.6, RLTP-VTI-5015) or `trust-task-next-step/0.1` follows one
+contract (profile RLTP-VTI-5065, 5070, 5080). Every open document has the `id` it travelled under —
 custody entries and, beside them, `answerable` from `pendingTransport`:
 the accepted documents not yet terminal (held marked) with envelope and
 first submission, for binding only (Delivery RLTP-DEL-6150), which
@@ -215,7 +215,7 @@ Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
 
 **Delivery hints** (Encounter RLTP-ENC-6080, 6090; Identity §7a.3; VTI
-Mediator Adapter Profile 0.29 §1b). `show` and `scan` take a carrier
+Mediator Adapter Profile 0.30 §1b). `show` and `scan` take a carrier
 offer, `carrier: {nonce, deliveryHints}`: the relationship's carrier
 nonce N (32 bytes the app draws fresh) and the hints the app built from
 the connection DID its adapter derives from N. The card (the displayed
@@ -301,7 +301,7 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.29): every sealed envelope carried as a `sealed-envelope/0.1` document in the Trust Tasks TSP binding (`wrapSealed`, `readBindingEnvelope`), a counterpart's `trust-task-error` and `trust-task-next-step` bound by the carried document's `id` and applied (`readTrustTaskNextStep`; `accepted` with `held`); its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `direct` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `direct` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error/0.5` into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.30): every sealed envelope carried as a `sealed-envelope/0.1` document in the Trust Tasks TSP binding (`wrapSealed`, `readBindingEnvelope`), a counterpart's `trust-task-error` and `trust-task-next-step` bound by the carried document's `id` and applied (`readTrustTaskNextStep`; `accepted` with `held`); its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `direct` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `direct` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error` of a version in `TRUST_TASK_ERROR_TYPES` (0.5, 0.6; RLTP-VTI-5015) into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
 
 ## The modules and the rules they implement
 
@@ -433,7 +433,7 @@ This package uses its own semver; the specification uses castings.
 | membership | Membership Tasks 0.21, Access 0.58 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
 | delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
-| transport adapter | VTI Mediator Adapter Profile 0.29 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); sending framework refusals (profile Open Issue 17) |
+| transport adapter | VTI Mediator Adapter Profile 0.30 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); sending framework refusals (profile Open Issue 17) |
 | message | Message Tasks 0.2 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
