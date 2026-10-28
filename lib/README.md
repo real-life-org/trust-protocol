@@ -310,7 +310,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | Module | Specification | Rules |
 |---|---|---|
 | `core` | all layers | the canonical form: JCS (RFC 8785), multibase, digest equality over decoded bytes, whole-second timestamps, calendar validity, the JSON-Schema subset validator |
-| `crypto` | primitives | HKDF, key pairs, did:key and multikey, X25519, the `eddsa-jcs-2022` Data Integrity proof |
+| `crypto` | primitives | HKDF, key pairs, did:key and multikey, X25519, the `eddsa-jcs-2022` Data Integrity proof: `diSign` signs for `assertionMethod`, `diVerify` reads `assertionMethod` and `authentication` (`PROOF_PURPOSES_READ`; Delivery DO-10) |
 | `identity` | Identity 0.55 §6.1, §6.2, §5.4, §5.5 | context derivation under the closed label registry: `group/<digest>` and its generations, `pair/…`, `persona/…`, `device/<n>/<c>`; the name pipeline pinned to Unicode 15.0 |
 | `identity-state` | Identity §2, §5.4, §5.5 | the label register with monotone sets, device names and revocation marks, the community anchor's rotation as a procedure over the Log port (register before log before duties) |
 | `encounter`, `encounter/ceremony` | Encounter 0.32 §4–§7 | `encounter-scan@0.25`: challenges and their aging latch (5.3), the enactment record (5.5), the 5.6 acceptance in its order, both paths of 5.8, `encounter-bundle/0.1` and `encounter-credential-delivery/0.1` with signed acks, the confirm prompt |

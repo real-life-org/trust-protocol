@@ -8,6 +8,7 @@ Recomputes every cryptographic claim of the shipped vectors and validates every 
 - [`ld-expand.mjs`](ld-expand.mjs)
 - [`lib.mjs`](lib.mjs)
 - [`runner.mjs`](runner.mjs)
+- [`tf-proof-vectors.mjs`](tf-proof-vectors.mjs) — the Trust Tasks TF shared proof vectors (`vectors/tf-proof/`) as a standing profile comparison: each copy byte-identical to its upstream blob, the TF's expectation as recorded, the signature under its own suite without profile gates (`eddsa-jcs-2022`; `ecdsa-jcs-2019` over P-256 and P-384, on WebCrypto), and the RLTP verdict of the library's `diVerify` (the freeze `simulator/lib`) and of an oracle written from the profile's rules. Runs in `npm run validate`.
 - [`vwc-composition.mjs`](vwc-composition.mjs)
 
 Back to the [specification index](../).

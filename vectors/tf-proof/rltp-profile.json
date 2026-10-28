@@ -1,0 +1,70 @@
+{
+  "description": "The RLTP reading of the Trust Tasks TF shared proof vectors in this directory (copied unchanged from trustoverip/dtgwg-trust-tasks-tf, fixtures/proof/, at the commit below). Per file: the TF's expectation (as its manifest.json states it), whether the signature holds under its own cryptosuite without any profile gate (eddsa-jcs-2022, or ecdsa-jcs-2019 over P-256 or P-384), and what an RLTP verifier answers with the rule that decides it. Checked by conformance/tf-proof-vectors.mjs in npm run validate.",
+  "source": {
+    "repository": "https://github.com/trustoverip/dtgwg-trust-tasks-tf",
+    "path": "fixtures/proof/",
+    "commit": "adf094757cf822702d9b1c2b6093db5531b7aa94",
+    "framework": "Trust Tasks framework, Working Draft 0.7.0 (SPEC.md at that commit)"
+  },
+  "upstreamBlobs": {
+    "manifest.json": "b65d426fca1e43f90b895d3bd05ac4dc2d961d32",
+    "eddsa-jcs-2022-baseline.json": "d163f3f891ac7ccecede2efee540fcaa0a1f7865",
+    "ecdsa-jcs-2019-ts-p256.json": "01e18082c7360441720d75b0f9b56a21a004e73c",
+    "ecdsa-jcs-2019-ts-p384.json": "33e2fbc4ab734d18069e42b54faf80baf4e67cbd",
+    "ecdsa-jcs-2019-go-p256.json": "722951fd5e11640f0a9ea280530f832adfd0b935",
+    "ecdsa-jcs-2019-go-p384.json": "851914102cf00bebd5fd0bdbd905ecb523b29515",
+    "eddsa-jcs-2022-timestamp-spellings.json": "3c98ca955261f374ab77ed0af18d72afeda29e11",
+    "eddsa-jcs-2022-timestamp-spellings-normalized.json": "5449a424b49bfd92922eee07dbcd2e1da253a8d8"
+  },
+  "cases": [
+    {
+      "file": "eddsa-jcs-2022-baseline.json",
+      "tf": "valid",
+      "signatureHolds": true,
+      "rltp": "valid",
+      "rule": "the securing profile's suite eddsa-jcs-2022 under the issuer's did:key (Encounter RLTP-ENC-2050, 2060); purpose assertionMethod; TT §4.7.1 baseline"
+    },
+    {
+      "file": "ecdsa-jcs-2019-ts-p256.json",
+      "tf": "valid",
+      "signatureHolds": true,
+      "rltp": "invalid",
+      "rule": "only eddsa-jcs-2022 (Encounter RLTP-ENC-2050); TT §4.7.1: a consumer rejects a suite it does not implement (conforming), the SHOULD to verify ecdsa-jcs-2019 over P-256 unmet (Delivery DO-13)"
+    },
+    {
+      "file": "ecdsa-jcs-2019-ts-p384.json",
+      "tf": "valid",
+      "signatureHolds": true,
+      "rltp": "invalid",
+      "rule": "only eddsa-jcs-2022 (Encounter RLTP-ENC-2050); TT §4.7.1: P-384 is an agreed suite, rejecting an unsupported suite is conforming"
+    },
+    {
+      "file": "ecdsa-jcs-2019-go-p256.json",
+      "tf": "valid",
+      "signatureHolds": true,
+      "rltp": "invalid",
+      "rule": "only eddsa-jcs-2022 (Encounter RLTP-ENC-2050); TT §4.7.1: a consumer rejects a suite it does not implement (conforming), the SHOULD to verify ecdsa-jcs-2019 over P-256 unmet (Delivery DO-13); the signature has a high S"
+    },
+    {
+      "file": "ecdsa-jcs-2019-go-p384.json",
+      "tf": "valid",
+      "signatureHolds": true,
+      "rltp": "invalid",
+      "rule": "only eddsa-jcs-2022 (Encounter RLTP-ENC-2050); TT §4.7.1: P-384 is an agreed suite, rejecting an unsupported suite is conforming; the signature has a high S"
+    },
+    {
+      "file": "eddsa-jcs-2022-timestamp-spellings.json",
+      "tf": "valid",
+      "signatureHolds": true,
+      "rltp": "valid",
+      "rule": "proof over the bytes as received, never rewritten (Encounter RLTP-ENC-2140; TT §4.7); purpose authentication read beside assertionMethod (Delivery DO-10; TT §4.7.3)"
+    },
+    {
+      "file": "eddsa-jcs-2022-timestamp-spellings-normalized.json",
+      "tf": "invalid",
+      "signatureHolds": false,
+      "rltp": "invalid",
+      "rule": "the signature covers the spelling it was made over; rewritten timestamps break it (Encounter RLTP-ENC-2140; TT §4.7)"
+    }
+  ]
+}

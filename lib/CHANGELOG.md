@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.10.2
+
+Takes up the Delivery Contract 0.85.2 (Open Issue DO-10): a proof is
+read under the purpose `authentication` beside `assertionMethod`. The
+Trust Tasks framework asks a producer to sign a Trust Task document for
+`authentication` (TT §4.7.3, Working Draft 0.7.0), and a `did:key`'s one
+signing key holds both relationships. Readers take both before any
+writer switches, so the library still signs for `assertionMethod`. No
+wire change of this side, so a patch.
+
+- **`diVerify`** accepts `proofPurpose` `assertionMethod` and
+  `authentication`; `capabilityInvocation`, `capabilityDelegation`,
+  `keyAgreement`, any other value and an absent purpose stay false.
+  Every other gate is unchanged. For an RLTP document the schema check
+  still refuses `authentication` first: the delivery document schema
+  pins `assertionMethod` until a later Delivery casting, and the
+  credentials stay `assertionMethod` as attestations (DO-10).
+- **`PROOF_PURPOSES_READ`** (new): the purposes `diVerify` reads.
+- **Vectors.** `proof-purpose.json` (new): the Trust Tasks TF baseline
+  document signed under each purpose, the `assertionMethod` case the
+  TF's proofValue byte for byte. `vectors/tf-proof/` (new): the TF's
+  shared proof vectors with the RLTP reading of each, checked by
+  `conformance/tf-proof-vectors.mjs`; the timestamp-spellings vector,
+  signed for `authentication`, now verifies.
+
 ## 0.10.1
 
 Takes up the VTI Mediator Adapter Profile 0.30 and the Delivery Contract

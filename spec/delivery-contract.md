@@ -3,11 +3,13 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.85.1-draft (eighty-fifth casting — a sealed envelope
+- **Version:** 0.85.2-draft (eighty-fifth casting — a sealed envelope
   travels as a Trust Task document of its own in a carrier's Trust
   Task binding, and `accepted` carries the feature `held`; patch 1: a
   consumer's refusal is a `trust-task-error` of 0.2 to 0.6, no rule
-  change)
+  change; patch 2: Open Issues DO-10 (the proof purpose of the
+  document, readers before writers) and DO-13 (`ecdsa-jcs-2019` over
+  P-256), no rule change)
 - **Editors:** Anton Tranelis
 - **Date:** 2026-10-28
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
@@ -17,7 +19,8 @@
 - **Companions:** RLTP Identity 0.55; RLTP Encounter 0.32; RLTP Trust
   Layer 0.31; RLTP Access 0.58; RLTP Membership Tasks 0.21.1; RLTP
   Replication 0.26; RLTP Message Tasks 0.2.
-- **Supersedes:** version 0.85.0 (archived as
+- **Supersedes:** version 0.85.1 (archived as
+  `archive/delivery-contract-0.85.1.md`), version 0.85.0 (archived as
   `archive/delivery-contract-0.85.0.md`), version 0.84 (archived as
   `archive/delivery-contract-0.84.md`) and versions 0.83–0.1,
   archived alongside it.
@@ -3988,8 +3991,17 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   "absent" is no proof requirement in the vocabulary of TT §7.3
   item 8;
   every type signs with `proofPurpose` `assertionMethod`, where the
-  framework's editor's draft asks a producer to sign a document for
-  `authentication`;
+  framework (TT §4.7.3, Working Draft 0.7.0) asks a producer to sign a
+  document for `authentication`. Readers come before writers: a
+  verifier reads both purposes (`vectors/proof-purpose.json`); the
+  proof of the Trust Task document itself moves to `authentication`,
+  which needs the delivery document schema
+  (`rltp-delivery-document.schema.json`, its two `proofPurpose`
+  constants) to take it before any writer switches; the credentials a
+  document carries (the encounter credential, the admission vouch, the
+  invitation credential) stay `assertionMethod`, since their proofs
+  are attestations a third party relies on in its own right (TT
+  §4.7.3, §7.3 item 8) and VC verifiers read them so;
   and a companion schema's `$id` is not its Type URI (4.4), where TT
   §7.3 item 7 asks that it be.
 - **DO-11 The anchor of a declaration.** A party declares identical
@@ -4005,6 +4017,15 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   its sealed envelope until then. Neither a bound nor a withdrawal by
   the sender is defined. A counterpart that never answers again keeps
   the document `held`.
+- **DO-13 `ecdsa-jcs-2019` over P-256.** A framework consumer SHOULD
+  verify `ecdsa-jcs-2019` with a P-256 key (TT §4.7.1, Working Draft
+  0.7.0), since hardware-backed signers sign only with P-256. An RLTP
+  verifier verifies `eddsa-jcs-2022` alone (Encounter RLTP-ENC-2050)
+  and rejects a document under any other suite, which the framework
+  counts as conforming; the TF's shared proof vectors record it
+  (`vectors/tf-proof/`). Whether RLTP verifies P-256, for which
+  documents (RLTP anchors are Ed25519 `did:key` and sign nothing
+  else), and from which casting, is open.
 - **DO-5 Ordering.** No global ordering is promised; thread
   causality plus the merge rule cover every current flow.
 - **DO-8 A shared queue under a rate.** Documents on the key of an
@@ -4103,7 +4124,10 @@ framework version 0.6.0 (§4.7.1, §4.8.2, §4.9.3, §4.11.1, §6.1, §6.3,
 §6.5, §7.2–7.3); the Type URI form of RLTP-DEL-3010 also satisfies
 Working Draft 0.7.0 (`trustoverip/dtgwg-trust-tasks-spec` at
 `23b33b9`), and the size bound of RLTP-DEL-3030 answers item 21 of the
-editor's draft (`f0b5b8e`) · [TT-TSP] the registry's TSP binding
+editor's draft (`f0b5b8e`); §4.7.1 and §4.7.3 of Working Draft 0.7.0
+and its shared proof vectors `fixtures/proof/` as
+`trustoverip/dtgwg-trust-tasks-tf` reads at `adf09475` (DO-10, DO-13) ·
+[TT-TSP] the registry's TSP binding
 `bindings/tsp/0.1` (§2 document carriage, §3 identity mapping, §5.3,
 §7.1) and the registry entries `trust-task-error/0.5` and
 `trust-task-next-step/0.1` (`trustoverip/dtgwg-trust-tasks-tf` at
