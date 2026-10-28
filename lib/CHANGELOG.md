@@ -4,18 +4,19 @@
 
 Takes up the VTI Mediator Adapter Profile 0.30 and the Delivery Contract
 0.85.1: a counterpart's refusal is read in `trust-task-error/0.6` and
-`0.4` as in 0.5. The registry's libraries write 0.6 since the registry
+the earlier `0.2` to `0.4` as in 0.5. The registry's libraries write 0.6 since the registry
 published it (`extends: "0.5"`, the standard codes
 `unsupportedExtension` and `indeterminate`); 0.10.0 read only 0.5, so a
 0.6 refusal was logged and acknowledged and the document stayed open
 until the horizon. No wire change of this side, so a patch.
 
 - **`readTrustTaskError`** and `readBindingEnvelope` read
-  `trust-task-error/0.4`, `0.5` and `0.6` (RLTP-VTI-5015), each with the
-  standard codes of its registry schema: `cancelled` in a 0.4 document,
-  `unsupportedExtension` or `indeterminate` in a 0.4 or 0.5 document is
-  no refusal. Other versions (0.3 and earlier, 0.7 and later) are no
-  refusal.
+  `trust-task-error/0.2` to `0.6` (RLTP-VTI-5015), each with the
+  standard codes and members of its registry schema: `cancelled` before
+  0.5, `idConflict` before 0.4, `inResponseTo` in 0.2 (which binds by
+  `threadId`), `unsupportedExtension` or `indeterminate` before 0.6 make
+  a document no refusal. 0.1 (snake-case codes) and 0.7 and later are
+  not read.
 - **`TRUST_TASK_ERROR_TYPES`** (new): the Type URIs read, oldest first.
   `TRUST_TASK_ERROR_TYPE` stays the 0.5 URI.
 - **Codes** (RLTP-VTI-5020). `unsupportedExtension` is a terminal
@@ -38,8 +39,9 @@ until the horizon. No wire change of this side, so a patch.
 - **Vectors.** `vti-sealed-envelope.json` carries 0.6 answers as
   trust-tasks-rs 0.36.0 sends them (`unsupportedType`, `indeterminate`
   retryable and not, each with its `diagnosis`, `unsupportedExtension`),
-  a 0.4 answer, and as no answer a 0.5 document with 0.6 codes, `cancelled`
-  in 0.4, and the versions 0.3 and 0.7; `types.errors` replaces
+  answers in 0.4, 0.3 and 0.2 (by `threadId`), and as no answer a 0.5
+  document with 0.6 codes, `cancelled` in 0.4, `idConflict` in 0.3,
+  `inResponseTo` in 0.2, and the versions 0.1 and 0.7; `types.errors` replaces
   `types.error`.
 
 ## 0.10.0

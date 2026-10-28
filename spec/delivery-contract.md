@@ -6,7 +6,7 @@
 - **Version:** 0.85.1-draft (eighty-fifth casting — a sealed envelope
   travels as a Trust Task document of its own in a carrier's Trust
   Task binding, and `accepted` carries the feature `held`; patch 1: a
-  consumer's refusal is a `trust-task-error` of 0.4 to 0.6, no rule
+  consumer's refusal is a `trust-task-error` of 0.2 to 0.6, no rule
   change)
 - **Editors:** Anton Tranelis
 - **Date:** 2026-10-28
@@ -303,7 +303,7 @@ type and need not be repeated in a declaration:
 - **No response variant.** No type defines a `#response`; the only
   answer to a document is the `delivery-ack` (4.2) or a document of
   another registered type, and to a `sealed-envelope/0.1` document the
-  framework's own `trust-task-error` (0.4 to 0.6) or
+  framework's own `trust-task-error` (0.2 to 0.6) or
   `trust-task-next-step/0.1` of a consumer that refuses it or cannot complete it in isolation
   (4.6). Every type therefore declares `discloses: none`.
 - **No subject agency.** No type has its recipient act in another
@@ -1154,7 +1154,7 @@ The rationales the framework requires:
   leaves behind is its own type's retention.
 
 A consumer that refuses a document of this type answers with the
-framework's `trust-task-error` (0.4, 0.5 or 0.6, the versions the VTI
+framework's `trust-task-error` (0.2 to 0.6, the versions the VTI
 mediator adapter profile reads, its RLTP-VTI-5015); one that
 understands it and cannot complete it in isolation, with
 `trust-task-next-step/0.1`. Both answer
@@ -4107,7 +4107,7 @@ editor's draft (`f0b5b8e`) · [TT-TSP] the registry's TSP binding
 `bindings/tsp/0.1` (§2 document carriage, §3 identity mapping, §5.3,
 §7.1) and the registry entries `trust-task-error/0.5` and
 `trust-task-next-step/0.1` (`trustoverip/dtgwg-trust-tasks-tf` at
-`579d8e29`) and `trust-task-error/0.4` and `0.6`, `extends: "0.5"`
+`579d8e29`) and `trust-task-error/0.2` to `0.4` and `0.6`, `extends: "0.5"`
 (at `3c4ef4d0`); the framework text they cite, §4.7.2, §4.9, §7.2 item 11,
 §8.1 and §8.6, read in the same commit's `SPEC.md` · RLTP Encounter Layer
 0.31, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,

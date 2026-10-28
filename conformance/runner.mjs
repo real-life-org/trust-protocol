@@ -1213,10 +1213,12 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.30 §3b, §5, §7; D
   const cps = (s) => [...s].length
   // RLTP-VTI-5015: the error versions read, each with the standard codes of its registry schema
   const codes05 = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError']
-  const errorCodes = { 'https://trusttasks.org/spec/trust-task-error/0.4': codes05.filter((c) => c !== 'cancelled'), 'https://trusttasks.org/spec/trust-task-error/0.5': codes05, 'https://trusttasks.org/spec/trust-task-error/0.6': [...codes05, 'unsupportedExtension', 'indeterminate'] }
-  check(jcs(T.errors) === jcs(Object.keys(errorCodes)), 'the error versions read: trust-task-error/0.4, 0.5 and 0.6 (RLTP-VTI-5015)')
+  const codes03 = codes05.filter((c) => c !== 'cancelled' && c !== 'idConflict')
+  const errorCodes = { 'https://trusttasks.org/spec/trust-task-error/0.2': codes03, 'https://trusttasks.org/spec/trust-task-error/0.3': codes03, 'https://trusttasks.org/spec/trust-task-error/0.4': codes05.filter((c) => c !== 'cancelled'), 'https://trusttasks.org/spec/trust-task-error/0.5': codes05, 'https://trusttasks.org/spec/trust-task-error/0.6': [...codes05, 'unsupportedExtension', 'indeterminate'] }
+  check(jcs(T.errors) === jcs(Object.keys(errorCodes)), 'the error versions read: trust-task-error/0.2 to 0.6 (RLTP-VTI-5015)')
   const extendedCode = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/
-  const errorForm = (type, p) => obj(p) && Object.keys(p).every((k) => ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details'].includes(k)) &&
+  // 0.2 has no member inResponseTo
+  const errorForm = (type, p) => obj(p) && Object.keys(p).every((k) => ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details'].includes(k) && !(k === 'inResponseTo' && type.endsWith('/0.2'))) &&
     typeof p.code === 'string' && (errorCodes[type].includes(p.code) || extendedCode.test(p.code)) && typeof p.retryable === 'boolean' && (!('message' in p) || (typeof p.message === 'string' && cps(p.message) <= 1024)) && (!('retryAfter' in p) || rfc3339(p.retryAfter))
   const irtForm = (r) => r === undefined || (obj(r) && Object.keys(r).every((k) => k === 'id' || k === 'typeUri') && typeof r.typeUri === 'string' && r.typeUri !== '' && (!('id' in r) || (typeof r.id === 'string' && r.id !== '')))
   const nextForm = (d) => {

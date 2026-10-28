@@ -3,7 +3,7 @@
 // Trust Task consumer over the live mediator: one sealed envelope carried
 // as a sealed-envelope/0.1 document in the registry's TSP binding envelope
 // (§3b) to the consumer's TSP identifier, and the consumer's answer read
-// back by the adapter (§5): a trust-task-error (0.4 to 0.6, RLTP-VTI-5015)
+// back by the adapter (§5): a trust-task-error (0.2 to 0.6, RLTP-VTI-5015)
 // `unsupportedType` fails the submission as
 // rejected-by-receiver(unsupportedType) (RLTP-VTI-5040, 5010); a
 // trust-task-next-step/0.1 makes it accepted and held (RLTP-VTI-5050); a
