@@ -1,20 +1,24 @@
 #!/usr/bin/env node
-// live-interop-probe.mjs — the adapter (profile 0.29) against a FOREIGN
+// live-interop-probe.mjs — the adapter (profile 0.30) against a FOREIGN
 // Trust Task consumer over the live mediator: one sealed envelope carried
 // as a sealed-envelope/0.1 document in the registry's TSP binding envelope
 // (§3b) to the consumer's TSP identifier, and the consumer's answer read
-// back by the adapter (§5): a trust-task-error/0.5 `unsupportedType`
-// fails the submission as rejected-by-receiver(unsupportedType)
-// (RLTP-VTI-5040, 5010); a trust-task-next-step/0.1 makes it accepted and
-// held (RLTP-VTI-5050). The consumer is the test double of
-// trust-protocol-interop-double (trust-tasks-rs / trust-tasks-tsp 0.35.4,
-// affinidi-tsp 0.3.0, TSP 1.0) on the same mediator; it is run by the
-// tester, never started from here. Prints the measurements. No secrets.
+// back by the adapter (§5): a trust-task-error (0.5 or 0.6, RLTP-VTI-5015)
+// `unsupportedType` fails the submission as
+// rejected-by-receiver(unsupportedType) (RLTP-VTI-5040, 5010); a
+// trust-task-next-step/0.1 makes it accepted and held (RLTP-VTI-5050); a
+// retryable `indeterminate` moves nothing and is acknowledged at the next
+// step (RLTP-VTI-5010, 5020). The consumer is the test double of
+// trust-protocol-interop-double (trust-tasks-rs / trust-tasks-tsp 0.36.0,
+// which write trust-task-error/0.6; affinidi-tsp 0.3.0, TSP 1.0) on the
+// same mediator; it is run by the tester, never started from here. Prints
+// the measurements and the type and code of every answer. No secrets.
 //
 // Network-gated: RLTP_LIVE_MEDIATOR=1; MEDIATOR_DID names a TSP 1.0
 // mediator (>= 0.45) with local direct delivery allowed; FOREIGN_DID the
 // consumer's did:key (its DOUBLE_READY line); EXPECT `unsupportedType`
-// (default) or `next-step`; RLTP_WIRE_DEPOSIT `routed` (default) or `direct`;
+// (default), `next-step` (the double with --next-step) or `indeterminate`
+// (the double with --indeterminate; CROSS_OPENING is not used with it); RLTP_WIRE_DEPOSIT `routed` (default) or `direct`;
 // CROSS_OPENING=1 closes the adapter right after the deposit is accepted and
 // opens a new one over the same relationship, which binds the answer to the
 // document the holder offers for binding (RLTP-VTI-5065, Delivery RLTP-DEL-6150);
@@ -32,8 +36,8 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
 const MEDIATOR_DID = process.env.MEDIATOR_DID;
 const FOREIGN_DID = process.env.FOREIGN_DID;
 const EXPECT = process.env.EXPECT ?? "unsupportedType";
-if (!MEDIATOR_DID || !FOREIGN_DID || !["unsupportedType", "next-step"].includes(EXPECT)) {
-  console.error("live-interop-probe: set MEDIATOR_DID (a TSP 1.0 mediator), FOREIGN_DID (the consumer's did:key) and EXPECT (unsupportedType | next-step)");
+if (!MEDIATOR_DID || !FOREIGN_DID || !["unsupportedType", "next-step", "indeterminate"].includes(EXPECT)) {
+  console.error("live-interop-probe: set MEDIATOR_DID (a TSP 1.0 mediator), FOREIGN_DID (the consumer's did:key) and EXPECT (unsupportedType | next-step | indeterminate)");
   process.exit(2);
 }
 
@@ -53,7 +57,23 @@ say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"}; expected answ
 
 const root = rand(32); const nonce = rand(32);
 const logged = [];
-const wire = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } });
+/** every answer the wire hands the adapter, by type and code (read here only to print it) */
+const answersSeen = [];
+const tap = (w) => {
+  const on = w.onDeliver.bind(w);
+  w.onDeliver = (cb) => on(async (bytes, sender) => {
+    try {
+      const d = JSON.parse(new TextDecoder().decode(bytes)).document ?? {};
+      if (d.type !== "https://real-life.org/trust-tasks/spec/sealed-envelope/0.1") {
+        answersSeen.push({ type: d.type, code: d.payload?.code, retryable: d.payload?.retryable });
+        say(`  · answer from ${sender}: ${d.type}${d.payload?.code ? ` ${d.payload.code} retryable=${d.payload.retryable}` : ""}`);
+      }
+    } catch { /* not JSON: the adapter logs it */ }
+    return cb(bytes, sender);
+  });
+  return w;
+};
+const wire = tap(await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } }));
 const a = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire);
 a.register([], Date.now());
 await a.settle();
@@ -76,7 +96,7 @@ say(`  ✓ carried document deposited and accepted (mode ${frame.mode}: payload 
 const log = (l) => { logged.push(l); say(`  · ${l}`) };
 /** a new opening over the same relationship, the document offered for binding (RLTP-VTI-5065) */
 async function opening (registerFirst) {
-  const w = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log });
+  const w = tap(await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log }));
   const x = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, w);
   if (registerFirst) {
     x.register([], Date.now()); await x.settle();
@@ -87,6 +107,32 @@ async function opening (registerFirst) {
   const [r] = x.reconcile({ ok: true, entries: [], answerable: [{ digest: DIGEST, kind: "document", envelope: seal, recipient: {}, since: t0, held: false }] }, g, Date.now());
   x.register([], Date.now()); await x.settle();
   return { a: x, wire: w, ref: r.submissionId };
+}
+if (EXPECT === "indeterminate") {
+  // RLTP-VTI-5010, 5020: a retryable indeterminate is an availability condition — no transition,
+  // nothing in the collection, acknowledged at the next step; the submission ends at the horizon
+  const ERR06 = "https://trusttasks.org/spec/trust-task-error/0.6";
+  const got = await waitFor(() => { a.advance(Date.now()); return answersSeen.some((x) => x.type === ERR06 && x.code === "indeterminate") });
+  await a.settle();
+  if (!got) fail(`no trust-task-error/0.6 indeterminate within 30s; seen ${JSON.stringify(answersSeen)}`);
+  a.advance(Date.now()); await a.settle();
+  if (JSON.stringify(a.status(first.submissionId)) !== JSON.stringify({ state: "accepted" })) fail(`indeterminate moved the submission: ${JSON.stringify(a.status(first.submissionId))}`);
+  const col = a.collect(Date.now());
+  if (col.items.length !== 0 || col.answers.length !== 0) fail(`indeterminate reached the collection: ${JSON.stringify(col)}`);
+  if (!(await waitFor(() => { a.advance(Date.now()); return a.ackState().pending.length === 0 }, 10000))) fail(`the acknowledgement did not land: ${JSON.stringify(a.ackState().pending)}`);
+  await a.settle();
+  say(`  ✓ indeterminate (retryable) read: the submission stays ${JSON.stringify(a.status(first.submissionId))}, nothing in the collection, acknowledged (${Date.now() - t0}ms)`);
+  a.close(); wire.close();
+  await new Promise((r) => setTimeout(r, 2000));
+  const n = answersSeen.length;
+  const after = await opening(false);
+  await new Promise((r) => setTimeout(r, 5000));
+  after.a.advance(Date.now()); await after.a.settle();
+  if (answersSeen.length !== n || JSON.stringify(after.a.status(after.ref)) !== JSON.stringify({ state: "accepted" })) fail(`something came again after the acknowledgement: ${JSON.stringify(answersSeen.slice(n))}, ${JSON.stringify(after.a.status(after.ref))}`);
+  say("  ✓ after the acknowledgement the mediator delivered nothing more");
+  after.a.close(); after.wire.close();
+  console.log(`\nLIVE-INTEROP-PROBE PASS — the foreign consumer answered trust-task-error/0.6 indeterminate (retryable) and the submission stayed accepted (${frame.mode}); acknowledged, nothing came again`);
+  process.exit(0);
 }
 const want = EXPECT === "unsupportedType"
   ? (st) => st?.state === "failed" && st.reason === "rejected-by-receiver" && st.code === "unsupportedType"
@@ -137,5 +183,6 @@ after.a.advance(Date.now()); await after.a.settle();
 if (JSON.stringify(after.a.status(after.ref)) !== JSON.stringify({ state: "accepted" })) fail(`an answer came again after the conclusion: ${JSON.stringify(after.a.status(after.ref))}`);
 say("  ✓ after the conclusion the mediator delivered nothing more");
 after.a.close(); after.wire.close();
-console.log(`\nLIVE-INTEROP-PROBE PASS — ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode}${process.env.CROSS_OPENING === "1" ? ", across openings" : ""}${process.env.REGISTER_FIRST === "1" ? ", registered first" : ""}); the answer stayed at the mediator until the conclusion and was gone after it`);
+const types = [...new Set(answersSeen.map((x) => x.type))].join(", ");
+console.log(`\nLIVE-INTEROP-PROBE PASS — answers ${types}; ${EXPECT === "unsupportedType" ? "the foreign consumer refused the carried document (unsupportedType) and the submission failed as rejected-by-receiver" : "the foreign consumer answered with a next step and the submission is accepted and held"} (${frame.mode}${process.env.CROSS_OPENING === "1" ? ", across openings" : ""}${process.env.REGISTER_FIRST === "1" ? ", registered first" : ""}); the answer stayed at the mediator until the conclusion and was gone after it`);
 process.exit(0);
