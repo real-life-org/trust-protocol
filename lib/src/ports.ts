@@ -135,11 +135,12 @@ export interface Access {
 // ── Delivery reports (user: report) ────────────────────────────────────
 
 /** Receiver refusal codes an adapter may convey: the terminal codes of
- *  `trust-task-error/0.5` (VTI mediator profile, RLTP-VTI-5020). An
+ *  `trust-task-error/0.5` and `0.6` (VTI mediator profile, RLTP-VTI-5015,
+ *  5020). An
  *  extended code reaches the port as `taskFailed`; `idConflict` is an
  *  answer, never a refusal (RLTP-VTI-5030). */
 export type ReceiverRefusalCode =
-  | 'malformedRequest' | 'unsupportedType' | 'unsupportedVersion'
+  | 'malformedRequest' | 'unsupportedType' | 'unsupportedVersion' | 'unsupportedExtension'
   | 'proofRequired' | 'proofInvalid' | 'permissionDenied'
   | 'wrongRecipient' | 'identityMismatch' | 'cancelled' | 'taskFailed'
 

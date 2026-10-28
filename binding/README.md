@@ -1,7 +1,7 @@
 # binding — the VTI mediator wire (dev only)
 
 The concrete `MediatorWire` of the VTI mediator adapter
-(`spec/adapter-vti-mediator.md`, profile 0.29, §3a, §7) over
+(`spec/adapter-vti-mediator.md`, profile 0.30, §3a, §7) over
 `@openvtc/vti-didcomm-js` 0.13.0 and `@openvtc/vti-tsp-js` 0.4.0, TSP 1.0.
 It is never a dependency of the zero-dependency library: the library's
 adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
@@ -71,9 +71,10 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   back, the trias closing `accepted → delivered`.
 - `live-interop-probe.mjs` — the adapter against a foreign Trust Task
   consumer on the same mediator (`FOREIGN_DID`, its did:key; `EXPECT`
-  `unsupportedType` or `next-step`): the consumer of
+  `unsupportedType`, `next-step` or `indeterminate`): the consumer of
   `trust-protocol-interop-double` (Rust: `trust-tasks-rs` and
-  `trust-tasks-tsp` 0.35.4, `affinidi-tsp` 0.3.0) dispatches the carried
+  `trust-tasks-tsp` 0.36.0, which write `trust-task-error/0.6`;
+  `affinidi-tsp` 0.3.0) dispatches the carried
   document by its `type` without opening the seal and answers the
   authenticated sender; the probe files the document as a holder's
   custody entry (`reconcile`), checks that the adapter binds the answer
@@ -86,7 +87,15 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   relationship, which files the document as the holder offers it for
   binding (RLTP-VTI-5065) and binds the answer the mediator kept;
   `REGISTER_FIRST=1` registers that opening before it reconciles, so the
-  answer arrives first and is held until the reconcile.
+  answer arrives first and is held until the reconcile. With
+  `EXPECT=indeterminate` (the double with `--indeterminate`) the answer
+  is a retryable `indeterminate`: the probe checks that it is bound to
+  the carried document (the collection carries it for that submission
+  with the diagnosis `{ code: 'indeterminate', retryable: true }` beside
+  the unchanged `accepted` report), that the submission stays
+  `accepted`, that it is acknowledged at the conclusion, and that a
+  later opening receives nothing (profile RLTP-VTI-5020, 5080). The
+  probe prints the type and code of every answer.
 
 ## Measurements
 
@@ -99,20 +108,23 @@ Mediator 0.45.0 at
 | `live-probe.mjs` | PASS: 657 B payload → inner 984 B → outer 1392 B, delivered after 282 ms; reply 635 B → 963 B → 1371 B, 262 ms | PASS: 657 B → 984 B, 270 ms; 635 B → 963 B, 258 ms |
 | `live-delivery-probe.mjs` | PASS: document 1105 B → 1434 B → 1842 B, ack 1647 B → 1974 B → 2382 B, deposit → ack validated 569 ms | PASS: 1105 B → 1434 B, ack 1646 B → 1974 B, 529 ms |
 
-`live-interop-probe.mjs` (27.10.2026, after the answer contract), each
-cell one run: the answer bound by the carried document's `id`, carried in
+`live-interop-probe.mjs` (28.10.2026, profile 0.30, library 0.10.1,
+the double on `trust-tasks-rs` and `trust-tasks-tsp` 0.36.0), each cell
+one run: the answer bound by the carried document's `id`, carried in
 the collection with its report, still at the mediator when the opening
 closed without a conclusion (delivered again and bound again in the next
 opening), acknowledged at the conclusion, and nothing delivered after it.
+Every refusal arrived as `trust-task-error/0.6`.
 
 | Variant | `routed` | `direct` |
 |---|---|---|
-| no handler (`unsupportedType`), same opening | PASS: `failed(rejected-by-receiver(unsupportedType))` | PASS |
+| no handler (`unsupportedType`), same opening | PASS: `trust-task-error/0.6`, `failed(rejected-by-receiver(unsupportedType))` | PASS |
 | no handler, `CROSS_OPENING=1` | PASS | PASS |
 | no handler, `CROSS_OPENING=1 REGISTER_FIRST=1` | PASS | PASS |
 | `--next-step`, same opening | PASS: `accepted`, `held` | PASS |
 | `--next-step`, `CROSS_OPENING=1` | PASS | PASS |
 | `--next-step`, `CROSS_OPENING=1 REGISTER_FIRST=1` | PASS | PASS |
+| `--indeterminate` (`EXPECT=indeterminate`) | PASS: `trust-task-error/0.6` `indeterminate`, `retryable: true`; bound (diagnosis in the collection beside the unchanged report), stays `accepted`, acknowledged at the conclusion, nothing again | PASS |
 
 The binding envelope and the carried document add about 400 bytes to a
 sealed envelope; the routing layer about 408 bytes more. A routed message
@@ -142,7 +154,7 @@ export MEDIATOR_DID=...                              # a TSP 1.0 mediator (≥ 0
 RLTP_LIVE_MEDIATOR=1 npm run probe
 RLTP_LIVE_MEDIATOR=1 node live-delivery-probe.mjs
 RLTP_LIVE_MEDIATOR=1 RLTP_WIRE_DEPOSIT=direct npm run probe
-RLTP_LIVE_MEDIATOR=1 FOREIGN_DID=did:key:... EXPECT=unsupportedType node live-interop-probe.mjs
+RLTP_LIVE_MEDIATOR=1 FOREIGN_DID=did:key:... EXPECT=unsupportedType node live-interop-probe.mjs   # or next-step, indeterminate
 npm test                                             # offline
 RLTP_WIRE_DEBUG=1 ...                                # frame sizes, dispatch errors
 MEDIATOR_ALLOW_INSECURE=1 ...                        # a local instance over http/ws

@@ -190,8 +190,12 @@ const contact = obj({
   groupSettings: rec(setting),
 })
 
+const REFUSAL_CODES = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed']
+
 /** an outbox step of codec n: from codec 4 on, `accepted` may carry
- *  `held: true` (Delivery RLTP-DEL-6140) */
+ *  `held: true` (Delivery RLTP-DEL-6140), and a refusal may carry the
+ *  code `unsupportedExtension` of trust-task-error/0.6 (RLTP-VTI-5020;
+ *  an added enum value, the codec stays 4) */
 const outboxStepOf = (n: number): V => (x, p) => {
   if (!isObj(x)) fail(p, 'object expected')
   const s = x as Record<string, unknown>
@@ -201,7 +205,7 @@ const outboxStepOf = (n: number): V => (x, p) => {
     case 'accepted': return obj({ status: str, at: millis }, n >= 4 ? { held: lit(true) } : {})(x, p)
     case 'delivered': return obj({ status: str, at: millis, late: bool })(x, p)
     case 'failed': return s.reason === 'rejected-by-receiver'
-      ? obj({ status: str, at: millis, reason: str, code: lit('malformedRequest', 'unsupportedType', 'unsupportedVersion', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed') })(x, p)
+      ? obj({ status: str, at: millis, reason: str, code: lit(...REFUSAL_CODES, ...(n >= 4 ? ['unsupportedExtension'] : [])) })(x, p)
       : obj({ status: str, at: millis, reason: lit('unroutable', 'oversize', 'expired-by-adapter-policy', 'task-expired') })(x, p)
     default: fail(`${p}.status`, 'unknown outbox status')
   }
