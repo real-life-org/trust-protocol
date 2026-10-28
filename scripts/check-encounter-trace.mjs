@@ -10,7 +10,7 @@
 //     conformance/membership-rule-ids-0.21.txt,
 //     conformance/trust-rule-ids-0.31.txt,
 //     conformance/delivery-rule-ids-0.85.txt,
-//     conformance/adapter-vti-rule-ids-0.29.txt), one identifier per line,
+//     conformance/adapter-vti-rule-ids-0.30.txt), one identifier per line,
 //     committed with the specification — this is what CI checks against;
 //   · the rule inventory (the trace table from the previous version, kept
 //     outside this repository) — checked additionally when present, and
@@ -96,9 +96,9 @@ export const LAYERS = {
   },
   adapter: {
     prefix: 'RLTP-VTI',
-    title: 'VTI Mediator Adapter Profile 0.29',
+    title: 'VTI Mediator Adapter Profile 0.30',
     spec: join(ROOT, 'spec/adapter-vti-mediator.md'),
-    manifest: join(ROOT, 'conformance/adapter-vti-rule-ids-0.29.txt'),
+    manifest: join(ROOT, 'conformance/adapter-vti-rule-ids-0.30.txt'),
     inventory: null,
     env: 'ADAPTER_INVENTORY'
   }

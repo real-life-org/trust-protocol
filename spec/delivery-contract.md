@@ -3,11 +3,13 @@
 **Real Life Trust Protocol — service contract: Delivery**
 
 - **Status:** Editor's Draft
-- **Version:** 0.85.0-draft (eighty-fifth casting — a sealed envelope
+- **Version:** 0.85.1-draft (eighty-fifth casting — a sealed envelope
   travels as a Trust Task document of its own in a carrier's Trust
-  Task binding, and `accepted` carries the feature `held`)
+  Task binding, and `accepted` carries the feature `held`; patch 1: a
+  consumer's refusal is a `trust-task-error/0.5` or `0.6`, no rule
+  change)
 - **Editors:** Anton Tranelis
-- **Date:** 2026-10-27
+- **Date:** 2026-10-28
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
 - **Task-type namespace:** `https://real-life.org/trust-tasks/spec/`
 - **Target Trust Tasks framework version:** 0.6.0
@@ -15,7 +17,8 @@
 - **Companions:** RLTP Identity 0.55; RLTP Encounter 0.32; RLTP Trust
   Layer 0.31; RLTP Access 0.58; RLTP Membership Tasks 0.21.1; RLTP
   Replication 0.26; RLTP Message Tasks 0.2.
-- **Supersedes:** version 0.84 (archived as
+- **Supersedes:** version 0.85.0 (archived as
+  `archive/delivery-contract-0.85.0.md`), version 0.84 (archived as
   `archive/delivery-contract-0.84.md`) and versions 0.83–0.1,
   archived alongside it.
 - **Supersedes on adoption:** `04-transport/001-sync-protokoll.md`
@@ -300,8 +303,8 @@ type and need not be repeated in a declaration:
 - **No response variant.** No type defines a `#response`; the only
   answer to a document is the `delivery-ack` (4.2) or a document of
   another registered type, and to a `sealed-envelope/0.1` document the
-  framework's own `trust-task-error/0.5` or `trust-task-next-step/0.1`
-  of a consumer that refuses it or cannot complete it in isolation
+  framework's own `trust-task-error/0.5` or `0.6` or
+  `trust-task-next-step/0.1` of a consumer that refuses it or cannot complete it in isolation
   (4.6). Every type therefore declares `discloses: none`.
 - **No subject agency.** No type has its recipient act in another
   party's name; every type declares `actsAsSubject: false`.
@@ -1151,8 +1154,10 @@ The rationales the framework requires:
   leaves behind is its own type's retention.
 
 A consumer that refuses a document of this type answers with the
-framework's `trust-task-error/0.5`; one that understands it and cannot
-complete it in isolation, with `trust-task-next-step/0.1`. Both answer
+framework's `trust-task-error/0.5` or `0.6` (the versions the VTI
+mediator adapter profile reads, its RLTP-VTI-5015); one that
+understands it and cannot complete it in isolation, with
+`trust-task-next-step/0.1`. Both answer
 the document by its `id` (`inResponseTo.id`, or `threadId`), and
 both are read and applied by the carrier adapter (VTI mediator
 adapter profile §5); RLTP sends neither in this casting. A next step
@@ -4102,7 +4107,8 @@ editor's draft (`f0b5b8e`) · [TT-TSP] the registry's TSP binding
 `bindings/tsp/0.1` (§2 document carriage, §3 identity mapping, §5.3,
 §7.1) and the registry entries `trust-task-error/0.5` and
 `trust-task-next-step/0.1` (`trustoverip/dtgwg-trust-tasks-tf` at
-`579d8e29`); the framework text they cite, §4.7.2, §4.9, §7.2 item 11,
+`579d8e29`) and `trust-task-error/0.6`, `extends: "0.5"` (at
+`3c4ef4d0`); the framework text they cite, §4.7.2, §4.9, §7.2 item 11,
 §8.1 and §8.6, read in the same commit's `SPEC.md` · RLTP Encounter Layer
 0.31, wire 0.25 (delivery port, binding 5.4, ceremony 5.8,
 fresh-always §4.4, state model 5.3, merge rule 4.2) · RLTP Trust
