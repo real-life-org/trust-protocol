@@ -7,9 +7,9 @@
   travels as a Trust Task document of its own in a carrier's Trust
   Task binding, and `accepted` carries the feature `held`; patch 1: a
   consumer's refusal is a `trust-task-error` of 0.2 to 0.6, no rule
-  change; patch 2: Open Issues DO-10 (the proof purpose, readers
-  before writers) and DO-13 (`ecdsa-jcs-2019` over P-256), no rule
-  change)
+  change; patch 2: Open Issues DO-10 (the proof purpose of the
+  document, readers before writers) and DO-13 (`ecdsa-jcs-2019` over
+  P-256), no rule change)
 - **Editors:** Anton Tranelis
 - **Date:** 2026-10-28
 - **Vocabulary namespace:** `https://real-life.org/rltp/v1`
@@ -3992,15 +3992,16 @@ no ack and consumes nothing; B's prompt is C4, never automated.
   item 8;
   every type signs with `proofPurpose` `assertionMethod`, where the
   framework (TT §4.7.3, Working Draft 0.7.0) asks a producer to sign a
-  document for `authentication` — the order of the change is readers
-  before writers: first every verifier reads both purposes (the
-  reference library's `diVerify` does from 0.10.2,
-  `vectors/proof-purpose.json`), then the schemas that pin
-  `proofPurpose` to `assertionMethod` take both in the next casting of
-  each layer (the Delivery document schema, the Encounter card and
-  credential schemas, the Access vouch schema, the two Membership
-  Tasks payload schemas), and only when every reader takes both do the
-  writers switch;
+  document for `authentication`. Readers come before writers: a
+  verifier reads both purposes (`vectors/proof-purpose.json`); the
+  proof of the Trust Task document itself moves to `authentication`,
+  which needs the delivery document schema
+  (`rltp-delivery-document.schema.json`, its two `proofPurpose`
+  constants) to take it before any writer switches; the credentials a
+  document carries (the encounter credential, the admission vouch, the
+  invitation credential) stay `assertionMethod`, since their proofs
+  are attestations a third party relies on in its own right (TT
+  §4.7.3, §7.3 item 8) and VC verifiers read them so;
   and a companion schema's `$id` is not its Type URI (4.4), where TT
   §7.3 item 7 asks that it be.
 - **DO-11 The anchor of a declaration.** A party declares identical

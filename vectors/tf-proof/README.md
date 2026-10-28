@@ -25,10 +25,11 @@ decides it).
 ## Licence
 
 The copied files are the work of the contributors to
-`trustoverip/dtgwg-trust-tasks-tf`. That repository publishes its source
-code under the Apache License, Version 2.0 (`SOURCE_CODE.md` there), its
-framework specification text under CC BY 4.0 (`SPEC.md` there) and its
-patent terms under OWFa 1.0 (`LICENSE.md` there). The files are
-redistributed unchanged under those terms, with this notice as the
-attribution. `rltp-profile.json` and this README are under this
+`trustoverip/dtgwg-trust-tasks-tf` and are code-tree fixtures of that
+repository, published under the Apache License, Version 2.0
+(`SOURCE_CODE.md` there). They are redistributed unchanged under it, with
+this notice as the attribution. The framework specification itself is
+under CC BY 4.0, and OWFa 1.0 (`LICENSE.md` there) covers the copyright
+and patent rights in that specification.
+`rltp-profile.json` and this README are under this
 repository's licences.

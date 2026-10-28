@@ -14,8 +14,9 @@ wire change of this side, so a patch.
   `authentication`; `capabilityInvocation`, `capabilityDelegation`,
   `keyAgreement`, any other value and an absent purpose stay false.
   Every other gate is unchanged. For an RLTP document the schema check
-  still refuses `authentication` first: its schema pins
-  `assertionMethod` until the next casting of its layer (DO-10).
+  still refuses `authentication` first: the delivery document schema
+  pins `assertionMethod` until a later Delivery casting, and the
+  credentials stay `assertionMethod` as attestations (DO-10).
 - **`PROOF_PURPOSES_READ`** (new): the purposes `diVerify` reads.
 - **Vectors.** `proof-purpose.json` (new): the Trust Tasks TF baseline
   document signed under each purpose, the `assertionMethod` case the
