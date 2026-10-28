@@ -89,9 +89,12 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   `REGISTER_FIRST=1` registers that opening before it reconciles, so the
   answer arrives first and is held until the reconcile. With
   `EXPECT=indeterminate` (the double with `--indeterminate`) the answer
-  is a retryable `indeterminate`: the submission stays `accepted`, the
-  answer reaches no collection and is acknowledged at the next step, and
-  a later opening receives nothing (profile RLTP-VTI-5010, 5020). The
+  is a retryable `indeterminate`: the probe checks that it is bound to
+  the carried document (the collection carries it for that submission
+  with the diagnosis `{ code: 'indeterminate', retryable: true }` beside
+  the unchanged `accepted` report), that the submission stays
+  `accepted`, that it is acknowledged at the conclusion, and that a
+  later opening receives nothing (profile RLTP-VTI-5020, 5080). The
   probe prints the type and code of every answer.
 
 ## Measurements
@@ -121,7 +124,7 @@ Every refusal arrived as `trust-task-error/0.6`.
 | `--next-step`, same opening | PASS: `accepted`, `held` | PASS |
 | `--next-step`, `CROSS_OPENING=1` | PASS | PASS |
 | `--next-step`, `CROSS_OPENING=1 REGISTER_FIRST=1` | PASS | PASS |
-| `--indeterminate` (`EXPECT=indeterminate`) | PASS: `trust-task-error/0.6` `indeterminate`, `retryable: true`; stays `accepted`, acknowledged, nothing again | PASS |
+| `--indeterminate` (`EXPECT=indeterminate`) | PASS: `trust-task-error/0.6` `indeterminate`, `retryable: true`; bound (diagnosis in the collection beside the unchanged report), stays `accepted`, acknowledged at the conclusion, nothing again | PASS |
 
 The binding envelope and the carried document add about 400 bytes to a
 sealed envelope; the routing layer about 408 bytes more. A routed message

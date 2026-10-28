@@ -20,7 +20,7 @@
 // about transport; the holder's receive core verifies the delivery-ack
 // itself.
 //
-// Profile: spec/adapter-vti-mediator.md v0.29 (twenty-ninth casting;
+// Profile: spec/adapter-vti-mediator.md v0.30 (thirtieth casting;
 // §1c, the displayed card's instance, is the host's and the wire's, not this module's;
 // round journals under design/adapter-review*). A
 // transport adapter contract — NOT a carrier at the port. The
@@ -41,7 +41,7 @@
 // On receipt (RLTP-VTI-7160) the wire hands the payload with its
 // authenticated sender; a carried document whose parties are the sender
 // and this side becomes an item for the holder (its seal), a counterpart's
-// trust-task-error (0.5, 0.6) or trust-task-next-step/0.1 is bound by the carried
+// trust-task-error (0.4 to 0.6) or trust-task-next-step/0.1 is bound by the carried
 // document's id to the submission it answers and applied here
 // (RLTP-VTI-5040, 5050: a next step makes it accepted and held, which the
 // give-up horizon does not end), and everything else is logged and
@@ -224,24 +224,26 @@ export function readDeliveryHints (hints: unknown, carrier: unknown, self: unkno
 
 // ── Counterpart refusals (profile §5, RLTP-VTI-5010 to 5030) ──────────
 // A counterpart that refuses a document answers with the registry's
-// trust-task-error, 0.5 or 0.6 (RLTP-VTI-5015). Read here, by form;
+// trust-task-error, 0.4, 0.5 or 0.6 (RLTP-VTI-5015). Read here, by form;
 // validating the document (its proof, its parties, that it answers a document of this side) is the
 // delivery layer's, which hands the reading to receiverRefused,
 // receiverRetry or answered.
 
-/** The Type URI of trust-task-error/0.5, the version every version this
- *  profile reads extends (RLTP-VTI-5015). */
+/** The Type URI of trust-task-error/0.5, the version this profile was
+ *  written against (RLTP-VTI-5015). */
 export const TRUST_TASK_ERROR_TYPE = 'https://trusttasks.org/spec/trust-task-error/0.5'
 
 const ERROR_CODES_05 = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid',
   'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError']
 
-/** The trust-task-error versions this profile reads (RLTP-VTI-5015): those
- *  whose declared extension chain (TT §5.2, `extends`) reaches 0.5, as the
- *  registry publishes them — 0.6 `extends: "0.5"`. Each with the standard
- *  codes of its registry schema; the payload members are the same in both.
- *  A later version joins here with the members and codes it adds. */
+/** The trust-task-error versions this profile reads, a closed list
+ *  (RLTP-VTI-5015): 0.4, an earlier version a 0.5 reader accepts (TT §5.2,
+ *  K ≤ N; its schema is 0.5's without `cancelled`), 0.5, and 0.6, which
+ *  declares `extends: "0.5"`. Each with the standard codes of its registry
+ *  schema; the payload members are the same in all three. A later version
+ *  joins only with a casting that names it. */
 const ERROR_VERSIONS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ['https://trusttasks.org/spec/trust-task-error/0.4', new Set(ERROR_CODES_05.filter((c) => c !== 'cancelled'))],
   [TRUST_TASK_ERROR_TYPE, new Set(ERROR_CODES_05)],
   ['https://trusttasks.org/spec/trust-task-error/0.6', new Set([...ERROR_CODES_05, 'unsupportedExtension', 'indeterminate'])],
 ])
@@ -252,11 +254,14 @@ export const TRUST_TASK_ERROR_TYPES: readonly string[] = Object.freeze([...ERROR
 
 /** What an error document says to this side (RLTP-VTI-5010 to 5030):
  *  a terminal verdict with its code; a retry, not before `retryAfter`
- *  (milliseconds, or null); an answer (`idConflict`); or nothing the port
- *  carries (`expired`). */
+ *  (milliseconds, or null); `indeterminate`, which is never a refusal
+ *  (`undecided`: a retry with `retryable: true`, no further attempt within
+ *  the horizon with `false`; RLTP-VTI-5020); an answer (`idConflict`); or
+ *  nothing the port carries (`expired`). */
 export type TrustTaskErrorReading =
   | { verdict: 'refused', code: ReceiverRefusalCode }
   | { verdict: 'retry', retryAfter: number | null }
+  | { verdict: 'undecided', retryable: boolean, retryAfter: number | null }
   | { verdict: 'answered' }
   | { verdict: 'none' }
 
@@ -302,16 +307,17 @@ function rfc3339 (t: unknown): number | null {
 }
 
 /** One counterpart error document read by its form (registry
- *  trust-task-error/0.5 and 0.6): `type` exactly one of
+ *  trust-task-error/0.4, 0.5 and 0.6): `type` exactly one of
  *  TRUST_TASK_ERROR_TYPES (RLTP-VTI-5015), a payload with exactly the
  *  registry's members, `code` a standard code of that version or an
  *  extended code, `retryable` a boolean, `retryAfter` an RFC 3339
  *  date-time, `message` at most 1024 code points, `inResponseTo` with a
  *  `typeUri`, `details` an object. `idConflict` is an answer
  *  (RLTP-VTI-5030); otherwise `retryable: true` is a retry, whatever the
- *  code (5010); `retryable: false` is a terminal verdict, an extended code
- *  and the retryable codes (`unavailable`, `internalError`,
- *  `indeterminate`) read as `taskFailed` (5020); `expired` carries nothing.
+ *  code (5010), but `indeterminate`, which is `undecided` (5020);
+ *  `retryable: false` is a terminal verdict, an extended code and the
+ *  retryable codes (`unavailable`, `internalError`) read as `taskFailed`
+ *  (5020); `expired` carries nothing.
  *  Total, like the hint reader: any other input is null, never a throw. */
 export function readTrustTaskError (doc: unknown): TrustTaskErrorReading | null {
   try {
@@ -350,9 +356,11 @@ function readErrorStrict (doc: unknown): TrustTaskErrorReading | null {
     if (retryAfter === null) return null
   }
   if (code === 'idConflict') return { verdict: 'answered' }
+  // never a refusal, whatever its retryable (TT §8.3)
+  if (code === 'indeterminate') return { verdict: 'undecided', retryable, retryAfter }
   if (retryable) return { verdict: 'retry', retryAfter }
   if (code === 'expired') return { verdict: 'none' }
-  if (extended || code === 'unavailable' || code === 'internalError' || code === 'indeterminate') return { verdict: 'refused', code: 'taskFailed' }
+  if (extended || code === 'unavailable' || code === 'internalError') return { verdict: 'refused', code: 'taskFailed' }
   return { verdict: 'refused', code: code as ReceiverRefusalCode }
 }
 
@@ -516,7 +524,7 @@ function boundTo (d: Record<string, unknown>, sender: string, self: string): { a
  *  envelope's `type` with an object `document`; a sealed-envelope/0.1
  *  document satisfying the document profile, `threadId` = `id`, its
  *  `issuer` the sender and its `recipient` `self` (exact strings), its
- *  ciphertext canonical → `sealed`; a trust-task-error (0.5, 0.6) or a
+ *  ciphertext canonical → `sealed`; a trust-task-error (0.4 to 0.6) or a
  *  trust-task-next-step/0.1 read by form and bound (RLTP-VTI-5040) →
  *  `error` / `next-step`; anything else → `ignored`. Total: never throws. */
 export async function readBindingEnvelope (bytes: Uint8Array, at: { sender: string, self: string }): Promise<BindingReading> {
@@ -708,7 +716,14 @@ export interface CollectedItem { bytes: Uint8Array, queueId: string }
  *  (RLTP-VTI-5080): the report its outcome makes, for the host to record at
  *  the holder before it concludes the collection that carries it; the
  *  answer is acknowledged at the mediator only at that conclusion. */
-export interface CollectedAnswer { queueId: string, submissionId: string, report: DeliveryReport }
+export interface CollectedAnswer {
+  queueId: string
+  submissionId: string
+  report: DeliveryReport
+  /** a bound `indeterminate` (RLTP-VTI-5020): it changed nothing, the
+   *  report is the submission's unchanged one; for the host's log only */
+  diagnosis?: { code: 'indeterminate', retryable: boolean }
+}
 export interface Collection { id: string, items: CollectedItem[], answers: CollectedAnswer[] }
 
 /** Ack state for the host to persist (profile §4). Invariant: every
@@ -1097,6 +1112,13 @@ export class MediatorCarrierAdapter {
     switch (r.verdict) {
       case 'refused': this.receiverRefused(sub.id, r.code); return sub
       case 'retry': this.receiverRetry(sub.id, r.retryAfter); return null
+      case 'undecided':
+        // never a refusal (RLTP-VTI-5020): no transition; retryable true bounds
+        // the next attempt, false means no further attempt within the horizon
+        if (r.retryable) this.receiverRetry(sub.id, r.retryAfter)
+        else sub.notBefore = Number.MAX_SAFE_INTEGER
+        this.#log(`answer from ${sender}: indeterminate (retryable ${r.retryable}) for ${reading.answers}: no transition, kept as a diagnosis`)
+        return sub
       case 'answered': this.#answer(sub); return null
       case 'none': return null
     }
@@ -1122,7 +1144,8 @@ export class MediatorCarrierAdapter {
       this.#answers.delete(queueId)
       const sub = this.#bindAndApply(reading, sender)
       const report = sub !== null && sub.digest !== undefined ? this.report(sub.id) : null
-      if (sub !== null && report !== null) this.#bound.push({ queueId, submissionId: sub.id, report })
+      const undecided = reading.kind === 'error' && reading.reading.verdict === 'undecided' ? { diagnosis: { code: 'indeterminate' as const, retryable: reading.reading.retryable } } : {}
+      if (sub !== null && report !== null) this.#bound.push({ queueId, submissionId: sub.id, report, ...undecided })
       else { this.#answerIds.delete(queueId); this.#consumed.add(queueId) }
     }
   }
@@ -1673,7 +1696,7 @@ export class MediatorCarrierAdapter {
     this.#outstandingAnswers.set(id, answers)
     // the caller gets its own copies: the outstanding entries stay intact,
     // whatever it does with the bytes, for a conclusion that keeps them
-    return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })), answers: answers.map((a) => ({ ...a, report: { ...a.report } })) }
+    return { id, items: items.map((i) => ({ ...i, bytes: new Uint8Array(i.bytes) })), answers: answers.map((a) => ({ ...a, report: { ...a.report }, ...(a.diagnosis ? { diagnosis: { ...a.diagnosis } } : {}) })) }
   }
 
   /** Concludes a collection (profile §4, Delivery 5a.8): its items'

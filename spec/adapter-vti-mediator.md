@@ -30,8 +30,8 @@ document: the registry's TSP binding `bindings/tsp/0.1` (§2 document
 carriage, §3 identity mapping), counterpart refusals
 `trust-task-error/0.5` and recipient-suggested continuations
 `trust-task-next-step/0.1` (`trustoverip/dtgwg-trust-tasks-tf` @
-`579d8e29`), and `trust-task-error/0.6`, which extends 0.5 (@
-`3c4ef4d0`; RLTP-VTI-5015). Seam evidence:
+`579d8e29`), and `trust-task-error/0.4` and `0.6`, which extends 0.5
+(@ `3c4ef4d0`; RLTP-VTI-5015). Seam evidence:
 `design/mediator-naht-bestandsaufnahme-2026-08.md`.
 
 ## 0. What this contract is, and is not
@@ -712,7 +712,8 @@ channel, under the same rules.
 **RLTP-VTI-5010** — A reader of a refusal MUST read it by the
 `retryable` member the error document carries, never by the default
 of its code. `retryable: false` is a **terminal verdict** and enters
-the refusal channel with its code; `retryable: true` produces **no
+the refusal channel with its code, for every code but `indeterminate`,
+which is never a verdict (RLTP-VTI-5020); `retryable: true` produces **no
 port transition at all** — it is an availability condition of the
 counterpart's infrastructure, the adapter retries under its
 own schedule, and a submission that already entered the trias keeps
@@ -741,36 +742,35 @@ authenticates the sender of every answer alike, so a proof adds no
 authenticity here; it is held to what it claims so that the two kinds
 of answer are read by one rule.
 
-**RLTP-VTI-5015** — A reader reads the versions of the registry's
-`trust-task-error` whose declared extension chain (TT §5.2, the
-`extends` front-matter field) reaches 0.5, and of those only the
-versions it knows: in this casting
+**RLTP-VTI-5015** — A reader reads exactly these versions of the
+registry's `trust-task-error`:
+`https://trusttasks.org/spec/trust-task-error/0.4`,
 `https://trusttasks.org/spec/trust-task-error/0.5` and
-`https://trusttasks.org/spec/trust-task-error/0.6`, which declares
-`extends: "0.5"` and adds the standard codes `unsupportedExtension`
-and `indeterminate`. Each is read by its own registry schema under
-RLTP-VTI-5010 and mapped under RLTP-VTI-5020 and 5030; a code is read
-the same in every version that has it. An implementation MAY read a
-later version without a new casting of this profile once the
-registry publishes it with an extension chain reaching 0.5: a member
-its schema adds is ignored, and a standard code it adds is read as
-an extended code is (RLTP-VTI-5020) until a casting names it. A
-document of any other version — an earlier one, a later one not
-known to reach 0.5, another `MAJOR` — is no refusal and changes
-nothing.
+`https://trusttasks.org/spec/trust-task-error/0.6`. 0.5 is the version
+this profile reads; 0.4 is an earlier version of the same `MAJOR`,
+which TT §5.2 obliges a consumer of 0.5 to accept, and its schema is
+0.5's without the code `cancelled`; 0.6 declares `extends: "0.5"` and
+adds the standard codes `unsupportedExtension` and `indeterminate`.
+Each is read by its own registry schema under RLTP-VTI-5010 and mapped
+under RLTP-VTI-5020 and 5030; a code is read the same in every version
+that has it, and a code its version's schema does not admit makes the
+document no refusal. A document of any other version is no refusal and
+changes nothing; a later version is read once a casting of this
+profile names it.
 
-*Rationale.* The framework asks a consumer to accept a later version
-whose `extends` chain reaches the one it implements and to apply no
-forward minor-version processing to a `draft` specification without
-that declaration (TT §5.2); the registry's own libraries do the same
-from an index of declared extensions that each release carries. A
-reader here cannot learn a declaration at runtime (schemas and
-registry entries are pre-registered, never resolved), so it reads the
-versions it knows to extend 0.5, as those libraries do, and a new
-code it does not know falls to `taskFailed`, as TT §8.5 has a
-consumer treat an extended code it does not recognize. Nothing here
-is particular to RLTP: the reading is the framework's, and the codes
-keep the meaning the registry gives them.
+*Rationale.* TT §5.2 asks a consumer to accept every earlier version of
+the same `MAJOR` and a later one whose `extends` chain reaches the
+version it implements, by ignoring members it does not recognize; it
+gives no rule for an enumerated value a later version adds, and TT §8.5
+reads only a namespaced code it does not recognize as `taskFailed`.
+The registry's libraries read an error document by their own path, not
+through their index of declared extensions, which leaves
+`trust-task-error` out. A reader here cannot learn a declaration at
+runtime (schemas and registry entries are pre-registered, never
+resolved), so it keeps the closed list this rule names, and a new
+version comes with a casting, as 0.6 does in this one. The versions and
+their codes are the registry's; what is particular here is only the
+closed list, and the earlier versions it leaves out (Open Issue 19).
 
 **RLTP-VTI-5020** — The codes of a terminal verdict are the
 standard codes `malformedRequest`, `unsupportedType`,
@@ -778,18 +778,27 @@ standard codes `malformedRequest`, `unsupportedType`,
 `proofInvalid`, `permissionDenied`, `wrongRecipient`,
 `identityMismatch`, `cancelled` and `taskFailed`; an extended code
 `<slug>:<name>` MUST be read as `taskFailed`, with the `retryable` it
-carries. `unavailable`, `internalError` and `indeterminate` with
-`retryable: false` are read as `taskFailed`; with `retryable: true`,
-their default, they are an availability condition under
-RLTP-VTI-5010 and move nothing. `indeterminate` says the counterpart
-could not decide (TT §8.3): it is never read as a refusal of the
-document or a verdict on it, and a reader MUST NOT report it as
-`proofInvalid` or `permissionDenied`. `expired` has no port
-equivalent (recorded divergence).
+carries. `unavailable` and `internalError` with `retryable: false` are
+read as `taskFailed`; with `retryable: true`, their default, they are
+an availability condition under RLTP-VTI-5010 and move nothing.
+`indeterminate` says the counterpart could not decide (TT §8.3): it is
+never a refusal of the document or a verdict on it, whatever its
+`retryable`. It MUST NOT move a submission, and a reader MUST NOT
+report it as a refusal, as `proofInvalid` or as `permissionDenied`.
+With `retryable: true`, its default, it bounds the next attempt as
+RLTP-VTI-5010 states; with `retryable: false` it says only that the
+document is not attempted again: the adapter instance makes no further
+attempt of it, until the next opening, and the submission ends as it
+would without the answer. A bound `indeterminate` travels in the
+collection with the submission's unchanged report and a diagnosis
+naming the code and its `retryable`, is acknowledged at the conclusion
+(RLTP-VTI-5080), and is logged; a report of its own for it is a
+change the Delivery Contract takes up (Open Issue 18). `expired` has
+no port equivalent (recorded divergence).
 
 **RLTP-VTI-5030** — `idConflict` MUST be read as the absorption of
 Delivery §6.2 and as an answer (RLTP-VTI-3130), never as a failure.
-This is a named divergence: `trust-task-error` (0.5 and 0.6) and TT
+This is a named divergence: `trust-task-error` (0.4 to 0.6) and TT
 §7.2 item 11 make it a refusal of an equal `id` over different bytes,
 while the Delivery Contract deduplicates by document digest (its
 DO-10; Open Issue 13). The carried document of §3b declares its
@@ -1349,9 +1358,9 @@ is decidable.
   submission `accepted` (`held`) for as long as it likes. That is a
   statement the counterpart makes about its own state, and the
   holder shows it as such; the document was in its hands. A
-  retryable answer — `unavailable`, `indeterminate` — gives it no
-  more than silence would: the submission keeps its state and ends
-  at the horizon (RLTP-VTI-5010).
+  retryable answer (`unavailable`) and `indeterminate`, retryable or
+  not, give it no more than silence would: the submission keeps its
+  state and ends at the horizon (RLTP-VTI-5010, 5020).
 
 ## 9. Privacy Considerations
 
@@ -1567,6 +1576,20 @@ is decidable.
    and acknowledged (RLTP-VTI-7160), and a foreign document of another
    type is not refused with a `trust-task-error`. Sending refusals is
    not part of this casting.
+18. **A report for an undecided counterpart.** `indeterminate` is
+   neither a refusal nor a verdict (TT §8.3), and the port has no
+   report for it: RLTP-VTI-5020 leaves the submission as it is and
+   carries the answer as a diagnosis beside the unchanged report, so
+   the holder keeps no trace of it. A report of its own, or a feature
+   of `accepted` as `held` is, needs a casting of the Delivery Contract
+   (its §6.1 closed sets).
+19. **Earlier versions of `trust-task-error`.** TT §5.2 obliges a
+   consumer of 0.5 to accept every `0.K` with `K ≤ 5`. RLTP-VTI-5015
+   reads 0.4; 0.2 and 0.3 are subsets of 0.5 as well (0.3 without
+   `idConflict` and `cancelled`, 0.2 also without `inResponseTo`) and
+   are not read in this casting; 0.1 spells its codes in snake case and
+   is no subset. Whether 0.2 and 0.3 join the list is open; the current
+   registry libraries write 0.5 or 0.6.
 
 ## Appendix A: Companion changes
 
@@ -1638,7 +1661,7 @@ under `archive/`.
 
 | Version | Date | Change |
 |---|---|---|
-| 0.30 | 2026-10-28 | `trust-task-error/0.6` (`extends: "0.5"`) read beside 0.5 (RLTP-VTI-5015, new; 5010, 7160): each version by its own schema, the versions read are those whose declared extension chain reaches 0.5 and the reader knows, a later one added without a casting, its new codes read as extended codes until a casting names them. `unsupportedExtension` is a terminal verdict, `indeterminate` an availability condition with `retryable: true` and `taskFailed` with `false`, never a refusal or a verdict (RLTP-VTI-5020). Security Considerations: a retryable answer gives the counterpart no more than silence. |
+| 0.30 | 2026-10-28 | `trust-task-error/0.6` (`extends: "0.5"`) and `0.4` read beside 0.5, a closed list, each version by its own schema; a later version comes with a casting (RLTP-VTI-5015, new; 5010, 7160). `unsupportedExtension` is a terminal verdict; `indeterminate` is never a refusal, retryable or not: no transition, a diagnosis in the collection beside the unchanged report (RLTP-VTI-5020). Open Issues 18 (a report for an undecided counterpart) and 19 (versions 0.1 to 0.3) new. Security Considerations: a retryable answer and `indeterminate` give the counterpart no more than silence. |
 | 0.29 | 2026-10-27 | One wire identity per relationship and carrier: the connection DID sends and collects, in every layer of both modes (§1, §1a, RLTP-VTI-1120); the delivery hint has three members, a fourth `rltpEgress` read and ignored (RLTP-VTI-1210, 1220, 1227, 1240); the fallback mode `direct` runs on the connection DID's session (RLTP-VTI-3120). Every document travels as a `sealed-envelope/0.1` document in the registry's TSP binding envelope (§3b, RLTP-VTI-3150; Delivery §4.6), built at every attempt and byte-identical across attempts; the adapter reads a delivered payload with its authenticated sender (RLTP-VTI-7140, 7160), holds the carried document's parties against it, and hands the seal to the holder; `payload-bound` 90 182 bytes (§2). Answers in the binding: `trust-task-error/0.5` and `trust-task-next-step/0.1` bound to the submission by the carried document's `id` (RLTP-VTI-5040); a next step makes a submission `accepted` and `held`, which the give-up horizon does not end (RLTP-VTI-5050, §2). Open Issues renumbered; 16 (answers after the end) and 17 (answers of this side) new; the answer contract (RLTP-VTI-5065, 5070, 5080): every open document, custody and the accepted documents the holder offers (Delivery RLTP-DEL-6150), has its id independent of sending; only the recipient the document named changes it; a bound answer travels in the collection with its report and is acknowledged only at the conclusion, after the host recorded it. |
 | 0.28 | 2026-10-26 | TSP 1.0 (`YTSP-BAA`, @ `ccda6b33`) in place of Rev 3: both layers of a deposit are 1.0 messages carrying the sender's VID in the confidential payload, HPKE-Base only (§3a, §7, RLTP-VTI-7110); on receipt (RLTP-VTI-1255, 3140, 7140) only major version 1 with any minor version, a message failing a 1.0 receiver check (payload sender other than the envelope's, NULL sender) or of another major version logged and acknowledged; the route entry is 1.0's `VID_exit` (RLTP-VTI-3115); target carrier the mediator from 0.45.0 with `vti-didcomm-js` 0.13.0 and `vti-tsp-js` 0.4.0, which MUST allow local direct delivery for mode `egress-session`, a refusal of it recorded in the send state when the binding receives it (§7), across openings, no deposit after it (RLTP-VTI-3120, 3130, §5, Open Issue 2); §9 on the sender VID in the payload; Open Issue 12 names the mediator's `status/0.1`; Open Issues 14 (peers and mediators on Rev 3) and 18 (the wire identities against TSP 1.0's VID rules); Appendix A re-reads Delivery 5a.10 against TSP 1.0. |
 | 0.27 | 2026-10-25 | Counterpart refusals per `trust-task-error/0.5` (§5, RLTP-VTI-5010 to 5030): read by the document's `retryable`, `retryAfter` the lower bound of the next attempt within the give-up horizon, terminal verdicts with the codes `unsupportedVersion`, `permissionDenied`, `cancelled` and `taskFailed` added, extended codes as `taskFailed`, `idConflict` an absorption as a named divergence; `messaging/message/status/0.2` an Open Issue (15) for want of a carrier that has it; Delivery 0.84 pinned. §1c unchanged. |

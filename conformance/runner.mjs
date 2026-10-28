@@ -1213,8 +1213,8 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.30 §3b, §5, §7; D
   const cps = (s) => [...s].length
   // RLTP-VTI-5015: the error versions read, each with the standard codes of its registry schema
   const codes05 = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'expired', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'idConflict', 'cancelled', 'taskFailed', 'unavailable', 'internalError']
-  const errorCodes = { 'https://trusttasks.org/spec/trust-task-error/0.5': codes05, 'https://trusttasks.org/spec/trust-task-error/0.6': [...codes05, 'unsupportedExtension', 'indeterminate'] }
-  check(jcs(T.errors) === jcs(Object.keys(errorCodes)), 'the error versions read: trust-task-error/0.5 and 0.6 (RLTP-VTI-5015)')
+  const errorCodes = { 'https://trusttasks.org/spec/trust-task-error/0.4': codes05.filter((c) => c !== 'cancelled'), 'https://trusttasks.org/spec/trust-task-error/0.5': codes05, 'https://trusttasks.org/spec/trust-task-error/0.6': [...codes05, 'unsupportedExtension', 'indeterminate'] }
+  check(jcs(T.errors) === jcs(Object.keys(errorCodes)), 'the error versions read: trust-task-error/0.4, 0.5 and 0.6 (RLTP-VTI-5015)')
   const extendedCode = /^[a-z][a-z0-9]*(-[a-z0-9]+)*(\/[a-z][a-z0-9]*(-[a-z0-9]+)*)*:[a-z][a-zA-Z0-9_]*$/
   const errorForm = (type, p) => obj(p) && Object.keys(p).every((k) => ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details'].includes(k)) &&
     typeof p.code === 'string' && (errorCodes[type].includes(p.code) || extendedCode.test(p.code)) && typeof p.retryable === 'boolean' && (!('message' in p) || (typeof p.message === 'string' && cps(p.message) <= 1024)) && (!('retryAfter' in p) || rfc3339(p.retryAfter))
@@ -1255,9 +1255,9 @@ section('vti-sealed-envelope.json — VTI adapter profile 0.30 §3b, §5, §7; D
     if (answers === null) return { kind: 'ignored' }
     return err ? { kind: 'error', verdict: verdictOf(d.type, d.payload), answers } : { kind: 'next-step', answers }
   }
-  // RLTP-VTI-5010 to 5030: by retryable, never by the code's default; the terminal codes; the rest taskFailed
+  // RLTP-VTI-5010 to 5030: by retryable, never by the code's default; indeterminate never a refusal; the terminal codes; the rest taskFailed
   const terminal = ['malformedRequest', 'unsupportedType', 'unsupportedVersion', 'unsupportedExtension', 'proofRequired', 'proofInvalid', 'permissionDenied', 'wrongRecipient', 'identityMismatch', 'cancelled', 'taskFailed']
-  const verdictOf = (type, p) => p.code === 'idConflict' ? 'answered' : p.retryable ? 'retry' : p.code === 'expired' ? 'none'
+  const verdictOf = (type, p) => p.code === 'idConflict' ? 'answered' : p.code === 'indeterminate' ? 'undecided' : p.retryable ? 'retry' : p.code === 'expired' ? 'none'
     : `refused:${errorCodes[type].includes(p.code) && terminal.includes(p.code) ? p.code : 'taskFailed'}`
   const dv = reads(SE.delivered.payload, SE.delivered.sender, SE.delivered.self)
   checkR(SE.delivered.rules, dv.kind === 'sealed' && jcs(dv.seal) === SE.delivered.item, 'the carried document from the sender to this side: its seal is the item')

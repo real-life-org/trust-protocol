@@ -14,7 +14,7 @@
 //     against the size bound 90 112 and payload-bound 90 182;
 //   · refused: payloads RLTP-VTI-7160 does not deliver, seen from B with
 //     sender A, each with the item that refuses it;
-//   · answers: a framework consumer's trust-task-error (0.5 and 0.6) and
+//   · answers: a framework consumer's trust-task-error (0.4, 0.5 and 0.6) and
 //     trust-task-next-step/0.1 to A's carried document, in the form the
 //     registry's Rust crates send (trust-tasks-rs 0.35.4 writes error 0.5,
 //     0.36.0 error 0.6; issuedAt with nine fractional digits), each with its
@@ -123,8 +123,9 @@ const delivered = { payload: carried[0].payload, sender: A, self: B, item: jcs(S
 // the answers of a framework consumer B to A's carried document (seen from A, sender B)
 const OUT_ID = carried[0].id
 const NOW9 = '2026-10-27T17:27:50.395371028Z'
+const ERROR_04 = 'https://trusttasks.org/spec/trust-task-error/0.4'
 const ERROR_06 = 'https://trusttasks.org/spec/trust-task-error/0.6'
-if (TRUST_TASK_ERROR_TYPES.join() !== [TRUST_TASK_ERROR_TYPE, ERROR_06].join()) throw new Error('the error versions read are not 0.5 and 0.6')
+if (TRUST_TASK_ERROR_TYPES.join() !== [ERROR_04, TRUST_TASK_ERROR_TYPE, ERROR_06].join()) throw new Error('the error versions read are not 0.4, 0.5 and 0.6')
 const errorDoc = (payload, extra = {}) => ({ id: 'urn:uuid:0d6c1b52-6b0e-4a8a-9d1c-3e2f4a5b6c7d', type: TRUST_TASK_ERROR_TYPE, issuer: B, recipient: A, threadId: OUT_ID, issuedAt: NOW9, payload, ...extra })
 const unsupported = { code: 'unsupportedType', retryable: false, message: 'no handler for https://real-life.org/trust-tasks/spec/sealed-envelope/0.1', inResponseTo: { id: OUT_ID, typeUri: SEALED_ENVELOPE_TYPE } }
 const nextDoc = (payload, extra = {}) => ({ id: 'urn:uuid:7e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b', type: TRUST_TASK_NEXT_STEP_TYPE, issuer: B, recipient: A, threadId: OUT_ID, issuedAt: NOW9, payload, ...extra })
@@ -161,8 +162,9 @@ const answers = [
   { case: 'idConflict: an answer, no failure', document: errorDoc({ code: 'idConflict', retryable: false, inResponseTo: unsupported.inResponseTo }), reading: { kind: 'error', reading: { verdict: 'answered' }, answers: OUT_ID }, effect: unchanged, rules: ['RLTP-VTI-5030'] },
   // trust-task-error/0.6 (extends 0.5), as trust-tasks-rs 0.36.0 sends it (RLTP-VTI-5015)
   { case: 'unsupportedType in trust-task-error/0.6, as trust-tasks-rs 0.36.0 sends it', document: errorDoc(unsupported, as06), reading: { kind: 'error', reading: { verdict: 'refused', code: 'unsupportedType' }, answers: OUT_ID }, effect: refusal, rules: ['RLTP-VTI-5015', 'RLTP-VTI-5040', 'RLTP-VTI-5020'] },
-  { case: 'indeterminate (0.6), retryable: no transition', document: errorDoc({ code: 'indeterminate', retryable: true, message: 'a reference could not be obtained', retryAfter: '2026-10-27T17:32:50.000000000Z', details: { reference: 'schema' }, inResponseTo: unsupported.inResponseTo }, as06), reading: { kind: 'error', reading: { verdict: 'retry', retryAfter: Date.parse('2026-10-27T17:32:50Z') }, answers: OUT_ID }, effect: unchanged, rules: ['RLTP-VTI-5015', 'RLTP-VTI-5010', 'RLTP-VTI-5020'] },
-  { case: 'indeterminate (0.6), not retryable: read as taskFailed', document: errorDoc({ code: 'indeterminate', retryable: false, inResponseTo: unsupported.inResponseTo }, as06), reading: { kind: 'error', reading: { verdict: 'refused', code: 'taskFailed' }, answers: OUT_ID }, effect: refusalWith('taskFailed'), rules: ['RLTP-VTI-5020'] },
+  { case: 'indeterminate (0.6), retryable: no transition, a diagnosis in the collection', document: errorDoc({ code: 'indeterminate', retryable: true, message: 'a reference could not be obtained', retryAfter: '2026-10-27T17:32:50.000000000Z', details: { reference: 'schema' }, inResponseTo: unsupported.inResponseTo }, as06), reading: { kind: 'error', reading: { verdict: 'undecided', retryable: true, retryAfter: Date.parse('2026-10-27T17:32:50Z') }, answers: OUT_ID }, effect: unchanged, diagnosis: { code: 'indeterminate', retryable: true }, rules: ['RLTP-VTI-5015', 'RLTP-VTI-5010', 'RLTP-VTI-5020'] },
+  { case: 'indeterminate (0.6), not retryable: never a refusal — no transition, a diagnosis in the collection', document: errorDoc({ code: 'indeterminate', retryable: false, inResponseTo: unsupported.inResponseTo }, as06), reading: { kind: 'error', reading: { verdict: 'undecided', retryable: false, retryAfter: null }, answers: OUT_ID }, effect: unchanged, diagnosis: { code: 'indeterminate', retryable: false }, rules: ['RLTP-VTI-5020'] },
+  { case: 'unsupportedType in trust-task-error/0.4, an earlier version a 0.5 reader accepts', document: errorDoc(unsupported, { type: ERROR_04 }), reading: { kind: 'error', reading: { verdict: 'refused', code: 'unsupportedType' }, answers: OUT_ID }, effect: refusal, rules: ['RLTP-VTI-5015'] },
   { case: 'unsupportedExtension (0.6): a terminal verdict', document: errorDoc({ code: 'unsupportedExtension', retryable: false, message: 'a critical extension namespace is not recognized', inResponseTo: unsupported.inResponseTo }, as06), reading: { kind: 'error', reading: { verdict: 'refused', code: 'unsupportedExtension' }, answers: OUT_ID }, effect: refusalWith('unsupportedExtension'), rules: ['RLTP-VTI-5015', 'RLTP-VTI-5020'] },
   { case: 'next step, as trust-tasks-rs sends it (continuation proceed)', document: nextDoc(proceed), reading: { kind: 'next-step', answers: OUT_ID }, effect: nextStep, rules: ['RLTP-VTI-5050', 'RLTP-VTI-5040', 'RLTP-DEL-6140'] },
   { case: 'next step without inResponseTo: bound by threadId', document: nextDoc(proceedNoIrt), reading: { kind: 'next-step', answers: OUT_ID }, effect: nextStep, rules: ['RLTP-VTI-5050', 'RLTP-VTI-5040'] },
@@ -177,7 +179,8 @@ const answers = [
   { case: 'error 0.5: indeterminate is no code of 0.5', document: errorDoc({ code: 'indeterminate', retryable: true, inResponseTo: unsupported.inResponseTo }), rules: ['RLTP-VTI-5015'] },
   { case: 'error 0.5: unsupportedExtension is no code of 0.5', document: errorDoc({ code: 'unsupportedExtension', retryable: false, inResponseTo: unsupported.inResponseTo }), rules: ['RLTP-VTI-5015'] },
   { case: 'error: trust-task-error/0.7, a version not known to extend 0.5', document: errorDoc(unsupported, { type: 'https://trusttasks.org/spec/trust-task-error/0.7' }), rules: ['RLTP-VTI-5015'] },
-  { case: 'error: trust-task-error/0.4, an earlier version', document: errorDoc(unsupported, { type: 'https://trusttasks.org/spec/trust-task-error/0.4' }), rules: ['RLTP-VTI-5015'] },
+  { case: 'error 0.4: cancelled is no code of 0.4', document: errorDoc({ code: 'cancelled', retryable: false, inResponseTo: unsupported.inResponseTo }, { type: ERROR_04 }), rules: ['RLTP-VTI-5015'] },
+  { case: 'error: trust-task-error/0.3, a version not read', document: errorDoc(unsupported, { type: 'https://trusttasks.org/spec/trust-task-error/0.3' }), rules: ['RLTP-VTI-5015'] },
   { case: 'next step: expects empty', document: nextDoc({ ...proceed, expects: [] }), rules: ['RLTP-VTI-5050'] },
   { case: 'next step: an empty typeUri', document: nextDoc({ ...proceed, expects: [{ typeUri: '' }] }), rules: ['RLTP-VTI-5050'] },
   { case: 'next step: an unknown member', document: nextDoc({ ...proceed, priority: 1 }), rules: ['RLTP-VTI-5050'] },
@@ -207,7 +210,7 @@ const laterOpening = {
 if (laterOpening.id !== OUT_ID) throw new Error('the later opening does not recompute the id')
 
 const vector = {
-  description: 'VTI mediator adapter profile 0.30 (§3b, §5, §7) and Delivery 0.85 (§4.6): the carried document — a sealed-envelope/0.1 Trust Task document whose payload is the sealed envelope, inside the registry\'s TSP binding envelope (bindings/tsp/0.1 §2) — byte for byte as the payload of the inner TSP direct message, the same in mode routed and mode direct (the layers around it: vectors/vti-routed-addressing.json); its id, a UUID v8 of SHA-256("rltp/v1/sealed-envelope-id" ‖ JCS({issuer, recipient, seal})); a repeat byte-identical; the size bounds; the payloads a receiver does not deliver (RLTP-VTI-7160, item = the item that refuses it); and a framework consumer\'s answers to it, in the form trust-tasks-rs sends them (0.35.4: trust-task-error/0.5; 0.36.0: trust-task-error/0.6, which extends 0.5), with the reading and the submission state each leaves from each state before it (effect: null = no report).',
+  description: 'VTI mediator adapter profile 0.30 (§3b, §5, §7) and Delivery 0.85 (§4.6): the carried document — a sealed-envelope/0.1 Trust Task document whose payload is the sealed envelope, inside the registry\'s TSP binding envelope (bindings/tsp/0.1 §2) — byte for byte as the payload of the inner TSP direct message, the same in mode routed and mode direct (the layers around it: vectors/vti-routed-addressing.json); its id, a UUID v8 of SHA-256("rltp/v1/sealed-envelope-id" ‖ JCS({issuer, recipient, seal})); a repeat byte-identical; the size bounds; the payloads a receiver does not deliver (RLTP-VTI-7160, item = the item that refuses it); and a framework consumer\'s answers to it, in the form trust-tasks-rs sends them (0.35.4: trust-task-error/0.5; 0.36.0: trust-task-error/0.6, which extends 0.5; and trust-task-error/0.4), with the reading and the submission state each leaves from each state before it (effect: null = no report; diagnosis: what a bound answer that changes nothing carries in the collection beside the unchanged report).',
   source: 'seal: output.sealedEnvelope of vectors/seal.json; A and B: sides.A and sides.B of vectors/vti-routed-addressing.json (connection DIDs); A2: side A under N = sha2-256("rltp/vector/vti-routed/nonce-A2"); since 2026-10-27T18:04:11.734Z and 2026-10-28T09:30:00.000Z; the proof of the signed next step: B\'s connection key (rootIkm sha2-256("rltp/vector/vti-routed/root-B"), N sha2-256("rltp/vector/vti-routed/nonce-B")). Generated by scripts/gen-vti-sealed-envelope-vector.mjs.',
   types: { bindingEnvelope: TSP_BINDING_ENVELOPE_TYPE, carried: SEALED_ENVELOPE_TYPE, errors: TRUST_TASK_ERROR_TYPES, nextStep: TRUST_TASK_NEXT_STEP_TYPE },
   carrier: C,

@@ -3,12 +3,13 @@
 // Trust Task consumer over the live mediator: one sealed envelope carried
 // as a sealed-envelope/0.1 document in the registry's TSP binding envelope
 // (§3b) to the consumer's TSP identifier, and the consumer's answer read
-// back by the adapter (§5): a trust-task-error (0.5 or 0.6, RLTP-VTI-5015)
+// back by the adapter (§5): a trust-task-error (0.4 to 0.6, RLTP-VTI-5015)
 // `unsupportedType` fails the submission as
 // rejected-by-receiver(unsupportedType) (RLTP-VTI-5040, 5010); a
 // trust-task-next-step/0.1 makes it accepted and held (RLTP-VTI-5050); a
-// retryable `indeterminate` moves nothing and is acknowledged at the next
-// step (RLTP-VTI-5010, 5020). The consumer is the test double of
+// `indeterminate` moves nothing, is bound to the carried document and
+// travels in the collection as a diagnosis beside the unchanged report,
+// acknowledged at the conclusion (RLTP-VTI-5020, 5080). The consumer is the test double of
 // trust-protocol-interop-double (trust-tasks-rs / trust-tasks-tsp 0.36.0,
 // which write trust-task-error/0.6; affinidi-tsp 0.3.0, TSP 1.0) on the
 // same mediator; it is run by the tester, never started from here. Prints
@@ -109,19 +110,30 @@ async function opening (registerFirst) {
   return { a: x, wire: w, ref: r.submissionId };
 }
 if (EXPECT === "indeterminate") {
-  // RLTP-VTI-5010, 5020: a retryable indeterminate is an availability condition — no transition,
-  // nothing in the collection, acknowledged at the next step; the submission ends at the horizon
+  // RLTP-VTI-5020: indeterminate is never a refusal — no transition; bound, it travels in the
+  // collection beside the unchanged report with its diagnosis, and is acknowledged at the conclusion
   const ERR06 = "https://trusttasks.org/spec/trust-task-error/0.6";
-  const got = await waitFor(() => { a.advance(Date.now()); return answersSeen.some((x) => x.type === ERR06 && x.code === "indeterminate") });
+  let col = null;
+  const got = await waitFor(() => {
+    a.advance(Date.now());
+    const c = a.collect(Date.now());
+    if (c.answers.length > 0) { col = c; return true }
+    if (c.items.length > 0) fail(`an item reached the collection: ${c.items.length}`);
+    return false;
+  });
   await a.settle();
-  if (!got) fail(`no trust-task-error/0.6 indeterminate within 30s; seen ${JSON.stringify(answersSeen)}`);
-  a.advance(Date.now()); await a.settle();
-  if (JSON.stringify(a.status(first.submissionId)) !== JSON.stringify({ state: "accepted" })) fail(`indeterminate moved the submission: ${JSON.stringify(a.status(first.submissionId))}`);
-  const col = a.collect(Date.now());
-  if (col.items.length !== 0 || col.answers.length !== 0) fail(`indeterminate reached the collection: ${JSON.stringify(col)}`);
+  if (!got) fail(`no bound answer within 30s; seen ${JSON.stringify(answersSeen)}`);
+  if (!answersSeen.some((x) => x.type === ERR06 && x.code === "indeterminate")) fail(`the answer was no trust-task-error/0.6 indeterminate: ${JSON.stringify(answersSeen)}`);
+  const [an] = col.answers;
+  if (col.answers.length !== 1 || an.submissionId !== first.submissionId) fail(`not bound to the carried document: ${JSON.stringify(col.answers)}`);
+  if (JSON.stringify(an.diagnosis) !== JSON.stringify({ code: "indeterminate", retryable: true })) fail(`no diagnosis: ${JSON.stringify(an)}`);
+  if (JSON.stringify(an.report) !== JSON.stringify(a.report(first.submissionId)) || an.report.status !== "accepted") fail(`the report moved: ${JSON.stringify(an.report)}`);
+  say(`  ✓ indeterminate bound to the carried document: diagnosis ${JSON.stringify(an.diagnosis)} beside the unchanged report ${JSON.stringify(an.report)} (${Date.now() - t0}ms)`);
+  a.conclude(col, Date.now()); await a.settle();
   if (!(await waitFor(() => { a.advance(Date.now()); return a.ackState().pending.length === 0 }, 10000))) fail(`the acknowledgement did not land: ${JSON.stringify(a.ackState().pending)}`);
   await a.settle();
-  say(`  ✓ indeterminate (retryable) read: the submission stays ${JSON.stringify(a.status(first.submissionId))}, nothing in the collection, acknowledged (${Date.now() - t0}ms)`);
+  if (JSON.stringify(a.status(first.submissionId)) !== JSON.stringify({ state: "accepted" })) fail(`indeterminate moved the submission: ${JSON.stringify(a.status(first.submissionId))}`);
+  say("  ✓ concluded: acknowledged, the submission stays accepted");
   a.close(); wire.close();
   await new Promise((r) => setTimeout(r, 2000));
   const n = answersSeen.length;
@@ -131,7 +143,7 @@ if (EXPECT === "indeterminate") {
   if (answersSeen.length !== n || JSON.stringify(after.a.status(after.ref)) !== JSON.stringify({ state: "accepted" })) fail(`something came again after the acknowledgement: ${JSON.stringify(answersSeen.slice(n))}, ${JSON.stringify(after.a.status(after.ref))}`);
   say("  ✓ after the acknowledgement the mediator delivered nothing more");
   after.a.close(); after.wire.close();
-  console.log(`\nLIVE-INTEROP-PROBE PASS — the foreign consumer answered trust-task-error/0.6 indeterminate (retryable) and the submission stayed accepted (${frame.mode}); acknowledged, nothing came again`);
+  console.log(`\nLIVE-INTEROP-PROBE PASS — the foreign consumer answered trust-task-error/0.6 indeterminate (retryable); bound to the carried document, a diagnosis beside the unchanged report, the submission stayed accepted (${frame.mode}); acknowledged at the conclusion, nothing came again`);
   process.exit(0);
 }
 const want = EXPECT === "unsupportedType"
