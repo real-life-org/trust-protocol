@@ -114,6 +114,8 @@ export async function diSignWith<T extends Record<string, any>> (
   if (!(sig instanceof Uint8Array) || sig.length !== 64) throw new Error('diSignWith: the signer must answer a 64-byte Ed25519 signature')
   return { ...doc, proof: { ...cfg, proofValue: 'z' + base58(sig) } }
 }
+/** The proof purposes diVerify reads (Delivery DO-10); diSign writes `assertionMethod`. */
+export const PROOF_PURPOSES_READ: ReadonlySet<string> = new Set(['assertionMethod', 'authentication'])
 /** `subtle`: the holder's resolved handle; without one the platform's, at call time. */
 export async function diVerify (doc: any, expectedAnchor?: string, subtle?: SubtleCrypto): Promise<boolean> {
   const { proof, ...rest } = doc ?? {}
@@ -123,7 +125,12 @@ export async function diVerify (doc: any, expectedAnchor?: string, subtle?: Subt
   // foreign type, suite, purpose or timestamp form is false here, whether
   // or not a schema runs first.
   if (proof.type !== 'DataIntegrityProof' || proof.cryptosuite !== 'eddsa-jcs-2022') return false
-  if (proof.proofPurpose !== 'assertionMethod') return false
+  // The purposes read: assertionMethod, which RLTP producers sign with,
+  // and authentication, which the Trust Tasks framework asks a producer to
+  // sign a Trust Task document with (TT §4.7.3); a did:key's one signing
+  // key holds both relationships. Every other purpose, and an absent one,
+  // is false (Delivery DO-10: readers take both before writers switch).
+  if (!PROOF_PURPOSES_READ.has(proof.proofPurpose)) return false
   if (typeof proof.created !== 'string' || !calOK(proof.created)) return false
   const vmDid = proof.verificationMethod.split('#')[0] as string
   if (proof.verificationMethod !== vmDid + '#' + vmDid.slice(8)) return false

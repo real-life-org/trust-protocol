@@ -2566,6 +2566,25 @@ section('membership-tasks.json — Membership Tasks 0.21: prelude, genesis → i
   }
 }
 
+// ── proof-purpose.json: the purposes a verifier reads (Delivery DO-10) ──
+section('proof-purpose.json — one document under each proof purpose; assertionMethod and authentication read (Delivery DO-10, TT §4.7.3)')
+{
+  const PP = J('vectors/proof-purpose.json')
+  const READ = new Set(['assertionMethod', 'authentication'])
+  const seed = Buffer.from(PP.signer.seed, 'hex')
+  check(didOf(seed) === PP.signer.did, 'signer: the did:key of the stated seed')
+  const tfBaseline = J('vectors/tf-proof/eddsa-jcs-2022-baseline.json')
+  for (const c of PP.cases) {
+    const { proof, ...body } = c.signed
+    check(jcs(body) === jcs(PP.document) && proof.created === PP.created && (c.proofPurpose === null ? !('proofPurpose' in proof) : proof.proofPurpose === c.proofPurpose), `${c.name}: the stated document under the stated purpose`)
+    const holds = diVerify(c.signed, PP.signer.did).ok
+    check(holds === c.signatureHolds, `${c.name}: the signature ${holds ? 'holds' : 'fails'} (eddsa-jcs-2022, no purpose gate)`)
+    const verdict = holds && READ.has(proof.proofPurpose) ? 'valid' : 'invalid'
+    check(verdict === c.expect, `${c.name}: ${verdict} under the RLTP proof purposes`)
+  }
+  check(PP.cases.find((c) => c.name === 'assertionMethod')?.signed.proof.proofValue === tfBaseline.proof.proofValue, 'assertionMethod: the proofValue of the TF baseline vector byte for byte')
+}
+
 // ── result ───────────────────────────────────────────────────────────────
 if (COVERAGE) {
   if (COVERAGE !== 'membership') { console.error(`--coverage: unknown layer ${COVERAGE}`); process.exit(2) }
