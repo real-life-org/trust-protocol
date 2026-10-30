@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.11.0
+
+The holder founds its personal community (Identity §2, §5.4, §9.3). Until
+now nothing in the library set the community anchor: the tests built it
+into the state, and a holder created through the API could not give trust
+(`no-community`). No wire change; a minor, because the holder has a new act.
+
+- **`foundPersonalCommunity({name}, opts)`** (new, human,
+  `membership.foundPersonal`): an ordinary group founded under a fresh
+  pair anchor (Access 3.4.1, the same founding as `foundGroup`), whose
+  genesis digest D names the community anchor `group/<D>` at generation 1.
+  The label is registered with the founding; `register.community` takes
+  D at head `1`, which the Trust act (2770), the anchor mapping and the
+  rotation build on. The group is the holder's own: unlisted, so it stands
+  in no group star (nobody can match a group of one), out of `groups`, and
+  `invite` into it is refused (`personal-community`). A second founding is
+  refused (`already-founded`); the act replays under its actId like every
+  human act. Event `group.founded`.
+- **`ActError`** gains `already-founded` and `personal-community`.
+- **`groups`** (view) leaves the personal community out.
+- **`profile`** (view) carries `community` (the genesis digest and the head
+  generation) once the community is founded, so a host knows whether to
+  found it.
+
 ## 0.10.2
 
 Takes up the Delivery Contract 0.85.2 (Open Issue DO-10): a proof is

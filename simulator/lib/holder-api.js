@@ -41,6 +41,7 @@
 //   captureSentCard(card, opts)               encounter.capture         human
 //   counter(contactId, opts)                  encounter.counter         human
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
+//   foundPersonalCommunity({name}, opts)     membership.foundPersonal human
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
@@ -159,6 +160,7 @@ export async function createHolder(ports, opts = {}) {
         captureSentCard: (card, o) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
         counter: (contactId, o) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
         foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),
+        foundPersonalCommunity: (c, o) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
         invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
         vouchFor: (groupId, member, o) => human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
         introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),

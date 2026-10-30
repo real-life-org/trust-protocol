@@ -27,6 +27,10 @@ export type ActError =
   | 'log-missing'
   /** the anchor mapping needs the holder's community anchor (register.community, Identity §5.4) */
   | 'no-community'
+  /** membership.foundPersonal: the personal community exists (register.community is set) */
+  | 'already-founded'
+  /** membership.invite: the personal community takes no member but its founder (Identity §2, Access 5950) */
+  | 'personal-community'
   | 'unknown-digest'
   /** prompt.decide: no open prompt has this id */
   | 'unknown-prompt'

@@ -39,6 +39,7 @@
 //   captureSentCard(card, opts)               encounter.capture         human
 //   counter(contactId, opts)                  encounter.counter         human
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
+//   foundPersonalCommunity({name}, opts)     membership.foundPersonal human
 //   invite(groupId, contactId, opts)          membership.invite         human
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
@@ -208,6 +209,12 @@ export interface Holder {
   /** a group founded under a fresh pair anchor (Access 3.4.1); its rule
    *  vouchThreshold (default "1") is group state; event group.founded; human */
   foundGroup (group: { name: string, vouchThreshold?: string, listed?: boolean }, opts: HumanActOptions): Promise<ActResult>
+  /** the holder's personal community founded (Identity §2, §5.4, §9.3): an
+   *  ordinary group under a fresh pair anchor whose genesis digest names
+   *  the community anchor group/<D>; the Trust act needs it (no-community).
+   *  Once (already-founded); the group is out of the groups view and the
+   *  group star, and takes no invitation; event group.founded; human */
+  foundPersonalCommunity (community: { name: string }, opts: HumanActOptions): Promise<ActResult>
   /** invite a contact into a group: the prelude, then the invite on its
    *  answer (Membership 1.2, 3.1); the contact decides on a group-invite
    *  prompt; human */
@@ -330,6 +337,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     captureSentCard: (card: Json, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
     counter: (contactId: string, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
     foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),
+    foundPersonalCommunity: (c: { name: string }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
     invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
     vouchFor: (groupId: string, member: string, o: HumanActOptions & { provenance?: 'met' | 'introduced' }) =>
       human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),

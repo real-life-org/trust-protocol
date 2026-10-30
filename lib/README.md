@@ -207,7 +207,8 @@ Every act returns `{ok: true, outbound, events} | {ok: false, code, ref?}`;
 The human acts: `show`, `scan`, `captureSentCard`, `counter` (the encounter),
 `decide` (a prompt: confirm an encounter, accept an invitation, take up or
 consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
-`setGroupClass`, `merge`, `depart`, `setProfile`, `foundGroup`, `invite`,
+`setGroupClass`, `merge`, `depart`, `setProfile`, `foundPersonalCommunity`,
+`foundGroup`, `invite`,
 `vouchFor`, `introduce`, `sendMessage`, `block`, `unblock`, `rotateAnchor`,
 `addDevice`, `revokeDevice`. Not
 human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
