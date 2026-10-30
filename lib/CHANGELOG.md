@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+A challenge is exactly 16 bytes, written as canonical unpadded base64url
+(Encounter §5.3): 22 characters, the four unused bits of the last one
+zero. The same value is then also a VTI trigger-link handle (VTI-LNK-033).
+No wire change: the schemas accept 22 to 88 characters as before, and a
+held challenge of the earlier 132-bit form is still resolved and answered.
+
+- **`challengeOf(bytes)`** (breaking): takes exactly 16 bytes, was 17
+  (cut to 22 characters). A caller that passes 17 bytes now gets an
+  error; pass 16.
+- The holder draws 16 bytes of `challenge` entropy, was 17.
+
 ## 0.11.0
 
 The holder founds its personal community (Identity §2, §5.4, §9.3). Until

@@ -265,7 +265,7 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     if (offer) return offer
     const { label, nonce } = await freshLabel(ctx)
     const own = await ctx.keys.anchorOf(label)
-    const value = challengeOf(ctx.entropy.bytes('challenge', 17))
+    const value = challengeOf(ctx.entropy.bytes('challenge', 16))
     const at = iso(ctx.when)
     const name = nameFor(ctx.snapshot, input?.name)
     const hints = input?.carrier !== undefined ? { deliveryHints: input.carrier.deliveryHints } : {}
@@ -317,8 +317,8 @@ const scanDef: CommandDef<ScanInput, ScanPrep> = {
     const { label, nonce } = await freshLabel(ctx)
     const me = await ctx.keys.anchorOf(label)
     // c_A: fresh, created now, never the displayed value (5150, 5160)
-    let own = challengeOf(ctx.entropy.bytes('challenge', 17))
-    for (let i = 0; own === peer.challenge.value && i < 4; i++) own = challengeOf(ctx.entropy.bytes('challenge', 17))
+    let own = challengeOf(ctx.entropy.bytes('challenge', 16))
+    for (let i = 0; own === peer.challenge.value && i < 4; i++) own = challengeOf(ctx.entropy.bytes('challenge', 16))
     if (own === peer.challenge.value) throw new Error('encounter.scan: no fresh challenge distinct from the displayed one')
     const bind = await digestDoc({ ceremony: CEREMONY, challenges: [own, peer.challenge.value].sort() }, S)
     const at = iso(ctx.when)

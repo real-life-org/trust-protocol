@@ -82,7 +82,7 @@ export async function hmac(keyStr, msgStr) {
 }
 export const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z')
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n))
-export const freshChallenge = () => b64u(rand(17)).slice(0, 22)
+export const freshChallenge = () => b64u(rand(16))
 export const bytesHex = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
 export const hexBytes = (h) => new Uint8Array(h.match(/../g).map((x) => parseInt(x, 16)))
 

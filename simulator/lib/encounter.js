@@ -38,14 +38,16 @@ export const credentialSchemaOf = (cred) => {
     return typeof f === 'string' && Object.prototype.hasOwnProperty.call(CRED_FORMATS, f) ? CRED_FORMATS[f] : null;
 };
 export const binding = (ceremony, c1, c2) => digestDoc({ ceremony, challenges: [c1, c2].sort() });
-export const challengeOf = (bytes17) => {
+export const challengeOf = (bytes16) => {
     // a producer never emits what every conformant receiver must reject:
-    // the challenge is EXACTLY 17 random bytes (>= 128 bits, Encounter §5)
-    if (!(bytes17 instanceof Uint8Array) || bytes17.length !== 17)
-        throw new Error('challenge entropy must be exactly 17 bytes');
-    return challengeOfUnchecked(bytes17);
+    // the challenge is EXACTLY 16 random bytes (128 bits, Encounter §5.3),
+    // written as their canonical unpadded base64url — 22 characters whose
+    // last four unused bits are zero, so the same value is also a VTI
+    // trigger-link handle (VTI-LNK-033)
+    if (!(bytes16 instanceof Uint8Array) || bytes16.length !== 16)
+        throw new Error('challenge entropy must be exactly 16 bytes');
+    return b64uOf(bytes16);
 };
-const challengeOfUnchecked = (bytes17) => b64uOf(bytes17).slice(0, 22);
 // cards carry no @context (the proof carries none either — W3C-true)
 export const signCard = (ctx, body, created) => diSign(ctx, body, created);
 export function cardBody(ctx, fields = {}) {
