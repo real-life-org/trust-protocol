@@ -130,6 +130,7 @@ import {
   inviteCredentialBody, inviteProblem, inviterBindingBody, memberLabelOf, membershipSchemaOk, oidOf, preludeRequestProblem, vouchCredentialBody, vouchProblem, withinBudget,
 } from '../membership.js'
 import { withLabel, withPairNonce } from '../identity-state.js'
+import { communityLabel } from '../identity.js'
 import { ED_PKCS8 } from '../keys-seed.js'
 import { tupleByRkid } from '../receive.js'
 import type { Channel, TaskRefusal } from '../receive.js'
@@ -154,11 +155,13 @@ const HORIZON_MAX = 90 * 86_400_000
 
 export const MEMBERSHIP_COMMANDS = Object.freeze({
   found: 'membership.found',
+  foundPersonal: 'membership.foundPersonal',
   invite: 'membership.invite',
   vouch: 'membership.vouch',
 })
 
 export interface FoundInput { name: string, vouchThreshold?: string, listed?: boolean }
+export interface FoundPersonalInput { name: string }
 export interface InviteInput { groupId: string, contactId: string }
 export interface VouchInput { groupId: string, member: string, provenance?: 'met' | 'introduced' }
 
@@ -279,6 +282,35 @@ const foundDef: CommandDef<FoundInput, FoundPrep> = {
   },
 }
 
+// ── the personal community (Identity §2, §5.4, §9.3) ───────────────────
+
+/** The founding of the holder's personal community: an ordinary group
+ *  under a fresh pair anchor (Access 3.4.1, the founding above), whose
+ *  genesis digest D names the community anchor group/<D> at generation 1
+ *  (Identity §5.4). The label is registered with the founding, before any
+ *  key derived from it is presented; register.community takes D at head
+ *  1, which the Trust act (2770) and the rotation (Identity §5.4) build on.
+ *  The group is the holder's own: unlisted, so it stands in no group star
+ *  (5420: nobody can match a group of one), out of the groups view, and
+ *  no invitation leads into it (inviteDef). Founded once (already-founded). */
+const foundPersonalDef: CommandDef<FoundPersonalInput, FoundPrep> = {
+  human: true,
+  prepare: (ctx, input) => foundDef.prepare!(ctx, { name: input?.name as string }),
+  apply (state, prepared, input, when) {
+    if (state.register.community !== null) return no('already-founded')
+    const r = foundDef.apply(state, prepared, { name: input.name, listed: false }, when)
+    if (!('state' in r)) return r
+    const genesis = prepared.value.genesisDigest
+    return {
+      ...r,
+      state: { ...r.state, register: { ...withLabel(r.state.register, communityLabel(genesis, 1)), community: { genesis, head: '1' } } },
+    }
+  },
+}
+
+/** Whether `groupId` is the holder's personal community. */
+export const isPersonalCommunity = (state: Readonly<HolderState>, groupId: string): boolean => state.register.community?.genesis === groupId
+
 // ── the prelude (Membership 1.2) ───────────────────────────────────────
 
 /** The live active tuple toward a contact, with its relationship. */
@@ -299,6 +331,7 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
   async prepare (ctx, input) {
     const g = ctx.snapshot.groups[input?.groupId]
     if (!g || g.memberAnchor === undefined) return no('unknown-group')
+    if (isPersonalCommunity(ctx.snapshot, g.id)) return no('personal-community')
     const ch = channelTo(ctx.snapshot, input.contactId)
     if (!ch) return no('no-own-channel')
     // no invitation toward a blocked relationship (Message Tasks 6410)
@@ -942,6 +975,7 @@ export function membershipModule (): HolderModule {
     name: 'membership',
     commands: Object.freeze({
       [MEMBERSHIP_COMMANDS.found]: foundDef,
+      [MEMBERSHIP_COMMANDS.foundPersonal]: foundPersonalDef,
       [MEMBERSHIP_COMMANDS.invite]: inviteDef,
       [MEMBERSHIP_COMMANDS.vouch]: vouchDef,
     }),
