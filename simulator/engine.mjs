@@ -106,7 +106,7 @@ export function noteSent(p, doc) {
 
 // ── contact cards (Encounter 6, 5.3) ────────────────────────────────────
 export function freshChallenge(now) {
-  return { value: b64u(randomBytes(17)).slice(0, 22), issuedAt: iso(now) }
+  return { value: b64u(randomBytes(16)), issuedAt: iso(now) }
 }
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
