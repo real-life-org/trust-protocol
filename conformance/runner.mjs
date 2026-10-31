@@ -2585,6 +2585,23 @@ section('proof-purpose.json — one document under each proof purpose; assertion
   check(PP.cases.find((c) => c.name === 'assertionMethod')?.signed.proof.proofValue === tfBaseline.proof.proofValue, 'assertionMethod: the proofValue of the TF baseline vector byte for byte')
 }
 
+// ── shared-connect-binding.json: the binding of the shared connection ceremony ──
+section('shared-connect-binding.json — the enactment binding of shared-connect 0.2 (RLTP-ENC-5330 construction, VTI-LNK-033 challenges)')
+{
+  const SB = J('vectors/shared-connect-binding.json')
+  const { inviter, responder } = SB.challenges
+  for (const c of [inviter, responder]) check(/^[A-Za-z0-9_-]{21}[AQgw]$/.test(c) && Buffer.from(c, 'base64url').length === 16, `${c}: a canonical 16-byte challenge`)
+  const asStrings = [inviter, responder].sort()
+  const asBytes = [inviter, responder].sort((a, b) => Buffer.compare(Buffer.from(a, 'base64url'), Buffer.from(b, 'base64url')))
+  check(asStrings[0] !== asBytes[0], 'the challenges separate string order from byte order')
+  for (const c of SB.cases) {
+    check(jcs(c.descriptor) === jcs({ ceremony: c.ceremony, challenges: asStrings }), `${c.ceremony}: the descriptor sorts the challenges as strings`)
+    check(digestU(c.descriptor) === c.binding, `${c.ceremony}: binding recomputes`)
+    check(digestU({ ceremony: c.ceremony, challenges: [responder, inviter].sort() }) === c.binding, `${c.ceremony}: the roles do not enter`)
+    check(digestU({ ceremony: c.ceremony, challenges: asBytes }) === c.byteOrderSlip && c.byteOrderSlip !== c.binding, `${c.ceremony}: the byte-order slip recomputes and differs`)
+  }
+}
+
 // ── result ───────────────────────────────────────────────────────────────
 if (COVERAGE) {
   if (COVERAGE !== 'membership') { console.error(`--coverage: unknown layer ${COVERAGE}`); process.exit(2) }
