@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RLTP Core Principles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* Tokens. Frame and slides follow the theme toggle (light / dark). */
+:root {
+  --bg: #f4f6fa; --slide: #ffffff; --text: #16181d; --text-2: #454a55; --muted: #5f6673; --border: #e1e5ec;
+  --brand: #2653c1; --brand-soft: #eef3ff; --tile: #f6f8fc; --shadow: rgba(20,30,60,.10);
+  --accent: #2e64ea; --accent-soft: #e3ebff; --accent-line: #9db7f5; --on-accent: #ffffff;
+  --ok: #1f7a17; --ok-soft: #e3f3e0; --ok-line: #8fd987;
+  --warn: #ec7c0e; --warn-ink: #a14f00; --warn-soft: #fdecd9;
+  --ana: #e07a22; --ana-soft: #ffd9c0; --ana-ink: #a54b00;
+  --ben: #9670ea; --ben-soft: #e6daff; --ben-ink: #7541b8;
+  --grey-1: #eef0f3; --grey-2: #b9c0cc; --grey-3: #8d94a0; --grey-4: #4a4d53; --node: #e2e5ea;
+  --track: #dbdee3; --knob: #ffffff;
+  --cover-1: #dce6ff; --cover-2: #f4f7ff; --cover-3: #ffffff;
+  --p0: #e2d6fb; --p1: #ffd6b8; --p2: #dde1e8; --p3: #cfeccb; --p4: #d3e2fb; --p5: #fbd3d0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #080c14; --slide: #111827; --text: #eef1f7; --text-2: #c5cbd7; --muted: #9ba4b6; --border: #273248;
+    --brand: #9cb8ff; --brand-soft: #1b2747; --tile: #151f33; --shadow: rgba(0,0,0,.45);
+    --accent: #3b6be6; --accent-soft: #1f2f55; --accent-line: #46619c; --on-accent: #ffffff;
+    --ok: #79d46d; --ok-soft: #173a1a; --ok-line: #3f7a39;
+    --warn: #f29a3f; --warn-ink: #f6b26b; --warn-soft: #3a2610;
+    --ana: #f7a55f; --ana-soft: #4a2c14; --ana-ink: #ffc48f;
+    --ben: #be9df7; --ben-soft: #33264f; --ben-ink: #d6c3ff;
+    --grey-1: #182133; --grey-2: #4b5770; --grey-3: #6d7890; --grey-4: #c3cad6; --node: #2a3449;
+    --track: #2a3449; --knob: #ffffff;
+    --cover-1: #142650; --cover-2: #0b111f; --cover-3: #04070f;
+    --p0: #b9a6ec; --p1: #f2b98c; --p2: #aab2c2; --p3: #9fd59a; --p4: #9dbbef; --p5: #eeaaa6;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #080c14; --slide: #111827; --text: #eef1f7; --text-2: #c5cbd7; --muted: #9ba4b6; --border: #273248;
+  --brand: #9cb8ff; --brand-soft: #1b2747; --tile: #151f33; --shadow: rgba(0,0,0,.45);
+  --accent: #3b6be6; --accent-soft: #1f2f55; --accent-line: #46619c; --on-accent: #ffffff;
+  --ok: #79d46d; --ok-soft: #173a1a; --ok-line: #3f7a39;
+  --warn: #f29a3f; --warn-ink: #f6b26b; --warn-soft: #3a2610;
+  --ana: #f7a55f; --ana-soft: #4a2c14; --ana-ink: #ffc48f;
+  --ben: #be9df7; --ben-soft: #33264f; --ben-ink: #d6c3ff;
+  --grey-1: #182133; --grey-2: #4b5770; --grey-3: #6d7890; --grey-4: #c3cad6; --node: #2a3449;
+  --track: #2a3449; --knob: #ffffff;
+  --cover-1: #142650; --cover-2: #0b111f; --cover-3: #04070f;
+  --p0: #b9a6ec; --p1: #f2b98c; --p2: #aab2c2; --p3: #9fd59a; --p4: #9dbbef; --p5: #eeaaa6;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font-family: "IBM Plex Sans", system-ui, sans-serif; }
+
+/* 16:9 stage (1920x1080), scaled to fit; 32px margin on top and at the sides, the nav pill free below */
+.deck { position: fixed; top: 32px; left: 32px; right: 32px; bottom: 86px; display: grid; place-items: center; }
+.slide { position: absolute; width: 1920px; height: 1080px; background: var(--slide);
+  border: 1.5px solid var(--border); border-radius: 27px;
+  box-shadow: 0 30px 90px var(--shadow); display: none;
+  transform-origin: center; overflow: hidden; }
+.slide.active { display: block; }
+.stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.print-notes { display: none; }
+
+/* Slide base */
+.stage > section { position: absolute; inset: 0; width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden;
+  margin: 0; line-height: 1.2; -webkit-font-smoothing: antialiased;
+  background: var(--slide); color: var(--text); font-family: Inter, sans-serif;
+  padding: 128px 128px 160px; display: flex; flex-direction: column; align-items: start; gap: 40px; }
+.stage section :is(h1, h2, h3, h4, p, ul, ol, figure, blockquote) { margin: 0; }
+.stage > section > aside { display: none; }
+.stage x-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.stage x-icon svg { width: 100%; height: 100%; }
+
+/* Copy column */
+.eyebrow { font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--brand); }
+.stage section h2 { font-size: 72px; font-weight: 700; line-height: 1.08; letter-spacing: -1.5px; width: 840px; color: var(--text); }
+.lead { font-size: 32px; line-height: 1.45; color: var(--text-2); width: 820px; }
+.lead b { color: var(--brand); }
+.foot { position: absolute; left: 128px; bottom: 64px; width: 1000px; font-family: 'Source Code Pro', monospace; font-size: 24px; color: var(--muted); }
+.progress { position: absolute; left: 1560px; bottom: 77px; width: 232px; height: 8px; display: flex; gap: 8px; }
+.progress i { flex: 1; background: var(--track); border-radius: 4px; }
+.progress i.on { background: var(--accent); }
+
+/* Figure: a soft tile on the right, pinned pieces inside, captions in flowing columns */
+.pin { position: absolute; }
+.tile { position: absolute; background: var(--tile); border: 1px solid var(--border); border-radius: 24px; }
+.lbl { font-size: 24px; font-weight: 600; text-align: center; color: var(--text); }
+.lbl.big { font-size: 28px; font-weight: 700; }
+.cap { font-size: 24px; line-height: 1.35; text-align: center; color: var(--muted); }
+.caps { position: absolute; display: flex; gap: 32px; }
+.caps > div { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.t-brand { color: var(--brand); } .t-muted { color: var(--muted); } .t-text2 { color: var(--text-2); }
+.t-grey4 { color: var(--grey-4); } .t-ana { color: var(--ana-ink); } .t-ben { color: var(--ben-ink); }
+.t-warn { color: var(--warn-ink); } .t-ok { color: var(--ok); } .t-on-accent { color: var(--on-accent); }
+.mono { font-family: 'Source Code Pro', monospace; }
+svg.fig { position: absolute; overflow: visible; }
+
+/* SVG paint classes: fill and stroke set from CSS so the tokens apply */
+.f-none { fill: none; } .f-slide { fill: var(--slide); } .f-tile { fill: var(--tile); }
+.f-accent { fill: var(--accent); } .f-accent-soft { fill: var(--accent-soft); } .f-brand { fill: var(--brand); }
+.f-grey1 { fill: var(--grey-1); } .f-grey3 { fill: var(--grey-3); } .f-grey4 { fill: var(--grey-4); } .f-node { fill: var(--node); }
+.f-text { fill: var(--text); } .f-muted { fill: var(--muted); } .f-accent-line { fill: var(--accent-line); } .f-on-accent { fill: var(--on-accent); }
+.f-p0 { fill: var(--p0); } .f-p1 { fill: var(--p1); } .f-p2 { fill: var(--p2); } .f-p3 { fill: var(--p3); } .f-p4 { fill: var(--p4); } .f-p5 { fill: var(--p5); } .f-text2 { fill: var(--text-2); }
+.f-ana { fill: var(--ana); } .f-ana-soft { fill: var(--ana-soft); } .f-ben { fill: var(--ben); } .f-ben-soft { fill: var(--ben-soft); }
+.f-ok { fill: var(--ok); } .f-warn { fill: var(--warn); }
+.s-accent { stroke: var(--accent); } .s-text { stroke: var(--text); } .s-line { stroke: var(--accent-line); } .s-border { stroke: var(--border); }
+.s-grey2 { stroke: var(--grey-2); } .s-grey3 { stroke: var(--grey-3); } .s-grey4 { stroke: var(--grey-4); } .s-muted { stroke: var(--muted); }
+.s-ana { stroke: var(--ana); } .s-ben { stroke: var(--ben); } .s-warn { stroke: var(--warn); }
+
+/* Cover */
+.stage > section.cover { justify-content: center;
+  background: radial-gradient(circle at 80% 24%, var(--cover-1) 0%, var(--cover-2) 55%, var(--cover-3) 100%); }
+.cover .kicker { font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--brand);
+  background: var(--brand-soft); padding: 10px 22px; border-radius: 999px; }
+.cover h1 { font-size: 132px; font-weight: 700; line-height: 1.05; letter-spacing: -3px; color: var(--text); }
+.cover h1 span { color: var(--brand); }
+.cred { width: 560px; background: var(--slide); border: 2px solid var(--accent-line); border-radius: 28px; padding: 40px 44px;
+  box-shadow: 0 30px 60px -30px var(--shadow); display: flex; flex-direction: column; gap: 22px; }
+.cred .ct { font-size: 34px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+.cred dl { margin: 0; display: grid; grid-template-columns: 170px 1fr; gap: 12px 16px; }
+.cred dt { font-family: 'Source Code Pro', monospace; font-size: 24px; color: var(--muted); }
+.cred dd { margin: 0; font-family: 'Source Code Pro', monospace; font-size: 24px; color: var(--text); }
+.cred dd.none { color: var(--muted); font-style: italic; }
+.cred .sig { align-self: start; font-size: 26px; font-weight: 600; color: var(--ok); background: var(--ok-soft);
+  border: 2px solid var(--ok-line); border-radius: 999px; padding: 6px 20px; }
+.person { position: absolute; width: 104px; height: 104px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.person p { font-size: 44px; font-weight: 700; }
+.person.ana { background: var(--ana-soft); color: var(--ana-ink); box-shadow: 0 0 48px color-mix(in srgb, var(--ana) 45%, transparent); }
+.person.ben { background: var(--ben-soft); color: var(--ben-ink); box-shadow: 0 0 48px color-mix(in srgb, var(--ben) 45%, transparent); }
+.okpill { font-size: 24px; font-weight: 600; text-align: center; color: var(--ok); background: var(--ok-soft);
+  border: 1px solid var(--ok-line); border-radius: 999px; padding: 6px 16px; }
+
+/* Cards, tags, pills (05, 06, 11) */
+.card { position: absolute; background: var(--slide); border: 1px solid var(--border); border-radius: 24px;
+  box-shadow: 0 10px 30px var(--shadow); padding: 24px 28px; display: flex; flex-direction: column; }
+.card-head { display: flex; justify-content: space-between; align-items: center; padding: 0 16px 14px; }
+.tag { display: inline-block; font-size: 22px; font-weight: 600; letter-spacing: .04em; padding: 6px 16px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--brand); white-space: nowrap; }
+.tag.grey { background: var(--grey-1); color: var(--text-2); }
+.tag.violet { background: var(--ben-soft); color: var(--ben-ink); }
+.tag.ink { background: var(--text); color: var(--slide); }
+.head-note { font-family: 'Source Code Pro', monospace; font-size: 24px; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 20px; padding: 12px 16px; border-top: 1px solid var(--border); border-radius: 12px; }
+.row .txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.row .t { font-size: 26px; font-weight: 700; color: var(--text); }
+.row .d { font-size: 24px; line-height: 1.3; color: var(--text-2); }
+.row.off .t, .row.off .d { color: var(--muted); }
+.row.hl { background: var(--brand-soft); border-top-color: transparent; }
+.toggle { width: 64px; height: 32px; border-radius: 16px; background: var(--accent); display: flex; justify-content: end; padding: 4px; flex: none; }
+.toggle::after { content: ""; width: 24px; height: 24px; border-radius: 12px; background: var(--knob); }
+.off .toggle { background: var(--grey-2); justify-content: start; }
+.trust-act { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.pill { display: flex; align-items: center; gap: 12px; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 12px 28px; }
+.pill p { font-size: 28px; font-weight: 700; }
+.table { padding: 8px 28px 20px; }
+.table .th { display: flex; justify-content: space-between; padding: 14px 8px 12px; font-size: 22px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.table .th .mono { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 24px; }
+.table .row { padding: 18px 8px; border-radius: 0; }
+.table .row .status { width: 230px; font-family: 'Source Code Pro', monospace; font-size: 24px; line-height: 1.3; text-align: right; color: var(--brand); }
+.table .note { font-size: 24px; line-height: 1.4; color: var(--muted); padding: 14px 8px 0; border-top: 1px solid var(--border); }
+
+/* Small helpers for figures */
+.f-warn-soft { fill: var(--warn-soft); } .f-brand-soft { fill: var(--brand-soft); }
+.xl { font-size: 36px; font-weight: 700; } .sm { font-size: 22px; } .l { text-align: left; } .r { text-align: right; } .ls { letter-spacing: 2px; }
+.capcol { position: absolute; display: flex; flex-direction: column; gap: 16px; }
+.capcol.tight { gap: 8px; } .cap.mt { margin-top: 12px; }
+.caprow { display: flex; gap: 32px; } .caprow > * { flex: 1; }
+.entry, .who { display: flex; flex-direction: column; gap: 2px; }
+.entry .t { font-size: 26px; font-weight: 700; color: var(--text); } .entry .d { font-size: 24px; color: var(--text-2); }
+.entry.gone .t { color: var(--grey-4); } .entry.gone .d { color: var(--muted); }
+.who .lbl { font-weight: 700; }
+.doc { width: 80px; background: var(--slide); border: 2px solid var(--border); border-radius: 12px; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px; }
+.doc i { display: block; height: 6px; background: var(--track); border-radius: 3px; }
+.doc i:first-child { width: 32px; background: var(--accent); }
+.doc.gone { background: var(--grey-1); border: 2px dashed var(--grey-2); }
+.doc.gone i { background: var(--node); } .doc.gone i:first-child { background: var(--grey-2); }
+.doc { transition: background .45s ease, border-color .45s ease, opacity .45s ease; }
+.doc.out { background: var(--grey-1); border: 2px dashed var(--grey-2); }
+.doc.out i { background: var(--node); } .doc.out i:first-child { background: var(--grey-2); }
+.who.out .lbl { color: var(--grey-4); transition: color .45s ease; }
+.stack { display: grid; } .stack > * { grid-area: 1 / 1; }
+.stage p[data-build-out] { transition: opacity .45s ease; }
+.stage p[data-build-out].out { opacity: 0; }
+.stage svg [data-build-out] { transition: opacity .45s ease; }
+.stage svg [data-build-out].out { opacity: 0; }
+.stage svg .dim[data-build-out].out { opacity: .12; }
+.pill x-icon { width: 32px; height: 32px; }
+
+/* Builds */
+.stage [data-build-in] { transition: opacity .45s ease, transform .45s cubic-bezier(.2,.7,.2,1); }
+.stage [data-build-in].pending { opacity: 0 !important; }
+.stage [data-build-in].pending.b-rise { transform: translateY(32px) !important; }
+.stage [data-build-in].pending.b-pop { transform: scale(.82) !important; }
+.slide.instant [data-build-in] { transition: none !important; }
+svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-origin: center; }
+
+/* Comparison tab and panel: inside the stage, scales with it */
+.cmp { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; align-items: center;
+  transform: translateY(calc(100% - 52px)); transition: transform .4s cubic-bezier(.2,.7,.2,1); pointer-events: none;
+  font-family: Inter, sans-serif; }
+.cmp.open { transform: translateY(0); }
+.cmp-tab { all: unset; pointer-events: auto; cursor: pointer; height: 52px; box-sizing: border-box; padding: 10px 32px 0;
+  font-family: Inter, sans-serif; font-size: 24px; line-height: 1.4; color: var(--muted); background: var(--tile);
+  border: 1px solid var(--border); border-bottom: 0; border-radius: 16px 16px 0 0; }
+.cmp-tab:hover { color: var(--text); }
+.cmp-tab:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.cmp-panel { pointer-events: auto; align-self: stretch; max-height: 432px; overflow: auto;
+  padding: 44px 128px 56px; background: var(--slide); border-top: 1px solid var(--border); transition: box-shadow .4s; }
+.cmp.open .cmp-panel { box-shadow: 0 -16px 40px var(--shadow); }
+.cmp-kicker { margin: 0 0 18px; font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--brand); }
+.cmp-text { margin: 0; max-width: 1560px; font-size: 32px; line-height: 1.45; color: var(--text-2); }
+.cmp.open .cmp-tab { color: var(--text); background: var(--slide); }
+
+/* nav */
+.nav { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center;
+  background: var(--slide); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; z-index: 2;
+  font-size: 14px; color: var(--muted); white-space: nowrap; }
+.nav button { all: unset; cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 999px; color: var(--text); }
+.nav button svg { display: block; }
+.nav #count { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; line-height: 36px; }
+.nav #theme { margin-left: 6px; }
+.nav button:hover { background: var(--brand-soft); }
+.nav button:focus-visible { outline: 2px solid var(--brand); }
+
+@media print {
+  :root[data-theme], :root:not([data-theme]) {
+    --bg: #f4f6fa; --slide: #ffffff; --text: #16181d; --text-2: #454a55; --muted: #5f6673; --border: #e1e5ec;
+    --brand: #2653c1; --brand-soft: #eef3ff; --tile: #f6f8fc; --shadow: rgba(20,30,60,.10);
+    --accent: #2e64ea; --accent-soft: #e3ebff; --accent-line: #9db7f5; --on-accent: #ffffff;
+    --ok: #1f7a17; --ok-soft: #e3f3e0; --ok-line: #8fd987;
+    --warn: #ec7c0e; --warn-ink: #a14f00; --warn-soft: #fdecd9;
+    --ana: #e07a22; --ana-soft: #ffd9c0; --ana-ink: #a54b00;
+    --ben: #9670ea; --ben-soft: #e6daff; --ben-ink: #7541b8;
+    --grey-1: #eef0f3; --grey-2: #b9c0cc; --grey-3: #8d94a0; --grey-4: #4a4d53; --node: #e2e5ea;
+    --track: #dbdee3; --knob: #ffffff;
+    --cover-1: #dce6ff; --cover-2: #f4f7ff; --cover-3: #ffffff;
+    --p0: #e2d6fb; --p1: #ffd6b8; --p2: #dde1e8; --p3: #cfeccb; --p4: #d3e2fb; --p5: #fbd3d0;
+  }
+  @page { size: 1920px 1440px; margin: 0; }
+  html, body { background: #fff; height: auto; }
+  .deck { position: static; display: block; }
+  .slide { position: relative; display: block !important; transform: none !important; page-break-after: always;
+    width: 1920px; height: 1440px; border: 0; border-radius: 0; box-shadow: none; overflow: visible; background: #fff; }
+  .stage { height: 1080px; }
+  .stage [data-build-in] { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .stage p[data-build-out] { opacity: 0 !important; }
+  .stage svg [data-build-out] { opacity: 0 !important; }
+  .stage .doc[data-build-out] { background: var(--grey-1); border: 2px dashed var(--grey-2); }
+  .stage .doc[data-build-out] i { background: var(--node); } .stage .doc[data-build-out] i:first-child { background: var(--grey-2); }
+  .stage .who[data-build-out] .lbl { color: var(--grey-4); }
+  .cmp, .nav { display: none !important; }
+  .print-notes { display: block; padding: 32px 128px 0; font-family: Inter, sans-serif; font-size: 21px; line-height: 1.5; color: #333; }
+  .print-notes b { color: #2653c1; margin-right: 6px; }
+}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 · cover -->
+<div class="slide" data-slide="cover">
+<div class="stage">
+<section id="cover" class="cover" data-transition="fade">
+<div class="pin cred" style="left:1170px;top:260px;transform:rotate(-4deg)" data-build-in="rise order 1"><p class="ct">RelationshipCredential</p><dl><dt>issuer</dt><dd>did:key:z6MkpB7…Ben</dd><dt>about</dt><dd>did:key:z6MkhA3…Ana</dd><dt>challenge</dt><dd>4c1e·90f2·b7a8</dd><dt>validUntil</dt><dd class="none">none</dd></dl><p class="sig">✓ signed by Ben</p></div>
+<div class="pin cred" style="left:1232px;top:450px;transform:rotate(3deg)" data-build-in="rise order 2"><p class="ct">RelationshipCredential</p><dl><dt>issuer</dt><dd>did:key:z6MkhA3…Ana</dd><dt>about</dt><dd>did:key:z6MkpB7…Ben</dd><dt>challenge</dt><dd>4c1e·90f2·b7a8</dd><dt>validUntil</dt><dd class="none">none</dd></dl><p class="sig">✓ signed by Ana</p></div>
+<p class="kicker">Core principles of the protocol</p>
+<h1 style="width:960px;font-size:132px">Real Life<br><span>Trust Protocol</span></h1>
+<p class="lead" style="width:1030px;font-size:44px;line-height:1.25;font-weight:600;color:var(--text)">Trust starts between two people <b>who met.</b></p>
+<p class="foot">real-life.org</p>
+<aside>Ten principles, one per slide, told from the person outward: the person and their devices, their identities, the relationship between two people and how it becomes trust, what others may learn from it, how one gets in, the group, and the group without its host; then a closing slide on what travels and in which shared forms. Each slide: one sentence, what follows from it, one picture. Prices, evidence and open questions are in the notes. The picture: the two credentials one meeting leaves behind, one issued by each person about the other, with the same challenge and no expiry; nobody above them issued anything.</aside>
+</section>
+</div>
+<div class="print-notes"><b>1 · Notes</b> Ten principles, one per slide, told from the person outward: the person and their devices, their identities, the relationship between two people and how it becomes trust, what others may learn from it, how one gets in, the group, and the group without its host; then a closing slide on what travels and in which shared forms. Each slide: one sentence, what follows from it, one picture. Prices, evidence and open questions are in the notes. The picture: the two credentials one meeting leaves behind, one issued by each person about the other, with the same challenge and no expiry; nobody above them issued anything.</div>
+</div>
+
+<!-- 2 · pairwise -->
+<div class="slide" data-slide="pairwise">
+<div class="stage">
+<section data-full="8" id="pairwise" data-transition="push">
+
+<svg class="fig" aria-label="Twelve magic words become one seed; from it one anchor is derived toward each contact, group and the public" viewBox="0 0 772 640" width="772" height="640" style="left:1030px;top:96px;width:772px;height:640px"><g data-build-in="fade order 1" data-build-out="order 2"><rect x="151" y="218" width="470" height="196" rx="20" class="f-accent-soft"/><text x="386" y="196" text-anchor="middle" font-size="22" font-weight="600" class="f-brand">twelve magic words</text><text x="236" y="258" text-anchor="middle" font-size="24" class="f-text mono">river</text><text x="386" y="258" text-anchor="middle" font-size="24" class="f-text mono">candle</text><text x="536" y="258" text-anchor="middle" font-size="24" class="f-text mono">orbit</text><text x="236" y="302" text-anchor="middle" font-size="24" class="f-text mono">maple</text><text x="386" y="302" text-anchor="middle" font-size="24" class="f-text mono">silent</text><text x="536" y="302" text-anchor="middle" font-size="24" class="f-text mono">harbor</text><text x="236" y="346" text-anchor="middle" font-size="24" class="f-text mono">velvet</text><text x="386" y="346" text-anchor="middle" font-size="24" class="f-text mono">prism</text><text x="536" y="346" text-anchor="middle" font-size="24" class="f-text mono">lantern</text><text x="236" y="390" text-anchor="middle" font-size="24" class="f-text mono">meadow</text><text x="386" y="390" text-anchor="middle" font-size="24" class="f-text mono">cobalt</text><text x="536" y="390" text-anchor="middle" font-size="24" class="f-text mono">ember</text></g><g data-build-in="fade order 3" data-build-out="order 9"><line x1="386" y1="218" x2="386" y2="161" class="s-line" stroke-width="3" stroke-dasharray="6 7"/><line x1="386" y1="161" x2="386" y2="94" class="s-accent" stroke-width="3"/><rect x="322" y="143" width="128" height="36" rx="18" class="f-slide s-line" stroke-width="2"/><text x="386" y="167" text-anchor="middle" font-size="18" class="f-brand mono">pair/7f3a…</text><circle cx="386" cy="56" r="34" class="f-ben-soft"/><text x="434" y="64" font-size="24" font-weight="600" class="f-text">Ben</text></g><g data-build-in="fade order 4" data-build-out="order 9"><line x1="476" y1="275" x2="551" y2="239" class="s-line" stroke-width="3" stroke-dasharray="6 7"/><line x1="551" y1="239" x2="627" y2="203" class="s-accent" stroke-width="3"/><rect x="487" y="221" width="128" height="36" rx="18" class="f-slide s-line" stroke-width="2"/><text x="551" y="245" text-anchor="middle" font-size="18" class="f-brand mono">group/c41e…</text><circle cx="661" cy="187" r="34" class="f-slide s-grey2" stroke-width="3" stroke-dasharray="6 6"/><circle cx="652" cy="180" r="7" class="f-accent"/><circle cx="670" cy="180" r="7" class="f-ok"/><circle cx="661" cy="196" r="7" class="f-warn"/><text x="661" y="137" text-anchor="middle" font-size="24" font-weight="600" class="f-text">choir group</text></g><g data-build-in="fade order 5" data-build-out="order 9"><line x1="476" y1="361" x2="551" y2="397" class="s-line" stroke-width="3" stroke-dasharray="6 7"/><line x1="551" y1="397" x2="627" y2="433" class="s-accent" stroke-width="3"/><rect x="487" y="379" width="128" height="36" rx="18" class="f-slide s-line" stroke-width="2"/><text x="551" y="403" text-anchor="middle" font-size="18" class="f-brand mono">pair/9d2b…</text><circle cx="661" cy="449" r="34" class="f-node"/><text x="661" y="513" text-anchor="middle" font-size="24" font-weight="600" class="f-text">Mia</text></g><g data-build-in="fade order 6" data-build-out="order 9"><line x1="386" y1="418" x2="386" y2="475" class="s-line" stroke-width="3" stroke-dasharray="6 7"/><line x1="386" y1="475" x2="386" y2="542" class="s-accent" stroke-width="3"/><rect x="322" y="457" width="128" height="36" rx="18" class="f-slide s-line" stroke-width="2"/><text x="386" y="481" text-anchor="middle" font-size="18" class="f-brand mono">persona/…</text><circle cx="386" cy="580" r="34" class="f-slide s-grey2" stroke-width="3"/><text x="434" y="588" font-size="24" font-weight="600" class="f-text">the public</text></g><g data-build-in="fade order 7" data-build-out="order 9"><line x1="296" y1="361" x2="221" y2="397" class="s-line" stroke-width="3" stroke-dasharray="6 7"/><line x1="221" y1="397" x2="145" y2="433" class="s-accent" stroke-width="3"/><rect x="157" y="379" width="128" height="36" rx="18" class="f-slide s-line" stroke-width="2"/><text x="221" y="403" text-anchor="middle" font-size="18" class="f-brand mono">pair/2b6c…</text><circle cx="111" cy="449" r="34" class="f-node"/><text x="111" y="513" text-anchor="middle" font-size="24" font-weight="600" class="f-text">Sam</text></g><g data-build-in="fade order 8" data-build-out="order 9"><line x1="296" y1="275" x2="221" y2="239" class="s-line" stroke-width="3" stroke-dasharray="6 7"/><line x1="221" y1="239" x2="145" y2="203" class="s-accent" stroke-width="3"/><rect x="157" y="221" width="128" height="36" rx="18" class="f-slide s-line" stroke-width="2"/><text x="221" y="245" text-anchor="middle" font-size="18" class="f-brand mono">group/e83f…</text><circle cx="111" cy="187" r="34" class="f-slide s-grey2" stroke-width="3" stroke-dasharray="6 6"/><circle cx="102" cy="180" r="7" class="f-ok"/><circle cx="120" cy="180" r="7" class="f-warn"/><circle cx="111" cy="196" r="7" class="f-accent"/><text x="111" y="137" text-anchor="middle" font-size="24" font-weight="600" class="f-text">garden group</text></g><g data-build-in="pop order 2" data-build-out="order 9"><circle cx="386" cy="318" r="96" class="f-accent-soft"/><circle cx="386" cy="318" r="70" class="f-accent"/><text x="386" y="320" text-anchor="middle" font-size="34" font-weight="700" class="f-on-accent">Ana</text><text x="386" y="350" text-anchor="middle" font-size="22" class="f-on-accent">one seed</text></g><g data-build-in="rise order 9"><rect x="120" y="92" width="330" height="234" rx="18" class="f-slide s-accent" stroke-width="3"/><text x="142" y="130" font-size="22" font-weight="700" class="f-text">Ana’s document</text><text x="142" y="168" font-size="18" class="f-brand mono">pair/7f3a…</text><text x="310" y="168" font-size="18" class="f-text2">Ben</text><text x="142" y="196" font-size="18" class="f-brand mono">group/c41e…</text><text x="310" y="196" font-size="18" class="f-text2">choir group</text><text x="142" y="224" font-size="18" class="f-brand mono">pair/9d2b…</text><text x="310" y="224" font-size="18" class="f-text2">Mia</text><text x="142" y="252" font-size="18" class="f-brand mono">persona/…</text><text x="310" y="252" font-size="18" class="f-text2">the public</text><text x="142" y="280" font-size="18" class="f-brand mono">pair/2b6c…</text><text x="310" y="280" font-size="18" class="f-text2">Sam</text><text x="142" y="308" font-size="18" class="f-brand mono">group/e83f…</text><text x="310" y="308" font-size="18" class="f-text2">garden group</text></g></svg>
+<div class="capcol" style="left:1040px;top:800px;width:752px"><div class="stack"><p class="cap" data-build-in="fade order 8" data-build-out="order 9">Dashed: derived from the seed. Solid: the one context each anchor faces.</p><p class="cap" data-build-in="fade order 9">Every anchor she derives is written into one document: hers.</p></div></div>
+<p class="eyebrow">01 · Identity</p>
+<h2>One person, a fresh identity for every relationship.</h2>
+<p class="lead">From one seed on their devices, a person derives a new identifier for each contact, group and public appearance. No one else can link them. <b>The relationships know the person. The network does not.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<aside>Identity follows the relationship, not the other way round. One seed, kept by the person, derives an anchor per context: this contact, that group, the public. Nobody who sees two of them can tell they are the same person. This we share with the wider ecosystem (personas per context); the difference is where the seed lives and who derives: the person's own devices, not an agent minting on their behalf. Rotation and recovery follow from the seed, so a lost device does not mean a lost person. The picture starts where a person starts: twelve magic words (English BIP-39), which become the seed. Each anchor is a did:key, self-certifying, no registry. The last step gathers every anchor into one document, the person's own encrypted state: which contexts exist and under which anchor. The follow-on question: where does that document live? Next slide.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">The idea is shared: one persona per context. In OpenVTC a persona exists per community, minted by the agent as a did:webvh, which needs a DID host. Here it exists per relationship, derived on the device from one seed, with no hosting.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>2 · Notes</b> Identity follows the relationship, not the other way round. One seed, kept by the person, derives an anchor per context: this contact, that group, the public. Nobody who sees two of them can tell they are the same person. This we share with the wider ecosystem (personas per context); the difference is where the seed lives and who derives: the person's own devices, not an agent minting on their behalf. Rotation and recovery follow from the seed, so a lost device does not mean a lost person. The picture starts where a person starts: twelve magic words (English BIP-39), which become the seed. Each anchor is a did:key, self-certifying, no registry. The last step gathers every anchor into one document, the person's own encrypted state: which contexts exist and under which anchor. The follow-on question: where does that document live? Next slide.</div>
+</div>
+
+<!-- 3 · agency -->
+<div class="slide" data-slide="agency">
+<div class="stage">
+<section id="agency" data-transition="push">
+
+<svg class="fig" aria-label="Ana as a soft region: her personal document lists her anchors and lies, sealed, on her phone and her laptop, each with its own key; an agent and a relay wait outside" viewBox="0 0 772 620" width="772" height="620" style="left:1030px;top:118px;width:772px;height:620px"><rect x="30" y="20" width="510" height="590" rx="200" class="f-accent-soft" data-build-in="fade order 1"/><text x="285" y="52" text-anchor="middle" font-size="28" font-weight="700" class="f-brand" data-build-in="fade order 1">Ana</text><g data-build-in="fade order 1"><rect x="95" y="340" width="130" height="210" rx="24" class="f-slide s-accent" stroke-width="5"/><rect x="137" y="354" width="46" height="9" rx="4.5" class="f-accent-line"/><circle cx="142.4" cy="500" r="14.3" class="f-accent"/><circle cx="142.4" cy="500" r="5.9" class="f-slide"/><rect x="152.8" y="495.4" width="41.6" height="9.1" rx="2.6" class="f-accent"/><rect x="184.0" y="502.6" width="7.8" height="11.7" rx="2.0" class="f-accent"/><rect x="171.0" y="502.6" width="6.5" height="7.8" rx="2.0" class="f-accent"/><rect x="285" y="340" width="210" height="136" rx="16" class="f-slide s-accent" stroke-width="5"/><rect x="265" y="482" width="250" height="14" rx="7" class="f-accent"/><circle cx="369.8" cy="430" r="16.5" class="f-accent"/><circle cx="369.8" cy="430" r="6.8" class="f-slide"/><rect x="381.8" y="424.8" width="48.0" height="10.5" rx="3.0" class="f-accent"/><rect x="417.8" y="433.0" width="9.0" height="13.5" rx="2.2" class="f-accent"/><rect x="402.8" y="433.0" width="7.5" height="9.0" rx="2.2" class="f-accent"/><text x="160" y="582" text-anchor="middle" font-size="24" font-weight="600" class="f-text">phone</text><text x="390" y="532" text-anchor="middle" font-size="24" font-weight="600" class="f-text">laptop</text></g><g><rect x="120" y="70" width="330" height="234" rx="18" class="f-slide s-accent" stroke-width="3"/><text x="142" y="108" font-size="22" font-weight="700" class="f-text">Ana’s document</text><text x="142" y="146" font-size="18" class="f-brand mono">pair/7f3a…</text><text x="310" y="146" font-size="18" class="f-text2">Ben</text><text x="142" y="174" font-size="18" class="f-brand mono">group/c41e…</text><text x="310" y="174" font-size="18" class="f-text2">choir group</text><text x="142" y="202" font-size="18" class="f-brand mono">service/9d2b…</text><text x="310" y="202" font-size="18" class="f-text2">a service</text><text x="142" y="230" font-size="18" class="f-brand mono">persona/…</text><text x="310" y="230" font-size="18" class="f-text2">the public</text><text x="142" y="258" font-size="18" class="f-brand mono">pair/2b6c…</text><text x="310" y="258" font-size="18" class="f-text2">Sam</text><text x="142" y="286" font-size="18" class="f-brand mono">group/e83f…</text><text x="310" y="286" font-size="18" class="f-text2">garden group</text></g><g data-build-in="fade order 2"><path d="M190 306 C 180 320 172 330 168 338" class="f-none s-accent" stroke-width="3" stroke-dasharray="7 7"/><path d="M380 306 C 386 316 390 322 392 326" class="f-none s-accent" stroke-width="3" stroke-dasharray="7 7"/><rect x="178" y="366" width="34" height="42" rx="6" class="f-slide s-accent" stroke-width="3"/><rect x="185" y="376" width="20" height="4" rx="2" class="f-accent"/><rect x="185" y="385" width="16" height="4" rx="2" class="f-accent-line"/><rect x="185" y="394" width="18" height="4" rx="2" class="f-accent-line"/><rect x="400" y="350" width="34" height="42" rx="6" class="f-slide s-accent" stroke-width="3"/><rect x="407" y="360" width="20" height="4" rx="2" class="f-accent"/><rect x="407" y="369" width="16" height="4" rx="2" class="f-accent-line"/><rect x="407" y="378" width="18" height="4" rx="2" class="f-accent-line"/></g><g data-build-in="fade order 3"><rect x="600" y="60" width="150" height="120" rx="20" class="f-none s-grey2" stroke-width="3" stroke-dasharray="10 9"/><text x="675" y="130" text-anchor="middle" font-size="28" font-weight="600" class="f-muted">agent</text><rect x="600" y="440" width="150" height="120" rx="20" class="f-none s-grey2" stroke-width="3" stroke-dasharray="10 9"/><text x="675" y="500" text-anchor="middle" font-size="28" font-weight="600" class="f-muted">relay</text><text x="675" y="592" text-anchor="middle" font-size="20" class="f-muted">carries it, sealed</text><text x="675" y="300" text-anchor="middle" font-size="24" class="f-muted">may help</text><text x="675" y="332" text-anchor="middle" font-size="24" class="f-muted">never inside</text></g></svg>
+<div class="capcol" style="left:1040px;top:800px;width:752px" data-build-in="fade order 3"><p class="cap">The seed restores every key. The document says which anchors exist. Both live on her own devices.</p></div>
+<p class="eyebrow">02 · Person</p>
+<h2>The person is the node.</h2>
+<p class="lead">A person's keys live on their own devices, and each device can act on its own. Nothing has to be running for two people to meet or decide. <b>An agent may help. It is never a condition.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<aside>Where does a person's ability to act live? Here: with the person, on their devices, each holding its own keys. In the ecosystem picture every node has a trust agent that holds the keys and signs for the person; the devices are clients of it. Here an agent or a relay may help with reachability and delivery, but nothing has to be running for two people to meet, sign or decide. The honest price: loss and recovery rest with the person, and being reachable between sessions needs a carrier. Open: restoring a person onto a new device is not built yet. An agent can also be a contact of its own, with its own keys and relationships; no key reveals whether a person or an agent holds it. Open: whether one can tell that one is meeting an agent. The bridge from the previous slide: the magic words restore every key, but which contexts exist is data in the person's encrypted state, the personal document every device holds and keeps in step (Identity 6.3); recovery needs both. A relay may carry that document between devices, sealed; it never reads it.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC the node is a trust agent (VTA), a signing oracle with a policy: the master seed lives in the VTA, clients send unsigned data and the VTA signs inside its own process. Hosting is recommended, self-hosting possible, and the DTG spec also allows local agents. Here the devices hold the keys and act themselves. We have not seen an encounter or joining flow there without an agent; a browser tab joining a data room without an agent has been shown.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>3 · Notes</b> Where does a person's ability to act live? Here: with the person, on their devices, each holding its own keys. In the ecosystem picture every node has a trust agent that holds the keys and signs for the person; the devices are clients of it. Here an agent or a relay may help with reachability and delivery, but nothing has to be running for two people to meet, sign or decide. The honest price: loss and recovery rest with the person, and being reachable between sessions needs a carrier. Open: restoring a person onto a new device is not built yet. An agent can also be a contact of its own, with its own keys and relationships; no key reveals whether a person or an agent holds it. Open: whether one can tell that one is meeting an agent. The bridge from the previous slide: the magic words restore every key, but which contexts exist is data in the person's encrypted state, the personal document every device holds and keeps in step (Identity 6.3); recovery needs both. A relay may carry that document between devices, sealed; it never reads it.</div>
+</div>
+
+<!-- 4 · core -->
+<div class="slide" data-slide="core">
+<div class="stage">
+<section id="core" data-transition="push">
+<svg class="fig" aria-label="Ana and Ben meet; their phones show their codes; then, encounter by encounter, a network grows around them, and groups join" viewBox="0 0 400 300" width="772" height="579" style="left:1030px;top:150px;width:772px;height:579px"><g data-build-in="pop order 1" data-build-out="order 2"><circle cx="130.0" cy="150.0" r="21" class="f-ana"/><text x="130.0" y="155.0" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ana</text><circle cx="270.0" cy="150.0" r="21" class="f-ben"/><text x="270.0" y="155.0" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ben</text></g><g data-build-in="pop order 2" data-build-out="order 3"><rect x="93.0" y="84.0" width="74" height="132" rx="12" class="f-slide s-text" stroke-width="2"/><text x="130.0" y="112.0" text-anchor="middle" font-size="7" font-weight="700" class="f-text">My code</text><rect x="112.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="124.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="128.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="144.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="112.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="124.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="132.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="144.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="112.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="124.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="132.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="144.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="112.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="124.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="132.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="124.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="132.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="144.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="128.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="144.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="112.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="128.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="132.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="144.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="112.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="132.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="112.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="116.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="120.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="128.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="136.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="140.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="110.0" y="168.0" width="40" height="9" rx="4.5" class="f-accent"/><text x="130.0" y="230.0" text-anchor="middle" font-size="10" font-weight="700" class="f-ana">Ana</text><rect x="233.0" y="84.0" width="74" height="132" rx="12" class="f-slide s-text" stroke-width="2"/><text x="270.0" y="112.0" text-anchor="middle" font-size="7" font-weight="700" class="f-text">My code</text><rect x="252.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="264.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="280.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="124.0" width="3.4" height="3.4" class="f-text"/><rect x="252.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="264.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="280.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="128.0" width="3.4" height="3.4" class="f-text"/><rect x="252.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="264.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="280.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="132.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="264.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="136.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="264.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="272.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="280.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="140.0" width="3.4" height="3.4" class="f-text"/><rect x="252.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="272.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="280.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="144.0" width="3.4" height="3.4" class="f-text"/><rect x="252.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="280.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="148.0" width="3.4" height="3.4" class="f-text"/><rect x="252.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="264.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="268.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="152.0" width="3.4" height="3.4" class="f-text"/><rect x="252.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="256.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="260.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="272.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="276.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="284.0" y="156.0" width="3.4" height="3.4" class="f-text"/><rect x="250.0" y="168.0" width="40" height="9" rx="4.5" class="f-accent"/><text x="270.0" y="230.0" text-anchor="middle" font-size="10" font-weight="700" class="f-ben">Ben</text></g><g data-build-in="fade order 5"><line x1="86.7" y1="261.1" x2="197.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="98.1" y1="107.3" x2="211.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/></g><g data-build-in="fade order 6"><line x1="155.1" y1="185.1" x2="24.0" y2="149.7" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="212.0" y2="33.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="374.1" y2="228.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="212.0" y2="33.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="212.0" y1="33.2" x2="211.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="24.0" y1="149.7" x2="98.1" y2="107.3" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="24.0" y1="149.7" x2="65.8" y2="217.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="374.1" y1="228.8" x2="376.0" y2="160.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="374.1" y1="228.8" x2="298.1" y2="266.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><circle cx="24.0" cy="149.7" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="24.0" cy="142.2" r="3.2" class="f-ana"/><circle cx="30.5" cy="153.4" r="3.2" class="f-p3"/><circle cx="17.5" cy="153.4" r="3.2" class="f-p1"/><circle cx="212.0" cy="33.2" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="212.0" cy="25.7" r="3.2" class="f-ana"/><circle cx="218.5" cy="36.9" r="3.2" class="f-ben"/><circle cx="205.5" cy="36.9" r="3.2" class="f-p0"/><circle cx="374.1" cy="228.8" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="374.1" cy="221.3" r="3.2" class="f-ben"/><circle cx="380.6" cy="232.6" r="3.2" class="f-p2"/><circle cx="367.6" cy="232.6" r="3.2" class="f-p0"/></g><g data-build-in="fade order 3"><line x1="155.1" y1="185.1" x2="269.0" y2="185.1" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/></g><g data-build-in="fade order 4"><line x1="155.1" y1="185.1" x2="211.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="211.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="197.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="298.1" y2="266.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="325.4" y2="114.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><circle cx="211.4" cy="129.4" r="8.0" class="f-p0"/><circle cx="197.5" cy="259.2" r="8.0" class="f-p3"/><circle cx="298.1" cy="266.8" r="8.0" class="f-p0"/><circle cx="325.4" cy="114.2" r="8.0" class="f-p4"/></g><g data-build-in="fade order 5"><line x1="155.1" y1="185.1" x2="65.8" y2="217.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="98.1" y2="107.3" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="86.7" y2="261.1" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="197.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="376.0" y2="160.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><circle cx="65.8" cy="217.4" r="8.0" class="f-p1"/><circle cx="98.1" cy="107.3" r="8.0" class="f-p3"/><circle cx="86.7" cy="261.1" r="8.0" class="f-p5"/><circle cx="376.0" cy="160.4" r="8.0" class="f-p2"/></g><g data-build-in="pop order 3"><circle cx="155.1" cy="185.1" r="21" class="f-ana"/><text x="155.1" y="190.1" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ana</text><circle cx="269.0" cy="185.1" r="21" class="f-ben"/><text x="269.0" y="190.1" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ben</text></g></svg>
+<div class="capcol" style="left:1040px;top:800px;width:752px"><div class="stack"><p class="cap" data-build-in="fade order 1" data-build-out="order 2">Two people meet.</p><p class="cap" data-build-in="fade order 2" data-build-out="order 3">Each shows a fresh code; they scan and confirm each other.</p><p class="cap" data-build-in="fade order 3" data-build-out="order 4">Now Ana and Ben are connected.</p><p class="cap" data-build-in="fade order 4" data-build-out="order 6">Encounter by encounter, the network grows.</p><p class="cap" data-build-in="fade order 6">Groups join the network.</p></div></div>
+<p class="eyebrow">03 · Relationship</p>
+<h2>Relationships between people are the root of all trust.</h2>
+<p class="lead">Trust starts between two people who met. Groups grow from these relationships, under rules of their own. <b>Nothing else is required for it.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<aside>The thesis of the deck. In ToIP terms, the relationship is our spanning layer: everything else, groups, hosts, agents, is built on it and may never be required for it. The picture: first the links between pairs, then, where they grow dense, a group becomes visible. One person is in both groups; two people at the edge are in none and still connected. No registry, resolver, platform or issuer has to make a relationship valid. The honest price: reach. What two people know, no stranger learns by default; trust across strangers has to be built on purpose. Open: how far standing may travel beyond the relationship.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC the basic unit is the community (VTC), with its own DID, member list, policy engine and registry. Relationship credentials between people exist, but as an edge in the graph they count for a verifier only if the issuer's community membership is proven. There the relationship is bound to the community; here the community is bound to the relationships.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>4 · Notes</b> The thesis of the deck. In ToIP terms, the relationship is our spanning layer: everything else, groups, hosts, agents, is built on it and may never be required for it. The picture: first the links between pairs, then, where they grow dense, a group becomes visible. One person is in both groups; two people at the edge are in none and still connected. No registry, resolver, platform or issuer has to make a relationship valid. The honest price: reach. What two people know, no stranger learns by default; trust across strangers has to be built on purpose. Open: how far standing may travel beyond the relationship.</div>
+</div>
+
+<!-- 5 · trust -->
+<div class="slide" data-slide="trust">
+<div class="stage">
+<section id="trust" data-transition="push">
+<div class="card" style="left:1040px;top:104px;width:752px" data-build-in="fade order 1"><div class="card-head"><span class="tag">Ben, a contact</span><p class="head-note">after the encounter</p></div><div class="row"><div class="txt"><p class="t">contact star</p><p class="d">who we both know, blinded</p></div><div class="toggle"></div></div><div class="row"><div class="txt"><p class="t">group star</p><p class="d">which groups we share, blinded</p></div><div class="toggle"></div></div><div class="row off"><div class="txt"><p class="t">the key</p><p class="d">the one key that ties all my relationships together</p></div><div class="toggle"></div></div><div class="row off"><div class="txt"><p class="t">sealed star</p><p class="d">who I am inside a group we share</p></div><div class="toggle"></div></div><div class="row off"><div class="txt"><p class="t">profile</p><p class="d">my name and picture</p></div><div class="toggle"></div></div><div class="row off"><div class="txt"><p class="t">introduction</p><p class="d">that you may introduce me to others</p></div><div class="toggle"></div></div></div>
+<div class="pin trust-act" style="left:1040px;top:812px;width:752px" data-build-in="pop order 2"><div class="pill"><x-icon name="Trust"></x-icon><p>Trust</p></div><p class="cap t-text2">one act, toward one contact</p></div>
+<div class="card" style="left:1040px;top:104px;width:752px" data-build-in="fade order 3"><div class="card-head"><span class="tag">Ben, a trusted contact</span><p class="head-note">after the Trust act</p></div><div class="row"><div class="txt"><p class="t">contact star</p><p class="d">who we both know, blinded</p></div><div class="toggle"></div></div><div class="row"><div class="txt"><p class="t">group star</p><p class="d">which groups we share, blinded</p></div><div class="toggle"></div></div><div class="row hl"><div class="txt"><p class="t">the key</p><p class="d">the one key that ties all my relationships together</p></div><div class="toggle"></div></div><div class="row"><div class="txt"><p class="t">sealed star</p><p class="d">who I am inside a group we share</p></div><div class="toggle"></div></div><div class="row"><div class="txt"><p class="t">profile</p><p class="d">my name and picture</p></div><div class="toggle"></div></div><div class="row"><div class="txt"><p class="t">introduction</p><p class="d">that you may introduce me to others</p></div><div class="toggle"></div></div></div>
+<p class="eyebrow">04 · Trust</p>
+<h2>Trust is not a level. It is what you choose to show.</h2>
+<p class="lead">After an encounter, a contact sees the stars: who we both know and which groups we share, blinded. The Trust act gives that one contact the key that ties my relationships together, and with it who I am in our groups, my name and picture, and that they may introduce me. <b>Nothing carries a degree. A class answers what, not how much.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<aside>Trust Layer 0.31, section 2a (branch trust/0.31; 0.32 adds the introduction class). Five classes today: the star (which of my contacts this contact also knows, blinded, verifiable by the addressee alone and only for anchors it holds), the blinded group star (which groups we share), the anchor mapping (the key that ties my relationships together; off toward everyone until the Trust act), the sealed group star (my member anchor in a group we share), the profile (name, picture). Each stands per contact on default, on or off; the Trust act turns the anchor mapping on, and every class whose default is "trusted contacts" follows. Taking the mapping back stops what followed the default; what was switched on by hand stays on. On the slide, three steps: first the panel as Ben sees it after the encounter (the two stars are on by default toward every contact); then the Trust button; then the same panel after the Trust act, the key on and every class with default "trusted contacts" following. Rule 2750: no artifact of a trust class may carry a field that expresses a degree of trust. A global score is either forgeable or central. Rule 1010: an anchor reaches a party only through an act of its issuer toward that party; nobody forwards another person's key.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC trust in a person runs through the community: roles (admin, moderator, issuer, member), policy in Rego, endorsements. A trust act between two people that opens the link between one's own identities to that one contact alone has no counterpart there. Access is granted per community and role there, per contact and class here. OpenVTC does not assign a score either.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>5 · Notes</b> Trust Layer 0.31, section 2a (branch trust/0.31; 0.32 adds the introduction class). Five classes today: the star (which of my contacts this contact also knows, blinded, verifiable by the addressee alone and only for anchors it holds), the blinded group star (which groups we share), the anchor mapping (the key that ties my relationships together; off toward everyone until the Trust act), the sealed group star (my member anchor in a group we share), the profile (name, picture). Each stands per contact on default, on or off; the Trust act turns the anchor mapping on, and every class whose default is "trusted contacts" follows. Taking the mapping back stops what followed the default; what was switched on by hand stays on. On the slide, three steps: first the panel as Ben sees it after the encounter (the two stars are on by default toward every contact); then the Trust button; then the same panel after the Trust act, the key on and every class with default "trusted contacts" following. Rule 2750: no artifact of a trust class may carry a field that expresses a degree of trust. A global score is either forgeable or central. Rule 1010: an anchor reaches a party only through an act of its issuer toward that party; nobody forwards another person's key.</div>
+</div>
+
+<!-- 6 · audience -->
+<div class="slide" data-slide="audience">
+<div class="stage">
+<section id="audience" data-transition="push">
+<div class="card table" style="left:1040px;top:104px;width:752px"><div class="th"><span>what Ana sends</span><span class="mono">who can check it</span></div><div class="row" data-build-in="rise order 1"><div class="txt"><p class="t">cards and encounter credentials</p><p class="d">made to be shown</p></div><span class="tag">anyone</span></div><div class="row" data-build-in="rise order 2"><div class="txt"><p class="t">my profile, my key</p><p class="d">about me, for one person</p></div><span class="tag grey">only you</span></div><div class="row" data-build-in="rise order 3"><div class="txt"><p class="t">links between my identities</p><p class="d">the protected good</p></div><span class="tag violet">only you, deniable</span></div><div class="row" data-build-in="rise order 4"><div class="txt"><p class="t">statements about others</p><p class="d">the knowledge itself harms</p></div><span class="tag ink">only you, blinded</span></div><p class="note" data-build-in="fade order 5">Only the first row is signed for everyone. Everything else convinces exactly its addressee and no one further.</p></div>
+<p class="eyebrow">05 · Audience</p>
+<h2>Knowing is not proving.</h2>
+<p class="lead">What you learn about my relationships, you cannot pass on as proof. Before anything gets a proof, two questions: whom must it convince, and must the receiver be able to show it on? Most things only need to convince one person, so only that person can check them. Cards and encounter credentials are signed for anyone. <b>What ties two of my identities together is never signed. What I say about others is blinded.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+<aside>Trust Layer 0.31, section 3, the audience principle. Two questions decide every artifact's cryptographic form: F1, whom must it convince for its purpose; F2, must the recipient be able to pass it on. The verifier set must be the smallest the purpose demands (3010); the deniable form is the default and a transferable signature carries the burden of justification (3020). Four audience classes: S, about myself and addressed to one (profile, anchor mapping): MAC, only the addressee. P, presentable (self card, encounter credential, membership document): signed for anyone (3030). V, links between two contexts of one person (continuity mapping, group pair, introduction voucher): deniable, and a cross-context link must not exist anywhere as a transferable proof (3040). D, statements about third parties (star, group star, continuity probe): deniable and blinded, because the knowledge itself harms (3060). Central commitment of the spec: links between anchors are the protected good. This is our answer to trust that travels: it travels with the person, through cards and introductions, never as a transferable proof about a relationship.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC the presentable form is the norm: credentials with proofs, status lists that outside verifiers read without a login, a registry with a query protocol. Zero-knowledge presentation is meant to become the default but is switched off behind a feature flag. Here the deniable form is the norm, and a transferable signature is the exception that needs a reason.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>6 · Notes</b> Trust Layer 0.31, section 3, the audience principle. Two questions decide every artifact's cryptographic form: F1, whom must it convince for its purpose; F2, must the recipient be able to pass it on. The verifier set must be the smallest the purpose demands (3010); the deniable form is the default and a transferable signature carries the burden of justification (3020). Four audience classes: S, about myself and addressed to one (profile, anchor mapping): MAC, only the addressee. P, presentable (self card, encounter credential, membership document): signed for anyone (3030). V, links between two contexts of one person (continuity mapping, group pair, introduction voucher): deniable, and a cross-context link must not exist anywhere as a transferable proof (3040). D, statements about third parties (star, group star, continuity probe): deniable and blinded, because the knowledge itself harms (3060). Central commitment of the spec: links between anchors are the protected good. This is our answer to trust that travels: it travels with the person, through cards and introductions, never as a transferable proof about a relationship.</div>
+</div>
+
+<!-- 7 · relational -->
+<div class="slide" data-slide="relational">
+<div class="stage">
+<section data-full="1" id="relational" data-transition="push">
+<svg class="fig" aria-label="Ana's star and Ben's star, apart; laid on top, what they share lights up and becomes two lists" viewBox="0 0 400 300" width="772" height="579" style="left:1030px;top:150px;width:772px;height:579px"><g data-build-out="order 1"><line x1="99.1" y1="185.1" x2="42.1" y2="107.3" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="99.1" y1="185.1" x2="9.8" y2="217.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="99.1" y1="185.1" x2="30.7" y2="261.1" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="99.1" y1="185.1" x2="-32.0" y2="149.7" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="99.1" y1="185.1" x2="155.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="99.1" y1="185.1" x2="141.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="99.1" y1="185.1" x2="156.0" y2="33.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><circle cx="42.1" cy="107.3" r="8.0" class="f-p3"/><circle cx="9.8" cy="217.4" r="8.0" class="f-p1"/><circle cx="30.7" cy="261.1" r="8.0" class="f-p5"/><circle cx="-32.0" cy="149.7" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="-32.0" cy="142.2" r="3.2" class="f-ana"/><circle cx="-25.5" cy="153.4" r="3.2" class="f-p3"/><circle cx="-38.5" cy="153.4" r="3.2" class="f-p1"/><circle cx="155.4" cy="129.4" r="8.0" class="f-p0"/><circle cx="141.5" cy="259.2" r="8.0" class="f-p3"/><circle cx="156.0" cy="33.2" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="156.0" cy="25.7" r="3.2" class="f-ana"/><circle cx="162.5" cy="36.9" r="3.2" class="f-ben"/><circle cx="149.5" cy="36.9" r="3.2" class="f-p0"/><line x1="325.0" y1="185.1" x2="381.4" y2="114.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="325.0" y1="185.1" x2="432.0" y2="160.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="325.0" y1="185.1" x2="354.1" y2="266.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="325.0" y1="185.1" x2="430.1" y2="228.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="325.0" y1="185.1" x2="267.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="325.0" y1="185.1" x2="253.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="325.0" y1="185.1" x2="268.0" y2="33.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><circle cx="381.4" cy="114.2" r="8.0" class="f-p4"/><circle cx="432.0" cy="160.4" r="8.0" class="f-p2"/><circle cx="354.1" cy="266.8" r="8.0" class="f-p0"/><circle cx="430.1" cy="228.8" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="430.1" cy="221.3" r="3.2" class="f-ben"/><circle cx="436.6" cy="232.6" r="3.2" class="f-p2"/><circle cx="423.6" cy="232.6" r="3.2" class="f-p0"/><circle cx="267.4" cy="129.4" r="8.0" class="f-p0"/><circle cx="253.5" cy="259.2" r="8.0" class="f-p3"/><circle cx="268.0" cy="33.2" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="268.0" cy="25.7" r="3.2" class="f-ana"/><circle cx="274.5" cy="36.9" r="3.2" class="f-ben"/><circle cx="261.5" cy="36.9" r="3.2" class="f-p0"/><circle cx="99.1" cy="185.1" r="21" class="f-ana"/><text x="99.1" y="190.1" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ana</text><circle cx="325.0" cy="185.1" r="21" class="f-ben"/><text x="325.0" y="190.1" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ben</text></g><g data-build-in="fade order 1" data-build-out="order 3"><g class="dim" data-build-out="order 2"><line x1="155.1" y1="185.1" x2="98.1" y2="107.3" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="65.8" y2="217.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="86.7" y2="261.1" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="24.0" y2="149.7" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="325.4" y2="114.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="376.0" y2="160.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="298.1" y2="266.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="374.1" y2="228.8" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><circle cx="98.1" cy="107.3" r="8.0" class="f-p3"/><circle cx="65.8" cy="217.4" r="8.0" class="f-p1"/><circle cx="86.7" cy="261.1" r="8.0" class="f-p5"/><circle cx="24.0" cy="149.7" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="24.0" cy="142.2" r="3.2" class="f-ana"/><circle cx="30.5" cy="153.4" r="3.2" class="f-p3"/><circle cx="17.5" cy="153.4" r="3.2" class="f-p1"/><circle cx="325.4" cy="114.2" r="8.0" class="f-p4"/><circle cx="376.0" cy="160.4" r="8.0" class="f-p2"/><circle cx="298.1" cy="266.8" r="8.0" class="f-p0"/><circle cx="374.1" cy="228.8" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="374.1" cy="221.3" r="3.2" class="f-ben"/><circle cx="380.6" cy="232.6" r="3.2" class="f-p2"/><circle cx="367.6" cy="232.6" r="3.2" class="f-p0"/></g><line x1="155.1" y1="185.1" x2="211.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="197.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="212.0" y2="33.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="211.4" y2="129.4" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="197.5" y2="259.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="269.0" y1="185.1" x2="212.0" y2="33.2" class="s-grey2" stroke-width="1.3" stroke-linecap="round"/><line x1="155.1" y1="185.1" x2="211.4" y2="129.4" class="s-accent" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><line x1="155.1" y1="185.1" x2="197.5" y2="259.2" class="s-accent" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><line x1="155.1" y1="185.1" x2="212.0" y2="33.2" class="s-accent" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><line x1="269.0" y1="185.1" x2="211.4" y2="129.4" class="s-accent" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><line x1="269.0" y1="185.1" x2="197.5" y2="259.2" class="s-accent" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><line x1="269.0" y1="185.1" x2="212.0" y2="33.2" class="s-accent" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><circle cx="211.3956834532374" cy="129.42446043165467" r="13" class="f-none s-accent" stroke-width="1.4" opacity="0.65"/><circle cx="197.46762589928056" cy="259.2086330935252" r="13" class="f-none s-accent" stroke-width="1.4" opacity="0.65"/><circle cx="212.02877697841726" cy="33.19424460431655" r="13" class="f-none s-accent" stroke-width="1.4" opacity="0.65"/><circle cx="211.4" cy="129.4" r="8.0" class="f-p0"/><circle cx="197.5" cy="259.2" r="8.0" class="f-p3"/><circle cx="212.0" cy="33.2" r="16.3" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="212.0" cy="25.7" r="3.2" class="f-ana"/><circle cx="218.5" cy="36.9" r="3.2" class="f-ben"/><circle cx="205.5" cy="36.9" r="3.2" class="f-p0"/><circle cx="155.1" cy="185.1" r="21" class="f-ana"/><text x="155.1" y="190.1" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ana</text><circle cx="269.0" cy="185.1" r="21" class="f-ben"/><text x="269.0" y="190.1" text-anchor="middle" font-size="12.5" font-weight="700" class="f-on-accent">Ben</text></g><g data-build-in="fade order 3"><text x="112" y="58" text-anchor="middle" font-size="10.5" font-weight="600" letter-spacing="1.2" class="f-muted">CONTACTS IN COMMON</text><text x="288" y="58" text-anchor="middle" font-size="10.5" font-weight="600" letter-spacing="1.2" class="f-muted">GROUPS IN COMMON</text><rect x="48" y="77" width="128" height="30" rx="15" class="f-accent-soft s-accent" stroke-width="1.2" stroke-opacity="0.5"/><circle cx="64.0" cy="92.0" r="6.4" class="f-p0"/><text x="80" y="96.5" font-size="12.5" font-weight="600" class="f-text">Lea</text><rect x="48" y="121" width="128" height="30" rx="15" class="f-accent-soft s-accent" stroke-width="1.2" stroke-opacity="0.5"/><circle cx="64.0" cy="136.0" r="6.4" class="f-p3"/><text x="80" y="140.5" font-size="12.5" font-weight="600" class="f-text">Jon</text><rect x="224" y="77" width="128" height="30" rx="15" class="f-accent-soft s-accent" stroke-width="1.2" stroke-opacity="0.5"/><circle cx="240.0" cy="92.0" r="13.0" class="f-slide s-grey3" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><circle cx="240.0" cy="86.0" r="2.6" class="f-ana"/><circle cx="245.2" cy="95.0" r="2.6" class="f-ben"/><circle cx="234.8" cy="95.0" r="2.6" class="f-p0"/><text x="256" y="96.5" font-size="12.5" font-weight="600" class="f-text">Garden</text></g></svg>
+<div class="capcol" style="left:1040px;top:800px;width:752px"><div class="stack"><p class="cap" data-build-out="order 1">Each person sees only their own star: Ana hers, Ben his.</p><p class="cap" data-build-in="fade order 1" data-build-out="order 2">Laid on top, the same people and groups meet.</p><p class="cap" data-build-in="fade order 2" data-build-out="order 3">Everything else stays in the dark.</p><p class="cap" data-build-in="fade order 3">What Ben can read: the contacts and groups they share.</p></div></div>
+<p class="eyebrow">06 · Relational reading</p>
+<h2>Trust is read from where you stand.</h2>
+<p class="lead">Identities are free, so a swarm can vouch for itself. That is why "many people know me" counts only like this: at least N, of which k inside the trust of whoever is asking. Ben reads Ana's relationships differently from Sam, because they trust different people. <b>There is no number everyone reads the same way. It would be forgeable, or central.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+<aside>Trust Layer 0.31, section 7, relational counts, and the Personhood Predicates spec (verifier-relative witnessing predicates). Anchors are free; a Sybil swarm issues itself arbitrary self-evidence. The scarce resource is the boundary edge into the honest graph, and the blinded star is the verifier-side instrument: it tells the reader which of Ana's contacts they already hold themselves. Rule 7010: a count or personhood statement must be anchored relationally, at least N of which k inside the verifier's trust horizon, never absolutely. Rule 7020: no consuming layer may accept a global per-everyone score. Honest: the spec calls this a normative principle whose proof artifact is unwritten (7030); until then it binds as a design constraint. This is what carries the sentence on slide 04: being a person is what your encounters add up to, read from where the reader stands.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC personhood is a flag on the membership credential, by its own documentation a non-binding hint and a governance decision of the community; the registry says who is a member. Here personhood is read by each viewer from their own horizon. Shared by both: neither accepts a global number.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>7 · Notes</b> Trust Layer 0.31, section 7, relational counts, and the Personhood Predicates spec (verifier-relative witnessing predicates). Anchors are free; a Sybil swarm issues itself arbitrary self-evidence. The scarce resource is the boundary edge into the honest graph, and the blinded star is the verifier-side instrument: it tells the reader which of Ana's contacts they already hold themselves. Rule 7010: a count or personhood statement must be anchored relationally, at least N of which k inside the verifier's trust horizon, never absolutely. Rule 7020: no consuming layer may accept a global per-everyone score. Honest: the spec calls this a normative principle whose proof artifact is unwritten (7030); until then it binds as a design constraint. This is what carries the sentence on slide 04: being a person is what your encounters add up to, read from where the reader stands.</div>
+</div>
+
+<!-- 8 · invitation -->
+<div class="slide" data-slide="invitation">
+<div class="stage">
+<section id="invitation" data-transition="push">
+<svg class="fig" aria-label="Checkpoint: a person presents a credential to a stranger, who checks it against a policy, admits, and keeps a growing log" viewBox="0 0 360 460" width="360" height="460" style="left:1236px;top:120px;width:360px;height:460px" data-build-in="fade order 1"><g data-build-out="order 2"><rect x="0" y="0" width="360" height="460" rx="24" class="f-grey1 s-grey2" stroke-width="2" stroke-dasharray="10 8"/><rect x="24" y="130" width="118" height="80" rx="8" class="f-slide s-grey3" stroke-width="2"/><text x="83" y="164" text-anchor="middle" font-family="Inter, sans-serif" font-size="20" font-weight="700" class="f-text">Person</text><text x="83" y="190" text-anchor="middle" font-family="Inter, sans-serif" font-size="16" class="f-muted">with wallet</text><line x1="142" y1="170" x2="196" y2="170" class="s-muted" stroke-width="3"/><polygon points="196,164 208,170 196,176" class="f-muted"/><text x="175" y="156" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" class="f-muted">presents</text><rect x="208" y="118" width="128" height="104" rx="8" class="f-slide s-grey4" stroke-width="2"/><text x="272" y="160" text-anchor="middle" font-family="Inter, sans-serif" font-size="20" font-weight="700" class="f-text">Verifier</text><text x="272" y="186" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" class="f-muted">stranger · policy</text><line x1="272" y1="222" x2="272" y2="268" class="s-muted" stroke-width="3"/><polygon points="266,268 272,280 278,268" class="f-muted"/><rect x="200" y="292" width="136" height="36" rx="4" class="f-slide s-grey2" stroke-width="2"/><rect x="208" y="300" width="136" height="36" rx="4" class="f-slide s-grey2" stroke-width="2"/><rect x="216" y="308" width="136" height="36" rx="4" class="f-slide s-grey3" stroke-width="2"/><text x="284" y="332" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" class="f-muted">check log grows</text><text x="180" y="410" text-anchor="middle" font-family="Inter, sans-serif" font-size="22" font-weight="600" class="f-grey4">show · check · admit</text></g></svg>
+<svg class="fig" aria-label="Invitation: a person in their own graph invites someone they know into a shared place" viewBox="0 0 360 460" width="360" height="460" style="left:1236px;top:120px;width:360px;height:460px" data-build-in="fade order 2"><rect x="0" y="0" width="360" height="460" rx="24" class="f-brand-soft s-line" stroke-width="2"/><text x="90" y="82" text-anchor="middle" font-family="Inter, sans-serif" font-size="18" font-weight="700" class="f-text">your graph</text><g class="s-line" stroke-width="3"><line x1="90" y1="190" x2="40" y2="130"/><line x1="90" y1="190" x2="140" y2="130"/><line x1="90" y1="190" x2="40" y2="250"/><line x1="90" y1="190" x2="140" y2="250"/></g><g class="f-slide s-accent" stroke-width="3"><circle cx="40" cy="130" r="9"/><circle cx="140" cy="130" r="9"/><circle cx="40" cy="250" r="9"/><circle cx="140" cy="250" r="9"/></g><circle cx="90" cy="190" r="16" class="f-accent"/><text x="34" y="112" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" class="f-muted">friend</text><text x="146" y="112" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" class="f-muted">group</text><text x="34" y="280" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" class="f-muted">place</text><text x="146" y="280" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" class="f-muted">event</text><line x1="170" y1="190" x2="212" y2="190" class="s-accent" stroke-width="3"/><polygon points="212,184 224,190 212,196" class="f-accent"/><text x="196" y="174" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" class="f-brand">invites</text><rect x="228" y="118" width="112" height="144" rx="10" class="f-slide s-accent" stroke-width="2"/><text x="284" y="150" text-anchor="middle" font-family="Inter, sans-serif" font-size="17" font-weight="700" class="f-text">shared place</text><g class="s-line" stroke-width="3"><line x1="258" y1="196" x2="314" y2="190"/><line x1="258" y1="196" x2="286" y2="230"/><line x1="314" y1="190" x2="286" y2="230"/></g><g class="f-accent"><circle cx="258" cy="196" r="8"/><circle cx="314" cy="190" r="8"/><circle cx="286" cy="230" r="8"/></g><text x="180" y="410" text-anchor="middle" font-family="Inter, sans-serif" font-size="22" font-weight="600" class="f-brand">know · invite · share</text></svg>
+<div class="capcol tight" style="left:1040px;top:600px;width:752px"><div class="stack"><p class="lbl big t-grey4" data-build-in="rise order 1" data-build-out="order 2">checkpoint</p><p class="lbl big t-brand" data-build-in="rise order 2">invitation</p></div><div class="stack"><p class="cap sm" data-build-in="rise order 1" data-build-out="order 2">a stranger decides, the proof can be shown again, a third party keeps the log</p><p class="cap sm t-text2" data-build-in="rise order 2">someone who knows you lets you in, checked only on the devices involved, no log</p></div></div>
+<p class="eyebrow">07 · Invitation</p>
+<h2>Invitation, not checkpoint.</h2>
+<p class="lead">Nobody has to present anything to get in, not at an encounter and not into a group. Those who let you in know you. The devices only check that the invitation followed the group's rules and that you said yes yourself. <b>No credential is produced that you would have to show somewhere else.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+<aside>The admission question, before the group itself. A checkpoint is where a stranger decides on the strength of a proof you can show anywhere, usually with a third party keeping the log; that has its place where strangers meet, at borders. Inside a community nobody needs it: the person who invites you knows you. Joining a group gives you a fresh key for that group that only the inviter knows; there is nothing to present. The members' devices check three things: was the inviter allowed to invite under the group's rules, did enough members agree, did the guest say yes themselves (Membership Tasks 1.2, Access 5.3). The checks run on the devices of those involved, and no proof to carry elsewhere is produced. First in the picture: show, check, admit, and a log that grows with every check. Then, in its place: know, invite, share. The honest price: someone who knows nobody cannot get in; access for strangers is something a group has to build on purpose, and that is where presentable cards (slide 06) come in. In their words: membranes and gatekeeping for communities; here the membrane is the relationships themselves.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC joining is a checkpoint: a policy (default: deny all) plus admin approval, even for open requests; invitation credentials replace the waiting, not the check. A target policy of "two vouchers from the membership" is written down but not active. Here members invite, and the devices only check the rule.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>8 · Notes</b> The admission question, before the group itself. A checkpoint is where a stranger decides on the strength of a proof you can show anywhere, usually with a third party keeping the log; that has its place where strangers meet, at borders. Inside a community nobody needs it: the person who invites you knows you. Joining a group gives you a fresh key for that group that only the inviter knows; there is nothing to present. The members' devices check three things: was the inviter allowed to invite under the group's rules, did enough members agree, did the guest say yes themselves (Membership Tasks 1.2, Access 5.3). The checks run on the devices of those involved, and no proof to carry elsewhere is produced. First in the picture: show, check, admit, and a log that grows with every check. Then, in its place: know, invite, share. The honest price: someone who knows nobody cannot get in; access for strangers is something a group has to build on purpose, and that is where presentable cards (slide 06) come in. In their words: membranes and gatekeeping for communities; here the membrane is the relationships themselves.</div>
+</div>
+
+<!-- 9 · group -->
+<div class="slide" data-slide="group">
+<div class="stage">
+<section id="group" data-transition="push">
+
+<svg class="fig" aria-label="The group's authority log as a shared circle; members around it each hold the log, the founder has left" viewBox="0 0 692 620" width="692" height="620" style="left:1100px;top:160px;width:692px;height:620px" data-build-in="fade order 1"><circle cx="346" cy="300" r="250" class="f-accent-soft s-line" stroke-width="2"/><circle cx="202" cy="177" r="9" class="f-accent" data-build-in="fade order 3"/><g data-build-in="fade order 4"><line x1="202" y1="186" x2="202" y2="248" class="s-line" stroke-width="3"/><circle cx="202" cy="257" r="9" class="f-accent"/></g><g data-build-in="fade order 5"><line x1="202" y1="266" x2="202" y2="328" class="s-line" stroke-width="3"/><circle cx="202" cy="337" r="9" class="f-slide s-muted" stroke-width="3"/></g><g data-build-in="fade order 6"><line x1="202" y1="346" x2="202" y2="408" class="s-line" stroke-width="3"/><circle cx="202" cy="417" r="9" class="f-accent"/></g></svg>
+<p class="pin lbl ls t-brand" style="left:1346px;top:260px;width:200px" data-build-in="fade order 2">THE RECORD</p>
+<div class="pin entry" style="left:1320px;top:320px;width:280px" data-build-in="rise order 3"><p class="t">genesis</p><p class="d">by Ana</p></div>
+<div class="pin entry" style="left:1320px;top:400px;width:280px" data-build-in="rise order 4"><p class="t">rule: two admit</p><p class="d">by Ana, Ben</p></div>
+<div class="pin entry gone" style="left:1320px;top:480px;width:280px" data-build-in="rise order 5"><p class="t">Ana leaves</p><p class="d">the group goes on</p></div>
+<div class="pin entry" style="left:1320px;top:560px;width:280px" data-build-in="rise order 6"><p class="t">admit Lea</p><p class="d">by Ben, Sam</p></div>
+<div class="pin doc" style="left:1100px;top:200px" data-build-in="fade order 3" data-build-out="order 5"><i></i><i></i><i></i><i></i></div>
+<div class="pin doc" style="left:1712px;top:200px" data-build-in="fade order 4"><i></i><i></i><i></i><i></i></div>
+<div class="pin doc" style="left:1100px;top:580px" data-build-in="fade order 4"><i></i><i></i><i></i><i></i></div>
+<div class="pin doc" style="left:1712px;top:580px" data-build-in="fade order 6"><i></i><i></i><i></i><i></i></div>
+<div class="pin who" style="left:1080px;top:296px;width:120px" data-build-in="fade order 3" data-build-out="order 5"><p class="lbl">Ana</p><div class="stack"><p class="cap t-ok" data-build-out="order 5">holds it</p><p class="cap" data-build-in="fade order 5">left</p></div></div>
+<div class="pin who" style="left:1692px;top:296px;width:100px" data-build-in="fade order 4"><p class="lbl">Ben</p><p class="cap t-ok">holds it</p></div>
+<div class="pin who" style="left:1080px;top:676px;width:120px" data-build-in="fade order 4"><p class="lbl">Sam</p><p class="cap t-ok">holds it</p></div>
+<div class="pin who" style="left:1692px;top:676px;width:100px" data-build-in="fade order 6"><p class="lbl">Lea</p><p class="cap t-ok">holds it</p></div>
+<p class="eyebrow">08 · Group</p>
+<h2>No one stands above the group’s own record.</h2>
+<p class="lead">A group is a signed record every member holds, and its rules are part of it: who may invite, who may remove, how the rules change. People join by invitation and their own consent (slide 08). No role stands above the record. <b>When the founder leaves, the group goes on.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
+<aside>Who holds the truth about a group, and what happens when they are gone? Here the truth is one record, held by every member; there is no single point that keeps it. The rules are data in the record: who may invite, who may remove, with what threshold or vouching, how the rules themselves change. Joining takes an invitation and the person's own signed consent. The founder is a member like any other; the picture shows Ana leaving and the group admitting Lea afterwards. A group may still give one person the say, like a company does; the difference to a platform admin is that this person is a member inside the record, not a party outside it. Elsewhere this seat is an owner, a steward or an admin. In their words: groups that own themselves, a single point of truth for membership, forty years of memory. The honest price: complexity. Concurrent changes need fixed rules for every pairing, and there is no kill switch when a group goes wrong. Shown: the authority log and membership tasks are specified and merged; experiments cover groups without an owner and removal that rotates the keys. Open: conflict resolution among people, graduated sanctions and mediation (Ostrom 5 and 6). The record keeps decisions; it does not make them.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">In OpenVTC a community is a server with its own database and cached signing keys; its internal access list is authoritative, and M-of-N governance is designed but not built. Data rooms have one owner by invariant: controller of the room DID, issuer of all its credentials, sole MLS committer. Here every member holds the record, and the rules are data inside it.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>9 · Notes</b> Who holds the truth about a group, and what happens when they are gone? Here the truth is one record, held by every member; there is no single point that keeps it. The rules are data in the record: who may invite, who may remove, with what threshold or vouching, how the rules themselves change. Joining takes an invitation and the person's own signed consent. The founder is a member like any other; the picture shows Ana leaving and the group admitting Lea afterwards. A group may still give one person the say, like a company does; the difference to a platform admin is that this person is a member inside the record, not a party outside it. Elsewhere this seat is an owner, a steward or an admin. In their words: groups that own themselves, a single point of truth for membership, forty years of memory. The honest price: complexity. Concurrent changes need fixed rules for every pairing, and there is no kill switch when a group goes wrong. Shown: the authority log and membership tasks are specified and merged; experiments cover groups without an owner and removal that rotates the keys. Open: conflict resolution among people, graduated sanctions and mediation (Ostrom 5 and 6). The record keeps decisions; it does not make them.</div>
+</div>
+
+<!-- 10 · host -->
+<div class="slide" data-slide="host">
+<div class="stage">
+<section id="host" data-transition="fade">
+
+<svg class="fig" aria-label="Ana and Ben write separately while there is no host and no network, then merge when they meet again" viewBox="0 0 592 400" width="592" height="400" style="left:1120px;top:180px;width:592px;height:400px" data-build-in="fade order 1"><rect x="130" y="0" width="332" height="400" rx="20" class="f-grey1 s-grey2" stroke-width="2" stroke-dasharray="10 8"/><g class="f-none" stroke-width="6" stroke-linecap="round"><path d="M20 200 H90" class="s-accent"/></g><circle cx="20" cy="200" r="12" class="f-accent"/><g data-build-in="fade order 3"><path d="M90 200 C130 200 130 110 170 110 H422 C462 110 462 200 502 200" class="f-none s-ana" stroke-width="6" stroke-linecap="round"/><g class="f-ana"><circle cx="210" cy="110" r="12"/><circle cx="296" cy="110" r="12"/><circle cx="382" cy="110" r="12"/></g></g><g data-build-in="fade order 4"><path d="M90 200 C130 200 130 290 170 290 H422 C462 290 462 200 502 200" class="f-none s-ben" stroke-width="6" stroke-linecap="round"/><g class="f-ben"><circle cx="240" cy="290" r="12"/><circle cx="350" cy="290" r="12"/></g></g><g data-build-in="fade order 5"><path d="M502 200 H572" class="f-none s-accent" stroke-width="6" stroke-linecap="round"/><circle cx="502" cy="200" r="20" class="f-accent"/></g></svg>
+<p class="pin cap mono t-brand" style="left:1250px;top:196px;width:332px" data-build-in="fade order 2">no host · no network</p>
+<p class="pin lbl t-ana" style="left:1250px;top:312px;width:332px" data-build-in="rise order 3">Ana writes</p>
+<p class="pin lbl t-ben" style="left:1250px;top:492px;width:332px" data-build-in="rise order 4">Ben writes</p>
+<p class="pin cap t-brand" style="left:1100px;top:424px;width:130px" data-build-in="fade order 2">together</p>
+<p class="pin lbl l t-brand" style="left:1640px;top:404px;width:190px" data-build-in="rise order 5">they meet:<br>merged, together</p>
+<p class="eyebrow">09 · Offline</p>
+<h2>A neighborhood keeps deciding when the network is gone.</h2>
+<p class="lead">The group lives on its members' devices, and every copy may change. Two people who meet can carry on alone; what they decided apart is merged by the group's own rules when the others return. Relays, mesh or a phone next to yours only carry sealed bytes. <b>No host has to be awake.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+<aside>In their words: is web access necessary and sufficient? Here: neither. The group lives on its members' devices; there is no host that could be missing. Every copy may change, and the rules of the previous slide decide what concurrent changes mean, so two people who meet can carry on alone and the rest merges when the others return. Carriers (a relay, a mesh, a phone next to yours) only move sealed bytes and are interchangeable. The protocol asks a carrier for one small promise: a message arrives eventually and is never silently lost; how long that takes is open, a carrier pigeon qualifies. A carrier sees an address per relationship, never a person, so a person’s relationships do not converge at any service (Delivery 5a.2). The honest price: conflicts become visible instead of prevented; two truths may stand side by side for a while. Shown: replication with CRDTs in the app, the replication rules in the spec, delivery through an independent mediator. Honest too: a real run without any network, between neighbours' devices, has barely happened. Open: exactly that run, with an offline box or a mesh among neighbours. The question for the room: for which communities is the hour without a host an edge case, and for which is it daily life?</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">OpenVTC has a mediator with store-and-forward, so the recipient need not be online at the same time; but agent, DID host and mediator must be reachable. Data rooms explicitly reject CRDTs in favour of one write primary with version preconditions. Concurrent offline writing is deliberately not a goal there and the normal case here. Honestly, our own run with no network at all has barely happened yet.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>10 · Notes</b> In their words: is web access necessary and sufficient? Here: neither. The group lives on its members' devices; there is no host that could be missing. Every copy may change, and the rules of the previous slide decide what concurrent changes mean, so two people who meet can carry on alone and the rest merges when the others return. Carriers (a relay, a mesh, a phone next to yours) only move sealed bytes and are interchangeable. The protocol asks a carrier for one small promise: a message arrives eventually and is never silently lost; how long that takes is open, a carrier pigeon qualifies. A carrier sees an address per relationship, never a person, so a person’s relationships do not converge at any service (Delivery 5a.2). The honest price: conflicts become visible instead of prevented; two truths may stand side by side for a while. Shown: replication with CRDTs in the app, the replication rules in the spec, delivery through an independent mediator. Honest too: a real run without any network, between neighbours' devices, has barely happened. Open: exactly that run, with an offline box or a mesh among neighbours. The question for the room: for which communities is the hour without a host an edge case, and for which is it daily life?</div>
+</div>
+
+<!-- 11 · wire -->
+<div class="slide" data-slide="wire">
+<div class="stage">
+<section id="wire" data-transition="push">
+<div class="card table" style="left:1040px;top:104px;width:752px"><div class="th"><span>what travels</span><span class="mono">in which form · status</span></div><div class="row" data-build-in="rise order 1"><div class="txt"><p class="t">the encounter credential</p><p class="d">a W3C Verifiable Credential with the DTG context: a DTG RelationshipCredential</p></div><p class="status">in the app; shared vectors with a second implementation</p></div><div class="row" data-build-in="rise order 2"><div class="txt"><p class="t">the invitation into a group</p><p class="d">a DTG InvitationCredential, carried by a membership task</p></div><p class="status">specified</p></div><div class="row" data-build-in="rise order 3"><div class="txt"><p class="t">every message</p><p class="d">a Trust Task document (framework 0.4) over TSP, routed through a VTI mediator</p></div><p class="status">measured live, 12 of 12</p></div><div class="row" data-build-in="rise order 4"><div class="txt"><p class="t">every identity</p><p class="d">did:key, one fresh anchor per relationship, from one seed on the device</p></div><p class="status">in the app</p></div></div>
+<p class="eyebrow">10 · On the wire</p>
+<h2>On the wire, we speak the ecosystem's forms.</h2>
+<p class="lead">The principles are ours. The forms are shared: DTG credentials, Trust Task documents, TSP through a mediator, did:key identities. A second implementation can read what we send, and we can read theirs. <b>That is what a build weekend can test.</b></p>
+<p class="foot">Real Life Trust Protocol</p>
+<div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+<aside>The evidence slide. Encounter credential: W3C VC 2.0 with the DTG context as second context (Encounter 0.31, rule 2260), pinned at WD01; shared test vectors with Consensual, confirmed by their independent verifier. Invitation: a conformant DTG InvitationCredential inside membership-invite 0.2 (Membership Tasks 0.16+). Messages: Trust Task documents under a private namespace, target framework 0.4; the registry is at 0.6 with 0.7 in draft, and the gap (URIs without /spec/, MAC acks, dedup by id) is listed and open. Transport: TSP Rev 3, routed, through the VTI mediator, measured live 12 of 12 (E11b, merged 21 Oct). Identities: did:key from one seed, pairwise anchors. Not used: r-cards (JSContact) for profiles; an idea for interop, not built. Browser tab writing into an OpenVTC data room without an agent: shown 22 Oct, a storage-level proof rather than a trust-level one.</aside>
+</section>
+<div class="cmp" aria-label="Comparison">
+<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
+<div class="cmp-panel" role="region" aria-label="Compared with OpenVTC"><p class="cmp-kicker">Compared with OpenVTC</p><p class="cmp-text">This is where we meet OpenVTC: DTG credentials, Trust Tasks, TSP through the same mediator, did:key. Still open are the gap between the Trust Task framework versions and whether our encounter credentials count as edges in its graph.</p></div>
+</div>
+</div>
+<div class="print-notes"><b>11 · Notes</b> The evidence slide. Encounter credential: W3C VC 2.0 with the DTG context as second context (Encounter 0.31, rule 2260), pinned at WD01; shared test vectors with Consensual, confirmed by their independent verifier. Invitation: a conformant DTG InvitationCredential inside membership-invite 0.2 (Membership Tasks 0.16+). Messages: Trust Task documents under a private namespace, target framework 0.4; the registry is at 0.6 with 0.7 in draft, and the gap (URIs without /spec/, MAC acks, dedup by id) is listed and open. Transport: TSP Rev 3, routed, through the VTI mediator, measured live 12 of 12 (E11b, merged 21 Oct). Identities: did:key from one seed, pairwise anchors. Not used: r-cards (JSContact) for profiles; an idea for interop, not built. Browser tab writing into an OpenVTC data room without an agent: shown 22 Oct, a storage-level proof rather than a trust-level one.</div>
+</div>
+
+</div>
+
+<nav class="nav" aria-label="Slides">
+  <button id="prev" aria-label="Previous step"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button>
+  <span id="count">1 / 11</span>
+  <button id="next" aria-label="Next step"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+  <button id="theme" aria-label="Toggle theme"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+</nav>
+
+<script>
+(function () {
+  // Stand-in for the Claude Design icon element: an inline shield with a check mark.
+  var ICONS = {
+    Trust: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8 19.5 6v5.4c0 4.6-3.1 8.2-7.5 9.9-4.4-1.7-7.5-5.3-7.5-9.9V6z"/><path d="m8.6 12.2 2.4 2.4 4.6-4.8"/></svg>'
+  };
+  if (window.customElements && !customElements.get('x-icon')) {
+    customElements.define('x-icon', class extends HTMLElement {
+      connectedCallback() { if (!this.firstChild) this.innerHTML = ICONS[this.getAttribute('name')] || ''; }
+    });
+  }
+
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var deck = document.getElementById('deck');
+  var i = 0, step = 0;
+
+  // Builds: data-build-in="fade|rise|pop order N"
+  var builds = slides.map(function (sl) {
+    var els = Array.prototype.slice.call(sl.querySelectorAll('[data-build-in]')), max = 0;
+    els.forEach(function (el) {
+      var v = el.getAttribute('data-build-in') || '';
+      var m = v.match(/order\s+(\d+)/);
+      el.classList.add('b-' + ((v.match(/^(fade|rise|pop)/) || [, 'fade'])[1]));
+      el._order = m ? parseInt(m[1], 10) : 1;
+      if (el._order > max) max = el._order;
+    });
+    // data-build-out="order N": from step N on the element is shown faded (class "out").
+    var outs = Array.prototype.slice.call(sl.querySelectorAll('[data-build-out]'));
+    outs.forEach(function (el) {
+      var m = (el.getAttribute('data-build-out') || '').match(/order\s+(\d+)/);
+      el._out = m ? parseInt(m[1], 10) : 1;
+      if (el._out > max) max = el._out;
+    });
+    return { els: els, outs: outs, max: max };
+  });
+  function paint(instant) {
+    var sl = slides[i];
+    if (instant) sl.classList.add('instant');
+    builds[i].els.forEach(function (el) { el.classList.toggle('pending', el._order > step); });
+    builds[i].outs.forEach(function (el) { el.classList.toggle('out', el._out <= step); });
+    if (instant) { void sl.offsetWidth; sl.classList.remove('instant'); }
+  }
+
+  try { var h = parseInt(location.hash.slice(1), 10); if (h >= 1 && h <= slides.length) i = h - 1; } catch (e) {}
+  function fit() {
+    // Must match .deck: 32px top and sides; below, 24px gap, the nav pill (38px), 24px to the edge.
+    var s = Math.min((window.innerWidth - 64) / 1923, (window.innerHeight - 32 - 86) / 1083);
+    slides.forEach(function (el) { el.style.transform = 'scale(' + s + ')'; });
+  }
+  function cmp() { return slides[i].querySelector('.cmp'); }
+  function panel(open) {
+    var c = cmp(); if (!c) return;
+    if (open === undefined) open = !c.classList.contains('open');
+    c.classList.toggle('open', open);
+    c.querySelector('.cmp-tab').setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function show(n, built) {
+    panel(false);
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    // a slide may name the step that carries it (data-full); page jumps land there, else on its last step
+    var full = parseInt(slides[i].querySelector('section').getAttribute('data-full') || '', 10);
+    step = built ? (isNaN(full) ? builds[i].max : full) : 0;
+    slides.forEach(function (el, k) { el.classList.toggle('active', k === i); });
+    paint(true);
+    document.getElementById('count').textContent = (i + 1) + ' / ' + slides.length;
+    history.replaceState(null, '', '#' + (i + 1));
+    renderNotes();
+  }
+  // Speaker notes (key N): a separate window. It is an about:blank popup written from here, so it shares this
+  // page's origin (also under file://) and this page updates it directly; no channel, no server. After a reload
+  // of this page the popup re-attaches itself through window.opener.__rltpNotes.
+  var notesWin = null;
+  var TOKENS = ['--bg', '--slide', '--text', '--text-2', '--muted', '--border', '--brand'];
+  var NOTES_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Notes</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Code+Pro&display=swap" rel="stylesheet"><style>' +
+    'html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"IBM Plex Sans",system-ui,sans-serif}' +
+    'main{max-width:900px;margin:0 auto;padding:28px 32px 40px}' +
+    '.top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--border)}' +
+    '#count{font-family:"Source Code Pro",monospace;font-size:15px;color:var(--muted)}' +
+    '#eyebrow{font-size:14px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--brand)}' +
+    '#title{margin:18px 0 0;font-size:26px;line-height:1.25;font-weight:700}' +
+    '#notes{margin:18px 0 0;font-size:21px;line-height:1.6;color:var(--text-2)}' +
+    '.hint{margin-top:28px;font-size:13px;color:var(--muted)}' +
+    '</style></head><body><main><div class="top"><span id="eyebrow"></span><span id="count"></span></div>' +
+    '<h1 id="title"></h1><p id="notes"></p><p class="hint">\u2190 \u2192 step \u00b7 N closes this window</p></main>' +
+    '<script>' +
+    'document.addEventListener("keydown",function(e){var o=window.opener;if(!o||!o.__rltpNotes)return;' +
+    'if(["ArrowRight","ArrowLeft","PageDown","PageUp"," ","Home","End","n","N"].indexOf(e.key)>=0){e.preventDefault();o.__rltpNotes.key(e.key)}});' +
+    'setInterval(function(){var o=window.opener;try{if(o&&o.__rltpNotes)o.__rltpNotes.attach(window)}catch(e){}},1000);' +
+    '<\/script></body></html>';
+  function notesOpen() { return notesWin && !notesWin.closed; }
+  function renderNotes() {
+    if (!notesOpen()) return;
+    var d = notesWin.document, sec = slides[i].querySelector('section');
+    if (!d.getElementById('notes')) return;
+    var cs = getComputedStyle(document.documentElement);
+    TOKENS.forEach(function (t) { d.documentElement.style.setProperty(t, cs.getPropertyValue(t)); });
+    var eb = sec.querySelector('.eyebrow, .kicker'), ti = sec.querySelector('h2, h1'), aside = sec.querySelector('aside');
+    d.getElementById('count').textContent = 'Slide ' + (i + 1) + ' / ' + slides.length;
+    d.getElementById('eyebrow').textContent = eb ? eb.textContent : '';
+    d.getElementById('title').textContent = ti ? ti.textContent : '';
+    d.getElementById('notes').textContent = aside ? aside.textContent : '';
+    d.title = 'Notes \u00b7 ' + (i + 1) + ' / ' + slides.length;
+  }
+  function toggleNotes() {
+    if (notesOpen()) { notesWin.close(); notesWin = null; return; }
+    notesWin = window.open('', 'rltp-notes', 'width=760,height=620');
+    if (!notesWin) return;
+    if (!notesWin.document.getElementById('notes')) { notesWin.document.open(); notesWin.document.write(NOTES_PAGE); notesWin.document.close(); }
+    renderNotes(); notesWin.focus();
+  }
+  window.__rltpNotes = {
+    attach: function (w) { if (notesWin !== w) { notesWin = w; renderNotes(); } },
+    key: function (k) { onKey({ key: k, preventDefault: function () {} }); }
+  };
+
+  // Arrow keys, space and clicks walk the build steps; at either end they cross to the next
+  // or previous slide. PageUp and PageDown jump whole slides.
+  function next() {
+    if (step < builds[i].max) { step++; paint(false); }
+    else if (i < slides.length - 1) show(i + 1, false);
+  }
+  function prev() {
+    if (step > 0) { step--; paint(false); }
+    else if (i > 0) { show(i - 1, true); step = builds[i].max; paint(true); }
+  }
+  // whole-slide jumps land on the finished slide, every step already built
+  function nextSlide() { if (i < slides.length - 1) show(i + 1, true); }
+  function prevSlide() { if (i > 0) show(i - 1, true); }
+
+  document.getElementById('prev').onclick = prev;
+  document.getElementById('next').onclick = next;
+  document.getElementById('theme').onclick = function () {
+    var r = document.documentElement, dark = r.getAttribute('data-theme') === 'dark' ||
+      (!r.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
+    r.setAttribute('data-theme', dark ? 'light' : 'dark');
+    renderNotes();
+  };
+  function onKey(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    if (e.key === 'PageDown') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'PageUp') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'Home') show(0, true);
+    if (e.key === 'End') show(slides.length - 1, true);
+    if (e.key === 'c' || e.key === 'C') panel();
+    if (e.key === 'Escape') panel(false);
+    if (e.key === 'n' || e.key === 'N') toggleNotes();
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    onKey(e);
+  });
+  deck.addEventListener('click', function (e) {
+    if (e.target.closest('.cmp-tab')) { panel(); return; }
+    if (e.target.closest('a,button,.cmp-panel')) return;
+    if (e.clientX > window.innerWidth / 2) next(); else prev();
+  });
+  window.addEventListener('hashchange', function () {
+    var h = parseInt(location.hash.slice(1), 10); if (h >= 1) show(h - 1, true);
+  });
+  window.addEventListener('resize', fit);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderNotes);
+  window.addEventListener('beforeprint', function () { panel(false); });
+  fit(); show(i, location.hash.length > 1);
+})();
+</script>
+</body>
+</html>
