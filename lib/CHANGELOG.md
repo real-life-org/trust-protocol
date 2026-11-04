@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+The contact view names the contacts shared with a contact. The holder
+already matched every accepted star against the anchors it holds (6160,
+6390) and kept the matches in its state; nothing handed them out. No wire
+change.
+
+- **`ContactView.sharedContacts`** (new): the entry ids of the holder's
+  other contacts the contact's last completed star hit, over its heads,
+  sorted; the contact's claim (5.2, no veracity). Undefined while no star
+  was ever accepted on a head, the empty list when one was and hit nothing,
+  the same shape as `sharedGroups`.
+
 A challenge is exactly 16 bytes, written as canonical unpadded base64url
 (Encounter §5.3): 22 characters, the four unused bits of the last one
 zero. The same value is then also a VTI trigger-link handle (VTI-LNK-033).

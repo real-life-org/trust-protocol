@@ -57,6 +57,12 @@
 //     on each of the entry's heads hit (5520, trust/group-star.ts), lagging
 //     heads included (the group star travels on them, 6595); undefined
 //     where no head ever accepted one
+//   - sharedContacts: the union of the holder's other contacts (entry ids)
+//     one of whose held anchors the last accepted star on each of the
+//     entry's heads blinds (6160, trust/star.ts matches), re-matched as the
+//     holder comes to hold new anchors (6390); the contact's claim (5.2, no
+//     veracity). Undefined where no head ever accepted a star, never a
+//     claimed empty list
 //   - a contact's profile (6425): among the verified profile@1 bodies
 //     (6b.2) on its heads whose relationship does not lag (6461, 6595),
 //     the highest revision, among equal ones the one verified last
@@ -196,6 +202,8 @@ const project = (state, c, ix, rix) => {
     const profile = best ? { revision: best.profileIn.rev, ...profileFields(best.profileIn.body) } : undefined;
     const received = heads.map((h) => h.t.groupStarIn.accepted).filter((a) => a !== null);
     const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined;
+    const stars = heads.map((h) => h.t.starIn.accepted).filter((a) => a !== null);
+    const sharedContacts = stars.length ? [...new Set(stars.flatMap((a) => a.matches))].sort(cmp) : undefined;
     return {
         commitSeq: state.commitSeq,
         id: c.id,
@@ -213,6 +221,7 @@ const project = (state, c, ix, rix) => {
         },
         classes: { ...classes, sealedGroupStar: { ...classes.sealedGroupStar, groups } },
         ...(sharedGroups ? { sharedGroups } : {}),
+        ...(sharedContacts ? { sharedContacts } : {}),
         ...(profile ? { profile } : {}),
         blocked: own.some((r) => state.messages.blocked.includes(r.id)),
         canMessage: !('ok' in messageChannel(state, c.id)),
