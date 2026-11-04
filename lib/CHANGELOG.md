@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
 
 The contact view names the contacts shared with a contact. The holder
 already matched every accepted star against the anchors it holds (6160,
