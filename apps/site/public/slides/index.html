@@ -22,6 +22,7 @@
   --track: #dbdee3; --knob: #ffffff;
   --cover-1: #dce6ff; --cover-2: #f4f7ff; --cover-3: #ffffff;
   --p0: #e2d6fb; --p1: #ffd6b8; --p2: #dde1e8; --p3: #cfeccb; --p4: #d3e2fb; --p5: #fbd3d0;
+  --dot1: #3f9a3a; --dot2: #3a72d6; --dot3: #d4544b; --dot4: #c24f98; --dot5: #c08f12;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -36,6 +37,7 @@
     --track: #2a3449; --knob: #ffffff;
     --cover-1: #142650; --cover-2: #0b111f; --cover-3: #04070f;
     --p0: #b9a6ec; --p1: #f2b98c; --p2: #aab2c2; --p3: #9fd59a; --p4: #9dbbef; --p5: #eeaaa6;
+    --dot1: #8fd987; --dot2: #8fb2f5; --dot3: #f08f88; --dot4: #e79ad0; --dot5: #e6c35c;
   }
 }
 :root[data-theme="dark"] {
@@ -50,16 +52,16 @@
   --track: #2a3449; --knob: #ffffff;
   --cover-1: #142650; --cover-2: #0b111f; --cover-3: #04070f;
   --p0: #b9a6ec; --p1: #f2b98c; --p2: #aab2c2; --p3: #9fd59a; --p4: #9dbbef; --p5: #eeaaa6;
+    --dot1: #8fd987; --dot2: #8fb2f5; --dot3: #f08f88; --dot4: #e79ad0; --dot5: #e6c35c;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+html, body { margin: 0; height: 100%; background: var(--slide); color: var(--text);
   font-family: "IBM Plex Sans", system-ui, sans-serif; }
 
-/* 16:9 stage (1920x1080), scaled to fit; 32px margin on top and at the sides, the nav pill free below */
-.deck { position: fixed; top: 32px; left: 32px; right: 32px; bottom: 86px; display: grid; place-items: center; }
+/* 16:9 stage (1920x1080), scaled to fill the window; the nav pill sits on the slide's bottom edge */
+.deck { position: fixed; inset: 0; display: grid; place-items: center; }
 .slide { position: absolute; width: 1920px; height: 1080px; background: var(--slide);
-  border: 1.5px solid var(--border); border-radius: 27px;
-  box-shadow: 0 30px 90px var(--shadow); display: none;
+  display: none;
   transform-origin: center; overflow: hidden; }
 .slide.active { display: block; }
 .stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
@@ -105,6 +107,7 @@ svg.fig { position: absolute; overflow: visible; }
 .f-grey1 { fill: var(--grey-1); } .f-grey3 { fill: var(--grey-3); } .f-grey4 { fill: var(--grey-4); } .f-node { fill: var(--node); }
 .f-text { fill: var(--text); } .f-muted { fill: var(--muted); } .f-accent-line { fill: var(--accent-line); } .f-on-accent { fill: var(--on-accent); }
 .f-p0 { fill: var(--p0); } .f-p1 { fill: var(--p1); } .f-p2 { fill: var(--p2); } .f-p3 { fill: var(--p3); } .f-p4 { fill: var(--p4); } .f-p5 { fill: var(--p5); } .f-text2 { fill: var(--text-2); }
+.f-dot1 { fill: var(--dot1); } .f-dot2 { fill: var(--dot2); } .f-dot3 { fill: var(--dot3); } .f-dot4 { fill: var(--dot4); } .f-dot5 { fill: var(--dot5); }
 .f-ana { fill: var(--ana); } .f-ana-soft { fill: var(--ana-soft); } .f-ben { fill: var(--ben); } .f-ben-soft { fill: var(--ben-soft); }
 .f-ok { fill: var(--ok); } .f-warn { fill: var(--warn); }
 .s-accent { stroke: var(--accent); } .s-text { stroke: var(--text); } .s-line { stroke: var(--accent-line); } .s-border { stroke: var(--border); }
@@ -202,16 +205,11 @@ svg.fig { position: absolute; overflow: visible; }
 .slide.instant [data-build-in] { transition: none !important; }
 svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-origin: center; }
 
-/* Comparison tab and panel: inside the stage, scales with it */
+/* Comparison panel: inside the stage, scales with it; opened with C */
 .cmp { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; align-items: center;
-  transform: translateY(calc(100% - 52px)); transition: transform .4s cubic-bezier(.2,.7,.2,1); pointer-events: none;
+  transform: translateY(100%); transition: transform .4s cubic-bezier(.2,.7,.2,1); pointer-events: none;
   font-family: Inter, sans-serif; }
 .cmp.open { transform: translateY(0); }
-.cmp-tab { all: unset; pointer-events: auto; cursor: pointer; height: 52px; box-sizing: border-box; padding: 10px 32px 0;
-  font-family: Inter, sans-serif; font-size: 24px; line-height: 1.4; color: var(--muted); background: var(--tile);
-  border: 1px solid var(--border); border-bottom: 0; border-radius: 16px 16px 0 0; }
-.cmp-tab:hover { color: var(--text); }
-.cmp-tab:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
 .cmp-panel { pointer-events: auto; align-self: stretch; max-height: 432px; overflow: auto;
   padding: 32px 128px 32px; background: var(--slide); border-top: 1px solid var(--border); transition: box-shadow .4s; }
 .cmp.open .cmp-panel { box-shadow: 0 -16px 40px var(--shadow); }
@@ -227,10 +225,9 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 .cmp-cols + .cmp-shared { margin-top: 18px; }
 .cmp-shared .cmp-kicker { margin: 0; flex: none; color: var(--muted); }
 .cmp-shared .cmp-list { font-size: 26px; color: var(--muted); }
-.cmp.open .cmp-tab { color: var(--text); background: var(--slide); }
 
 /* nav */
-.nav { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center;
+.nav { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center;
   background: var(--slide); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; z-index: 2;
   font-size: 14px; color: var(--muted); white-space: nowrap; }
 .nav button { all: unset; cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 999px; color: var(--text); }
@@ -239,6 +236,8 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 .nav #theme { margin-left: 6px; }
 .nav button:hover { background: var(--brand-soft); }
 .nav button:focus-visible { outline: 2px solid var(--brand); }
+body.cmp-open .nav { opacity: 0; pointer-events: none; }
+.nav { transition: opacity .3s; }
 
 @media print {
   :root[data-theme], :root:not([data-theme]) {
@@ -253,6 +252,7 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
     --track: #dbdee3; --knob: #ffffff;
     --cover-1: #dce6ff; --cover-2: #f4f7ff; --cover-3: #ffffff;
     --p0: #e2d6fb; --p1: #ffd6b8; --p2: #dde1e8; --p3: #cfeccb; --p4: #d3e2fb; --p5: #fbd3d0;
+  --dot1: #3f9a3a; --dot2: #3a72d6; --dot3: #d4544b; --dot4: #c24f98; --dot5: #c08f12;
   }
   @page { size: 1920px 1440px; margin: 0; }
   html, body { background: #fff; height: auto; }
@@ -280,15 +280,15 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <div class="slide" data-slide="cover">
 <div class="stage">
 <section id="cover" class="cover" data-transition="fade">
-<svg class="fig" aria-hidden="true" viewBox="209 242 570 332" width="700" height="408" style="left:1120px;top:336px;width:700px;height:408px;opacity:.85" data-build-in="fade order 1"><line x1="390" y1="405" x2="570" y2="405" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="390" y1="405" x2="300" y2="282" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="390" y1="405" x2="249" y2="456" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="390" y1="405" x2="282" y2="525" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="390" y1="405" x2="479" y2="317" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="390" y1="405" x2="457" y2="522" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="570" y1="405" x2="659" y2="293" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="570" y1="405" x2="739" y2="366" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="570" y1="405" x2="616" y2="534" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="570" y1="405" x2="479" y2="317" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="570" y1="405" x2="457" y2="522" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="282" y1="525" x2="457" y2="522" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="282" x2="479" y2="317" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="390" cy="405" r="16" class="f-ana"/><circle cx="570" cy="405" r="16" class="f-ben"/><circle cx="300" cy="282" r="11" class="f-p3"/><circle cx="249" cy="456" r="11" class="f-p1"/><circle cx="282" cy="525" r="11" class="f-p5"/><circle cx="659" cy="293" r="11" class="f-p4"/><circle cx="739" cy="366" r="11" class="f-p2"/><circle cx="616" cy="534" r="11" class="f-p0"/><circle cx="479" cy="317" r="11" class="f-p0"/><circle cx="457" cy="522" r="11" class="f-p3"/></svg>
+<svg class="fig" aria-hidden="true" viewBox="0 0 920 1080" width="920" height="1080" style="left:1000px;top:0;width:920px;height:1080px" data-build-in="fade order 1"><defs><radialGradient id="cover-fade" gradientUnits="userSpaceOnUse" cx="470" cy="400" r="520"><stop offset=".35" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient><mask id="cover-open" maskUnits="userSpaceOnUse" x="0" y="0" width="920" height="1080"><rect width="920" height="1080" fill="url(#cover-fade)"/></mask></defs><g mask="url(#cover-open)"><line x1="230" y1="250" x2="110" y2="120" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="230" y1="250" x2="420" y2="140" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="420" y2="140" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="680" y1="190" x2="800" y2="60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="680" y1="190" x2="900" y2="290" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="900" y2="290" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="880" y2="640" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="590" x2="160" y2="740" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="190" y1="440" x2="160" y2="740" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="570" x2="470" y2="780" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="110" y1="120" x2="40" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="110" y1="120" x2="-40" y2="130" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="420" y1="140" x2="470" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="800" y1="60" x2="980" y2="20" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="800" y1="60" x2="760" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="900" y1="290" x2="1000" y2="250" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="880" y1="640" x2="990" y2="760" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="880" y1="640" x2="1000" y2="560" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="160" y1="740" x2="120" y2="900" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="470" y1="780" x2="520" y2="920" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="110" cy="120" r="8" class="f-dot1"/><circle cx="800" cy="60" r="8" class="f-dot2"/><circle cx="900" cy="290" r="8" class="f-dot3"/><circle cx="880" cy="640" r="8" class="f-dot4"/><circle cx="160" cy="740" r="8" class="f-dot5"/><circle cx="470" cy="780" r="8" class="f-dot1"/><circle cx="420" cy="140" r="8" class="f-dot2"/></g><line x1="360" y1="400" x2="560" y2="340" class="s-grey3" stroke-width="3" stroke-linecap="round"/><line x1="360" y1="400" x2="230" y2="250" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="360" y1="400" x2="300" y2="590" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="360" y1="400" x2="190" y2="440" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="680" y2="190" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="770" y2="450" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="590" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="360" cy="400" r="16" class="f-ana"/><circle cx="560" cy="340" r="16" class="f-ben"/><circle cx="230" cy="250" r="10" class="f-dot3"/><circle cx="300" cy="590" r="10" class="f-dot4"/><circle cx="680" cy="190" r="10" class="f-dot5"/><circle cx="770" cy="450" r="10" class="f-dot1"/><circle cx="190" cy="440" r="10" class="f-dot2"/><circle cx="560" cy="570" r="10" class="f-dot3"/></svg>
 <p class="kicker">Core principles of the protocol</p>
 <h1 style="width:960px;font-size:132px">Real Life<br><span>Trust Protocol</span></h1>
 <p class="lead" style="width:1030px;font-size:44px;line-height:1.25;font-weight:600;color:var(--text)">Trust starts between two people <b>who met.</b></p>
 <p class="foot">real-life.org</p>
-<aside><ul><li>Ten principles, told from the person outward. One sentence each, one picture.</li><li>The picture: a small network of people who met. Nothing stands above them.</li><li>Everything here is checked against the published specs; the versions are in the notes of each slide.</li><li class="src">Sources: specs as of 28 Oct 2026: FPP 1.2, DTG Credentials WD 0.6.0, VTI WD 0.2.0, Trust Tasks 0.7.0, TSP 1.0; ours: Encounter 0.32, Identity 0.55, Trust 0.31, Access 0.58, Membership Tasks 0.21.1</li></ul></aside>
+<aside><ul><li>Ten principles, told from the person outward. One sentence each, one picture.</li><li>The picture: two people who met, each with people they met, and it goes on past the edge. Nothing stands above them.</li><li>Everything here is checked against the published specs; the versions are in the notes of each slide.</li><li class="src">Sources: specs as of 28 Oct 2026: FPP 1.2, DTG Credentials WD 0.6.0, VTI WD 0.2.0, Trust Tasks 0.7.0, TSP 1.0; ours: Encounter 0.32, Identity 0.55, Trust 0.31, Access 0.58, Membership Tasks 0.21.1</li></ul></aside>
 </section>
 </div>
-<div class="print-notes"><b>1 · Notes</b> <ul><li>Ten principles, told from the person outward. One sentence each, one picture.</li><li>The picture: a small network of people who met. Nothing stands above them.</li><li>Everything here is checked against the published specs; the versions are in the notes of each slide.</li><li class="src">Sources: specs as of 28 Oct 2026: FPP 1.2, DTG Credentials WD 0.6.0, VTI WD 0.2.0, Trust Tasks 0.7.0, TSP 1.0; ours: Encounter 0.32, Identity 0.55, Trust 0.31, Access 0.58, Membership Tasks 0.21.1</li></ul></div>
+<div class="print-notes"><b>1 · Notes</b> <ul><li>Ten principles, told from the person outward. One sentence each, one picture.</li><li>The picture: two people who met, each with people they met, and it goes on past the edge. Nothing stands above them.</li><li>Everything here is checked against the published specs; the versions are in the notes of each slide.</li><li class="src">Sources: specs as of 28 Oct 2026: FPP 1.2, DTG Credentials WD 0.6.0, VTI WD 0.2.0, Trust Tasks 0.7.0, TSP 1.0; ours: Encounter 0.32, Identity 0.55, Trust 0.31, Access 0.58, Membership Tasks 0.21.1</li></ul></div>
 </div>
 
 <!-- 2 · intro -->
@@ -305,7 +305,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>Three things in one breath, before the principles.</li><li>Two phones, no uplink: a meeting leaves two credentials, one from each side. That is the whole root.</li><li>No operator in the trust path: it works local-first and offline; relays and agents may help, they are never in between.</li><li>No inherited verdict: nobody hands you a score. Every reader judges from where they stand.</li><li>The next ten slides say how, one principle each.</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>The node is a trust agent (VTA): it holds the keys, and without one a person cannot be represented.</li><li>A community node decides admission and answers status queries live.</li><li>Verdicts are issued and travel: membership, the personhood flag, endorsements.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>The devices hold the keys; nothing has to be hosted.</li><li>Every reader judges from where they stand; no verdict is issued.</li></ul></div></div></div>
 </div>
 </div>
@@ -327,7 +326,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>A person starts with twelve words. They become one seed.</li><li>From that seed the phone derives a fresh identifier for every context: this contact, that group, the public.</li><li>Nobody who sees two of them can tell they belong to the same person. Only the person can reveal that, and that is the Trust act later.</li><li>Where we agree with the DTG: one identifier per counterparty. Where we differ: the DTG’s agent derives the identifiers; here the phone does.</li><li>The last step gathers every identifier into one document, the person’s own. Next: where does it live?</li><li class="src">Sources: Identity 0.55 §5–6; DTG Credentials WD 0.6.0 issuerScope; VTI WD 0.2.0 key derivation</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>A persona per community, minted by the agent as did:webvh, which needs a DID host.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>An anchor per relationship, derived on the device from one seed, no hosting.</li></ul></div></div><div class="cmp-shared"><p class="cmp-kicker">Shared</p><ul class="cmp-list"><li>One persona per context.</li></ul></div></div>
 </div>
 </div>
@@ -349,7 +347,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>That document lives on the person’s devices. Each device holds the keys and can act alone.</li><li>Nothing has to be running for two people to meet, sign or decide.</li><li>A storage service may keep an encrypted copy, for recovery. A relay may carry it. Neither can read it.</li><li>In VTI a person without an agent cannot be represented at all. Here an agent may help; it is never a condition.</li><li>Honest: restoring a person onto a new device is specified, not built yet.</li><li class="src">Sources: Identity 0.55 §5.5, §6.3, Status; VTI WD 0.2.0 architecture; FPP 1.2</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>The node is a trust agent (VTA): it holds the seed and signs for the person; clients send it unsigned data. It may run on the person’s device or on a host.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>The devices hold the keys and act themselves; an agent may help, never a condition.</li></ul></div></div></div>
 </div>
 </div>
@@ -370,7 +367,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>This is the thesis. Trust starts between two people who met.</li><li>Ana and Ben scan each other. Each phone issues one credential about the other, with a fresh challenge. Both keep both.</li><li>Nobody issued it, so nobody can revoke it, expire it or turn it into a score.</li><li>It proves only that the key was in the right hands and a human decided. Not that they stood in the same room, not who they are.</li><li>The network grows from such meetings, friend by friend, without any group yet. Groups come later.</li><li>Where we agree with the DTG: two credentials, one per direction. Where we differ: the DTG anchors personhood in a community; here it is read later, from encounters.</li><li class="src">Sources: Encounter 0.32 §3, §4, §7, rule 8020; DTG Credentials WD 0.6.0 edges; ToIP TAS PR02</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>The basic unit is the community (VTC): own DID, member list, policy engine, registry. A relationship credential counts as an edge only if the issuer’s membership is proven.</li><li>Membership, the personhood flag and endorsements are issued by the community, carry a status and expire.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>The relationship is the unit; communities are bound to relationships, not the other way round.</li><li>No issuer, no status endpoint, no renewal.</li></ul></div></div><div class="cmp-shared"><p class="cmp-kicker">Shared</p><ul class="cmp-list"><li>Relationship credentials in pairs, one per direction, and the in-person check with a spoken code.</li></ul></div></div>
 </div>
 </div>
@@ -392,7 +388,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>After a meeting, a contact sees two things: who we both know, and which groups we share. Both blinded.</li><li>Trust is a second act. One button, toward one contact.</li><li>It hands that contact the one key that ties my relationships together. Nothing else changes, nothing travels further.</li><li>There are no levels. What I show you is the measure of my trust in you.</li><li>No artifact carries a score. A global score would be forgeable or central.</li><li>The introduction row is an outlook: not in the published 0.31, drafted for 0.32.</li><li class="src">Sources: Trust Layer 0.31 §2a, rules 2720, 2750, 2770, 1010; DTG endorsements; FPP 1.2 vouching</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>Trust in a person runs through the community: roles (admin, moderator, issuer, member), policy in Rego, endorsements as statement credentials.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>One act toward one contact that opens the link between my own identities to that contact alone; access per contact and class.</li></ul></div></div></div>
 </div>
 </div>
@@ -412,7 +407,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>Before anything gets a proof, two questions: whom must it convince, and may the receiver show it on?</li><li>The credential and my card are made to be shown on. Their reader is someone behind you: a group, an introduction. So they are signed.</li><li>My name and my picture convince you and nobody else. A signature would bind my name to this identity for anyone who ever sees it.</li><li>“We know someone in common” is blinded. You can only read it against your own contacts; a stranger learns nothing.</li><li>That two of my identities are one person, you learn after the Trust act. It exists nowhere as a proof. Otherwise anyone holding it could join my relationships up.</li><li>The DTG does it the other way round: everything signed and transferable, privacy by hiding which credential you show.</li><li class="src">Sources: Trust Layer 0.31 §3, rules 3010–3060; DTG Credentials WD 0.6.0 privacy considerations</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>The presentable form is the norm: signed credentials with proofs, status lists and a registry any verifier reads; privacy by hiding which credential is shown (ZKP presentation).</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>The deniable form is the norm; a transferable signature is the exception that needs a reason.</li></ul></div></div></div>
 </div>
 </div>
@@ -433,7 +427,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>Identities are free. A swarm of fake ones can vouch for itself all day.</li><li>So “many people know me” only counts like this: at least N, of which k are inside the trust of whoever is asking.</li><li>Each person sees only their own star. Laid on top, the shared people and groups light up. Everything else stays dark.</li><li>Ben reads Ana differently from Sam, because they trust different people. There is no number everyone reads the same way.</li><li>The DTG agrees that reading is verifier-relative; its anchor is an accredited community. Ours is the reader’s own contacts.</li><li>Honest: the proof artifact for these counts is not written yet; today it is a design rule.</li><li class="src">Sources: Trust Layer 0.31 §7, rules 7010–7030; Personhood Predicates 0.12; DTG Credentials WD 0.6.0 edge verifiability</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>Personhood is a flag on the membership credential, by its own documentation a non-binding hint and a governance decision; the registry says who is a member.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>Personhood is read by each viewer from their own horizon.</li></ul></div></div></div>
 </div>
 </div>
@@ -455,7 +448,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>How do you get in? Not by presenting something at a door.</li><li>A checkpoint: a stranger decides on a proof you can show anywhere, and a third party keeps a log. It has its place, at borders.</li><li>Inside a community nobody needs it. The person who invites you knows you.</li><li>Your phone and the members’ phones check three things: was the inviter allowed to invite, did enough members agree, did you say yes yourself.</li><li>You get a fresh key for the group. Members see that key; only the inviter can tie it to the person they know.</li><li>Nothing portable comes out of it. The DTG also invites and asks consent; the difference is that there a community node decides, here the devices check the rule.</li><li>Honest price: someone who knows nobody cannot get in. Access for strangers is something a group builds on purpose.</li><li class="src">Sources: Membership Tasks 0.21.1 admission; Access 0.58 §5.3; VTI WD 0.2.0 MEM-011/020; DTG Invitation Credential</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>Admission is a decision of the community node, under policies written in Rego: who may vet, who may vouch, what counts.</li><li>Vetting and membership come back as credentials the community issues (VSC, VMC); the node records who is in good standing.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>Members invite; the devices of those involved check the group’s own rule and the invitee’s signed yes.</li><li>No node decides, no log is kept, nothing portable comes out of it.</li></ul></div></div><div class="cmp-shared"><p class="cmp-kicker">Shared</p><ul class="cmp-list"><li>Invitation plus the member’s own consent, on both sides.</li></ul></div></div>
 </div>
 </div>
@@ -489,7 +481,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>Who holds the truth about a group? Every member, as one signed record.</li><li>The rules are part of the record: who may invite, who may remove, how the rules change.</li><li>No role stands above it. A founder is a member like any other; here Ana leaves, and the group admits Lea afterwards.</li><li>A group may still give one person the say. The difference to an admin is that this person is inside the record, not a party outside it.</li><li>When members disagree, the record does not pick a winner. The group stops, visibly, until a quorum of both sides reconciles.</li><li>Honest: the rules run in an experimental harness today, not yet in the library.</li><li class="src">Sources: Access 0.58 §3, §3.6, Status; VTI WD 0.2.0 VTC-001; FPP 1.2 communities</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>The community is a node on a trust agent; its record of who belongs is authoritative, and governance is policy the node enforces.</li><li>Data rooms have one owner: controller of the room, issuer of its credentials, sole committer.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>Every member holds the record; the rules are data inside it.</li></ul></div></div></div>
 </div>
 </div>
@@ -515,7 +506,6 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <aside><ul><li>The group lives on its members’ devices. There is no host that could be missing.</li><li>Ana writes, Ben writes, apart from each other. When they meet, the group’s own rules merge it.</li><li>Carriers, a relay, a mesh, a phone next to yours, only move sealed bytes. The protocol asks them for one promise: it arrives eventually, never silently lost.</li><li>A carrier sees one address per relationship, never a person.</li><li>Where the VTI mediator agrees with us: it forwards what it cannot read. Where it differs: whether a claim is still true is a live query to the community there; here the copies decide.</li><li>Honest: the app issues the encounter without a mediator and delivers later; a whole group without any network has not been run yet.</li><li class="src">Sources: Replication Contract 0.26; Delivery Contract 0.85.2; Identity 0.55 §7a; VTI WD 0.2.0 TRN-020</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-cols"><div class="cmp-col there"><p class="cmp-kicker">VTI</p><ul class="cmp-list"><li>A mediator stores and forwards, so the recipient need not be online at the same time; agent, DID host and mediator must be reachable.</li><li>Shared state has one write primary; concurrent offline writing is not a goal.</li></ul></div><div class="cmp-col here"><p class="cmp-kicker">RLTP</p><ul class="cmp-list"><li>Concurrent offline writing is the normal case; the group’s own rules merge it.</li></ul></div></div></div>
 </div>
 </div>
@@ -526,20 +516,19 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 <div class="slide" data-slide="wire">
 <div class="stage">
 <section id="wire" data-transition="push">
-<div class="card table" style="left:1040px;top:104px;width:752px"><div class="th"><span>what travels</span><span class="mono">in which form · status</span></div><div class="row" data-build-in="rise order 1"><div class="txt"><p class="t">the encounter credential</p><p class="d">a W3C Verifiable Credential with the DTG context: a DTG RelationshipCredential</p></div><p class="status">in the app; verified both ways with Consensual, 11 Oct</p></div><div class="row" data-build-in="rise order 2"><div class="txt"><p class="t">the invitation into a group</p><p class="d">a DTG InvitationCredential, carried by a membership task</p></div><p class="status">specified</p></div><div class="row" data-build-in="rise order 3"><div class="txt"><p class="t">every message</p><p class="d">a Trust Task document (framework 0.6) over TSP 1.0, routed through a VTI mediator</p></div><p class="status">measured live, 12 of 12</p></div><div class="row" data-build-in="rise order 4"><div class="txt"><p class="t">every identity</p><p class="d">did:key, one fresh anchor per relationship, from one seed on the device</p></div><p class="status">in the app</p></div></div>
+<div class="tile" style="left:1100px;top:220px;width:692px;height:160px;display:flex;align-items:center;justify-content:center" data-build-in="rise order 1"><p class="lbl big" style="font-size:48px">DTG Credentials</p></div><div class="tile" style="left:1100px;top:420px;width:692px;height:160px;display:flex;align-items:center;justify-content:center" data-build-in="rise order 2"><p class="lbl big" style="font-size:48px">Trust Tasks</p></div><div class="tile" style="left:1100px;top:620px;width:692px;height:160px;display:flex;align-items:center;justify-content:center" data-build-in="rise order 3"><p class="lbl big" style="font-size:48px">TSP</p></div>
 <p class="eyebrow">10 · On the wire</p>
 <h2>On the wire, we speak the ecosystem's forms.</h2>
-<p class="lead">The principles are ours. The forms are shared: DTG credentials, Trust Task documents, TSP through a mediator, did:key identities. A second implementation can read what we send, and we can read theirs. <b>That is what a build weekend can test.</b></p>
+<p class="lead">The principles are ours. What travels between devices uses shared standards, <b>so a second implementation can read it.</b></p>
 <p class="foot">Real Life Trust Protocol</p>
 <div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
-<aside><ul><li>The principles are ours. The forms are shared, so a second implementation can read what we send.</li><li>The encounter credential is a W3C credential with the DTG context, a DTG RelationshipCredential. Verified both ways with Consensual in October.</li><li>The invitation is a DTG InvitationCredential, carried by a membership task. Still pinned to an older draft; lifting it is open.</li><li>Every message is a Trust Task document over TSP 1.0 through a VTI mediator. Measured live, routed, 12 of 12.</li><li>Every identity is a did:key, one per relationship. VTI itself requires did:key for a client.</li><li>Open: the Trust Task framework moved to 0.7; we are on 0.6.</li><li class="src">Sources: Encounter 0.32 rules 7010, 2260; Membership Tasks 0.21.1 MT-3010; adapter 0.30; port-experimente #76/#81/#82; dtg-interop board, vrc-cross-verification</li></ul></aside>
+<aside><ul><li>The principles are ours. The forms are shared.</li><li>Credentials are DTG Credentials, messages are Trust Tasks, and they travel over TSP.</li><li>So a second implementation can read what we send, and we can read theirs.</li></ul></aside>
 </section>
 <div class="cmp" aria-label="Comparison">
-<button class="cmp-tab" type="button" aria-expanded="false">Elsewhere in the ecosystem</button>
 <div class="cmp-panel" role="region" aria-label="Compared with VTI"><div class="cmp-shared"><p class="cmp-kicker">Shared</p><ul class="cmp-list"><li>Where we meet: DTG credentials, Trust Tasks, TSP through the same mediator, did:key.</li></ul></div></div>
 </div>
 </div>
-<div class="print-notes"><b>12 · Notes</b> <ul><li>The principles are ours. The forms are shared, so a second implementation can read what we send.</li><li>The encounter credential is a W3C credential with the DTG context, a DTG RelationshipCredential. Verified both ways with Consensual in October.</li><li>The invitation is a DTG InvitationCredential, carried by a membership task. Still pinned to an older draft; lifting it is open.</li><li>Every message is a Trust Task document over TSP 1.0 through a VTI mediator. Measured live, routed, 12 of 12.</li><li>Every identity is a did:key, one per relationship. VTI itself requires did:key for a client.</li><li>Open: the Trust Task framework moved to 0.7; we are on 0.6.</li><li class="src">Sources: Encounter 0.32 rules 7010, 2260; Membership Tasks 0.21.1 MT-3010; adapter 0.30; port-experimente #76/#81/#82; dtg-interop board, vrc-cross-verification</li></ul></div>
+<div class="print-notes"><b>12 · Notes</b> <ul><li>The principles are ours. The forms are shared.</li><li>Credentials are DTG Credentials, messages are Trust Tasks, and they travel over TSP.</li><li>So a second implementation can read what we send, and we can read theirs.</li></ul></div>
 </div>
 
 </div>
@@ -596,16 +585,17 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 
   try { var h = parseInt(location.hash.slice(1), 10); if (h >= 1 && h <= slides.length) i = h - 1; } catch (e) {}
   function fit() {
-    // Must match .deck: 32px top and sides; below, 24px gap, the nav pill (38px), 24px to the edge.
-    var s = Math.min((window.innerWidth - 64) / 1923, (window.innerHeight - 32 - 86) / 1083);
+    // .deck fills the window. The nav pill sits 24px above the slide's bottom edge.
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
     slides.forEach(function (el) { el.style.transform = 'scale(' + s + ')'; });
+    document.querySelector('.nav').style.bottom = Math.round((window.innerHeight - 1080 * s) / 2 + 24) + 'px';
   }
   function cmp() { return slides[i].querySelector('.cmp'); }
   function panel(open) {
     var c = cmp(); if (!c) return;
     if (open === undefined) open = !c.classList.contains('open');
     c.classList.toggle('open', open);
-    c.querySelector('.cmp-tab').setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.classList.toggle('cmp-open', open);
   }
   function show(n, built) {
     panel(false);
@@ -700,13 +690,16 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
     if (e.key === 'c' || e.key === 'C') panel();
     if (e.key === 'Escape') panel(false);
     if (e.key === 'n' || e.key === 'N') toggleNotes();
+    if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    }
   }
   document.addEventListener('keydown', function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     onKey(e);
   });
   deck.addEventListener('click', function (e) {
-    if (e.target.closest('.cmp-tab')) { panel(); return; }
     if (e.target.closest('a,button,.cmp-panel')) return;
     if (e.clientX > window.innerWidth / 2) next(); else prev();
   });
