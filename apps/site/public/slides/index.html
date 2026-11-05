@@ -58,13 +58,16 @@
 html, body { margin: 0; height: 100%; background: var(--slide); color: var(--text);
   font-family: "IBM Plex Sans", system-ui, sans-serif; }
 
-/* 16:9 stage (1920x1080), scaled to fill the window; the nav pill sits on the slide's bottom edge */
+/* 16:9 stage (1920x1080), scaled to fit the window. --ex / --ey (set by fit()) are the stage pixels left over
+   at each side when the window is not 16:9; the cover background and the comparison panel reach into them,
+   so the slide has no visible edge. The nav pill sits at the window's bottom edge. */
+:root { --ex: 0px; --ey: 0px; }
 .deck { position: fixed; inset: 0; display: grid; place-items: center; }
 .slide { position: absolute; width: 1920px; height: 1080px; background: var(--slide);
   display: none;
-  transform-origin: center; overflow: hidden; }
+  transform-origin: center; overflow: visible; }
 .slide.active { display: block; }
-.stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.stage { position: relative; width: 100%; height: 100%; overflow: visible; }
 .print-notes { display: none; }
 
 /* Slide base */
@@ -115,7 +118,9 @@ svg.fig { position: absolute; overflow: visible; }
 .s-ana { stroke: var(--ana); } .s-ben { stroke: var(--ben); } .s-warn { stroke: var(--warn); }
 
 /* Cover */
-.stage > section.cover { justify-content: center;
+.stage > section.cover { justify-content: center; overflow: visible; background: none; isolation: isolate; }
+.stage > section.cover::before { content: ""; position: absolute; z-index: -1;
+  inset: calc(-1 * var(--ey)) calc(-1 * var(--ex));
   background: radial-gradient(circle at 80% 24%, var(--cover-1) 0%, var(--cover-2) 55%, var(--cover-3) 100%); }
 .cover .kicker { font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--brand);
   background: var(--brand-soft); padding: 10px 22px; border-radius: 999px; }
@@ -206,12 +211,12 @@ svg.fig { position: absolute; overflow: visible; }
 svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-origin: center; }
 
 /* Comparison panel: inside the stage, scales with it; opened with C */
-.cmp { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; align-items: center;
+.cmp { position: absolute; left: calc(-1 * var(--ex)); right: calc(-1 * var(--ex)); bottom: calc(-1 * var(--ey)); z-index: 5; display: flex; flex-direction: column; align-items: center;
   transform: translateY(100%); transition: transform .4s cubic-bezier(.2,.7,.2,1); pointer-events: none;
   font-family: Inter, sans-serif; }
 .cmp.open { transform: translateY(0); }
 .cmp-panel { pointer-events: auto; align-self: stretch; max-height: 432px; overflow: auto;
-  padding: 32px 128px 32px; background: var(--slide); border-top: 1px solid var(--border); transition: box-shadow .4s; }
+  padding: 32px calc(128px + var(--ex)) 32px; background: var(--slide); border-top: 1px solid var(--border); transition: box-shadow .4s; }
 .cmp.open .cmp-panel { box-shadow: 0 -16px 40px var(--shadow); }
 .cmp-kicker { margin: 0 0 18px; font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--brand); }
 .cmp-cols { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; max-width: 1664px; }
@@ -227,7 +232,7 @@ svg [data-build-in], svg[data-build-in] { transform-box: fill-box; transform-ori
 .cmp-shared .cmp-list { font-size: 26px; color: var(--muted); }
 
 /* nav */
-.nav { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center;
+.nav { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center;
   background: var(--slide); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; z-index: 2;
   font-size: 14px; color: var(--muted); white-space: nowrap; }
 .nav button { all: unset; cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 999px; color: var(--text); }
@@ -259,7 +264,8 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
   .deck { position: static; display: block; }
   .slide { position: relative; display: block !important; transform: none !important; page-break-after: always;
     width: 1920px; height: 1440px; border: 0; border-radius: 0; box-shadow: none; overflow: visible; background: #fff; }
-  .stage { height: 1080px; }
+  .stage { height: 1080px; overflow: hidden; }
+  .stage > section.cover::before { inset: 0; }
   .stage [data-build-in] { opacity: 1 !important; transform: none !important; transition: none !important; }
   .stage p[data-build-out] { opacity: 0 !important; }
   .stage svg [data-build-out] { opacity: 0 !important; }
@@ -280,7 +286,7 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
 <div class="slide" data-slide="cover">
 <div class="stage">
 <section id="cover" class="cover" data-transition="fade">
-<svg class="fig" aria-hidden="true" viewBox="0 0 920 1080" width="920" height="1080" style="left:1000px;top:0;width:920px;height:1080px" data-build-in="fade order 1"><defs><radialGradient id="cover-fade" gradientUnits="userSpaceOnUse" cx="470" cy="400" r="520"><stop offset=".35" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient><mask id="cover-open" maskUnits="userSpaceOnUse" x="0" y="0" width="920" height="1080"><rect width="920" height="1080" fill="url(#cover-fade)"/></mask></defs><g mask="url(#cover-open)"><line x1="230" y1="250" x2="110" y2="120" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="230" y1="250" x2="420" y2="140" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="420" y2="140" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="680" y1="190" x2="800" y2="60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="680" y1="190" x2="900" y2="290" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="900" y2="290" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="880" y2="640" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="590" x2="160" y2="740" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="190" y1="440" x2="160" y2="740" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="570" x2="470" y2="780" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="110" y1="120" x2="40" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="110" y1="120" x2="-40" y2="130" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="420" y1="140" x2="470" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="800" y1="60" x2="980" y2="20" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="800" y1="60" x2="760" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="900" y1="290" x2="1000" y2="250" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="880" y1="640" x2="990" y2="760" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="880" y1="640" x2="1000" y2="560" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="160" y1="740" x2="120" y2="900" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="470" y1="780" x2="520" y2="920" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="110" cy="120" r="8" class="f-dot1"/><circle cx="800" cy="60" r="8" class="f-dot2"/><circle cx="900" cy="290" r="8" class="f-dot3"/><circle cx="880" cy="640" r="8" class="f-dot4"/><circle cx="160" cy="740" r="8" class="f-dot5"/><circle cx="470" cy="780" r="8" class="f-dot1"/><circle cx="420" cy="140" r="8" class="f-dot2"/></g><line x1="360" y1="400" x2="560" y2="340" class="s-grey3" stroke-width="3" stroke-linecap="round"/><line x1="360" y1="400" x2="230" y2="250" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="360" y1="400" x2="300" y2="590" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="360" y1="400" x2="190" y2="440" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="680" y2="190" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="770" y2="450" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="590" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="360" cy="400" r="16" class="f-ana"/><circle cx="560" cy="340" r="16" class="f-ben"/><circle cx="230" cy="250" r="10" class="f-dot3"/><circle cx="300" cy="590" r="10" class="f-dot4"/><circle cx="680" cy="190" r="10" class="f-dot5"/><circle cx="770" cy="450" r="10" class="f-dot1"/><circle cx="190" cy="440" r="10" class="f-dot2"/><circle cx="560" cy="570" r="10" class="f-dot3"/></svg>
+<svg class="fig" aria-hidden="true" viewBox="0 0 920 1080" width="920" height="1080" style="left:1000px;top:0;width:920px;height:1080px"><defs><radialGradient id="cover-fade" gradientUnits="userSpaceOnUse" cx="470" cy="400" r="520"><stop offset=".35" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient><mask id="cover-open" maskUnits="userSpaceOnUse" x="0" y="0" width="920" height="1080"><rect width="920" height="1080" fill="url(#cover-fade)"/></mask></defs><g mask="url(#cover-open)"><line x1="230" y1="250" x2="110" y2="120" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="230" y1="250" x2="420" y2="140" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="420" y2="140" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="680" y1="190" x2="800" y2="60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="680" y1="190" x2="900" y2="290" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="900" y2="290" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="880" y2="640" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="590" x2="160" y2="740" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="190" y1="440" x2="160" y2="740" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="570" x2="470" y2="780" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="110" y1="120" x2="40" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="110" y1="120" x2="-40" y2="130" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="420" y1="140" x2="470" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="800" y1="60" x2="980" y2="20" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="800" y1="60" x2="760" y2="-60" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="900" y1="290" x2="1000" y2="250" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="880" y1="640" x2="990" y2="760" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="880" y1="640" x2="1000" y2="560" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="160" y1="740" x2="120" y2="900" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="470" y1="780" x2="520" y2="920" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="110" cy="120" r="8" class="f-dot1"/><circle cx="800" cy="60" r="8" class="f-dot2"/><circle cx="900" cy="290" r="8" class="f-dot3"/><circle cx="880" cy="640" r="8" class="f-dot4"/><circle cx="160" cy="740" r="8" class="f-dot5"/><circle cx="470" cy="780" r="8" class="f-dot1"/><circle cx="420" cy="140" r="8" class="f-dot2"/></g><line x1="360" y1="400" x2="560" y2="340" class="s-grey3" stroke-width="3" stroke-linecap="round"/><line x1="360" y1="400" x2="230" y2="250" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="360" y1="400" x2="300" y2="590" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="360" y1="400" x2="190" y2="440" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="680" y2="190" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="770" y2="450" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="560" y1="340" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="300" y1="590" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><line x1="770" y1="450" x2="560" y2="570" class="s-grey2" stroke-width="2" stroke-linecap="round"/><circle cx="360" cy="400" r="16" class="f-ana"/><circle cx="560" cy="340" r="16" class="f-ben"/><circle cx="230" cy="250" r="10" class="f-dot3"/><circle cx="300" cy="590" r="10" class="f-dot4"/><circle cx="680" cy="190" r="10" class="f-dot5"/><circle cx="770" cy="450" r="10" class="f-dot1"/><circle cx="190" cy="440" r="10" class="f-dot2"/><circle cx="560" cy="570" r="10" class="f-dot3"/></svg>
 <p class="kicker">Core principles of the protocol</p>
 <h1 style="width:960px;font-size:132px">Real Life<br><span>Trust Protocol</span></h1>
 <p class="lead" style="width:1030px;font-size:44px;line-height:1.25;font-weight:600;color:var(--text)"><b>Local-first</b> Decentralized Trust Graph</p>
@@ -585,10 +591,12 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
 
   try { var h = parseInt(location.hash.slice(1), 10); if (h >= 1 && h <= slides.length) i = h - 1; } catch (e) {}
   function fit() {
-    // .deck fills the window. The nav pill sits 24px above the slide's bottom edge.
+    // .deck fills the window; what is left over at the sides goes to --ex / --ey, in stage pixels.
     var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
     slides.forEach(function (el) { el.style.transform = 'scale(' + s + ')'; });
-    document.querySelector('.nav').style.bottom = Math.round((window.innerHeight - 1080 * s) / 2 + 24) + 'px';
+    var root = document.documentElement.style;
+    root.setProperty('--ex', Math.ceil((window.innerWidth / s - 1920) / 2) + 'px');
+    root.setProperty('--ey', Math.ceil((window.innerHeight / s - 1080) / 2) + 'px');
   }
   function cmp() { return slides[i].querySelector('.cmp'); }
   function panel(open) {
