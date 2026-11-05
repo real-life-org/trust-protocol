@@ -55,7 +55,7 @@
     --dot1: #8fd987; --dot2: #8fb2f5; --dot3: #f08f88; --dot4: #e79ad0; --dot5: #e6c35c;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--slide); color: var(--text);
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--slide); color: var(--text);
   font-family: "IBM Plex Sans", system-ui, sans-serif; }
 
 /* 16:9 stage (1920x1080), scaled to fit the window. --ex / --ey (set by fit()) are the stage pixels left over
@@ -71,7 +71,7 @@ html, body { margin: 0; height: 100%; background: var(--slide); color: var(--tex
 .print-notes { display: none; }
 
 /* Slide base */
-.stage > section { position: absolute; inset: 0; width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden;
+.stage > section { position: absolute; inset: 0; width: 1920px; height: 1080px; box-sizing: border-box; overflow: visible;
   margin: 0; line-height: 1.2; -webkit-font-smoothing: antialiased;
   background: var(--slide); color: var(--text); font-family: Inter, sans-serif;
   padding: 128px 128px 160px; display: flex; flex-direction: column; align-items: start; gap: 40px; }
@@ -85,8 +85,8 @@ html, body { margin: 0; height: 100%; background: var(--slide); color: var(--tex
 .stage section h2 { font-size: 72px; font-weight: 700; line-height: 1.08; letter-spacing: -1.5px; width: 840px; color: var(--text); }
 .lead { font-size: 32px; line-height: 1.45; color: var(--text-2); width: 820px; }
 .lead b { color: var(--brand); }
-.foot { position: absolute; left: 128px; bottom: 64px; width: 1000px; font-family: 'Source Code Pro', monospace; font-size: 24px; color: var(--muted); }
-.progress { position: absolute; left: 1560px; bottom: 77px; width: 232px; height: 8px; display: flex; gap: 8px; }
+.foot { position: absolute; left: calc(128px - var(--ex)); bottom: calc(64px - var(--ey)); width: 1000px; font-family: 'Source Code Pro', monospace; font-size: 24px; color: var(--muted); }
+.progress { position: absolute; left: calc(1560px + var(--ex)); bottom: calc(77px - var(--ey)); width: 232px; height: 8px; display: flex; gap: 8px; }
 .progress i { flex: 1; background: var(--track); border-radius: 4px; }
 .progress i.on { background: var(--accent); }
 
@@ -265,7 +265,8 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
   --dot1: #3f9a3a; --dot2: #3a72d6; --dot3: #d4544b; --dot4: #c24f98; --dot5: #c08f12;
   }
   @page { size: 1920px 1440px; margin: 0; }
-  html, body { background: #fff; height: auto; }
+  :root { --ex: 0px !important; --ey: 0px !important; }
+  html, body { background: #fff; height: auto; overflow: visible; }
   .deck { position: static; display: block; }
   .slide { position: relative; display: block !important; transform: none !important; page-break-after: always;
     width: 1920px; height: 1440px; border: 0; border-radius: 0; box-shadow: none; overflow: visible; background: #fff; }
@@ -545,9 +546,9 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
 </div>
 
 <nav class="nav" aria-label="Slides">
-  <button id="prev" aria-label="Previous step"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button>
+  <button id="prev" aria-label="Previous slide"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button>
   <span id="count">1 / 12</span>
-  <button id="next" aria-label="Next step"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+  <button id="next" aria-label="Next slide"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
   <button id="theme" aria-label="Toggle theme"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
 </nav>
 
@@ -685,8 +686,8 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
   function nextSlide() { if (i < slides.length - 1) show(i + 1, true); }
   function prevSlide() { if (i > 0) show(i - 1, true); }
 
-  document.getElementById('prev').onclick = prev;
-  document.getElementById('next').onclick = next;
+  document.getElementById('prev').onclick = prevSlide;
+  document.getElementById('next').onclick = nextSlide;
   document.getElementById('theme').onclick = function () {
     var r = document.documentElement, dark = r.getAttribute('data-theme') === 'dark' ||
       (!r.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
