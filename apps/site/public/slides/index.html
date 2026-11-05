@@ -139,6 +139,11 @@ svg.fig { position: absolute; overflow: visible; }
 .person p { font-size: 44px; font-weight: 700; }
 .person.ana { background: var(--ana-soft); color: var(--ana-ink); box-shadow: 0 0 48px color-mix(in srgb, var(--ana) 45%, transparent); }
 .person.ben { background: var(--ben-soft); color: var(--ben-ink); box-shadow: 0 0 48px color-mix(in srgb, var(--ben) 45%, transparent); }
+/* Standard badge, the shape of the landing page's standard links: shield with check, label */
+.std { position: absolute; display: inline-flex; align-items: center; gap: 24px; padding: 28px 44px 28px 36px;
+  border-radius: 28px; border: 2px solid var(--ok-line); background: var(--ok-soft);
+  font-size: 52px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.std svg { width: 56px; height: 56px; flex: none; color: var(--ok); }
 .okpill { font-size: 24px; font-weight: 600; text-align: center; color: var(--ok); background: var(--ok-soft);
   border: 1px solid var(--ok-line); border-radius: 999px; padding: 6px 16px; }
 
@@ -290,7 +295,7 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
 <p class="kicker">Core principles of the protocol</p>
 <h1 style="width:960px;font-size:132px">Real Life<br><span>Trust Protocol</span></h1>
 <p class="lead" style="width:1030px;font-size:44px;line-height:1.25;font-weight:600;color:var(--text)"><b>Local-first</b> Decentralized Trust Graph</p>
-<p class="foot">real-life.org</p>
+<p class="foot">trust-protocol.real-life.org</p>
 <aside><ul><li>Ten principles, told from the person outward. One sentence each, one picture.</li><li>The picture: two people who met, each with people they met, and it goes on past the edge. Nothing stands above them.</li><li>Everything here is checked against the published specs; the versions are in the notes of each slide.</li><li class="src">Sources: specs as of 28 Oct 2026: FPP 1.2, DTG Credentials WD 0.6.0, VTI WD 0.2.0, Trust Tasks 0.7.0, TSP 1.0; ours: Encounter 0.32, Identity 0.55, Trust 0.31, Access 0.58, Membership Tasks 0.21.1</li></ul></aside>
 </section>
 </div>
@@ -522,7 +527,7 @@ body.cmp-open .nav { opacity: 0; pointer-events: none; }
 <div class="slide" data-slide="wire">
 <div class="stage">
 <section id="wire" data-transition="push">
-<div class="tile" style="left:1100px;top:220px;width:692px;height:160px;display:flex;align-items:center;justify-content:center" data-build-in="rise order 1"><p class="lbl big" style="font-size:48px">DTG Credentials</p></div><div class="tile" style="left:1100px;top:420px;width:692px;height:160px;display:flex;align-items:center;justify-content:center" data-build-in="rise order 2"><p class="lbl big" style="font-size:48px">Trust Tasks</p></div><div class="tile" style="left:1100px;top:620px;width:692px;height:160px;display:flex;align-items:center;justify-content:center" data-build-in="rise order 3"><p class="lbl big" style="font-size:48px">TSP</p></div>
+<div class="std" style="left:1100px;top:280px" data-build-in="rise order 1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>DTG Credentials</div><div class="std" style="left:1100px;top:450px" data-build-in="rise order 2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>Trust Tasks</div><div class="std" style="left:1100px;top:620px" data-build-in="rise order 3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>TSP</div>
 <p class="eyebrow">10 · On the wire</p>
 <h2>On the wire, we speak the ecosystem's forms.</h2>
 <p class="lead">The principles are ours. What travels between devices uses shared standards, <b>so a second implementation can read it.</b></p>
