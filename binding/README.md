@@ -174,3 +174,31 @@ The probes import `../lib/dist`; build the library first.
   (RLTP-VTI-7120, profile Open Issue 7).
 - The wire forms no TSP relationship (`XRFI`/`XRFA`); incoming
   relationship frames are logged and dropped (profile Open Issues 9, 15).
+
+## shared-connect (dev only)
+
+Two command lines for the shared connection ceremony across apps
+(`lib/src/shared-connect.ts`, `vectors/shared-connect.json`;
+trustoverip/dtgwg-trust-tasks-tf#1034, dtgwg-vti-spec#86), both gated by
+`RLTP_LIVE_MEDIATOR=1`:
+
+- `shared-connect-invite.mjs`: makes a per-encounter `did:peer:2` naming
+  the mediator as its TSP relay, shows the link, logs in at the mediator
+  under that DID, answers a relationship-forming XRFI from a sender it has
+  never seen with XRFA while the link is live, accepts the propose, issues,
+  receipts the counterpart's issue, writes every document to `--out`.
+- `shared-connect-respond.mjs <link>`: the scanner side: logs in at the
+  relay the link names under a fresh `did:peer:2`, sends XRFI and the
+  propose, receipts the inviter's credential, issues, waits for the receipt.
+- `shared-connect-loopback.mjs`: both sides in one process over real TSP
+  frames, no network.
+
+Documents travel as TSP 1.0 `direct` messages (HPKE-Base to the
+counterpart's X25519 key, signed by the sender's Ed25519 key, both from the
+`did:peer:2`), inside the registry's TSP binding envelope
+`{ type: "https://trusttasks.org/binding/tsp/0.1/envelope", document }`;
+the inviter answers in the form the counterpart used (bare or enveloped).
+The mediator needs open sign-up and direct delivery for logged-in senders,
+which `deploy/mediator` in `real-life-org/web-of-trust` configures. A run
+on 6 November 2026 against `mediator.web-of-trust.de` completed the
+enactment in six seconds.
