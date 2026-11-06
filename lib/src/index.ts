@@ -88,6 +88,7 @@ export {
 export type { ProfileContent, ProfileBody, ProfileArtifact, Dimensions, ImageDimensions } from './profile.js'
 export * as visibility from './visibility.js'
 export * as ceremony from './ceremony.js'
+export * as sharedConnect from './shared-connect.js'
 import { decodeState as decodeStructural } from './codec.js'
 import type { OpaqueHolderState } from './state.js'
 export type { OpaqueHolderState as HolderState, Dec, Millis, B64u, TrustClass, Setting, PromptKind, PromptChoice, OutboxStatus } from './state.js'
