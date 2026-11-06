@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+The shared connection ceremony across apps, as agreed with Consensual and
+Keyring (trustoverip/dtgwg-trust-tasks-tf#1034 as revised on 5 November
+2026, dtgwg-vti-spec#86): two registry Trust Tasks, one ceremony
+definition, a VTI trigger link whose `_from` is a per-encounter
+`did:peer:2` carrying the inviter's relays. Draft; the registry entries are
+proposed, not registered. No change to the encounter ceremony.
+
+- **`sharedConnect`** (new module, exported as a namespace): `peer2Of` /
+  `parsePeer2` (did:peer:2 numalgo 2, local resolution, both TSP service
+  spellings read), `sharedConnectLink` / `readSharedConnectLink` (the
+  trigger link with `_from`, `_id`, `_exp`, `_type` and the proposed
+  `_label`), `propose` / `accept` / `credential` / `issue` / `receipt`
+  (the five documents and the receipts, step proofs under
+  `authentication` by the issuer's `#key-1`), `checkPropose` /
+  `checkAccept` / `checkIssue` (what each receiving side refuses),
+  `binding` (RLTP-ENC-5330 under the ceremony URI), `backCodeOf` /
+  `proposeFromBackCode` (the offline path: the propose in reconstruction
+  form), `partyFromSeeds`.
+- `vectors/shared-connect.json` (new) and a third row in
+  `vectors/shared-connect-binding.json` for the `shared-connect/0.1`
+  ceremony URI.
+
 ## 0.12.0
 
 The contact view names the contacts shared with a contact. The holder
