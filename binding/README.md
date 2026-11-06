@@ -191,7 +191,11 @@ trustoverip/dtgwg-trust-tasks-tf#1034, dtgwg-vti-spec#86), both gated by
   relay the link names under a fresh `did:peer:2`, sends XRFI and the
   propose, receipts the inviter's credential, issues, waits for the receipt.
 - `shared-connect-loopback.mjs`: both sides in one process over real TSP
-  frames, no network.
+  frames, no network, once with did:peer:2 and once with did:peer:4.
+
+Both CLIs take `--did peer2|peer4`. At `mediator.web-of-trust.de` only
+`peer2` logs in: the mediator's authcrypt login does not resolve did:peer:4
+(403 `e.p.message.unpack`, measured 6 November 2026).
 
 Documents travel as TSP 1.0 `direct` messages (HPKE-Base to the
 counterpart's X25519 key, signed by the sender's Ed25519 key, both from the

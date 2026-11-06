@@ -362,6 +362,220 @@
     "length": 516,
     "rebuilds": "steps.propose"
   },
+  "peer4": {
+    "note": "The same keys, challenges and times with did:peer:4 messaging identities: the long form in the link and as issuer/recipient; key ids under the short form. The pairwise did:key and the credentials are unchanged in kind. A link with a long-form did:peer:4 is over the in-person size of about 450 characters, so it is rendered as a sent link (kind link, 990 characters at most).",
+    "inviter": {
+      "messaging": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+      "short": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS",
+      "document": {
+        "id": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+        "verificationMethod": [
+          {
+            "id": "#key-1",
+            "type": "Multikey",
+            "controller": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+            "publicKeyMultibase": "z6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu"
+          },
+          {
+            "id": "#key-2",
+            "type": "Multikey",
+            "controller": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+            "publicKeyMultibase": "z6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN"
+          }
+        ],
+        "authentication": [
+          "#key-1"
+        ],
+        "assertionMethod": [
+          "#key-1"
+        ],
+        "keyAgreement": [
+          "#key-2"
+        ],
+        "capabilityInvocation": [],
+        "capabilityDelegation": [],
+        "service": [
+          {
+            "id": "#service",
+            "type": "TSPTransport",
+            "serviceEndpoint": "wss://mediator.web-of-trust.de"
+          },
+          {
+            "id": "#service-1",
+            "type": "NostrRelay",
+            "serviceEndpoint": "wss://nostr.myceli.al"
+          }
+        ]
+      },
+      "relays": [
+        {
+          "kind": "tsp-mediator",
+          "address": "wss://mediator.web-of-trust.de"
+        },
+        {
+          "kind": "nostr-relay",
+          "address": "wss://nostr.myceli.al"
+        }
+      ]
+    },
+    "responder": {
+      "messaging": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+      "short": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD",
+      "document": {
+        "id": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+        "verificationMethod": [
+          {
+            "id": "#key-1",
+            "type": "Multikey",
+            "controller": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+            "publicKeyMultibase": "z6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE"
+          },
+          {
+            "id": "#key-2",
+            "type": "Multikey",
+            "controller": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+            "publicKeyMultibase": "z6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL"
+          }
+        ],
+        "authentication": [
+          "#key-1"
+        ],
+        "assertionMethod": [
+          "#key-1"
+        ],
+        "keyAgreement": [
+          "#key-2"
+        ],
+        "capabilityInvocation": [],
+        "capabilityDelegation": [],
+        "service": [
+          {
+            "id": "#service",
+            "type": "TSPTransport",
+            "serviceEndpoint": "wss://mediator.web-of-trust.de"
+          }
+        ]
+      },
+      "relays": [
+        {
+          "kind": "tsp-mediator",
+          "address": "wss://mediator.web-of-trust.de"
+        }
+      ]
+    },
+    "link": {
+      "value": "https://link.trustoverip.org/t#_from=did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&_label=Anton",
+      "length": 878
+    },
+    "steps": {
+      "propose": {
+        "id": "8PHy8_T19vf4-fr7_P3-_w",
+        "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+        "issuer": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+        "recipient": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+        "issuedAt": "2026-11-07T10:00:05Z",
+        "ceremony": {
+          "enactment": "AAECAwQFBgcICQoLDA0ODw",
+          "step": "propose"
+        },
+        "payload": {
+          "relationshipDid": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
+          "reason": "Day"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-11-07T10:00:05Z",
+          "verificationMethod": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD#key-1",
+          "proofPurpose": "authentication",
+          "proofValue": "zojMU64A8DaWgT9q26xeefwZuZNyG6kb8H62KTPF85n3hsFHUyFrvsS8hrgTqa2sT1QfQpxywC9cFgdpodtojM9W"
+        }
+      },
+      "accept": {
+        "id": "IuDdiCOZK2XXHI30an79xQ",
+        "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1#response",
+        "threadId": "8PHy8_T19vf4-fr7_P3-_w",
+        "issuer": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+        "recipient": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+        "issuedAt": "2026-11-07T10:00:07Z",
+        "ceremony": {
+          "enactment": "AAECAwQFBgcICQoLDA0ODw",
+          "step": "accept"
+        },
+        "payload": {
+          "accept": true,
+          "relationshipDid": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-11-07T10:00:07Z",
+          "verificationMethod": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS#key-1",
+          "proofPurpose": "authentication",
+          "proofValue": "zPkdgTqf454b6szbgoqMmtx8wCo5sPaih7QGuGXggfwVbVEeH1aYFfRjBfEN44SwzNHqZYKTCyt5KSArsXCYFCTN"
+        }
+      },
+      "issue-inviter": {
+        "id": "wZWZmGtqti2lH0W04JIJ9A",
+        "type": "https://trusttasks.org/spec/vrc/relationships/issue/0.1",
+        "threadId": "8PHy8_T19vf4-fr7_P3-_w",
+        "issuer": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
+        "recipient": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
+        "issuedAt": "2026-11-07T10:00:07Z",
+        "ceremony": {
+          "enactment": "AAECAwQFBgcICQoLDA0ODw",
+          "step": "issue-inviter"
+        },
+        "payload": {
+          "vrc": {
+            "@context": [
+              "https://www.w3.org/ns/credentials/v2",
+              "https://registry.trustoverip.org/dtg/context/v1",
+              "https://real-life.org/rltp/v1"
+            ],
+            "type": [
+              "VerifiableCredential",
+              "DTGCredential",
+              "RelationshipCredential",
+              "EncounterCredential"
+            ],
+            "issuer": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
+            "issuerScope": "pairwise",
+            "validFrom": "2026-11-07T10:00:07Z",
+            "credentialSubject": {
+              "id": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
+              "ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
+              "challenge": "8PHy8_T19vf4-fr7_P3-_w",
+              "enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
+              "channel": "displayed"
+            },
+            "proof": {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "created": "2026-11-07T10:00:07Z",
+              "verificationMethod": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG#z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
+              "proofPurpose": "assertionMethod",
+              "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://registry.trustoverip.org/dtg/context/v1",
+                "https://real-life.org/rltp/v1"
+              ],
+              "proofValue": "z3DqrRXciwmpJ46zPD7J762hozB6A6vaF7jVFbNUtk5HemyLpD3hneBo5G5KwhZD5ZC4ppXxXUgvCaeKXGwj8qCB9"
+            }
+          },
+          "vrcDigestMultibase": "uEiB0Q6L5tjXOjkCCSUUzFGD2xgf2BzzRQZ6oliSmvHX5cA"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "created": "2026-11-07T10:00:07Z",
+          "verificationMethod": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS#key-1",
+          "proofPurpose": "authentication",
+          "proofValue": "z3nyvECFRtSridpD4C8mWeFSQ3PiViAVMoFoRnDY4ssHtGCSGD7RQPhuEf7KaBmsezvM2V414rkPKVbyshemDRAVs"
+        }
+      }
+    }
+  },
   "mustFail": {
     "links": [
       {
