@@ -115,6 +115,9 @@ function judge(f, id) {
                     f.dissolves.add(id);
             }
         }
+        else if (f.staticBad.has(id)) {
+            v = 'not-canonical';
+        }
         else {
             const b = env.body;
             const subject = b.subject;
@@ -136,12 +139,17 @@ function judge(f, id) {
 }
 /** judges every accepted operation; the fold the materialization and the position checks read */
 async function foldOf(log, subtle) {
-    const f = { log, closure: new Map(), verdict: new Map(), subjectOf: new Map(), acceptDigestOf: new Map(), dissolves: new Set() };
+    const f = { log, closure: new Map(), verdict: new Map(), subjectOf: new Map(), acceptDigestOf: new Map(), dissolves: new Set(), staticBad: new Set() };
     const ids = Object.keys(log.accepted).sort();
     for (const id of ids) {
         const env = log.accepted[id];
-        if (env.op === ADD_OP)
-            f.acceptDigestOf.set(id, await digestDoc(env.body.admission.accept, subtle));
+        if (env.op !== ADD_OP)
+            continue;
+        const st = await staticOf(env, log.genesisDigest, subtle);
+        if (st.problem !== null)
+            f.staticBad.add(id);
+        else
+            f.acceptDigestOf.set(id, st.acceptDigest);
     }
     for (const id of ids)
         judge(f, id);
@@ -201,14 +209,53 @@ async function addStaticProblem(env, genesisDigest, subtle) {
     void MEMBERSHIP_SKEW;
     return null;
 }
+/** The static result of a member.add: its rule problem, or its accept's
+ *  digest. A pure function of the operation (its id covers body and group)
+ *  and the genesis digest, so it is kept per (genesis, id), bounded. */
+const STATIC_CACHE = new Map();
+const STATIC_CACHE_MAX = 4096;
+async function staticOf(env, genesisDigest, subtle) {
+    const key = genesisDigest + ' ' + env.id;
+    const known = STATIC_CACHE.get(key);
+    if (known)
+        return known;
+    let out;
+    try {
+        const problem = await addStaticProblem(env, genesisDigest, subtle);
+        out = problem !== null ? { problem } : { problem: null, acceptDigest: await digestDoc(env.body.admission.accept, subtle) };
+    }
+    catch {
+        out = { problem: 'rule-1-shape' };
+    }
+    if (STATIC_CACHE.size >= STATIC_CACHE_MAX)
+        STATIC_CACHE.delete(STATIC_CACHE.keys().next().value);
+    STATIC_CACHE.set(key, out);
+    return out;
+}
 /** eligible signers at a position (3315): the members there plus the body's subject */
-async function eligibleAt(log, env, subtle) {
+async function eligibleSet(log, env, subtle) {
     const f = await foldOf({ ...log, accepted: { ...log.accepted, [env.id]: env } }, subtle);
     const eligible = membersIn(f, closureOf(f, env.id));
     const subject = env.body?.subject;
     if (typeof subject === 'string')
         eligible.add(subject);
-    return (env.proof.signatures ?? []).every((s) => eligible.has(s.signer)) && eligible.has(env.author);
+    return eligible;
+}
+/** The proof cut to eligible signers (3130: a signature of anyone else is
+ *  no part of the proof and never blocks the operation). */
+const trimmed = (env, eligible) => {
+    const sigs = env.proof.signatures ?? [];
+    const kept = sigs.filter((s) => eligible.has(s.signer));
+    return kept.length === sigs.length ? env : { ...env, proof: { ...env.proof, signatures: kept } };
+};
+/** Whether an operation can be accepted at its position: its author is an
+ *  eligible signer and has signed it; the returned envelope carries only
+ *  the eligible signatures. */
+async function eligibleAt(log, env, subtle) {
+    const eligible = await eligibleSet(log, env, subtle);
+    if (!eligible.has(env.author) || !(env.proof.signatures ?? []).some((s) => s.signer === env.author))
+        return null;
+    return trimmed(env, eligible);
 }
 /** Admits one envelope into the log (Replication 7.1): form first (step 1),
  *  the proof merged on a known id (3.4.1), then ancestor-first; a missing
@@ -232,7 +279,9 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
     if (envelopeBytes(e) > ENTRY_BOUND)
         return { log, verdict: { kind: 'invalid', problem: 'oversize' } };
     if (log.accepted[e.id]) {
-        const merged = mergeProof(log.accepted[e.id], e);
+        // only eligible signers join the held proof (3130)
+        const { [e.id]: _self, ...before } = log.accepted;
+        const merged = mergeProof(log.accepted[e.id], trimmed(e, await eligibleSet({ ...log, accepted: before }, log.accepted[e.id], subtle)));
         return { log: merged === log.accepted[e.id] ? log : { ...log, accepted: { ...log.accepted, [e.id]: merged } }, verdict: { kind: 'duplicate' } };
     }
     if (log.held[e.id]) {
@@ -241,12 +290,7 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
         if (merged === h.env)
             return { log, verdict: { kind: 'duplicate' } };
         const next = { ...log, held: { ...log.held, [e.id]: { ...h, env: merged } } };
-        return h.reason === 'joining' ? { log: next, verdict: { kind: 'duplicate' } } : tryAccept(next, e.id, subtle);
-    }
-    if (e.op === ADD_OP) {
-        const sp = await addStaticProblem(e, log.genesisDigest, subtle);
-        if (sp)
-            return { log, verdict: { kind: 'invalid', problem: sp } };
+        return h.reason === 'joining' || h.reason === 'unsupported' ? { log: next, verdict: { kind: 'duplicate' } } : tryAccept(next, e.id, subtle);
     }
     const missing = e.prev.some((p) => !log.accepted[p]);
     const hold = (reason) => {
@@ -273,11 +317,14 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
     };
     if (at.buffer)
         return hold('joining');
+    if (!BUILT_OPS.has(e.op))
+        return hold('unsupported');
     if (missing)
         return hold('missing-parent');
-    if (!(await eligibleAt(log, e, subtle)))
+    const ok = await eligibleAt(log, e, subtle);
+    if (!ok)
         return hold('ineligible');
-    return accept(log, e, subtle);
+    return accept(log, ok, subtle);
 }
 /** the genesis of a log: its one accepted operation without a parent */
 export const genesisOf = (log) => Object.values(log.accepted).find((e) => e.op === GENESIS_OP);
@@ -289,7 +336,7 @@ export async function releaseJoining(log, subtle = platformSubtle()) {
         return { log, applied: [] };
     const held = { ...log.held };
     for (const id of buffered)
-        held[id] = { ...held[id], reason: 'missing-parent' };
+        held[id] = { ...held[id], reason: BUILT_OPS.has(held[id].env.op) ? 'missing-parent' : 'unsupported' };
     let next = { ...log, held };
     const applied = [];
     for (const id of buffered.sort()) {
@@ -308,12 +355,15 @@ export async function releaseJoining(log, subtle = platformSubtle()) {
 export const dropHeld = (log) => (Object.keys(log.held).length ? { ...log, held: {} } : log);
 async function tryAccept(log, id, subtle) {
     const h = log.held[id];
+    if (!BUILT_OPS.has(h.env.op))
+        return { log, verdict: { kind: 'held', reason: 'unsupported' } };
     if (h.env.prev.some((p) => !log.accepted[p]))
         return { log, verdict: { kind: 'held', reason: 'missing-parent' } };
-    if (!(await eligibleAt(log, h.env, subtle)))
+    const ok = await eligibleAt(log, h.env, subtle);
+    if (!ok)
         return { log, verdict: { kind: 'held', reason: 'ineligible' } };
     const { [id]: _gone, ...rest } = log.held;
-    return accept({ ...log, held: rest }, h.env, subtle);
+    return accept({ ...log, held: rest }, ok, subtle);
 }
 /** accepts an entry whose parents are accepted and whose signers are eligible, then heals what it unblocks */
 async function accept(log, e, subtle) {
@@ -324,12 +374,13 @@ async function accept(log, e, subtle) {
         progressed = false;
         for (const id of Object.keys(next.held).sort()) {
             const h = next.held[id];
-            if (h.reason === 'joining' || h.env.prev.some((p) => !next.accepted[p]))
+            if (h.reason === 'joining' || h.reason === 'unsupported' || h.env.prev.some((p) => !next.accepted[p]))
                 continue;
-            if (!(await eligibleAt(next, h.env, subtle)))
+            const ok = await eligibleAt(next, h.env, subtle);
+            if (!ok)
                 continue;
             const { [id]: _gone, ...rest } = next.held;
-            next = { ...next, held: rest, accepted: { ...next.accepted, [id]: h.env } };
+            next = { ...next, held: rest, accepted: { ...next.accepted, [id]: ok } };
             healed.push(id);
             progressed = true;
         }

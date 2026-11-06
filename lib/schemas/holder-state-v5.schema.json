@@ -4365,7 +4365,8 @@
           "enum": [
             "missing-parent",
             "ineligible",
-            "joining"
+            "joining",
+            "unsupported"
           ]
         },
         "source": {

@@ -911,7 +911,7 @@ export type ActRecordV5 = {
 /** an entry held before acceptance (Replication 7.1): its envelope, why it is held, the contact it came from (its partition), since when, and its JCS size */
 export type HeldEntryV5 = {
   env: { [k: string]: Json }
-  reason: "missing-parent" | "ineligible" | "joining"
+  reason: "missing-parent" | "ineligible" | "joining" | "unsupported"
   source: string
   since: MillisV5
   bytes: number

@@ -131,7 +131,16 @@ async function ownAdmission(log, m, acceptDigest, subtle) {
         return null;
     let found = null;
     for (const [id, env] of Object.entries(log.accepted)) {
-        if (env.op !== ADD_OP || !sameDigest(await digestDoc(env.body.admission.accept, subtle), acceptDigest))
+        if (env.op !== ADD_OP)
+            continue;
+        let d;
+        try {
+            d = await digestDoc(env.body.admission.accept, subtle);
+        }
+        catch {
+            continue;
+        }
+        if (!sameDigest(d, acceptDigest))
             continue;
         if (m.verdict[id] === 'canonical')
             return 'canonical';
@@ -319,8 +328,9 @@ export const leaveDef = (personal) => ({
         if (env === 'oversize')
             return no('oversize');
         const step = await advance(ctx, g, [env], { source: null });
-        if (!isStep(step))
-            throw new Error('membership.leave: the own operation was not applied');
+        // the own leave took effect: the holder is no member at its own replica any more
+        if (!isStep(step) || Object.hasOwn(step.group.roster, g.memberAnchor))
+            return no('not-yet-canonical');
         const { memberOp: _op, ...rest } = step.group;
         const log = step.group.log;
         return {
@@ -373,7 +383,10 @@ export const syncDef = {
 };
 // ── retention ──────────────────────────────────────────────────────────
 /** What tick lets go of the exchange: an own request past the give-up
- *  horizon; a join unconfirmed at joinUntil becomes void, its buffer dropped. */
+ *  horizon; a join unconfirmed at joinUntil becomes void, its buffer
+ *  dropped. A tick commit carries no events (engine.ts): the app sees this
+ *  void through subscribe and GroupView.phase, not as group.void, which
+ *  only a page that defeats the join announces. */
 export function retainExchange(g, when) {
     let next = g;
     const stale = Object.entries(g.syncs).filter(([, s]) => s.at + HORIZON_MAX < when);

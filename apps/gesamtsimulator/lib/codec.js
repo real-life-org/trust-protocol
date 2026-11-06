@@ -347,7 +347,7 @@ const listedGroup = (shape) => (x, p) => {
 const group = listedGroup(groupShape);
 /** codec 5: the group with its authority log at stage 1, its phase and
  *  its open sync requests; the genesis lives in the log */
-const heldEntry = obj({ env: anyObj, reason: lit('missing-parent', 'ineligible', 'joining'), source: str, since: millis, bytes: natural });
+const heldEntry = obj({ env: anyObj, reason: lit('missing-parent', 'ineligible', 'joining', 'unsupported'), source: str, since: millis, bytes: natural });
 const groupLog = obj({
     'x-rltp-access-stage': lit(1), genesisDigest: str, accepted: rec(anyObj), held: rec(heldEntry),
     repairs: rec(obj({ source: str, since: millis, active: bool })),

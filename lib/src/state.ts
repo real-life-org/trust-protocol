@@ -432,7 +432,7 @@ export interface GroupLogState {
   'x-rltp-access-stage': 1
   genesisDigest: string
   accepted: Record<string, JsonObject>
-  held: Record<string, { env: JsonObject, reason: 'missing-parent' | 'ineligible' | 'joining', source: string, since: Millis, bytes: number }>
+  held: Record<string, { env: JsonObject, reason: 'missing-parent' | 'ineligible' | 'joining' | 'unsupported', source: string, since: Millis, bytes: number }>
   repairs: Record<string, { source: string, since: Millis, active: boolean }>
 }
 
