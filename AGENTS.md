@@ -140,6 +140,13 @@ shared proof vectors (`conformance/tf-proof-vectors.mjs` over
 `lib/src/schemas.ts` and `lib/src/wire.ts`, and the vector generators in
 `--check` mode: each committed vector must be reproduced byte for byte.
 
+Where the library knowingly reads a specification against its text, the
+reading is a row in `lib/DEVIATIONS.md` with the issue that asks the next
+casting to settle it; `lib/test/deviations.test.mjs` ties rows and
+`DEVIATION <id>` markers in `lib/src/` together, and
+`scripts/check-deviations-issues.mjs` (CI) fails once such an issue is
+closed while its row still stands.
+
 For a change under `lib/`, `simulator/` or `apps/gesamtsimulator/`:
 
 ```sh
