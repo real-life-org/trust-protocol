@@ -5,3 +5,4 @@
 export * from './envelope.js';
 export * from './genesis.js';
 export * from './log.js';
+export * from './exchange.js';

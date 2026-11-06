@@ -24,7 +24,7 @@
 import { jcs, sameDigest } from '../core.js';
 import { digestDoc, platformSubtle } from '../crypto.js';
 import { MEMBERSHIP_SKEW, acceptProblem, inviteProblem, membershipSchemaOk } from '../membership.js';
-import { formProblem, genesisDigestOf, mergeProof } from './envelope.js';
+import { ENVELOPE_V, formProblem, genesisDigestOf, mergeProof } from './envelope.js';
 import { GENESIS_OP, genesisProblem } from './genesis.js';
 export const ADD_OP = 'member.add';
 export const LEAVE_OP = 'member.leave';
@@ -223,9 +223,11 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
     const e = env;
     if (!REGISTERED_OPS.has(e.op))
         return { log, verdict: { kind: 'invalid', problem: 'unregistered-op' } };
+    // the genesis itself is known (no second effect); any other genesis, a
+    // root beside it, or another group's DID is not of this log (3280)
     if (e.op === GENESIS_OP)
-        return { log, verdict: { kind: 'invalid', problem: 'second-genesis' } };
-    if (e.prev.length === 0)
+        return { log, verdict: log.accepted[e.id] ? { kind: 'duplicate' } : { kind: 'invalid', problem: 'second-genesis' } };
+    if (e.prev.length === 0 || e.group !== genesisOf(log).group)
         return { log, verdict: { kind: 'invalid', problem: 'other-group' } };
     if (envelopeBytes(e) > ENTRY_BOUND)
         return { log, verdict: { kind: 'invalid', problem: 'oversize' } };
@@ -239,7 +241,7 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
         if (merged === h.env)
             return { log, verdict: { kind: 'duplicate' } };
         const next = { ...log, held: { ...log.held, [e.id]: { ...h, env: merged } } };
-        return tryAccept(next, e.id, subtle);
+        return h.reason === 'joining' ? { log: next, verdict: { kind: 'duplicate' } } : tryAccept(next, e.id, subtle);
     }
     if (e.op === ADD_OP) {
         const sp = await addStaticProblem(e, log.genesisDigest, subtle);
@@ -249,7 +251,6 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
     const missing = e.prev.some((p) => !log.accepted[p]);
     const hold = (reason) => {
         const bytes = envelopeBytes(e);
-        const mine = Object.values(log.held).filter((h) => h.source === at.source);
         const all = Object.values(log.held);
         if (all.length >= bounds.perGroup || all.reduce((n, h) => n + h.bytes, 0) + bytes > bounds.perGroupBytes)
             return { log, verdict: { kind: 'rate-limited' } };
@@ -259,21 +260,52 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
             const m = Object.values(held).filter((h) => h.source === at.source);
             return m.length >= bounds.perSource || m.reduce((n, h) => n + h.bytes, 0) + bytes > bounds.perSourceBytes;
         };
-        while (over() && Object.values(held).some((h) => h.source === at.source)) {
-            const victim = Object.entries(held).filter(([, h]) => h.source === at.source).sort(([ia, a], [ib, b]) => b.bytes - a.bytes || (ia < ib ? -1 : 1))[0];
+        const evictable = () => Object.entries(held).filter(([id, h]) => h.source === at.source && !at.protected?.has(id));
+        while (over() && evictable().length) {
+            const victim = evictable().sort(([ia, a], [ib, b]) => b.bytes - a.bytes || (ia < ib ? -1 : 1))[0];
             const { [victim[0]]: _gone, ...rest } = held;
             held = rest;
         }
-        if (mine.length === 0 && over())
+        // a partition full of protected entries, or an entry no eviction makes room for (retriable)
+        if (over())
             return { log, verdict: { kind: 'rate-limited' } };
         return { log: { ...log, held: { ...held, [e.id]: { env: e, reason, source: at.source, since: at.now, bytes } } }, verdict: { kind: 'held', reason } };
     };
+    if (at.buffer)
+        return hold('joining');
     if (missing)
         return hold('missing-parent');
     if (!(await eligibleAt(log, e, subtle)))
         return hold('ineligible');
     return accept(log, e, subtle);
 }
+/** the genesis of a log: its one accepted operation without a parent */
+export const genesisOf = (log) => Object.values(log.accepted).find((e) => e.op === GENESIS_OP);
+/** Ends the joining buffer once the replica is a member: every buffered
+ *  entry is judged as an arrival would be, ancestor-first. */
+export async function releaseJoining(log, subtle = platformSubtle()) {
+    const buffered = Object.keys(log.held).filter((id) => log.held[id].reason === 'joining');
+    if (buffered.length === 0)
+        return { log, applied: [] };
+    const held = { ...log.held };
+    for (const id of buffered)
+        held[id] = { ...held[id], reason: 'missing-parent' };
+    let next = { ...log, held };
+    const applied = [];
+    for (const id of buffered.sort()) {
+        if (!next.held[id])
+            continue;
+        const r = await tryAccept(next, id, subtle);
+        next = r.log;
+        if (r.verdict.kind === 'applied')
+            applied.push(id, ...r.verdict.healed);
+        else if (r.verdict.kind === 'held' && next.held[id])
+            next = { ...next, held: { ...next.held, [id]: { ...next.held[id], reason: r.verdict.reason } } };
+    }
+    return { log: next, applied };
+}
+/** Drops every held entry (the joining buffer of a join that became void). */
+export const dropHeld = (log) => (Object.keys(log.held).length ? { ...log, held: {} } : log);
 async function tryAccept(log, id, subtle) {
     const h = log.held[id];
     if (h.env.prev.some((p) => !log.accepted[p]))
@@ -292,7 +324,7 @@ async function accept(log, e, subtle) {
         progressed = false;
         for (const id of Object.keys(next.held).sort()) {
             const h = next.held[id];
-            if (h.env.prev.some((p) => !next.accepted[p]))
+            if (h.reason === 'joining' || h.env.prev.some((p) => !next.accepted[p]))
                 continue;
             if (!(await eligibleAt(next, h.env, subtle)))
                 continue;
@@ -316,3 +348,14 @@ export async function openLog(genesis, pinnedDigest, subtle = platformSubtle()) 
         return { problem: 'genesis-digest' };
     return { log: emptyLog(d, g) };
 }
+// ── authoring ──────────────────────────────────────────────────────────
+/** the bound of `prev` (3170); more heads than this need dag.join, which stage 1 does not build */
+export const PREV_MAX = 32;
+/** An unsigned operation at the replica's position: `prev` its heads
+ *  (3170), epoch and policy version those of its ancestors (3175). The
+ *  caller is a member there (the gate of stage 1) and signs it. */
+export const opUnsigned = (log, m, op, author, body) => ({
+    v: ENVELOPE_V, op, group: genesisOf(log).group, epoch: m.epoch, policyVersion: m.policyVersion, prev: m.heads.slice(0, PREV_MAX), body, author,
+});
+/** an operation over the entry bound is not authored (5330) */
+export const oversize = (env) => envelopeBytes(env) > ENTRY_BOUND;

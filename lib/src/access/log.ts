@@ -24,7 +24,7 @@ import type { Json } from '../core.js'
 import type { Millis } from '../state.js'
 import { digestDoc, platformSubtle } from '../crypto.js'
 import { MEMBERSHIP_SKEW, acceptProblem, inviteProblem, membershipSchemaOk } from '../membership.js'
-import { formProblem, genesisDigestOf, mergeProof, type Envelope } from './envelope.js'
+import { ENVELOPE_V, formProblem, genesisDigestOf, mergeProof, type Envelope, type Unsigned } from './envelope.js'
 import { GENESIS_OP, genesisProblem } from './genesis.js'
 
 export const ADD_OP = 'member.add'
@@ -38,9 +38,11 @@ export const REGISTERED_OPS: ReadonlySet<string> = new Set([
 ])
 
 /** why an entry is held rather than accepted (Replication 7.1): a parent is
- *  missing, or its signers are not eligible at its position (an incomplete
- *  proof, healable by a merge) */
-export type HoldReason = 'missing-parent' | 'ineligible'
+ *  missing, its signers are not eligible at its position (an incomplete
+ *  proof, healable by a merge), or the replica is not yet a member and
+ *  buffers what its welcome's issuer sends (`joining`, released by
+ *  releaseJoining) */
+export type HoldReason = 'missing-parent' | 'ineligible' | 'joining'
 
 export interface HeldEntry {
   env: Envelope
@@ -221,6 +223,17 @@ export type AdmitVerdict =
   /** the bounds of the partition or the group refuse further held intake (retriable) */
   | { kind: 'rate-limited' }
 
+export interface AdmitAt {
+  /** the partition (Replication 7.1): the contact the entry came from */
+  source: string
+  now: Millis
+  bounds?: Bounds
+  /** held ids under a running repair (the repair reserve): never evicted */
+  protected?: ReadonlySet<string>
+  /** the replica is joining: a new entry is buffered, not judged */
+  buffer?: boolean
+}
+
 export interface Bounds {
   /** held entries per source partition */
   perSource: number
@@ -270,14 +283,16 @@ async function eligibleAt (log: GroupLog, env: Envelope, subtle: SubtleCrypto): 
  *  parent or ineligible signers hold the entry in its source partition
  *  under the bounds. Returns the new log and the verdict; healing of held
  *  entries follows an acceptance (ancestor-first, by id). */
-export async function admit (log: GroupLog, env: unknown, at: { source: string, now: Millis, bounds?: Bounds }, subtle: SubtleCrypto = platformSubtle()): Promise<{ log: GroupLog, verdict: AdmitVerdict }> {
+export async function admit (log: GroupLog, env: unknown, at: AdmitAt, subtle: SubtleCrypto = platformSubtle()): Promise<{ log: GroupLog, verdict: AdmitVerdict }> {
   const bounds = at.bounds ?? STAGE1_BOUNDS
   const fp = await formProblem(env, subtle)
   if (fp) return { log, verdict: { kind: 'invalid', problem: fp } }
   const e = env as Envelope
   if (!REGISTERED_OPS.has(e.op)) return { log, verdict: { kind: 'invalid', problem: 'unregistered-op' } }
-  if (e.op === GENESIS_OP) return { log, verdict: { kind: 'invalid', problem: 'second-genesis' } }
-  if (e.prev.length === 0) return { log, verdict: { kind: 'invalid', problem: 'other-group' } }
+  // the genesis itself is known (no second effect); any other genesis, a
+  // root beside it, or another group's DID is not of this log (3280)
+  if (e.op === GENESIS_OP) return { log, verdict: log.accepted[e.id] ? { kind: 'duplicate' } : { kind: 'invalid', problem: 'second-genesis' } }
+  if (e.prev.length === 0 || e.group !== genesisOf(log).group) return { log, verdict: { kind: 'invalid', problem: 'other-group' } }
   if (envelopeBytes(e) > ENTRY_BOUND) return { log, verdict: { kind: 'invalid', problem: 'oversize' } }
   if (log.accepted[e.id]) {
     const merged = mergeProof(log.accepted[e.id]!, e)
@@ -288,7 +303,7 @@ export async function admit (log: GroupLog, env: unknown, at: { source: string, 
     const merged = mergeProof(h.env, e)
     if (merged === h.env) return { log, verdict: { kind: 'duplicate' } }
     const next = { ...log, held: { ...log.held, [e.id]: { ...h, env: merged } } }
-    return tryAccept(next, e.id, subtle)
+    return h.reason === 'joining' ? { log: next, verdict: { kind: 'duplicate' } } : tryAccept(next, e.id, subtle)
   }
   if (e.op === ADD_OP) {
     const sp = await addStaticProblem(e, log.genesisDigest, subtle)
@@ -297,7 +312,6 @@ export async function admit (log: GroupLog, env: unknown, at: { source: string, 
   const missing = e.prev.some((p) => !log.accepted[p])
   const hold = (reason: HoldReason): { log: GroupLog, verdict: AdmitVerdict } => {
     const bytes = envelopeBytes(e)
-    const mine = Object.values(log.held).filter((h) => h.source === at.source)
     const all = Object.values(log.held)
     if (all.length >= bounds.perGroup || all.reduce((n, h) => n + h.bytes, 0) + bytes > bounds.perGroupBytes) return { log, verdict: { kind: 'rate-limited' } }
     let held = log.held
@@ -306,18 +320,46 @@ export async function admit (log: GroupLog, env: unknown, at: { source: string, 
       const m = Object.values(held).filter((h) => h.source === at.source)
       return m.length >= bounds.perSource || m.reduce((n, h) => n + h.bytes, 0) + bytes > bounds.perSourceBytes
     }
-    while (over() && Object.values(held).some((h) => h.source === at.source)) {
-      const victim = Object.entries(held).filter(([, h]) => h.source === at.source).sort(([ia, a], [ib, b]) => b.bytes - a.bytes || (ia < ib ? -1 : 1))[0]!
+    const evictable = () => Object.entries(held).filter(([id, h]) => h.source === at.source && !at.protected?.has(id))
+    while (over() && evictable().length) {
+      const victim = evictable().sort(([ia, a], [ib, b]) => b.bytes - a.bytes || (ia < ib ? -1 : 1))[0]!
       const { [victim[0]]: _gone, ...rest } = held
       held = rest
     }
-    if (mine.length === 0 && over()) return { log, verdict: { kind: 'rate-limited' } }
+    // a partition full of protected entries, or an entry no eviction makes room for (retriable)
+    if (over()) return { log, verdict: { kind: 'rate-limited' } }
     return { log: { ...log, held: { ...held, [e.id]: { env: e, reason, source: at.source, since: at.now, bytes } } }, verdict: { kind: 'held', reason } }
   }
+  if (at.buffer) return hold('joining')
   if (missing) return hold('missing-parent')
   if (!(await eligibleAt(log, e, subtle))) return hold('ineligible')
   return accept(log, e, subtle)
 }
+
+/** the genesis of a log: its one accepted operation without a parent */
+export const genesisOf = (log: GroupLog): Envelope => Object.values(log.accepted).find((e) => e.op === GENESIS_OP)!
+
+/** Ends the joining buffer once the replica is a member: every buffered
+ *  entry is judged as an arrival would be, ancestor-first. */
+export async function releaseJoining (log: GroupLog, subtle: SubtleCrypto = platformSubtle()): Promise<{ log: GroupLog, applied: string[] }> {
+  const buffered = Object.keys(log.held).filter((id) => log.held[id]!.reason === 'joining')
+  if (buffered.length === 0) return { log, applied: [] }
+  const held = { ...log.held }
+  for (const id of buffered) held[id] = { ...held[id]!, reason: 'missing-parent' }
+  let next: GroupLog = { ...log, held }
+  const applied: string[] = []
+  for (const id of buffered.sort()) {
+    if (!next.held[id]) continue
+    const r = await tryAccept(next, id, subtle)
+    next = r.log
+    if (r.verdict.kind === 'applied') applied.push(id, ...r.verdict.healed)
+    else if (r.verdict.kind === 'held' && next.held[id]) next = { ...next, held: { ...next.held, [id]: { ...next.held[id]!, reason: r.verdict.reason } } }
+  }
+  return { log: next, applied }
+}
+
+/** Drops every held entry (the joining buffer of a join that became void). */
+export const dropHeld = (log: GroupLog): GroupLog => (Object.keys(log.held).length ? { ...log, held: {} } : log)
 
 async function tryAccept (log: GroupLog, id: string, subtle: SubtleCrypto): Promise<{ log: GroupLog, verdict: AdmitVerdict }> {
   const h = log.held[id]!
@@ -336,7 +378,7 @@ async function accept (log: GroupLog, e: Envelope, subtle: SubtleCrypto): Promis
     progressed = false
     for (const id of Object.keys(next.held).sort()) {
       const h = next.held[id]!
-      if (h.env.prev.some((p) => !next.accepted[p])) continue
+      if (h.reason === 'joining' || h.env.prev.some((p) => !next.accepted[p])) continue
       if (!(await eligibleAt(next, h.env, subtle))) continue
       const { [id]: _gone, ...rest } = next.held
       next = { ...next, held: rest, accepted: { ...next.accepted, [id]: h.env } }
@@ -357,5 +399,20 @@ export async function openLog (genesis: unknown, pinnedDigest: string, subtle: S
   if (!sameDigest(d, pinnedDigest)) return { problem: 'genesis-digest' }
   return { log: emptyLog(d, g) }
 }
+
+// ── authoring ──────────────────────────────────────────────────────────
+
+/** the bound of `prev` (3170); more heads than this need dag.join, which stage 1 does not build */
+export const PREV_MAX = 32
+
+/** An unsigned operation at the replica's position: `prev` its heads
+ *  (3170), epoch and policy version those of its ancestors (3175). The
+ *  caller is a member there (the gate of stage 1) and signs it. */
+export const opUnsigned = (log: GroupLog, m: Materialized, op: typeof ADD_OP | typeof LEAVE_OP, author: string, body: Envelope['body']): Unsigned => ({
+  v: ENVELOPE_V, op, group: genesisOf(log).group, epoch: m.epoch, policyVersion: m.policyVersion, prev: m.heads.slice(0, PREV_MAX), body, author,
+} as Unsigned)
+
+/** an operation over the entry bound is not authored (5330) */
+export const oversize = (env: Envelope): boolean => envelopeBytes(env) > ENTRY_BOUND
 
 export type { Json }
