@@ -498,9 +498,14 @@ class HolderEngine {
             throw new RangeError('retry.commitAttempts must be a positive integer');
         this.#policy = Object.freeze({ backoff, horizonMs, commitAttempts, retentionMs: Math.max(ENGINE_DEFAULTS.retentionMs, horizonMs) });
         const carrierKey = (k) => Object.freeze({ principal: k.principal, sign: guard(k, ['sign'], 'key-provider').sign });
-        const base = guard(ports.keys, ['anchorOf', 'sign', 'agree', 'serviceIdentity'], 'key-provider');
+        const base = guard(ports.keys, ['anchorOf', 'sign', 'agree'], 'key-provider');
+        // serviceIdentity (lib 0.13.0) is needed by a founding alone: a provider
+        // without it starts, and a founding names what is missing
+        const serviceIdentity = typeof ports.keys.serviceIdentity === 'function'
+            ? guard(ports.keys, ['serviceIdentity'], 'key-provider').serviceIdentity
+            : async () => { throw new InfraError('key-provider', 'key-provider: serviceIdentity is not provided; a founding needs it (lib 0.13.0)'); };
         this.#keys = Object.freeze({
-            anchorOf: base.anchorOf, sign: base.sign, agree: base.agree, serviceIdentity: base.serviceIdentity,
+            anchorOf: base.anchorOf, sign: base.sign, agree: base.agree, serviceIdentity,
             carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
         });
         if (ports.log)

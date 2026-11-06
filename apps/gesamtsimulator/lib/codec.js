@@ -352,11 +352,25 @@ const groupLog = obj({
     'x-rltp-access-stage': lit(1), genesisDigest: str, accepted: rec(anyObj), held: rec(heldEntry),
     repairs: rec(obj({ source: str, since: millis, active: bool })),
 });
+/** an operation record keyed by its envelope's id (the codec checks what the schema cannot) */
+const opKeyed = (x, p) => {
+    for (const [k, e] of Object.entries(x)) {
+        const env = e?.env ?? e;
+        if (env?.id !== k)
+            fail(`${p}.${k}`, 'must equal its envelope id');
+    }
+};
+const groupLogKeyed = (shape) => (x, p) => {
+    shape(x, p);
+    const l = x;
+    opKeyed(l.accepted, `${p}.accepted`);
+    opKeyed(l.held, `${p}.held`);
+};
 const group5 = listedGroup(obj({
     id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, phase: lit('joining', 'member', 'void', 'left'),
     roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'threadId'), evidence: rec(evidence),
     preludes: rec(obj({ contactId: str, rkid: str, at: millis })), syncs: rec(obj({ contactId: str, rkid: str, at: millis })),
-}, { did: str, log: groupLog, memberAnchor: str, memberOp: str, acceptDigest: str, issuer: obj({ anchor: str }, { contactId: str, rkid: str }), contentKey: str, joinUntil: millis }));
+}, { did: str, log: groupLogKeyed(groupLog), memberAnchor: str, memberOp: str, acceptDigest: str, issuer: obj({ anchor: str }, { contactId: str, rkid: str }), contentKey: str, joinUntil: millis }));
 const heldCredential = obj({ digest: str, credential: anyObj });
 const enactmentRecord = obj({
     ceremony: str, own: str, tCh: millis, peer: str, counterpart: str, card: anyObj, bind: str, at: millis, label: str, relId: str,

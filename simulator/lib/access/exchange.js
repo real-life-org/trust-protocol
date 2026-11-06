@@ -214,11 +214,12 @@ export async function intake(replica, entries, at, subtle = platformSubtle()) {
         // ineligible proof heals by a merge, not by a closure), inside the reserve
         if (r.verdict.kind === 'held' && r.verdict.reason === 'missing-parent') {
             const e = entry;
-            if (!before.held[e.id] && repairs[e.id] === undefined && protectedIds({ log, repairs }, at.now).size < REPAIR_MAX) {
+            // a parent this replica holds itself (unsupported, ineligible) is asked for by nobody: no repair, no reserve taken
+            const missing = e.prev.filter((p) => !log.accepted[p] && !log.held[p]);
+            if (missing.length && !before.held[e.id] && repairs[e.id] === undefined && protectedIds({ log, repairs }, at.now).size < REPAIR_MAX) {
                 repairs = { ...repairs, [e.id]: { source: at.source, since: at.now, active: true } };
-                for (const p of e.prev)
-                    if (!log.accepted[p] && !log.held[p])
-                        want.add(p);
+                for (const p of missing)
+                    want.add(p);
             }
         }
     }

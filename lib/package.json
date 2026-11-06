@@ -69,6 +69,7 @@
     "schemas/holder-state-v5.schema.json",
     "README.md",
     "CHANGELOG.md",
+    "DEVIATIONS.md",
     "dist/shared-connect.*"
   ],
   "exports": {

@@ -238,8 +238,18 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
       } else {
         next = { ...g }
         if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null) await ask(from.source, { cursor: from.page.next })
+        else if (i.want !== null && from.source !== null) await ask(from.source, { want: i.want })
       }
     }
+  } else if (g.memberAnchor !== undefined && !facts.m.members.includes(g.memberAnchor) && from.source !== null) {
+    // the holder is no member by its own log any more (its own leave applied
+    // elsewhere and exchanged, or a dissolve beside it): it stands as left,
+    // as after leaveDef, and hears nothing more
+    const { memberOp: _op, ...rest } = g
+    replica = { log: { ...replica.log, held: {} }, repairs: {} }
+    for (const t of Object.keys(syncs)) delete syncs[t]
+    next = { ...rest, phase: 'left', listed: false, roster: rosterOf(g, facts, ctx.when), invitations: {}, evidence: {}, preludes: {} }
+    events.push({ type: 'group.left', groupId: g.id })
   } else {
     const roster = rosterOf(g, facts, ctx.when, from.edges)
     for (const a of Object.keys(roster)) if (!Object.hasOwn(g.roster, a)) events.push({ type: 'group.admitted', groupId: g.id, member: a })

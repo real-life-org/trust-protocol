@@ -881,7 +881,8 @@ const welcomeTask = {
 /** The member keys still needed: held groups' and those on the way in
  *  (an answered prelude, an invitation open or accepted). */
 function memberKeys(state, when) {
-    const labels = new Set(Object.values(state.groups).map((g) => g.memberLabel));
+    // a group left or void needs its member key no more (a new invitation keeps it through joining)
+    const labels = new Set(Object.values(state.groups).filter((g) => g.phase !== 'left' && g.phase !== 'void').map((g) => g.memberLabel));
     for (const p of Object.values(state.joining.preludes))
         labels.add(p.memberLabel);
     for (const i of Object.values(state.joining.invites))

@@ -40,10 +40,11 @@ the invitation edges; no CRDT and no service.
 - **Events** (new): `group.joining`, `group.void`, `group.left`,
   `group.departed`; `group.admitted` also for members the log shows.
   **`GroupView.phase`** (new): `joining`, `member`, `void`, `left`.
-- **`KeyProvider.serviceIdentity(group)`** (new, breaking for custom key
-  providers): the founder's service identity in the genesis, derived per
-  person and group under `rltp/v1/x-service-identity-stage1/` (DEVIATION
-  D3). `seedKeys` provides it.
+- **`KeyProvider.serviceIdentity(group)`** (new): the founder's service
+  identity in the genesis, derived per person and group under
+  `rltp/v1/x-service-identity-stage1/` (DEVIATION D3). `seedKeys` provides
+  it. A custom provider without it still starts; a founding then fails
+  with `InfraError('key-provider')` naming it.
 - **Codec 5** (breaking for stored states): a group carries `phase`, `log`
   (with the local mark `x-rltp-access-stage: 1`), `syncs`, `issuer`,
   `contentKey`, `joinUntil`; `genesis` is gone. Codec 4 is read through a

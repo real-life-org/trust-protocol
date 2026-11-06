@@ -126,7 +126,7 @@ function judge(f, id) {
             const leftBefore = [...anc].some((a) => f.verdict.get(a) === 'canonical' && f.log.accepted[a].op === LEAVE_OP && f.log.accepted[a].author === subject);
             const consumed = [...anc].some((a) => f.verdict.get(a) === 'canonical' && f.log.accepted[a].op === ADD_OP && sameDigest(f.acceptDigestOf.get(a), acceptDigest));
             // rule 0 (5400; with a leave in the ancestry read as a pending exit, DEVIATION D2), rule 4 (5460, any-member), rule 5 (5470)
-            if (M.has(subject) || leftBefore || !M.has(inviter) || consumed)
+            if (M.has(subject) || leftBefore || !M.has(inviter) || !M.has(env.author) || consumed)
                 v = 'not-canonical';
             else {
                 v = 'canonical';
@@ -151,7 +151,27 @@ async function foldOf(log, subtle) {
         else
             f.acceptDigestOf.set(id, st.acceptDigest);
     }
-    for (const id of ids)
+    // ancestor-first (depth, then id): every ancestor is judged before its
+    // descendant, so judge never descends recursively through a long chain
+    const depth = new Map();
+    for (const id of ids) {
+        const stack = [id];
+        while (stack.length) {
+            const top = stack[stack.length - 1];
+            if (depth.has(top)) {
+                stack.pop();
+                continue;
+            }
+            const open = log.accepted[top].prev.filter((p) => !depth.has(p));
+            if (open.length) {
+                stack.push(...open);
+                continue;
+            }
+            depth.set(top, log.accepted[top].prev.reduce((d, p) => Math.max(d, depth.get(p) + 1), 0));
+            stack.pop();
+        }
+    }
+    for (const id of [...ids].sort((a, b) => depth.get(a) - depth.get(b) || (a < b ? -1 : 1)))
         judge(f, id);
     return f;
 }
@@ -232,15 +252,20 @@ async function staticOf(env, genesisDigest, subtle) {
     STATIC_CACHE.set(key, out);
     return out;
 }
-/** eligible signers at a position (3315): the members there plus the body's subject */
-async function eligibleSet(log, env, subtle) {
+/** The signers at a position (3315): the members there, and the eligible
+ *  ones — the members plus the subject of a member.add that passes rules
+ *  1–3 (its accept carries the subject's signature; a broken admission
+ *  makes nobody eligible). */
+async function signersAt(log, env, subtle) {
     const f = await foldOf({ ...log, accepted: { ...log.accepted, [env.id]: env } }, subtle);
-    const eligible = membersIn(f, closureOf(f, env.id));
+    const members = membersIn(f, closureOf(f, env.id));
+    const eligible = new Set(members);
     const subject = env.body?.subject;
-    if (typeof subject === 'string')
+    if (env.op === ADD_OP && typeof subject === 'string' && !f.staticBad.has(env.id))
         eligible.add(subject);
-    return eligible;
+    return { members, eligible };
 }
+const eligibleSet = async (log, env, subtle) => (await signersAt(log, env, subtle)).eligible;
 /** The proof cut to eligible signers (3130: a signature of anyone else is
  *  no part of the proof and never blocks the operation). */
 const trimmed = (env, eligible) => {
@@ -248,12 +273,14 @@ const trimmed = (env, eligible) => {
     const kept = sigs.filter((s) => eligible.has(s.signer));
     return kept.length === sigs.length ? env : { ...env, proof: { ...env.proof, signatures: kept } };
 };
-/** Whether an operation can be accepted at its position: its author is an
- *  eligible signer and has signed it; the returned envelope carries only
- *  the eligible signatures. */
+/** Whether an operation can be accepted at its position: its author is a
+ *  member there (stage 1 authors only as a member: the policy's
+ *  `any-member`, 4.1) and has signed it; the returned envelope carries only
+ *  the eligible signatures. Anything else is held, never accepted, so it
+ *  never travels (S1-5). */
 async function eligibleAt(log, env, subtle) {
-    const eligible = await eligibleSet(log, env, subtle);
-    if (!eligible.has(env.author) || !(env.proof.signatures ?? []).some((s) => s.signer === env.author))
+    const { members, eligible } = await signersAt(log, env, subtle);
+    if (!members.has(env.author) || !(env.proof.signatures ?? []).some((s) => s.signer === env.author))
         return null;
     return trimmed(env, eligible);
 }
@@ -279,7 +306,10 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
     if (envelopeBytes(e) > ENTRY_BOUND)
         return { log, verdict: { kind: 'invalid', problem: 'oversize' } };
     if (log.accepted[e.id]) {
-        // only eligible signers join the held proof (3130)
+        // only eligible signers join the held proof (3130); without a new signer nothing is computed
+        const known = new Set((log.accepted[e.id].proof.signatures ?? []).map((x) => x.signer));
+        if ((e.proof.signatures ?? []).every((x) => known.has(x.signer)))
+            return { log, verdict: { kind: 'duplicate' } };
         const { [e.id]: _self, ...before } = log.accepted;
         const merged = mergeProof(log.accepted[e.id], trimmed(e, await eligibleSet({ ...log, accepted: before }, log.accepted[e.id], subtle)));
         return { log: merged === log.accepted[e.id] ? log : { ...log, accepted: { ...log.accepted, [e.id]: merged } }, verdict: { kind: 'duplicate' } };
@@ -289,7 +319,11 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
         const merged = mergeProof(h.env, e);
         if (merged === h.env)
             return { log, verdict: { kind: 'duplicate' } };
-        const next = { ...log, held: { ...log.held, [e.id]: { ...h, env: merged } } };
+        // the merged entry is counted again; over the entry bound it keeps its proof
+        const bytes = envelopeBytes(merged);
+        if (bytes > ENTRY_BOUND)
+            return { log, verdict: { kind: 'duplicate' } };
+        const next = { ...log, held: { ...log.held, [e.id]: { ...h, env: merged, bytes } } };
         return h.reason === 'joining' || h.reason === 'unsupported' ? { log: next, verdict: { kind: 'duplicate' } } : tryAccept(next, e.id, subtle);
     }
     const missing = e.prev.some((p) => !log.accepted[p]);
