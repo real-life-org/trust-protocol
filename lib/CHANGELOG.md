@@ -61,6 +61,40 @@ adapter, none of the guarantees I1–I16, an entry bound below the floor of
 §9. Not built: key distribution and transitions, the conflict matrix,
 `policy.change`, device cards, views, `member.remove`, the pending exit.
 
+The shared connection ceremony across apps, as agreed with Consensual and
+Keyring (trustoverip/dtgwg-trust-tasks-tf#1034 as revised on 5 November
+2026, dtgwg-vti-spec#86): two registry Trust Tasks, one ceremony
+definition, a VTI trigger link whose `_from` is a per-encounter
+`did:peer:2` carrying the inviter's relays. Draft; the registry entries are
+proposed, not registered. No change to the encounter ceremony.
+
+- **`sharedConnect`** (new module, exported as a namespace): `peer2Of` /
+  `parsePeer2` / `peer2MethodFor` (did:peer:2 numalgo 2 by the DIF rules,
+  verification relationships as the purpose codes say, keys numbered in
+  order of appearance, local resolution, both TSP service spellings read;
+  our producers write `.V<ed>.A<ed>.E<x>`), `sharedConnectLink` /
+  `readSharedConnectLink` / `normalLabel` (the trigger link with `_from`,
+  `_id`, `_exp`, `_type` and the proposed `_label`; checks in the order of
+  VTI-LNK-020, the flow compared as a whole URI, expiry caps of 10 minutes
+  for codes and 7 days for links), `propose` / `accept` / `credential` /
+  `issue` / `receipt` (the five documents and the receipts; `EncounterCredential`
+  only for `scan` or `displayed`, a plain `RelationshipCredential` over a link; step proofs
+  under `authentication` by the issuer's authentication key; the response
+  payload is closed, the inviter's name travels in `_label`),
+  `checkPropose` / `checkAccept` / `checkIssue` / `checkReceipt` (what each
+  receiving side refuses, envelope and payload shape first, the link's
+  `_exp` bounding the handle), `binding` (RLTP-ENC-5330 under the ceremony
+  URI), `backCodeOf` / `proposeFromBackCode` (the offline path: the propose
+  in reconstruction form), `partyFromSeeds`.
+- `vectors/shared-connect.json` (new, with `mustFail` cases) and a third row
+  in `vectors/shared-connect-binding.json` for the `shared-connect/0.1`
+  ceremony URI.
+- Known gaps of this casting: `_from` and `issuer` must be a `did:peer:2`
+  (the long form of `did:peer:4`, which the registry entry admits, is
+  refused as `unsupported-vid`); `relationshipDid` must be an Ed25519
+  `did:key` (`unsupported-pair-did` otherwise); the library keeps no replay
+  state for a propose seen twice.
+
 ## 0.12.0
 
 The contact view names the contacts shared with a contact. The holder

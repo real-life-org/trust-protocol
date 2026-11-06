@@ -85,6 +85,7 @@ export * from './carrier-holder.js';
 export { PROFILE_TYPE, PROFILE_LIMITS, profileSchemaOk, imageDimensions, imageWithinBounds, profileProblem, profileInfo, profileKey, assembleProfile, profileMacOk, } from './profile.js';
 export * as visibility from './visibility.js';
 export * as ceremony from './ceremony.js';
+export * as sharedConnect from './shared-connect.js';
 import { decodeState as decodeStructural } from './codec.js';
 export { CODEC, StateCodecError } from './codec.js';
 /** Load a stored state (a JSON string or a parsed value): an independent,
