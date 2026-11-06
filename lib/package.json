@@ -65,7 +65,8 @@
     "schemas/holder-state-v3.schema.json",
     "schemas/holder-state-v4.schema.json",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "dist/shared-connect.*"
   ],
   "exports": {
     ".": {

@@ -60,25 +60,26 @@ const newId = () => b64uOf(rand(16));
 // ── the inviter: messaging identity (did:peer:2) and pair anchor (did:key) ──
 const msgSeed = rand(32), pairSeed = rand(32);
 const relays = [{ kind: "tsp-mediator", address: RELAY_ADDRESS }];
-const me = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME);
+const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME);
 // raw secrets for the TSP wire, from the same derivation as partyFromSeeds
 const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
 const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");
 const xPublic = x25519.getPublicKey(xSecret);
-if (Buffer.compare(ed25519.getPublicKey(edSecret), me.peer.ed) !== 0 || Buffer.compare(xPublic, me.peer.x) !== 0) {
+if (Buffer.compare(ed25519.getPublicKey(edSecret), party.peer.ed) !== 0 || Buffer.compare(xPublic, party.peer.x) !== 0) {
   throw new Error("key derivation mismatch between the library and the wire");
 }
-const myDid = me.messaging.did;
+const myDid = party.messaging.did;
+const xKid = myDid + party.peer.doc.keyAgreement[0]; // the X25519 method as numbered in the DID (#key-3 in our V.A.E form)
 const myChallenge = sc.challengeOf16(rand(16));
 const exp = Math.floor(Date.now() / 1000) + MINUTES * 60;
 const link = sc.sharedConnectLink({ from: myDid, id: myChallenge, exp, ...(NAME ? { label: NAME } : {}) });
 
 say(`inviter did:peer:2  ${myDid}`);
-say(`relationshipDid     ${me.pair.anchor}`);
+say(`relationshipDid     ${party.pair.anchor}`);
 say(`challenge (_id)     ${myChallenge}`);
 say(`link (${link.length} chars, valid ${MINUTES} min)`);
 console.log(link);
-save("inviter.json", { did: myDid, document: me.peer.doc, relationshipDid: me.pair.anchor, challenge: myChallenge, exp, link });
+save("inviter.json", { did: myDid, document: party.peer.doc, relationshipDid: party.pair.anchor, challenge: myChallenge, exp, link }); // note: the handle (_id) is on disk for the dev run
 if (flag("--qr")) {
   try {
     const { createRequire } = await import("node:module");
@@ -89,12 +90,14 @@ if (flag("--qr")) {
 
 // ── the mediator session under the did:peer:2 ──────────────────────────
 const auth = await authenticateToMediator({
-  mediatorDid: MEDIATOR_DID, clientDid: myDid, clientKid: myDid + "#key-2",
+  mediatorDid: MEDIATOR_DID, clientDid: myDid, clientKid: xKid,
   clientX25519Private: xSecret, clientX25519Public: xPublic, netPolicy,
 });
 say(`authenticated at ${MEDIATOR_DID} (ws ${auth.mediator.wsEndpoint})`);
 
 const state = { propose: null, accept: null, binding: null, issueMine: null, issueTheirs: null, receiptTheirs: null, done: false, relationship: new Set(), form: "bare" };
+// the link's _exp bounds the handle (checkPropose refuses after it); the CLI keeps one enactment
+const me = { did: myDid, id: myChallenge, exp };
 const timers = [];
 const finish = (why) => { say(why); for (const t of timers) clearTimeout(t); try { session.close(); } catch {} setTimeout(() => process.exit(state.done ? 0 : 1), 200); };
 
@@ -114,7 +117,8 @@ async function onTspFrame (qb2) {
   try { senderVid = decodeEnvelope(qb2).envelope.sender ?? "unknown"; } catch {}
   const peer = sc.parsePeer2(senderVid);
   if (!peer) { say(`frame from ${senderVid}: not a did:peer:2 this ceremony reads; dropped`); return; }
-  const got = await tspUnpack(qb2, { receiverDecryptionKey: xSecret, senderSigningKey: peer.ed });
+  let got;
+  try { got = await tspUnpack(qb2, { receiverDecryptionKey: xSecret, senderSigningKey: peer.ed }); } catch (e) { say(`frame from ${senderVid.slice(0, 40)}… does not open (${e?.message ?? e}); dropped`); return; }
   if (got.receiver !== myDid) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") {
     const kind = got.control?.controlType ?? "unknown";
@@ -139,31 +143,39 @@ async function onTspFrame (qb2) {
   save(`in-${Date.now()}-${String(doc.type ?? "untyped").split("/").slice(-2).join("-").replace("#", "_")}.json`, doc);
 
   if (doc.type === sc.TASK_PROPOSE) {
-    if (state.propose) { say("a second propose; ignored (the handle is single-use)"); return; }
-    const refusal = await sc.checkPropose(doc, { did: myDid, id: myChallenge }, Date.now());
-    if (refusal) { say(`propose refused: ${refusal}`); return; }
     if (doc.issuer !== peer.did) { say("propose issuer differs from the TSP sender; refused"); return; }
-    state.propose = doc;
-    say(`propose accepted from ${doc.payload.reason ?? "(no name)"}: relationshipDid ${doc.payload.relationshipDid}`);
+    if (state.propose) {
+      // the same propose again (a redelivery): the answer goes out again; another one is ignored, the handle is single-use
+      if (doc.id === state.propose.id && JSON.stringify(doc) === JSON.stringify(state.propose)) { say("the propose again; resending accept and issue"); await sendDocument(peer, state.accept); await sendDocument(peer, state.issueMine); }
+      else say("a second propose; ignored (the handle is single-use)");
+      return;
+    }
+    const refusal = await sc.checkPropose(doc, me, Date.now());
+    if (refusal) { say(`propose refused: ${refusal}`); return; }
+    // the person confirms here: the app shows the (unverified) name and asks before anything is issued
+    say(`propose from ${doc.payload.reason ?? "(no name)"} (unverified): relationshipDid ${doc.payload.relationshipDid}; dev run, accepting`);
     const now = Date.now();
-    state.accept = await sc.accept(me, doc, now, newId());
-    state.binding = await sc.binding(myChallenge, doc.id);
-    const vrc = await sc.credential(me, doc.payload.relationshipDid, doc.id, state.binding, "displayed", now);
-    state.issueMine = await sc.issue(me, doc.issuer, doc.id, myChallenge, "issue-inviter", vrc, now, newId());
-    save("accept.json", state.accept); save("issue-inviter.json", state.issueMine);
-    await sendDocument(peer, state.accept);
-    await sendDocument(peer, state.issueMine);
+    const accept = await sc.accept(party, doc, now, newId());
+    const binding = await sc.binding(myChallenge, doc.id);
+    const vrc = await sc.credential(party, doc.payload.relationshipDid, doc.id, binding, "displayed", now);
+    const issueMine = await sc.issue(party, doc.issuer, doc.id, myChallenge, "issue-inviter", vrc, now, newId());
+    // state is set only once both documents exist; a throw above leaves the frame unacked for a retry
+    Object.assign(state, { propose: doc, accept, binding, issueMine });
+    save("accept.json", accept); save("issue-inviter.json", issueMine);
+    await sendDocument(peer, accept);
+    await sendDocument(peer, issueMine);
     return;
   }
   if (doc.type === sc.TASK_ISSUE) {
     if (!state.propose) { say("issue before any propose; refused"); return; }
+    if (doc.issuer !== peer.did) { say("issue issuer differs from the TSP sender; refused"); return; }
     const refusal = await sc.checkIssue(doc, {
       issuerDid: state.propose.issuer, myDid, threadId: state.propose.id, enactment: myChallenge, step: "issue-responder",
-      issuerPair: state.propose.payload.relationshipDid, myPair: me.pair.anchor, myChallenge, binding: state.binding,
+      issuerPair: state.propose.payload.relationshipDid, myPair: party.pair.anchor, myChallenge, binding: state.binding,
     });
     if (refusal) { say(`issue refused: ${refusal} (the document is saved for a look)`); return; }
     state.issueTheirs = doc;
-    const rcp = await sc.receipt(me, doc, Date.now(), newId());
+    const rcp = await sc.receipt(party, doc, Date.now(), newId());
     save("receipt-of-issue-responder.json", rcp);
     await sendDocument(peer, rcp);
     say("the responder's credential verified and receipted");
@@ -172,10 +184,11 @@ async function onTspFrame (qb2) {
   }
   if (doc.type === sc.TASK_ISSUE + "#response") {
     if (!state.issueMine) { say("a receipt before any issue; ignored"); return; }
-    const ok = (await sc.verifyStep(doc)) && doc.payload?.vrcDigestMultibase === state.issueMine.payload.vrcDigestMultibase;
-    say(ok ? "receipt for my issue verified (digest matches the credential I sent)" : "receipt for my issue does NOT verify or names another digest");
-    if (ok) state.receiptTheirs = doc;
-    if (ok && state.issueTheirs) { state.done = true; finish("enactment complete: both credentials and both receipts"); }
+    if (doc.issuer !== peer.did) { say("receipt issuer differs from the TSP sender; refused"); return; }
+    const refusal = await sc.checkReceipt(doc, state.issueMine, { issuerDid: state.propose.issuer, myDid });
+    say(refusal ? `receipt for my issue refused: ${refusal}` : "receipt for my issue verified (digest matches the credential I sent)");
+    if (!refusal) state.receiptTheirs = doc;
+    if (!refusal && state.issueTheirs) { state.done = true; finish("enactment complete: both credentials and both receipts"); }
     return;
   }
   say(`document of type ${doc.type}: not a step of this ceremony; saved only`);
@@ -183,7 +196,7 @@ async function onTspFrame (qb2) {
 
 const session = new MediatorSession({
   mediator: auth.mediator, mediatorJwt: auth.accessToken,
-  client: { did: myDid, kid: myDid + "#key-2", privateKey: xSecret, publicKey: xPublic },
+  client: { did: myDid, kid: xKid, privateKey: xSecret, publicKey: xPublic },
   netPolicy, onTspFrame,
   onClose: () => say("socket closed by the mediator"),
   onError: (e) => say(`socket error: ${e?.message ?? e}`),

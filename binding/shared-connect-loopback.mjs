@@ -42,6 +42,7 @@ const responder = await side("Keyring", [{ kind: "tsp-mediator", address: MED }]
 const id = sc.challengeOf16(rand(16));
 const exp = Math.floor(Date.now() / 1000) + 600;
 const link = sc.sharedConnectLink({ from: inviter.did, id, exp, label: "Anton" });
+const me = { did: inviter.did, id, exp };
 const read = sc.readSharedConnectLink(link);
 ok(read.ok && read.link.from.relays[0].address === MED, `link reads (${link.length} chars), relay ${MED.slice(0, 24)}…`);
 
@@ -58,7 +59,7 @@ const now = Date.now();
 const respId = sc.challengeOf16(rand(16));
 const propose = await sc.propose(responder.party, read.link.from.did, read.link.id, respId, now);
 const propAt = await hop(responder, inviter, propose);
-ok((await sc.checkPropose(propAt, { did: inviter.did, id }, now + 1000)) === null, "checkPropose passes at the inviter");
+ok((await sc.checkPropose(propAt, me, now + 1000)) === null, "checkPropose passes at the inviter");
 
 // accept + issue → responder
 const accept = await sc.accept(inviter.party, propAt, now + 2000, b64uOf(rand(16)));
@@ -67,7 +68,7 @@ const vrcInv = await sc.credential(inviter.party, propAt.payload.relationshipDid
 const issueInv = await sc.issue(inviter.party, propAt.issuer, propAt.id, id, "issue-inviter", vrcInv, now + 2000, b64uOf(rand(16)));
 const accAt = await hop(inviter, responder, accept);
 const issInvAt = await hop(inviter, responder, issueInv);
-ok((await sc.checkAccept(accAt, propose, inviter.did)) === null, "checkAccept passes at the responder");
+ok((await sc.checkAccept(accAt, propose, inviter.did, now + 3000)) === null, "checkAccept passes at the responder");
 const bindingResp = await sc.binding(id, respId);
 ok((await sc.checkIssue(issInvAt, { issuerDid: inviter.did, myDid: responder.did, threadId: respId, enactment: id, step: "issue-inviter", issuerPair: accAt.payload.relationshipDid, myPair: responder.party.pair.anchor, myChallenge: respId, binding: bindingResp })) === null, "checkIssue passes for the inviter's credential");
 
@@ -77,13 +78,13 @@ const vrcResp = await sc.credential(responder.party, accAt.payload.relationshipD
 const issueResp = await sc.issue(responder.party, inviter.did, respId, id, "issue-responder", vrcResp, now + 3000, b64uOf(rand(16)));
 const rcpAt = await hop(responder, inviter, rcpInv);
 const issRespAt = await hop(responder, inviter, issueResp);
-ok((await sc.verifyStep(rcpAt)) && rcpAt.payload.vrcDigestMultibase === issueInv.payload.vrcDigestMultibase, "the responder's receipt names the credential the inviter sent");
+ok((await sc.checkReceipt(rcpAt, issueInv, { issuerDid: responder.did, myDid: inviter.did })) === null, "the responder's receipt names the credential the inviter sent");
 ok((await sc.checkIssue(issRespAt, { issuerDid: responder.did, myDid: inviter.did, threadId: respId, enactment: id, step: "issue-responder", issuerPair: propAt.payload.relationshipDid, myPair: inviter.party.pair.anchor, myChallenge: id, binding })) === null, "checkIssue passes for the responder's credential");
 const rcpResp = await sc.receipt(inviter.party, issRespAt, now + 4000, b64uOf(rand(16)));
 const rcpRespAt = await hop(inviter, responder, rcpResp);
-ok((await sc.verifyStep(rcpRespAt)) && rcpRespAt.payload.vrcDigestMultibase === issueResp.payload.vrcDigestMultibase, "the inviter's receipt names the credential the responder sent");
+ok((await sc.checkReceipt(rcpRespAt, issueResp, { issuerDid: inviter.did, myDid: responder.did })) === null, "the inviter's receipt names the credential the responder sent");
 
 // the offline path, for the same propose
 const back = sc.backCodeOf(propose);
-ok(JSON.stringify(sc.proposeFromBackCode(back, { did: inviter.did, id })) === JSON.stringify(propose), `back-code (${back.length} chars) rebuilds the propose`);
+ok(JSON.stringify(sc.proposeFromBackCode(back, me)) === JSON.stringify(propose), `back-code (${back.length} chars) rebuilds the propose`);
 console.log("\nshared-connect loopback: enactment complete, every check passed");

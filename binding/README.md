@@ -198,7 +198,11 @@ counterpart's X25519 key, signed by the sender's Ed25519 key, both from the
 `did:peer:2`), inside the registry's TSP binding envelope
 `{ type: "https://trusttasks.org/binding/tsp/0.1/envelope", document }`;
 the inviter answers in the form the counterpart used (bare or enveloped).
-The mediator needs open sign-up and direct delivery for logged-in senders,
+The CLIs are dev runs: the inviter accepts the first valid propose without
+a person confirming, where the app shows the (unverified) name from the
+propose and asks first; `inviter.json` writes the handle (`_id`) to disk;
+no `trust-task-error` (a decline) is handled. The mediator needs open
+sign-up and direct delivery for logged-in senders,
 which `deploy/mediator` in `real-life-org/web-of-trust` configures. A run
 on 6 November 2026 against `mediator.web-of-trust.de` completed the
 enactment in six seconds.
