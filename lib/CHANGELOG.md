@@ -121,11 +121,19 @@ proposed, not registered. No change to the encounter ceremony.
 - `vectors/shared-connect.json` (new, with `mustFail` cases) and a third row
   in `vectors/shared-connect-binding.json` for the `shared-connect/0.1`
   ceremony URI.
-- Known gaps of this casting: `_from` and `issuer` must be a `did:peer:2`
-  (the long form of `did:peer:4`, which the registry entry admits, is
-  refused as `unsupported-vid`); `relationshipDid` must be an Ed25519
+- **did:peer:4** beside did:peer:2 as the messaging identity: `peer4Of`,
+  `parsePeer4` (long form; the hash binds the document; a short form
+  resolves only against a long form held in `known`), `parsePeer`,
+  `peer4Short`, `canonicalVid` / `sameVid` (one identity, two spellings).
+  The link and a propose carry the long form; later steps may use the
+  short form. Checked against the example of the DIF Peer DID spec.
+  `sharedConnectLink`, `readSharedConnectLink` and `proposeFromBackCode`
+  are asynchronous now (the did:peer:4 hash is a WebCrypto digest).
+- Known gaps of this casting: `relationshipDid` must be an Ed25519
   `did:key` (`unsupported-pair-did` otherwise); the library keeps no replay
-  state for a propose seen twice.
+  state for a propose seen twice. Measured live on 6 November 2026: the VTI
+  mediator (Affinidi 0.45) does not resolve did:peer:4 in its authcrypt
+  login, so a side that logs in at that mediator uses did:peer:2 there.
 
 ## 0.12.0
 

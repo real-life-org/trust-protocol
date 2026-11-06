@@ -1,0 +1,48 @@
+{
+  "did": "did:peer:2.Vz6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Az6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Ez6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6ImRpZDp3ZWJ2aDpRbVVUVWtkSGdwcGljaUxwcWN4a1RpNlBiYzlWdVp6V1h2SDRMMkRrMmRZMldMOm1lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
+  "document": {
+    "id": "did:peer:2.Vz6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Az6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Ez6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6ImRpZDp3ZWJ2aDpRbVVUVWtkSGdwcGljaUxwcWN4a1RpNlBiYzlWdVp6V1h2SDRMMkRrMmRZMldMOm1lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
+    "verificationMethod": [
+      {
+        "id": "#key-1",
+        "type": "Multikey",
+        "controller": "did:peer:2.Vz6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Az6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Ez6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6ImRpZDp3ZWJ2aDpRbVVUVWtkSGdwcGljaUxwcWN4a1RpNlBiYzlWdVp6V1h2SDRMMkRrMmRZMldMOm1lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
+        "publicKeyMultibase": "z6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg"
+      },
+      {
+        "id": "#key-2",
+        "type": "Multikey",
+        "controller": "did:peer:2.Vz6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Az6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Ez6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6ImRpZDp3ZWJ2aDpRbVVUVWtkSGdwcGljaUxwcWN4a1RpNlBiYzlWdVp6V1h2SDRMMkRrMmRZMldMOm1lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
+        "publicKeyMultibase": "z6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg"
+      },
+      {
+        "id": "#key-3",
+        "type": "Multikey",
+        "controller": "did:peer:2.Vz6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Az6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Ez6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6ImRpZDp3ZWJ2aDpRbVVUVWtkSGdwcGljaUxwcWN4a1RpNlBiYzlWdVp6V1h2SDRMMkRrMmRZMldMOm1lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
+        "publicKeyMultibase": "z6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM"
+      }
+    ],
+    "authentication": [
+      "#key-1"
+    ],
+    "assertionMethod": [
+      "#key-2"
+    ],
+    "keyAgreement": [
+      "#key-3"
+    ],
+    "capabilityInvocation": [],
+    "capabilityDelegation": [],
+    "service": [
+      {
+        "id": "#service",
+        "type": "TSPTransport",
+        "serviceEndpoint": "did:webvh:QmUTUkdHgppiciLpqcxkTi6Pbc9VuZzWXvH4L2Dk2dY2WL:mediator.web-of-trust.de"
+      }
+    ]
+  },
+  "relationshipDid": "did:key:z6Mkv6gDNc8B82N8vgrigH7JuaRbTS4sBZeXcdXsqgQqULF1",
+  "challenge": "iO_UPKgXHQfzZMybqcAKmw",
+  "exp": 1793979003,
+  "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Az6Mkrnrrb1st8tox8nxbPTPVGVz9F7xkJuymerVQ2SthMukg.Ez6LSiJSLgnn4fGzr67BoqXaYZhrVETB9ocfYYKpM6wRWqfWM.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6ImRpZDp3ZWJ2aDpRbVVUVWtkSGdwcGljaUxwcWN4a1RpNlBiYzlWdVp6V1h2SDRMMkRrMmRZMldMOm1lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=iO_UPKgXHQfzZMybqcAKmw&_exp=1793979003&_type=/vti/flow/shared-connect/0.1&_label=Anton"
+}

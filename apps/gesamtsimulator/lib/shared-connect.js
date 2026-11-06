@@ -30,9 +30,10 @@
 // RECONSTRUCTION form (what the inviter does not already hold); the
 // inviter rebuilds the document from its own state and verifies the proof.
 //
-// Known gaps of this first casting: `_from` and `issuer` must be a
-// did:peer:2 (the long form of did:peer:4, which the registry entry admits,
-// is refused as `unsupported-vid`); `relationshipDid` must be an Ed25519
+// Both did:peer:2 and did:peer:4 are read and written as the messaging
+// identity (the long form of did:peer:4 in the link and on a propose; the
+// short form where the long form was seen). Known gap: `relationshipDid`
+// must be an Ed25519
 // did:key (another method is refused as `unsupported-pair-did`). The
 // library keeps no replay state: a propose seen twice is the caller's to
 // absorb (the CLIs do, by the propose id).
@@ -175,9 +176,9 @@ export function parsePeer2(did) {
         if (kind && address)
             relays.push({ kind, address });
     }
-    return { did, ed: ed.raw, x: x.raw, doc, relays };
+    return { did, ref: did, ed: ed.raw, x: x.raw, doc, relays };
 }
-/** The Ed25519 method of a did:peer:2 listed under `purpose`, or null. */
+/** The Ed25519 method of a peer DID listed under `purpose`, or null. */
 export function peer2MethodFor(peer, purpose) {
     for (const id of peer.doc[purpose]) {
         const vm = peer.doc.verificationMethod.find((m) => m.id === id);
@@ -185,8 +186,144 @@ export function peer2MethodFor(peer, purpose) {
             continue;
         const k = multikeyOf(vm.publicKeyMultibase);
         if (k?.kind === 'ed')
-            return { id: peer.did + id, raw: k.raw };
+            return { id: peer.ref + id, raw: k.raw };
     }
+    return null;
+}
+// ── did:peer:4 (DIF Peer DID method, numalgo 4) ─────────────────────────
+// Long form did:peer:4<hash>:<encoded document>, short form did:peer:4<hash>.
+// encoded document = 'z' + base58btc(varint 0x0200 (json) || utf8(JSON without
+// whitespace)); hash = 'z' + base58btc(0x12 0x20 || sha2-256(utf8(encoded
+// document))). The input document has no root id, and relative ids. A short
+// form resolves only against a long form seen before (`known`).
+// This ceremony's producers write the input document
+// { verificationMethod: [ed #key-1, x #key-2], authentication, assertionMethod: [#key-1],
+//   keyAgreement: [#key-2], service: [{ id: '#service[-n]', type, serviceEndpoint }] }.
+const JSON_CODEC = Uint8Array.from([0x80, 0x04]);
+const sha256Sync = async (s) => sha(te.encode(s));
+/** Render this ceremony's did:peer:4 (long form). */
+export async function peer4Of(edPub, xPub, relays = []) {
+    const input = {
+        verificationMethod: [
+            { id: '#key-1', type: 'Multikey', publicKeyMultibase: anchorOfEd(edPub).slice('did:key:'.length) },
+            { id: '#key-2', type: 'Multikey', publicKeyMultibase: mkOfX(xPub) },
+        ],
+        authentication: ['#key-1'],
+        assertionMethod: ['#key-1'],
+        keyAgreement: ['#key-2'],
+        service: relays.map((r, n) => ({ id: n === 0 ? '#service' : '#service-' + n, type: RELAY_TYPE_OF[r.kind] ?? r.kind, serviceEndpoint: r.address })),
+    };
+    const encoded = 'z' + base58(cat(JSON_CODEC, te.encode(JSON.stringify(input))));
+    const hash = 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Sync(encoded)));
+    return 'did:peer:4' + hash + ':' + encoded;
+}
+/** The short form of a did:peer:4 (long or short); null for anything else. */
+export const peer4Short = (did) => {
+    if (typeof did !== 'string' || !did.startsWith('did:peer:4z'))
+        return null;
+    const i = did.indexOf(':', 'did:peer:4'.length);
+    return i < 0 ? did : did.slice(0, i);
+};
+/** One identity, two spellings: did:peer:4 compares by its short form, anything else as written. */
+export const canonicalVid = (did) => peer4Short(did) ?? did;
+export const sameVid = (a, b) => typeof a === 'string' && typeof b === 'string' && canonicalVid(a) === canonicalVid(b);
+const relationOf = (doc, rel, methods) => {
+    const out = [];
+    for (const r of doc[rel] ?? []) {
+        if (typeof r === 'string') {
+            if (!r.startsWith('#'))
+                return null;
+            out.push(r);
+        }
+        else if (r && typeof r === 'object' && typeof r.id === 'string' && r.id.startsWith('#') && typeof r.publicKeyMultibase === 'string') {
+            methods.set(r.id, { id: r.id, type: 'Multikey', controller: '', publicKeyMultibase: r.publicKeyMultibase });
+            out.push(r.id);
+        }
+        else
+            return null;
+    }
+    return out;
+};
+/** Parse and resolve a did:peer:4 locally (long form, or a short form whose long form is in `known`).
+ *  Null when the hash does not match the document, or it is not one this ceremony can use. */
+export async function parsePeer4(did, known = []) {
+    const short = peer4Short(did);
+    if (!short || typeof did !== 'string')
+        return null;
+    let long = did;
+    if (long === short) {
+        long = '';
+        for (const k of known)
+            if (k !== short && peer4Short(k) === short) {
+                long = k;
+                break;
+            }
+    }
+    if (!long)
+        return null;
+    const encoded = long.slice(short.length + 1);
+    const hash = short.slice('did:peer:4'.length);
+    if (encoded[0] !== 'z' || 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Sync(encoded))) !== hash)
+        return null;
+    const bytes = fromBase58(encoded.slice(1));
+    if (!bytes || bytes[0] !== 0x80 || bytes[1] !== 0x04)
+        return null;
+    let input;
+    try {
+        input = JSON.parse(td.decode(bytes.subarray(2)));
+    }
+    catch {
+        return null;
+    }
+    if (!input || typeof input !== 'object' || Array.isArray(input) || 'id' in input)
+        return null;
+    const methods = new Map();
+    for (const vm of input.verificationMethod ?? []) {
+        if (!vm || typeof vm.id !== 'string' || !vm.id.startsWith('#') || typeof vm.publicKeyMultibase !== 'string')
+            return null;
+        methods.set(vm.id, { id: vm.id, type: 'Multikey', controller: '', publicKeyMultibase: vm.publicKeyMultibase });
+    }
+    const doc = { id: did, verificationMethod: [], authentication: [], assertionMethod: [], keyAgreement: [], capabilityInvocation: [], capabilityDelegation: [], service: [] };
+    for (const rel of ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation']) {
+        const refs = relationOf(input, rel, methods);
+        if (!refs)
+            return null;
+        doc[rel] = refs;
+    }
+    doc.verificationMethod = [...methods.values()].map((m) => ({ ...m, controller: did }));
+    let n = 0;
+    for (const s of input.service ?? []) {
+        if (!s || typeof s !== 'object')
+            return null;
+        doc.service.push({ ...expandService(s, n), id: typeof s.id === 'string' ? s.id : expandService(s, n).id });
+        n++;
+    }
+    const keyOf = (id) => { const m = methods.get(id); return m ? multikeyOf(m.publicKeyMultibase) : null; };
+    if (doc.authentication.length !== 1 || doc.keyAgreement.length !== 1)
+        return null;
+    const ed = keyOf(doc.authentication[0]), x = keyOf(doc.keyAgreement[0]);
+    if (ed?.kind !== 'ed' || x?.kind !== 'x')
+        return null;
+    for (const id of doc.assertionMethod)
+        if (keyOf(id)?.kind !== 'ed')
+            return null;
+    const relays = [];
+    for (const s of doc.service) {
+        const kind = SERVICE_TYPE_OF[s.type];
+        const address = endpointUri(s.serviceEndpoint);
+        if (kind && address)
+            relays.push({ kind, address });
+    }
+    return { did, ref: short, ed: ed.raw, x: x.raw, doc, relays };
+}
+/** A peer DID this ceremony can use: did:peer:2, or did:peer:4 (long form, or short with its long form in `known`). */
+export async function parsePeer(did, known = []) {
+    if (typeof did !== 'string')
+        return null;
+    if (did.startsWith('did:peer:2.'))
+        return parsePeer2(did);
+    if (did.startsWith('did:peer:4'))
+        return parsePeer4(did, known);
     return null;
 }
 const LABEL_FORBIDDEN = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]');
@@ -201,11 +338,11 @@ export const normalLabel = (label) => {
     return n;
 };
 /** Render the link. `exp` in epoch seconds; `nowS` is what the expiry caps are measured against. */
-export function sharedConnectLink(f, origin = LINK_ORIGIN, nowS = Math.floor(Date.now() / 1000)) {
+export async function sharedConnectLink(f, origin = LINK_ORIGIN, nowS = Math.floor(Date.now() / 1000)) {
     if (!canonicalChallenge(f.id))
         throw new Error('_id must be a canonical 16-byte challenge');
-    if (!parsePeer2(f.from))
-        throw new Error('_from must be a did:peer:2 this ceremony can use');
+    if (!(await parsePeer(f.from)) || f.from === peer4Short(f.from))
+        throw new Error('_from must be a did:peer:2 or a long-form did:peer:4 this ceremony can use');
     const cap = (f.kind ?? 'code') === 'code' ? MAX_EXP_CODE_S : MAX_EXP_LINK_S;
     if (!Number.isInteger(f.exp) || f.exp <= nowS || f.exp - nowS > cap)
         throw new Error(`_exp must lie within the next ${cap} seconds`);
@@ -244,7 +381,7 @@ function fragmentParams(hash, strict = false) {
 /** Read a shared-connect link. Checks in the order of VTI-LNK-020: length, scheme, host,
  *  fragment, duplicates, `_from`, `_id`, `_type` (the flow as a whole URI, VTI-LNK-040 to 043),
  *  the contact, expiry. The reader stops at the first failure. */
-export function readSharedConnectLink(link, nowS = Math.floor(Date.now() / 1000)) {
+export async function readSharedConnectLink(link, nowS = Math.floor(Date.now() / 1000)) {
     if ([...link].length > READER_LIMIT)
         return { ok: false, reason: 'too-long' };
     let url;
@@ -281,7 +418,8 @@ export function readSharedConnectLink(link, nowS = Math.floor(Date.now() / 1000)
     const flow = type.startsWith('/') ? url.origin + type : type;
     if (flow !== FLOW_URI)
         return { ok: false, reason: 'unknown-flow' };
-    const peer = parsePeer2(from);
+    // a short-form did:peer:4 cannot be resolved by a first-time reader: only the long form is a contact
+    const peer = from === peer4Short(from) ? null : await parsePeer(from);
     if (!peer)
         return { ok: false, reason: 'unsupported-vid' };
     const expS = params.get('_exp');
@@ -310,9 +448,9 @@ export function readSharedConnectLink(link, nowS = Math.floor(Date.now() / 1000)
 }
 /** Sign a step document under `authentication` with the did:peer:2's authentication key (eddsa-jcs-2022). */
 export async function signStep(ctx, doc, created) {
-    const peer = parsePeer2(ctx.did);
+    const peer = await parsePeer(ctx.did);
     if (!peer)
-        throw new Error('signStep: the signer is not a did:peer:2 this ceremony can use');
+        throw new Error('signStep: the signer is not a peer DID this ceremony can use');
     const vm = peer2MethodFor(peer, 'authentication');
     const cfg = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created, verificationMethod: vm.id, proofPurpose: 'authentication' };
     if ('@context' in doc)
@@ -325,7 +463,7 @@ export async function signStep(ctx, doc, created) {
  *  issuer (a did:peer:2), is listed under the proof's purpose (`authentication` or
  *  `assertionMethod`, TT §4.7.3) and is an Ed25519 key; canonical proofValue; the
  *  proof repeats the document's @context when there is one. */
-export async function verifyStep(doc) {
+export async function verifyStep(doc, known = []) {
     const { proof, ...rest } = doc ?? {};
     if (!proof || typeof proof.proofValue !== 'string' || typeof proof.verificationMethod !== 'string')
         return false;
@@ -338,10 +476,12 @@ export async function verifyStep(doc) {
     if (typeof rest.issuer !== 'string')
         return false;
     const vmDid = proof.verificationMethod.split('#')[0];
-    if (vmDid !== rest.issuer)
+    if (!sameVid(vmDid, rest.issuer))
         return false;
-    const peer = parsePeer2(vmDid);
+    const peer = await parsePeer(rest.issuer, known);
     if (!peer)
+        return false;
+    if (vmDid !== peer.ref)
         return false;
     const fragment = proof.verificationMethod.slice(vmDid.length);
     if (!peer.doc[proof.proofPurpose].includes(fragment))
@@ -509,9 +649,9 @@ export async function checkPropose(doc, me, nowMs) {
         return e;
     if (nowMs >= (me.exp + CLOCK_TOLERANCE_S) * 1000)
         return 'expired-link';
-    if (!parsePeer2(doc.issuer))
+    if (!(await parsePeer(doc.issuer)))
         return 'issuer-not-peer2';
-    if (doc.recipient !== me.did)
+    if (!sameVid(doc.recipient, me.did))
         return 'recipient';
     if (doc.ceremony.enactment !== me.id || doc.ceremony.step !== 'propose')
         return 'enactment';
@@ -528,9 +668,9 @@ export async function checkAccept(doc, proposeDoc, inviterDid, nowMs = Date.now(
     const e = envelopeRefusal(doc, TASK_PROPOSE + '#response', nowMs, FRESH_MS);
     if (e)
         return e;
-    if (doc.issuer !== inviterDid)
+    if (!sameVid(doc.issuer, inviterDid))
         return 'issuer';
-    if (doc.recipient !== proposeDoc.issuer)
+    if (!sameVid(doc.recipient, proposeDoc.issuer))
         return 'recipient';
     if (doc.threadId !== proposeDoc.id)
         return 'thread';
@@ -538,7 +678,7 @@ export async function checkAccept(doc, proposeDoc, inviterDid, nowMs = Date.now(
         return 'enactment';
     if (!edRawOfAnchor(doc.payload.relationshipDid))
         return 'unsupported-pair-did';
-    if (!(await verifyStep(doc)))
+    if (!(await verifyStep(doc, [inviterDid])))
         return 'proof';
     return null;
 }
@@ -548,15 +688,15 @@ export async function checkIssue(doc, expect, nowMs = Date.now()) {
     const e = envelopeRefusal(doc, TASK_ISSUE, nowMs);
     if (e)
         return e;
-    if (doc.issuer !== expect.issuerDid)
+    if (!sameVid(doc.issuer, expect.issuerDid))
         return 'issuer';
-    if (doc.recipient !== expect.myDid)
+    if (!sameVid(doc.recipient, expect.myDid))
         return 'recipient';
     if (doc.threadId !== expect.threadId)
         return 'thread';
     if (doc.ceremony.enactment !== expect.enactment || doc.ceremony.step !== expect.step)
         return 'enactment';
-    if (!(await verifyStep(doc)))
+    if (!(await verifyStep(doc, [expect.issuerDid])))
         return 'proof';
     const vrc = doc.payload.vrc;
     if (vrc.issuer !== expect.issuerPair)
@@ -583,9 +723,9 @@ export async function checkReceipt(doc, sentIssue, expect, nowMs = Date.now()) {
     const e = envelopeRefusal(doc, TASK_ISSUE + '#response', nowMs);
     if (e)
         return e;
-    if (doc.issuer !== expect.issuerDid)
+    if (!sameVid(doc.issuer, expect.issuerDid))
         return 'issuer';
-    if (doc.recipient !== expect.myDid)
+    if (!sameVid(doc.recipient, expect.myDid))
         return 'recipient';
     if (doc.threadId !== sentIssue.threadId)
         return 'thread';
@@ -593,7 +733,7 @@ export async function checkReceipt(doc, sentIssue, expect, nowMs = Date.now()) {
         return 'enactment';
     if (doc.payload.vrcDigestMultibase !== await digestDoc(sentIssue.payload.vrc))
         return 'vrc-digest';
-    if (!(await verifyStep(doc)))
+    if (!(await verifyStep(doc, [expect.issuerDid])))
         return 'proof';
     return null;
 }
@@ -622,7 +762,7 @@ export function backCodeOf(proposeDoc, origin = LINK_ORIGIN) {
 }
 /** Rebuild the propose from a back-code; the caller then runs checkPropose. Null when the code
  *  is not a well-formed back-code (same grammar as the link: https, one value per name). */
-export function proposeFromBackCode(code, me) {
+export async function proposeFromBackCode(code, me) {
     let url;
     try {
         url = new URL(code);
@@ -641,7 +781,7 @@ export function proposeFromBackCode(code, me) {
     if ((type.startsWith('/') ? url.origin + type : type) !== LINK_ORIGIN + BACK_PATH)
         return null;
     const from = p.get('_from'), id = p.get('_id'), rel = p.get('rel'), t = p.get('t'), sig = p.get('sig');
-    const peer = from ? parsePeer2(from) : null;
+    const peer = from && from !== peer4Short(from) ? await parsePeer(from) : null;
     if (!peer || !canonicalChallenge(id) || !rel || !/^did:/.test(rel) || !/^[1-9][0-9]{0,11}$/.test(t ?? '') || !sig || sig[0] !== 'z')
         return null;
     const vm = peer2MethodFor(peer, 'authentication');
@@ -666,12 +806,12 @@ export function proposeFromBackCode(code, me) {
     return doc;
 }
 /** Build a party from two 32-byte seeds: the messaging identity (Ed + X derived from `msgSeed`) and the pair anchor. */
-export async function partyFromSeeds(msgSeed, pairSeed, relays, name) {
+export async function partyFromSeeds(msgSeed, pairSeed, relays, name, method = 'peer2') {
     const ed = await edFromSeed(await hkdf(msgSeed, 'shared-connect/messaging/ed25519'));
     const x = await xFromSeed(await hkdf(msgSeed, 'shared-connect/messaging/x25519'));
     const pairEd = await edFromSeed(pairSeed);
-    const did = peer2Of(ed.pubRaw, x.pubRaw, relays);
-    const peer = parsePeer2(did);
+    const did = method === 'peer4' ? await peer4Of(ed.pubRaw, x.pubRaw, relays) : peer2Of(ed.pubRaw, x.pubRaw, relays);
+    const peer = (await parsePeer(did));
     const p = { messaging: { did, ed: { priv: ed.priv } }, pair: { anchor: anchorOfEd(pairEd.pubRaw), ed: { priv: pairEd.priv } }, x, peer };
     if (name !== undefined)
         p.name = name;
