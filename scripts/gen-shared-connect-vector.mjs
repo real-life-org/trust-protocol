@@ -57,10 +57,10 @@ const fail = (what) => { throw new Error('vector does not pass its own checks: '
 const me = { did: inviter.messaging.did, id: inviterChallenge, exp }
 if (await sc.checkPropose(propose, me, T('06')) !== null) fail('propose')
 if (await sc.checkAccept(accept, propose, inviter.messaging.did, T('08')) !== null) fail('accept')
-if (await sc.checkIssue(issueInviter, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter.pair.anchor, myPair: responder.pair.anchor, myChallenge: responderChallenge, binding }) !== null) fail('issue-inviter')
-if (await sc.checkIssue(issueResponder, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-responder', issuerPair: responder.pair.anchor, myPair: inviter.pair.anchor, myChallenge: inviterChallenge, binding }) !== null) fail('issue-responder')
-if (await sc.checkReceipt(receiptInviter, issueInviter, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did }) !== null) fail('receipt-inviter')
-if (await sc.checkReceipt(receiptResponder, issueResponder, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did }) !== null) fail('receipt-responder')
+if (await sc.checkIssue(issueInviter, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter.pair.anchor, myPair: responder.pair.anchor, myChallenge: responderChallenge, binding }, T('08')) !== null) fail('issue-inviter')
+if (await sc.checkIssue(issueResponder, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-responder', issuerPair: responder.pair.anchor, myPair: inviter.pair.anchor, myChallenge: inviterChallenge, binding }, T('10')) !== null) fail('issue-responder')
+if (await sc.checkReceipt(receiptInviter, issueInviter, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did }, T('09')) !== null) fail('receipt-inviter')
+if (await sc.checkReceipt(receiptResponder, issueResponder, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did }, T('11')) !== null) fail('receipt-responder')
 const rebuilt = sc.proposeFromBackCode(backCode, { did: inviter.messaging.did, id: inviterChallenge })
 if (JSON.stringify(rebuilt) !== JSON.stringify(propose)) fail('back-code')
 

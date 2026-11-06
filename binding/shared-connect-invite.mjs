@@ -95,7 +95,7 @@ const auth = await authenticateToMediator({
 });
 say(`authenticated at ${MEDIATOR_DID} (ws ${auth.mediator.wsEndpoint})`);
 
-const state = { propose: null, accept: null, binding: null, issueMine: null, issueTheirs: null, receiptTheirs: null, done: false, relationship: new Set(), form: "bare" };
+const state = { receiptMine: null, propose: null, accept: null, binding: null, issueMine: null, issueTheirs: null, receiptTheirs: null, done: false, relationship: new Set(), form: "bare" };
 // the link's _exp bounds the handle (checkPropose refuses after it); the CLI keeps one enactment
 const me = { did: myDid, id: myChallenge, exp };
 const timers = [];
@@ -112,7 +112,11 @@ const sendDocument = async (peer, doc) => {
   say(`sent ${doc.type.replace("https://trusttasks.org/spec/", "")} (${n} B on the wire)`);
 };
 
-async function onTspFrame (qb2) {
+// frames are handled one after another: the session does not serialise them, and the state
+// machine below assumes it (two copies of one propose arriving together would otherwise both pass)
+let queue = Promise.resolve();
+const onTspFrame = (qb2) => (queue = queue.then(() => handleFrame(qb2), () => handleFrame(qb2)));
+async function handleFrame (qb2) {
   let senderVid = "unknown";
   try { senderVid = decodeEnvelope(qb2).envelope.sender ?? "unknown"; } catch {}
   const peer = sc.parsePeer2(senderVid);
@@ -122,7 +126,7 @@ async function onTspFrame (qb2) {
   if (got.receiver !== myDid) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") {
     const kind = got.control?.controlType ?? "unknown";
-    const live = Date.now() / 1000 < exp;
+    const live = Date.now() / 1000 < exp + sc.CLOCK_TOLERANCE_S; // the same bound checkPropose applies
     if (!live && !state.relationship.has(peer.did)) { say(`XRF${kind} from a new sender after the link expired; dropped`); return; }
     say(`control ${kind} from ${peer.did.slice(0, 40)}…`);
     if (String(kind).toLowerCase().includes("invite")) {
@@ -169,6 +173,7 @@ async function onTspFrame (qb2) {
   if (doc.type === sc.TASK_ISSUE) {
     if (!state.propose) { say("issue before any propose; refused"); return; }
     if (doc.issuer !== peer.did) { say("issue issuer differs from the TSP sender; refused"); return; }
+    if (state.issueTheirs) { if (doc.id === state.issueTheirs.id) { say("the responder's issue again; receipt resent"); await sendDocument(peer, state.receiptMine); } return; }
     const refusal = await sc.checkIssue(doc, {
       issuerDid: state.propose.issuer, myDid, threadId: state.propose.id, enactment: myChallenge, step: "issue-responder",
       issuerPair: state.propose.payload.relationshipDid, myPair: party.pair.anchor, myChallenge, binding: state.binding,
@@ -176,6 +181,7 @@ async function onTspFrame (qb2) {
     if (refusal) { say(`issue refused: ${refusal} (the document is saved for a look)`); return; }
     state.issueTheirs = doc;
     const rcp = await sc.receipt(party, doc, Date.now(), newId());
+    state.receiptMine = rcp;
     save("receipt-of-issue-responder.json", rcp);
     await sendDocument(peer, rcp);
     say("the responder's credential verified and receipted");

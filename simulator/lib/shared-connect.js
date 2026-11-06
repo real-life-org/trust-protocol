@@ -256,6 +256,7 @@ export function readSharedConnectLink(link, nowS = Math.floor(Date.now() / 1000)
     }
     if (url.protocol !== 'https:')
         return { ok: false, reason: 'not-https' };
+    // VTI-LNK-060 host rules: no userinfo, no explicit port (a dev link on a port is refused too)
     if (!url.hostname || url.username || url.password || url.port)
         return { ok: false, reason: 'bad-host' };
     if (url.hash.length < 2)
@@ -378,8 +379,8 @@ export async function propose(responder, inviterDid, enactment, responderChallen
         doc.expiresAt = iso(expiresMs);
     if (responder.name !== undefined) {
         const reason = responder.name.normalize('NFC');
-        if (reason.length < 1 || reason.length > 500)
-            throw new Error('propose reason: 1 to 500 characters');
+        if ([...reason].length < 1 || [...reason].length > 500)
+            throw new Error('propose reason: 1 to 500 code points');
         doc.payload.reason = reason;
     }
     return signStep(responder.messaging, doc, when);
@@ -462,7 +463,7 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
         case TASK_PROPOSE:
             if (!closed(p, ['relationshipDid', 'witnessed', 'reason', 'ext']) || typeof p.relationshipDid !== 'string' || !optBool(p.witnessed) || !optExt(p.ext))
                 return 'payload';
-            if (p.reason !== undefined && (typeof p.reason !== 'string' || p.reason.length < 1 || p.reason.length > 500))
+            if (p.reason !== undefined && (typeof p.reason !== 'string' || [...p.reason].length < 1 || [...p.reason].length > 500))
                 return 'payload';
             break;
         case TASK_PROPOSE + '#response':
@@ -482,8 +483,12 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
                 return 'payload';
             break;
     }
-    if (doc.expiresAt !== undefined && nowMs >= Date.parse(doc.expiresAt) - CLOCK_TOLERANCE_S * 1000)
+    // TT §4.2: a document is not acted on when now ≥ expiresAt; the clock tolerance works in the document's favour
+    if (doc.expiresAt !== undefined && nowMs >= Date.parse(doc.expiresAt) + CLOCK_TOLERANCE_S * 1000)
         return 'expired';
+    // no step is dated in the future beyond the tolerance
+    if (Date.parse(doc.issuedAt) > nowMs + CLOCK_TOLERANCE_S * 1000)
+        return 'not-fresh';
     if (window !== undefined) {
         const age = nowMs - Date.parse(doc.issuedAt);
         if (!(age < window && age > -CLOCK_TOLERANCE_S * 1000))

@@ -29,6 +29,7 @@ if (!link) { console.error("shared-connect-respond: give the link"); process.exi
 const NAME = opt("--name", undefined);
 const OUT = opt("--out", "./sc-out-r");
 const CHANNEL = opt("--channel", "scan");
+if (!["scan", "link"].includes(CHANNEL)) { console.error("--channel: scan or link (the responder's own observation)"); process.exit(2); }
 const WAIT = Number(opt("--wait-minutes", "10"));
 const ENVELOPE = "https://trusttasks.org/binding/tsp/0.1/envelope";
 const netPolicy = process.env.MEDIATOR_ALLOW_INSECURE ? { allowInsecure: true, allowPrivate: true } : undefined;
@@ -60,12 +61,16 @@ const myChallenge = sc.challengeOf16(rand(16));
 const auth = await authenticateToMediator({ mediatorDid: relay, clientDid: myDid, clientKid: xKid, clientX25519Private: xSecret, clientX25519Public: xPublic, netPolicy });
 say(`authenticated at ${relay} as a did:peer:2 it has never seen`);
 
-const state = { propose: null, accept: null, issueTheirs: null, issueMine: null, receiptTheirs: null, done: false, held: [] };
+const state = { propose: null, accept: null, issueTheirs: null, issueMine: null, receiptTheirs: null, done: false, held: [], receiptMine: null };
 const finish = (why) => { say(why); try { session.close(); } catch {} setTimeout(() => process.exit(state.done ? 0 : 1), 200); };
 const sendBytes = async (bytes) => { const m = await tspPack(bytes, myDid, inviter.did, { senderSigningKey: edSecret, receiverEncryptionKey: inviter.x }); session.sendBinary(m.bytes); return m.bytes.length; };
 const sendDocument = async (doc) => { const n = await sendBytes(te.encode(JSON.stringify(flag("--bare") ? doc : { type: ENVELOPE, document: doc }))); say(`sent ${doc.type.replace("https://trusttasks.org/spec/", "")} (${n} B)`); };
 
-async function onTspFrame (qb2) {
+// frames are handled one after another: the session does not serialise them, and the state
+// machine below assumes it (two copies of one propose arriving together would otherwise both pass)
+let queue = Promise.resolve();
+const onTspFrame = (qb2) => (queue = queue.then(() => handleFrame(qb2), () => handleFrame(qb2)));
+async function handleFrame (qb2) {
   let senderVid = "unknown"; try { senderVid = decodeEnvelope(qb2).envelope.sender ?? "unknown"; } catch {}
   if (senderVid !== inviter.did) { say(`frame from ${senderVid.slice(0, 40)}…: not the inviter; dropped`); return; }
   let got;
