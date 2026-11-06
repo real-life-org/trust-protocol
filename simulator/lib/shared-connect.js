@@ -400,12 +400,15 @@ export async function accept(inviter, proposeDoc, nowMs, id) {
 }
 /** The enactment binding both credentials carry: over the ceremony URI and both challenges (Encounter 5.4). */
 export const binding = (inviterChallenge, responderChallenge) => digestDoc({ ceremony: CEREMONY_URI, challenges: [inviterChallenge, responderChallenge].sort() });
-/** This side's credential about the other (RLTP encounter profile with `channel`). */
+/** This side's credential about the other (RLTP encounter profile with `channel`). The hint type
+ *  `EncounterCredential` is set only for this side's own observation of an encounter: `scan` (the
+ *  responder captured the code with its camera) or `displayed` (the inviter showed it as a code).
+ *  Over a link (`link`, `sent`) the credential is a plain `RelationshipCredential`. */
 export async function credential(me, subjectPair, subjectChallenge, enactmentBinding, channel, nowMs) {
     const when = iso(nowMs);
     const body = {
         '@context': [...CRED_CONTEXT],
-        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
+        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(channel === 'scan' || channel === 'displayed' ? ['EncounterCredential'] : [])],
         issuer: me.pair.anchor,
         issuerScope: 'pairwise',
         validFrom: when,

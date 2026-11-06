@@ -18,7 +18,8 @@ proposed, not registered. No change to the encounter ceremony.
   `_id`, `_exp`, `_type` and the proposed `_label`; checks in the order of
   VTI-LNK-020, the flow compared as a whole URI, expiry caps of 10 minutes
   for codes and 7 days for links), `propose` / `accept` / `credential` /
-  `issue` / `receipt` (the five documents and the receipts, step proofs
+  `issue` / `receipt` (the five documents and the receipts; `EncounterCredential`
+  only for `scan` or `displayed`, a plain `RelationshipCredential` over a link; step proofs
   under `authentication` by the issuer's authentication key; the response
   payload is closed, the inviter's name travels in `_label`),
   `checkPropose` / `checkAccept` / `checkIssue` / `checkReceipt` (what each

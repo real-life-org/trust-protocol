@@ -392,12 +392,15 @@ export async function accept (inviter: Party, proposeDoc: any, nowMs: number, id
 export const binding = (inviterChallenge: string, responderChallenge: string): Promise<string> =>
   digestDoc({ ceremony: CEREMONY_URI, challenges: [inviterChallenge, responderChallenge].sort() })
 
-/** This side's credential about the other (RLTP encounter profile with `channel`). */
+/** This side's credential about the other (RLTP encounter profile with `channel`). The hint type
+ *  `EncounterCredential` is set only for this side's own observation of an encounter: `scan` (the
+ *  responder captured the code with its camera) or `displayed` (the inviter showed it as a code).
+ *  Over a link (`link`, `sent`) the credential is a plain `RelationshipCredential`. */
 export async function credential (me: Party, subjectPair: string, subjectChallenge: string, enactmentBinding: string, channel: Channel, nowMs: number) {
   const when = iso(nowMs)
   const body = {
     '@context': [...CRED_CONTEXT],
-    type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', 'EncounterCredential'],
+    type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(channel === 'scan' || channel === 'displayed' ? ['EncounterCredential'] : [])],
     issuer: me.pair.anchor,
     issuerScope: 'pairwise',
     validFrom: when,
