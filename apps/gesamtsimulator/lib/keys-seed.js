@@ -25,6 +25,8 @@ import { cat } from './crypto.js';
 import { canonicalLabel } from './identity.js';
 import { CARRIER_INFO_PREFIX, validCarrierIdentifier } from './carrier-identity.js';
 import { CryptoUnavailableError } from './results.js';
+/** DEVIATION D3: the HKDF info prefix of the stage-1 service identity (never the frozen prefix of Identity §7, Access 11080); the group DID follows. */
+export const SERVICE_IDENTITY_STAGE1_PREFIX = 'rltp/v1/x-service-identity-stage1/';
 const te = new TextEncoder();
 /** PKCS#8 prefixes of a raw 32-byte Ed25519 / X25519 private key */
 export const ED_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20]);
@@ -109,6 +111,11 @@ export function seedKeys(seed, crypto) {
             if (shared.every((b) => b === 0))
                 return { status: 'invalid' };
             return { status: 'available', shared };
+        },
+        // DEVIATION D3: the stage-1 service identity, per person and group
+        async serviceIdentity(group) {
+            const priv = await edKey(await hkdf(SERVICE_IDENTITY_STAGE1_PREFIX + group));
+            return 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
         },
         carrierPrincipal(nonce, carrier) {
             if (!validCarrierIdentifier(carrier))

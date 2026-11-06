@@ -18,7 +18,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-export const CODECS = [3, 4]
+export const CODECS = [3, 4, 5]
 const SCHEMA = (n) => join(ROOT, `lib/schemas/holder-state-v${n}.schema.json`)
 const OUT = (n) => join(ROOT, `lib/src/holder-state-v${n}.ts`)
 

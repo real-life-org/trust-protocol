@@ -38,7 +38,16 @@ export type HolderEvent = EventBase & (
   | { type: 'trust.received', contactId: string }
   /** the pause of 5.4: star and blinded group star off, or back */
   | { type: 'trust.paused', contactId: string, paused: boolean }
+  /** the holder is a member: its log confirms the own admission */
   | { type: 'group.joined', groupId: string }
+  /** a welcome arrived: the join waits for the log's confirmation */
+  | { type: 'group.joining', groupId: string }
+  /** a join did not take effect (the admission is not canonical, or a leave defeats it) */
+  | { type: 'group.void', groupId: string }
+  /** the holder left the group (member.leave) */
+  | { type: 'group.left', groupId: string }
+  /** a member left, as the log shows it */
+  | { type: 'group.departed', groupId: string, member: string }
   | { type: 'prompt.opened', promptId: string, kind: PromptKind }
   /** the human decided a prompt; it is closed (prompts.ts) */
   | { type: 'prompt.decided', promptId: string, kind: PromptKind, choice: PromptChoice }
@@ -72,7 +81,7 @@ export type HolderEvent = EventBase & (
   | { type: 'encounter.accepted', contactId: string, relationshipId: string, mutual: boolean }
   /** a group founded by this holder (Access 3.4.1) */
   | { type: 'group.founded', groupId: string }
-  /** a member admitted by this holder, by its member anchor */
+  /** a member admitted, by its member anchor: by this holder, or as its log shows it */
   | { type: 'group.admitted', groupId: string, member: string }
   /** a vouch@2 issued by this holder for a member anchor (Access 5.3) */
   | { type: 'group.vouched', groupId: string, member: string }

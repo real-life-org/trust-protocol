@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // groups-test — Stage C over the INTRODUCED channel, on the holder:
 // Jonathan founds a group and invites Emil, whom he never met. Prelude →
-// invite → accept → admission → welcome, every document a sealed delivery
-// through the network, with the negatives at their points.
+// invite → accept → admission (member.add in the founder's log) → welcome
+// → Emil fetches the log (x-access-sync, x-access-page) and is a member
+// once it confirms his admission; every document a sealed delivery through
+// the network, with the negatives at their points.
 import { createPerson, createNetwork, meet, at, decideAll, eventOf, contactNamed, labeledContext, diSign, diVerify, seal, unseal, iso, digestDoc, sameDigest, toU, oidOf, base58, fromB64u, TYPES } from './holder.mjs'
 
 let pass = 0, fail = 0
@@ -32,10 +34,11 @@ const gid = eventOf(f, 'group.founded').groupId
 await jonathan.refresh()
 const gJ = jonathan.view.state.groups[gid]
 check(gid.startsWith('u') && toU(gid) === gid, 'genesis digest: a canonical u multihash')
-check(gJ.memberLabel.startsWith('pair/') && gJ.memberAnchor === gJ.genesis.founder, 'the founder\'s member anchor is the fresh founding pair anchor, never group/<digest> (RLTP-ACC-3235, 3275)')
+const genesis = Object.values(gJ.log.accepted).find((e) => e.op === 'group.genesis')
+check(gJ.memberLabel.startsWith('pair/') && gJ.memberAnchor === genesis.author, 'the founder\'s member anchor is the fresh founding pair anchor, never group/<digest> (RLTP-ACC-3235, 3275)')
 const [g0] = jonathan.view.groups
-check(g0.members.length === 1 && g0.members[0].self && gJ.roster[g0.members[0].anchor].op === oidOf(gid) && gJ.memberOp === oidOf(gid), 'the roster: the founder, named by the genesis\'s oid (5400)')
-check(await diVerify(gJ.genesis, gJ.genesis.founder), 'the genesis verifies under the founding pair anchor')
+check(g0.members.length === 1 && g0.members[0].self && gJ.roster[g0.members[0].anchor].op === genesis.id && gJ.memberOp === genesis.id && genesis.id === oidOf(gid), 'the roster: the founder, named by the genesis\'s oid (5400)')
+check(genesis.body.adapter === 'linear/0.1' && genesis.proof.signatures.map((x) => x.signer).sort().join() === [genesis.group, genesis.author].sort().join(), 'the genesis under linear/0.1, signed by the group key and the founding anchor (3225)')
 
 // ── prelude → invite → accept → admission → welcome (all over channels) ──
 const w0 = net.wire.length
@@ -52,6 +55,8 @@ check(invE.invite.payload.invite.credentialSubject.genesisDigest === gid, 'the V
 await decideAll(net, emil, 'group-invite', 'accept', t + 2 * MIN)
 await net.settle(t + 3 * MIN)
 check(kinds().includes(TYPES.accept) && kinds().includes(TYPES.welcome), 'accept → admission → welcome, each a sealed delivery')
+check(kinds().includes(TYPES.accessSync) && kinds().includes(TYPES.accessPage), 'Emil fetches the log from Jonathan: x-access-sync, x-access-page')
+check(emil.view.state.groups[gid].phase === 'member' && emil.view.state.groups[gid].memberOp === Object.values(jonathan.view.state.groups[gid].log.accepted).find((e) => e.op === 'member.add').id, 'Emil is a member once the log confirms his admission; his memberOp is the member.add (5400)')
 check(jonathan.view.groups[0].members.length === 2, 'Jonathan\'s roster: 2 members')
 const gE = emil.view.groups.find((g) => g.id === gid)
 check(gE?.members.length === 2 && gE.members.some((m) => m.self), 'Emil\'s view: the group with the founder and himself')

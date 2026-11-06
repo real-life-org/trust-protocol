@@ -498,9 +498,9 @@ class HolderEngine {
             throw new RangeError('retry.commitAttempts must be a positive integer');
         this.#policy = Object.freeze({ backoff, horizonMs, commitAttempts, retentionMs: Math.max(ENGINE_DEFAULTS.retentionMs, horizonMs) });
         const carrierKey = (k) => Object.freeze({ principal: k.principal, sign: guard(k, ['sign'], 'key-provider').sign });
-        const base = guard(ports.keys, ['anchorOf', 'sign', 'agree'], 'key-provider');
+        const base = guard(ports.keys, ['anchorOf', 'sign', 'agree', 'serviceIdentity'], 'key-provider');
         this.#keys = Object.freeze({
-            anchorOf: base.anchorOf, sign: base.sign, agree: base.agree,
+            anchorOf: base.anchorOf, sign: base.sign, agree: base.agree, serviceIdentity: base.serviceIdentity,
             carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
         });
         if (ports.log)

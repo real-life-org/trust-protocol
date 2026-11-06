@@ -43,6 +43,8 @@
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
 //   foundPersonalCommunity({name}, opts)     membership.foundPersonal human
 //   invite(groupId, contactId, opts)          membership.invite         human
+//   leaveGroup(groupId, opts)                 membership.leave          human
+//   syncGroups(opts{groupId?})                membership.sync
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
 //   sendMessage(contactId, text, opts{replyTo?})  message.send         human
@@ -162,6 +164,8 @@ export async function createHolder(ports, opts = {}) {
         foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),
         foundPersonalCommunity: (c, o) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
         invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
+        leaveGroup: (groupId, o) => human(MEMBERSHIP_COMMANDS.leave, { groupId }, o),
+        syncGroups: (o) => engine.act(MEMBERSHIP_COMMANDS.sync, o?.groupId === undefined ? {} : { groupId: o.groupId }, o?.when),
         vouchFor: (groupId, member, o) => human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
         introduce: (requesterId, targetId, o) => human(INTRODUCTION_COMMANDS.introduce, o?.label === undefined ? { requesterId, targetId } : { requesterId, targetId, label: o.label }, o),
         sendMessage: (contactId, text, o) => human(MESSAGE_COMMANDS.send, o?.replyTo === undefined ? { contactId, text } : { contactId, text, replyTo: o.replyTo }, o),

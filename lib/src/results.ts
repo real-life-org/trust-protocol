@@ -89,6 +89,10 @@ export type ActError =
   | 'own-admission'
   /** membership.found: a genesis admits under the rule of one; a stricter rule needs policy.change */
   | 'threshold-unsupported'
+  /** membership: the holder is not (yet, or no longer) a member by its own log, and only a member authors */
+  | 'not-yet-canonical'
+  /** membership: the operation would exceed the entry bound (Access 5330) */
+  | 'oversize'
   /** introduction: no such act, or not in a state that allows the step */
   | 'unknown-act'
   /** introduction.request: the mediator's ack-delay declaration is not held (Delivery 4.4) */

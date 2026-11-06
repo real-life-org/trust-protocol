@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.13.0
+
+Groups have an authority log (Access 0.58, stage 1 of the group log).
+Until now a holder knew the members it admitted and the roster its welcome
+carried; a member admitted later was unknown to earlier members. Now the
+group's state is a set of signed operations every member holds, and the
+membership is a pure function of that set. Members exchange the set along
+the invitation edges; no CRDT and no service.
+
+- **`access` module** (new): the envelope `rltp-access/0.25` with its
+  self-addressing id (3100), the genesis under `linear/0.1` (3.4.1: the
+  group key and the founder sign, the epoch-0 content key committed and
+  kept by the founder, undistributed), `member.add` under rules 0–5 (5.3),
+  `member.leave`; the materialization (3335); the admission of entries
+  (Replication 7.1: form first, held entries for a missing parent or an
+  incomplete proof, healing ancestor-first, bounds per sender and group).
+  The exchange (`access/exchange`): `x-access-entry/0.1` (one entry),
+  `x-access-sync/0.1` (a request: `have`, `want`, `cursor`) and
+  `x-access-page/0.1` (the answer, ancestor-first, page by page); the
+  repair of a missing parent at its sender; forwarding along the
+  invitation edges, never an admission to its own subject.
+- **Founding** (breaking): `foundGroup` writes the genesis above; the
+  earlier `group-genesis@probe` is gone. The group's name is no longer in
+  the genesis: it is local and travels in the welcome.
+- **Admission and join** (breaking): the admitting member authors the
+  `member.add` and forwards it to the members it knows by invitation. The
+  welcome carries no operation ids (Access 3005); the new member validates
+  the genesis against the digest its invite pinned (3070, 3085), is
+  `joining`, fetches the log from the welcome's issuer, and is a member
+  once the log confirms its admission (`group.joined`). A join the log
+  does not confirm becomes `void`. Only a member invites, admits, answers
+  and stands in the group star.
+- **`leaveGroup(groupId, opts)`** (new, human, `membership.leave`): the
+  own `member.leave`, effective at once (DEVIATION D2); a leave as the
+  sole member dissolves the group (4410). **`syncGroups({when, groupId?})`**
+  (new, `membership.sync`): requests to every invitation edge, or to the
+  issuer while joining; the app calls it when it comes back online.
+- **Events** (new): `group.joining`, `group.void`, `group.left`,
+  `group.departed`; `group.admitted` also for members the log shows.
+  **`GroupView.phase`** (new): `joining`, `member`, `void`, `left`.
+- **`KeyProvider.serviceIdentity(group)`** (new, breaking for custom key
+  providers): the founder's service identity in the genesis, derived per
+  person and group under `rltp/v1/x-service-identity-stage1/` (DEVIATION
+  D3). `seedKeys` provides it.
+- **Codec 5** (breaking for stored states): a group carries `phase`, `log`
+  (with the local mark `x-rltp-access-stage: 1`), `syncs`, `issuer`,
+  `contentKey`, `joinUntil`; `genesis` is gone. Codec 4 is read through a
+  migration: a group of the earlier form stands as a member's group
+  without a log (shown, no invitation, no exchange). Entropy purpose
+  `content.key` (new); refusal codes `not-yet-canonical`, `oversize` (new).
+- **`DEVIATIONS.md`** (new): every reading of a specification against its
+  text, with its issue (trust-protocol #154–#157); CI fails once an issue
+  closes while its row stands.
+
+What stage 1 is against the Replication Contract: an exchange under the
+unattested exchange profile (§4.4), class `replica`, with the pair
+channel and its binding to a member anchor in place of §6; no registered
+adapter, none of the guarantees I1–I16, an entry bound below the floor of
+§9. Not built: key distribution and transitions, the conflict matrix,
+`policy.change`, device cards, views, `member.remove`, the pending exit.
+
 ## 0.12.0
 
 The contact view names the contacts shared with a contact. The holder

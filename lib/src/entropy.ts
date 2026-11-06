@@ -19,6 +19,7 @@ export type EntropyPurpose =
   | 'ack.id'             // delivery-ack document id (uuid)
   | 'challenge'          // encounter challenge bytes
   | 'group.seed'         // group address seed at founding
+  | 'content.key'        // the epoch-0 content key of a founding (Access 9710)
   | 'founding.nonce'     // relationship / group founding nonce (Identity §6.1, §7a.3)
   | 'intro.act'          // an introduction act id, 32 bytes (Trust 8070)
   | 'message.mid'        // a message's mid (uuid, Message Tasks 3040)
@@ -28,7 +29,7 @@ export type EntropyPurpose =
 
 export const ENTROPY_PURPOSES: readonly EntropyPurpose[] = Object.freeze([
   'seal.eph', 'seal.nonce', 'doc.id', 'thread.id', 'ack.id', 'challenge',
-  'group.seed', 'founding.nonce', 'intro.act', 'intro.target', 'groupstar.nonce', 'pad', 'message.mid',
+  'group.seed', 'content.key', 'founding.nonce', 'intro.act', 'intro.target', 'groupstar.nonce', 'pad', 'message.mid',
 ])
 
 export interface Entropy {

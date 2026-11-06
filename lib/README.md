@@ -208,10 +208,12 @@ The human acts: `show`, `scan`, `captureSentCard`, `counter` (the encounter),
 `decide` (a prompt: confirm an encounter, accept an invitation, take up or
 consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
 `setGroupClass`, `merge`, `depart`, `setProfile`, `foundPersonalCommunity`,
-`foundGroup`, `invite`,
+`foundGroup`, `invite`, `leaveGroup`,
 `vouchFor`, `introduce`, `sendMessage`, `block`, `unblock`, `rotateAnchor`,
 `addDevice`, `revokeDevice`. Not
-human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`.
+human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`,
+`syncGroups` (ask the group's members for the log when the app comes back
+online).
 Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
 `deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
 
@@ -321,7 +323,8 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `trust/continuity` | Trust §6a | `continuity-probe@1` and `continuity-mapping@1`, chaining a re-encounter into the existing relationship (6a.4) |
 | `trust/profile`, `profile` | Trust §6b | `profile@1`: the one revision counter (6450), delivery on the class gates (6455), reception and the image bounds (6475) |
 | `trust/duties` | Trust 2850, 6370, 6455, 6595, 6596 | the duties a commit leaves: class on, re-issue after a rotation, the lag rule |
-| `membership`, `membership/holder` | Membership Tasks 0.21 on Access 0.58 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission within the bound of 3282 and welcome, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the holder's groups |
+| `access` | Access 0.58 §3, §5.3, §5.4; Replication Contract (Editor's Draft) §4.4, §7 | the group's authority log, stage 1: the envelope `rltp-access/0.25` and its id (3100), the genesis under `linear/0.1` (3.4.1), `member.add` under rules 0–5, `member.leave`, the materialization as a pure function of the accepted set, the admission of entries (form first, held entries for a missing parent, the bounds); the exchange `x-access-entry/0.1`, `x-access-sync/0.1`, `x-access-page/0.1` (unattested exchange profile, no registered adapter); readings against the text in `DEVIATIONS.md` (D1–D4) |
+| `membership`, `membership/holder`, `membership/replica` | Membership Tasks 0.21 on Access 0.58 | founding (Access 3.4.1), the prelude (3.5: `membership-prelude-request/0.1`, `membership-prelude-reply/0.1`, the binding per relationship), invite, accept, admission as a `member.add` in the admitting member's log within the bound of 3282, the welcome, the join confirmed by the log (`joining` until then), leave, the log exchanged along the invitation edges, evidence relay and `vouch@2` (Access 5.3), an in-library Access over the groups the holder is a member of |
 | `message`, `message/holder` | Message Tasks 0.2 | `message@1`, `k_msg` and its MAC (3); sending on a ready, unblocked relationship with the sender lifetime (5); reception through the stages with the age and future bounds on the time mark, the completion record, the inbox taken over by the app, the rates and the inbox bound as `failed(rate-limited)` (4); the block of a relationship (6010–6030, 6510), its discard of messages and its treatment of invitations and prelude replies (Membership 3115, 3975), the holder's own offers refused (6410) |
 | `introduction`, `introduction/holder` | Trust §8 on Delivery §4.4 | the Introduction Act in its three roles: request, forward, reply, the mediator's one ack at its declared delay, the vouchers; the requester's timeout at the act's expiry (8340; A20, spec follow-up 18: no ack timeout of 8690) |
 | `receive`, `engine` | Delivery 0.85 §5, §6.1, §6.2 | the sealed envelope and the two key classes, stages 1–9 once per envelope with the dispositions `discarded` and the transient `failed(rate-limited)`, the task register by full task URI, the completed-effect cache with stored acks, the outbox with the status trias, retry by backoff, give-up at the horizon, custody before the trias and the hand-over gate (`pendingTransport`, `mayHandOver`, `close`), ack retries apart from ack retention, the act journal |
@@ -431,7 +434,7 @@ This package uses its own semver; the specification uses castings.
 | identity | Identity 0.55 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.32, cards 0.25, credentials 0.26 | — |
 | trust | Trust Layer 0.31 | — |
-| membership | Membership Tasks 0.21, Access 0.58 | the Access envelope (Membership 3.3: `access-operation/0.1` with `member.add` and the sealed welcome; this library sends its own `x-membership-welcome/0.1`); an admission prompt after the bound of RLTP-MT-3282; roster replication: a holder knows the members it admitted and the roster its welcome carried |
+| membership | Membership Tasks 0.21, Access 0.58 | `access-operation/0.1` (Membership 3.3: this library sends its own `x-membership-welcome/0.1` and the new member fetches the log); an admission prompt after the bound of RLTP-MT-3282; of Access: key distribution and transitions (§7, §9.4 beyond the genesis commitment), the conflict matrix (3.6), `policy.change`, device cards (5.1), views (7.3), `member.remove`, the pending exit (5.4); the service identity is provisional (D3); one device per person; the log reaches the members along the invitation tree only |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
 | delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
 | transport adapter | VTI Mediator Adapter Profile 0.30 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); sending framework refusals (profile Open Issue 17) |

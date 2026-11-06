@@ -76,6 +76,11 @@ export interface KeyProvider {
   agree (rkid: string, epk: Uint8Array, allowed: KeyRelease): Promise<Agreement>
   /** Identity §7a.4: nonce is the relationship's 32-byte carrier nonce */
   carrierPrincipal (nonce: Uint8Array, carrier: string): Promise<CarrierKey>
+  /** the holder's service identity for the group it founds, as a did:key
+   *  (Access 3265). DEVIATION D3: derived from the root IKM and the group
+   *  DID under a prefix of stage 1, since Identity §7's derivation needs
+   *  the genesis digest the genesis itself fixes */
+  serviceIdentity (group: string): Promise<string>
 }
 
 // ── Log (user: rotation; optional) ─────────────────────────────────────

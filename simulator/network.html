@@ -238,7 +238,9 @@ const sharedOf = (p, c) => (c.sharedGroups ?? []).map((gid) => p.view.groups.fin
 const introActs = (p) => Object.values(p.view.state.encounter.introductions)
 const voucherOf = (p, c) => { const labels = new Set(tuplesOf(p, c).map((t) => t.ownPairLabel)); return introActs(p).find((a) => a.ownLabel && labels.has(a.ownLabel) && a.voucher) }
 const groupState = (p, gid) => p.view.state.groups[gid]
-const isFounder = (p, gid, anchor) => groupState(p, gid)?.genesis?.founder === anchor
+/** the genesis envelope of a group's log (Access 3.4.1) */
+const genesisOf = (g) => (g?.log ? Object.values(g.log.accepted).find((e) => e.op === 'group.genesis') : undefined)
+const isFounder = (p, gid, anchor) => genesisOf(groupState(p, gid))?.author === anchor
 
 // ── the UI reacts to what committed (events are notifications, note §4.4) ─
 async function react (id) {
@@ -616,7 +618,8 @@ function walletCats (p) {
   cats.push({ key: 'trust', title: 'Trust', fpp: 'disclosed anchors, blinded snapshots — the one-way doors', items: tr })
   const mem = []
   for (const g of Object.values(s.groups)) {
-    if (g.genesis) mem.push({ dir: g.memberAnchor === g.genesis.founder ? 'out' : 'in', title: `genesis · ${g.name}`, sub: `digest ${g.id.slice(0, 16)}… (the group's identity)`, json: J(g.genesis) })
+    const gen = genesisOf(g)
+    if (gen) mem.push({ dir: g.memberAnchor === gen.author ? 'out' : 'in', title: `genesis · ${g.name}`, sub: `digest ${g.id.slice(0, 16)}… (the group's identity)`, json: J(gen) })
     mem.push({ dir: 'in', title: `roster · ${g.name}`, sub: `${Object.keys(g.roster).length} members as this device knows them`, json: J(g.roster) })
     for (const i of Object.values(g.invitations)) mem.push({ dir: 'out', title: `invite (open) · ${g.name} → ${nm(cv(p, i.contactId))}`, sub: 'membership-invite/0.2 · InvitationCredential', json: J(i.invite) })
   }

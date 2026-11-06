@@ -2095,7 +2095,7 @@ class Component extends DCLogic {
     if (disclosed.length) cats.push(['anchor-mapping@4 · received', 'stable identities disclosed to you (designated verifier)', disclosed]);
     if (stars.length) cats.push(['star@2 · received', 'contact updates: blinded anchors, the ones you also hold matched', stars]);
     if (intros.length) cats.push(['introduction', 'the Introduction Act in its roles: request, reply, ack, voucher', intros]);
-    if (groups.length) cats.push(['membership', 'genesis + roster · member anchors, never names on the wire', groups.map((g) => ({ name: g.name, genesisDigest: g.id, founded: this.founded(id, g.id), memberAnchor: g.memberAnchor, genesis: g.genesis, roster: Object.values(g.roster) }))]);
+    if (groups.length) cats.push(['membership', 'genesis, log + roster · member anchors, never names on the wire', groups.map((g) => ({ name: g.name, genesisDigest: g.id, founded: this.founded(id, g.id), memberAnchor: g.memberAnchor, phase: g.phase, genesis: g.log ? Object.values(g.log.accepted).find((e) => e.op === 'group.genesis') : undefined, log: g.log ? Object.keys(g.log.accepted).length + ' operations' : undefined, roster: Object.values(g.roster) }))]);
     return cats;
   }
   holdCount(id) { return this.holdsRaw(id).reduce((n, c) => n + c[2].length, 0) + (this.person(id) ? 1 : 0); }

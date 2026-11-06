@@ -89,7 +89,7 @@ import { messageChannel } from './message/holder.js'
 import { canonicalCarrierNonce } from './identity-state.js'
 import type {
   EnactmentRecord,
-  Contact, Dec, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
+  Contact, Dec, GroupPhase, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
 } from './state.js'
 import type { DeliveryFailure, PreTransportReason, ReceiverRefusalCode } from './ports.js'
 
@@ -194,18 +194,22 @@ export interface RelationshipView {
   counterpartDeliveryHints?: string[]
 }
 
-/** One group the holder is a member of. */
+/** One group the holder is in, on its way into, or was in. */
 export interface GroupView {
   commitSeq: Dec
   /** genesis digest */
   id: string
-  /** the group's name, as its genesis names it */
+  /** the group's name: given at the founding, carried by the welcome */
   name: string
+  /** `joining`: welcomed, the join awaits the log's confirmation; `member`;
+   *  `void`: the join did not take effect; `left`: the holder left */
+  phase: GroupPhase
   /** listed in the blinded group star (5.2b per-group switch) */
   listed: boolean
   vouchThreshold: Dec
-  /** the members this holder knows of, by member anchor (its roster);
-   *  `self` marks the own one, `contactId` a member it knows as a contact */
+  /** the current members by member anchor, as the group's log yields them
+   *  (while joining: as the welcome named them); `self` marks the own one,
+   *  `contactId` a member the holder knows as a contact */
   members: Array<{ anchor: string, name?: string, contactId?: string, self: boolean }>
   /** consent pairs held toward an admission (Membership 3.4), by subject */
   pending: Array<{ member: string, name?: string, vouches: number }>
@@ -439,7 +443,7 @@ export function groupsView (state: Readonly<HolderState>): GroupView[] {
   // the personal community is the holder's own (Identity §2): a group of one, never shown as a group
   const personal = state.register.community?.genesis
   return freezeDeep(Object.values(state.groups).filter((g) => g.id !== personal).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
-    commitSeq: state.commitSeq, id: g.id, name: g.name, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
+    commitSeq: state.commitSeq, id: g.id, name: g.name, phase: g.phase, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
     members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
       anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
     })),
