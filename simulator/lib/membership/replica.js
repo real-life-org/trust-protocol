@@ -212,7 +212,7 @@ export async function advance(ctx, g, entries, from) {
         replica = { log: dropHeld(replica.log), repairs: {} };
         for (const t of Object.keys(syncs))
             delete syncs[t];
-        next = { ...base, phase: 'void', roster: {} };
+        next = { ...base, phase: 'void', roster: {}, endedAt: ctx.when };
         events.push({ type: 'group.void', groupId: g.id });
     }
     else if (standing === 'joining') {
@@ -239,7 +239,7 @@ export async function advance(ctx, g, entries, from) {
         replica = { log: { ...replica.log, held: {} }, repairs: {} };
         for (const t of Object.keys(syncs))
             delete syncs[t];
-        next = { ...rest, phase: 'left', listed: false, roster, invitations: {}, evidence: {}, preludes: {} };
+        next = { ...rest, phase: 'left', listed: false, roster, invitations: {}, evidence: {}, preludes: {}, endedAt: ctx.when };
         events.push({ type: 'group.left', groupId: g.id });
     }
     else {
@@ -449,7 +449,8 @@ export const syncDef = {
 // ── retention ──────────────────────────────────────────────────────────
 /** What tick lets go of the exchange: an own request past the give-up
  *  horizon; a join unconfirmed at joinUntil becomes void, its buffer
- *  dropped. A tick commit carries no events (engine.ts): the app sees this
+ *  dropped; of a group left or void, the log and the roster a horizon
+ *  after the standing ended (the entry stays: its name and phase). A tick commit carries no events (engine.ts): the app sees this
  *  void through subscribe and GroupView.phase, not as group.void, which
  *  only a page that defeats the join announces. */
 export function retainExchange(g, when) {
@@ -459,7 +460,12 @@ export function retainExchange(g, when) {
         next = { ...next, syncs: Object.fromEntries(Object.entries(g.syncs).filter(([, s]) => s.at + HORIZON_MAX >= when)) };
     if (g.phase === 'joining' && g.joinUntil !== undefined && g.joinUntil < when) {
         const { joinUntil: _until, ...rest } = next;
-        next = { ...rest, phase: 'void', roster: {}, syncs: {}, ...(g.log ? { log: { ...g.log, held: {}, repairs: {} } } : {}) };
+        next = { ...rest, phase: 'void', roster: {}, syncs: {}, endedAt: when, ...(g.log ? { log: { ...g.log, held: {}, repairs: {} } } : {}) };
+    }
+    // a standing that ended a horizon ago: the entry stays (name, phase), the log and the roster go
+    if ((next.phase === 'left' || next.phase === 'void') && next.endedAt !== undefined && next.endedAt + HORIZON_MAX < when && (next.log !== undefined || Object.keys(next.roster).length)) {
+        const { log: _log, ...kept } = next;
+        next = { ...kept, roster: {} };
     }
     return next;
 }
@@ -467,5 +473,7 @@ export function exchangeDeadlines(g) {
     const out = Object.values(g.syncs).map((s) => s.at + HORIZON_MAX + 1);
     if (g.phase === 'joining' && g.joinUntil !== undefined)
         out.push(g.joinUntil + 1);
+    if ((g.phase === 'left' || g.phase === 'void') && g.endedAt !== undefined && (g.log !== undefined || Object.keys(g.roster).length))
+        out.push(g.endedAt + HORIZON_MAX + 1);
     return out;
 }
