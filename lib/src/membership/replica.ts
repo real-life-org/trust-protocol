@@ -212,10 +212,16 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
 
   if (joining) {
     const mine = g.memberAnchor!
+    // once the log confirms the admission, the buffer is judged first; the
+    // decision member / void rests on the materialization after it (a
+    // buffered leave of the own key may defeat the admission)
     if (facts.m.members.includes(mine)) {
-      // a member: the buffer is judged, the group stands in the star and answers
       const rel = await releaseJoining(replica.log, S)
       if (rel.log !== replica.log) { replica = { log: rel.log, repairs: replica.repairs }; facts = await factsOf(rel.log, S) }
+    }
+    const adm = facts.m.members.includes(mine) ? null : await ownAdmission(replica.log, facts.m, g.acceptDigest, S)
+    if (facts.m.members.includes(mine) && facts.m.memberOp[mine] !== undefined) {
+      // a member: the group stands in the star and answers
       const m = facts.m
       const membership: GroupMembership = {
         group: g.id,
@@ -227,19 +233,16 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
       events.push({ type: 'group.joined', groupId: g.id })
       // once more at the issuer, for what it accepted meanwhile (S1-11)
       if (g.issuer?.contactId !== undefined) await ask(g.issuer.contactId, {})
+    } else if (adm === 'canonical' || (adm === 'not-canonical' && from.page?.last === true)) {
+      // canonical yet defeated by a leave, or not canonical with the answer complete
+      replica = { log: dropHeld(replica.log), repairs: {} }
+      for (const t of Object.keys(syncs)) delete syncs[t]
+      next = { ...base, phase: 'void', roster: {} }
+      events.push({ type: 'group.void', groupId: g.id })
     } else {
-      const adm = await ownAdmission(replica.log, facts.m, g.acceptDigest, S)
-      if (adm === 'canonical' || (adm === 'not-canonical' && from.page?.last === true)) {
-        // canonical yet defeated by a leave, or not canonical with the answer complete
-        replica = { log: dropHeld(replica.log), repairs: {} }
-        for (const t of Object.keys(syncs)) delete syncs[t]
-        next = { ...base, phase: 'void', roster: {} }
-        events.push({ type: 'group.void', groupId: g.id })
-      } else {
-        next = { ...g }
-        if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null) await ask(from.source, { cursor: from.page.next })
-        else if (i.want !== null && from.source !== null) await ask(from.source, { want: i.want })
-      }
+      next = { ...g }
+      if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null) await ask(from.source, { cursor: from.page.next })
+      else if (i.want !== null && from.source !== null) await ask(from.source, { want: i.want })
     }
   } else if (g.memberAnchor !== undefined && !facts.m.members.includes(g.memberAnchor) && from.source !== null) {
     // the holder is no member by its own log any more (its own leave applied
