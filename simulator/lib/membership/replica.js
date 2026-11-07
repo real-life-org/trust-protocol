@@ -215,7 +215,7 @@ export async function advance(ctx, g, entries, from) {
             events.push({ type: 'group.void', groupId: g.id });
         }
         else {
-            next = { ...g, log: storedLog(replica) };
+            next = { ...g };
             if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null)
                 await ask(from.source, { cursor: from.page.next });
             else if (i.want !== null && from.source !== null)
