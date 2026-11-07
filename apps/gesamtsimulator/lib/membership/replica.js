@@ -38,7 +38,7 @@
 // answer is complete, or unconfirmed at joinUntil.
 import { sameDigest, toU } from '../core.js';
 import { digestDoc } from '../crypto.js';
-import { ADD_OP, ENTRY_TYPE, GENESIS_OP, LEAVE_OP, PAGE_TYPE, SYNC_TYPE, dropHeld, exchangePayloadOk, forwards, haveOf, intake, materialize, opUnsigned, oversize, pageOf, releaseJoining, signEnvelope, } from '../access/index.js';
+import { ADD_OP, ENTRY_TYPE, GENESIS_OP, LEAVE_OP, PAGE_TYPE, SYNC_TYPE, dropHeld, exchangePayloadOk, expireHeld, forwards, haveOf, intake, materialize, opUnsigned, oversize, pageOf, releaseJoining, signEnvelope, stillWanted, } from '../access/index.js';
 import { blockedRel } from '../message/holder.js';
 import { findContact } from '../trust/state.js';
 import { groupStarRematch, withGroupHits } from '../trust/group-star.js';
@@ -47,6 +47,7 @@ import { arrival, channelTo, draft, isRefusal, no, refuse, sealed, signer } from
 export { ENTRY_TYPE, SYNC_TYPE, PAGE_TYPE };
 /** The longest give-up horizon (Delivery [P1D, P90D]): how long an own request may wait for its page. */
 const HORIZON_MAX = 90 * 86_400_000;
+const HELD_LIFETIME = 90 * 86_400_000;
 /** the partition of the holder's own operations (never held) */
 const SELF = 'self';
 // ── the stored log ─────────────────────────────────────────────────────
@@ -158,6 +159,8 @@ export async function advance(ctx, g, entries, from) {
     const S = ctx.crypto.subtle;
     const state = ctx.snapshot;
     const joining = g.phase === 'joining';
+    // a page that answers a repair: its continuation asks for what is still missing by name, not by cursor
+    const wanted = from.page && from.source !== null ? stillWanted(replicaOf(g), from.source, ctx.when) : [];
     const i = await intake(replicaOf(g), entries, { source: from.source ?? SELF, now: ctx.when, ...(joining && !from.page ? { buffer: true } : {}), ...(from.page ? { answers: true } : {}) }, S);
     if (i.disposition !== 'effect')
         return { refused: i.disposition };
@@ -217,8 +220,13 @@ export async function advance(ctx, g, entries, from) {
     }
     else if (standing === 'joining') {
         next = { ...g };
-        if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null)
-            await ask(from.source, { cursor: from.page.next });
+        if (from.page && !from.page.last && from.source !== null) {
+            const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort();
+            if (want.length)
+                await ask(from.source, { want });
+            else if (from.page.next !== undefined)
+                await ask(from.source, { cursor: from.page.next });
+        }
         else if (i.want !== null && from.source !== null)
             await ask(from.source, { want: i.want });
     }
@@ -263,8 +271,13 @@ export async function advance(ctx, g, entries, from) {
             }
         }
         // the next page brings the difference, the missing parents with it; otherwise the repair asks for them by name
-        if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null)
-            await ask(from.source, { cursor: from.page.next });
+        if (from.page && !from.page.last && from.source !== null) {
+            const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort();
+            if (want.length)
+                await ask(from.source, { want });
+            else if (from.page.next !== undefined)
+                await ask(from.source, { cursor: from.page.next });
+        }
         else if (i.want !== null && from.source !== null)
             await ask(from.source, { want: i.want });
     }
@@ -454,6 +467,14 @@ export const syncDef = {
  *  only a page that defeats the join announces. */
 export function retainExchange(g, when) {
     let next = g;
+    if (g.log) {
+        const r = replicaOf(g);
+        const log = expireHeld(r.log, when);
+        if (log !== r.log) {
+            const repairs = Object.fromEntries(Object.entries(r.repairs).filter(([id]) => Object.hasOwn(log.held, id)));
+            next = { ...next, log: storedLog({ log, repairs }) };
+        }
+    }
     const stale = Object.entries(g.syncs).filter(([, s]) => s.at + HORIZON_MAX < when);
     if (stale.length)
         next = { ...next, syncs: Object.fromEntries(Object.entries(g.syncs).filter(([, s]) => s.at + HORIZON_MAX >= when)) };
@@ -465,6 +486,8 @@ export function retainExchange(g, when) {
 }
 export function exchangeDeadlines(g) {
     const out = Object.values(g.syncs).map((s) => s.at + HORIZON_MAX + 1);
+    for (const h of Object.values(g.log?.held ?? {}))
+        out.push(h.since + HELD_LIFETIME + 1);
     if (g.phase === 'joining' && g.joinUntil !== undefined)
         out.push(g.joinUntil + 1);
     return out;

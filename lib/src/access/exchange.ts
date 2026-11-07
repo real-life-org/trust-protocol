@@ -55,7 +55,7 @@ import { SCHEMAS } from '../schemas.js'
 import { TASK_NAMESPACE as TT } from '../task-uri.js'
 import type { Envelope } from './envelope.js'
 import { GENESIS_OP } from './genesis.js'
-import { ADD_OP, ENTRY_BOUND, admit, envelopeBytes, type AdmitVerdict, type Bounds, type GroupLog, type Materialized } from './log.js'
+import { ADD_OP, ENTRY_BOUND, admit, envelopeBytes, expireHeld, type AdmitVerdict, type Bounds, type GroupLog, type Materialized } from './log.js'
 
 export const ENTRY_TYPE = TT + 'x-access-entry/0.1'
 export const SYNC_TYPE = TT + 'x-access-sync/0.1'
@@ -192,6 +192,18 @@ export interface Repair { source: string, since: Millis, active: boolean }
 /** A replica's exchange state for one group: the log and the repairs of its held entries, by held id. */
 export interface Replica { log: GroupLog, repairs: Record<string, Repair> }
 
+/** The parents still missing of the held entries whose repair toward
+ *  `source` runs: what a continuation of that repair asks for by name. */
+export const stillWanted = (r: Replica, source: string, now: Millis): string[] => {
+  const out = new Set<string>()
+  for (const [id, x] of Object.entries(r.repairs)) {
+    if (!x.active || x.source !== source || now >= x.since + REPAIR_WINDOW) continue
+    const env = r.log.held[id]?.env
+    if (env) for (const p of env.prev) if (!r.log.accepted[p] && !r.log.held[p]) out.add(p)
+  }
+  return [...out].sort().slice(0, WANT_MAX)
+}
+
 /** the held ids a running repair protects from eviction at `now` */
 export const protectedIds = (r: Replica, now: Millis): Set<string> =>
   new Set(Object.entries(r.repairs).filter(([id, x]) => x.active && now < x.since + REPAIR_WINDOW && r.log.held[id] !== undefined).map(([id]) => id))
@@ -216,7 +228,7 @@ export interface Intake {
  *  `buffer`: the replica is joining and buffers. An empty list is a defined
  *  effect (the end of an exchange). */
 export async function intake (replica: Replica, entries: readonly unknown[], at: { source: string, now: Millis, bounds?: Bounds, buffer?: boolean, answers?: boolean }, subtle: SubtleCrypto = platformSubtle()): Promise<Intake> {
-  let log = replica.log
+  let log = expireHeld(replica.log, at.now)
   let repairs = replica.repairs
   if (at.answers) {
     const ended = Object.entries(repairs).filter(([, x]) => x.active && x.source === at.source)

@@ -55,7 +55,7 @@ import { platformSubtle } from '../crypto.js';
 import { SCHEMAS } from '../schemas.js';
 import { TASK_NAMESPACE as TT } from '../task-uri.js';
 import { GENESIS_OP } from './genesis.js';
-import { ADD_OP, ENTRY_BOUND, admit, envelopeBytes } from './log.js';
+import { ADD_OP, ENTRY_BOUND, admit, envelopeBytes, expireHeld } from './log.js';
 export const ENTRY_TYPE = TT + 'x-access-entry/0.1';
 export const SYNC_TYPE = TT + 'x-access-sync/0.1';
 export const PAGE_TYPE = TT + 'x-access-page/0.1';
@@ -178,6 +178,21 @@ export function pageOf(log, req, bound = ENTRY_BOUND) {
     const last = entries.length === rest.length;
     return { entries, ...(last ? {} : { next: entries[entries.length - 1].id }), last };
 }
+/** The parents still missing of the held entries whose repair toward
+ *  `source` runs: what a continuation of that repair asks for by name. */
+export const stillWanted = (r, source, now) => {
+    const out = new Set();
+    for (const [id, x] of Object.entries(r.repairs)) {
+        if (!x.active || x.source !== source || now >= x.since + REPAIR_WINDOW)
+            continue;
+        const env = r.log.held[id]?.env;
+        if (env)
+            for (const p of env.prev)
+                if (!r.log.accepted[p] && !r.log.held[p])
+                    out.add(p);
+    }
+    return [...out].sort().slice(0, WANT_MAX);
+};
 /** the held ids a running repair protects from eviction at `now` */
 export const protectedIds = (r, now) => new Set(Object.entries(r.repairs).filter(([id, x]) => x.active && now < x.since + REPAIR_WINDOW && r.log.held[id] !== undefined).map(([id]) => id));
 /** Takes entries from one source into the replica (Replication 7.1),
@@ -186,7 +201,7 @@ export const protectedIds = (r, now) => new Set(Object.entries(r.repairs).filter
  *  `buffer`: the replica is joining and buffers. An empty list is a defined
  *  effect (the end of an exchange). */
 export async function intake(replica, entries, at, subtle = platformSubtle()) {
-    let log = replica.log;
+    let log = expireHeld(replica.log, at.now);
     let repairs = replica.repairs;
     if (at.answers) {
         const ended = Object.entries(repairs).filter(([, x]) => x.active && x.source === at.source);
