@@ -41,6 +41,8 @@
 //   foundGroup({name, vouchThreshold?, listed?}, opts)  membership.found human
 //   foundPersonalCommunity({name}, opts)     membership.foundPersonal human
 //   invite(groupId, contactId, opts)          membership.invite         human
+//   leaveGroup(groupId, opts)                 membership.leave          human
+//   syncGroups(opts{groupId?})                membership.sync
 //   vouchFor(groupId, member, opts{provenance?})  membership.vouch      human
 //   introduce(requesterId, targetId, opts)    introduction.introduce    human
 //   sendMessage(contactId, text, opts{replyTo?})  message.send         human
@@ -219,6 +221,16 @@ export interface Holder {
    *  answer (Membership 1.2, 3.1); the contact decides on a group-invite
    *  prompt; human */
   invite (groupId: string, contactId: string, opts: HumanActOptions): Promise<ActResult>
+  /** leave a group: the own member.leave, effective at once and sent along
+   *  the invitation edges; the group stays in the view as `left`. Refused
+   *  for the personal community and where the holder is no member
+   *  (not-yet-canonical); event group.left; human */
+  leaveGroup (groupId: string, opts: HumanActOptions): Promise<ActResult>
+  /** ask every member the holder invited or was invited by for the
+   *  operations it lacks (x-access-sync), in one group or in all; while a
+   *  join is unconfirmed, the welcome's issuer again. Call it when the app
+   *  comes back online; not a human act */
+  syncGroups (opts: { when: Millis, groupId?: string }): Promise<ActResult>
   /** the mediator's act (Trust §8, this library's start of it): the
    *  requester gets an offer naming the target by an opaque designator and
    *  at most the `label` the human types here, with the mediator's
@@ -339,6 +351,8 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),
     foundPersonalCommunity: (c: { name: string }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
     invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
+    leaveGroup: (groupId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.leave, { groupId }, o),
+    syncGroups: (o: { when: Millis, groupId?: string }) => engine.act(MEMBERSHIP_COMMANDS.sync, o?.groupId === undefined ? {} : { groupId: o.groupId }, o?.when as Millis),
     vouchFor: (groupId: string, member: string, o: HumanActOptions & { provenance?: 'met' | 'introduced' }) =>
       human(MEMBERSHIP_COMMANDS.vouch, o?.provenance === undefined ? { groupId, member } : { groupId, member, provenance: o.provenance }, o),
     introduce: (requesterId: string, targetId: string, o: HumanActOptions & { label?: string }) =>

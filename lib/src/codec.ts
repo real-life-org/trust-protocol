@@ -11,13 +11,17 @@
 // versions and the codec are independent; a migration never re-issues
 // stored documents, outbound or acks.
 //
+// Codec 5 is the format of 0.13.0: codec 4 plus the group's authority log
+// at stage 1 (access/log.ts), its phase and its open sync requests, and
+// the events of joining and leaving. This library reads codecs 3, 4 and 5
+// and writes 5.
+//
 // Codec 4 is the format of 0.10.0: codec 3 (lib 0.6.0; an acknowledgement
 // is sent when a service took it, failed, or its retries ended; it may be
 // held by the adapter meanwhile, and it carries the duplicates' answers)
 // plus the feature `held` of an accepted outbox step and of its
-// delivery.status event (Delivery 0.85 RLTP-DEL-6140). This library reads
-// codecs 3 and 4 and writes 4; MIGRATIONS[3] only sets the version, since
-// codec 4 adds optional fields alone. Codecs 1 and 2 (lib 0.4.0, 0.5.0)
+// delivery.status event (Delivery 0.85 RLTP-DEL-6140). MIGRATIONS[3] only
+// sets the version, since codec 4 adds optional fields alone. Codecs 1 and 2 (lib 0.4.0, 0.5.0)
 // never held the state of a rolled-out app, so they have neither
 // validator nor migration: a state of either is codec-unknown, a clean
 // cut. The fixtures of codec 4 are lib/test/fixtures/state-v4*.json
@@ -36,15 +40,27 @@ import type { Duty, HolderState, KnownDuty } from './state.js'
 import type { HolderEventType } from './events.js'
 
 /** The codec this library writes. */
-export const CODEC = 4
+export const CODEC = 5
 
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
  * 3 → 4 is the version alone: codec 4 only adds optional fields.
+ * 4 → 5: a group loses the genesis of the earlier form (a document signed
+ * by the founder alone, no Access envelope) and stands as a member's
+ * group without a log: its roster stays as the fact it was, and it takes
+ * part in no exchange. No rolled-out app held a group at codec 4.
  */
 export const MIGRATIONS: Readonly<Record<number, (state: any) => any>> = Object.freeze({
   3: (state: any) => ({ ...state, codec: 4 }),
+  4: (state: any) => ({
+    ...state,
+    codec: 5,
+    groups: Object.fromEntries(Object.entries(state.groups as Record<string, any>).map(([id, g]) => {
+      const { genesis: _probe, ...rest } = g
+      return [id, { ...rest, phase: 'member', syncs: {} }]
+    })),
+  }),
 })
 
 /** A codec's structural validator: throws StateCodecError('shape') or returns. */
@@ -271,6 +287,10 @@ const EVENT_FIELDS: Record<HolderEventType, [Record<string, V>, Record<string, V
   'trust.received': [{ contactId: str }],
   'trust.paused': [{ contactId: str, paused: bool }],
   'group.joined': [{ groupId: str }],
+  'group.joining': [{ groupId: str }],
+  'group.void': [{ groupId: str }],
+  'group.left': [{ groupId: str }],
+  'group.departed': [{ groupId: str, member: str }],
   'prompt.opened': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction') }],
   'prompt.decided': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), choice: lit('accept', 'decline') }],
   'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
@@ -313,12 +333,40 @@ const groupShape = obj({
 }, { did: str, genesis: anyObj, memberAnchor: str, memberOp: str, acceptDigest: str })
 /** a listed group carries its member anchor and memberOp: the group star
  *  seals them (Trust 5400, 5430), and their absence is no filler condition */
-const group: V = (x, p) => {
-  groupShape(x, p)
-  const g = x as { listed: boolean, memberAnchor?: unknown, memberOp?: unknown }
+const listedGroup = (shape: V): V => (x, p) => {
+  shape(x, p)
+  const g = x as { listed: boolean, memberAnchor?: unknown, memberOp?: unknown, phase?: unknown }
   if (g.listed && g.memberAnchor === undefined) fail(`${p}.memberAnchor`, 'missing on a listed group')
   if (g.listed && g.memberOp === undefined) fail(`${p}.memberOp`, 'missing on a listed group')
+  if (g.listed && g.phase !== undefined && g.phase !== 'member') fail(`${p}.phase`, 'a listed group is in phase member')
 }
+const group = listedGroup(groupShape)
+
+/** codec 5: the group with its authority log at stage 1, its phase and
+ *  its open sync requests; the genesis lives in the log */
+const heldEntry = obj({ env: anyObj, reason: lit('missing-parent', 'ineligible', 'joining', 'unsupported'), source: str, since: millis, bytes: natural })
+const groupLog = obj({
+  'x-rltp-access-stage': lit(1), genesisDigest: str, accepted: rec(anyObj), held: rec(heldEntry),
+  repairs: rec(obj({ source: str, since: millis, active: bool })),
+})
+/** an operation record keyed by its envelope's id (the codec checks what the schema cannot) */
+const opKeyed = (x: unknown, p: string): void => {
+  for (const [k, e] of Object.entries(x as Record<string, any>)) {
+    const env = e?.env ?? e
+    if (env?.id !== k) fail(`${p}.${k}`, 'must equal its envelope id')
+  }
+}
+const groupLogKeyed = (shape: V): V => (x, p) => {
+  shape(x, p)
+  const l = x as { accepted: unknown, held: unknown }
+  opKeyed(l.accepted, `${p}.accepted`)
+  opKeyed(l.held, `${p}.held`)
+}
+const group5 = listedGroup(obj({
+  id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, phase: lit('joining', 'member', 'void', 'left'),
+  roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'threadId'), evidence: rec(evidence),
+  preludes: rec(obj({ contactId: str, rkid: str, at: millis })), syncs: rec(obj({ contactId: str, rkid: str, at: millis })),
+}, { did: str, log: groupLogKeyed(groupLog), memberAnchor: str, memberOp: str, acceptDigest: str, issuer: obj({ anchor: str }, { contactId: str, rkid: str }), contentKey: str, joinUntil: millis }))
 
 const heldCredential = obj({ digest: str, credential: anyObj })
 const enactmentRecord = obj({
@@ -371,7 +419,7 @@ const codecShape = (n: number): V => obj({
   contacts: keyed(contact, 'id'),
   relationships: keyed(relationship, 'id'),
   entryOrder: obj({ nextPos: dec, heads: set(str) }),
-  groups: keyed(group, 'id'),
+  groups: keyed(n >= 5 ? group5 : group, 'id'),
   profile: obj({ body: json, revision: dec }),
   effects: rec(obj({ ack: nullable(storedAck), expiresAt: millis })),
   outbox: rec(outboxItemOf(n)),
@@ -408,9 +456,11 @@ const codecShape = (n: number): V => obj({
 /** Structural validators per codec version; every readable codec has one. */
 const codec3 = codecShape(3)
 const codec4 = codecShape(4)
+const codec5 = codecShape(5)
 export const VALIDATORS: Readonly<Record<number, StateValidator>> = Object.freeze({
   3: (raw: unknown) => codec3(raw, '$'),
   4: (raw: unknown) => codec4(raw, '$'),
+  5: (raw: unknown) => codec5(raw, '$'),
 })
 
 // ── the codec ──────────────────────────────────────────────────────────

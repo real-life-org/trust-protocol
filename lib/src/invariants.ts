@@ -296,7 +296,7 @@ function socialViolations (v: Violation[], state: Readonly<HolderState>): void {
     if (p.kind === 'encounter-confirm' && !Object.hasOwn(e.records, p.id.slice('encounter:'.length))) v.push({ invariant: 'encounter', detail: `prompt ${p.id} names no record` })
   }
   for (const g of Object.values(state.groups)) {
-    if (g.memberAnchor !== undefined && Object.keys(g.roster).length && !Object.hasOwn(g.roster, g.memberAnchor)) v.push({ invariant: 'groups', detail: `${g.id}: the own member anchor is not on the roster` })
+    if (g.phase === 'member' && g.memberAnchor !== undefined && Object.keys(g.roster).length && !Object.hasOwn(g.roster, g.memberAnchor)) v.push({ invariant: 'groups', detail: `${g.id}: the own member anchor is not on the roster` })
     if (Object.keys(g.roster).length && !labels.has(g.memberLabel)) v.push({ invariant: 'groups', detail: `${g.id}: the member label is not in the register` })
     for (const ev of Object.values(g.evidence)) {
       const subject = (ev.accept as { payload?: { accept?: { subject?: string } } }).payload?.accept?.subject
@@ -699,11 +699,15 @@ export function transitionViolations (before: Readonly<HolderState>, after: Read
     const absorbed = Object.values(after.relationships).some((h) => h.chainedInto === r && before.relationships[h.id]?.chainedInto === null && before.messages.blocked.includes(h.id))
     if (!absorbed) v.push({ invariant: 'messages', detail: `the block of ${r} set by ${op.kind}` })
   }
-  // a member stays on the holder's roster (removal is not built)
+  // a held group stays; a member stays on the holder's roster unless the
+  // log holds its member.leave (access stage 1: removal is not built), or
+  // the holder's own standing ended (left, void) or was a joining display
   for (const [id, g] of Object.entries(before.groups)) {
     const ga = after.groups[id]
     if (!ga) { v.push({ invariant: 'groups', detail: `group ${id} left` }); continue }
-    for (const m of Object.keys(g.roster)) if (!Object.hasOwn(ga.roster, m)) v.push({ invariant: 'groups', detail: `${id}: member ${m} left the roster` })
+    if (g.phase !== 'member' || ga.phase !== 'member') continue
+    const left = new Set(Object.values(ga.log?.accepted ?? {}).filter((e) => (e as { op?: string }).op === 'member.leave').map((e) => (e as { author?: string }).author))
+    for (const m of Object.keys(g.roster)) if (!Object.hasOwn(ga.roster, m) && !left.has(m)) v.push({ invariant: 'groups', detail: `${id}: member ${m} left the roster` })
   }
   if (big(after.commitSeq) !== big(before.commitSeq) + 1n) v.push({ invariant: 'commitSeq', detail: `commitSeq ${before.commitSeq} → ${after.commitSeq}` })
   if (after.lastWhen < before.lastWhen) v.push({ invariant: 'commitSeq', detail: `lastWhen fell ${before.lastWhen} → ${after.lastWhen}` })

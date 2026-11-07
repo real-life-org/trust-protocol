@@ -370,8 +370,15 @@ export interface Group {
   name: string
   /** the group DID, its address, never its identity (Membership 2.3) */
   did?: string
-  /** the signed genesis, as founded or as the welcome carried it */
-  genesis?: JsonObject
+  /** where the holder stands (access stage 1): `joining` from the welcome
+   *  until the log confirms the own admission, `member`, `void` for a join
+   *  that did not take effect, `left` after the own member.leave. Only a
+   *  member authors operations, is listed, and answers as the group */
+  phase: GroupPhase
+  /** the authority log (Access 3.1) as this holder holds it; absent on a
+   *  group held as a fact alone (a state of codec 4, a built state): such
+   *  a group takes part in no exchange and issues no invitation */
+  log?: GroupLogState
   /** own member context label in this group: the founding pair label for
    *  the founder (Access 3.4.1), group/<digest> for a member (5.1) */
   memberLabel: string
@@ -385,8 +392,10 @@ export interface Group {
    *  sets them on join; only an unlisted group may lack them. */
   memberAnchor?: string
   memberOp?: string
-  /** the members this holder knows of, by member anchor: its local view
-   *  (membership/*); the replicated log is the Access port's */
+  /** the current members by member anchor: the materialization of `log`
+   *  (Access 3.5), with what the holder knows locally of each (the contact
+   *  of an invitation edge, since when). While joining: the members the
+   *  welcome named, for display alone */
   roster: Record<string, RosterEntry>
   /** invitations this holder issued and not yet saw answered, by thread
    *  (Membership 3.1: the invite opens its thread) */
@@ -400,14 +409,39 @@ export interface Group {
   /** the own accept's document digest, where the holder joined by one:
    *  the vouches for it bind it (Access 5.3) */
   acceptDigest?: string
+  /** own x-access-sync requests awaiting their page, by thread: the
+   *  contact and the own tuple key each went on */
+  syncs: Record<string, { contactId: string, rkid: string, at: Millis }>
+  /** the member whose welcome brought the holder in, with the contact and
+   *  the own tuple key its invitation was attributed to (absent: none) */
+  issuer?: { anchor: string, contactId?: string, rkid?: string }
+  /** founder only: the epoch-0 content key (unpadded base64url) the
+   *  genesis commits to (Access 9710); kept, never distributed at stage 1 */
+  contentKey?: string
+  /** while joining: when an unconfirmed join becomes void */
+  joinUntil?: Millis
+}
+
+export type GroupPhase = 'joining' | 'member' | 'void' | 'left'
+
+/** The stored authority log of a group at stage 1 (access/log.ts GroupLog
+ *  with the repairs of access/exchange.ts): accepted envelopes by
+ *  operation id, held entries by id, and the stage mark, which is local
+ *  and outside every envelope. */
+export interface GroupLogState {
+  'x-rltp-access-stage': 1
+  genesisDigest: string
+  accepted: Record<string, JsonObject>
+  held: Record<string, { env: JsonObject, reason: 'missing-parent' | 'ineligible' | 'joining' | 'unsupported', source: string, since: Millis, bytes: number }>
+  repairs: Record<string, { source: string, since: Millis, active: boolean }>
 }
 
 /** A member as this holder knows it (Membership 2.6: the enclosed card). */
 export interface RosterEntry {
   /** member anchor */
   anchor: string
-  /** the oid naming its admission (the accept's digest in this library's
-   *  welcome form), or the genesis digest for the founder */
+  /** the oid of its canonical admission: its member.add, or the genesis
+   *  for the founder (Access 3.3); empty while the holder is joining */
   op: string
   /** its card's key agreement: what a document to it is sealed to */
   keyAgreement: string

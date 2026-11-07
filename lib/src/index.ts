@@ -113,3 +113,6 @@ export type { DeviceKeyResult } from './identity-state.js'
 export type { ContactView, RelationshipView, ClassView, SealedClassView, ClassesView, ContactProfileView, GroupView, ProfileView, PromptView, InboxMessageView, DeliveryItemView, DeliveryStatusView } from './views.js'
 export type { EnginePorts, CommitListener, CryptoHandle, TransportEntry, TransportView, TransportRefusal, AnswerableEntry } from './engine.js'
 export type { ContractHarness } from './store-contract.js'
+
+// the group log (Access 3.1, 3.3–3.5), stage 1
+export * as access from './access/index.js'

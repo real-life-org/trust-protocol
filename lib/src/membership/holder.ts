@@ -121,27 +121,30 @@
 //   - a member group is listed in the group star (5420: listed unless
 //     switched off)
 import { b64uOf, fromB64u, iso, sameDigest, toU } from '../core.js'
+import { ADD_OP, emptyLog, genesisDigestOf, genesisUnsigned, openLog, signGenesis } from '../access/index.js'
+import type { Envelope } from '../access/index.js'
+import { EXCHANGE_TASKS, SYNC_TYPE, advance, authored, committed, exchangeDeadlines, factsOf, genesisEnvelope, isStep, leaveDef, replicaOf, retainExchange, storedLog, syncDef } from './replica.js'
+import type { Step } from './replica.js'
 import type { Json, JsonObject } from '../core.js'
 import { anchorOfEd, diSignWith, diVerify, digestBytes, digestDoc } from '../crypto.js'
 import { seal } from '../delivery.js'
 import { cardBody } from '../encounter.js'
 import {
   ACCEPT_TYPE, EVIDENCE_TYPE, EVIDENCE_TYPE_01, INVITE_TYPE, MEMBERSHIP_SKEW, PRELUDE_REPLY_TYPE, PRELUDE_REQUEST_TYPE, acceptProblem, enclosedCardOk, evidenceProblem,
-  inviteCredentialBody, inviteProblem, inviterBindingBody, memberLabelOf, membershipSchemaOk, oidOf, preludeRequestProblem, vouchCredentialBody, vouchProblem, withinBudget,
+  inviteCredentialBody, inviteProblem, inviterBindingBody, memberLabelOf, membershipSchemaOk, preludeRequestProblem, vouchCredentialBody, vouchProblem, withinBudget,
 } from '../membership.js'
 import { withLabel, withPairNonce } from '../identity-state.js'
 import { communityLabel } from '../identity.js'
 import { ED_PKCS8 } from '../keys-seed.js'
 import { tupleByRkid } from '../receive.js'
 import type { Channel, TaskRefusal } from '../receive.js'
-import type { Applied, CommandDef, DecisionDef, EventDraft, HolderModule, OutboundDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
+import { arrival, channelTo, draft, isRefusal, no, refuse, rkidOf, sealed, signDoc, signer } from './shared.js'
+import type { Doc, Sealed } from './shared.js'
+import type { Applied, CommandDef, DecisionDef, HolderModule, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
 import type { Access, GroupAccess, Recipient } from '../ports.js'
 import type { Evidence, Group, HolderState, Joining, Millis, OpenInvitation, Prompt, ReceivedInvite, RosterEntry } from '../state.js'
 import { INVITE_RATE, blockedRel, rateCount, relOfRkid, withRate } from '../message/holder.js'
-import { entryOf, findContact, liveRel, activeTuple } from '../trust/state.js'
-import { groupStarRematch, withGroupHits } from '../trust/group-star.js'
-import type { GroupStarRehit } from '../trust/group-star.js'
-import type { GroupMembership } from '../group-star.js'
+import { liveRel } from '../trust/state.js'
 import { TASK_NAMESPACE as TT } from '../task-uri.js'
 
 /** This library's experimental form of the welcome (receive.ts SIGNATURE_CLASS). */
@@ -158,35 +161,14 @@ export const MEMBERSHIP_COMMANDS = Object.freeze({
   foundPersonal: 'membership.foundPersonal',
   invite: 'membership.invite',
   vouch: 'membership.vouch',
+  leave: 'membership.leave',
+  sync: 'membership.sync',
 })
 
 export interface FoundInput { name: string, vouchThreshold?: string, listed?: boolean }
 export interface FoundPersonalInput { name: string }
 export interface InviteInput { groupId: string, contactId: string }
 export interface VouchInput { groupId: string, member: string, provenance?: 'met' | 'introduced' }
-
-const refuse = (reason: TaskRefusal['reason'], ref?: string): TaskRefusal => ({ ok: false, reason, ...(ref ? { ref } : {}) })
-const no = (code: Refusal['code'], ref?: string): Refusal => ({ ok: false, code, ...(ref ? { ref } : {}) })
-const isRefusal = (x: unknown): x is Refusal | TaskRefusal => (x as Refusal)?.ok === false
-type Doc = Record<string, any>
-
-const sealWith = (ctx: PrepareCtx, doc: unknown, keyAgreement: string) =>
-  seal(doc as Json, keyAgreement, { ephSeed: ctx.entropy.bytes('seal.eph', 32), nonce: ctx.entropy.bytes('seal.nonce', 12) }, ctx.crypto.subtle)
-const signer = (ctx: PrepareCtx, label: string) => (b: Uint8Array) => ctx.keys.sign(label, b)
-const signDoc = async <T extends Record<string, any>> (ctx: PrepareCtx, label: string, anchor: string, doc: T, at: string) =>
-  diSignWith(anchor, signer(ctx, label), doc, at, ctx.crypto.subtle)
-
-/** A sealed document ready for the outbox. */
-interface Sealed { digest: string, envelope: OutboundDraft['envelope'], threadId: string, type: string, recipient: Recipient }
-const draft = (s: Sealed): OutboundDraft => ({ digest: s.digest, envelope: s.envelope, type: s.type, threadId: s.threadId, recipient: s.recipient })
-
-async function sealed (ctx: PrepareCtx, doc: Doc, recipient: Recipient): Promise<Sealed> {
-  return { digest: await digestDoc(doc, ctx.crypto.subtle), envelope: await sealWith(ctx, doc, recipient.keyAgreement), threadId: doc.threadId, type: doc.type, recipient }
-}
-
-/** The own key-agreement id a label derives under, from `addresses`. */
-const rkidOf = (state: Readonly<HolderState>, label: string): string | undefined =>
-  Object.entries(state.addresses.keys).find(([, k]) => k.label === label)?.[0]
 
 /** A displayed member card (Membership 2.6): no challenge, no sentTo/boundTo/hints. */
 async function memberCard (ctx: PrepareCtx, label: string, name: string | undefined, at: string): Promise<Json> {
@@ -232,15 +214,21 @@ const groupAccess = (g: Readonly<Group>): GroupAccess => Object.freeze({
 /** An Access over one snapshot's `groups` (note §3 Access; the header). */
 export function localAccess (state: Readonly<HolderState>): Access {
   return Object.freeze({
-    memberships: async () => Object.values(state.groups).map(groupAccess),
-    membership: async (id: string) => (Object.hasOwn(state.groups, id) ? groupAccess(state.groups[id]) : null),
+    memberships: async () => Object.values(state.groups).filter((g) => g.phase === 'member').map(groupAccess),
+    membership: async (id: string) => (Object.hasOwn(state.groups, id) && state.groups[id].phase === 'member' ? groupAccess(state.groups[id]) : null),
   })
 }
 
 // ── founding (Access 3.4.1) ────────────────────────────────────────────
 
-interface FoundPrep { label: string, nonce: string, rkid: string, anchor: string, did: string, genesis: Json, genesisDigest: string, keyAgreement: string, name?: string }
+interface FoundPrep { label: string, nonce: string, rkid: string, anchor: string, did: string, genesis: Envelope, genesisDigest: string, keyAgreement: string, name?: string, contentKey: string }
 
+/** The founding: a genesis under linear/0.1 (access/genesis.ts), signed by
+ *  the group DID's key and by the founder, a fresh pair context (3275).
+ *  The group key signs once and is not kept (3060); the epoch-0 content
+ *  key the genesis commits to (9710) stays with the founder, undistributed
+ *  until the key port. The group's name is local and travels in the
+ *  welcome; the genesis does not carry it. */
 const foundDef: CommandDef<FoundInput, FoundPrep> = {
   human: true,
   async prepare (ctx, input) {
@@ -252,10 +240,12 @@ const foundDef: CommandDef<FoundInput, FoundPrep> = {
     // the group address: a probe mint until Identity names the group key's origin
     const k = await S.importKey('pkcs8', Uint8Array.from([...ED_PKCS8, ...ctx.entropy.bytes('group.seed', 32)]), { name: 'Ed25519' }, true, ['sign'])
     const did = anchorOfEd(fromB64u((await S.exportKey('jwk', k)).x!))
-    const at = iso(ctx.when)
-    const body = { type: 'group-genesis@probe', group: did, label: input.name, founder: me.anchor, issuedAt: at }
-    const genesis = await signDoc(ctx, label, me.anchor, body, at) as unknown as Json
-    return { label, nonce: b64uOf(n), rkid: me.keyAgreement, anchor: me.anchor, did, genesis, genesisDigest: await digestDoc(body, S), keyAgreement: me.keyAgreement, name: ownName(ctx.snapshot) }
+    const contentKey = ctx.entropy.bytes('content.key', 32)
+    const name = ownName(ctx.snapshot)
+    const card = await memberCard(ctx, label, name, iso(ctx.when))
+    const unsigned = await genesisUnsigned({ group: did, founder: me.anchor, card, serviceIdentity: await ctx.keys.serviceIdentity(did), contentKey }, S)
+    const genesis = await signGenesis(unsigned, { signer: did, sign: async (b) => new Uint8Array(await S.sign({ name: 'Ed25519' }, k, b as BufferSource)) }, { signer: me.anchor, sign: signer(ctx, label) }, S)
+    return { label, nonce: b64uOf(n), rkid: me.keyAgreement, anchor: me.anchor, did, genesis, genesisDigest: await genesisDigestOf(genesis, S), keyAgreement: me.keyAgreement, ...(name !== undefined ? { name } : {}), contentKey: b64uOf(contentKey) }
   },
   apply (state, prepared, input, when) {
     const p = prepared.value
@@ -265,10 +255,11 @@ const foundDef: CommandDef<FoundInput, FoundPrep> = {
     if (!/^[1-9][0-9]?$/.test(threshold)) throw new TypeError('membership.found: vouchThreshold is a positive decimal')
     if (threshold !== '1') return no('threshold-unsupported')
     const group: Group = {
-      id: p.genesisDigest, name: input.name, did: p.did, genesis: p.genesis as JsonObject, memberLabel: p.label, rules: { vouchThreshold: threshold },
-      listed: input.listed ?? true, memberAnchor: p.anchor, memberOp: oidOf(p.genesisDigest)!,
-      roster: { [p.anchor]: { anchor: p.anchor, op: oidOf(p.genesisDigest)!, keyAgreement: p.keyAgreement, ...(p.name !== undefined ? { name: p.name } : {}), addedAt: when } },
-      invitations: {}, evidence: {}, preludes: {},
+      id: p.genesisDigest, name: input.name, did: p.did, phase: 'member', log: storedLog({ log: emptyLog(p.genesisDigest, p.genesis), repairs: {} }),
+      memberLabel: p.label, rules: { vouchThreshold: threshold },
+      listed: input.listed ?? true, memberAnchor: p.anchor, memberOp: p.genesis.id,
+      roster: { [p.anchor]: { anchor: p.anchor, op: p.genesis.id, keyAgreement: p.keyAgreement, ...(p.name !== undefined ? { name: p.name } : {}), addedAt: when } },
+      invitations: {}, evidence: {}, preludes: {}, syncs: {}, contentKey: p.contentKey,
     }
     return {
       state: {
@@ -313,25 +304,14 @@ export const isPersonalCommunity = (state: Readonly<HolderState>, groupId: strin
 
 // ── the prelude (Membership 1.2) ───────────────────────────────────────
 
-/** The live active tuple toward a contact, with its relationship. */
-function channelTo (state: Readonly<HolderState>, contactId: string) {
-  const c = findContact(state, contactId)
-  if (!c) return null
-  const ids = new Set([c.id, ...c.aliases])
-  for (const id of c.relIds) {
-    const r = state.relationships[id]
-    const t = r && liveRel(r) ? activeTuple(r) : undefined
-    if (t && !t.deactivated && ids.has(t.entryId)) return { contact: c, rel: r, tuple: t }
-  }
-  return null
-}
-
 const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
   human: true,
   async prepare (ctx, input) {
     const g = ctx.snapshot.groups[input?.groupId]
-    if (!g || g.memberAnchor === undefined) return no('unknown-group')
+    if (!g || g.memberAnchor === undefined || !g.log) return no('unknown-group')
     if (isPersonalCommunity(ctx.snapshot, g.id)) return no('personal-community')
+    // the gate: only a member by its own log authors (S1-6)
+    if (g.phase !== 'member') return no('not-yet-canonical')
     const ch = channelTo(ctx.snapshot, input.contactId)
     if (!ch) return no('no-own-channel')
     // no invitation toward a blocked relationship (Message Tasks 6410)
@@ -356,12 +336,6 @@ const inviteDef: CommandDef<InviteInput, Refusal | Sealed> = {
     const preludes = { ...g.preludes, [p.threadId]: { contactId: p.recipient.contactId, rkid: p.recipient.rkid, at: when } }
     return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, preludes } } }, outbound: [draft(p)] }
   },
-}
-
-/** The arrival tuple's own label and the entry it feeds. */
-function arrival (state: Readonly<HolderState>, rkid: string) {
-  const at = tupleByRkid(state, rkid)
-  return at ? { label: at.tuple.ownPairLabel, contactId: entryOf(state, at.rel)?.id ?? findContact(state, at.rel.contactId)?.id ?? at.rel.contactId, tuple: at.tuple } : null
 }
 
 interface PreludeRequestPayload { genesisDigest: string, group: string, name: string, inviter: string, binding: Doc }
@@ -438,7 +412,7 @@ const preludeReplyTask: TaskHandler<PreludeReplyPayload, Sealed & { invitee: str
     // its group (genesis digests by their decoded bytes), thread and tuple (3965)
     const g = s.groups[toU(doc.payload.genesisDigest) ?? '']
     const asked = g?.preludes[doc.threadId]
-    if (!g || g.memberAnchor === undefined || !asked || asked.rkid !== arr.rkid) return refuse('validation-failed', 'RLTP-MT-3965')
+    if (!g || g.memberAnchor === undefined || g.phase !== 'member' || !asked || asked.rkid !== arr.rkid) return refuse('validation-failed', 'RLTP-MT-3965')
     const card = doc.payload.card
     if (!(await enclosedCardOk(card, card.anchor, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-3960')
     const a = arrival(s, arr.rkid)!
@@ -613,23 +587,50 @@ const acceptDecision: DecisionDef<(Sealed & { acceptDigest: string }) | Refusal 
 
 // ── admission at the inviter ───────────────────────────────────────────
 
-interface WelcomeMember { anchor: string, op: string, keyAgreement: string, name?: string }
+/** A member as the welcome names it: for display alone (the log decides, Access 3015). */
+interface WelcomeMember { anchor: string, keyAgreement: string, name?: string }
 
-/** The welcome (this library's form, see the header) and, for n > 1, the
- *  evidence relays to the other members. */
-async function admissionDocs (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<Evidence>, acceptDigest: string, admit: boolean): Promise<{ welcome: Sealed | null, relays: Sealed[] }> {
+/** An admission: the member.add in the admitting member's log with all it
+ *  sets off there (the step), and the welcome to the new member. */
+interface Admission { step: Step, welcome: Sealed }
+
+/** Admits the subject of a consent pair (Access 5.3): the admitting
+ *  member authors the member.add at its position, its body the invite, the
+ *  accept and the digest of the welcome's payload (5290), takes it into
+ *  its own log and forwards it along its edges, never to the subject
+ *  (replica.ts). The welcome (this library's form, the header) names the
+ *  group, carries the genesis and the members for display, and no
+ *  operation id: the new member fetches the log and finds its admission by
+ *  the accept's digest. null where the holder is no member, the operation
+ *  would be oversize, or it would not make the subject a member (rules
+ *  0–5): then nothing is authored and the consent stays as evidence. */
+async function admission (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<Evidence>, acceptDigest: string): Promise<Admission | null> {
+  if (g.phase !== 'member' || !g.log || g.memberAnchor === undefined) return null
+  const S = ctx.crypto.subtle
   const acc = (ev.accept as Doc).payload.accept
   const at = iso(ctx.when)
-  const entry = rosterEntryOf(acc, acceptDigest, ctx.when, undefined)
-  if (admit) {
-    const roster: WelcomeMember[] = [...Object.values(g.roster), entry].map((m) => ({ anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}) }))
-    const body = {
-      id: ctx.entropy.id('doc.id'), type: WELCOME_TYPE, issuer: g.memberAnchor!, recipient: acc.subject, threadId: (ev.accept as Doc).threadId, issuedAt: at,
-      payload: { genesisDigest: g.id, group: g.did ?? '', name: g.name, genesis: g.genesis ?? {}, vouchThreshold: g.rules.vouchThreshold, accept: acceptDigest, roster },
-    }
-    const doc = await signDoc(ctx, g.memberLabel, g.memberAnchor!, body, at)
-    return { welcome: await sealed(ctx, doc, { ...contactOfInvitation(g, acc.subject), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: acc.card.keyAgreement, anchor: acc.subject }), relays: [] }
-  }
+  const facts = await factsOf(replicaOf(g)!.log, S)
+  const roster: WelcomeMember[] = [
+    ...facts.m.members.map((a) => ({ anchor: a, keyAgreement: facts.m.keyAgreement[a]!, ...(Object.hasOwn(facts.names, a) ? { name: facts.names[a] } : {}) })),
+    { anchor: acc.subject, keyAgreement: acc.card.keyAgreement, ...(typeof acc.card.name === 'string' ? { name: acc.card.name } : {}) },
+  ]
+  const payload = { genesisDigest: g.id, group: g.did ?? '', name: g.name, genesis: genesisEnvelope(g)!, vouchThreshold: g.rules.vouchThreshold, accept: acceptDigest, roster }
+  const env = await authored(ctx, g, ADD_OP, { subject: acc.subject, admission: { invite: ev.invite, accept: ev.accept, welcome: await digestDoc(payload, S) } } as unknown as Json)
+  if (env === 'oversize') return null
+  // the contact the member was invited as, on the tuple its prelude went on: the invitation edge
+  const by = Object.values(g.invitations).find((i) => i.invitee === acc.subject)
+  const step = await advance(ctx, g, [env], { source: null, ...(by ? { edges: { [acc.subject]: { contactId: by.contactId, rkid: by.rkid } } } : {}) })
+  if (!isStep(step) || !Object.hasOwn(step.group.roster, acc.subject)) return null
+  const body = { id: ctx.entropy.id('doc.id'), type: WELCOME_TYPE, issuer: g.memberAnchor, recipient: acc.subject, threadId: (ev.accept as Doc).threadId, issuedAt: at, payload }
+  const doc = await signDoc(ctx, g.memberLabel, g.memberAnchor, body, at)
+  const welcome = await sealed(ctx, doc, { ...contactOfInvitation(g, acc.subject), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: acc.card.keyAgreement, anchor: acc.subject })
+  return { step, welcome }
+}
+
+/** For n > 1: the consent pair relayed to the other members for their vouches. */
+async function evidenceRelays (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<Evidence>): Promise<Sealed[]> {
+  const acc = (ev.accept as Doc).payload.accept
+  const at = iso(ctx.when)
   const relays: Sealed[] = []
   for (const m of Object.values(g.roster)) {
     if (m.anchor === g.memberAnchor || m.anchor === acc.subject) continue
@@ -639,7 +640,7 @@ async function admissionDocs (ctx: PrepareCtx, g: Readonly<Group>, ev: Readonly<
     }
     relays.push(await sealed(ctx, body, { ...contactOfMember(m), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: m.keyAgreement, anchor: m.anchor }))
   }
-  return { welcome: null, relays }
+  return relays
 }
 
 /** The invitation of a thread to a subject (Membership 3.2: the accept answers the invite of its thread). */
@@ -656,25 +657,19 @@ const contactOfInvitation = (g: Readonly<Group>, subject: string): { contactId: 
 const contactOfMember = (m: Readonly<RosterEntry>): { contactId: string, via?: string } =>
   (m.contactId !== undefined ? { contactId: m.contactId, ...(m.rkid !== undefined ? { via: m.rkid } : {}) } : { contactId: 'member:' + m.anchor })
 
-const rosterEntryOf = (acc: Doc, acceptDigest: string, when: Millis, by: Readonly<OpenInvitation> | undefined): RosterEntry => ({
-  anchor: acc.subject, op: oidOf(acceptDigest)!, keyAgreement: acc.card.keyAgreement,
-  ...(typeof acc.card.name === 'string' ? { name: acc.card.name } : {}), addedAt: when, ...(by ? { contactId: by.contactId, rkid: by.rkid } : {}),
-})
-
-/** The admission's state: the roster grows, the evidence and the invitation go. */
-function admitted (state: Readonly<HolderState>, g: Readonly<Group>, acceptDigest: string, ev: Readonly<Evidence>, when: Millis): { state: HolderState, events: EventDraft[] } {
-  const acc = (ev.accept as Doc).payload.accept
-  // the contact the member was invited as, on the tuple its prelude went on
-  const by = Object.values(g.invitations).find((i) => i.invitee === acc.subject)
-  // every invitation to the now member is answered
-  const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, i]) => i.invitee !== acc.subject))
+/** The admission's commit: the step's group (the log, the roster with the
+ *  new member), every invitation to it answered, its evidence gone, the
+ *  step's documents and the welcome. */
+function admitted (state: Readonly<HolderState>, a: Admission, acceptDigest: string, subject: string): Applied {
+  const g = a.step.group
+  const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, i]) => i.invitee !== subject))
   const evidence = { ...g.evidence }
   delete evidence[acceptDigest]
-  const next: Group = { ...g, roster: { ...g.roster, [acc.subject]: rosterEntryOf(acc, acceptDigest, when, by) }, invitations, evidence }
-  return { state: { ...state, groups: { ...state.groups, [g.id]: next } }, events: [{ type: 'group.admitted', groupId: g.id, member: acc.subject }] }
+  const c = committed(state, { ...a.step, group: { ...g, invitations, evidence } })
+  return { ...c, outbound: [...(c.outbound ?? []), draft(a.welcome)] }
 }
 
-interface AcceptPrep { group: string, acceptDigest: string, welcome: Sealed | null, relays: Sealed[] }
+interface AcceptPrep { group: string, acceptDigest: string, admission: Admission | null, relays: Sealed[] }
 
 const acceptTask: TaskHandler<Doc, AcceptPrep> = {
   proof: 'required',
@@ -693,19 +688,19 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
     if (bad) return refuse('validation-failed', bad)
     const acceptDigest = await digestDoc(doc, ctx.crypto.subtle)
     const ev: Evidence = { invite: inv.invite, accept: doc as unknown as JsonObject, vouches: [], at: arr.when }
-    const docs = await admissionDocs(ctx, g, ev, acceptDigest, policyMet(g, ev) && admissionOpen(inv.invite, arr.when))
-    return { group: g.id, acceptDigest, ...docs }
+    const met = policyMet(g, ev)
+    const adm = met && admissionOpen(inv.invite, arr.when) ? await admission(ctx, g, ev, acceptDigest) : null
+    return { group: g.id, acceptDigest, admission: adm, relays: met ? [] : await evidenceRelays(ctx, g, ev) }
   },
   // the defined effect: the consent recorded (3280); the admission where
   // the policy holds, else the pair relayed for vouches (the header)
   apply (state, prepared, doc, arr) {
     const p = prepared.value
+    if (p.admission) return admitted(state, p.admission, p.acceptDigest, doc.issuer)
     const g = state.groups[p.group]
+    // a member already (admitted on another invitation): the consent has nothing left to do
+    if (Object.hasOwn(g.roster, doc.issuer)) return { state: state as HolderState }
     const ev: Evidence = { invite: invitationOf(g, doc.threadId, doc.issuer)!.invite, accept: doc as unknown as JsonObject, vouches: [], at: arr.when }
-    if (p.welcome) {
-      const a = admitted(state, g, p.acceptDigest, ev, arr.when)
-      return { state: a.state, events: a.events, outbound: [draft(p.welcome)] }
-    }
     // the consent waits as evidence; the invitation stays until the
     // admission (its contact goes onto the roster then)
     return {
@@ -717,7 +712,7 @@ const acceptTask: TaskHandler<Doc, AcceptPrep> = {
 
 // ── evidence (Membership 3.4) and vouches ──────────────────────────────
 
-interface EvidencePrep { group: string, acceptDigest: string, vouches: Doc[], welcome: Sealed | null }
+interface EvidencePrep { group: string, acceptDigest: string, vouches: Doc[], admission: Admission | null }
 
 const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
   proof: 'absent',
@@ -726,7 +721,7 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
   channel (state, doc, rkid): Channel | TaskRefusal {
     const inv = doc.payload.evidence.invite.payload.invite
     const g = groupOfLabel(state, state.addresses.keys[rkid]?.label)
-    if (!g || !sameDigest(g.id, inv.credentialSubject.genesisDigest)) return refuse('validation-failed', 'RLTP-MT-3755')
+    if (!g || g.phase !== 'member' || !sameDigest(g.id, inv.credentialSubject.genesisDigest)) return refuse('validation-failed', 'RLTP-MT-3755')
     const m = g.roster[doc.issuer]
     if (!m) return refuse('validation-failed', 'RLTP-MT-3750')
     return { keyAgreement: m.keyAgreement, ...contactOfMember(m) }
@@ -748,20 +743,16 @@ const evidenceTask = (schema: string): TaskHandler<Doc, EvidencePrep> => ({
     const ev: Evidence = { invite, accept, vouches: merged as JsonObject[], at: arr.when }
     // the inviter admits once the policy holds (the header)
     const admit = invite.payload.invite.issuer === g.memberAnchor && !Object.hasOwn(g.roster, accept.payload.accept.subject) && policyMet(g, ev) && admissionOpen(invite, arr.when)
-    const welcome = admit ? (await admissionDocs(ctx, g, ev, acceptDigest, true)).welcome : null
-    return { group: g.id, acceptDigest, vouches, welcome }
+    return { group: g.id, acceptDigest, vouches, admission: admit ? await admission(ctx, g, ev, acceptDigest) : null }
   },
   apply (state, prepared, doc, arr) {
     const p = prepared.value
     const g = state.groups[p.group]
     const { invite, accept } = doc.payload.evidence
     if (Object.hasOwn(g.roster, accept.payload.accept.subject)) return { state: state as HolderState }
+    if (p.admission) return admitted(state, p.admission, p.acceptDigest, accept.payload.accept.subject)
     const held = g.evidence[p.acceptDigest]
     const ev: Evidence = { invite, accept, vouches: mergeVouches(held?.vouches as Doc[] ?? [], p.vouches) as JsonObject[], at: held?.at ?? arr.when }
-    if (p.welcome) {
-      const a = admitted(state, g, p.acceptDigest, ev, arr.when)
-      return { state: a.state, events: a.events, outbound: [draft(p.welcome)] }
-    }
     // keyed by the accept: one decision per consent, vouches added up to 16 (3795)
     return { state: { ...state, groups: { ...state.groups, [g.id]: { ...g, evidence: { ...g.evidence, [p.acceptDigest]: ev } } } } }
   },
@@ -774,13 +765,14 @@ function mergeVouches (held: readonly Doc[], more: readonly Doc[]): Doc[] {
   return out
 }
 
-type VouchPrep = Refusal | { group: string, acceptDigest: string, vouch: Doc, relay: Sealed | null, welcome: Sealed | null }
+type VouchPrep = Refusal | { group: string, acceptDigest: string, vouch: Doc, relay: Sealed | null }
 
 const vouchDef: CommandDef<VouchInput, VouchPrep> = {
   human: true,
   async prepare (ctx, input) {
     const g = ctx.snapshot.groups[input?.groupId]
     if (!g || g.memberAnchor === undefined) return no('unknown-group')
+    if (g.phase !== 'member') return no('not-yet-canonical')
     const held = Object.entries(g.evidence).find(([, e]) => (e.accept as Doc).payload.accept.subject === input.member)
     if (!held) return no('no-evidence')
     const [acceptDigest, ev] = held
@@ -798,22 +790,17 @@ const vouchDef: CommandDef<VouchInput, VouchPrep> = {
       payload: { evidence: { invite: ev.invite, accept: ev.accept, vouches: [vouch] } },
     }
     const relay = await sealed(ctx, doc, { ...contactOfMember(to), rkid: rkidOf(ctx.snapshot, g.memberLabel) ?? '', keyAgreement: to.keyAgreement, anchor: to.anchor })
-    return { group: g.id, acceptDigest, vouch, relay, welcome: null }
+    return { group: g.id, acceptDigest, vouch, relay }
   },
-  apply (state, prepared, input, when) {
+  apply (state, prepared, input) {
     const p = prepared.value
     if (isRefusal(p)) return p
     const g = state.groups[p.group]
     const ev = g.evidence[p.acceptDigest]
     const next: Evidence = { ...ev, vouches: mergeVouches(ev.vouches as Doc[], [p.vouch]) as JsonObject[] }
-    const events: EventDraft[] = [{ type: 'group.vouched', groupId: g.id, member: input.member }]
-    if (p.welcome) {
-      const a = admitted(state, g, p.acceptDigest, next, when)
-      return { state: a.state, events: [...events, ...a.events], outbound: [draft(p.welcome)] }
-    }
     return {
       state: { ...state, groups: { ...state.groups, [g.id]: { ...g, evidence: { ...g.evidence, [p.acceptDigest]: next } } } },
-      events,
+      events: [{ type: 'group.vouched', groupId: g.id, member: input.member }],
       outbound: p.relay ? [draft(p.relay)] : [],
     }
   },
@@ -831,27 +818,29 @@ const welcomeShape = (p: unknown): p is WelcomePayload => {
   if (!/^[1-9][0-9]?$/.test(x.vouchThreshold as string) || toU(x.genesisDigest) !== x.genesisDigest) return false
   return (x.roster as unknown[]).every((m) => {
     const e = m as Record<string, unknown>
-    return e !== null && typeof e === 'object' && isStr(e.anchor) && isStr(e.op) && isStr(e.keyAgreement) && (e.name === undefined || isStr(e.name))
+    return e !== null && typeof e === 'object' && Object.keys(e).every((k) => k === 'anchor' || k === 'keyAgreement' || k === 'name') && isStr(e.anchor) && isStr(e.keyAgreement) && (e.name === undefined || isStr(e.name))
   })
 }
 
-/** A roster carries each member once: its anchors and its ops distinct
- *  (one admission per member, one member per admission). No rule of
- *  Membership 0.19 names it for this library's welcome form, so a repeat
- *  is validation-failed without a ref. */
-const rosterDistinct = (roster: readonly WelcomeMember[]): boolean =>
-  new Set(roster.map((m) => m.anchor)).size === roster.length && new Set(roster.map((m) => m.op)).size === roster.length
-
-/** The welcome's roster as the holder materialises it, by member anchor:
- *  the one map the re-match reads and the group commits. */
-const welcomeRoster = (roster: readonly WelcomeMember[]): ReadonlyMap<string, WelcomeMember> => new Map(roster.map((m) => [m.anchor, m]))
+/** A welcome names each member once. No rule of Membership 0.21 names it
+ *  for this library's welcome form, so a repeat is validation-failed
+ *  without a ref. */
+const rosterDistinct = (roster: readonly WelcomeMember[]): boolean => new Set(roster.map((m) => m.anchor)).size === roster.length
 
 /** The invite this holder accepted whose welcome `doc` would be. */
 const acceptedInvite = (state: Readonly<HolderState>, doc: Doc): ReceivedInvite | undefined =>
   Object.values(state.joining.invites).find((i) => i.status !== 'open' && i.status !== 'declined' &&
     (i.invite as Doc).payload.invite.issuer === doc.issuer && (i.invite as Doc).threadId === doc.threadId && i.group === doc.payload.genesisDigest)
 
-const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
+/** The welcome opens the join, it does not complete it (S1-6): the genesis
+ *  it carries is validated on its own against the digest the invite pinned
+ *  (Access 3070, 3085), the group stands as `joining` with the members the
+ *  welcome names for display, and the holder asks the issuer for the log
+ *  (x-access-sync, on the pair channel its invitation was attributed to).
+ *  It is a member once that log confirms its admission (replica.ts). An
+ *  invitation attributed to no relationship has no channel to ask on: its
+ *  join stays unconfirmed and becomes void at joinUntil. */
+const welcomeTask: TaskHandler<WelcomePayload, { log: Group['log'], sync: Sealed | null }> = {
   proof: 'required',
   decode: (p) => (!welcomeShape(p) ? refuse('malformed') : !rosterDistinct(p.roster) ? refuse('validation-failed') : p),
   // the welcome answers an invitation this holder accepted: in its thread,
@@ -861,40 +850,52 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
     if (!i || state.addresses.keys[rkid]?.label !== i.memberLabel) return refuse('validation-failed')
     return { keyAgreement: (i.invite as Doc).payload.invite.credentialSubject.card.keyAgreement, contactId: i.contactId ?? 'member:' + doc.issuer, ...(i.rkid !== undefined ? { via: i.rkid } : {}) }
   },
-  // the group stars already accepted are matched against the joined group (5520)
   async prepare (ctx, doc) {
-    if (!(await diVerify(doc, doc.issuer, ctx.crypto.subtle))) return refuse('validation-failed', 'RLTP-MT-2130')
-    // the joined group as the welcome carries it: its roster, the oids naming the admissions
-    const roster = welcomeRoster(doc.payload.roster)
-    const membership: GroupMembership = {
-      group: doc.payload.genesisDigest,
-      isMember: (a) => roster.has(a),
-      resolve: (oid) => { const e = [...roster.values()].find((m) => m.op === oid); return e ? { subject: e.anchor, keyAgreement: e.keyAgreement } : null },
+    const S = ctx.crypto.subtle
+    if (!(await diVerify(doc, doc.issuer, S))) return refuse('validation-failed', 'RLTP-MT-2130')
+    const i = acceptedInvite(ctx.snapshot, doc)!
+    const w = doc.payload
+    const opened = await openLog(w.genesis, (i.invite as Doc).payload.invite.credentialSubject.genesisDigest, S)
+    if ('problem' in opened || (w.genesis as { group?: unknown }).group !== w.group) return refuse('validation-failed', 'RLTP-ACC-3070')
+    const log = storedLog({ log: opened.log, repairs: {} })
+    // the first request, where a channel leads to the issuer
+    let sync: Sealed | null = null
+    const ch = i.contactId !== undefined ? channelTo(ctx.snapshot, i.contactId) : null
+    if (ch && !blockedRel(ctx.snapshot, ch.rel.id)) {
+      const own = await ctx.keys.anchorOf(ch.tuple.ownPairLabel)
+      const body = {
+        id: ctx.entropy.id('doc.id'), type: SYNC_TYPE, issuer: own.anchor, recipient: ch.tuple.counterpartAnchor, threadId: ctx.entropy.id('thread.id'), issuedAt: iso(ctx.when),
+        payload: { group: w.group, genesisDigest: w.genesisDigest, have: Object.keys(opened.log.accepted) },
+      }
+      sync = await sealed(ctx, body, { contactId: ch.contact.id, rkid: ch.tuple.rkid, keyAgreement: ch.tuple.counterpartKeyAgreement })
     }
-    return { hits: await groupStarRematch(ctx, membership) }
+    return { log, sync }
   },
   apply (state, p, doc, arr) {
     const i = acceptedInvite(state, doc)!
     const w = doc.payload
-    if (Object.hasOwn(state.groups, w.genesisDigest)) return { state: state as HolderState }
-    const own = w.roster.find((m) => m.anchor === doc.recipient)
-    if (!own || !w.roster.some((m) => m.anchor === doc.issuer) || i.acceptDigest === undefined || own.op !== oidOf(i.acceptDigest) || !sameDigest(w.accept, i.acceptDigest)) {
+    // a welcome for a group already held changes nothing; a void join may be opened again by a new admission
+    if (Object.hasOwn(state.groups, w.genesisDigest) && state.groups[w.genesisDigest].phase !== 'void') return { state: state as HolderState }
+    if (!w.roster.some((m) => m.anchor === doc.recipient) || !w.roster.some((m) => m.anchor === doc.issuer) || i.acceptDigest === undefined || !sameDigest(w.accept, i.acceptDigest)) {
       return refuse('validation-failed')
     }
     const roster: Record<string, RosterEntry> = {}
-    for (const m of welcomeRoster(w.roster).values()) {
-      roster[m.anchor] = { anchor: m.anchor, op: m.op, keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when, ...(m.anchor === doc.issuer && i.contactId !== undefined && i.rkid !== undefined ? { contactId: i.contactId, rkid: i.rkid } : {}) }
-    }
+    for (const m of w.roster) roster[m.anchor] = { anchor: m.anchor, op: '', keyAgreement: m.keyAgreement, ...(m.name !== undefined ? { name: m.name } : {}), addedAt: arr.when }
+    const { sync } = p.value
     const g: Group = {
-      id: w.genesisDigest, name: w.name, did: w.group, genesis: w.genesis as JsonObject, memberLabel: i.memberLabel, rules: { vouchThreshold: w.vouchThreshold },
-      listed: true, memberAnchor: doc.recipient, memberOp: own.op, roster, invitations: {}, evidence: {}, preludes: {}, acceptDigest: i.acceptDigest,
+      id: w.genesisDigest, name: w.name, did: w.group, phase: 'joining', log: p.value.log!, memberLabel: i.memberLabel, rules: { vouchThreshold: w.vouchThreshold },
+      listed: false, memberAnchor: doc.recipient, roster, invitations: {}, evidence: {}, preludes: {}, acceptDigest: i.acceptDigest,
+      syncs: sync ? { [sync.threadId]: { contactId: sync.recipient.contactId, rkid: sync.recipient.rkid, at: arr.when } } : {},
+      issuer: { anchor: doc.issuer, ...(i.contactId !== undefined && i.rkid !== undefined ? { contactId: i.contactId, rkid: i.rkid } : {}) },
+      joinUntil: arr.when + HORIZON_MAX,
     }
     return {
-      state: withGroupHits({
+      state: {
         ...state, groups: { ...state.groups, [g.id]: g },
         joining: { ...state.joining, invites: { ...state.joining.invites, [i.credDigest]: { ...i, status: 'joined' } } },
-      }, p.value.hits, g.id),
-      events: [{ type: 'group.joined', groupId: g.id }],
+      },
+      events: [{ type: 'group.joining', groupId: g.id }],
+      outbound: sync ? [draft(sync)] : [],
     }
   },
 }
@@ -904,7 +905,8 @@ const welcomeTask: TaskHandler<WelcomePayload, { hits: GroupStarRehit[] }> = {
 /** The member keys still needed: held groups' and those on the way in
  *  (an answered prelude, an invitation open or accepted). */
 function memberKeys (state: Readonly<HolderState>, when: Millis): string[] {
-  const labels = new Set<string>(Object.values(state.groups).map((g) => g.memberLabel))
+  // a group left or void needs its member key no more (a new invitation keeps it through joining)
+  const labels = new Set<string>(Object.values(state.groups).filter((g) => g.phase !== 'left' && g.phase !== 'void').map((g) => g.memberLabel))
   for (const p of Object.values(state.joining.preludes)) labels.add(p.memberLabel)
   for (const i of Object.values(state.joining.invites)) if (i.status === 'open' || i.status === 'accepted') labels.add(i.memberLabel)
   const out = Object.entries(state.addresses.keys).filter(([, k]) => labels.has(k.label)).map(([rkid]) => rkid)
@@ -931,8 +933,9 @@ function retainMembership (state: Readonly<HolderState>, when: Millis): HolderSt
     const preludes = Object.fromEntries(Object.entries(g.preludes).filter(([, p]) => p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX >= when))
     const same = Object.keys(invitations).length === Object.keys(g.invitations).length && Object.keys(evidence).length === Object.keys(g.evidence).length &&
       Object.keys(preludes).length === Object.keys(g.preludes).length
-    groups[id] = same ? g : { ...g, invitations, evidence, preludes }
-    if (!same) changed = true
+    const kept = same ? g : { ...g, invitations, evidence, preludes }
+    groups[id] = retainExchange(kept, when)
+    if (groups[id] !== g) changed = true
   }
   // the accept → admission → welcome chain: two deliveries, each within a give-up horizon
   const late = (i: ReceivedInvite): boolean => i.validUntil + MEMBERSHIP_SKEW + 2 * HORIZON_MAX < when
@@ -959,6 +962,7 @@ function membershipDeadlines (state: Readonly<HolderState>): Millis[] {
     for (const i of Object.values(g.invitations)) out.push(i.validUntil + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
     for (const e of Object.values(g.evidence)) out.push(untilOf(e.invite) + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
     for (const p of Object.values(g.preludes)) out.push(p.at + INVITE_LIFE + MEMBERSHIP_SKEW + HORIZON_MAX + 1)
+    out.push(...exchangeDeadlines(g))
   }
   for (const i of Object.values(state.joining.invites)) {
     if (i.status === 'open') out.push(i.validUntil + MEMBERSHIP_SKEW + 1)
@@ -978,6 +982,8 @@ export function membershipModule (): HolderModule {
       [MEMBERSHIP_COMMANDS.foundPersonal]: foundPersonalDef,
       [MEMBERSHIP_COMMANDS.invite]: inviteDef,
       [MEMBERSHIP_COMMANDS.vouch]: vouchDef,
+      [MEMBERSHIP_COMMANDS.leave]: leaveDef(isPersonalCommunity),
+      [MEMBERSHIP_COMMANDS.sync]: syncDef,
     }),
     tasks: Object.freeze({
       [PRELUDE_REQUEST_TYPE]: preludeRequestTask,
@@ -987,6 +993,7 @@ export function membershipModule (): HolderModule {
       [EVIDENCE_TYPE]: evidenceTask('payload-membership-evidence.schema.json'),
       [EVIDENCE_TYPE_01]: evidenceTask('payload-membership-evidence-0.1.schema.json'),
       [WELCOME_TYPE]: welcomeTask,
+      ...EXCHANGE_TASKS,
     }),
     decisions: Object.freeze({ 'group-invite': acceptDecision }),
     keepKeys: memberKeys,

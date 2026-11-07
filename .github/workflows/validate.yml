@@ -25,6 +25,10 @@ jobs:
         working-directory: lib
       - run: npm test
         working-directory: lib
+      # a deviation in lib/DEVIATIONS.md must go once its issue is closed
+      - run: node scripts/check-deviations-issues.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # simulator/lib/ is the committed freeze of lib/dist — byte identity
       # keeps the buildless simulators on the single library source
       - run: node scripts/build-simulator-lib.mjs --check

@@ -279,7 +279,7 @@ export function groupsView(state) {
     // the personal community is the holder's own (Identity §2): a group of one, never shown as a group
     const personal = state.register.community?.genesis;
     return freezeDeep(Object.values(state.groups).filter((g) => g.id !== personal).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
-        commitSeq: state.commitSeq, id: g.id, name: g.name, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
+        commitSeq: state.commitSeq, id: g.id, name: g.name, phase: g.phase, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
         members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
             anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
         })),

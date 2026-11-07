@@ -98,3 +98,5 @@ export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
 export { seedKeys } from './keys-seed.js';
 export { createHolder } from './holder-api.js';
+// the group log (Access 3.1, 3.3–3.5), stage 1
+export * as access from './access/index.js';
