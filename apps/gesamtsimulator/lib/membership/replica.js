@@ -159,12 +159,12 @@ export async function advance(ctx, g, entries, from) {
     const S = ctx.crypto.subtle;
     const state = ctx.snapshot;
     const joining = g.phase === 'joining';
-    // a page that answers a repair: its continuation asks for what is still missing by name, not by cursor
-    const wanted = from.page && from.source !== null ? stillWanted(replicaOf(g), from.source, ctx.when) : [];
     const i = await intake(replicaOf(g), entries, { source: from.source ?? SELF, now: ctx.when, ...(joining && !from.page ? { buffer: true } : {}), ...(from.page ? { answers: true } : {}) }, S);
     if (i.disposition !== 'effect')
         return { refused: i.disposition };
     let replica = i.replica;
+    // a page that answers a repair: every continuation asks for what the held entries still miss by name, not by cursor
+    const wanted = from.page && from.source !== null ? stillWanted(replica, from.source, ctx.when) : [];
     let facts = await factsOf(replica.log, S);
     const outbound = [];
     const events = [];

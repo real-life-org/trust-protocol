@@ -178,12 +178,15 @@ export function pageOf(log, req, bound = ENTRY_BOUND) {
     const last = entries.length === rest.length;
     return { entries, ...(last ? {} : { next: entries[entries.length - 1].id }), last };
 }
-/** The parents still missing of the held entries whose repair toward
- *  `source` runs: what a continuation of that repair asks for by name. */
-export const stillWanted = (r, source, now) => {
+/** The parents still missing of the held entries that asked `source` for
+ *  their closure: what every continuation of that repair asks for by name,
+ *  page after page, as long as the entry is held (the repair record lives
+ *  with it; `active` is the protection alone, and ends with the first
+ *  answer). */
+export const stillWanted = (r, source, _now) => {
     const out = new Set();
     for (const [id, x] of Object.entries(r.repairs)) {
-        if (!x.active || x.source !== source || now >= x.since + REPAIR_WINDOW)
+        if (x.source !== source)
             continue;
         const env = r.log.held[id]?.env;
         if (env)

@@ -192,12 +192,15 @@ export interface Repair { source: string, since: Millis, active: boolean }
 /** A replica's exchange state for one group: the log and the repairs of its held entries, by held id. */
 export interface Replica { log: GroupLog, repairs: Record<string, Repair> }
 
-/** The parents still missing of the held entries whose repair toward
- *  `source` runs: what a continuation of that repair asks for by name. */
-export const stillWanted = (r: Replica, source: string, now: Millis): string[] => {
+/** The parents still missing of the held entries that asked `source` for
+ *  their closure: what every continuation of that repair asks for by name,
+ *  page after page, as long as the entry is held (the repair record lives
+ *  with it; `active` is the protection alone, and ends with the first
+ *  answer). */
+export const stillWanted = (r: Replica, source: string, _now: Millis): string[] => {
   const out = new Set<string>()
   for (const [id, x] of Object.entries(r.repairs)) {
-    if (!x.active || x.source !== source || now >= x.since + REPAIR_WINDOW) continue
+    if (x.source !== source) continue
     const env = r.log.held[id]?.env
     if (env) for (const p of env.prev) if (!r.log.accepted[p] && !r.log.held[p]) out.add(p)
   }
