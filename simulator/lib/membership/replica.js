@@ -177,60 +177,69 @@ export async function advance(ctx, g, entries, from) {
         syncs[doc.threadId] = { contactId: doc.recipient.contactId, rkid: doc.recipient.rkid, at: ctx.when };
     };
     const { joinUntil: _until, ...base } = g;
-    let next;
-    if (joining) {
-        const mine = g.memberAnchor;
-        // once the log confirms the admission, the buffer is judged first; the
-        // decision member / void rests on the materialization after it (a
-        // buffered leave of the own key may defeat the admission)
-        if (facts.m.members.includes(mine)) {
-            const rel = await releaseJoining(replica.log, S);
-            if (rel.log !== replica.log) {
-                replica = { log: rel.log, repairs: replica.repairs };
-                facts = await factsOf(rel.log, S);
-            }
-        }
-        const adm = facts.m.members.includes(mine) ? null : await ownAdmission(replica.log, facts.m, g.acceptDigest, S);
-        if (facts.m.members.includes(mine) && facts.m.memberOp[mine] !== undefined) {
-            // a member: the group stands in the star and answers
-            const m = facts.m;
-            const membership = {
-                group: g.id,
-                isMember: (a) => m.members.includes(a),
-                resolve: (oid) => { const a = m.members.find((x) => m.memberOp[x] === oid); return a === undefined ? null : { subject: a, keyAgreement: m.keyAgreement[a] }; },
-            };
-            hits = await groupStarRematch(ctx, membership);
-            next = { ...base, phase: 'member', listed: true, memberOp: m.memberOp[mine], roster: rosterOf(g, facts, ctx.when) };
-            events.push({ type: 'group.joined', groupId: g.id });
-            // once more at the issuer, for what it accepted meanwhile (S1-11)
-            if (g.issuer?.contactId !== undefined)
-                await ask(g.issuer.contactId, {});
-        }
-        else if (adm === 'canonical' || (adm === 'not-canonical' && from.page?.last === true)) {
-            // canonical yet defeated by a leave, or not canonical with the answer complete
-            replica = { log: dropHeld(replica.log), repairs: {} };
-            for (const t of Object.keys(syncs))
-                delete syncs[t];
-            next = { ...base, phase: 'void', roster: {} };
-            events.push({ type: 'group.void', groupId: g.id });
-        }
-        else {
-            next = { ...g };
-            if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null)
-                await ask(from.source, { cursor: from.page.next });
-            else if (i.want !== null && from.source !== null)
-                await ask(from.source, { want: i.want });
+    const mine = g.memberAnchor;
+    // 1. every effect on the log first: the joining buffer is judged once the
+    //    admission is confirmed (a buffered leave of the own key may defeat it)
+    if (joining && mine !== undefined && facts.m.members.includes(mine)) {
+        const rel = await releaseJoining(replica.log, S);
+        if (rel.log !== replica.log) {
+            replica = { log: rel.log, repairs: replica.repairs };
+            facts = await factsOf(rel.log, S);
         }
     }
-    else if (g.memberAnchor !== undefined && !facts.m.members.includes(g.memberAnchor) && from.source !== null) {
-        // the holder is no member by its own log any more (its own leave applied
-        // elsewhere and exchanged, or a dissolve beside it): it stands as left,
-        // as after leaveDef, and hears nothing more
-        const { memberOp: _op, ...rest } = g;
+    // 2. the standing, decided once from the materialization after all of it
+    const adm = joining && !(mine !== undefined && facts.m.members.includes(mine)) ? await ownAdmission(replica.log, facts.m, g.acceptDigest, S) : null;
+    const standing = standingOf(g, facts.m, adm, from.page?.last === true);
+    // 3. the group, from the standing alone
+    let next;
+    if (standing === 'member' && joining) {
+        // joined: the group stands in the star and answers
+        const m = facts.m;
+        const membership = {
+            group: g.id,
+            isMember: (a) => m.members.includes(a),
+            resolve: (oid) => { const a = m.members.find((x) => m.memberOp[x] === oid); return a === undefined ? null : { subject: a, keyAgreement: m.keyAgreement[a] }; },
+        };
+        hits = await groupStarRematch(ctx, membership);
+        next = { ...base, phase: 'member', listed: true, memberOp: m.memberOp[mine], roster: rosterOf(g, facts, ctx.when) };
+        events.push({ type: 'group.joined', groupId: g.id });
+        // once more at the issuer, for what it accepted meanwhile (S1-11)
+        if (g.issuer?.contactId !== undefined)
+            await ask(g.issuer.contactId, {});
+    }
+    else if (standing === 'void') {
+        // canonical yet defeated by a leave, or not canonical with the answer complete
+        replica = { log: dropHeld(replica.log), repairs: {} };
+        for (const t of Object.keys(syncs))
+            delete syncs[t];
+        next = { ...base, phase: 'void', roster: {} };
+        events.push({ type: 'group.void', groupId: g.id });
+    }
+    else if (standing === 'joining') {
+        next = { ...g };
+        if (from.page && !from.page.last && from.page.next !== undefined && from.source !== null)
+            await ask(from.source, { cursor: from.page.next });
+        else if (i.want !== null && from.source !== null)
+            await ask(from.source, { want: i.want });
+    }
+    else if (standing === 'left') {
+        // the holder is no member by its own log any more: its own leave, here
+        // or applied elsewhere and exchanged, or a dissolve beside it. What it
+        // accepted still travels to the members it knows (5700); then it hears
+        // nothing more
+        const roster = rosterOf(g, facts, ctx.when);
+        for (const f of forwards(replica.log, facts.m, i.applied, edgesOf(state, roster, mine), from.source)) {
+            for (const entry of f.entries) {
+                const doc = await pairDoc(ctx, f.edge.contact, ENTRY_TYPE, { ...head(g), entry });
+                if (doc)
+                    outbound.push(doc);
+            }
+        }
+        const { memberOp: _op, ...rest } = base;
         replica = { log: { ...replica.log, held: {} }, repairs: {} };
         for (const t of Object.keys(syncs))
             delete syncs[t];
-        next = { ...rest, phase: 'left', listed: false, roster: rosterOf(g, facts, ctx.when), invitations: {}, evidence: {}, preludes: {} };
+        next = { ...rest, phase: 'left', listed: false, roster, invitations: {}, evidence: {}, preludes: {} };
         events.push({ type: 'group.left', groupId: g.id });
     }
     else {
@@ -239,15 +248,14 @@ export async function advance(ctx, g, entries, from) {
             if (!Object.hasOwn(g.roster, a))
                 events.push({ type: 'group.admitted', groupId: g.id, member: a });
         for (const a of Object.keys(g.roster))
-            if (!Object.hasOwn(roster, a) && a !== g.memberAnchor)
+            if (!Object.hasOwn(roster, a) && a !== mine)
                 events.push({ type: 'group.departed', groupId: g.id, member: a });
         // a member needs no invitation and no pending consent: whoever admitted it
         const invitations = Object.fromEntries(Object.entries(g.invitations).filter(([, x]) => !Object.hasOwn(roster, x.invitee)));
         const evidence = Object.fromEntries(Object.entries(g.evidence).filter(([, e]) => !Object.hasOwn(roster, e.accept.payload?.accept?.subject)));
         // the own admission is the one the materialization names (the smallest id where concurrent)
-        const memberOp = g.memberAnchor !== undefined ? facts.m.memberOp[g.memberAnchor] ?? g.memberOp : g.memberOp;
-        next = { ...g, roster, invitations, evidence, ...(memberOp !== undefined ? { memberOp } : {}) };
-        for (const f of forwards(replica.log, facts.m, i.applied, edgesOf(state, roster, g.memberAnchor), from.source)) {
+        next = { ...g, roster, invitations, evidence, memberOp: facts.m.memberOp[mine] };
+        for (const f of forwards(replica.log, facts.m, i.applied, edgesOf(state, roster, mine), from.source)) {
             for (const entry of f.entries) {
                 const doc = await pairDoc(ctx, f.edge.contact, ENTRY_TYPE, { ...head(g), entry });
                 if (doc)
@@ -260,7 +268,54 @@ export async function advance(ctx, g, entries, from) {
         else if (i.want !== null && from.source !== null)
             await ask(from.source, { want: i.want });
     }
-    return { group: { ...next, log: storedLog(replica), syncs }, outbound, events, hits };
+    const group = { ...next, log: storedLog(replica), syncs };
+    // 4. the standing invariant, before anything commits
+    const bad = standingProblem(group, facts.m);
+    if (bad)
+        throw new Error(`access: ${g.id}: ${bad}`);
+    return { group, outbound, events, hits };
+}
+/** The holder's standing in a group, decided once, from the materialization
+ *  after every effect on the log (the buffer released, held entries healed):
+ *  a member exactly when its anchor is a member there with a canonical
+ *  admission; from joining, void where the own admission is canonical yet
+ *  defeated, or not canonical once the issuer's answer is complete; from
+ *  member, left once the anchor is gone. void and left are terminal. */
+export function standingOf(g, m, ownAdmission, answerComplete) {
+    const mine = g.memberAnchor;
+    const member = mine !== undefined && m.members.includes(mine) && m.memberOp[mine] !== undefined;
+    if (g.phase === 'joining')
+        return member ? 'member' : ownAdmission === 'canonical' || (ownAdmission === 'not-canonical' && answerComplete) ? 'void' : 'joining';
+    if (g.phase === 'member')
+        return member ? 'member' : 'left';
+    return g.phase;
+}
+/** What a group's stored standing must satisfy against its materialization
+ *  (the invariant every step checks before it commits, and invariants.ts
+ *  checks on every commit): a member carries its anchor, its canonical
+ *  admission as memberOp and the materialized members as its roster; a
+ *  listed group is a member; joining carries no memberOp; void and left
+ *  are unlisted with no open request. */
+export function standingProblem(g, m) {
+    const mine = g.memberAnchor;
+    if (g.phase === 'member') {
+        if (mine === undefined || !m.members.includes(mine))
+            return 'a member whose anchor is not a member of its log';
+        if (g.memberOp !== m.memberOp[mine])
+            return 'memberOp is not the canonical admission';
+        const roster = Object.keys(g.roster).sort();
+        if (roster.join() !== [...m.members].sort().join())
+            return 'the roster is not the materialized membership';
+    }
+    else {
+        if (g.listed)
+            return 'a listed group whose holder is no member';
+        if (g.phase === 'joining' && g.memberOp !== undefined)
+            return 'a joining group with a memberOp';
+        if ((g.phase === 'void' || g.phase === 'left') && Object.keys(g.syncs).length)
+            return 'a terminal group with an open request';
+    }
+    return null;
 }
 /** The commit of a step. */
 export const committed = (state, step) => ({
@@ -344,16 +399,10 @@ export const leaveDef = (personal) => ({
         if (env === 'oversize')
             return no('oversize');
         const step = await advance(ctx, g, [env], { source: null });
-        // the own leave took effect: the holder is no member at its own replica any more
-        if (!isStep(step) || Object.hasOwn(step.group.roster, g.memberAnchor))
+        // the own leave took effect: the step left the group (standingOf)
+        if (!isStep(step) || step.group.phase !== 'left')
             return no('not-yet-canonical');
-        const { memberOp: _op, ...rest } = step.group;
-        const log = step.group.log;
-        return {
-            ...step,
-            group: { ...rest, phase: 'left', listed: false, invitations: {}, evidence: {}, preludes: {}, syncs: {}, log: { ...log, held: {}, repairs: {} } },
-            events: [...step.events, { type: 'group.left', groupId: g.id }],
-        };
+        return step;
     },
     apply(state, prepared) {
         const p = prepared.value;

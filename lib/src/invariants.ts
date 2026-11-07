@@ -296,7 +296,12 @@ function socialViolations (v: Violation[], state: Readonly<HolderState>): void {
     if (p.kind === 'encounter-confirm' && !Object.hasOwn(e.records, p.id.slice('encounter:'.length))) v.push({ invariant: 'encounter', detail: `prompt ${p.id} names no record` })
   }
   for (const g of Object.values(state.groups)) {
+    // the standing (membership/replica.ts standingProblem, the synchronous part)
     if (g.phase === 'member' && g.memberAnchor !== undefined && Object.keys(g.roster).length && !Object.hasOwn(g.roster, g.memberAnchor)) v.push({ invariant: 'groups', detail: `${g.id}: the own member anchor is not on the roster` })
+    if (g.phase === 'member' && g.log !== undefined && (g.memberOp === undefined || g.memberAnchor === undefined || g.roster[g.memberAnchor]?.op !== g.memberOp)) v.push({ invariant: 'groups', detail: `${g.id}: a member without its canonical admission as memberOp` })
+    if (g.phase !== 'member' && g.listed) v.push({ invariant: 'groups', detail: `${g.id}: listed while the holder is no member` })
+    if (g.phase === 'joining' && g.memberOp !== undefined) v.push({ invariant: 'groups', detail: `${g.id}: joining with a memberOp` })
+    if ((g.phase === 'void' || g.phase === 'left') && Object.keys(g.syncs).length) v.push({ invariant: 'groups', detail: `${g.id}: a terminal group with an open request` })
     if (Object.keys(g.roster).length && !labels.has(g.memberLabel)) v.push({ invariant: 'groups', detail: `${g.id}: the member label is not in the register` })
     for (const ev of Object.values(g.evidence)) {
       const subject = (ev.accept as { payload?: { accept?: { subject?: string } } }).payload?.accept?.subject

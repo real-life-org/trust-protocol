@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+The holder's standing in a group is decided in one place. `advance`
+(membership/replica.ts) first takes every effect on the log (the intake,
+the joining buffer released, held entries healed), then `standingOf`
+decides member, joining, void or left from the materialization after all
+of it, and the group, its events and its documents follow from that
+standing alone. `standingProblem` states what a stored standing must
+satisfy against the materialization; every step checks it before it
+commits, and the commit invariants check its synchronous part. No wire
+change, no codec change.
+
+- `leaveGroup` takes the standing the step reached; a leave that did not
+  take effect is `not-yet-canonical`.
+- Test: the same signed operations delivered in every order, one by one,
+  as one page, as two pages, doubled, and out of order with a repair in
+  between give the same members, the same memberOp and a standing that
+  matches the materialization.
+
 ## 0.13.0
 
 Groups have an authority log (Access 0.58, stage 1 of the group log).
