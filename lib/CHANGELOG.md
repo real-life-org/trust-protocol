@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Held entries (#162): the group sum is checked after the own partition
+  made room, so a full partition elsewhere never refuses an entry that
+  fits; a held entry no parent and no proof healed leaves after
+  `HELD_LIFETIME` (P90D), at intake and at tick, its repair with it.
+- Repair (#163): the continuation of a repair's answer asks for what is
+  still missing by name (`stillWanted`), not by cursor. Rule 0 carries the
+  group bound: an admission into a group of `GROUP_BOUND` (4096) members
+  is not canonical (RLTP-ACC-5410).
+
 - **`KeyProvider.contentKey(group)`** (new, #164): the epoch-0 content key
   a founding commits to (Access 9710) is the provider's derivation for the
   group DID under `rltp/v1/x-content-key-stage1/`, never stored; the key
@@ -11,8 +20,6 @@
 - **Retention after left or void** (#164): `Group.endedAt` (new) marks
   when the standing ended; a horizon (P90D) later tick lets the log and the
   roster go and keeps the entry with its name and phase.
-
-## Unreleased
 
 The holder's standing in a group is decided in one place. `advance`
 (membership/replica.ts) first takes every effect on the log (the intake,
