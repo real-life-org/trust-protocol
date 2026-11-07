@@ -882,8 +882,11 @@ class HolderEngine implements Engine {
     const serviceIdentity: KeyProvider['serviceIdentity'] = typeof (ports.keys as Partial<KeyProvider>).serviceIdentity === 'function'
       ? guard(ports.keys, ['serviceIdentity'], 'key-provider').serviceIdentity
       : async () => { throw new InfraError('key-provider', 'key-provider: serviceIdentity is not provided; a founding needs it (lib 0.13.0)') }
+    const contentKey: KeyProvider['contentKey'] = typeof (ports.keys as Partial<KeyProvider>).contentKey === 'function'
+      ? guard(ports.keys, ['contentKey'], 'key-provider').contentKey
+      : async () => { throw new InfraError('key-provider', 'key-provider: contentKey is not provided; a founding needs it (lib 0.13.0)') }
     this.#keys = Object.freeze({
-      anchorOf: base.anchorOf, sign: base.sign, agree: base.agree, serviceIdentity,
+      anchorOf: base.anchorOf, sign: base.sign, agree: base.agree, serviceIdentity, contentKey,
       carrierPrincipal: guard(ports.keys, ['carrierPrincipal'], 'key-provider', carrierKey).carrierPrincipal,
     })
     if (ports.log) this.#log = guard(ports.log, ['head', 'at', 'append'], 'log')

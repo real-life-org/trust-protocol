@@ -221,13 +221,13 @@ export function localAccess (state: Readonly<HolderState>): Access {
 
 // ── founding (Access 3.4.1) ────────────────────────────────────────────
 
-interface FoundPrep { label: string, nonce: string, rkid: string, anchor: string, did: string, genesis: Envelope, genesisDigest: string, keyAgreement: string, name?: string, contentKey: string }
+interface FoundPrep { label: string, nonce: string, rkid: string, anchor: string, did: string, genesis: Envelope, genesisDigest: string, keyAgreement: string, name?: string }
 
 /** The founding: a genesis under linear/0.1 (access/genesis.ts), signed by
  *  the group DID's key and by the founder, a fresh pair context (3275).
  *  The group key signs once and is not kept (3060); the epoch-0 content
- *  key the genesis commits to (9710) stays with the founder, undistributed
- *  until the key port. The group's name is local and travels in the
+ *  key the genesis commits to (9710) is the key provider's derivation for
+ *  the group DID: never stored, derived again when the key port needs it. The group's name is local and travels in the
  *  welcome; the genesis does not carry it. */
 const foundDef: CommandDef<FoundInput, FoundPrep> = {
   human: true,
@@ -240,12 +240,12 @@ const foundDef: CommandDef<FoundInput, FoundPrep> = {
     // the group address: a probe mint until Identity names the group key's origin
     const k = await S.importKey('pkcs8', Uint8Array.from([...ED_PKCS8, ...ctx.entropy.bytes('group.seed', 32)]), { name: 'Ed25519' }, true, ['sign'])
     const did = anchorOfEd(fromB64u((await S.exportKey('jwk', k)).x!))
-    const contentKey = ctx.entropy.bytes('content.key', 32)
+    const contentKey = await ctx.keys.contentKey(did)
     const name = ownName(ctx.snapshot)
     const card = await memberCard(ctx, label, name, iso(ctx.when))
     const unsigned = await genesisUnsigned({ group: did, founder: me.anchor, card, serviceIdentity: await ctx.keys.serviceIdentity(did), contentKey }, S)
     const genesis = await signGenesis(unsigned, { signer: did, sign: async (b) => new Uint8Array(await S.sign({ name: 'Ed25519' }, k, b as BufferSource)) }, { signer: me.anchor, sign: signer(ctx, label) }, S)
-    return { label, nonce: b64uOf(n), rkid: me.keyAgreement, anchor: me.anchor, did, genesis, genesisDigest: await genesisDigestOf(genesis, S), keyAgreement: me.keyAgreement, ...(name !== undefined ? { name } : {}), contentKey: b64uOf(contentKey) }
+    return { label, nonce: b64uOf(n), rkid: me.keyAgreement, anchor: me.anchor, did, genesis, genesisDigest: await genesisDigestOf(genesis, S), keyAgreement: me.keyAgreement, ...(name !== undefined ? { name } : {}) }
   },
   apply (state, prepared, input, when) {
     const p = prepared.value
@@ -259,7 +259,7 @@ const foundDef: CommandDef<FoundInput, FoundPrep> = {
       memberLabel: p.label, rules: { vouchThreshold: threshold },
       listed: input.listed ?? true, memberAnchor: p.anchor, memberOp: p.genesis.id,
       roster: { [p.anchor]: { anchor: p.anchor, op: p.genesis.id, keyAgreement: p.keyAgreement, ...(p.name !== undefined ? { name: p.name } : {}), addedAt: when } },
-      invitations: {}, evidence: {}, preludes: {}, syncs: {}, contentKey: p.contentKey,
+      invitations: {}, evidence: {}, preludes: {}, syncs: {},
     }
     return {
       state: {

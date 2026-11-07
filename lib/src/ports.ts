@@ -81,6 +81,10 @@ export interface KeyProvider {
    *  DID under a prefix of stage 1, since Identity §7's derivation needs
    *  the genesis digest the genesis itself fixes */
   serviceIdentity (group: string): Promise<string>
+  /** the epoch-0 content key of a group the holder founds (Access 9710), 32
+   *  bytes, derived from the root IKM and the group DID under a prefix of
+   *  stage 1: never stored, derived again when the key port needs it */
+  contentKey (group: string): Promise<Uint8Array>
 }
 
 // ── Log (user: rotation; optional) ─────────────────────────────────────

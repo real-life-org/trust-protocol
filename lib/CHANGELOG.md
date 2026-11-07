@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **`KeyProvider.contentKey(group)`** (new, #164): the epoch-0 content key
+  a founding commits to (Access 9710) is the provider's derivation for the
+  group DID under `rltp/v1/x-content-key-stage1/`, never stored; the key
+  port derives it again. `Group.contentKey` is gone (codec 5, which no
+  released library wrote); entropy purpose `content.key` is gone.
+  `seedKeys` provides it; a provider without it founds no group.
+- **Retention after left or void** (#164): `Group.endedAt` (new) marks
+  when the standing ended; a horizon (P90D) later tick lets the log and the
+  roster go and keeps the entry with its name and phase.
+
+## Unreleased
+
 The holder's standing in a group is decided in one place. `advance`
 (membership/replica.ts) first takes every effect on the log (the intake,
 the joining buffer released, held entries healed), then `standingOf`

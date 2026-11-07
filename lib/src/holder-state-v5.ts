@@ -816,9 +816,8 @@ export type GroupV5 = {
     contactId?: string
     rkid?: string
   }
-  /** founder only: the epoch-0 content key (unpadded base64url), committed in the genesis (Access 9710), kept and never distributed at stage 1 */
-  contentKey?: string
   joinUntil?: MillisV5
+  endedAt?: MillisV5
 }
 
 export type HeldCredentialV5 = {

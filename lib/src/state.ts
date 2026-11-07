@@ -415,11 +415,11 @@ export interface Group {
   /** the member whose welcome brought the holder in, with the contact and
    *  the own tuple key its invitation was attributed to (absent: none) */
   issuer?: { anchor: string, contactId?: string, rkid?: string }
-  /** founder only: the epoch-0 content key (unpadded base64url) the
-   *  genesis commits to (Access 9710); kept, never distributed at stage 1 */
-  contentKey?: string
   /** while joining: when an unconfirmed join becomes void */
   joinUntil?: Millis
+  /** left or void: when the standing ended; after the horizon the holder
+   *  keeps the entry (name, phase) and lets the log and the roster go */
+  endedAt?: Millis
 }
 
 export type GroupPhase = 'joining' | 'member' | 'void' | 'left'
