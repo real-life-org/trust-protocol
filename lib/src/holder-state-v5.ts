@@ -809,6 +809,8 @@ export type GroupV5 = {
     contactId: string
     rkid: string
     at: MillisV5
+    /** the operations this request asked for by name (a repair); what it still lacks after the answer is not asked of that contact again */
+    want?: string[]
   }>
   /** the member whose welcome brought the holder in, with the contact and the own tuple key its invitation was attributed to */
   issuer?: {

@@ -178,8 +178,8 @@ export const isStep = (a: Advance): a is Step => !('refused' in a)
 export interface From {
   /** the sender's entry id; null for the holder's own operation */
   source: string | null
-  /** the entries answer the own request on this thread, with the page's end */
-  page?: { thread: string, next?: string, last: boolean }
+  /** the entries answer the own request on this thread, with the page's end and what the request asked for by name */
+  page?: { thread: string, next?: string, last: boolean, asked?: string[] }
   /** invitation edges this step creates, by member anchor */
   edges?: EdgeOf
 }
@@ -208,7 +208,14 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
     const doc = await pairDoc(ctx, contactId, SYNC_TYPE, { ...head(g), have: haveOf(facts.m), ...more } satisfies SyncPayload)
     if (!doc) return
     outbound.push(doc)
-    syncs[doc.threadId] = { contactId: doc.recipient.contactId, rkid: doc.recipient.rkid, at: ctx.when }
+    syncs[doc.threadId] = { contactId: doc.recipient.contactId, rkid: doc.recipient.rkid, at: ctx.when, ...(more.want ? { want: more.want } : {}) }
+  }
+  /** a repair is over when nothing is left to name; a last page ends one request, not the repair:
+   *  what the answered request did not name is asked for anew; what it named and did not bring by
+   *  its last page is not asked of that contact again (it lacks it); before the last page it stays named */
+  const remaining = (): string[] => {
+    const asked = new Set(from.page?.last ? from.page.asked ?? [] : [])
+    return [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !asked.has(p) && !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX)
   }
   const { joinUntil: _until, ...base } = g
   const mine = g.memberAnchor
@@ -245,11 +252,10 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
     events.push({ type: 'group.void', groupId: g.id })
   } else if (standing === 'joining') {
     next = { ...g }
-    if (from.page && !from.page.last && from.source !== null) {
-      // the union of both lists, within the request's bound (WANT_MAX): what is cut comes back on the next continuation
-      const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX)
+    if (from.page && from.source !== null) {
+      const want = remaining()
       if (want.length) await ask(from.source, { want })
-      else if (from.page.next !== undefined) await ask(from.source, { cursor: from.page.next })
+      else if (!from.page.last && from.page.next !== undefined) await ask(from.source, { cursor: from.page.next })
     } else if (i.want !== null && from.source !== null) await ask(from.source, { want: i.want })
   } else if (standing === 'left') {
     // the holder is no member by its own log any more: its own leave, here
@@ -284,11 +290,10 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
       }
     }
     // the next page brings the difference, the missing parents with it; otherwise the repair asks for them by name
-    if (from.page && !from.page.last && from.source !== null) {
-      // the union of both lists, within the request's bound (WANT_MAX): what is cut comes back on the next continuation
-      const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX)
+    if (from.page && from.source !== null) {
+      const want = remaining()
       if (want.length) await ask(from.source, { want })
-      else if (from.page.next !== undefined) await ask(from.source, { cursor: from.page.next })
+      else if (!from.page.last && from.page.next !== undefined) await ask(from.source, { cursor: from.page.next })
     } else if (i.want !== null && from.source !== null) await ask(from.source, { want: i.want })
   }
   const group: Group = { ...next, log: storedLog(replica), syncs }
@@ -392,7 +397,7 @@ const pageTask: TaskHandler<PagePayload, Step> = {
     const source = g && senderOf(ctx.snapshot, g, arr.rkid)
     if (!g || !asked || asked.rkid !== arr.rkid || source === null || source === undefined) return refuse('validation-failed')
     const p = doc.payload
-    const step = await advance(ctx, g, p.entries, { source, page: { thread: doc.threadId, ...(p.next !== undefined ? { next: p.next } : {}), last: p.last } })
+    const step = await advance(ctx, g, p.entries, { source, page: { thread: doc.threadId, ...(p.next !== undefined ? { next: p.next } : {}), last: p.last, ...(asked.want ? { asked: asked.want } : {}) } })
     return isStep(step) ? step : refuse(step.refused)
   },
   apply: (state, prepared) => committed(state, prepared.value),
