@@ -366,7 +366,7 @@ const group5 = listedGroup(obj({
   id: str, name: str, memberLabel: str, rules: obj({ vouchThreshold: dec }), listed: bool, phase: lit('joining', 'member', 'void', 'left'),
   roster: keyed(rosterEntry, 'anchor'), invitations: keyed(openInvitation, 'threadId'), evidence: rec(evidence),
   preludes: rec(obj({ contactId: str, rkid: str, at: millis })), syncs: rec(obj({ contactId: str, rkid: str, at: millis })),
-}, { did: str, log: groupLogKeyed(groupLog), memberAnchor: str, memberOp: str, acceptDigest: str, issuer: obj({ anchor: str }, { contactId: str, rkid: str }), contentKey: str, joinUntil: millis }))
+}, { did: str, log: groupLogKeyed(groupLog), memberAnchor: str, memberOp: str, acceptDigest: str, issuer: obj({ anchor: str }, { contactId: str, rkid: str }), joinUntil: millis, endedAt: millis }))
 
 const heldCredential = obj({ digest: str, credential: anyObj })
 const enactmentRecord = obj({

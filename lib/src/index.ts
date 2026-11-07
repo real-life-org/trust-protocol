@@ -106,7 +106,7 @@ export type { ActError, ActResult, ActReplay, ReceiveFailure, ReceiveStageNo, Re
 export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js'
 export type { Entropy, EntropyPurpose, EntropyErrorCode, PlatformRandom } from './entropy.js'
 export { storeContract } from './store-contract.js'
-export { seedKeys } from './keys-seed.js'
+export { seedKeys, CONTENT_KEY_STAGE1_PREFIX, SERVICE_IDENTITY_STAGE1_PREFIX } from './keys-seed.js'
 export { createHolder } from './holder-api.js'
 export type { CarrierOffer, Holder, HolderOptions, HolderSnapshot, HumanActOptions } from './holder-api.js'
 export type { DeviceKeyResult } from './identity-state.js'

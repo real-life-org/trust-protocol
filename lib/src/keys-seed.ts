@@ -27,6 +27,8 @@ import type { Agreement, CarrierKey, KeyProvider, KeyRelease } from './ports.js'
 
 /** DEVIATION D3: the HKDF info prefix of the stage-1 service identity (never the frozen prefix of Identity §7, Access 11080); the group DID follows. */
 export const SERVICE_IDENTITY_STAGE1_PREFIX = 'rltp/v1/x-service-identity-stage1/'
+/** the HKDF info prefix of the stage-1 content key of a founded group (Access 9710); the group DID follows */
+export const CONTENT_KEY_STAGE1_PREFIX = 'rltp/v1/x-content-key-stage1/'
 
 const te = new TextEncoder()
 /** PKCS#8 prefixes of a raw 32-byte Ed25519 / X25519 private key */
@@ -113,6 +115,8 @@ export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): Ke
       const priv = await edKey(await hkdf(SERVICE_IDENTITY_STAGE1_PREFIX + group))
       return 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)))
     },
+
+    contentKey: (group) => hkdf(CONTENT_KEY_STAGE1_PREFIX + group),
 
     carrierPrincipal (nonce, carrier) {
       if (!validCarrierIdentifier(carrier)) return Promise.reject(new Error('invalid carrier identifier (7a.2)'))

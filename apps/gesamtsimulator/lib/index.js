@@ -96,7 +96,7 @@ export function decodeState(raw) {
 export { InfraError, CryptoUnavailableError } from './results.js';
 export { ENTROPY_PURPOSES, EntropyError, randomEntropy } from './entropy.js';
 export { storeContract } from './store-contract.js';
-export { seedKeys } from './keys-seed.js';
+export { seedKeys, CONTENT_KEY_STAGE1_PREFIX, SERVICE_IDENTITY_STAGE1_PREFIX } from './keys-seed.js';
 export { createHolder } from './holder-api.js';
 // the group log (Access 3.1, 3.3–3.5), stage 1
 export * as access from './access/index.js';
