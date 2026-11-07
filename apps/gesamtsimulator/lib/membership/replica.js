@@ -38,7 +38,7 @@
 // answer is complete, or unconfirmed at joinUntil.
 import { sameDigest, toU } from '../core.js';
 import { digestDoc } from '../crypto.js';
-import { ADD_OP, ENTRY_TYPE, GENESIS_OP, LEAVE_OP, PAGE_TYPE, SYNC_TYPE, dropHeld, exchangePayloadOk, expireHeld, forwards, haveOf, intake, materialize, opUnsigned, oversize, pageOf, releaseJoining, signEnvelope, stillWanted, } from '../access/index.js';
+import { ADD_OP, ENTRY_TYPE, GENESIS_OP, LEAVE_OP, PAGE_TYPE, SYNC_TYPE, dropHeld, exchangePayloadOk, expireHeld, forwards, haveOf, intake, materialize, opUnsigned, oversize, pageOf, releaseJoining, signEnvelope, stillWanted, WANT_MAX, } from '../access/index.js';
 import { blockedRel } from '../message/holder.js';
 import { findContact } from '../trust/state.js';
 import { groupStarRematch, withGroupHits } from '../trust/group-star.js';
@@ -221,7 +221,8 @@ export async function advance(ctx, g, entries, from) {
     else if (standing === 'joining') {
         next = { ...g };
         if (from.page && !from.page.last && from.source !== null) {
-            const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort();
+            // the union of both lists, within the request's bound (WANT_MAX): what is cut comes back on the next continuation
+            const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX);
             if (want.length)
                 await ask(from.source, { want });
             else if (from.page.next !== undefined)
@@ -272,7 +273,8 @@ export async function advance(ctx, g, entries, from) {
         }
         // the next page brings the difference, the missing parents with it; otherwise the repair asks for them by name
         if (from.page && !from.page.last && from.source !== null) {
-            const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort();
+            // the union of both lists, within the request's bound (WANT_MAX): what is cut comes back on the next continuation
+            const want = [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX);
             if (want.length)
                 await ask(from.source, { want });
             else if (from.page.next !== undefined)
