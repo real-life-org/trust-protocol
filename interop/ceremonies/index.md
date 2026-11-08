@@ -3,6 +3,7 @@
 RLTP ceremonies expressed in the ToIP DTGWG ceremony-definition format.
 
 - [`encounter-scan.ceremony.json`](encounter-scan.ceremony.json) — `encounter-scan@0.25`, the registered ceremony of the Encounter Layer (0.31, Section 5.8)
+- [`shared-connect.ceremony.json`](shared-connect.ceremony.json) — `shared-connect@0.1`, the cross-app connection flow over the registry's `vrc/relationships/propose` and `issue` tasks, as proposed in [trustoverip/dtgwg-trust-tasks-tf#1034](https://github.com/trustoverip/dtgwg-trust-tasks-tf/issues/1034); implemented in `lib/src/shared-connect.ts`, enacted by [`vectors/shared-connect.json`](../../vectors/shared-connect.json), which `scripts/validate.mjs` checks against this definition
 
 [`dtgwg/ceremony.meta.schema.json`](dtgwg/ceremony.meta.schema.json) is an unmodified copy of `ceremonies/ceremony.meta.schema.json` from [trustoverip/dtgwg-trust-tasks-tf](https://github.com/trustoverip/dtgwg-trust-tasks-tf/blob/7b6bb488ffd838bef058310c909207d4a7b77125/ceremonies/ceremony.meta.schema.json) at commit `7b6bb48`. `scripts/validate.mjs` validates every definition here against it.
 
