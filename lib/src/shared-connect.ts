@@ -37,7 +37,11 @@
 // `unsupported-pair-did`. The library keeps no replay state: a propose seen twice is the caller's to
 // absorb (the CLIs do, by the propose id).
 
-import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso } from './core.js'
+import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso, sameDigest } from './core.js'
+// DigestMultibase values (vrcDigestMultibase, enactmentBinding) are compared over their decoded
+// multihash bytes with core's strict sameDigest (TT §4.9.3 / §6.6): base58btc and base64url both
+// occur (Keyring writes z, we write u), canonical spelling only, an undecodable string is unequal.
+export { sameDigest }
 import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diVerify, edFromSeed, xFromSeed, hkdf, type Signer, type KeyPair } from './crypto.js'
 import { CRED_CONTEXT } from './encounter.js'
 
@@ -703,12 +707,12 @@ export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: num
   if (vrc.issuer !== expect.issuerPair) return 'vrc-issuer'
   if (!(await verifyPairCredential(vrc, expect.issuerPair))) return 'vrc-proof'
   if (vrc.credentialSubject?.id !== expect.myPair) return 'vrc-subject'
-  if (doc.payload.vrcDigestMultibase !== undefined && doc.payload.vrcDigestMultibase !== await digestDoc(vrc)) return 'vrc-digest'
+  if (doc.payload.vrcDigestMultibase !== undefined && !sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(vrc))) return 'vrc-digest'
   // profile checks for a credential of this ceremony's RLTP profile; other
   // profiles (Consensual's, Keyring's) carry their own members and pass here
   const cs = vrc.credentialSubject
-  if (cs.enactmentBinding !== undefined && cs.enactmentBinding !== expect.binding) return 'vrc-binding'
-  if (cs.binding !== undefined && cs.binding !== expect.binding) return 'vrc-binding'
+  if (cs.enactmentBinding !== undefined && !sameDigest(cs.enactmentBinding, expect.binding)) return 'vrc-binding'
+  if (cs.binding !== undefined && !sameDigest(cs.binding, expect.binding)) return 'vrc-binding'
   if (cs.challenge !== undefined && cs.challenge !== expect.myChallenge) return 'vrc-challenge'
   return null
 }
@@ -720,7 +724,7 @@ export async function checkReceipt (doc: any, sentIssue: any, expect: { issuerDi
   if (!sameVid(doc.recipient, expect.myDid)) return 'recipient'
   if (doc.threadId !== sentIssue.threadId) return 'thread'
   if (doc.ceremony.enactment !== sentIssue.ceremony.enactment || doc.ceremony.step !== sentIssue.ceremony.step) return 'enactment'
-  if (doc.payload.vrcDigestMultibase !== await digestDoc(sentIssue.payload.vrc)) return 'vrc-digest'
+  if (!sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(sentIssue.payload.vrc))) return 'vrc-digest'
   if (!(await verifyStep(doc, [expect.issuerDid]))) return 'proof'
   return null
 }
