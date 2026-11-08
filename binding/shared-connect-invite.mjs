@@ -15,6 +15,7 @@
 //                     VTA read `TSPTransport` with a mediator DID)
 //   --relay-address   what to put into the TSPTransport service instead
 //   --did             the inviter's messaging identity: did:peer:2 (default) or did:peer:4 (long form in the link)
+//   --no-assertion    leave out the assertionMethod segment (.V.E instead of .V.A.E, 50 characters shorter)
 //   --minutes         the link's validity (default 10, the in-person cap)
 //   --wait-minutes    how long to keep the socket open after the link expired
 //   --qr              also print the link as a QR code (needs the `qrcode`
@@ -63,7 +64,7 @@ const newId = () => b64uOf(rand(16));
 // ── the inviter: messaging identity (did:peer:2) and pair anchor (did:key) ──
 const msgSeed = rand(32), pairSeed = rand(32);
 const relays = [{ kind: "tsp-mediator", address: RELAY_ADDRESS }];
-const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME, METHOD);
+const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME, METHOD, { assertion: !flag("--no-assertion") });
 // raw secrets for the TSP wire, from the same derivation as partyFromSeeds
 const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
 const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");

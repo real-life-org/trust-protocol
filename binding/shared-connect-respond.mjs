@@ -51,7 +51,7 @@ say(`the person confirms here: connect with ${read.link.label ?? "the person sho
 const msgSeed = rand(32), pairSeed = rand(32);
 const METHOD = opt("--did", "peer2");
 if (!["peer2", "peer4"].includes(METHOD)) { console.error("--did: peer2 or peer4"); process.exit(2); }
-const me = await sc.partyFromSeeds(msgSeed, pairSeed, [{ kind: "tsp-mediator", address: relay }], NAME, METHOD);
+const me = await sc.partyFromSeeds(msgSeed, pairSeed, [{ kind: "tsp-mediator", address: relay }], NAME, METHOD, { assertion: !flag("--no-assertion") });
 const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
 const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");
 const xPublic = x25519.getPublicKey(xSecret);

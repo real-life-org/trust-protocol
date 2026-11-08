@@ -174,10 +174,12 @@ function relaysOf (services: Peer2Service[]): Relay[] {
   return relays
 }
 
-/** Render this ceremony's did:peer:2: `.V<ed>.A<ed>.E<x>` plus one `.S` per relay. */
-export function peer2Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = []): string {
+/** Render this ceremony's did:peer:2: `.V<ed>.A<ed>.E<x>` plus one `.S` per relay. With
+ *  `{ assertion: false }` the `.A` segment is left out (`.V<ed>.E<x>`, 50 characters shorter): the
+ *  step proofs are under `authentication`, so the ceremony needs only that relationship. */
+export function peer2Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = [], opts: { assertion?: boolean } = {}): string {
   const ed = anchorOfEd(edPub).slice('did:key:'.length)
-  let did = 'did:peer:2.V' + ed + '.A' + ed + '.E' + mkOfX(xPub)
+  let did = 'did:peer:2.V' + ed + (opts.assertion === false ? '' : '.A' + ed) + '.E' + mkOfX(xPub)
   for (const r of relays) {
     const t = RELAY_TYPE_OF[r.kind] ?? r.kind
     did += '.S' + b64uOf(te.encode(JSON.stringify({ t, s: r.address })))
@@ -240,14 +242,14 @@ const JSON_CODEC = Uint8Array.from([0x80, 0x04])
 const sha256Sync = async (s: string) => sha(te.encode(s))
 
 /** Render this ceremony's did:peer:4 (long form). */
-export async function peer4Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = []): Promise<string> {
+export async function peer4Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = [], opts: { assertion?: boolean } = {}): Promise<string> {
   const input = {
     verificationMethod: [
       { id: '#key-1', type: 'Multikey', publicKeyMultibase: anchorOfEd(edPub).slice('did:key:'.length) },
       { id: '#key-2', type: 'Multikey', publicKeyMultibase: mkOfX(xPub) },
     ],
     authentication: ['#key-1'],
-    assertionMethod: ['#key-1'],
+    ...(opts.assertion === false ? {} : { assertionMethod: ['#key-1'] }),
     keyAgreement: ['#key-2'],
     service: relays.map((r, n) => ({ id: n === 0 ? '#service' : '#service-' + n, type: RELAY_TYPE_OF[r.kind] ?? r.kind, serviceEndpoint: r.address })),
   }
@@ -749,11 +751,11 @@ export async function proposeFromBackCode (code: string, me: { did: string, id: 
 export interface PartyKeys extends Party { x: KeyPair, peer: Peer2 }
 
 /** Build a party from two 32-byte seeds: the messaging identity (Ed + X derived from `msgSeed`) and the pair anchor. */
-export async function partyFromSeeds (msgSeed: Uint8Array, pairSeed: Uint8Array, relays: Relay[], name?: string, method: 'peer2' | 'peer4' = 'peer2'): Promise<PartyKeys> {
+export async function partyFromSeeds (msgSeed: Uint8Array, pairSeed: Uint8Array, relays: Relay[], name?: string, method: 'peer2' | 'peer4' = 'peer2', opts: { assertion?: boolean } = {}): Promise<PartyKeys> {
   const ed = await edFromSeed(await hkdf(msgSeed, 'shared-connect/messaging/ed25519'))
   const x = await xFromSeed(await hkdf(msgSeed, 'shared-connect/messaging/x25519'))
   const pairEd = await edFromSeed(pairSeed)
-  const did = method === 'peer4' ? await peer4Of(ed.pubRaw, x.pubRaw, relays) : peer2Of(ed.pubRaw, x.pubRaw, relays)
+  const did = method === 'peer4' ? await peer4Of(ed.pubRaw, x.pubRaw, relays, opts) : peer2Of(ed.pubRaw, x.pubRaw, relays, opts)
   const peer = (await parsePeer(did))!
   const p: PartyKeys = { messaging: { did, ed: { priv: ed.priv } }, pair: { anchor: anchorOfEd(pairEd.pubRaw), ed: { priv: pairEd.priv } }, x, peer }
   if (name !== undefined) p.name = name
