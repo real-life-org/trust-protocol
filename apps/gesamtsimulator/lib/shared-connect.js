@@ -544,7 +544,7 @@ export async function accept(inviter, proposeDoc, nowMs, id) {
     const doc = {
         id, type: TASK_PROPOSE + '#response', threadId: proposeDoc.id,
         issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
-        ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'accept' },
+        ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' },
         payload: { accept: true, relationshipDid: inviter.pair.anchor },
     };
     return signStep(inviter.messaging, doc, when);
@@ -725,7 +725,7 @@ export async function checkAccept(doc, proposeDoc, inviterDid, nowMs = Date.now(
         return 'recipient';
     if (doc.threadId !== proposeDoc.id)
         return 'thread';
-    if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'accept')
+    if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'propose')
         return 'enactment';
     if (!pairKeyOf(doc.payload.relationshipDid))
         return 'unsupported-pair-did';
