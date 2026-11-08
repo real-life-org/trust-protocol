@@ -101,7 +101,7 @@ if (await sc.checkPropose((await sc.proposeFromBackCode(backTampered, me)), me, 
 // the same enactment with did:peer:4 messaging identities (long form in the link and on the propose)
 const inviter4 = await sc.partyFromSeeds(await seed('inviter/messaging'), await seed('inviter/pair'), [MED, NOSTR], 'Anton', 'peer4')
 const responder4 = await sc.partyFromSeeds(await seed('responder/messaging'), await seed('responder/pair'), [MED], 'Day', 'peer4')
-const link4 = (await sc.sharedConnectLink({ from: inviter4.messaging.did, id: inviterChallenge, exp, label: 'Anton', kind: 'link' }, undefined, nowS))
+const link4 = (await sc.sharedConnectLink({ from: inviter4.messaging.did, id: inviterChallenge, exp, kind: 'link' }, undefined, nowS))
 const propose4 = await sc.propose(responder4, inviter4.messaging.did, inviterChallenge, responderChallenge, T('05'))
 const accept4 = await sc.accept(inviter4, propose4, T('07'), await fixedId('accept'))
 const vrcInviter4 = await sc.credential(inviter4, propose4.payload.relationshipDid, responderChallenge, binding, 'displayed', T('07'))

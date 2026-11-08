@@ -361,7 +361,8 @@ export async function parsePeer(did, known = []) {
     return null;
 }
 const LABEL_FORBIDDEN = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]');
-/** The one label rule, applied by writer and reader alike: NFC, 1 to 64 code points, no control, bidi, zero-width or line characters. */
+/** The one label rule, applied by writer and reader alike: NFC, 1 to 64 code points, no control, bidi, zero-width or line
+ *  characters. Percent-encoded that is at most 768 bytes, which the link budget absorbs. */
 export const normalLabel = (label) => {
     if (typeof label !== 'string')
         return null;
@@ -383,6 +384,9 @@ export async function sharedConnectLink(f, origin = LINK_ORIGIN, nowS = Math.flo
     const type = f.type ?? (origin === LINK_ORIGIN ? FLOW_PATH : FLOW_URI);
     let frag = '_from=' + f.from + '&_id=' + f.id + '&_exp=' + f.exp + '&_type=' + type;
     if (f.label !== undefined) {
+        // a name travels only in a code shown in person: a sent link is forwardable (Brendan, #86)
+        if ((f.kind ?? 'code') !== 'code')
+            throw new Error('_label is for codes shown in person, not for sent links');
         const l = normalLabel(f.label);
         if (l === null)
             throw new Error('_label: 1 to 64 code points, no control characters');
