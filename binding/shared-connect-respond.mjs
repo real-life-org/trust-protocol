@@ -64,7 +64,7 @@ const auth = await authenticateToMediator({ mediatorDid: relay, clientDid: myDid
 say(`authenticated at ${relay} as a peer DID it has never seen`);
 
 // the flow machine holds the enactment (lib shared-connect-flow.ts); this CLI only carries frames
-const flow = new fl.Responder(me, read.link, myChallenge, CHANNEL, { newId, statedDigest: !flag("--no-stated-digest") });
+const flow = new fl.Responder(me, read.link, myChallenge, CHANNEL, { newId, statedDigest: !flag("--no-stated-digest"), credentialProfile: flag("--plain-vrc") ? "dtg" : "rltp" });
 const finish = (why) => { say(why); try { session.close(); } catch {} setTimeout(() => process.exit(flow.complete ? 0 : 1), 200); };
 const sendBytes = async (bytes) => { const m = await tspPack(bytes, myDid, inviter.did, { senderSigningKey: edSecret, receiverEncryptionKey: inviter.x }); session.sendBinary(m.bytes); return m.bytes.length; };
 const sendDocument = async (doc) => { const n = await sendBytes(te.encode(JSON.stringify(flag("--bare") ? doc : { type: ENVELOPE, document: doc }))); say(`sent ${doc.type.replace("https://trusttasks.org/spec/", "")} ${doc.ceremony?.step ?? ""} (${n} B)`); };

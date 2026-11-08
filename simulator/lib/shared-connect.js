@@ -634,15 +634,18 @@ export const binding = (inviterChallenge, responderChallenge) => digestDoc({ cer
  *  `EncounterCredential` is set only for this side's own observation of an encounter: `scan` (the
  *  responder captured the code with its camera) or `displayed` (the inviter showed it as a code).
  *  Over a link (`link`, `sent`) the credential is a plain `RelationshipCredential`. */
-export async function credential(me, subjectPair, subjectChallenge, enactmentBinding, channel, nowMs) {
+/** `profile: 'dtg'` writes the bare DTG RelationshipCredential (the two registry contexts, no RLTP members, no
+ *  EncounterCredential type): a probe for a counterpart that cannot store the RLTP profile. The default is RLTP's. */
+export async function credential(me, subjectPair, subjectChallenge, enactmentBinding, channel, nowMs, opts = {}) {
     const when = iso(nowMs);
+    const dtg = opts.profile === 'dtg';
     const body = {
-        '@context': [...CRED_CONTEXT],
-        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(channel === 'scan' || channel === 'displayed' ? ['EncounterCredential'] : [])],
+        '@context': dtg ? CRED_CONTEXT.slice(0, 2) : [...CRED_CONTEXT],
+        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(!dtg && (channel === 'scan' || channel === 'displayed') ? ['EncounterCredential'] : [])],
         issuer: me.pair.anchor,
         issuerScope: 'pairwise',
         validFrom: when,
-        credentialSubject: { id: subjectPair, ceremony: CEREMONY_URI, challenge: subjectChallenge, enactmentBinding, channel },
+        credentialSubject: dtg ? { id: subjectPair } : { id: subjectPair, ceremony: CEREMONY_URI, challenge: subjectChallenge, enactmentBinding, channel },
     };
     return diSign(me.pair, body, when);
 }

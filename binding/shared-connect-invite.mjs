@@ -15,6 +15,7 @@
 //                     VTA read `TSPTransport` with a mediator DID)
 //   --relay-address   what to put into the TSPTransport service instead
 //   --did             the inviter's messaging identity: did:peer:2 (default) or did:peer:4 (long form in the link)
+//   --plain-vrc       the own credential in the bare DTG form (no RLTP members, no EncounterCredential): a probe
 //   --no-stated-digest  send the own issue without vrcDigestMultibase (for a counterpart that compares the stated digest as a string)
 //   --no-assertion    leave out the assertionMethod segment (.V.E instead of .V.A.E, 50 characters shorter)
 //   --minutes         the link's validity (default 10, the in-person cap)
@@ -102,7 +103,7 @@ say(`authenticated at ${MEDIATOR_DID} (ws ${auth.mediator.wsEndpoint})`);
 
 const knownVids = new Set();
 // the flow machine holds the enactment (lib shared-connect-flow.ts); this CLI only carries frames
-const flow = new fl.Inviter(party, { id: myChallenge, exp }, { newId, statedDigest: !flag("--no-stated-digest") });
+const flow = new fl.Inviter(party, { id: myChallenge, exp }, { newId, statedDigest: !flag("--no-stated-digest"), credentialProfile: flag("--plain-vrc") ? "dtg" : "rltp" });
 const relationship = new Set();
 let form = "bare";
 const timers = [];
