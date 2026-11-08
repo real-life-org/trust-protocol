@@ -29,6 +29,8 @@ import { CryptoUnavailableError } from './results.js';
 export const SERVICE_IDENTITY_STAGE1_PREFIX = 'rltp/v1/x-service-identity-stage1/';
 /** the HKDF info prefix of the stage-1 content key of a founded group (Access 9710); the group DID follows */
 export const CONTENT_KEY_STAGE1_PREFIX = 'rltp/v1/x-content-key-stage1/';
+/** shared-connect (design B2): the seeds of one encounter, by its nonce */
+export const SHARED_CONNECT_STAGE1_PREFIX = 'rltp/v1/x-shared-connect-stage1/';
 const te = new TextEncoder();
 /** PKCS#8 prefixes of a raw 32-byte Ed25519 / X25519 private key */
 export const ED_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20]);
@@ -120,6 +122,12 @@ export function seedKeys(seed, crypto) {
             return 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
         },
         contentKey: (group) => hkdf(CONTENT_KEY_STAGE1_PREFIX + group),
+        async sharedConnectSeeds(nonce) {
+            if (!(nonce instanceof Uint8Array) || nonce.length !== 16)
+                throw new RangeError('shared-connect nonce must be 16 bytes (the link\'s _id)');
+            const n = await mh(new Uint8Array(nonce));
+            return { messaging: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + n), pair: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'pair/' + n) };
+        },
         carrierPrincipal(nonce, carrier) {
             if (!validCarrierIdentifier(carrier))
                 return Promise.reject(new Error('invalid carrier identifier (7a.2)'));

@@ -570,13 +570,14 @@ export async function propose(responder, inviterDid, enactment, responderChallen
 /** The inviter's acceptance (propose#response). `id`: a fresh document id the caller draws (Entropy port).
  *  The response payload is closed (`accept`, `relationshipDid`, `witnessed`, `ext`): the inviter's name
  *  travels in the link's `_label`, not here. */
-export async function accept(inviter, proposeDoc, nowMs, id) {
+export async function accept(inviter, proposeDoc, nowMs, id, accepting = true) {
     const when = iso(nowMs);
     const doc = {
         id, type: TASK_PROPOSE + '#response', threadId: proposeDoc.id,
         issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
         ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' },
-        payload: { accept: true, relationshipDid: inviter.pair.anchor },
+        // a decline is the same response with accept false (propose 0.1); the pairwise identifier stays named
+        payload: { accept: accepting, relationshipDid: inviter.pair.anchor },
     };
     return signStep(inviter.messaging, doc, when);
 }

@@ -85,6 +85,10 @@ export interface KeyProvider {
    *  bytes, derived from the root IKM and the group DID under a prefix of
    *  stage 1: never stored, derived again when the key port needs it */
   contentKey (group: string): Promise<Uint8Array>
+  /** the two 32-byte seeds of one shared-connect encounter (messaging identity, pairwise
+   *  identifier), derived from the root and the encounter's 16-byte nonce under a prefix of
+   *  stage 1: derived again after a restart, never stored. Optional until the app's port is cast. */
+  sharedConnectSeeds? (nonce: Uint8Array): Promise<{ messaging: Uint8Array, pair: Uint8Array }>
 }
 
 // ── Log (user: rotation; optional) ─────────────────────────────────────

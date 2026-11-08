@@ -29,6 +29,8 @@ import type { Agreement, CarrierKey, KeyProvider, KeyRelease } from './ports.js'
 export const SERVICE_IDENTITY_STAGE1_PREFIX = 'rltp/v1/x-service-identity-stage1/'
 /** the HKDF info prefix of the stage-1 content key of a founded group (Access 9710); the group DID follows */
 export const CONTENT_KEY_STAGE1_PREFIX = 'rltp/v1/x-content-key-stage1/'
+/** shared-connect (design B2): the seeds of one encounter, by its nonce */
+export const SHARED_CONNECT_STAGE1_PREFIX = 'rltp/v1/x-shared-connect-stage1/'
 
 const te = new TextEncoder()
 /** PKCS#8 prefixes of a raw 32-byte Ed25519 / X25519 private key */
@@ -117,6 +119,12 @@ export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): Ke
     },
 
     contentKey: (group) => hkdf(CONTENT_KEY_STAGE1_PREFIX + group),
+
+    async sharedConnectSeeds (nonce) {
+      if (!(nonce instanceof Uint8Array) || nonce.length !== 16) throw new RangeError('shared-connect nonce must be 16 bytes (the link\'s _id)')
+      const n = await mh(new Uint8Array(nonce))
+      return { messaging: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + n), pair: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'pair/' + n) }
+    },
 
     carrierPrincipal (nonce, carrier) {
       if (!validCarrierIdentifier(carrier)) return Promise.reject(new Error('invalid carrier identifier (7a.2)'))

@@ -86,6 +86,7 @@ export { PROFILE_TYPE, PROFILE_LIMITS, profileSchemaOk, imageDimensions, imageWi
 export * as visibility from './visibility.js';
 export * as ceremony from './ceremony.js';
 export * as sharedConnect from './shared-connect.js';
+export * as sharedConnectFlow from './shared-connect-flow.js';
 import { decodeState as decodeStructural } from './codec.js';
 export { CODEC, StateCodecError } from './codec.js';
 /** Load a stored state (a JSON string or a parsed value): an independent,

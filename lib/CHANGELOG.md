@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+shared-connect: the flow of one enactment as a step machine for either role
+(`sharedConnectFlow.Inviter`, `sharedConnectFlow.Responder`, new module
+`shared-connect-flow.ts`): documents in, documents to send and events for the
+person out; holds what arrives out of order, answers a redelivery with the same
+documents, keeps the handle single-use, waits for the person between the
+propose and the acceptance (`accept()` / `decline()`), and continues from a
+`snapshot()` after a restart. `accept()` takes a decline form (`accept: false`).
+`KeyProvider.sharedConnectSeeds(nonce)` (optional; `seedKeys` has it): the two
+seeds of one encounter from the root and the link's 16-byte handle, under
+`rltp/v1/x-shared-connect-stage1/`. The two CLIs run on the machines; the
+loopback is unchanged. Decision 8 November: one code, shared-connect is the one
+ceremony of the app (design/interop/shared-connect-app-modell).
+
 ## 0.14.0
 
 shared-connect after the first live run with Keyring and the reviews of
