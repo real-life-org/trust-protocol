@@ -580,43 +580,102 @@ export async function accept(inviter, proposeDoc, nowMs, id) {
     };
     return signStep(inviter.messaging, doc, when);
 }
+/** The registry's error document a decline is (propose 0.1 §4: "a decline is an error response, not a
+ *  message type"): trust-task-error/0.5 in the propose's thread with the code
+ *  `vrc/relationships/propose:declined`, no pairwise identifier named. Keyring writes the same form. */
+export const TASK_ERROR = 'https://trusttasks.org/spec/trust-task-error/0.5';
+export const DECLINE_CODE = 'vrc/relationships/propose:declined';
+/** trust-task-error versions a decline is read in (0.2 to 0.6, as the VTI mediator profile reads them). */
+const ERROR_TYPES = new Set(['0.2', '0.3', '0.4', '0.5', '0.6'].map((v) => 'https://trusttasks.org/spec/trust-task-error/' + v));
+export async function decline(inviter, proposeDoc, nowMs, id, message) {
+    const when = iso(nowMs);
+    const doc = {
+        id, type: TASK_ERROR, threadId: proposeDoc.id,
+        issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
+        ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' },
+        payload: { code: DECLINE_CODE, retryable: false, inResponseTo: { typeUri: TASK_PROPOSE, id: proposeDoc.id }, ...(message !== undefined ? { message } : {}) },
+    };
+    return signStep(inviter.messaging, doc, when);
+}
+/** Is `doc` a trust-task-error of the other side in this enactment's thread? Envelope (any error version
+ *  read), parties, thread, enactment, then the proof; `step` is the step it names. Any other document is
+ *  `not-an-error`. The flow reads a decline from it (code `DECLINE_CODE` on step `propose`) and every other
+ *  code as the other side ending the enactment. */
+export async function checkError(doc, expect, nowMs = Date.now()) {
+    if (!isObj(doc) || typeof doc.type !== 'string' || !ERROR_TYPES.has(doc.type))
+        return 'not-an-error';
+    const e = envelopeRefusal(doc, doc.type, nowMs);
+    if (e)
+        return e;
+    if (!sameVid(doc.issuer, expect.issuerDid))
+        return 'issuer';
+    if (!sameVid(doc.recipient, expect.myDid))
+        return 'recipient';
+    if (doc.threadId !== expect.threadId)
+        return 'thread';
+    if (doc.ceremony.enactment !== expect.enactment || typeof doc.ceremony.step !== 'string')
+        return 'enactment';
+    if (!(await verifyStep(doc, [expect.issuerDid])))
+        return 'proof';
+    return { code: doc.payload.code, step: doc.ceremony.step, message: doc.payload.message ?? null };
+}
+/** Is `doc` the inviter's decline of this side's propose? A checked error on step `propose` with the decline code. */
+export async function checkDecline(doc, proposeDoc, inviterDid, nowMs = Date.now()) {
+    const r = await checkError(doc, { threadId: proposeDoc.id, enactment: proposeDoc.ceremony.enactment, issuerDid: inviterDid, myDid: proposeDoc.issuer }, nowMs);
+    if (r === 'not-an-error')
+        return 'not-a-decline';
+    if (typeof r === 'string')
+        return r;
+    return r.code === DECLINE_CODE && r.step === 'propose' ? null : 'not-a-decline';
+}
 /** The enactment binding both credentials carry: over the ceremony URI and both challenges (Encounter 5.4). */
 export const binding = (inviterChallenge, responderChallenge) => digestDoc({ ceremony: CEREMONY_URI, challenges: [inviterChallenge, responderChallenge].sort() });
 /** This side's credential about the other (RLTP encounter profile with `channel`). The hint type
  *  `EncounterCredential` is set only for this side's own observation of an encounter: `scan` (the
  *  responder captured the code with its camera) or `displayed` (the inviter showed it as a code).
  *  Over a link (`link`, `sent`) the credential is a plain `RelationshipCredential`. */
-export async function credential(me, subjectPair, subjectChallenge, enactmentBinding, channel, nowMs) {
+/** `profile: 'dtg'` writes the bare DTG RelationshipCredential (the two registry contexts, no RLTP members, no
+ *  EncounterCredential type): a probe for a counterpart that cannot store the RLTP profile. The default is RLTP's. */
+export async function credential(me, subjectPair, subjectChallenge, enactmentBinding, channel, nowMs, opts = {}) {
     const when = iso(nowMs);
+    const dtg = opts.profile === 'dtg';
     const body = {
-        '@context': [...CRED_CONTEXT],
-        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(channel === 'scan' || channel === 'displayed' ? ['EncounterCredential'] : [])],
+        '@context': dtg ? CRED_CONTEXT.slice(0, 2) : [...CRED_CONTEXT],
+        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(!dtg && (channel === 'scan' || channel === 'displayed') ? ['EncounterCredential'] : [])],
         issuer: me.pair.anchor,
         issuerScope: 'pairwise',
         validFrom: when,
-        credentialSubject: { id: subjectPair, ceremony: CEREMONY_URI, challenge: subjectChallenge, enactmentBinding, channel },
+        credentialSubject: dtg ? { id: subjectPair } : { id: subjectPair, ceremony: CEREMONY_URI, challenge: subjectChallenge, enactmentBinding, channel },
     };
     return diSign(me.pair, body, when);
 }
 /** The delivery of a credential (vrc/relationships/issue 0.1). */
-export async function issue(me, recipientDid, threadId, enactment, step, vrc, nowMs, id) {
+/** A DigestMultibase over `doc` in the chosen base: base64url (`u`, ours) or base58btc (`z`, Keyring's). Both
+ *  conform; a counterpart that compares the string needs its own spelling until it compares bytes. */
+export const digestIn = async (doc, base = 'u') => {
+    const u = await digestDoc(doc);
+    return base === 'z' ? 'z' + base58(fromB64u(u.slice(1))) : u;
+};
+/** `statedDigest: false` leaves `vrcDigestMultibase` off (issue 0.1 makes it a SHOULD): for a counterpart that
+ *  compares the stated digest as a string in another base (Keyring, November 2026) until it compares bytes. */
+export async function issue(me, recipientDid, threadId, enactment, step, vrc, nowMs, id, opts = {}) {
     const when = iso(nowMs);
     const doc = {
         id, type: TASK_ISSUE, threadId,
         issuer: me.messaging.did, recipient: recipientDid, issuedAt: when,
         ceremony: { enactment, step, ...(step === 'issue-responder' ? { terminal: true } : {}) },
-        payload: { vrc, vrcDigestMultibase: await digestDoc(vrc) },
+        payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestIn(vrc, opts.digestBase) }) },
     };
     return signStep(me.messaging, doc, when);
 }
 /** The receipt (issue#response): the digest computed over the credential AS STORED. */
-export async function receipt(me, issueDoc, nowMs, id) {
+export async function receipt(me, issueDoc, nowMs, id, opts = {}) {
     const when = iso(nowMs);
     const doc = {
         id, type: TASK_ISSUE + '#response', threadId: issueDoc.threadId,
         issuer: me.messaging.did, recipient: issueDoc.issuer, issuedAt: when,
         ceremony: { enactment: issueDoc.ceremony.enactment, step: issueDoc.ceremony.step },
-        payload: { vrcDigestMultibase: await digestDoc(issueDoc.payload.vrc) },
+        payload: { vrcDigestMultibase: await digestIn(issueDoc.payload.vrc, opts.digestBase) },
     };
     return signStep(me.messaging, doc, when);
 }
@@ -709,6 +768,19 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
             if (!closed(p, ['vrcDigestMultibase', 'ext']) || typeof p.vrcDigestMultibase !== 'string' || !optExt(p.ext))
                 return 'payload';
             break;
+        default:
+            // a trust-task-error (the decline): the members of its registry schema, code and retryable required
+            if (ERROR_TYPES.has(expectType)) {
+                if (!closed(p, ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']) || typeof p.code !== 'string' || typeof p.retryable !== 'boolean')
+                    return 'payload';
+                if (p.message !== undefined && (typeof p.message !== 'string' || [...p.message].length > 1024))
+                    return 'payload';
+                // inResponseTo as the registry schema has it: {typeUri, id?}, nothing else
+                if (p.inResponseTo !== undefined && (!isObj(p.inResponseTo) || !closed(p.inResponseTo, ['typeUri', 'id']) || typeof p.inResponseTo.typeUri !== 'string' || p.inResponseTo.typeUri.length === 0 || (p.inResponseTo.id !== undefined && (typeof p.inResponseTo.id !== 'string' || p.inResponseTo.id.length === 0))))
+                    return 'payload';
+                if (p.details !== undefined && !isObj(p.details))
+                    return 'payload';
+            }
     }
     // TT §4.2: a document is not acted on when now ≥ expiresAt; the clock tolerance works in the document's favour
     if (doc.expiresAt !== undefined && nowMs >= Date.parse(doc.expiresAt) + CLOCK_TOLERANCE_S * 1000)

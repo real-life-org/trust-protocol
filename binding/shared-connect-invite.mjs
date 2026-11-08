@@ -15,6 +15,9 @@
 //                     VTA read `TSPTransport` with a mediator DID)
 //   --relay-address   what to put into the TSPTransport service instead
 //   --did             the inviter's messaging identity: did:peer:2 (default) or did:peer:4 (long form in the link)
+//   --digest-base58   write the own digests (issue and receipt) in base58btc for a counterpart that compares the string
+//   --plain-vrc       the own credential in the bare DTG form (no RLTP members, no EncounterCredential): a probe
+//   --no-stated-digest  send the own issue without vrcDigestMultibase (for a counterpart that compares the stated digest as a string)
 //   --no-assertion    leave out the assertionMethod segment (.V.E instead of .V.A.E, 50 characters shorter)
 //   --minutes         the link's validity (default 10, the in-person cap)
 //   --wait-minutes    how long to keep the socket open after the link expired
@@ -32,7 +35,7 @@ import { join } from "node:path";
 import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import { authenticateToMediator, MediatorSession } from "@openvtc/vti-didcomm-js";
 import { pack as tspPack, packAccept, unpack as tspUnpack, decodeEnvelope } from "@openvtc/vti-tsp-js";
-import { sharedConnect as sc } from "../lib/dist/index.js";
+import { sharedConnect as sc, sharedConnectFlow as fl } from "../lib/dist/index.js";
 import { hkdf, edFromSeed, rand, b64uOf } from "../lib/dist/crypto.js";
 
 const args = process.argv.slice(2);
@@ -100,11 +103,12 @@ const auth = await authenticateToMediator({
 say(`authenticated at ${MEDIATOR_DID} (ws ${auth.mediator.wsEndpoint})`);
 
 const knownVids = new Set();
-const state = { receiptMine: null, propose: null, accept: null, binding: null, issueMine: null, issueTheirs: null, receiptTheirs: null, done: false, relationship: new Set(), form: "bare" };
-// the link's _exp bounds the handle (checkPropose refuses after it); the CLI keeps one enactment
-const me = { did: myDid, id: myChallenge, exp };
+// the flow machine holds the enactment (lib shared-connect-flow.ts); this CLI only carries frames
+const flow = new fl.Inviter(party, { id: myChallenge, exp }, { newId, statedDigest: !flag("--no-stated-digest"), credentialProfile: flag("--plain-vrc") ? "dtg" : "rltp", digestBase: flag("--digest-base58") ? "z" : "u" });
+const relationship = new Set();
+let form = "bare";
 const timers = [];
-const finish = (why) => { say(why); for (const t of timers) clearTimeout(t); try { session.close(); } catch {} setTimeout(() => process.exit(state.done ? 0 : 1), 200); };
+const finish = (why) => { say(why); for (const t of timers) clearTimeout(t); try { session.close(); } catch {} setTimeout(() => process.exit(flow.complete ? 0 : 1), 200); };
 
 const sendTo = async (peer, bytes) => {
   const msg = await tspPack(bytes, myDid, peer.did, { senderSigningKey: edSecret, receiverEncryptionKey: peer.x });
@@ -112,13 +116,25 @@ const sendTo = async (peer, bytes) => {
   return msg.bytes.length;
 };
 const sendDocument = async (peer, doc) => {
-  const body = state.form === "envelope" ? { type: BINDING_ENVELOPE, document: doc } : doc;
+  const body = form === "envelope" ? { type: BINDING_ENVELOPE, document: doc } : doc;
   const n = await sendTo(peer, te.encode(JSON.stringify(body)));
-  say(`sent ${doc.type.replace("https://trusttasks.org/spec/", "")} (${n} B on the wire)`);
+  say(`sent ${doc.type.replace("https://trusttasks.org/spec/", "")} ${doc.ceremony?.step ?? ""} (${n} B on the wire)`);
+};
+const apply = async (peer, r) => {
+  for (const e of r.events) {
+    if (e.kind === "proposed") say(`propose from ${e.name ?? "(no name)"} (unverified): relationshipDid ${e.relationshipDid}`);
+    else if (e.kind === "credential") { say("the responder's credential verified"); save("issue-responder.json", e.vrc); }
+    else if (e.kind === "failed") say(`the other side ended the enactment: ${e.code} on ${e.step}${e.message ? ": " + e.message : ""}`);
+    else if (e.kind === "refused") say(`${e.type.replace("https://trusttasks.org/spec/", "")} refused: ${e.reason} (the document is saved for a look)`);
+    else say(`${e.kind}${"type" in e ? " " + e.type.replace("https://trusttasks.org/spec/", "") : ""}${"why" in e ? " (" + e.why + ")" : ""}`);
+  }
+  for (const d of r.send) { save(`out-${d.ceremony.step}-${d.type.endsWith("#response") ? "response" : "request"}.json`, d); await sendDocument(peer, d); }
+  if (flow.complete) finish("enactment complete: both credentials and both receipts");
+  else if (flow.failure) finish(`ended by the responder: ${flow.failure.code}`);
 };
 
-// frames are handled one after another: the session does not serialise them, and the state
-// machine below assumes it (two copies of one propose arriving together would otherwise both pass)
+// frames are handled one after another: the session does not serialise them, and the flow
+// machine assumes it (two copies of one propose arriving together would otherwise both pass)
 let queue = Promise.resolve();
 const onTspFrame = (qb2) => (queue = queue.then(() => handleFrame(qb2), () => handleFrame(qb2)));
 async function handleFrame (qb2) {
@@ -133,11 +149,12 @@ async function handleFrame (qb2) {
   if (!sc.sameVid(got.receiver, myDid)) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") {
     const kind = got.control?.controlType ?? "unknown";
-    const live = Date.now() / 1000 < exp + sc.CLOCK_TOLERANCE_S; // the same bound checkPropose applies
-    if (!live && !state.relationship.has(peer.did)) { say(`XRF${kind} from a new sender after the link expired; dropped`); return; }
+    // first contact from a sender never seen only while the handle is live (the bound checkPropose applies)
+    const live = Date.now() / 1000 < exp + sc.CLOCK_TOLERANCE_S;
+    if (!live && !relationship.has(peer.did)) { say(`XRF${kind} from a new sender after the link expired; dropped`); return; }
     say(`control ${kind} from ${peer.did.slice(0, 40)}…`);
     if (String(kind).toLowerCase().includes("invite")) {
-      state.relationship.add(peer.did);
+      relationship.add(peer.did);
       try {
         const acc = await packAccept(got.threadDigest, myDid, peer.did, { senderSigningKey: edSecret, receiverEncryptionKey: peer.x });
         session.sendBinary(acc.bytes);
@@ -150,61 +167,12 @@ async function handleFrame (qb2) {
   let body;
   try { body = JSON.parse(td.decode(got.payload)); } catch { say("direct payload is not JSON; dropped"); return; }
   let doc = body;
-  if (body && body.type === BINDING_ENVELOPE && body.document) { doc = body.document; state.form = "envelope"; }
+  if (body && body.type === BINDING_ENVELOPE && body.document) { doc = body.document; form = "envelope"; }
   save(`in-${Date.now()}-${String(doc.type ?? "untyped").split("/").slice(-2).join("-").replace("#", "_")}.json`, doc);
-
-  if (doc.type === sc.TASK_PROPOSE) {
-    if (!sc.sameVid(doc.issuer, peer.did)) { say("propose issuer differs from the TSP sender; refused"); return; }
-    if (state.propose) {
-      // the same propose again (a redelivery): the answer goes out again; another one is ignored, the handle is single-use
-      if (doc.id === state.propose.id && JSON.stringify(doc) === JSON.stringify(state.propose)) { say("the propose again; resending accept and issue"); await sendDocument(peer, state.accept); await sendDocument(peer, state.issueMine); }
-      else say("a second propose; ignored (the handle is single-use)");
-      return;
-    }
-    const refusal = await sc.checkPropose(doc, me, Date.now());
-    if (refusal) { say(`propose refused: ${refusal}`); return; }
-    // the person confirms here: the app shows the (unverified) name and asks before anything is issued
-    say(`propose from ${doc.payload.reason ?? "(no name)"} (unverified): relationshipDid ${doc.payload.relationshipDid}; dev run, accepting`);
-    const now = Date.now();
-    const accept = await sc.accept(party, doc, now, newId());
-    const binding = await sc.binding(myChallenge, doc.id);
-    const vrc = await sc.credential(party, doc.payload.relationshipDid, doc.id, binding, "displayed", now);
-    const issueMine = await sc.issue(party, doc.issuer, doc.id, myChallenge, "issue-inviter", vrc, now, newId());
-    // state is set only once both documents exist; a throw above leaves the frame unacked for a retry
-    Object.assign(state, { propose: doc, accept, binding, issueMine });
-    save("accept.json", accept); save("issue-inviter.json", issueMine);
-    await sendDocument(peer, accept);
-    await sendDocument(peer, issueMine);
-    return;
-  }
-  if (doc.type === sc.TASK_ISSUE) {
-    if (!state.propose) { say("issue before any propose; refused"); return; }
-    if (!sc.sameVid(doc.issuer, peer.did)) { say("issue issuer differs from the TSP sender; refused"); return; }
-    if (state.issueTheirs) { if (doc.id === state.issueTheirs.id) { say("the responder's issue again; receipt resent"); await sendDocument(peer, state.receiptMine); } return; }
-    const refusal = await sc.checkIssue(doc, {
-      issuerDid: state.propose.issuer, myDid, threadId: state.propose.id, enactment: myChallenge, step: "issue-responder",
-      issuerPair: state.propose.payload.relationshipDid, myPair: party.pair.anchor, myChallenge, binding: state.binding,
-    });
-    if (refusal) { say(`issue refused: ${refusal} (the document is saved for a look)`); return; }
-    state.issueTheirs = doc;
-    const rcp = await sc.receipt(party, doc, Date.now(), newId());
-    state.receiptMine = rcp;
-    save("receipt-of-issue-responder.json", rcp);
-    await sendDocument(peer, rcp);
-    say("the responder's credential verified and receipted");
-    if (state.receiptTheirs) { state.done = true; finish("enactment complete: both credentials and both receipts"); }
-    return;
-  }
-  if (doc.type === sc.TASK_ISSUE + "#response") {
-    if (!state.issueMine) { say("a receipt before any issue; ignored"); return; }
-    if (!sc.sameVid(doc.issuer, peer.did)) { say("receipt issuer differs from the TSP sender; refused"); return; }
-    const refusal = await sc.checkReceipt(doc, state.issueMine, { issuerDid: state.propose.issuer, myDid });
-    say(refusal ? `receipt for my issue refused: ${refusal}` : "receipt for my issue verified (digest matches the credential I sent)");
-    if (!refusal) state.receiptTheirs = doc;
-    if (!refusal && state.issueTheirs) { state.done = true; finish("enactment complete: both credentials and both receipts"); }
-    return;
-  }
-  say(`document of type ${doc.type}: not a step of this ceremony; saved only`);
+  const r = await flow.receive(doc, peer.did, Date.now());
+  await apply(peer, r);
+  // the person confirms here: the app shows the (unverified) name and asks before anything is issued; dev run: accepting
+  if (flow.pending) { say("dev run: accepting"); await apply(peer, await flow.accept(Date.now(), "displayed")); }
 }
 
 const session = new MediatorSession({

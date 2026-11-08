@@ -85,6 +85,13 @@ export interface KeyProvider {
    *  bytes, derived from the root IKM and the group DID under a prefix of
    *  stage 1: never stored, derived again when the key port needs it */
   contentKey (group: string): Promise<Uint8Array>
+  /** the two 32-byte seeds of one shared-connect encounter (messaging identity, pairwise
+   *  identifier), derived from the root and a 16-byte nonce this side minted for the encounter:
+   *  the inviter's is its link handle (`_id`), the responder's its own challenge (the propose id);
+   *  never the other side's value, so no counterpart chooses this side's identifiers. Under a
+   *  prefix of stage 1 (DEVIATION D5); derived again after a restart, never stored. Optional
+   *  until the app's port is cast. */
+  sharedConnectSeeds? (nonce: Uint8Array): Promise<{ messaging: Uint8Array, pair: Uint8Array }>
 }
 
 // ── Log (user: rotation; optional) ─────────────────────────────────────

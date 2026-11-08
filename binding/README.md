@@ -182,6 +182,10 @@ Two command lines for the shared connection ceremony across apps
 trustoverip/dtgwg-trust-tasks-tf#1034, dtgwg-vti-spec#86), both gated by
 `RLTP_LIVE_MEDIATOR=1`:
 
+Both CLIs carry frames only; the enactment itself runs in the library's step
+machines (`sharedConnectFlow.Inviter` / `Responder`, `lib/src/shared-connect-flow.ts`),
+the same code the app will use.
+
 - `shared-connect-invite.mjs`: makes a per-encounter `did:peer:2` naming
   the mediator as its TSP relay, shows the link, logs in at the mediator
   under that DID, answers a relationship-forming XRFI from a sender it has
