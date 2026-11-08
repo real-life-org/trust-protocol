@@ -547,23 +547,30 @@ export async function decline (inviter: Party, proposeDoc: any, nowMs: number, i
     id, type: TASK_ERROR, threadId: proposeDoc.id,
     issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
     ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' } as Ceremony,
-    payload: { code: DECLINE_CODE, retryable: false, inResponseTo: { id: proposeDoc.id }, ...(message !== undefined ? { message } : {}) },
+    payload: { code: DECLINE_CODE, retryable: false, inResponseTo: { typeUri: TASK_PROPOSE, id: proposeDoc.id }, ...(message !== undefined ? { message } : {}) },
   }
   return signStep(inviter.messaging, doc, when)
 }
-/** Is `doc` a decline of this side's propose by the inviter? Envelope (any trust-task-error version read),
- *  parties, thread, enactment and step, the code, then the proof. Any other error document is not a step. */
-export async function checkDecline (doc: any, proposeDoc: any, inviterDid: string, nowMs: number = Date.now()): Promise<StepRefusal | 'not-a-decline' | null> {
-  if (!isObj(doc) || typeof doc.type !== 'string' || !ERROR_TYPES.has(doc.type)) return 'not-a-decline'
+/** Is `doc` a trust-task-error of the other side in this enactment's thread? Envelope (any error version
+ *  read), parties, thread, enactment, then the proof; `step` is the step it names. Any other document is
+ *  `not-an-error`. The flow reads a decline from it (code `DECLINE_CODE` on step `propose`) and every other
+ *  code as the other side ending the enactment. */
+export async function checkError (doc: any, expect: { threadId: string, enactment: string, issuerDid: string, myDid: string }, nowMs: number = Date.now()): Promise<{ code: string, step: string, message: string | null } | StepRefusal | 'not-an-error'> {
+  if (!isObj(doc) || typeof doc.type !== 'string' || !ERROR_TYPES.has(doc.type)) return 'not-an-error'
   const e = envelopeRefusal(doc, doc.type, nowMs); if (e) return e
-  if (!sameVid(doc.issuer, inviterDid)) return 'issuer'
-  if (!sameVid(doc.recipient, proposeDoc.issuer)) return 'recipient'
-  if (doc.threadId !== proposeDoc.id) return 'thread'
-  if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'propose') return 'enactment'
-  const p = doc.payload
-  if (!isObj(p) || p.code !== DECLINE_CODE || p.retryable !== false) return 'not-a-decline'
-  if (!(await verifyStep(doc, [inviterDid]))) return 'proof'
-  return null
+  if (!sameVid(doc.issuer, expect.issuerDid)) return 'issuer'
+  if (!sameVid(doc.recipient, expect.myDid)) return 'recipient'
+  if (doc.threadId !== expect.threadId) return 'thread'
+  if (doc.ceremony.enactment !== expect.enactment || typeof doc.ceremony.step !== 'string') return 'enactment'
+  if (!(await verifyStep(doc, [expect.issuerDid]))) return 'proof'
+  return { code: doc.payload.code, step: doc.ceremony.step, message: doc.payload.message ?? null }
+}
+/** Is `doc` the inviter's decline of this side's propose? A checked error on step `propose` with the decline code. */
+export async function checkDecline (doc: any, proposeDoc: any, inviterDid: string, nowMs: number = Date.now()): Promise<StepRefusal | 'not-a-decline' | null> {
+  const r = await checkError(doc, { threadId: proposeDoc.id, enactment: proposeDoc.ceremony.enactment, issuerDid: inviterDid, myDid: proposeDoc.issuer }, nowMs)
+  if (r === 'not-an-error') return 'not-a-decline'
+  if (typeof r === 'string') return r
+  return r.code === DECLINE_CODE && r.step === 'propose' ? null : 'not-a-decline'
 }
 
 /** The enactment binding both credentials carry: over the ceremony URI and both challenges (Encounter 5.4). */
@@ -687,7 +694,9 @@ function envelopeRefusal (doc: any, expectType: string, nowMs: number, window?: 
       // a trust-task-error (the decline): the members of its registry schema, code and retryable required
       if (ERROR_TYPES.has(expectType)) {
         if (!closed(p, ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']) || typeof p.code !== 'string' || typeof p.retryable !== 'boolean') return 'payload'
-        if (p.message !== undefined && (typeof p.message !== 'string' || [...p.message].length > 500)) return 'payload'
+        if (p.message !== undefined && (typeof p.message !== 'string' || [...p.message].length > 1024)) return 'payload'
+        // inResponseTo as the registry schema has it: {typeUri, id?}, nothing else
+        if (p.inResponseTo !== undefined && (!isObj(p.inResponseTo) || !closed(p.inResponseTo, ['typeUri', 'id']) || typeof p.inResponseTo.typeUri !== 'string' || (p.inResponseTo.id !== undefined && typeof p.inResponseTo.id !== 'string'))) return 'payload'
       }
   }
   // TT §4.2: a document is not acted on when now ≥ expiresAt; the clock tolerance works in the document's favour

@@ -73,12 +73,14 @@ const apply = async (r) => {
     if (e.kind === "accepted") say(`accepted by ${read.link.label ?? "(no label)"}: relationshipDid ${e.relationshipDid}`);
     else if (e.kind === "credential") { say("the inviter's credential verified"); save("issue-inviter.json", e.vrc); }
     else if (e.kind === "declined") say(`the inviter declined${e.message ? ": " + e.message : ""}`);
+    else if (e.kind === "failed") say(`the other side ended the enactment: ${e.code} on ${e.step}${e.message ? ": " + e.message : ""}`);
     else if (e.kind === "refused") say(`${e.type.replace("https://trusttasks.org/spec/", "")} refused: ${e.reason}`);
     else say(`${e.kind}${"type" in e ? " " + e.type.replace("https://trusttasks.org/spec/", "") : ""}${"why" in e ? " (" + e.why + ")" : ""}`);
   }
   for (const d of r.send) { save(`out-${d.ceremony.step}-${d.type.endsWith("#response") ? "response" : "request"}.json`, d); await sendDocument(d); }
   if (flow.complete) finish("enactment complete on the responder's side");
   else if (flow.declined) finish("declined by the inviter");
+  else if (flow.failure) finish(`ended by the inviter: ${flow.failure.code}`);
 };
 
 // frames are handled one after another: the session does not serialise them, and the flow

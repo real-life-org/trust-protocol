@@ -121,11 +121,13 @@ const apply = async (peer, r) => {
   for (const e of r.events) {
     if (e.kind === "proposed") say(`propose from ${e.name ?? "(no name)"} (unverified): relationshipDid ${e.relationshipDid}`);
     else if (e.kind === "credential") { say("the responder's credential verified"); save("issue-responder.json", e.vrc); }
+    else if (e.kind === "failed") say(`the other side ended the enactment: ${e.code} on ${e.step}${e.message ? ": " + e.message : ""}`);
     else if (e.kind === "refused") say(`${e.type.replace("https://trusttasks.org/spec/", "")} refused: ${e.reason} (the document is saved for a look)`);
     else say(`${e.kind}${"type" in e ? " " + e.type.replace("https://trusttasks.org/spec/", "") : ""}${"why" in e ? " (" + e.why + ")" : ""}`);
   }
   for (const d of r.send) { save(`out-${d.ceremony.step}-${d.type.endsWith("#response") ? "response" : "request"}.json`, d); await sendDocument(peer, d); }
   if (flow.complete) finish("enactment complete: both credentials and both receipts");
+  else if (flow.failure) finish(`ended by the responder: ${flow.failure.code}`);
 };
 
 // frames are handled one after another: the session does not serialise them, and the flow

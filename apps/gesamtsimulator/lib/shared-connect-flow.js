@@ -22,13 +22,14 @@
 // returned, and `outbox()` names the own documents to send again after a
 // restart; so a crash between state and wire resends, never re-decides. Every
 // call changes state only after everything it builds exists (a throw leaves
-// the state as it was). Calls on one machine are serialised internally.
+// the state as it was). Calls on one machine are serialised internally;
+// `snapshot()` is not, so take it between calls, as the persistence rule says.
 import * as sc from './shared-connect.js';
 /** held documents: one per id, at most this many (a peer the handle admitted, before the decision) */
 const HELD_MAX = 8;
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const result = (send = [], events = [], finished = false) => ({ send, events, finished });
-const empty = () => ({ propose: null, accept: null, decline: null, binding: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] });
+const empty = () => ({ propose: null, accept: null, decline: null, failed: null, binding: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] });
 const typeOf = (doc) => (typeof doc?.type === 'string' ? doc.type : 'untyped');
 const hold = (s, doc) => {
     if (s.held.some((h) => h.id === doc.id))
@@ -53,11 +54,30 @@ class Machine {
     snapshot() { return JSON.parse(JSON.stringify(this.s)); }
     /** both credentials and both receipts are in */
     get complete() { return !!(this.s.issueTheirs && this.s.receiptTheirs); }
-    /** complete, or declined: nothing more to send or take */
-    get finished() { return this.complete || !!this.s.decline; }
+    /** complete, declined, or ended by the other side's error: nothing more to send or take */
+    get finished() { return this.complete || !!this.s.decline || !!this.s.failed; }
+    /** the other side's error that ended the enactment, if any */
+    get failure() { return this.s.failed; }
     get declined() { return !!this.s.decline; }
     /** the own documents of the enactment so far, in the order they were made: what to send again after a restart */
-    outbox() { return [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d); }
+    outbox() { return this.complete ? [] : [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d); }
+    /** a trust-task-error of the other side in our thread ends the enactment (`failed`), unless the flow
+     *  read it as a decline before; anything else is not a step */
+    async takeError(doc, expect, nowMs) {
+        const type = typeOf(doc);
+        const r = await sc.checkError(doc, { ...expect, myDid: this.party.messaging.did }, nowMs);
+        if (r === 'not-an-error')
+            return result([], [{ kind: 'ignored', type, why: 'not-a-step' }]);
+        if (typeof r === 'string')
+            return result([], [{ kind: 'refused', type, reason: r }]);
+        if (this.s.failed)
+            return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true);
+        if (this.complete)
+            return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
+        this.s.failed = r;
+        this.s.held = [];
+        return result([], [{ kind: 'failed', ...r }], true);
+    }
 }
 /** The inviter: showed the link `{id, exp}`; its messaging identity is the link's `_from`. */
 export class Inviter extends Machine {
@@ -70,7 +90,7 @@ export class Inviter extends Machine {
     /** the propose the person has to answer, or null */
     get pending() {
         const s = this.s;
-        if (!s.propose || s.accept || s.decline)
+        if (!s.propose || s.accept || s.decline || s.failed)
             return null;
         return { propose: s.propose, name: s.propose.payload.reason ?? null, relationshipDid: s.propose.payload.relationshipDid };
     }
@@ -103,10 +123,12 @@ export class Inviter extends Machine {
                 return result(same(doc, s.issueTheirs) ? [s.receiptMine] : [], [{ kind: 'ignored', type, why: 'duplicate' }], this.finished);
             if (!s.accept) {
                 // only after a lost acceptance can the responder's issue come first; held until the person decided
-                if (s.decline)
-                    return result([], [{ kind: 'ignored', type, why: 'after-decision' }]);
+                if (s.decline || s.failed)
+                    return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
                 return result([], [hold(s, doc)]);
             }
+            if (s.failed)
+                return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkIssue(doc, {
                 issuerDid: s.propose.issuer, myDid: me, threadId: s.propose.id, enactment: s.id, step: 'issue-responder',
                 issuerPair: s.propose.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.id, binding: s.binding,
@@ -116,16 +138,21 @@ export class Inviter extends Machine {
             const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId());
             s.issueTheirs = doc;
             s.receiptMine = receipt;
+            s.held = s.held.filter((h) => h.id !== doc.id); // a held copy taken now is no longer held
             const events = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-responder' }];
             if (this.complete)
                 events.push({ kind: 'complete' });
             return result([receipt], events, this.finished);
         }
         if (type === sc.TASK_ISSUE + '#response') {
-            if (!s.issueMine)
+            if (!s.propose)
                 return result([], [{ kind: 'refused', type, reason: 'before-propose' }]);
+            if (!s.issueMine)
+                return result([], [{ kind: 'refused', type, reason: 'before-issue' }]);
             if (s.receiptTheirs)
                 return result([], [{ kind: 'ignored', type, why: 'duplicate' }], this.finished);
+            if (s.failed)
+                return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkReceipt(doc, s.issueMine, { issuerDid: s.propose.issuer, myDid: me }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
@@ -135,14 +162,17 @@ export class Inviter extends Machine {
                 events.push({ kind: 'complete' });
             return result([], events, this.finished);
         }
-        return result([], [{ kind: 'ignored', type, why: 'not-a-step' }]);
+        // the responder's error in our thread (a refused credential): the enactment ends
+        if (!s.propose)
+            return result([], [{ kind: 'ignored', type, why: 'not-a-step' }]);
+        return this.takeError(doc, { threadId: s.propose.id, enactment: s.id, issuerDid: s.propose.issuer }, nowMs);
     }
     /** the person accepts: the acceptance and our credential go out; held documents are taken afterwards.
      *  `channel` is this side's own observation: `displayed` for a code shown in person, `sent` for a link sent. */
     accept(nowMs, channel) { return this.serial(() => this.doAccept(nowMs, channel)); }
     async doAccept(nowMs, channel) {
         const s = this.s;
-        if (!s.propose || s.accept || s.decline)
+        if (!s.propose || s.accept || s.decline || s.failed)
             throw new Error('nothing to accept');
         const p = s.propose;
         // everything built first, the state set once all of it exists
@@ -152,7 +182,7 @@ export class Inviter extends Machine {
         const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId());
         Object.assign(s, { accept, binding, issueMine });
         const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }]);
-        // held documents one by one; one that throws stays held for the next delivery
+        // held documents one by one; one that throws stays held (it leaves on a successful later take or a decision)
         for (const h of [...s.held]) {
             try {
                 const r = await this.take(h, p.issuer, nowMs);
@@ -171,7 +201,7 @@ export class Inviter extends Machine {
     decline(nowMs, message) { return this.serial(() => this.doDecline(nowMs, message)); }
     async doDecline(nowMs, message) {
         const s = this.s;
-        if (!s.propose || s.accept || s.decline)
+        if (!s.propose || s.accept || s.decline || s.failed)
             throw new Error('nothing to decline');
         const doc = await sc.decline(this.party, s.propose, nowMs, this.o.newId(), message);
         s.decline = doc;
@@ -210,7 +240,7 @@ export class Responder extends Machine {
         if (type === sc.TASK_PROPOSE + '#response') {
             if (s.accept)
                 return result(same(doc, s.accept) ? [s.issueMine] : [], [{ kind: 'ignored', type, why: 'duplicate' }], this.finished);
-            if (s.decline)
+            if (s.decline || s.failed)
                 return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkAccept(doc, s.propose, s.link.from, nowMs);
             if (r)
@@ -238,7 +268,9 @@ export class Responder extends Machine {
             if (s.issueTheirs)
                 return result(same(doc, s.issueTheirs) ? [s.receiptMine] : [], [{ kind: 'ignored', type, why: 'duplicate' }], this.finished);
             if (!s.accept)
-                return result([], [s.decline ? { kind: 'ignored', type, why: 'after-decision' } : hold(s, doc)], !!s.decline);
+                return result([], [s.decline || s.failed ? { kind: 'ignored', type, why: 'after-decision' } : hold(s, doc)], this.finished);
+            if (s.failed)
+                return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkIssue(doc, {
                 issuerDid: s.link.from, myDid: me, threadId: s.propose.id, enactment: s.link.id, step: 'issue-inviter',
                 issuerPair: s.accept.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.challenge, binding: s.binding,
@@ -248,6 +280,7 @@ export class Responder extends Machine {
             const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId());
             s.issueTheirs = doc;
             s.receiptMine = receipt;
+            s.held = s.held.filter((h) => h.id !== doc.id);
             const events = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-inviter' }];
             if (this.complete)
                 events.push({ kind: 'complete' });
@@ -257,28 +290,33 @@ export class Responder extends Machine {
             if (s.receiptTheirs)
                 return result([], [{ kind: 'ignored', type, why: 'duplicate' }], this.finished);
             if (!s.issueMine)
-                return result([], [s.decline ? { kind: 'ignored', type, why: 'after-decision' } : hold(s, doc)], !!s.decline);
+                return result([], [s.decline || s.failed ? { kind: 'ignored', type, why: 'after-decision' } : hold(s, doc)], this.finished);
+            if (s.failed)
+                return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkReceipt(doc, s.issueMine, { issuerDid: s.link.from, myDid: me }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
             s.receiptTheirs = doc;
+            s.held = s.held.filter((h) => h.id !== doc.id);
             const events = [{ kind: 'receipted', step: 'issue-responder' }];
             if (this.complete)
                 events.push({ kind: 'complete' });
             return result([], events, this.finished);
         }
-        // a trust-task-error in our thread with the decline code is the inviter's decline; any other error is not a step
+        // a trust-task-error of the inviter in our thread: on step propose with the decline code it is the
+        // decline; any other code ends the enactment as failed; anything else is not a step
         const d = await sc.checkDecline(doc, s.propose, s.link.from, nowMs);
-        if (d === 'not-a-decline')
-            return result([], [{ kind: 'ignored', type, why: 'not-a-step' }]);
-        if (d)
+        if (d === null) {
+            if (s.accept)
+                return result([], [{ kind: 'ignored', type, why: 'after-decision' }], this.finished);
+            if (s.decline)
+                return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true);
+            s.decline = doc;
+            s.held = [];
+            return result([], [{ kind: 'declined', message: doc.payload.message ?? null }], true);
+        }
+        if (d !== 'not-a-decline')
             return result([], [{ kind: 'refused', type, reason: d }]);
-        if (s.accept)
-            return result([], [{ kind: 'ignored', type, why: 'after-decision' }], this.finished);
-        if (s.decline)
-            return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true);
-        s.decline = doc;
-        s.held = [];
-        return result([], [{ kind: 'declined', message: doc.payload.message ?? null }], true);
+        return this.takeError(doc, { threadId: s.propose.id, enactment: s.link.id, issuerDid: s.link.from }, nowMs);
     }
 }

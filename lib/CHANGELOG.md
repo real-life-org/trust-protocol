@@ -17,7 +17,10 @@ snapshot before it sends). `complete` (both credentials and receipts) and
 `trust-task-error/0.5` with `vrc/relationships/propose:declined` in the
 propose's thread, no pairwise identifier named (propose 0.1 §4, as Keyring
 writes it): `decline()`, `checkDecline()` (reads error versions 0.2 to 0.6),
-`TASK_ERROR`, `DECLINE_CODE`. `KeyProvider.sharedConnectSeeds(nonce)`
+`TASK_ERROR`, `DECLINE_CODE`; `inResponseTo` names the propose's type and id as the
+registry schema requires. Any other signed trust-task-error of the counterpart in
+the enactment's thread (a refused credential, say) ends the enactment as `failed`
+(`checkError`, event `failed`, `failure`), on both sides. `KeyProvider.sharedConnectSeeds(nonce)`
 (optional; `seedKeys` has it; DEVIATIONS D5): the two seeds of one encounter
 from the root and the 16-byte challenge this side minted (the inviter's `_id`,
 the responder's propose id), under `rltp/v1/x-shared-connect-stage1/`. The two
