@@ -38,7 +38,7 @@ import { sameDigest, toU } from '../core.js'
 import type { Json, JsonObject } from '../core.js'
 import { digestDoc } from '../crypto.js'
 import {
-  ADD_OP, ENTRY_TYPE, GENESIS_OP, LEAVE_OP, PAGE_TYPE, SYNC_TYPE, dropHeld, exchangePayloadOk, expireHeld, forwards, haveOf, intake, materialize, opUnsigned, oversize, pageOf, releaseJoining, signEnvelope, stillWanted, WANT_MAX,
+  ADD_OP, ENTRY_TYPE, GENESIS_OP, LEAVE_OP, PAGE_TYPE, SYNC_TYPE, dropHeld, exchangePayloadOk, expireHeld, forwards, haveOf, intake, materialize, opUnsigned, oversize, pageOf, releaseJoining, signEnvelope, stillWanted, noteUnavailable, WANT_MAX,
 } from '../access/index.js'
 import type { Edge, EntryPayload, Envelope, GroupLog, Materialized, PagePayload, Replica, SyncPayload } from '../access/index.js'
 import type { CommandDef, EventDraft, PrepareCtx, Refusal, TaskHandler } from '../engine.js'
@@ -196,6 +196,8 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
   const i = await intake(replicaOf(g)!, entries, { source: from.source ?? SELF, now: ctx.when, ...(joining && !from.page ? { buffer: true } : {}), ...(from.page ? { answers: true } : {}) }, S)
   if (i.disposition !== 'effect') return { refused: i.disposition }
   let replica = i.replica
+  // the last page of a request that named parents: what it did not bring, the source lacks (remembered per repair)
+  if (from.page?.last && from.page.asked && from.source !== null) replica = noteUnavailable(replica, from.source, from.page.asked)
   // a page that answers a repair: every continuation asks for what the held entries still miss by name, not by cursor
   const wanted = from.page && from.source !== null ? stillWanted(replica, from.source, ctx.when) : []
   let facts = await factsOf(replica.log, S)
@@ -211,12 +213,9 @@ export async function advance (ctx: PrepareCtx, g: Readonly<Group>, entries: rea
     syncs[doc.threadId] = { contactId: doc.recipient.contactId, rkid: doc.recipient.rkid, at: ctx.when, ...(more.want ? { want: more.want } : {}) }
   }
   /** a repair is over when nothing is left to name; a last page ends one request, not the repair:
-   *  what the answered request did not name is asked for anew; what it named and did not bring by
-   *  its last page is not asked of that contact again (it lacks it); before the last page it stays named */
-  const remaining = (): string[] => {
-    const asked = new Set(from.page?.last ? from.page.asked ?? [] : [])
-    return [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !asked.has(p) && !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX)
-  }
+   *  the whole outstanding set (less what the source lacks, noteUnavailable) is cut to one request's bound last */
+  const remaining = (): string[] =>
+    [...new Set([...wanted, ...(i.want ?? [])])].filter((p) => !Object.hasOwn(replica.log.accepted, p) && !Object.hasOwn(replica.log.held, p)).sort().slice(0, WANT_MAX)
   const { joinUntil: _until, ...base } = g
   const mine = g.memberAnchor
 

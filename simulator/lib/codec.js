@@ -350,7 +350,7 @@ const group = listedGroup(groupShape);
 const heldEntry = obj({ env: anyObj, reason: lit('missing-parent', 'ineligible', 'joining', 'unsupported'), source: str, since: millis, bytes: natural });
 const groupLog = obj({
     'x-rltp-access-stage': lit(1), genesisDigest: str, accepted: rec(anyObj), held: rec(heldEntry),
-    repairs: rec(obj({ source: str, since: millis, active: bool })),
+    repairs: rec(obj({ source: str, since: millis, active: bool }, { tried: arr(str) })),
 });
 /** an operation record keyed by its envelope's id (the codec checks what the schema cannot) */
 const opKeyed = (x, p) => {

@@ -191,11 +191,30 @@ export const stillWanted = (r, source, _now) => {
         const env = r.log.held[id]?.env;
         if (env)
             for (const p of env.prev)
-                if (!r.log.accepted[p] && !r.log.held[p])
+                if (!r.log.accepted[p] && !r.log.held[p] && !x.tried?.includes(p))
                     out.add(p);
     }
-    return [...out].sort().slice(0, WANT_MAX);
+    // the whole outstanding set: the caller cuts it to WANT_MAX for one request
+    return [...out].sort();
 };
+/** After the last page of a request that asked `source` for `asked` by
+ *  name: what it did not bring, that source lacks. The repairs toward it
+ *  remember so, and no later request to that source names those again. */
+export function noteUnavailable(r, source, asked) {
+    const missing = asked.filter((p) => !r.log.accepted[p] && !r.log.held[p]);
+    if (!missing.length)
+        return r;
+    let repairs = r.repairs;
+    for (const [id, x] of Object.entries(r.repairs)) {
+        if (x.source !== source)
+            continue;
+        const env = r.log.held[id]?.env;
+        const more = env ? missing.filter((p) => env.prev.includes(p) && !x.tried?.includes(p)) : [];
+        if (more.length)
+            repairs = { ...repairs, [id]: { ...x, tried: [...(x.tried ?? []), ...more].sort() } };
+    }
+    return repairs === r.repairs ? r : { ...r, repairs };
+}
 /** the held ids a running repair protects from eviction at `now` */
 export const protectedIds = (r, now) => new Set(Object.entries(r.repairs).filter(([id, x]) => x.active && now < x.since + REPAIR_WINDOW && r.log.held[id] !== undefined).map(([id]) => id));
 /** Takes entries from one source into the replica (Replication 7.1),

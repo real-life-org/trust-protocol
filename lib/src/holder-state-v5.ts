@@ -928,5 +928,7 @@ export type GroupLogV5 = {
     source: string
     since: MillisV5
     active: boolean
+    /** parents the source was asked for by name and did not bring by a last page: not asked of it again */
+    tried?: string[]
   }>
 }
