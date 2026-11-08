@@ -27,6 +27,10 @@ import { MEMBERSHIP_SKEW, acceptProblem, inviteProblem, membershipSchemaOk } fro
 import { ENVELOPE_V, formProblem, genesisDigestOf, mergeProof } from './envelope.js';
 import { GENESIS_OP, genesisProblem } from './genesis.js';
 export const ADD_OP = 'member.add';
+/** the group bound of rule 0 (RLTP-ACC-5410): an admission into a group of this many members is not canonical */
+export const GROUP_BOUND = 4096;
+/** how long a held entry waits for its parent or its proof before it leaves (the longest give-up horizon, P90D) */
+export const HELD_LIFETIME = 90 * 86_400_000;
 export const LEAVE_OP = 'member.leave';
 /** the operations stage 1 materializes */
 export const BUILT_OPS = new Set([GENESIS_OP, ADD_OP, LEAVE_OP]);
@@ -126,7 +130,8 @@ function judge(f, id) {
             const leftBefore = [...anc].some((a) => f.verdict.get(a) === 'canonical' && f.log.accepted[a].op === LEAVE_OP && f.log.accepted[a].author === subject);
             const consumed = [...anc].some((a) => f.verdict.get(a) === 'canonical' && f.log.accepted[a].op === ADD_OP && sameDigest(f.acceptDigestOf.get(a), acceptDigest));
             // rule 0 (5400; with a leave in the ancestry read as a pending exit, DEVIATION D2), rule 4 (5460, any-member), rule 5 (5470)
-            if (M.has(subject) || leftBefore || !M.has(inviter) || !M.has(env.author) || consumed)
+            // rule 0 with the group bound (5410), rules 4 and 5
+            if (M.has(subject) || leftBefore || M.size >= GROUP_BOUND || !M.has(inviter) || !M.has(env.author) || consumed)
                 v = 'not-canonical';
             else {
                 v = 'canonical';
@@ -329,9 +334,6 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
     const missing = e.prev.some((p) => !log.accepted[p]);
     const hold = (reason) => {
         const bytes = envelopeBytes(e);
-        const all = Object.values(log.held);
-        if (all.length >= bounds.perGroup || all.reduce((n, h) => n + h.bytes, 0) + bytes > bounds.perGroupBytes)
-            return { log, verdict: { kind: 'rate-limited' } };
         let held = log.held;
         // the own partition: evict largest-first, ties by id (Replication 7.1)
         const over = () => {
@@ -346,6 +348,10 @@ export async function admit(log, env, at, subtle = platformSubtle()) {
         }
         // a partition full of protected entries, or an entry no eviction makes room for (retriable)
         if (over())
+            return { log, verdict: { kind: 'rate-limited' } };
+        // the group sum, after the own partition made room; another partition is never evicted for this one
+        const all = Object.values(held);
+        if (all.length >= bounds.perGroup || all.reduce((n, h) => n + h.bytes, 0) + bytes > bounds.perGroupBytes)
             return { log, verdict: { kind: 'rate-limited' } };
         return { log: { ...log, held: { ...held, [e.id]: { env: e, reason, source: at.source, since: at.now, bytes } } }, verdict: { kind: 'held', reason } };
     };
@@ -384,6 +390,18 @@ export async function releaseJoining(log, subtle = platformSubtle()) {
             next = { ...next, held: { ...next.held, [id]: { ...next.held[id], reason: r.verdict.reason } } };
     }
     return { log: next, applied };
+}
+/** Drops the held entries past their lifetime: what no parent and no proof
+ *  healed in HELD_LIFETIME leaves; the next request at a resume brings it
+ *  again if it still matters. */
+export function expireHeld(log, now) {
+    const stale = Object.entries(log.held).filter(([, h]) => h.since + HELD_LIFETIME < now);
+    if (!stale.length)
+        return log;
+    const held = { ...log.held };
+    for (const [id] of stale)
+        delete held[id];
+    return { ...log, held };
 }
 /** Drops every held entry (the joining buffer of a join that became void). */
 export const dropHeld = (log) => (Object.keys(log.held).length ? { ...log, held: {} } : log);

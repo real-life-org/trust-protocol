@@ -55,7 +55,7 @@ import { SCHEMAS } from '../schemas.js'
 import { TASK_NAMESPACE as TT } from '../task-uri.js'
 import type { Envelope } from './envelope.js'
 import { GENESIS_OP } from './genesis.js'
-import { ADD_OP, ENTRY_BOUND, admit, envelopeBytes, type AdmitVerdict, type Bounds, type GroupLog, type Materialized } from './log.js'
+import { ADD_OP, ENTRY_BOUND, admit, envelopeBytes, expireHeld, type AdmitVerdict, type Bounds, type GroupLog, type Materialized } from './log.js'
 
 export const ENTRY_TYPE = TT + 'x-access-entry/0.1'
 export const SYNC_TYPE = TT + 'x-access-sync/0.1'
@@ -187,10 +187,49 @@ export function pageOf (log: GroupLog, req: { have: readonly string[], want?: re
 // ── intake ─────────────────────────────────────────────────────────────
 
 /** A repair: the request a held entry sent its source for its closure. */
-export interface Repair { source: string, since: Millis, active: boolean }
+export interface Repair {
+  source: string
+  since: Millis
+  /** the protection against eviction runs (ends with the first answer or the window) */
+  active: boolean
+  /** parents this entry's source was asked for by name and did not bring by a last page: it lacks them, they are not asked of it again */
+  tried?: string[]
+}
 
 /** A replica's exchange state for one group: the log and the repairs of its held entries, by held id. */
 export interface Replica { log: GroupLog, repairs: Record<string, Repair> }
+
+/** The parents still missing of the held entries that asked `source` for
+ *  their closure: what every continuation of that repair asks for by name,
+ *  page after page, as long as the entry is held (the repair record lives
+ *  with it; `active` is the protection alone, and ends with the first
+ *  answer). */
+export const stillWanted = (r: Replica, source: string, _now: Millis): string[] => {
+  const out = new Set<string>()
+  for (const [id, x] of Object.entries(r.repairs)) {
+    if (x.source !== source) continue
+    const env = r.log.held[id]?.env
+    if (env) for (const p of env.prev) if (!r.log.accepted[p] && !r.log.held[p] && !x.tried?.includes(p)) out.add(p)
+  }
+  // the whole outstanding set: the caller cuts it to WANT_MAX for one request
+  return [...out].sort()
+}
+
+/** After the last page of a request that asked `source` for `asked` by
+ *  name: what it did not bring, that source lacks. The repairs toward it
+ *  remember so, and no later request to that source names those again. */
+export function noteUnavailable (r: Replica, source: string, asked: readonly string[]): Replica {
+  const missing = asked.filter((p) => !r.log.accepted[p] && !r.log.held[p])
+  if (!missing.length) return r
+  let repairs = r.repairs
+  for (const [id, x] of Object.entries(r.repairs)) {
+    if (x.source !== source) continue
+    const env = r.log.held[id]?.env
+    const more = env ? missing.filter((p) => env.prev.includes(p) && !x.tried?.includes(p)) : []
+    if (more.length) repairs = { ...repairs, [id]: { ...x, tried: [...(x.tried ?? []), ...more].sort() } }
+  }
+  return repairs === r.repairs ? r : { ...r, repairs }
+}
 
 /** the held ids a running repair protects from eviction at `now` */
 export const protectedIds = (r: Replica, now: Millis): Set<string> =>
@@ -216,7 +255,7 @@ export interface Intake {
  *  `buffer`: the replica is joining and buffers. An empty list is a defined
  *  effect (the end of an exchange). */
 export async function intake (replica: Replica, entries: readonly unknown[], at: { source: string, now: Millis, bounds?: Bounds, buffer?: boolean, answers?: boolean }, subtle: SubtleCrypto = platformSubtle()): Promise<Intake> {
-  let log = replica.log
+  let log = expireHeld(replica.log, at.now)
   let repairs = replica.repairs
   if (at.answers) {
     const ended = Object.entries(repairs).filter(([, x]) => x.active && x.source === at.source)

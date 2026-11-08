@@ -809,6 +809,8 @@ export type GroupV5 = {
     contactId: string
     rkid: string
     at: MillisV5
+    /** the operations this request asked for by name (a repair); what it still lacks after the answer is not asked of that contact again */
+    want?: string[]
   }>
   /** the member whose welcome brought the holder in, with the contact and the own tuple key its invitation was attributed to */
   issuer?: {
@@ -926,5 +928,7 @@ export type GroupLogV5 = {
     source: string
     since: MillisV5
     active: boolean
+    /** parents the source was asked for by name and did not bring by a last page: not asked of it again */
+    tried?: string[]
   }>
 }

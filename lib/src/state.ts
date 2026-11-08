@@ -411,7 +411,7 @@ export interface Group {
   acceptDigest?: string
   /** own x-access-sync requests awaiting their page, by thread: the
    *  contact and the own tuple key each went on */
-  syncs: Record<string, { contactId: string, rkid: string, at: Millis }>
+  syncs: Record<string, { contactId: string, rkid: string, at: Millis, want?: string[] }>
   /** the member whose welcome brought the holder in, with the contact and
    *  the own tuple key its invitation was attributed to (absent: none) */
   issuer?: { anchor: string, contactId?: string, rkid?: string }
@@ -433,7 +433,7 @@ export interface GroupLogState {
   genesisDigest: string
   accepted: Record<string, JsonObject>
   held: Record<string, { env: JsonObject, reason: 'missing-parent' | 'ineligible' | 'joining' | 'unsupported', source: string, since: Millis, bytes: number }>
-  repairs: Record<string, { source: string, since: Millis, active: boolean }>
+  repairs: Record<string, { source: string, since: Millis, active: boolean, tried?: string[] }>
 }
 
 /** A member as this holder knows it (Membership 2.6: the enclosed card). */

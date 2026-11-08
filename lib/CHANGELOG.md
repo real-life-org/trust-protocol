@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Held entries (#162): the group sum is checked after the own partition
+  made room, so a full partition elsewhere never refuses an entry that
+  fits; a held entry no parent and no proof healed leaves after
+  `HELD_LIFETIME` (P90D), at intake and at tick, its repair with it.
+- Repair (#163): the continuation of a repair's answer asks for what is
+  still missing by name (`stillWanted`), not by cursor. Rule 0 carries the
+  group bound: an admission into a group of `GROUP_BOUND` (4096) members
+  is not canonical (RLTP-ACC-5410).
+
 shared-connect: the acceptance (`propose#response`) has no freshness window
 any more (`checkAccept`); like the issue steps it answers in the thread of a
 document this side holds, so a late one is evidence, not a command, and the
