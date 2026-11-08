@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // shared-connect responder (dev only): reads a shared-connect 0.1 link, logs in
-// at the inviter's relay under a fresh did:peer:2, forms the TSP relationship
+// at the inviter's relay under a fresh peer DID, forms the TSP relationship
 // (XRFI), proposes, waits for the acceptance and the inviter's credential,
 // receipts it, issues its own, waits for the receipt. The mirror of
 // shared-connect-invite.mjs, for a pre-flight through the mediator and as our
 // scanner side against another implementation's inviter.
 //
 //   RLTP_LIVE_MEDIATOR=1 node binding/shared-connect-respond.mjs "<link>" [--name Day] [--out ./sc-out-r]
-//     [--channel scan|link] [--bare] [--wait-minutes 10]
+//     [--channel scan|link] [--bare] [--wait-minutes 10] [--did peer2|peer4] [--no-assertion]
 //
 // The relay is taken from the link's did:peer:2 (first tsp-mediator service);
 // MEDIATOR_DID overrides it. Documents go inside the registry's TSP binding
@@ -40,7 +40,7 @@ const say = (s) => console.log(`[respond ${new Date().toISOString().slice(11, 19
 const save = (name, obj) => { writeFileSync(join(OUT, name), JSON.stringify(obj, null, 2) + "\n"); say(`wrote ${join(OUT, name)}`); };
 const newId = () => b64uOf(rand(16));
 
-const read = sc.readSharedConnectLink(link);
+const read = (await sc.readSharedConnectLink(link));
 if (!read.ok) { console.error(`link refused: ${read.reason}`); process.exit(1); }
 const inviter = read.link.from;
 const relay = process.env.MEDIATOR_DID ?? inviter.relays.find((r) => r.kind === "tsp-mediator")?.address;
@@ -49,17 +49,19 @@ say(`inviter ${inviter.did.slice(0, 48)}… label ${read.link.label ?? "(none)"}
 say(`the person confirms here: connect with ${read.link.label ?? "the person showing this code"}? (yes, dev run)`);
 
 const msgSeed = rand(32), pairSeed = rand(32);
-const me = await sc.partyFromSeeds(msgSeed, pairSeed, [{ kind: "tsp-mediator", address: relay }], NAME);
+const METHOD = opt("--did", "peer2");
+if (!["peer2", "peer4"].includes(METHOD)) { console.error("--did: peer2 or peer4"); process.exit(2); }
+const me = await sc.partyFromSeeds(msgSeed, pairSeed, [{ kind: "tsp-mediator", address: relay }], NAME, METHOD, { assertion: !flag("--no-assertion") });
 const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
 const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");
 const xPublic = x25519.getPublicKey(xSecret);
 if (Buffer.compare(ed25519.getPublicKey(edSecret), me.peer.ed) !== 0 || Buffer.compare(xPublic, me.peer.x) !== 0) throw new Error("key derivation mismatch between the library and the wire");
 const myDid = me.messaging.did;
-const xKid = myDid + me.peer.doc.keyAgreement[0]; // the X25519 method as numbered in the DID (#key-3 in our V.A.E form)
+const xKid = me.peer.ref + me.peer.doc.keyAgreement[0]; // the X25519 method under the form key ids are written in (short form for did:peer:4)
 const myChallenge = sc.challengeOf16(rand(16));
 
 const auth = await authenticateToMediator({ mediatorDid: relay, clientDid: myDid, clientKid: xKid, clientX25519Private: xSecret, clientX25519Public: xPublic, netPolicy });
-say(`authenticated at ${relay} as a did:peer:2 it has never seen`);
+say(`authenticated at ${relay} as a peer DID it has never seen`);
 
 const state = { propose: null, accept: null, issueTheirs: null, issueMine: null, receiptTheirs: null, done: false, held: [], receiptMine: null };
 const finish = (why) => { say(why); try { session.close(); } catch {} setTimeout(() => process.exit(state.done ? 0 : 1), 200); };
@@ -72,15 +74,16 @@ let queue = Promise.resolve();
 const onTspFrame = (qb2) => (queue = queue.then(() => handleFrame(qb2), () => handleFrame(qb2)));
 async function handleFrame (qb2) {
   let senderVid = "unknown"; try { senderVid = decodeEnvelope(qb2).envelope.sender ?? "unknown"; } catch {}
-  if (senderVid !== inviter.did) { say(`frame from ${senderVid.slice(0, 40)}…: not the inviter; dropped`); return; }
+  if (!sc.sameVid(senderVid, inviter.did)) { say(`frame from ${senderVid.slice(0, 40)}…: not the inviter; dropped`); return; }
   let got;
   try { got = await tspUnpack(qb2, { receiverDecryptionKey: xSecret, senderSigningKey: inviter.ed }); } catch (e) { say(`frame does not open (${e?.message ?? e}); dropped`); return; }
+  if (!sc.sameVid(got.receiver, myDid)) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") { say(`control ${got.control?.controlType ?? "unknown"} from the inviter`); return; }
   if (got.messageType !== "direct") { say(`${got.messageType}; not handled`); return; }
   let body; try { body = JSON.parse(td.decode(got.payload)); } catch { say("payload not JSON"); return; }
   const doc = body?.type === ENVELOPE && body.document ? body.document : body;
   save(`in-${Date.now()}-${String(doc.type ?? "untyped").split("/").slice(-2).join("-").replace("#", "_")}.json`, doc);
-  if (doc.issuer !== inviter.did) { say("document issuer differs from the TSP sender; refused"); return; }
+  if (!sc.sameVid(doc.issuer, inviter.did)) { say("document issuer differs from the TSP sender; refused"); return; }
   await handle(doc);
 }
 
