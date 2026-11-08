@@ -246,6 +246,8 @@ export const canonicalVid = (did) => peer4Short(did) ?? did;
 export const sameVid = (a, b) => typeof a === 'string' && typeof b === 'string' && canonicalVid(a) === canonicalVid(b);
 const relationOf = (doc, rel, methods) => {
     const out = [];
+    if (doc[rel] !== undefined && !Array.isArray(doc[rel]))
+        return null;
     for (const r of doc[rel] ?? []) {
         if (typeof r === 'string') {
             if (!r.startsWith('#'))
@@ -264,6 +266,14 @@ const relationOf = (doc, rel, methods) => {
 /** Parse and resolve a did:peer:4 locally (long form, or a short form whose long form is in `known`).
  *  Null when the hash does not match the document, or it is not one this ceremony can use. */
 export async function parsePeer4(did, known = []) {
+    try {
+        return await parsePeer4Strict(did, known);
+    }
+    catch {
+        return null;
+    }
+}
+async function parsePeer4Strict(did, known) {
     const short = peer4Short(did);
     if (!short || typeof did !== 'string')
         return null;
@@ -294,6 +304,11 @@ export async function parsePeer4(did, known = []) {
     }
     if (!input || typeof input !== 'object' || Array.isArray(input) || 'id' in input)
         return null;
+    // the hash binds the bytes, not the shape: every field is untrusted JSON until checked
+    if (input.verificationMethod !== undefined && !Array.isArray(input.verificationMethod))
+        return null;
+    if (input.service !== undefined && !Array.isArray(input.service))
+        return null;
     const methods = new Map();
     for (const vm of input.verificationMethod ?? []) {
         if (!vm || typeof vm.id !== 'string' || !vm.id.startsWith('#') || typeof vm.publicKeyMultibase !== 'string')
@@ -310,9 +325,10 @@ export async function parsePeer4(did, known = []) {
     doc.verificationMethod = [...methods.values()].map((m) => ({ ...m, controller: did }));
     let n = 0;
     for (const s of input.service ?? []) {
-        if (!s || typeof s !== 'object')
+        if (!s || typeof s !== 'object' || Array.isArray(s))
             return null;
-        doc.service.push({ ...expandService(s, n), id: typeof s.id === 'string' ? s.id : expandService(s, n).id });
+        const e = expandService(s, n);
+        doc.service.push({ ...e, id: typeof s.id === 'string' ? s.id : e.id });
         n++;
     }
     const keyOf = (id) => { const m = methods.get(id); return m ? multikeyOf(m.publicKeyMultibase) : null; };

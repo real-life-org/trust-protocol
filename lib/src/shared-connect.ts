@@ -272,6 +272,7 @@ export const sameVid = (a: unknown, b: unknown): boolean => typeof a === 'string
 
 const relationOf = (doc: Record<string, any>, rel: Relationship, methods: Map<string, Peer2Method>): string[] | null => {
   const out: string[] = []
+  if (doc[rel] !== undefined && !Array.isArray(doc[rel])) return null
   for (const r of doc[rel] ?? []) {
     if (typeof r === 'string') { if (!r.startsWith('#')) return null; out.push(r) }
     else if (r && typeof r === 'object' && typeof r.id === 'string' && r.id.startsWith('#') && typeof r.publicKeyMultibase === 'string') {
@@ -284,6 +285,9 @@ const relationOf = (doc: Record<string, any>, rel: Relationship, methods: Map<st
 /** Parse and resolve a did:peer:4 locally (long form, or a short form whose long form is in `known`).
  *  Null when the hash does not match the document, or it is not one this ceremony can use. */
 export async function parsePeer4 (did: unknown, known: Iterable<string> = []): Promise<Peer2 | null> {
+  try { return await parsePeer4Strict(did, known) } catch { return null }
+}
+async function parsePeer4Strict (did: unknown, known: Iterable<string>): Promise<Peer2 | null> {
   const short = peer4Short(did); if (!short || typeof did !== 'string') return null
   let long = did
   if (long === short) { long = ''; for (const k of known) if (k !== short && peer4Short(k) === short) { long = k; break } }
@@ -296,6 +300,9 @@ export async function parsePeer4 (did: unknown, known: Iterable<string> = []): P
   let input: Record<string, any>
   try { input = JSON.parse(td.decode(bytes.subarray(2))) } catch { return null }
   if (!input || typeof input !== 'object' || Array.isArray(input) || 'id' in input) return null
+  // the hash binds the bytes, not the shape: every field is untrusted JSON until checked
+  if (input.verificationMethod !== undefined && !Array.isArray(input.verificationMethod)) return null
+  if (input.service !== undefined && !Array.isArray(input.service)) return null
   const methods = new Map<string, Peer2Method>()
   for (const vm of input.verificationMethod ?? []) {
     if (!vm || typeof vm.id !== 'string' || !vm.id.startsWith('#') || typeof vm.publicKeyMultibase !== 'string') return null
@@ -308,7 +315,11 @@ export async function parsePeer4 (did: unknown, known: Iterable<string> = []): P
   }
   doc.verificationMethod = [...methods.values()].map((m) => ({ ...m, controller: did }))
   let n = 0
-  for (const s of input.service ?? []) { if (!s || typeof s !== 'object') return null; doc.service.push({ ...expandService(s, n), id: typeof s.id === 'string' ? s.id : expandService(s, n).id }); n++ }
+  for (const s of input.service ?? []) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return null
+    const e = expandService(s as Record<string, unknown>, n)
+    doc.service.push({ ...e, id: typeof s.id === 'string' ? s.id : e.id }); n++
+  }
   const keyOf = (id: string) => { const m = methods.get(id); return m ? multikeyOf(m.publicKeyMultibase) : null }
   if (doc.authentication.length !== 1 || doc.keyAgreement.length !== 1) return null
   const ed = keyOf(doc.authentication[0]), x = keyOf(doc.keyAgreement[0])
