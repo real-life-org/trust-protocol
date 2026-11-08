@@ -31,9 +31,10 @@
 // Both did:peer:2 and did:peer:4 are read and written as the messaging
 // identity (the long form of did:peer:4 in the link and on a propose; the
 // short form where the long form was seen). Known gap: `relationshipDid`
-// must be an Ed25519
-// did:key (another method is refused as `unsupported-pair-did`). The
-// library keeps no replay state: a propose seen twice is the caller's to
+// must be an Ed25519 key, as a `did:key` or a `did:peer:0`; the two
+// spellings of the same key are not equated (an issuer that proposed as
+// did:peer:0 issues as did:peer:0); another method is refused as
+// `unsupported-pair-did`. The library keeps no replay state: a propose seen twice is the caller's to
 // absorb (the CLIs do, by the propose id).
 
 import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso } from './core.js'
@@ -123,7 +124,7 @@ export interface Peer2 {
 type Relationship = 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation'
 const PURPOSE: Record<string, Relationship> = { V: 'authentication', A: 'assertionMethod', E: 'keyAgreement', I: 'capabilityInvocation', D: 'capabilityDelegation' }
 const SERVICE_TYPE_OF: Record<string, RelayKind> = { TSPTransport: 'tsp-mediator', tsp: 'tsp-mediator', NostrRelay: 'nostr-relay', DIDCommMessaging: 'didcomm-service' }
-const RELAY_TYPE_OF: Record<string, string> = { 'tsp-mediator': 'TSPTransport', 'nostr-relay': 'NostrRelay', 'didcomm-service': 'DIDCommMessaging' }
+const RELAY_TYPE_OF: Record<string, string> = { 'tsp-mediator': 'TSPTransport', 'tsp-libp2p': 'TSPTransport', 'nostr-relay': 'NostrRelay', 'didcomm-service': 'DIDCommMessaging' }
 
 const expandEndpoint = (e: unknown): unknown => {
   if (Array.isArray(e)) return e.map(expandEndpoint)
@@ -184,7 +185,8 @@ export function peer2Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = 
   let did = 'did:peer:2.V' + ed + (opts.assertion === false ? '' : '.A' + ed) + '.E' + mkOfX(xPub)
   for (const r of relays) {
     const t = RELAY_TYPE_OF[r.kind] ?? r.kind
-    did += '.S' + b64uOf(te.encode(JSON.stringify({ t, s: r.address })))
+    const s = r.kind === 'tsp-libp2p' ? { peerId: r.address, multiaddrs: r.multiaddrs ?? [] } : r.address
+    did += '.S' + b64uOf(te.encode(JSON.stringify({ t, s })))
   }
   return did
 }
@@ -241,7 +243,7 @@ export function peer2MethodFor (peer: Peer2, purpose: 'authentication' | 'assert
 //   keyAgreement: [#key-2], service: [{ id: '#service[-n]', type, serviceEndpoint }] }.
 
 const JSON_CODEC = Uint8Array.from([0x80, 0x04])
-const sha256Sync = async (s: string) => sha(te.encode(s))
+const sha256Of = async (s: string) => sha(te.encode(s))
 
 /** Render this ceremony's did:peer:4 (long form). */
 export async function peer4Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = [], opts: { assertion?: boolean } = {}): Promise<string> {
@@ -253,10 +255,10 @@ export async function peer4Of (edPub: Uint8Array, xPub: Uint8Array, relays: Rela
     authentication: ['#key-1'],
     ...(opts.assertion === false ? {} : { assertionMethod: ['#key-1'] }),
     keyAgreement: ['#key-2'],
-    service: relays.map((r, n) => ({ id: n === 0 ? '#service' : '#service-' + n, type: RELAY_TYPE_OF[r.kind] ?? r.kind, serviceEndpoint: r.address })),
+    service: relays.map((r, n) => ({ id: n === 0 ? '#service' : '#service-' + n, type: RELAY_TYPE_OF[r.kind] ?? r.kind, serviceEndpoint: r.kind === 'tsp-libp2p' ? { peerId: r.address, multiaddrs: r.multiaddrs ?? [] } : r.address })),
   }
   const encoded = 'z' + base58(cat(JSON_CODEC, te.encode(JSON.stringify(input))))
-  const hash = 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Sync(encoded)))
+  const hash = 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Of(encoded)))
   return 'did:peer:4' + hash + ':' + encoded
 }
 
@@ -275,8 +277,8 @@ const relationOf = (doc: Record<string, any>, rel: Relationship, methods: Map<st
   if (doc[rel] !== undefined && !Array.isArray(doc[rel])) return null
   for (const r of doc[rel] ?? []) {
     if (typeof r === 'string') { if (!r.startsWith('#')) return null; out.push(r) }
-    else if (r && typeof r === 'object' && typeof r.id === 'string' && r.id.startsWith('#') && typeof r.publicKeyMultibase === 'string') {
-      methods.set(r.id, { id: r.id, type: 'Multikey', controller: '', publicKeyMultibase: r.publicKeyMultibase }); out.push(r.id)
+    else if (r && typeof r === 'object' && typeof r.id === 'string' && r.id.startsWith('#')) {
+      methods.set(r.id, { id: r.id, type: typeof r.type === 'string' ? r.type : 'Multikey', controller: '', publicKeyMultibase: typeof r.publicKeyMultibase === 'string' ? r.publicKeyMultibase : '' }); out.push(r.id)
     } else return null
   }
   return out
@@ -294,7 +296,7 @@ async function parsePeer4Strict (did: unknown, known: Iterable<string>): Promise
   if (!long) return null
   const encoded = long.slice(short.length + 1)
   const hash = short.slice('did:peer:4'.length)
-  if (encoded[0] !== 'z' || 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Sync(encoded))) !== hash) return null
+  if (encoded[0] !== 'z' || 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Of(encoded))) !== hash) return null
   const bytes = fromBase58(encoded.slice(1))
   if (!bytes || bytes[0] !== 0x80 || bytes[1] !== 0x04) return null
   let input: Record<string, any>
@@ -303,10 +305,13 @@ async function parsePeer4Strict (did: unknown, known: Iterable<string>): Promise
   // the hash binds the bytes, not the shape: every field is untrusted JSON until checked
   if (input.verificationMethod !== undefined && !Array.isArray(input.verificationMethod)) return null
   if (input.service !== undefined && !Array.isArray(input.service)) return null
+  // methods of other kinds (a JWK, a post-quantum key as the Trust Stackers write) are kept by id so
+  // relationships can name them; only Ed25519 and X25519 Multikeys are ever selected below
   const methods = new Map<string, Peer2Method>()
   for (const vm of input.verificationMethod ?? []) {
-    if (!vm || typeof vm.id !== 'string' || !vm.id.startsWith('#') || typeof vm.publicKeyMultibase !== 'string') return null
-    methods.set(vm.id, { id: vm.id, type: 'Multikey', controller: '', publicKeyMultibase: vm.publicKeyMultibase })
+    if (!vm || typeof vm !== 'object' || typeof vm.id !== 'string' || !vm.id.startsWith('#')) return null
+    const mb = typeof vm.publicKeyMultibase === 'string' ? vm.publicKeyMultibase : ''
+    methods.set(vm.id, { id: vm.id, type: typeof vm.type === 'string' ? vm.type as any : 'Multikey', controller: '', publicKeyMultibase: mb })
   }
   const doc: Peer2Doc = { id: did, verificationMethod: [], authentication: [], assertionMethod: [], keyAgreement: [], capabilityInvocation: [], capabilityDelegation: [], service: [] }
   for (const rel of ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'] as Relationship[]) {
@@ -320,11 +325,12 @@ async function parsePeer4Strict (did: unknown, known: Iterable<string>): Promise
     const e = expandService(s as Record<string, unknown>, n)
     doc.service.push({ ...e, id: typeof s.id === 'string' ? s.id : e.id }); n++
   }
+  // choose, do not count: the first Ed25519 key under authentication and the first X25519 key under
+  // keyAgreement; further keys under either (a did:scid identity key, a post-quantum key) are left alone
   const keyOf = (id: string) => { const m = methods.get(id); return m ? multikeyOf(m.publicKeyMultibase) : null }
-  if (doc.authentication.length !== 1 || doc.keyAgreement.length !== 1) return null
-  const ed = keyOf(doc.authentication[0]), x = keyOf(doc.keyAgreement[0])
-  if (ed?.kind !== 'ed' || x?.kind !== 'x') return null
-  for (const id of doc.assertionMethod) if (keyOf(id)?.kind !== 'ed') return null
+  const pick = (ids: string[], kind: 'ed' | 'x') => { for (const id of ids) { const k = keyOf(id); if (k?.kind === kind) return k } return null }
+  const ed = pick(doc.authentication, 'ed'), x = pick(doc.keyAgreement, 'x')
+  if (!ed || !x) return null
   const relays = relaysOf(doc.service)
   return { did, ref: short, ed: ed.raw, x: x.raw, doc, relays }
 }
@@ -450,7 +456,7 @@ export async function signStep<T extends Record<string, any>> (ctx: StepSigner, 
 }
 
 /** Verify a step document's proof: the verification method belongs to the document's
- *  issuer (a did:peer:2), is listed under the proof's purpose (`authentication` or
+ *  issuer (a peer DID), is listed under the proof's purpose (`authentication` or
  *  `assertionMethod`, TT §4.7.3) and is an Ed25519 key; canonical proofValue; the
  *  proof repeats the document's @context when there is one. */
 export async function verifyStep (doc: any, known: Iterable<string> = []): Promise<boolean> {
@@ -462,8 +468,9 @@ export async function verifyStep (doc: any, known: Iterable<string> = []): Promi
   if (typeof rest.issuer !== 'string') return false
   const vmDid = proof.verificationMethod.split('#')[0]
   if (!sameVid(vmDid, rest.issuer)) return false
-  const peer = await parsePeer(rest.issuer, known); if (!peer) return false
-  if (vmDid !== peer.ref) return false
+  // the method id may use the long or the short form of a did:peer:4 (DIF resolves relative ids
+  // against the long form; we write the short form); a long-form method id resolves the issuer too
+  const peer = await parsePeer(rest.issuer, [...known, vmDid]); if (!peer) return false
   const fragment = proof.verificationMethod.slice(vmDid.length)
   if (!peer.doc[proof.proofPurpose as 'authentication' | 'assertionMethod'].includes(fragment)) return false
   const vm = peer.doc.verificationMethod.find((m) => m.id === fragment); if (!vm) return false
@@ -479,7 +486,7 @@ export async function verifyStep (doc: any, known: Iterable<string> = []): Promi
 }
 
 export interface Party {
-  /** B: the per-encounter messaging identity (did:peer:2) and its signing key */
+  /** B: the per-encounter messaging identity (a peer DID) and its signing key */
   messaging: StepSigner
   /** A: the pairwise identifier that issues the credential (did:key) */
   pair: Signer
@@ -567,7 +574,8 @@ export async function receipt (me: Party, issueDoc: any, nowMs: number, id: stri
 
 // ── the pairwise identifier (relationshipDid) ──────────────────────────
 // An Ed25519 `did:key`, or the same key as `did:peer:0` (numalgo 0 is a
-// did:key under another method name; Keyring writes it). Both resolve locally.
+// did:key under another method name; Keyring writes it). Both resolve locally. The two spellings
+// are not equated: a credential's issuer must be written as the relationshipDid was.
 export const pairKeyOf = (did: unknown): Uint8Array | null => {
   if (typeof did !== 'string') return null
   if (did.startsWith('did:key:')) return edRawOfAnchor(did)
@@ -584,7 +592,8 @@ export async function verifyPairCredential (vrc: any, issuerPair: string): Promi
   const { proof, ...rest } = vrc ?? {}
   if (!proof || proof.type !== 'DataIntegrityProof' || proof.cryptosuite !== 'eddsa-jcs-2022' || proof.proofPurpose !== 'assertionMethod') return false
   if (typeof proof.created !== 'string' || !calOK(proof.created) || typeof proof.verificationMethod !== 'string') return false
-  if (proof.verificationMethod.split('#')[0] !== issuerPair || rest.issuer !== issuerPair) return false
+  // Credo and Keyring write the absolute id of the one key: did:peer:0<mk>#<mk>
+  if (proof.verificationMethod !== issuerPair + '#' + issuerPair.slice('did:peer:0'.length) || rest.issuer !== issuerPair) return false
   if ('@context' in rest && jcs(proof['@context'] ?? null) !== jcs(rest['@context'])) return false
   if (typeof proof.proofValue !== 'string' || proof.proofValue[0] !== 'z') return false
   const sig = fromBase58(proof.proofValue.slice(1))
@@ -597,7 +606,7 @@ export async function verifyPairCredential (vrc: any, issuerPair: string): Promi
 
 // ── checks the receiving side runs ──────────────────────────────────────
 export type StepRefusal =
-  | 'type' | 'envelope' | 'payload' | 'issuer-not-peer2' | 'issuer' | 'recipient' | 'enactment' | 'thread'
+  | 'type' | 'envelope' | 'payload' | 'issuer-not-peer' | 'issuer' | 'recipient' | 'enactment' | 'thread'
   | 'expired-link' | 'expired' | 'not-fresh' | 'proof'
   | 'challenge-form' | 'unsupported-pair-did' | 'accept-flag'
   | 'vrc-proof' | 'vrc-issuer' | 'vrc-subject' | 'vrc-digest' | 'vrc-binding' | 'vrc-challenge'
@@ -655,7 +664,7 @@ const FRESH_MS = (MAX_EXP_CODE_S + CLOCK_TOLERANCE_S) * 1000
 export async function checkPropose (doc: any, me: { did: string, id: string, exp: number }, nowMs: number): Promise<StepRefusal | null> {
   const e = envelopeRefusal(doc, TASK_PROPOSE, nowMs, FRESH_MS); if (e) return e
   if (nowMs >= (me.exp + CLOCK_TOLERANCE_S) * 1000) return 'expired-link'
-  if (!(await parsePeer(doc.issuer))) return 'issuer-not-peer2'
+  if (!(await parsePeer(doc.issuer))) return 'issuer-not-peer'
   if (!sameVid(doc.recipient, me.did)) return 'recipient'
   if (doc.ceremony.enactment !== me.id || doc.ceremony.step !== 'propose') return 'enactment'
   if (!canonicalChallenge(doc.id)) return 'challenge-form'

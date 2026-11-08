@@ -61,7 +61,7 @@ const say = (s) => console.log(`[invite ${new Date().toISOString().slice(11, 19)
 const save = (name, obj) => { writeFileSync(join(OUT, name), typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) + "\n"); say(`wrote ${join(OUT, name)}`); };
 const newId = () => b64uOf(rand(16));
 
-// ── the inviter: messaging identity (did:peer:2) and pair anchor (did:key) ──
+// ── the inviter: messaging identity (a peer DID) and pair anchor (did:key) ──
 const msgSeed = rand(32), pairSeed = rand(32);
 const relays = [{ kind: "tsp-mediator", address: RELAY_ADDRESS }];
 const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME, METHOD, { assertion: !flag("--no-assertion") });
@@ -78,7 +78,7 @@ const myChallenge = sc.challengeOf16(rand(16));
 const exp = Math.floor(Date.now() / 1000) + MINUTES * 60;
 const link = (await sc.sharedConnectLink({ from: myDid, id: myChallenge, exp, ...(NAME ? { label: NAME } : {}) }));
 
-say(`inviter did:peer:2  ${myDid}`);
+say(`inviter ${METHOD === "peer4" ? "did:peer:4" : "did:peer:2"}  ${myDid}`);
 say(`relationshipDid     ${party.pair.anchor}`);
 say(`challenge (_id)     ${myChallenge}`);
 say(`link (${link.length} chars, valid ${MINUTES} min)`);
@@ -130,7 +130,7 @@ async function handleFrame (qb2) {
   if (!peer) { say(`frame from ${senderVid}: not a peer DID this ceremony reads; dropped`); return; }
   let got;
   try { got = await tspUnpack(qb2, { receiverDecryptionKey: xSecret, senderSigningKey: peer.ed }); } catch (e) { say(`frame from ${senderVid.slice(0, 40)}… does not open (${e?.message ?? e}); dropped`); return; }
-  if (got.receiver !== myDid) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
+  if (!sc.sameVid(got.receiver, myDid)) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") {
     const kind = got.control?.controlType ?? "unknown";
     const live = Date.now() / 1000 < exp + sc.CLOCK_TOLERANCE_S; // the same bound checkPropose applies

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // shared-connect responder (dev only): reads a shared-connect 0.1 link, logs in
-// at the inviter's relay under a fresh did:peer:2, forms the TSP relationship
+// at the inviter's relay under a fresh peer DID, forms the TSP relationship
 // (XRFI), proposes, waits for the acceptance and the inviter's credential,
 // receipts it, issues its own, waits for the receipt. The mirror of
 // shared-connect-invite.mjs, for a pre-flight through the mediator and as our
 // scanner side against another implementation's inviter.
 //
 //   RLTP_LIVE_MEDIATOR=1 node binding/shared-connect-respond.mjs "<link>" [--name Day] [--out ./sc-out-r]
-//     [--channel scan|link] [--bare] [--wait-minutes 10] [--did peer2|peer4]
+//     [--channel scan|link] [--bare] [--wait-minutes 10] [--did peer2|peer4] [--no-assertion]
 //
 // The relay is taken from the link's did:peer:2 (first tsp-mediator service);
 // MEDIATOR_DID overrides it. Documents go inside the registry's TSP binding
@@ -61,7 +61,7 @@ const xKid = me.peer.ref + me.peer.doc.keyAgreement[0]; // the X25519 method und
 const myChallenge = sc.challengeOf16(rand(16));
 
 const auth = await authenticateToMediator({ mediatorDid: relay, clientDid: myDid, clientKid: xKid, clientX25519Private: xSecret, clientX25519Public: xPublic, netPolicy });
-say(`authenticated at ${relay} as a did:peer:2 it has never seen`);
+say(`authenticated at ${relay} as a peer DID it has never seen`);
 
 const state = { propose: null, accept: null, issueTheirs: null, issueMine: null, receiptTheirs: null, done: false, held: [], receiptMine: null };
 const finish = (why) => { say(why); try { session.close(); } catch {} setTimeout(() => process.exit(state.done ? 0 : 1), 200); };
@@ -77,6 +77,7 @@ async function handleFrame (qb2) {
   if (!sc.sameVid(senderVid, inviter.did)) { say(`frame from ${senderVid.slice(0, 40)}…: not the inviter; dropped`); return; }
   let got;
   try { got = await tspUnpack(qb2, { receiverDecryptionKey: xSecret, senderSigningKey: inviter.ed }); } catch (e) { say(`frame does not open (${e?.message ?? e}); dropped`); return; }
+  if (!sc.sameVid(got.receiver, myDid)) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") { say(`control ${got.control?.controlType ?? "unknown"} from the inviter`); return; }
   if (got.messageType !== "direct") { say(`${got.messageType}; not handled`); return; }
   let body; try { body = JSON.parse(td.decode(got.payload)); } catch { say("payload not JSON"); return; }

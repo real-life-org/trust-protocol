@@ -31,6 +31,14 @@ DID, and the ceremony's three steps.
   (Trust Tasks §4.11.2), as Keyring names them. The acceptance carries
   `ceremony.step` `propose`; `Step` no longer has `accept`; `checkAccept`
   refuses an acceptance under any other step. Vector regenerated.
+- A `did:peer:4` as the Trust Stackers write it resolves: post-quantum keys
+  beside the Ed25519 and X25519 keys, a second authentication key, a JWK
+  method; the parser picks the first Ed25519 key under `authentication`
+  and the first X25519 key under `keyAgreement` and leaves the rest alone.
+  A method id in the long form verifies as well as one in the short form.
+  A correctly hashed document of the wrong shape is refused, never thrown
+  (#170). A `did:peer:0` credential proof must name the key's one absolute
+  id. Refusal `issuer-not-peer` (was `issuer-not-peer2`).
 - `checkPropose` takes the link's `exp`; `checkReceipt` (new); envelope and
   payload shape checked before any signature work; `issuedAt` not in the
   future; the expiry tolerance works in the document's favour.
