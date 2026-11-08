@@ -37,7 +37,11 @@
 // `unsupported-pair-did`. The library keeps no replay state: a propose seen twice is the caller's to
 // absorb (the CLIs do, by the propose id).
 
-import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso } from './core.js'
+import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso, sameDigest } from './core.js'
+// DigestMultibase values (vrcDigestMultibase, enactmentBinding) are compared over their decoded
+// multihash bytes with core's strict sameDigest (TT §4.9.3 / §6.6): base58btc and base64url both
+// occur (Keyring writes z, we write u), canonical spelling only, an undecodable string is unequal.
+export { sameDigest }
 import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diVerify, edFromSeed, xFromSeed, hkdf, type Signer, type KeyPair } from './crypto.js'
 import { CRED_CONTEXT } from './encounter.js'
 
@@ -692,18 +696,6 @@ export interface IssueExpectation { issuerDid: string, myDid: string, threadId: 
 
 /** Check an issue document: envelope, then the credential against the accepted proposal.
  *  No freshness window: the inviter's credential may follow long after the acceptance. */
-/** The multihash bytes behind a DigestMultibase, base58btc (`z`) or base64url (`u`); null for anything else. */
-export const digestBytesOf = (v: unknown): Uint8Array | null => {
-  if (typeof v !== 'string' || v.length < 2) return null
-  const raw = v[0] === 'z' ? fromBase58(v.slice(1)) : v[0] === 'u' ? fromB64u(v.slice(1)) : null
-  return raw && raw.length === 34 && raw[0] === 0x12 && raw[1] === 0x20 ? raw : null
-}
-/** Two DigestMultibase values name one digest when their decoded multihash bytes agree (TT §4.9.3), whatever the base. */
-export const sameDigest = (a: unknown, b: unknown): boolean => {
-  const x = digestBytesOf(a), y = digestBytesOf(b)
-  return !!x && !!y && x.length === y.length && x.every((byte, i) => byte === y[i])
-}
-
 export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: number = Date.now()): Promise<StepRefusal | null> {
   const e = envelopeRefusal(doc, TASK_ISSUE, nowMs); if (e) return e
   if (!sameVid(doc.issuer, expect.issuerDid)) return 'issuer'
@@ -719,8 +711,8 @@ export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: num
   // profile checks for a credential of this ceremony's RLTP profile; other
   // profiles (Consensual's, Keyring's) carry their own members and pass here
   const cs = vrc.credentialSubject
-  if (cs.enactmentBinding !== undefined && cs.enactmentBinding !== expect.binding) return 'vrc-binding'
-  if (cs.binding !== undefined && cs.binding !== expect.binding) return 'vrc-binding'
+  if (cs.enactmentBinding !== undefined && !sameDigest(cs.enactmentBinding, expect.binding)) return 'vrc-binding'
+  if (cs.binding !== undefined && !sameDigest(cs.binding, expect.binding)) return 'vrc-binding'
   if (cs.challenge !== undefined && cs.challenge !== expect.myChallenge) return 'vrc-challenge'
   return null
 }

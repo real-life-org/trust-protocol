@@ -2,11 +2,13 @@
 
 ## Unreleased
 
-shared-connect: `vrcDigestMultibase` is compared over the decoded multihash
-bytes (`sameDigest`, `digestBytesOf`; Trust Tasks §4.9.3), so a counterpart
-that encodes its digest in base58btc (Keyring) names the same credential as
-ours in base64url. Found reading Keyring's receipt code before the second
-live run; both encodings are conforming, string comparison was the fault.
+shared-connect: `vrcDigestMultibase` and the credential's `enactmentBinding`
+are compared with core's `sameDigest`, over the decoded multihash bytes in
+canonical spelling (Trust Tasks §4.9.3 / §6.6), as Encounter, Membership and
+Access already do. A counterpart that encodes its digest in base58btc
+(Keyring) names the same credential as ours in base64url; a non-canonical or
+undecodable digest is refused as `vrc-digest`, never thrown. Found reading
+Keyring's receipt code before the second live run.
 
 shared-connect, after the first live run with Keyring (7 November 2026)
 and the Trust Stackers' code read: both peer DID forms, the pairwise
