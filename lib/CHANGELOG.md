@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+shared-connect, after the first live run with Keyring (7 November 2026)
+and the Trust Stackers' code read: both peer DID forms, the pairwise
+identifier as Keyring writes it, a libp2p relay endpoint, the condensed
+DID, and the ceremony's three steps.
+
+- **did:peer:4** beside did:peer:2 as the messaging identity: `peer4Of`,
+  `parsePeer4` (long form; the hash binds the document; a short form
+  resolves only against a long form held in `known`), `parsePeer`,
+  `peer4Short`, `canonicalVid` / `sameVid` (one identity, two spellings).
+  The link and a propose carry the long form; later steps may use the
+  short form. Checked against the example of the DIF Peer DID spec.
+  **Breaking:** `sharedConnectLink`, `readSharedConnectLink` and
+  `proposeFromBackCode` are asynchronous now (the did:peer:4 hash is a
+  WebCrypto digest). Measured live: the VTI mediator (Affinidi 0.45) does
+  not resolve did:peer:4 in its authcrypt login, so a side that logs in
+  there uses did:peer:2.
+- **`relationshipDid` as `did:peer:0`** (`pairKeyOf`, `verifyPairCredential`):
+  the same Ed25519 key as a did:key under another method name, which
+  Keyring writes. Found in the first live run.
+- **A libp2p relay** (`tsp-libp2p`): a `TSPTransport` service whose endpoint
+  is `{peerId, multiaddrs}` (Trust Stackers) is read as a relay with its
+  multiaddrs; `Relay.multiaddrs` (new, optional).
+- **Peer DIDs without the assertionMethod segment**: `peer2Of`, `peer4Of`
+  and `partyFromSeeds` take `{ assertion: false }` (`.V<ed>.E<x>`, 50
+  characters shorter); the step proofs need only `authentication`.
+- **Three steps** (breaking): a step is a request with its response
+  (Trust Tasks §4.11.2), as Keyring names them. The acceptance carries
+  `ceremony.step` `propose`; `Step` no longer has `accept`; `checkAccept`
+  refuses an acceptance under any other step. Vector regenerated.
+- `checkPropose` takes the link's `exp`; `checkReceipt` (new); envelope and
+  payload shape checked before any signature work; `issuedAt` not in the
+  future; the expiry tolerance works in the document's favour.
+
 - **`KeyProvider.contentKey(group)`** (new, #164): the epoch-0 content key
   a founding commits to (Access 9710) is the provider's derivation for the
   group DID under `rltp/v1/x-content-key-stage1/`, never stored; the key
@@ -11,8 +44,6 @@
 - **Retention after left or void** (#164): `Group.endedAt` (new) marks
   when the standing ended; a horizon (P90D) later tick lets the log and the
   roster go and keeps the entry with its name and phase.
-
-## Unreleased
 
 The holder's standing in a group is decided in one place. `advance`
 (membership/replica.ts) first takes every effect on the log (the intake,
@@ -121,19 +152,11 @@ proposed, not registered. No change to the encounter ceremony.
 - `vectors/shared-connect.json` (new, with `mustFail` cases) and a third row
   in `vectors/shared-connect-binding.json` for the `shared-connect/0.1`
   ceremony URI.
-- **did:peer:4** beside did:peer:2 as the messaging identity: `peer4Of`,
-  `parsePeer4` (long form; the hash binds the document; a short form
-  resolves only against a long form held in `known`), `parsePeer`,
-  `peer4Short`, `canonicalVid` / `sameVid` (one identity, two spellings).
-  The link and a propose carry the long form; later steps may use the
-  short form. Checked against the example of the DIF Peer DID spec.
-  `sharedConnectLink`, `readSharedConnectLink` and `proposeFromBackCode`
-  are asynchronous now (the did:peer:4 hash is a WebCrypto digest).
-- Known gaps of this casting: `relationshipDid` must be an Ed25519
+- Known gaps of this casting: `_from` and `issuer` must be a `did:peer:2`
+  (the long form of `did:peer:4`, which the registry entry admits, is
+  refused as `unsupported-vid`); `relationshipDid` must be an Ed25519
   `did:key` (`unsupported-pair-did` otherwise); the library keeps no replay
-  state for a propose seen twice. Measured live on 6 November 2026: the VTI
-  mediator (Affinidi 0.45) does not resolve did:peer:4 in its authcrypt
-  login, so a side that logs in at that mediator uses did:peer:2 there.
+  state for a propose seen twice.
 
 ## 0.12.0
 
