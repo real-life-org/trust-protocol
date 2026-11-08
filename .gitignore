@@ -5,3 +5,5 @@ simulator/node_modules
 lib/node_modules/
 lib/dist/
 sc-out/
+sc-out-r/
+sc-keyring/
