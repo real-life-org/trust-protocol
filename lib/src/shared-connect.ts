@@ -64,7 +64,9 @@ export const LABEL_MAX_CODEPOINTS = 64
 /** Reader limit of VTI-LNK-020 step 1 (code points). */
 export const READER_LIMIT = 1536
 
-export type Step = 'propose' | 'accept' | 'issue-inviter' | 'issue-responder'
+/** The ceremony's three steps. A step is a request with its response (Trust Tasks §4.11.2): the
+ *  acceptance belongs to `propose`, each receipt to the issue it answers. */
+export type Step = 'propose' | 'issue-inviter' | 'issue-responder'
 export type Channel = 'scan' | 'link' | 'displayed' | 'sent'
 export type RelayKind = 'tsp-mediator' | 'tsp-libp2p' | 'nostr-relay' | 'didcomm-service'
 /** A place to reach a side. For `tsp-libp2p` the address is the libp2p peer ID and `multiaddrs` lists where to dial it (Trust Stackers). */
@@ -501,7 +503,7 @@ export async function accept (inviter: Party, proposeDoc: any, nowMs: number, id
   const doc = {
     id, type: TASK_PROPOSE + '#response', threadId: proposeDoc.id,
     issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
-    ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'accept' } as Ceremony,
+    ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' } as Ceremony,
     payload: { accept: true, relationshipDid: inviter.pair.anchor },
   }
   return signStep(inviter.messaging, doc, when)
@@ -657,7 +659,7 @@ export async function checkAccept (doc: any, proposeDoc: any, inviterDid: string
   if (!sameVid(doc.issuer, inviterDid)) return 'issuer'
   if (!sameVid(doc.recipient, proposeDoc.issuer)) return 'recipient'
   if (doc.threadId !== proposeDoc.id) return 'thread'
-  if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'accept') return 'enactment'
+  if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'propose') return 'enactment'
   if (!pairKeyOf(doc.payload.relationshipDid)) return 'unsupported-pair-did'
   if (!(await verifyStep(doc, [inviterDid]))) return 'proof'
   return null

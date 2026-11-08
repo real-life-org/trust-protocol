@@ -176,7 +176,7 @@
       "issuedAt": "2026-11-07T10:00:07Z",
       "ceremony": {
         "enactment": "AAECAwQFBgcICQoLDA0ODw",
-        "step": "accept"
+        "step": "propose"
       },
       "payload": {
         "accept": true,
@@ -188,7 +188,7 @@
         "created": "2026-11-07T10:00:07Z",
         "verificationMethod": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z3pZMWazLzJ3it9MTfhguw26VjWFHNhXVX87X9SaPc9omJsvBRX7QwKsZu4qHDjmnLDNbrUXKBw7Va6XRJUS4eVAv"
+        "proofValue": "z2uXB1wdKBhGQaM1YrjsXHLLUdtXEaxXbJTiuGTN5WW9Ej6szeq9JR2oaxrWh6g1Q6YgrtfQXap1sg48kWDXtA3gE"
       }
     },
     "issue-inviter": {
@@ -500,7 +500,7 @@
         "issuedAt": "2026-11-07T10:00:07Z",
         "ceremony": {
           "enactment": "AAECAwQFBgcICQoLDA0ODw",
-          "step": "accept"
+          "step": "propose"
         },
         "payload": {
           "accept": true,
@@ -512,7 +512,7 @@
           "created": "2026-11-07T10:00:07Z",
           "verificationMethod": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS#key-1",
           "proofPurpose": "authentication",
-          "proofValue": "zPkdgTqf454b6szbgoqMmtx8wCo5sPaih7QGuGXggfwVbVEeH1aYFfRjBfEN44SwzNHqZYKTCyt5KSArsXCYFCTN"
+          "proofValue": "z3mDaP7P2DnDioTZuJWgV7x11Cghwqi9frMUvCuu92aoTN1wDrhmoddpnuL1sC3EanshNmHtCkdQ6hmuQzUCkVUqo"
         }
       },
       "issue-inviter": {
@@ -840,7 +840,7 @@
           "issuedAt": "2026-11-07T10:00:07Z",
           "ceremony": {
             "enactment": "AAECAwQFBgcICQoLDA0ODw",
-            "step": "accept"
+            "step": "propose"
           },
           "payload": {
             "accept": true,
@@ -853,7 +853,7 @@
             "created": "2026-11-07T10:00:07Z",
             "verificationMethod": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z3pZMWazLzJ3it9MTfhguw26VjWFHNhXVX87X9SaPc9omJsvBRX7QwKsZu4qHDjmnLDNbrUXKBw7Va6XRJUS4eVAv"
+            "proofValue": "z2uXB1wdKBhGQaM1YrjsXHLLUdtXEaxXbJTiuGTN5WW9Ej6szeq9JR2oaxrWh6g1Q6YgrtfQXap1sg48kWDXtA3gE"
           }
         },
         "reason": "payload"
