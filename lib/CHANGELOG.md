@@ -7,8 +7,9 @@ are compared with core's `sameDigest`, over the decoded multihash bytes in
 canonical spelling (Trust Tasks §4.9.3 / §6.6), as Encounter, Membership and
 Access already do. A counterpart that encodes its digest in base58btc
 (Keyring) names the same credential as ours in base64url; a non-canonical or
-undecodable digest is refused as `vrc-digest`, never thrown. Found reading
-Keyring's receipt code before the second live run.
+undecodable digest is refused as `vrc-digest`, never thrown. `toU` refuses an
+encoded length other than 47 or 48 characters before decoding (#177). Found
+reading Keyring's receipt code before the second live run.
 
 shared-connect, after the first live run with Keyring (7 November 2026)
 and the Trust Stackers' code read: both peer DID forms, the pairwise

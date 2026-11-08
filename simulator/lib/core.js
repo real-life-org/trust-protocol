@@ -130,7 +130,9 @@ export const fromB64u = (s) => {
 // length, AND canonical-form round-trip; returns the canonical u rendering
 // or null. A u input is checked for header/length too.
 export const toU = (v) => {
-    if (typeof v !== 'string' || v.length < 2)
+    // a sha2-256 multihash (34 bytes) is 47 characters in base64url and 47 or 48 in base58btc;
+    // any other length cannot be one and is refused before decoding (#177)
+    if (typeof v !== 'string' || v.length < 47 || v.length > 48)
         return null;
     let bytes;
     if (v[0] === 'u') {
