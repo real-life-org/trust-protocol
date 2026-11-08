@@ -680,9 +680,12 @@ export async function checkPropose (doc: any, me: { did: string, id: string, exp
   return null
 }
 
-/** Check an acceptance the responder received for its own propose. */
+/** Check an acceptance the responder received for its own propose.
+ *  No freshness window: the acceptance answers in the thread of a propose this side made moments ago,
+ *  and a late one changes nothing, so an inbox fetched late or an inviter that was offline when the
+ *  propose arrived still completes (issuedAt in the future and expiresAt are still refused). */
 export async function checkAccept (doc: any, proposeDoc: any, inviterDid: string, nowMs: number = Date.now()): Promise<StepRefusal | null> {
-  const e = envelopeRefusal(doc, TASK_PROPOSE + '#response', nowMs, FRESH_MS); if (e) return e
+  const e = envelopeRefusal(doc, TASK_PROPOSE + '#response', nowMs); if (e) return e
   if (!sameVid(doc.issuer, inviterDid)) return 'issuer'
   if (!sameVid(doc.recipient, proposeDoc.issuer)) return 'recipient'
   if (doc.threadId !== proposeDoc.id) return 'thread'

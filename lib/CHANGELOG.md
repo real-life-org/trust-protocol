@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+shared-connect: the acceptance (`propose#response`) has no freshness window
+any more (`checkAccept`); like the issue steps it answers in the thread of a
+document this side holds, so a late one is evidence, not a command, and the
+offline path or a late inbox fetch completes. `issuedAt` in the future and
+`expiresAt` are still refused. The definition's `freshness` text follows.
+
 shared-connect: `vrcDigestMultibase` and the credential's `enactmentBinding`
 are compared with core's `sameDigest`, over the decoded multihash bytes in
 canonical spelling (Trust Tasks §4.9.3 / §6.6), as Encounter, Membership and
