@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.14.0
+
+shared-connect after the first live run with Keyring and the reviews of
+8 November 2026 (did:peer:4, did:peer:0, libp2p relays, condensed peer
+DIDs, three steps, digests over bytes, the acceptance without a window;
+the ceremony definition under `interop/ceremonies/`), and the group log's
+held entries, repair continuation, content key and standing (#162, #163,
+#164). **Breaking** for shared-connect against 0.13.0: `sharedConnectLink`,
+`readSharedConnectLink` and `proposeFromBackCode` are asynchronous; `Step`
+has no `accept`.
 
 - Held entries (#162): the group sum is checked after the own partition
   made room, so a full partition elsewhere never refuses an entry that
