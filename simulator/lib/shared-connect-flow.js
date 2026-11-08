@@ -60,8 +60,16 @@ class Machine {
     get failure() { return this.s.failed ?? null; }
     get declined() { return !!this.s.decline; }
     /** the own documents of the enactment so far, in the order they were made: what to send again after a restart */
-    /** after `complete` or the other side's `failed` nothing goes out again; after our decline the decline does */
-    outbox() { return this.complete || this.s.failed ? [] : [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d); }
+    /** the own documents the other side may still be waiting for: everything so far while the enactment runs;
+     *  after `complete` only our receipt (the other side's receipt may have arrived before ours left, #182);
+     *  after our decline the decline; after the other side's `failed` nothing */
+    outbox() {
+        if (this.s.failed)
+            return [];
+        if (this.complete)
+            return [this.s.receiptMine].filter((d) => d);
+        return [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d);
+    }
     /** a trust-task-error of the other side in our thread ends the enactment (`failed`), unless the flow
      *  read it as a decline before; anything else is not a step */
     async takeError(doc, expect, nowMs) {
