@@ -66,8 +66,9 @@ export const READER_LIMIT = 1536
 
 export type Step = 'propose' | 'accept' | 'issue-inviter' | 'issue-responder'
 export type Channel = 'scan' | 'link' | 'displayed' | 'sent'
-export type RelayKind = 'tsp-mediator' | 'nostr-relay' | 'didcomm-service'
-export interface Relay { kind: RelayKind | string, address: string }
+export type RelayKind = 'tsp-mediator' | 'tsp-libp2p' | 'nostr-relay' | 'didcomm-service'
+/** A place to reach a side. For `tsp-libp2p` the address is the libp2p peer ID and `multiaddrs` lists where to dial it (Trust Stackers). */
+export interface Relay { kind: RelayKind | string, address: string, multiaddrs?: string[] }
 
 // ── challenges ──────────────────────────────────────────────────────────
 /** Exactly 16 random bytes, canonical unpadded base64url: 22 characters, last one in A/Q/g/w (VTI-LNK-033). */
@@ -154,6 +155,25 @@ const multikeyOf = (value: string): { kind: 'ed' | 'x', raw: Uint8Array } | null
   return null
 }
 
+/** The relays a peer DID names, from its service entries. `TSPTransport` (or `tsp`) with a string or
+ *  `{uri}` endpoint is a mediator (the VTA family, the TSP reference); with a `{peerId, multiaddrs}`
+ *  endpoint it is a libp2p peer (Trust Stackers). Unknown types and shapes are skipped. */
+function relaysOf (services: Peer2Service[]): Relay[] {
+  const relays: Relay[] = []
+  for (const s of services) {
+    const kind = SERVICE_TYPE_OF[s.type]; if (!kind) continue
+    const e = s.serviceEndpoint as any
+    if (kind === 'tsp-mediator' && e && typeof e === 'object' && !Array.isArray(e) && typeof e.peerId === 'string') {
+      const multiaddrs = Array.isArray(e.multiaddrs) ? e.multiaddrs.filter((m: unknown) => typeof m === 'string') : []
+      relays.push({ kind: 'tsp-libp2p', address: e.peerId, multiaddrs })
+      continue
+    }
+    const address = endpointUri(e)
+    if (address) relays.push({ kind, address })
+  }
+  return relays
+}
+
 /** Render this ceremony's did:peer:2: `.V<ed>.A<ed>.E<x>` plus one `.S` per relay. */
 export function peer2Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = []): string {
   const ed = anchorOfEd(edPub).slice('did:key:'.length)
@@ -193,11 +213,7 @@ export function parsePeer2 (did: unknown): Peer2 | null {
   }
   if (doc.authentication.length !== 1 || doc.keyAgreement.length !== 1) return null
   const ed = keys.get(doc.authentication[0])!, x = keys.get(doc.keyAgreement[0])!
-  const relays: Relay[] = []
-  for (const s of doc.service) {
-    const kind = SERVICE_TYPE_OF[s.type]; const address = endpointUri(s.serviceEndpoint)
-    if (kind && address) relays.push({ kind, address })
-  }
+  const relays = relaysOf(doc.service)
   return { did, ref: did, ed: ed.raw, x: x.raw, doc, relays }
 }
 
@@ -294,11 +310,7 @@ export async function parsePeer4 (did: unknown, known: Iterable<string> = []): P
   const ed = keyOf(doc.authentication[0]), x = keyOf(doc.keyAgreement[0])
   if (ed?.kind !== 'ed' || x?.kind !== 'x') return null
   for (const id of doc.assertionMethod) if (keyOf(id)?.kind !== 'ed') return null
-  const relays: Relay[] = []
-  for (const s of doc.service) {
-    const kind = SERVICE_TYPE_OF[s.type]; const address = endpointUri(s.serviceEndpoint)
-    if (kind && address) relays.push({ kind, address })
-  }
+  const relays = relaysOf(doc.service)
   return { did, ref: short, ed: ed.raw, x: x.raw, doc, relays }
 }
 

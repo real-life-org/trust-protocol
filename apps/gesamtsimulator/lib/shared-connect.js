@@ -117,6 +117,27 @@ const multikeyOf = (value) => {
         return { kind: 'x', raw: raw.subarray(2) };
     return null;
 };
+/** The relays a peer DID names, from its service entries. `TSPTransport` (or `tsp`) with a string or
+ *  `{uri}` endpoint is a mediator (the VTA family, the TSP reference); with a `{peerId, multiaddrs}`
+ *  endpoint it is a libp2p peer (Trust Stackers). Unknown types and shapes are skipped. */
+function relaysOf(services) {
+    const relays = [];
+    for (const s of services) {
+        const kind = SERVICE_TYPE_OF[s.type];
+        if (!kind)
+            continue;
+        const e = s.serviceEndpoint;
+        if (kind === 'tsp-mediator' && e && typeof e === 'object' && !Array.isArray(e) && typeof e.peerId === 'string') {
+            const multiaddrs = Array.isArray(e.multiaddrs) ? e.multiaddrs.filter((m) => typeof m === 'string') : [];
+            relays.push({ kind: 'tsp-libp2p', address: e.peerId, multiaddrs });
+            continue;
+        }
+        const address = endpointUri(e);
+        if (address)
+            relays.push({ kind, address });
+    }
+    return relays;
+}
 /** Render this ceremony's did:peer:2: `.V<ed>.A<ed>.E<x>` plus one `.S` per relay. */
 export function peer2Of(edPub, xPub, relays = []) {
     const ed = anchorOfEd(edPub).slice('did:key:'.length);
@@ -169,13 +190,7 @@ export function parsePeer2(did) {
     if (doc.authentication.length !== 1 || doc.keyAgreement.length !== 1)
         return null;
     const ed = keys.get(doc.authentication[0]), x = keys.get(doc.keyAgreement[0]);
-    const relays = [];
-    for (const s of doc.service) {
-        const kind = SERVICE_TYPE_OF[s.type];
-        const address = endpointUri(s.serviceEndpoint);
-        if (kind && address)
-            relays.push({ kind, address });
-    }
+    const relays = relaysOf(doc.service);
     return { did, ref: did, ed: ed.raw, x: x.raw, doc, relays };
 }
 /** The Ed25519 method of a peer DID listed under `purpose`, or null. */
@@ -307,13 +322,7 @@ export async function parsePeer4(did, known = []) {
     for (const id of doc.assertionMethod)
         if (keyOf(id)?.kind !== 'ed')
             return null;
-    const relays = [];
-    for (const s of doc.service) {
-        const kind = SERVICE_TYPE_OF[s.type];
-        const address = endpointUri(s.serviceEndpoint);
-        if (kind && address)
-            relays.push({ kind, address });
-    }
+    const relays = relaysOf(doc.service);
     return { did, ref: short, ed: ed.raw, x: x.raw, doc, relays };
 }
 /** A peer DID this ceremony can use: did:peer:2, or did:peer:4 (long form, or short with its long form in `known`). */
