@@ -37,8 +37,8 @@ const responderChallenge = sc.challengeOf16(Array.from({ length: 16 }, (_, i) =>
 const exp = Math.floor(T('00') / 1000) + 600
 
 const nowS = Math.floor(T('00') / 1000)
-const link = sc.sharedConnectLink({ from: inviter.messaging.did, id: inviterChallenge, exp, label: 'Anton' }, undefined, nowS)
-const read = sc.readSharedConnectLink(link, nowS)
+const link = (await sc.sharedConnectLink({ from: inviter.messaging.did, id: inviterChallenge, exp, label: 'Anton' }, undefined, nowS))
+const read = (await sc.readSharedConnectLink(link, nowS))
 if (!read.ok) throw new Error('link does not read: ' + read.reason)
 
 const propose = await sc.propose(responder, read.link.from.did, read.link.id, responderChallenge, T('05'))
@@ -61,7 +61,7 @@ if (await sc.checkIssue(issueInviter, { issuerDid: inviter.messaging.did, myDid:
 if (await sc.checkIssue(issueResponder, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-responder', issuerPair: responder.pair.anchor, myPair: inviter.pair.anchor, myChallenge: inviterChallenge, binding }, T('10')) !== null) fail('issue-responder')
 if (await sc.checkReceipt(receiptInviter, issueInviter, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did }, T('09')) !== null) fail('receipt-inviter')
 if (await sc.checkReceipt(receiptResponder, issueResponder, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did }, T('11')) !== null) fail('receipt-responder')
-const rebuilt = sc.proposeFromBackCode(backCode, { did: inviter.messaging.did, id: inviterChallenge })
+const rebuilt = (await sc.proposeFromBackCode(backCode, { did: inviter.messaging.did, id: inviterChallenge }))
 if (JSON.stringify(rebuilt) !== JSON.stringify(propose)) fail('back-code')
 
 // must-fail: what a reader or a receiving side refuses, with the expected reason
@@ -76,7 +76,7 @@ const linkCases = [
   { name: 'expired (read at _exp)', link, at: exp, reason: 'expired' },
   { name: 'http', link: link.replace('https://', 'http://'), reason: 'not-https' },
 ]
-for (const c of linkCases) { const r = sc.readSharedConnectLink(c.link, c.at ?? nowS); if (r.ok || r.reason !== c.reason) fail('link case ' + c.name + ': ' + (r.ok ? 'ok' : r.reason)) }
+for (const c of linkCases) { const r = (await sc.readSharedConnectLink(c.link, c.at ?? nowS)); if (r.ok || r.reason !== c.reason) fail('link case ' + c.name + ': ' + (r.ok ? 'ok' : r.reason)) }
 const lateProposeAt = (exp + 120) * 1000
 const latePropose = await sc.propose(responder, inviter.messaging.did, inviterChallenge, responderChallenge, lateProposeAt)
 const proposeCases = [
@@ -94,9 +94,22 @@ const backCases = [
   { name: 'back-code with a repeated name', code: backCode + '&rel=' + otherDidKey },
   { name: 'back-code on another host with the path form', code: backCode.replace('https://link.trustoverip.org/t', 'https://example.org/t') },
 ]
-for (const c of backCases) if (sc.proposeFromBackCode(c.code, me) !== null) fail(c.name)
+for (const c of backCases) if ((await sc.proposeFromBackCode(c.code, me)) !== null) fail(c.name)
 const backTampered = backCode.replace('n=Day', 'n=Dan')
-if (await sc.checkPropose(sc.proposeFromBackCode(backTampered, me), me, T('06')) !== 'proof') fail('back-code tampered')
+if (await sc.checkPropose((await sc.proposeFromBackCode(backTampered, me)), me, T('06')) !== 'proof') fail('back-code tampered')
+
+// the same enactment with did:peer:4 messaging identities (long form in the link and on the propose)
+const inviter4 = await sc.partyFromSeeds(await seed('inviter/messaging'), await seed('inviter/pair'), [MED, NOSTR], 'Anton', 'peer4')
+const responder4 = await sc.partyFromSeeds(await seed('responder/messaging'), await seed('responder/pair'), [MED], 'Day', 'peer4')
+const link4 = (await sc.sharedConnectLink({ from: inviter4.messaging.did, id: inviterChallenge, exp, kind: 'link' }, undefined, nowS))
+const propose4 = await sc.propose(responder4, inviter4.messaging.did, inviterChallenge, responderChallenge, T('05'))
+const accept4 = await sc.accept(inviter4, propose4, T('07'), await fixedId('accept'))
+const vrcInviter4 = await sc.credential(inviter4, propose4.payload.relationshipDid, responderChallenge, binding, 'displayed', T('07'))
+const issueInviter4 = await sc.issue(inviter4, propose4.issuer, propose4.id, inviterChallenge, 'issue-inviter', vrcInviter4, T('07'), await fixedId('issue-inviter'))
+const me4 = { did: inviter4.messaging.did, id: inviterChallenge, exp }
+if (await sc.checkPropose(propose4, me4, T('06')) !== null) fail('propose (peer4)')
+if (await sc.checkAccept(accept4, propose4, inviter4.messaging.did, T('08')) !== null) fail('accept (peer4)')
+if (await sc.checkIssue(issueInviter4, { issuerDid: inviter4.messaging.did, myDid: responder4.messaging.did, threadId: propose4.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter4.pair.anchor, myPair: responder4.pair.anchor, myChallenge: responderChallenge, binding }, T('08')) !== null) fail('issue-inviter (peer4)')
 
 const out = {
   description: 'One enactment of the shared connection ceremony (shared-connect 0.1) on the registry tasks vrc/relationships/propose 0.1 and vrc/relationships/issue 0.1, started by a VTI trigger link whose _from is the inviter\'s per-encounter did:peer:2 carrying its relays as services. The responder proposes (its challenge is the propose id and the threadId of every later document); ceremony.enactment is the link\'s _id (the inviter\'s challenge) on every step. Step documents are signed under authentication by #key-1 of the issuer\'s did:peer:2 (eddsa-jcs-2022); credentials are signed by the pairwise did:key (relationshipDid) under assertionMethod, with the document @context repeated in the proof. The enactment binding is the construction of Encounter RLTP-ENC-5330 under the ceremony URI. The back-code is the responder\'s propose in reconstruction form for the offline path: recipient, type, step, enactment and the proof configuration are rebuilt from the inviter\'s own state. Keys derive from fixed seeds and the challenges are fixed bytes; Ed25519 is deterministic, so a second implementation with the same seeds reproduces every byte, link, back-code and proofValues included, and one with its own keys verifies the proofs instead. `mustFail` lists what a reader or a receiving side refuses, with the expected reason. Generated by scripts/gen-shared-connect-vector.mjs; lib/test/shared-connect-vector.test.mjs verifies every proof and check.',
@@ -110,6 +123,13 @@ const out = {
   link: { value: link, length: link.length, read: { from: read.link.from.did, id: read.link.id, exp: read.link.exp, type: read.link.type, label: read.link.label } },
   steps: { propose, accept, 'issue-inviter': issueInviter, 'receipt-inviter': receiptInviter, 'issue-responder': issueResponder, 'receipt-responder': receiptResponder },
   backCode: { value: backCode, length: backCode.length, rebuilds: 'steps.propose' },
+  peer4: {
+    note: 'The same keys, challenges and times with did:peer:4 messaging identities: the long form in the link and as issuer/recipient; key ids under the short form. The pairwise did:key and the credentials are unchanged in kind. A link with a long-form did:peer:4 is over the in-person size of about 450 characters, so it is rendered as a sent link (kind link, 990 characters at most).',
+    inviter: { messaging: inviter4.messaging.did, short: sc.peer4Short(inviter4.messaging.did), document: inviter4.peer.doc, relays: inviter4.peer.relays },
+    responder: { messaging: responder4.messaging.did, short: sc.peer4Short(responder4.messaging.did), document: responder4.peer.doc, relays: responder4.peer.relays },
+    link: { value: link4, length: link4.length },
+    steps: { propose: propose4, accept: accept4, 'issue-inviter': issueInviter4 },
+  },
   mustFail: {
     links: linkCases.map((c) => ({ name: c.name, link: c.link, readAt: c.at ?? nowS, reason: c.reason })),
     propose: proposeCases.map((c) => ({ name: c.name, document: c.doc, me: c.me, at: new Date(c.at).toISOString().replace(/\.\d{3}Z$/, 'Z'), reason: c.reason })),

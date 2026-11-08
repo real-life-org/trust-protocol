@@ -7,13 +7,15 @@
 //
 // Network-gated like the other probes in this directory:
 //   RLTP_LIVE_MEDIATOR=1 MEDIATOR_DID=did:webvh:… node binding/shared-connect-invite.mjs
-//     [--name Anton] [--minutes 10] [--out ./sc-out] [--relay-address <string>]
+//     [--name Anton] [--minutes 10] [--out ./sc-out] [--relay-address <string>] [--did peer2|peer4]
 //     [--qr] [--wait-minutes 30]
 //
 //   MEDIATOR_DID      the mediator (C), TSP 1.0 (>= 0.45); also the default
 //                     relay address the link's did:peer:2 names (Keyring and the
 //                     VTA read `TSPTransport` with a mediator DID)
 //   --relay-address   what to put into the TSPTransport service instead
+//   --did             the inviter's messaging identity: did:peer:2 (default) or did:peer:4 (long form in the link)
+//   --no-assertion    leave out the assertionMethod segment (.V.E instead of .V.A.E, 50 characters shorter)
 //   --minutes         the link's validity (default 10, the in-person cap)
 //   --wait-minutes    how long to keep the socket open after the link expired
 //   --qr              also print the link as a QR code (needs the `qrcode`
@@ -48,6 +50,8 @@ const MINUTES = Number(opt("--minutes", "10"));
 const WAIT = Number(opt("--wait-minutes", "30"));
 const OUT = opt("--out", "./sc-out");
 const RELAY_ADDRESS = opt("--relay-address", MEDIATOR_DID);
+const METHOD = opt("--did", "peer2");
+if (!["peer2", "peer4"].includes(METHOD)) { console.error("--did: peer2 or peer4"); process.exit(2); }
 const BINDING_ENVELOPE = "https://trusttasks.org/binding/tsp/0.1/envelope";
 const netPolicy = process.env.MEDIATOR_ALLOW_INSECURE ? { allowInsecure: true, allowPrivate: true } : undefined;
 
@@ -57,10 +61,10 @@ const say = (s) => console.log(`[invite ${new Date().toISOString().slice(11, 19)
 const save = (name, obj) => { writeFileSync(join(OUT, name), typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) + "\n"); say(`wrote ${join(OUT, name)}`); };
 const newId = () => b64uOf(rand(16));
 
-// ── the inviter: messaging identity (did:peer:2) and pair anchor (did:key) ──
+// ── the inviter: messaging identity (a peer DID) and pair anchor (did:key) ──
 const msgSeed = rand(32), pairSeed = rand(32);
 const relays = [{ kind: "tsp-mediator", address: RELAY_ADDRESS }];
-const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME);
+const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, NAME, METHOD, { assertion: !flag("--no-assertion") });
 // raw secrets for the TSP wire, from the same derivation as partyFromSeeds
 const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
 const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");
@@ -69,12 +73,12 @@ if (Buffer.compare(ed25519.getPublicKey(edSecret), party.peer.ed) !== 0 || Buffe
   throw new Error("key derivation mismatch between the library and the wire");
 }
 const myDid = party.messaging.did;
-const xKid = myDid + party.peer.doc.keyAgreement[0]; // the X25519 method as numbered in the DID (#key-3 in our V.A.E form)
+const xKid = party.peer.ref + party.peer.doc.keyAgreement[0]; // the X25519 method under the form key ids are written in (short form for did:peer:4)
 const myChallenge = sc.challengeOf16(rand(16));
 const exp = Math.floor(Date.now() / 1000) + MINUTES * 60;
-const link = sc.sharedConnectLink({ from: myDid, id: myChallenge, exp, ...(NAME ? { label: NAME } : {}) });
+const link = (await sc.sharedConnectLink({ from: myDid, id: myChallenge, exp, ...(NAME ? { label: NAME } : {}) }));
 
-say(`inviter did:peer:2  ${myDid}`);
+say(`inviter ${METHOD === "peer4" ? "did:peer:4" : "did:peer:2"}  ${myDid}`);
 say(`relationshipDid     ${party.pair.anchor}`);
 say(`challenge (_id)     ${myChallenge}`);
 say(`link (${link.length} chars, valid ${MINUTES} min)`);
@@ -95,6 +99,7 @@ const auth = await authenticateToMediator({
 });
 say(`authenticated at ${MEDIATOR_DID} (ws ${auth.mediator.wsEndpoint})`);
 
+const knownVids = new Set();
 const state = { receiptMine: null, propose: null, accept: null, binding: null, issueMine: null, issueTheirs: null, receiptTheirs: null, done: false, relationship: new Set(), form: "bare" };
 // the link's _exp bounds the handle (checkPropose refuses after it); the CLI keeps one enactment
 const me = { did: myDid, id: myChallenge, exp };
@@ -119,11 +124,13 @@ const onTspFrame = (qb2) => (queue = queue.then(() => handleFrame(qb2), () => ha
 async function handleFrame (qb2) {
   let senderVid = "unknown";
   try { senderVid = decodeEnvelope(qb2).envelope.sender ?? "unknown"; } catch {}
-  const peer = sc.parsePeer2(senderVid);
-  if (!peer) { say(`frame from ${senderVid}: not a did:peer:2 this ceremony reads; dropped`); return; }
+  // the sender's long form is known from its first frame or propose; a short form resolves against it
+  const peer = await sc.parsePeer(senderVid, knownVids);
+  if (peer && senderVid !== sc.peer4Short(senderVid)) knownVids.add(senderVid);
+  if (!peer) { say(`frame from ${senderVid}: not a peer DID this ceremony reads; dropped`); return; }
   let got;
   try { got = await tspUnpack(qb2, { receiverDecryptionKey: xSecret, senderSigningKey: peer.ed }); } catch (e) { say(`frame from ${senderVid.slice(0, 40)}… does not open (${e?.message ?? e}); dropped`); return; }
-  if (got.receiver !== myDid) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
+  if (!sc.sameVid(got.receiver, myDid)) { say(`frame for ${got.receiver}: not for me; dropped`); return; }
   if (got.messageType === "control") {
     const kind = got.control?.controlType ?? "unknown";
     const live = Date.now() / 1000 < exp + sc.CLOCK_TOLERANCE_S; // the same bound checkPropose applies
@@ -147,7 +154,7 @@ async function handleFrame (qb2) {
   save(`in-${Date.now()}-${String(doc.type ?? "untyped").split("/").slice(-2).join("-").replace("#", "_")}.json`, doc);
 
   if (doc.type === sc.TASK_PROPOSE) {
-    if (doc.issuer !== peer.did) { say("propose issuer differs from the TSP sender; refused"); return; }
+    if (!sc.sameVid(doc.issuer, peer.did)) { say("propose issuer differs from the TSP sender; refused"); return; }
     if (state.propose) {
       // the same propose again (a redelivery): the answer goes out again; another one is ignored, the handle is single-use
       if (doc.id === state.propose.id && JSON.stringify(doc) === JSON.stringify(state.propose)) { say("the propose again; resending accept and issue"); await sendDocument(peer, state.accept); await sendDocument(peer, state.issueMine); }
@@ -172,7 +179,7 @@ async function handleFrame (qb2) {
   }
   if (doc.type === sc.TASK_ISSUE) {
     if (!state.propose) { say("issue before any propose; refused"); return; }
-    if (doc.issuer !== peer.did) { say("issue issuer differs from the TSP sender; refused"); return; }
+    if (!sc.sameVid(doc.issuer, peer.did)) { say("issue issuer differs from the TSP sender; refused"); return; }
     if (state.issueTheirs) { if (doc.id === state.issueTheirs.id) { say("the responder's issue again; receipt resent"); await sendDocument(peer, state.receiptMine); } return; }
     const refusal = await sc.checkIssue(doc, {
       issuerDid: state.propose.issuer, myDid, threadId: state.propose.id, enactment: myChallenge, step: "issue-responder",
@@ -190,7 +197,7 @@ async function handleFrame (qb2) {
   }
   if (doc.type === sc.TASK_ISSUE + "#response") {
     if (!state.issueMine) { say("a receipt before any issue; ignored"); return; }
-    if (doc.issuer !== peer.did) { say("receipt issuer differs from the TSP sender; refused"); return; }
+    if (!sc.sameVid(doc.issuer, peer.did)) { say("receipt issuer differs from the TSP sender; refused"); return; }
     const refusal = await sc.checkReceipt(doc, state.issueMine, { issuerDid: state.propose.issuer, myDid });
     say(refusal ? `receipt for my issue refused: ${refusal}` : "receipt for my issue verified (digest matches the credential I sent)");
     if (!refusal) state.receiptTheirs = doc;

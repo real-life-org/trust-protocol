@@ -11,6 +11,62 @@
   group bound: an admission into a group of `GROUP_BOUND` (4096) members
   is not canonical (RLTP-ACC-5410).
 
+shared-connect: the acceptance (`propose#response`) has no freshness window
+any more (`checkAccept`); like the issue steps it answers in the thread of a
+document this side holds, so a late one is evidence, not a command, and the
+offline path or a late inbox fetch completes. `issuedAt` in the future and
+`expiresAt` are still refused. The definition's `freshness` text follows.
+
+shared-connect: `vrcDigestMultibase` and the credential's `enactmentBinding`
+are compared with core's `sameDigest`, over the decoded multihash bytes in
+canonical spelling (Trust Tasks §4.9.3 / §6.6), as Encounter, Membership and
+Access already do. A counterpart that encodes its digest in base58btc
+(Keyring) names the same credential as ours in base64url; a non-canonical or
+undecodable digest is refused as `vrc-digest`, never thrown. `toU` refuses an
+encoded length other than 47 or 48 characters before decoding (#177). Found
+reading Keyring's receipt code before the second live run.
+
+shared-connect, after the first live run with Keyring (7 November 2026)
+and the Trust Stackers' code read: both peer DID forms, the pairwise
+identifier as Keyring writes it, a libp2p relay endpoint, the condensed
+DID, and the ceremony's three steps.
+
+- **did:peer:4** beside did:peer:2 as the messaging identity: `peer4Of`,
+  `parsePeer4` (long form; the hash binds the document; a short form
+  resolves only against a long form held in `known`), `parsePeer`,
+  `peer4Short`, `canonicalVid` / `sameVid` (one identity, two spellings).
+  The link and a propose carry the long form; later steps may use the
+  short form. Checked against the example of the DIF Peer DID spec.
+  **Breaking:** `sharedConnectLink`, `readSharedConnectLink` and
+  `proposeFromBackCode` are asynchronous now (the did:peer:4 hash is a
+  WebCrypto digest). Measured live: the VTI mediator (Affinidi 0.45) does
+  not resolve did:peer:4 in its authcrypt login, so a side that logs in
+  there uses did:peer:2.
+- **`relationshipDid` as `did:peer:0`** (`pairKeyOf`, `verifyPairCredential`):
+  the same Ed25519 key as a did:key under another method name, which
+  Keyring writes. Found in the first live run.
+- **A libp2p relay** (`tsp-libp2p`): a `TSPTransport` service whose endpoint
+  is `{peerId, multiaddrs}` (Trust Stackers) is read as a relay with its
+  multiaddrs; `Relay.multiaddrs` (new, optional).
+- **Peer DIDs without the assertionMethod segment**: `peer2Of`, `peer4Of`
+  and `partyFromSeeds` take `{ assertion: false }` (`.V<ed>.E<x>`, 50
+  characters shorter); the step proofs need only `authentication`.
+- **Three steps** (breaking): a step is a request with its response
+  (Trust Tasks §4.11.2), as Keyring names them. The acceptance carries
+  `ceremony.step` `propose`; `Step` no longer has `accept`; `checkAccept`
+  refuses an acceptance under any other step. Vector regenerated.
+- A `did:peer:4` as the Trust Stackers write it resolves: post-quantum keys
+  beside the Ed25519 and X25519 keys, a second authentication key, a JWK
+  method; the parser picks the first Ed25519 key under `authentication`
+  and the first X25519 key under `keyAgreement` and leaves the rest alone.
+  A method id in the long form verifies as well as one in the short form.
+  A correctly hashed document of the wrong shape is refused, never thrown
+  (#170). A `did:peer:0` credential proof must name the key's one absolute
+  id. Refusal `issuer-not-peer` (was `issuer-not-peer2`).
+- `checkPropose` takes the link's `exp`; `checkReceipt` (new); envelope and
+  payload shape checked before any signature work; `issuedAt` not in the
+  future; the expiry tolerance works in the document's favour.
+
 - **`KeyProvider.contentKey(group)`** (new, #164): the epoch-0 content key
   a founding commits to (Access 9710) is the provider's derivation for the
   group DID under `rltp/v1/x-content-key-stage1/`, never stored; the key

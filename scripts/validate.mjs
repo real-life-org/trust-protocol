@@ -504,6 +504,57 @@ for (const f of specFiles) {
     if (complete(prefix, ['bundle'])) err('ceremony: encounter-scan with a non-terminal bundle is still complete on {bundle} — the completion check is not effective')
     else ok('ceremony: encounter-scan with a non-terminal bundle is a prefix on {bundle} (must-fail)')
   }
+  // the meta-schema's openingStep rule, for every definition: exactly one
+  // required step has an empty prev (coDerived definitions are exempt)
+  for (const f of defs) {
+    const d = parsed[`interop/ceremonies/${f}`]
+    if ((d.anchor?.kind ?? 'openingStep') !== 'openingStep') continue
+    const opening = Object.entries(d.steps).filter(([, st]) => !st.optional && (st.prev ?? []).length === 0).map(([n]) => n)
+    if (opening.length === 1) ok(`ceremony: ${f}: openingStep anchor, ${opening[0]} is the one required step without prev`)
+    else err(`ceremony: ${f}: openingStep anchor needs exactly one required step with an empty prev, found ${JSON.stringify(opening)}`)
+  }
+  const scd = parsed['interop/ceremonies/shared-connect.ceremony.json']
+  const scv = parsed['vectors/shared-connect.json']
+  if (scd && scv) {
+    // trust-tasks-tf#1034 (8 November 2026): three steps, none optional, the
+    // completion literally allOf the three; the acceptance is the propose
+    // step's response, the receipts carry their issue's step.
+    const names = Object.keys(scd.steps)
+    if (names.length === 3 && names.every((n) => !scd.steps[n].optional)) ok('ceremony: shared-connect has three steps, none optional')
+    else err(`ceremony: shared-connect steps ${JSON.stringify(names)} (optional: ${names.filter((n) => scd.steps[n].optional)})`)
+    if (JSON.stringify(scd.completion) === JSON.stringify({ allOf: ['propose', 'issue-inviter', 'issue-responder'] })) ok('ceremony: shared-connect completion is allOf the three steps')
+    else err(`ceremony: shared-connect completion is ${JSON.stringify(scd.completion)}, expected allOf the three steps`)
+    // the completion check on step sets (sets: the two issue steps may cross,
+    // so order never enters); every proper subset is a prefix
+    const cases = [[['propose', 'issue-inviter', 'issue-responder'], true], [['propose', 'issue-inviter'], false], [['propose', 'issue-responder'], false], [['issue-inviter', 'issue-responder'], false], [['propose'], false], [[], false]]
+    for (const [set, want] of cases) {
+      const got = complete(scd, set)
+      if (got === want) ok(`ceremony: shared-connect {${set.join(', ')}} is ${want ? 'a complete enactment' : 'not complete'}`)
+      else err(`ceremony: shared-connect {${set.join(', ')}} is ${got ? 'complete' : 'incomplete (a prefix)'}, expected ${want ? 'complete' : 'incomplete'}`)
+    }
+    // the vector enacts the definition: every document names a defined step
+    // under its defined type and issuer role, the enactment is one value, the
+    // steps present form a complete enactment, and the terminal marker sits
+    // on the one terminal step only
+    const roleOf = { [scv.inviter.messaging]: 'inviter', [scv.responder.messaging]: 'responder' }
+    const docs = Object.entries(scv.steps)
+    const bad = docs.filter(([, d]) => {
+      const st = scd.steps[d.ceremony?.step]; if (!st) return true
+      const base = d.type.replace(/#response$/, '')
+      const issuer = d.type.endsWith('#response') ? st.recipient : st.issuer
+      return base !== st.type || roleOf[d.issuer] !== issuer || d.ceremony.enactment !== scv.challenges.inviter
+    }).map(([n]) => n)
+    if (bad.length) err(`ceremony: shared-connect vector documents off the definition: ${bad.join(', ')}`)
+    else ok(`ceremony: shared-connect vector: ${docs.length} documents name defined steps, types, issuer roles and one enactment`)
+    const present = [...new Set(docs.map(([, d]) => d.ceremony?.step))]
+    if (complete(scd, present)) ok(`ceremony: shared-connect vector steps {${present.join(', ')}} form a complete enactment`)
+    else err(`ceremony: shared-connect vector steps {${present.join(', ')}} do not form a complete enactment`)
+    const terminal = docs.filter(([, d]) => d.ceremony?.terminal === true)
+    const wantTerminal = Object.entries(scd.steps).filter(([, st]) => st.terminal).map(([n]) => n)
+    const terminalOK = terminal.length === 1 && wantTerminal.length === 1 && terminal[0][1].ceremony.step === wantTerminal[0] && !terminal[0][1].type.endsWith('#response')
+    if (terminalOK) ok(`ceremony: shared-connect vector marks ${terminal[0][0]} terminal, the definition's one terminal step`)
+    else err(`ceremony: shared-connect vector terminal markers ${JSON.stringify(terminal.map(([n]) => n))} vs definition ${JSON.stringify(wantTerminal)}`)
+  }
 }
 
 console.log(errors ? `\n${errors} error(s).` : '\nAll publication checks passed.')

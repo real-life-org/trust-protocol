@@ -28,14 +28,20 @@
 // RECONSTRUCTION form (what the inviter does not already hold); the
 // inviter rebuilds the document from its own state and verifies the proof.
 //
-// Known gaps of this first casting: `_from` and `issuer` must be a
-// did:peer:2 (the long form of did:peer:4, which the registry entry admits,
-// is refused as `unsupported-vid`); `relationshipDid` must be an Ed25519
-// did:key (another method is refused as `unsupported-pair-did`). The
-// library keeps no replay state: a propose seen twice is the caller's to
+// Both did:peer:2 and did:peer:4 are read and written as the messaging
+// identity (the long form of did:peer:4 in the link and on a propose; the
+// short form where the long form was seen). Known gap: `relationshipDid`
+// must be an Ed25519 key, as a `did:key` or a `did:peer:0`; the two
+// spellings of the same key are not equated (an issuer that proposed as
+// did:peer:0 issues as did:peer:0); another method is refused as
+// `unsupported-pair-did`. The library keeps no replay state: a propose seen twice is the caller's to
 // absorb (the CLIs do, by the propose id).
 
-import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso } from './core.js'
+import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso, sameDigest } from './core.js'
+// DigestMultibase values (vrcDigestMultibase, enactmentBinding) are compared over their decoded
+// multihash bytes with core's strict sameDigest (TT §4.9.3 / §6.6): base58btc and base64url both
+// occur (Keyring writes z, we write u), canonical spelling only, an undecodable string is unequal.
+export { sameDigest }
 import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diVerify, edFromSeed, xFromSeed, hkdf, type Signer, type KeyPair } from './crypto.js'
 import { CRED_CONTEXT } from './encounter.js'
 
@@ -63,10 +69,13 @@ export const LABEL_MAX_CODEPOINTS = 64
 /** Reader limit of VTI-LNK-020 step 1 (code points). */
 export const READER_LIMIT = 1536
 
-export type Step = 'propose' | 'accept' | 'issue-inviter' | 'issue-responder'
+/** The ceremony's three steps. A step is a request with its response (Trust Tasks §4.11.2): the
+ *  acceptance belongs to `propose`, each receipt to the issue it answers. */
+export type Step = 'propose' | 'issue-inviter' | 'issue-responder'
 export type Channel = 'scan' | 'link' | 'displayed' | 'sent'
-export type RelayKind = 'tsp-mediator' | 'nostr-relay' | 'didcomm-service'
-export interface Relay { kind: RelayKind | string, address: string }
+export type RelayKind = 'tsp-mediator' | 'tsp-libp2p' | 'nostr-relay' | 'didcomm-service'
+/** A place to reach a side. For `tsp-libp2p` the address is the libp2p peer ID and `multiaddrs` lists where to dial it (Trust Stackers). */
+export interface Relay { kind: RelayKind | string, address: string, multiaddrs?: string[] }
 
 // ── challenges ──────────────────────────────────────────────────────────
 /** Exactly 16 random bytes, canonical unpadded base64url: 22 characters, last one in A/Q/g/w (VTI-LNK-033). */
@@ -106,6 +115,8 @@ export interface Peer2Doc {
 }
 export interface Peer2 {
   did: string
+  /** the form key ids are written under: the DID itself for did:peer:2, the short form for did:peer:4 */
+  ref: string
   /** the Ed25519 key under `authentication` (the TSP signing key) */
   ed: Uint8Array
   /** the X25519 key under `keyAgreement` (the TSP decryption key) */
@@ -117,7 +128,7 @@ export interface Peer2 {
 type Relationship = 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation'
 const PURPOSE: Record<string, Relationship> = { V: 'authentication', A: 'assertionMethod', E: 'keyAgreement', I: 'capabilityInvocation', D: 'capabilityDelegation' }
 const SERVICE_TYPE_OF: Record<string, RelayKind> = { TSPTransport: 'tsp-mediator', tsp: 'tsp-mediator', NostrRelay: 'nostr-relay', DIDCommMessaging: 'didcomm-service' }
-const RELAY_TYPE_OF: Record<string, string> = { 'tsp-mediator': 'TSPTransport', 'nostr-relay': 'NostrRelay', 'didcomm-service': 'DIDCommMessaging' }
+const RELAY_TYPE_OF: Record<string, string> = { 'tsp-mediator': 'TSPTransport', 'tsp-libp2p': 'TSPTransport', 'nostr-relay': 'NostrRelay', 'didcomm-service': 'DIDCommMessaging' }
 
 const expandEndpoint = (e: unknown): unknown => {
   if (Array.isArray(e)) return e.map(expandEndpoint)
@@ -151,13 +162,35 @@ const multikeyOf = (value: string): { kind: 'ed' | 'x', raw: Uint8Array } | null
   return null
 }
 
-/** Render this ceremony's did:peer:2: `.V<ed>.A<ed>.E<x>` plus one `.S` per relay. */
-export function peer2Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = []): string {
+/** The relays a peer DID names, from its service entries. `TSPTransport` (or `tsp`) with a string or
+ *  `{uri}` endpoint is a mediator (the VTA family, the TSP reference); with a `{peerId, multiaddrs}`
+ *  endpoint it is a libp2p peer (Trust Stackers). Unknown types and shapes are skipped. */
+function relaysOf (services: Peer2Service[]): Relay[] {
+  const relays: Relay[] = []
+  for (const s of services) {
+    const kind = SERVICE_TYPE_OF[s.type]; if (!kind) continue
+    const e = s.serviceEndpoint as any
+    if (kind === 'tsp-mediator' && e && typeof e === 'object' && !Array.isArray(e) && typeof e.peerId === 'string') {
+      const multiaddrs = Array.isArray(e.multiaddrs) ? e.multiaddrs.filter((m: unknown) => typeof m === 'string') : []
+      relays.push({ kind: 'tsp-libp2p', address: e.peerId, multiaddrs })
+      continue
+    }
+    const address = endpointUri(e)
+    if (address) relays.push({ kind, address })
+  }
+  return relays
+}
+
+/** Render this ceremony's did:peer:2: `.V<ed>.A<ed>.E<x>` plus one `.S` per relay. With
+ *  `{ assertion: false }` the `.A` segment is left out (`.V<ed>.E<x>`, 50 characters shorter): the
+ *  step proofs are under `authentication`, so the ceremony needs only that relationship. */
+export function peer2Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = [], opts: { assertion?: boolean } = {}): string {
   const ed = anchorOfEd(edPub).slice('did:key:'.length)
-  let did = 'did:peer:2.V' + ed + '.A' + ed + '.E' + mkOfX(xPub)
+  let did = 'did:peer:2.V' + ed + (opts.assertion === false ? '' : '.A' + ed) + '.E' + mkOfX(xPub)
   for (const r of relays) {
     const t = RELAY_TYPE_OF[r.kind] ?? r.kind
-    did += '.S' + b64uOf(te.encode(JSON.stringify({ t, s: r.address })))
+    const s = r.kind === 'tsp-libp2p' ? { peerId: r.address, multiaddrs: r.multiaddrs ?? [] } : r.address
+    did += '.S' + b64uOf(te.encode(JSON.stringify({ t, s })))
   }
   return did
 }
@@ -190,20 +223,127 @@ export function parsePeer2 (did: unknown): Peer2 | null {
   }
   if (doc.authentication.length !== 1 || doc.keyAgreement.length !== 1) return null
   const ed = keys.get(doc.authentication[0])!, x = keys.get(doc.keyAgreement[0])!
-  const relays: Relay[] = []
-  for (const s of doc.service) {
-    const kind = SERVICE_TYPE_OF[s.type]; const address = endpointUri(s.serviceEndpoint)
-    if (kind && address) relays.push({ kind, address })
-  }
-  return { did, ed: ed.raw, x: x.raw, doc, relays }
+  const relays = relaysOf(doc.service)
+  return { did, ref: did, ed: ed.raw, x: x.raw, doc, relays }
 }
 
-/** The Ed25519 method of a did:peer:2 listed under `purpose`, or null. */
+/** The Ed25519 method of a peer DID listed under `purpose`, or null. */
 export function peer2MethodFor (peer: Peer2, purpose: 'authentication' | 'assertionMethod'): { id: string, raw: Uint8Array } | null {
   for (const id of peer.doc[purpose]) {
     const vm = peer.doc.verificationMethod.find((m) => m.id === id); if (!vm) continue
-    const k = multikeyOf(vm.publicKeyMultibase); if (k?.kind === 'ed') return { id: peer.did + id, raw: k.raw }
+    const k = multikeyOf(vm.publicKeyMultibase); if (k?.kind === 'ed') return { id: peer.ref + id, raw: k.raw }
   }
+  return null
+}
+
+// ── did:peer:4 (DIF Peer DID method, numalgo 4) ─────────────────────────
+// Long form did:peer:4<hash>:<encoded document>, short form did:peer:4<hash>.
+// encoded document = 'z' + base58btc(varint 0x0200 (json) || utf8(JSON without
+// whitespace)); hash = 'z' + base58btc(0x12 0x20 || sha2-256(utf8(encoded
+// document))). The input document has no root id, and relative ids. A short
+// form resolves only against a long form seen before (`known`).
+// This ceremony's producers write the input document
+// { verificationMethod: [ed #key-1, x #key-2], authentication, assertionMethod: [#key-1],
+//   keyAgreement: [#key-2], service: [{ id: '#service[-n]', type, serviceEndpoint }] }.
+
+const JSON_CODEC = Uint8Array.from([0x80, 0x04])
+const sha256Of = async (s: string) => sha(te.encode(s))
+
+/** Render this ceremony's did:peer:4 (long form). */
+export async function peer4Of (edPub: Uint8Array, xPub: Uint8Array, relays: Relay[] = [], opts: { assertion?: boolean } = {}): Promise<string> {
+  const input = {
+    verificationMethod: [
+      { id: '#key-1', type: 'Multikey', publicKeyMultibase: anchorOfEd(edPub).slice('did:key:'.length) },
+      { id: '#key-2', type: 'Multikey', publicKeyMultibase: mkOfX(xPub) },
+    ],
+    authentication: ['#key-1'],
+    ...(opts.assertion === false ? {} : { assertionMethod: ['#key-1'] }),
+    keyAgreement: ['#key-2'],
+    service: relays.map((r, n) => ({ id: n === 0 ? '#service' : '#service-' + n, type: RELAY_TYPE_OF[r.kind] ?? r.kind, serviceEndpoint: r.kind === 'tsp-libp2p' ? { peerId: r.address, multiaddrs: r.multiaddrs ?? [] } : r.address })),
+  }
+  const encoded = 'z' + base58(cat(JSON_CODEC, te.encode(JSON.stringify(input))))
+  const hash = 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Of(encoded)))
+  return 'did:peer:4' + hash + ':' + encoded
+}
+
+/** The short form of a did:peer:4 (long or short); null for anything else. */
+export const peer4Short = (did: unknown): string | null => {
+  if (typeof did !== 'string' || !did.startsWith('did:peer:4z')) return null
+  const i = did.indexOf(':', 'did:peer:4'.length)
+  return i < 0 ? did : did.slice(0, i)
+}
+/** One identity, two spellings: did:peer:4 compares by its short form, anything else as written. */
+export const canonicalVid = (did: string): string => peer4Short(did) ?? did
+export const sameVid = (a: unknown, b: unknown): boolean => typeof a === 'string' && typeof b === 'string' && canonicalVid(a) === canonicalVid(b)
+
+const relationOf = (doc: Record<string, any>, rel: Relationship, methods: Map<string, Peer2Method>): string[] | null => {
+  const out: string[] = []
+  if (doc[rel] !== undefined && !Array.isArray(doc[rel])) return null
+  for (const r of doc[rel] ?? []) {
+    if (typeof r === 'string') { if (!r.startsWith('#')) return null; out.push(r) }
+    else if (r && typeof r === 'object' && typeof r.id === 'string' && r.id.startsWith('#')) {
+      methods.set(r.id, { id: r.id, type: typeof r.type === 'string' ? r.type : 'Multikey', controller: '', publicKeyMultibase: typeof r.publicKeyMultibase === 'string' ? r.publicKeyMultibase : '' }); out.push(r.id)
+    } else return null
+  }
+  return out
+}
+
+/** Parse and resolve a did:peer:4 locally (long form, or a short form whose long form is in `known`).
+ *  Null when the hash does not match the document, or it is not one this ceremony can use. */
+export async function parsePeer4 (did: unknown, known: Iterable<string> = []): Promise<Peer2 | null> {
+  try { return await parsePeer4Strict(did, known) } catch { return null }
+}
+async function parsePeer4Strict (did: unknown, known: Iterable<string>): Promise<Peer2 | null> {
+  const short = peer4Short(did); if (!short || typeof did !== 'string') return null
+  let long = did
+  if (long === short) { long = ''; for (const k of known) if (k !== short && peer4Short(k) === short) { long = k; break } }
+  if (!long) return null
+  const encoded = long.slice(short.length + 1)
+  const hash = short.slice('did:peer:4'.length)
+  if (encoded[0] !== 'z' || 'z' + base58(cat(Uint8Array.from([0x12, 0x20]), await sha256Of(encoded))) !== hash) return null
+  const bytes = fromBase58(encoded.slice(1))
+  if (!bytes || bytes[0] !== 0x80 || bytes[1] !== 0x04) return null
+  let input: Record<string, any>
+  try { input = JSON.parse(td.decode(bytes.subarray(2))) } catch { return null }
+  if (!input || typeof input !== 'object' || Array.isArray(input) || 'id' in input) return null
+  // the hash binds the bytes, not the shape: every field is untrusted JSON until checked
+  if (input.verificationMethod !== undefined && !Array.isArray(input.verificationMethod)) return null
+  if (input.service !== undefined && !Array.isArray(input.service)) return null
+  // methods of other kinds (a JWK, a post-quantum key as the Trust Stackers write) are kept by id so
+  // relationships can name them; only Ed25519 and X25519 Multikeys are ever selected below
+  const methods = new Map<string, Peer2Method>()
+  for (const vm of input.verificationMethod ?? []) {
+    if (!vm || typeof vm !== 'object' || typeof vm.id !== 'string' || !vm.id.startsWith('#')) return null
+    const mb = typeof vm.publicKeyMultibase === 'string' ? vm.publicKeyMultibase : ''
+    methods.set(vm.id, { id: vm.id, type: typeof vm.type === 'string' ? vm.type as any : 'Multikey', controller: '', publicKeyMultibase: mb })
+  }
+  const doc: Peer2Doc = { id: did, verificationMethod: [], authentication: [], assertionMethod: [], keyAgreement: [], capabilityInvocation: [], capabilityDelegation: [], service: [] }
+  for (const rel of ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'] as Relationship[]) {
+    const refs = relationOf(input, rel, methods); if (!refs) return null
+    doc[rel] = refs
+  }
+  doc.verificationMethod = [...methods.values()].map((m) => ({ ...m, controller: did }))
+  let n = 0
+  for (const s of input.service ?? []) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return null
+    const e = expandService(s as Record<string, unknown>, n)
+    doc.service.push({ ...e, id: typeof s.id === 'string' ? s.id : e.id }); n++
+  }
+  // choose, do not count: the first Ed25519 key under authentication and the first X25519 key under
+  // keyAgreement; further keys under either (a did:scid identity key, a post-quantum key) are left alone
+  const keyOf = (id: string) => { const m = methods.get(id); return m ? multikeyOf(m.publicKeyMultibase) : null }
+  const pick = (ids: string[], kind: 'ed' | 'x') => { for (const id of ids) { const k = keyOf(id); if (k?.kind === kind) return k } return null }
+  const ed = pick(doc.authentication, 'ed'), x = pick(doc.keyAgreement, 'x')
+  if (!ed || !x) return null
+  const relays = relaysOf(doc.service)
+  return { did, ref: short, ed: ed.raw, x: x.raw, doc, relays }
+}
+
+/** A peer DID this ceremony can use: did:peer:2, or did:peer:4 (long form, or short with its long form in `known`). */
+export async function parsePeer (did: unknown, known: Iterable<string> = []): Promise<Peer2 | null> {
+  if (typeof did !== 'string') return null
+  if (did.startsWith('did:peer:2.')) return parsePeer2(did)
+  if (did.startsWith('did:peer:4')) return parsePeer4(did, known)
   return null
 }
 
@@ -221,7 +361,8 @@ export interface LinkFields {
 }
 
 const LABEL_FORBIDDEN = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]')
-/** The one label rule, applied by writer and reader alike: NFC, 1 to 64 code points, no control, bidi, zero-width or line characters. */
+/** The one label rule, applied by writer and reader alike: NFC, 1 to 64 code points, no control, bidi, zero-width or line
+ *  characters. Percent-encoded that is at most 768 bytes, which the link budget absorbs. */
 export const normalLabel = (label: unknown): string | null => {
   if (typeof label !== 'string') return null
   const n = label.normalize('NFC')
@@ -231,14 +372,16 @@ export const normalLabel = (label: unknown): string | null => {
 }
 
 /** Render the link. `exp` in epoch seconds; `nowS` is what the expiry caps are measured against. */
-export function sharedConnectLink (f: LinkFields, origin = LINK_ORIGIN, nowS: number = Math.floor(Date.now() / 1000)): string {
+export async function sharedConnectLink (f: LinkFields, origin = LINK_ORIGIN, nowS: number = Math.floor(Date.now() / 1000)): Promise<string> {
   if (!canonicalChallenge(f.id)) throw new Error('_id must be a canonical 16-byte challenge')
-  if (!parsePeer2(f.from)) throw new Error('_from must be a did:peer:2 this ceremony can use')
+  if (!(await parsePeer(f.from)) || f.from === peer4Short(f.from)) throw new Error('_from must be a did:peer:2 or a long-form did:peer:4 this ceremony can use')
   const cap = (f.kind ?? 'code') === 'code' ? MAX_EXP_CODE_S : MAX_EXP_LINK_S
   if (!Number.isInteger(f.exp) || f.exp <= nowS || f.exp - nowS > cap) throw new Error(`_exp must lie within the next ${cap} seconds`)
   const type = f.type ?? (origin === LINK_ORIGIN ? FLOW_PATH : FLOW_URI)
   let frag = '_from=' + f.from + '&_id=' + f.id + '&_exp=' + f.exp + '&_type=' + type
   if (f.label !== undefined) {
+    // a name travels only in a code shown in person: a sent link is forwardable (Brendan, #86)
+    if ((f.kind ?? 'code') !== 'code') throw new Error('_label is for codes shown in person, not for sent links')
     const l = normalLabel(f.label); if (l === null) throw new Error('_label: 1 to 64 code points, no control characters')
     frag += '&_label=' + encodeURIComponent(l)
   }
@@ -268,7 +411,7 @@ function fragmentParams (hash: string, strict = false): Map<string, string> | nu
 /** Read a shared-connect link. Checks in the order of VTI-LNK-020: length, scheme, host,
  *  fragment, duplicates, `_from`, `_id`, `_type` (the flow as a whole URI, VTI-LNK-040 to 043),
  *  the contact, expiry. The reader stops at the first failure. */
-export function readSharedConnectLink (link: string, nowS: number = Math.floor(Date.now() / 1000)): { ok: true, link: ReadLink } | { ok: false, reason: LinkRefusal } {
+export async function readSharedConnectLink (link: string, nowS: number = Math.floor(Date.now() / 1000)): Promise<{ ok: true, link: ReadLink } | { ok: false, reason: LinkRefusal }> {
   if ([...link].length > READER_LIMIT) return { ok: false, reason: 'too-long' }
   let url: URL
   try { url = new URL(link) } catch { return { ok: false, reason: 'not-https' } }
@@ -286,7 +429,8 @@ export function readSharedConnectLink (link: string, nowS: number = Math.floor(D
   // VTI-LNK-041/043: the flow is the whole URI; the path form resolves against the link's own origin
   const flow = type.startsWith('/') ? url.origin + type : type
   if (flow !== FLOW_URI) return { ok: false, reason: 'unknown-flow' }
-  const peer = parsePeer2(from)
+  // a short-form did:peer:4 cannot be resolved by a first-time reader: only the long form is a contact
+  const peer = from === peer4Short(from) ? null : await parsePeer(from)
   if (!peer) return { ok: false, reason: 'unsupported-vid' }
   const expS = params.get('_exp'); if (expS === undefined) return { ok: false, reason: 'missing-exp' }
   if (!/^[1-9][0-9]{0,11}$/.test(expS)) return { ok: false, reason: 'bad-exp' }
@@ -309,7 +453,7 @@ export interface Ceremony { enactment: string, step: Step, definition?: string, 
 
 /** Sign a step document under `authentication` with the did:peer:2's authentication key (eddsa-jcs-2022). */
 export async function signStep<T extends Record<string, any>> (ctx: StepSigner, doc: T, created: string): Promise<T & { proof: Record<string, any> }> {
-  const peer = parsePeer2(ctx.did); if (!peer) throw new Error('signStep: the signer is not a did:peer:2 this ceremony can use')
+  const peer = await parsePeer(ctx.did); if (!peer) throw new Error('signStep: the signer is not a peer DID this ceremony can use')
   const vm = peer2MethodFor(peer, 'authentication')!
   const cfg: Record<string, any> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created, verificationMethod: vm.id, proofPurpose: 'authentication' }
   if ('@context' in doc) cfg['@context'] = doc['@context']
@@ -319,10 +463,10 @@ export async function signStep<T extends Record<string, any>> (ctx: StepSigner, 
 }
 
 /** Verify a step document's proof: the verification method belongs to the document's
- *  issuer (a did:peer:2), is listed under the proof's purpose (`authentication` or
+ *  issuer (a peer DID), is listed under the proof's purpose (`authentication` or
  *  `assertionMethod`, TT §4.7.3) and is an Ed25519 key; canonical proofValue; the
  *  proof repeats the document's @context when there is one. */
-export async function verifyStep (doc: any): Promise<boolean> {
+export async function verifyStep (doc: any, known: Iterable<string> = []): Promise<boolean> {
   const { proof, ...rest } = doc ?? {}
   if (!proof || typeof proof.proofValue !== 'string' || typeof proof.verificationMethod !== 'string') return false
   if (proof.type !== 'DataIntegrityProof' || proof.cryptosuite !== 'eddsa-jcs-2022') return false
@@ -330,8 +474,10 @@ export async function verifyStep (doc: any): Promise<boolean> {
   if (typeof proof.created !== 'string' || !calOK(proof.created)) return false
   if (typeof rest.issuer !== 'string') return false
   const vmDid = proof.verificationMethod.split('#')[0]
-  if (vmDid !== rest.issuer) return false
-  const peer = parsePeer2(vmDid); if (!peer) return false
+  if (!sameVid(vmDid, rest.issuer)) return false
+  // the method id may use the long or the short form of a did:peer:4 (DIF resolves relative ids
+  // against the long form; we write the short form); a long-form method id resolves the issuer too
+  const peer = await parsePeer(rest.issuer, [...known, vmDid]); if (!peer) return false
   const fragment = proof.verificationMethod.slice(vmDid.length)
   if (!peer.doc[proof.proofPurpose as 'authentication' | 'assertionMethod'].includes(fragment)) return false
   const vm = peer.doc.verificationMethod.find((m) => m.id === fragment); if (!vm) return false
@@ -347,7 +493,7 @@ export async function verifyStep (doc: any): Promise<boolean> {
 }
 
 export interface Party {
-  /** B: the per-encounter messaging identity (did:peer:2) and its signing key */
+  /** B: the per-encounter messaging identity (a peer DID) and its signing key */
   messaging: StepSigner
   /** A: the pairwise identifier that issues the credential (did:key) */
   pair: Signer
@@ -382,7 +528,7 @@ export async function accept (inviter: Party, proposeDoc: any, nowMs: number, id
   const doc = {
     id, type: TASK_PROPOSE + '#response', threadId: proposeDoc.id,
     issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
-    ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'accept' } as Ceremony,
+    ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' } as Ceremony,
     payload: { accept: true, relationshipDid: inviter.pair.anchor },
   }
   return signStep(inviter.messaging, doc, when)
@@ -433,9 +579,41 @@ export async function receipt (me: Party, issueDoc: any, nowMs: number, id: stri
   return signStep(me.messaging, doc, when)
 }
 
+// ── the pairwise identifier (relationshipDid) ──────────────────────────
+// An Ed25519 `did:key`, or the same key as `did:peer:0` (numalgo 0 is a
+// did:key under another method name; Keyring writes it). Both resolve locally. The two spellings
+// are not equated: a credential's issuer must be written as the relationshipDid was.
+export const pairKeyOf = (did: unknown): Uint8Array | null => {
+  if (typeof did !== 'string') return null
+  if (did.startsWith('did:key:')) return edRawOfAnchor(did)
+  if (did.startsWith('did:peer:0z')) return edRawOfAnchor('did:key:' + did.slice('did:peer:0'.length))
+  return null
+}
+
+/** Verify a credential issued by a pairwise identifier: `did:key` through the library's
+ *  diVerify; `did:peer:0` with the same proof rules (eddsa-jcs-2022, assertionMethod, the
+ *  verification method under the issuer, @context repeated, canonical proofValue). */
+export async function verifyPairCredential (vrc: any, issuerPair: string): Promise<boolean> {
+  if (issuerPair.startsWith('did:key:')) return diVerify(vrc, issuerPair)
+  const raw = pairKeyOf(issuerPair); if (!raw) return false
+  const { proof, ...rest } = vrc ?? {}
+  if (!proof || proof.type !== 'DataIntegrityProof' || proof.cryptosuite !== 'eddsa-jcs-2022' || proof.proofPurpose !== 'assertionMethod') return false
+  if (typeof proof.created !== 'string' || !calOK(proof.created) || typeof proof.verificationMethod !== 'string') return false
+  // Credo and Keyring write the absolute id of the one key: did:peer:0<mk>#<mk>
+  if (proof.verificationMethod !== issuerPair + '#' + issuerPair.slice('did:peer:0'.length) || rest.issuer !== issuerPair) return false
+  if ('@context' in rest && jcs(proof['@context'] ?? null) !== jcs(rest['@context'])) return false
+  if (typeof proof.proofValue !== 'string' || proof.proofValue[0] !== 'z') return false
+  const sig = fromBase58(proof.proofValue.slice(1))
+  if (!sig || sig.length !== 64 || 'z' + base58(sig) !== proof.proofValue) return false
+  const { proofValue, ...cfg } = proof
+  const hashData = cat(await sha(te.encode(jcs(cfg))), await sha(te.encode(jcs(rest))))
+  const pub = await S().importKey('raw', raw, { name: 'Ed25519' }, false, ['verify'])
+  return S().verify({ name: 'Ed25519' }, pub, sig, hashData)
+}
+
 // ── checks the receiving side runs ──────────────────────────────────────
 export type StepRefusal =
-  | 'type' | 'envelope' | 'payload' | 'issuer-not-peer2' | 'issuer' | 'recipient' | 'enactment' | 'thread'
+  | 'type' | 'envelope' | 'payload' | 'issuer-not-peer' | 'issuer' | 'recipient' | 'enactment' | 'thread'
   | 'expired-link' | 'expired' | 'not-fresh' | 'proof'
   | 'challenge-form' | 'unsupported-pair-did' | 'accept-flag'
   | 'vrc-proof' | 'vrc-issuer' | 'vrc-subject' | 'vrc-digest' | 'vrc-binding' | 'vrc-challenge'
@@ -493,24 +671,27 @@ const FRESH_MS = (MAX_EXP_CODE_S + CLOCK_TOLERANCE_S) * 1000
 export async function checkPropose (doc: any, me: { did: string, id: string, exp: number }, nowMs: number): Promise<StepRefusal | null> {
   const e = envelopeRefusal(doc, TASK_PROPOSE, nowMs, FRESH_MS); if (e) return e
   if (nowMs >= (me.exp + CLOCK_TOLERANCE_S) * 1000) return 'expired-link'
-  if (!parsePeer2(doc.issuer)) return 'issuer-not-peer2'
-  if (doc.recipient !== me.did) return 'recipient'
+  if (!(await parsePeer(doc.issuer))) return 'issuer-not-peer'
+  if (!sameVid(doc.recipient, me.did)) return 'recipient'
   if (doc.ceremony.enactment !== me.id || doc.ceremony.step !== 'propose') return 'enactment'
   if (!canonicalChallenge(doc.id)) return 'challenge-form'
-  if (!edRawOfAnchor(doc.payload.relationshipDid)) return 'unsupported-pair-did'
+  if (!pairKeyOf(doc.payload.relationshipDid)) return 'unsupported-pair-did'
   if (!(await verifyStep(doc))) return 'proof'
   return null
 }
 
-/** Check an acceptance the responder received for its own propose. */
+/** Check an acceptance the responder received for its own propose.
+ *  No freshness window: the acceptance answers in the thread of a propose this side made moments ago,
+ *  and a late one changes nothing, so an inbox fetched late or an inviter that was offline when the
+ *  propose arrived still completes (issuedAt in the future and expiresAt are still refused). */
 export async function checkAccept (doc: any, proposeDoc: any, inviterDid: string, nowMs: number = Date.now()): Promise<StepRefusal | null> {
-  const e = envelopeRefusal(doc, TASK_PROPOSE + '#response', nowMs, FRESH_MS); if (e) return e
-  if (doc.issuer !== inviterDid) return 'issuer'
-  if (doc.recipient !== proposeDoc.issuer) return 'recipient'
+  const e = envelopeRefusal(doc, TASK_PROPOSE + '#response', nowMs); if (e) return e
+  if (!sameVid(doc.issuer, inviterDid)) return 'issuer'
+  if (!sameVid(doc.recipient, proposeDoc.issuer)) return 'recipient'
   if (doc.threadId !== proposeDoc.id) return 'thread'
-  if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'accept') return 'enactment'
-  if (!edRawOfAnchor(doc.payload.relationshipDid)) return 'unsupported-pair-did'
-  if (!(await verifyStep(doc))) return 'proof'
+  if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'propose') return 'enactment'
+  if (!pairKeyOf(doc.payload.relationshipDid)) return 'unsupported-pair-did'
+  if (!(await verifyStep(doc, [inviterDid]))) return 'proof'
   return null
 }
 
@@ -520,21 +701,21 @@ export interface IssueExpectation { issuerDid: string, myDid: string, threadId: 
  *  No freshness window: the inviter's credential may follow long after the acceptance. */
 export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: number = Date.now()): Promise<StepRefusal | null> {
   const e = envelopeRefusal(doc, TASK_ISSUE, nowMs); if (e) return e
-  if (doc.issuer !== expect.issuerDid) return 'issuer'
-  if (doc.recipient !== expect.myDid) return 'recipient'
+  if (!sameVid(doc.issuer, expect.issuerDid)) return 'issuer'
+  if (!sameVid(doc.recipient, expect.myDid)) return 'recipient'
   if (doc.threadId !== expect.threadId) return 'thread'
   if (doc.ceremony.enactment !== expect.enactment || doc.ceremony.step !== expect.step) return 'enactment'
-  if (!(await verifyStep(doc))) return 'proof'
+  if (!(await verifyStep(doc, [expect.issuerDid]))) return 'proof'
   const vrc = doc.payload.vrc
   if (vrc.issuer !== expect.issuerPair) return 'vrc-issuer'
-  if (!(await diVerify(vrc, expect.issuerPair))) return 'vrc-proof'
+  if (!(await verifyPairCredential(vrc, expect.issuerPair))) return 'vrc-proof'
   if (vrc.credentialSubject?.id !== expect.myPair) return 'vrc-subject'
-  if (doc.payload.vrcDigestMultibase !== undefined && doc.payload.vrcDigestMultibase !== await digestDoc(vrc)) return 'vrc-digest'
+  if (doc.payload.vrcDigestMultibase !== undefined && !sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(vrc))) return 'vrc-digest'
   // profile checks for a credential of this ceremony's RLTP profile; other
   // profiles (Consensual's, Keyring's) carry their own members and pass here
   const cs = vrc.credentialSubject
-  if (cs.enactmentBinding !== undefined && cs.enactmentBinding !== expect.binding) return 'vrc-binding'
-  if (cs.binding !== undefined && cs.binding !== expect.binding) return 'vrc-binding'
+  if (cs.enactmentBinding !== undefined && !sameDigest(cs.enactmentBinding, expect.binding)) return 'vrc-binding'
+  if (cs.binding !== undefined && !sameDigest(cs.binding, expect.binding)) return 'vrc-binding'
   if (cs.challenge !== undefined && cs.challenge !== expect.myChallenge) return 'vrc-challenge'
   return null
 }
@@ -542,12 +723,12 @@ export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: num
 /** Check a receipt (issue#response) for an issue this side sent. */
 export async function checkReceipt (doc: any, sentIssue: any, expect: { issuerDid: string, myDid: string }, nowMs: number = Date.now()): Promise<StepRefusal | null> {
   const e = envelopeRefusal(doc, TASK_ISSUE + '#response', nowMs); if (e) return e
-  if (doc.issuer !== expect.issuerDid) return 'issuer'
-  if (doc.recipient !== expect.myDid) return 'recipient'
+  if (!sameVid(doc.issuer, expect.issuerDid)) return 'issuer'
+  if (!sameVid(doc.recipient, expect.myDid)) return 'recipient'
   if (doc.threadId !== sentIssue.threadId) return 'thread'
   if (doc.ceremony.enactment !== sentIssue.ceremony.enactment || doc.ceremony.step !== sentIssue.ceremony.step) return 'enactment'
-  if (doc.payload.vrcDigestMultibase !== await digestDoc(sentIssue.payload.vrc)) return 'vrc-digest'
-  if (!(await verifyStep(doc))) return 'proof'
+  if (!sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(sentIssue.payload.vrc))) return 'vrc-digest'
+  if (!(await verifyStep(doc, [expect.issuerDid]))) return 'proof'
   return null
 }
 
@@ -575,7 +756,7 @@ export function backCodeOf (proposeDoc: any, origin = LINK_ORIGIN): string {
 
 /** Rebuild the propose from a back-code; the caller then runs checkPropose. Null when the code
  *  is not a well-formed back-code (same grammar as the link: https, one value per name). */
-export function proposeFromBackCode (code: string, me: { did: string, id: string }): any | null {
+export async function proposeFromBackCode (code: string, me: { did: string, id: string }): Promise<any | null> {
   let url: URL
   try { url = new URL(code) } catch { return null }
   if (url.protocol !== 'https:' || url.hash.length < 2) return null
@@ -583,7 +764,7 @@ export function proposeFromBackCode (code: string, me: { did: string, id: string
   const type = p.get('_type'); if (type === undefined) return null
   if ((type.startsWith('/') ? url.origin + type : type) !== LINK_ORIGIN + BACK_PATH) return null
   const from = p.get('_from'), id = p.get('_id'), rel = p.get('rel'), t = p.get('t'), sig = p.get('sig')
-  const peer = from ? parsePeer2(from) : null
+  const peer = from && from !== peer4Short(from) ? await parsePeer(from) : null
   if (!peer || !canonicalChallenge(id) || !rel || !/^did:/.test(rel) || !/^[1-9][0-9]{0,11}$/.test(t ?? '') || !sig || sig[0] !== 'z') return null
   const vm = peer2MethodFor(peer, 'authentication'); if (!vm) return null
   const when = iso(Number(t) * 1000)
@@ -602,12 +783,12 @@ export function proposeFromBackCode (code: string, me: { did: string, id: string
 export interface PartyKeys extends Party { x: KeyPair, peer: Peer2 }
 
 /** Build a party from two 32-byte seeds: the messaging identity (Ed + X derived from `msgSeed`) and the pair anchor. */
-export async function partyFromSeeds (msgSeed: Uint8Array, pairSeed: Uint8Array, relays: Relay[], name?: string): Promise<PartyKeys> {
+export async function partyFromSeeds (msgSeed: Uint8Array, pairSeed: Uint8Array, relays: Relay[], name?: string, method: 'peer2' | 'peer4' = 'peer2', opts: { assertion?: boolean } = {}): Promise<PartyKeys> {
   const ed = await edFromSeed(await hkdf(msgSeed, 'shared-connect/messaging/ed25519'))
   const x = await xFromSeed(await hkdf(msgSeed, 'shared-connect/messaging/x25519'))
   const pairEd = await edFromSeed(pairSeed)
-  const did = peer2Of(ed.pubRaw, x.pubRaw, relays)
-  const peer = parsePeer2(did)!
+  const did = method === 'peer4' ? await peer4Of(ed.pubRaw, x.pubRaw, relays, opts) : peer2Of(ed.pubRaw, x.pubRaw, relays, opts)
+  const peer = (await parsePeer(did))!
   const p: PartyKeys = { messaging: { did, ed: { priv: ed.priv } }, pair: { anchor: anchorOfEd(pairEd.pubRaw), ed: { priv: pairEd.priv } }, x, peer }
   if (name !== undefined) p.name = name
   return p

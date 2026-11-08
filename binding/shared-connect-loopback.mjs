@@ -13,9 +13,9 @@ const te = new TextEncoder(), td = new TextDecoder();
 const ENVELOPE = "https://trusttasks.org/binding/tsp/0.1/envelope";
 const ok = (cond, what) => { if (!cond) { console.error("FAIL " + what); process.exit(1); } console.log("ok   " + what); };
 
-async function side (name, relays) {
+async function side (name, relays, method) {
   const msgSeed = rand(32), pairSeed = rand(32);
-  const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, name);
+  const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, name, method);
   const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
   const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");
   ok(Buffer.compare(ed25519.getPublicKey(edSecret), party.peer.ed) === 0 && Buffer.compare(x25519.getPublicKey(xSecret), party.peer.x) === 0, `${name}: wire keys equal the library's`);
@@ -23,9 +23,9 @@ async function side (name, relays) {
 }
 // one hop of the wire: pack at `from`, decode the envelope at `to`, resolve the sender, unpack
 async function hop (from, to, body) {
-  const packed = await tspPack(te.encode(JSON.stringify({ type: ENVELOPE, document: body })), from.did, to.did, { senderSigningKey: from.edSecret, receiverEncryptionKey: sc.parsePeer2(to.did).x });
+  const packed = await tspPack(te.encode(JSON.stringify({ type: ENVELOPE, document: body })), from.did, to.did, { senderSigningKey: from.edSecret, receiverEncryptionKey: (await sc.parsePeer(to.did)).x });
   const senderVid = decodeEnvelope(packed.bytes).envelope.sender;
-  const peer = sc.parsePeer2(senderVid);
+  const peer = await sc.parsePeer(senderVid);
   ok(peer && senderVid === from.did, `envelope names the sender ${senderVid.slice(0, 32)}…`);
   const got = await tspUnpack(packed.bytes, { receiverDecryptionKey: to.xSecret, senderSigningKey: peer.ed });
   ok(got.messageType === "direct" && got.receiver === to.did, `direct frame for ${to.party.name} (${packed.bytes.length} B)`);
@@ -35,23 +35,25 @@ async function hop (from, to, body) {
 }
 
 const MED = "did:webvh:QmUTUkdHgppiciLpqcxkTi6Pbc9VuZzWXvH4L2Dk2dY2WL:mediator.web-of-trust.de";
-const inviter = await side("Anton", [{ kind: "tsp-mediator", address: MED }]);
-const responder = await side("Keyring", [{ kind: "tsp-mediator", address: MED }]);
+async function run (method) {
+console.log(`\n── ${method} ──`);
+const inviter = await side("Anton", [{ kind: "tsp-mediator", address: MED }], method);
+const responder = await side("Keyring", [{ kind: "tsp-mediator", address: MED }], method);
 
 // the link
 const id = sc.challengeOf16(rand(16));
 const exp = Math.floor(Date.now() / 1000) + 600;
-const link = sc.sharedConnectLink({ from: inviter.did, id, exp, label: "Anton" });
+const link = (await sc.sharedConnectLink({ from: inviter.did, id, exp, label: "Anton" }));
 const me = { did: inviter.did, id, exp };
-const read = sc.readSharedConnectLink(link);
+const read = (await sc.readSharedConnectLink(link));
 ok(read.ok && read.link.from.relays[0].address === MED, `link reads (${link.length} chars), relay ${MED.slice(0, 24)}…`);
 
 // relationship forming: XRFI from the responder, XRFA back
-const xrfi = await packInvite(responder.did, inviter.did, { senderSigningKey: responder.edSecret, receiverEncryptionKey: sc.parsePeer2(inviter.did).x });
-const gotInvite = await tspUnpack(xrfi.bytes, { receiverDecryptionKey: inviter.xSecret, senderSigningKey: sc.parsePeer2(responder.did).ed });
+const xrfi = await packInvite(responder.did, inviter.did, { senderSigningKey: responder.edSecret, receiverEncryptionKey: (await sc.parsePeer(inviter.did)).x });
+const gotInvite = await tspUnpack(xrfi.bytes, { receiverDecryptionKey: inviter.xSecret, senderSigningKey: (await sc.parsePeer(responder.did)).ed });
 ok(gotInvite.messageType === "control" && gotInvite.control, `XRFI opened as control/${gotInvite.control?.controlType}`);
-const xrfa = await packAccept(gotInvite.threadDigest, inviter.did, responder.did, { senderSigningKey: inviter.edSecret, receiverEncryptionKey: sc.parsePeer2(responder.did).x });
-const gotAccept = await tspUnpack(xrfa.bytes, { receiverDecryptionKey: responder.xSecret, senderSigningKey: sc.parsePeer2(inviter.did).ed });
+const xrfa = await packAccept(gotInvite.threadDigest, inviter.did, responder.did, { senderSigningKey: inviter.edSecret, receiverEncryptionKey: (await sc.parsePeer(responder.did)).x });
+const gotAccept = await tspUnpack(xrfa.bytes, { receiverDecryptionKey: responder.xSecret, senderSigningKey: (await sc.parsePeer(inviter.did)).ed });
 ok(gotAccept.messageType === "control", `XRFA opened as control/${gotAccept.control?.controlType}`);
 
 // propose → inviter
@@ -86,5 +88,9 @@ ok((await sc.checkReceipt(rcpRespAt, issueResp, { issuerDid: inviter.did, myDid:
 
 // the offline path, for the same propose
 const back = sc.backCodeOf(propose);
-ok(JSON.stringify(sc.proposeFromBackCode(back, me)) === JSON.stringify(propose), `back-code (${back.length} chars) rebuilds the propose`);
+ok(JSON.stringify((await sc.proposeFromBackCode(back, me))) === JSON.stringify(propose), `back-code (${back.length} chars) rebuilds the propose`);
+console.log(`\n${method}: enactment complete, every check passed`);
+}
+await run("peer2");
+await run("peer4");
 console.log("\nshared-connect loopback: enactment complete, every check passed");
