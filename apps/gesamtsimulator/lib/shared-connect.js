@@ -748,7 +748,7 @@ export async function checkPropose(doc, me, nowMs) {
     return null;
 }
 /** Check an acceptance the responder received for its own propose.
- *  No freshness window: the acceptance answers in the thread of a propose this side made moments ago,
+ *  No freshness window: the acceptance answers in the thread of a propose this side made and still holds,
  *  and a late one changes nothing, so an inbox fetched late or an inviter that was offline when the
  *  propose arrived still completes (issuedAt in the future and expiresAt are still refused). */
 export async function checkAccept(doc, proposeDoc, inviterDid, nowMs = Date.now()) {
