@@ -650,6 +650,12 @@ export async function credential(me, subjectPair, subjectChallenge, enactmentBin
     return diSign(me.pair, body, when);
 }
 /** The delivery of a credential (vrc/relationships/issue 0.1). */
+/** A DigestMultibase over `doc` in the chosen base: base64url (`u`, ours) or base58btc (`z`, Keyring's). Both
+ *  conform; a counterpart that compares the string needs its own spelling until it compares bytes. */
+export const digestIn = async (doc, base = 'u') => {
+    const u = await digestDoc(doc);
+    return base === 'z' ? 'z' + base58(fromB64u(u.slice(1))) : u;
+};
 /** `statedDigest: false` leaves `vrcDigestMultibase` off (issue 0.1 makes it a SHOULD): for a counterpart that
  *  compares the stated digest as a string in another base (Keyring, November 2026) until it compares bytes. */
 export async function issue(me, recipientDid, threadId, enactment, step, vrc, nowMs, id, opts = {}) {
@@ -658,18 +664,18 @@ export async function issue(me, recipientDid, threadId, enactment, step, vrc, no
         id, type: TASK_ISSUE, threadId,
         issuer: me.messaging.did, recipient: recipientDid, issuedAt: when,
         ceremony: { enactment, step, ...(step === 'issue-responder' ? { terminal: true } : {}) },
-        payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestDoc(vrc) }) },
+        payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestIn(vrc, opts.digestBase) }) },
     };
     return signStep(me.messaging, doc, when);
 }
 /** The receipt (issue#response): the digest computed over the credential AS STORED. */
-export async function receipt(me, issueDoc, nowMs, id) {
+export async function receipt(me, issueDoc, nowMs, id, opts = {}) {
     const when = iso(nowMs);
     const doc = {
         id, type: TASK_ISSUE + '#response', threadId: issueDoc.threadId,
         issuer: me.messaging.did, recipient: issueDoc.issuer, issuedAt: when,
         ceremony: { enactment: issueDoc.ceremony.enactment, step: issueDoc.ceremony.step },
-        payload: { vrcDigestMultibase: await digestDoc(issueDoc.payload.vrc) },
+        payload: { vrcDigestMultibase: await digestIn(issueDoc.payload.vrc, opts.digestBase) },
     };
     return signStep(me.messaging, doc, when);
 }
