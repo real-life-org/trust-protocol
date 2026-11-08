@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.15.0
+
+shared-connect: the flow of one enactment as step machines for both roles
+(`sharedConnectFlow`), the encounter seeds in the KeyProvider, a decline as the
+registry's error document, the counterpart's error as `failed`, and three
+accommodations for the first complete run with Keyring (8 November 2026:
+`statedDigest`, `digestBase`, `credentialProfile`). No other module changes.
 
 shared-connect: the flow of one enactment as a step machine for either role
 (`sharedConnectFlow.Inviter`, `sharedConnectFlow.Responder`, new module
