@@ -206,24 +206,22 @@
         "vrc": {
           "@context": [
             "https://www.w3.org/ns/credentials/v2",
-            "https://registry.trustoverip.org/dtg/context/v1",
-            "https://real-life.org/rltp/v1"
+            "https://registry.trustoverip.org/dtg/context/v1"
           ],
           "type": [
             "VerifiableCredential",
             "DTGCredential",
-            "RelationshipCredential",
-            "EncounterCredential"
+            "RelationshipCredential"
           ],
           "issuer": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
           "issuerScope": "pairwise",
           "validFrom": "2026-11-07T10:00:07Z",
           "credentialSubject": {
             "id": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
-            "ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
-            "challenge": "8PHy8_T19vf4-fr7_P3-_w",
-            "enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
-            "channel": "displayed"
+            "https://real-life.org/rltp/v1#ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
+            "https://real-life.org/rltp/v1#challenge": "8PHy8_T19vf4-fr7_P3-_w",
+            "https://real-life.org/rltp/v1#enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
+            "https://real-life.org/rltp/v1#channel": "displayed"
           },
           "proof": {
             "type": "DataIntegrityProof",
@@ -233,13 +231,12 @@
             "proofPurpose": "assertionMethod",
             "@context": [
               "https://www.w3.org/ns/credentials/v2",
-              "https://registry.trustoverip.org/dtg/context/v1",
-              "https://real-life.org/rltp/v1"
+              "https://registry.trustoverip.org/dtg/context/v1"
             ],
-            "proofValue": "z3DqrRXciwmpJ46zPD7J762hozB6A6vaF7jVFbNUtk5HemyLpD3hneBo5G5KwhZD5ZC4ppXxXUgvCaeKXGwj8qCB9"
+            "proofValue": "z4sc47xLQMgBMdTdZyCrCbZSPxjGpXo2SuRDZByt2qKoqnnUc7CKswzka5h6DzzHanr8fQaEvmAUEZJPLmAN27eio"
           }
         },
-        "vrcDigestMultibase": "uEiB0Q6L5tjXOjkCCSUUzFGD2xgf2BzzRQZ6oliSmvHX5cA"
+        "vrcDigestMultibase": "uEiCAQErIBor9FjoWZf2hPIbbGy4f1B8g7kCGCtk9cf4h9Q"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -247,7 +244,7 @@
         "created": "2026-11-07T10:00:07Z",
         "verificationMethod": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z4gq37PVntFVuHsEN234hcXv3Ts6pjUVRMt33PPahugdQAW3S7o7nsMFjRA4ZQhHKcXvjifmXT537p3us9kep4mMD"
+        "proofValue": "znHd7prRVaSR5dyatWy8VhaD55aSw2xTejYP6tkuDgzpoGTpo1hiiYpTyf6h8SDwfvvPJYbJMJSTRijsDGea7HNk"
       }
     },
     "receipt-inviter": {
@@ -262,7 +259,7 @@
         "step": "issue-inviter"
       },
       "payload": {
-        "vrcDigestMultibase": "uEiB0Q6L5tjXOjkCCSUUzFGD2xgf2BzzRQZ6oliSmvHX5cA"
+        "vrcDigestMultibase": "uEiCAQErIBor9FjoWZf2hPIbbGy4f1B8g7kCGCtk9cf4h9Q"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -270,7 +267,7 @@
         "created": "2026-11-07T10:00:08Z",
         "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z5XuvifzPPW3gU3We47pqgguVY8EFPRenBnpD8LhgdaoWFcHbBeDaYEDNLT69pGGfPCMZsVDU64dCLJ8qcDxko8Kx"
+        "proofValue": "z2V9AcUioe37PLYMs1TSRXb8maTHixwZqzCcAVBAnzjFvc1Kc1VGxJmgK2xumLDuHqTXiKxwLR2EcafmmQUyFH6te"
       }
     },
     "issue-responder": {
@@ -289,24 +286,22 @@
         "vrc": {
           "@context": [
             "https://www.w3.org/ns/credentials/v2",
-            "https://registry.trustoverip.org/dtg/context/v1",
-            "https://real-life.org/rltp/v1"
+            "https://registry.trustoverip.org/dtg/context/v1"
           ],
           "type": [
             "VerifiableCredential",
             "DTGCredential",
-            "RelationshipCredential",
-            "EncounterCredential"
+            "RelationshipCredential"
           ],
           "issuer": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
           "issuerScope": "pairwise",
           "validFrom": "2026-11-07T10:00:09Z",
           "credentialSubject": {
             "id": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
-            "ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
-            "challenge": "AAECAwQFBgcICQoLDA0ODw",
-            "enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
-            "channel": "scan"
+            "https://real-life.org/rltp/v1#ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
+            "https://real-life.org/rltp/v1#challenge": "AAECAwQFBgcICQoLDA0ODw",
+            "https://real-life.org/rltp/v1#enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
+            "https://real-life.org/rltp/v1#channel": "scan"
           },
           "proof": {
             "type": "DataIntegrityProof",
@@ -316,13 +311,12 @@
             "proofPurpose": "assertionMethod",
             "@context": [
               "https://www.w3.org/ns/credentials/v2",
-              "https://registry.trustoverip.org/dtg/context/v1",
-              "https://real-life.org/rltp/v1"
+              "https://registry.trustoverip.org/dtg/context/v1"
             ],
-            "proofValue": "z2fkmjPp5nVR1Y2jVLQonyqSECiqBja4NUFpcd12Zq2k7Gyjd2HqedBFqk1Q95t51M1A45YFCddSiphP8o8xePbBV"
+            "proofValue": "z2jeeZo8cUMtfmKTBiDbK83RKcQoQnT867uRd9YiCY99eDddRznNHpVkyTqh8RTRR342FfuBiMyBGbbYAkWHMmJ8i"
           }
         },
-        "vrcDigestMultibase": "uEiA2ORu6ZAxLOxf62mnSKLUlWGzbYNUgWFWgVpCh0AqQMA"
+        "vrcDigestMultibase": "uEiBW8XJ7YqsVBzCu2HzuIgfXd2386eMDsrQ0DyUraJS_6Q"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -330,7 +324,7 @@
         "created": "2026-11-07T10:00:09Z",
         "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z2TAmL9nauboFWrMRCcPkQSrxZodzG7pbdR15gUMYkjVPikpihHLCGc766oQTyr2njDzbnTpCitiDGHBvpun4U7AV"
+        "proofValue": "z5iTGdgTeNddD4DpEUqxTJ56NkTfiQ2nAqyt9jZAYZDb6p7zKwahUtQ7XVnaDGqcMPGAu4knvKaghxKChEMQkdUTb"
       }
     },
     "receipt-responder": {
@@ -345,7 +339,7 @@
         "step": "issue-responder"
       },
       "payload": {
-        "vrcDigestMultibase": "uEiA2ORu6ZAxLOxf62mnSKLUlWGzbYNUgWFWgVpCh0AqQMA"
+        "vrcDigestMultibase": "uEiBW8XJ7YqsVBzCu2HzuIgfXd2386eMDsrQ0DyUraJS_6Q"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -353,7 +347,7 @@
         "created": "2026-11-07T10:00:10Z",
         "verificationMethod": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z22Wqg3mh3h1nYzoB7uppe3CJTfBSTY4jL4tHmDBL6P6Wz5UbAqhayPjewWCZpx6bCriETApK6s31YNPCR9FoGpid"
+        "proofValue": "z4tWYANrqPBmgaefjtYmYuNHd6UxQhuWzD2SeYuF2qYxxbr6PKpoLaHzQD556eMQ3eQcbnQLfy4wfrYJuAG9QJeRD"
       }
     }
   },
@@ -530,24 +524,22 @@
           "vrc": {
             "@context": [
               "https://www.w3.org/ns/credentials/v2",
-              "https://registry.trustoverip.org/dtg/context/v1",
-              "https://real-life.org/rltp/v1"
+              "https://registry.trustoverip.org/dtg/context/v1"
             ],
             "type": [
               "VerifiableCredential",
               "DTGCredential",
-              "RelationshipCredential",
-              "EncounterCredential"
+              "RelationshipCredential"
             ],
             "issuer": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
             "issuerScope": "pairwise",
             "validFrom": "2026-11-07T10:00:07Z",
             "credentialSubject": {
               "id": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
-              "ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
-              "challenge": "8PHy8_T19vf4-fr7_P3-_w",
-              "enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
-              "channel": "displayed"
+              "https://real-life.org/rltp/v1#ceremony": "https://trusttasks.org/ceremony/shared-connect/0.1",
+              "https://real-life.org/rltp/v1#challenge": "8PHy8_T19vf4-fr7_P3-_w",
+              "https://real-life.org/rltp/v1#enactmentBinding": "uEiBTVjslohIpGltZXZvGK-q4vuqRpFc4oyZzByahcIBQ3g",
+              "https://real-life.org/rltp/v1#channel": "displayed"
             },
             "proof": {
               "type": "DataIntegrityProof",
@@ -557,13 +549,12 @@
               "proofPurpose": "assertionMethod",
               "@context": [
                 "https://www.w3.org/ns/credentials/v2",
-                "https://registry.trustoverip.org/dtg/context/v1",
-                "https://real-life.org/rltp/v1"
+                "https://registry.trustoverip.org/dtg/context/v1"
               ],
-              "proofValue": "z3DqrRXciwmpJ46zPD7J762hozB6A6vaF7jVFbNUtk5HemyLpD3hneBo5G5KwhZD5ZC4ppXxXUgvCaeKXGwj8qCB9"
+              "proofValue": "z4sc47xLQMgBMdTdZyCrCbZSPxjGpXo2SuRDZByt2qKoqnnUc7CKswzka5h6DzzHanr8fQaEvmAUEZJPLmAN27eio"
             }
           },
-          "vrcDigestMultibase": "uEiB0Q6L5tjXOjkCCSUUzFGD2xgf2BzzRQZ6oliSmvHX5cA"
+          "vrcDigestMultibase": "uEiCAQErIBor9FjoWZf2hPIbbGy4f1B8g7kCGCtk9cf4h9Q"
         },
         "proof": {
           "type": "DataIntegrityProof",
@@ -571,7 +562,7 @@
           "created": "2026-11-07T10:00:07Z",
           "verificationMethod": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS#key-1",
           "proofPurpose": "authentication",
-          "proofValue": "z3nyvECFRtSridpD4C8mWeFSQ3PiViAVMoFoRnDY4ssHtGCSGD7RQPhuEf7KaBmsezvM2V414rkPKVbyshemDRAVs"
+          "proofValue": "z5uzqbbwKDWKoEsR9MT9CLjHGdoXhRb4omdZ7stVgCzULJ4qo6Lt3rxncLC9qSi1gJnj6YgxHw64fGopWccuXXGRh"
         }
       }
     }

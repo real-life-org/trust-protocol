@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+shared-connect: the credential carries the two registry contexts only and no
+vendor type; the RLTP members (`ceremony`, `challenge`, `enactmentBinding`,
+`channel`) are full IRIs under `https://real-life.org/rltp/v1#` in
+`credentialSubject` (`SUBJECT_IRIS`, read by `subjectMembers` beside the
+earlier short names). Keyring's store refused a credential with a third
+context (8 November, run 3); proposed to the DTG registry context. Vector
+regenerated. Probes for a counterpart: `statedDigest`, `digestBase`,
+`credentialProfile` (`--no-stated-digest`, `--digest-base58`, `--plain-vrc`).
+
 shared-connect: the flow of one enactment as a step machine for either role
 (`sharedConnectFlow.Inviter`, `sharedConnectFlow.Responder`, new module
 `shared-connect-flow.ts`): documents in, documents to send and events for the

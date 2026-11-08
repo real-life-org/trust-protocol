@@ -581,18 +581,27 @@ export const binding = (inviterChallenge: string, responderChallenge: string): P
  *  `EncounterCredential` is set only for this side's own observation of an encounter: `scan` (the
  *  responder captured the code with its camera) or `displayed` (the inviter showed it as a code).
  *  Over a link (`link`, `sent`) the credential is a plain `RelationshipCredential`. */
-/** `profile: 'dtg'` writes the bare DTG RelationshipCredential (the two registry contexts, no RLTP members, no
- *  EncounterCredential type): a probe for a counterpart that cannot store the RLTP profile. The default is RLTP's. */
+/** The RLTP members of a shared-connect credential, as full IRIs in `credentialSubject`: the credential
+ *  carries only the two registry contexts (credentials/v2 and the DTG context), so any wallet stores it
+ *  without a vendor context (Keyring, 8 November 2026); the IRIs keep the terms defined. Proposed for the
+ *  DTG registry context as `channel`, `ceremony`, `challenge`, `enactmentBinding`. */
+export const RLTP_IRI = 'https://real-life.org/rltp/v1#'
+export const SUBJECT_IRIS = Object.freeze({ ceremony: RLTP_IRI + 'ceremony', challenge: RLTP_IRI + 'challenge', enactmentBinding: RLTP_IRI + 'enactmentBinding', channel: RLTP_IRI + 'channel' })
+/** The RLTP members of a credential subject, read under the IRIs or the earlier short names. */
+export const subjectMembers = (cs: any): { ceremony?: unknown, challenge?: unknown, enactmentBinding?: unknown, channel?: unknown } => ({
+  ceremony: cs?.[SUBJECT_IRIS.ceremony] ?? cs?.ceremony, challenge: cs?.[SUBJECT_IRIS.challenge] ?? cs?.challenge,
+  enactmentBinding: cs?.[SUBJECT_IRIS.enactmentBinding] ?? cs?.enactmentBinding ?? cs?.binding, channel: cs?.[SUBJECT_IRIS.channel] ?? cs?.channel,
+})
+/** `profile: 'dtg'` writes the bare DTG RelationshipCredential without the RLTP members (a probe). */
 export async function credential (me: Party, subjectPair: string, subjectChallenge: string, enactmentBinding: string, channel: Channel, nowMs: number, opts: { profile?: 'rltp' | 'dtg' } = {}) {
   const when = iso(nowMs)
-  const dtg = opts.profile === 'dtg'
   const body = {
-    '@context': dtg ? CRED_CONTEXT.slice(0, 2) : [...CRED_CONTEXT],
-    type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(!dtg && (channel === 'scan' || channel === 'displayed') ? ['EncounterCredential'] : [])],
+    '@context': CRED_CONTEXT.slice(0, 2),
+    type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential'],
     issuer: me.pair.anchor,
     issuerScope: 'pairwise',
     validFrom: when,
-    credentialSubject: dtg ? { id: subjectPair } : { id: subjectPair, ceremony: CEREMONY_URI, challenge: subjectChallenge, enactmentBinding, channel },
+    credentialSubject: opts.profile === 'dtg' ? { id: subjectPair } : { id: subjectPair, [SUBJECT_IRIS.ceremony]: CEREMONY_URI, [SUBJECT_IRIS.challenge]: subjectChallenge, [SUBJECT_IRIS.enactmentBinding]: enactmentBinding, [SUBJECT_IRIS.channel]: channel },
   }
   return diSign(me.pair, body, when)
 }
@@ -773,9 +782,8 @@ export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: num
   if (doc.payload.vrcDigestMultibase !== undefined && !sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(vrc))) return 'vrc-digest'
   // profile checks for a credential of this ceremony's RLTP profile; other
   // profiles (Consensual's, Keyring's) carry their own members and pass here
-  const cs = vrc.credentialSubject
+  const cs = subjectMembers(vrc.credentialSubject)
   if (cs.enactmentBinding !== undefined && !sameDigest(cs.enactmentBinding, expect.binding)) return 'vrc-binding'
-  if (cs.binding !== undefined && !sameDigest(cs.binding, expect.binding)) return 'vrc-binding'
   if (cs.challenge !== undefined && cs.challenge !== expect.myChallenge) return 'vrc-challenge'
   return null
 }
