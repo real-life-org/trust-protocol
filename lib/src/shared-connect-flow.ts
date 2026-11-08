@@ -40,7 +40,7 @@ export type FlowEvent =
   | { kind: 'ignored', type: string, why: 'duplicate' | 'not-a-step' | 'after-decision' | 'held-full' }
 
 /** `send`: documents for the other side, in order; `finished`: nothing more will be sent or taken
- *  (complete, or declined). */
+ *  (complete, declined, or ended by the other side's error: `failed`). */
 export interface FlowResult { send: any[], events: FlowEvent[], finished: boolean }
 /** `statedDigest: false`: the own issue carries no `vrcDigestMultibase` (see `issue()`). */
 /** `credentialProfile: 'dtg'`: the own credential in the bare DTG form (see `credential()`). */
@@ -79,7 +79,6 @@ abstract class Machine<S extends Common> {
   /** the other side's error that ended the enactment, if any */
   get failure (): { code: string, step: string, message: string | null } | null { return this.s.failed ?? null }
   get declined (): boolean { return !!this.s.decline }
-  /** the own documents of the enactment so far, in the order they were made: what to send again after a restart */
   /** the own documents the other side may still be waiting for: everything so far while the enactment runs;
    *  after `complete` only our receipt (the other side's receipt may have arrived before ours left, #182);
    *  after our decline the decline; after the other side's `failed` nothing */

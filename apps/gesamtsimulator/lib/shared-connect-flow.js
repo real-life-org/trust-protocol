@@ -59,7 +59,6 @@ class Machine {
     /** the other side's error that ended the enactment, if any */
     get failure() { return this.s.failed ?? null; }
     get declined() { return !!this.s.decline; }
-    /** the own documents of the enactment so far, in the order they were made: what to send again after a restart */
     /** the own documents the other side may still be waiting for: everything so far while the enactment runs;
      *  after `complete` only our receipt (the other side's receipt may have arrived before ours left, #182);
      *  after our decline the decline; after the other side's `failed` nothing */

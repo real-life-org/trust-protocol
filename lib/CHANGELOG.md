@@ -13,7 +13,7 @@ for the person between the propose and the acceptance (`accept(now, channel)`
 exists, serialises its calls, and continues from a `snapshot()` after a
 restart with `outbox()` naming what to send again (the caller persists the
 snapshot before it sends). `complete` (both credentials and receipts) and
-`finished` (complete or declined) are told apart. A decline is the registry's
+`finished` (complete, declined, or ended by the other side's error) are told apart. A decline is the registry's
 `trust-task-error/0.5` with `vrc/relationships/propose:declined` in the
 propose's thread, no pairwise identifier named (propose 0.1 §4, as Keyring
 writes it): `decline()`, `checkDecline()` (reads error versions 0.2 to 0.6),
