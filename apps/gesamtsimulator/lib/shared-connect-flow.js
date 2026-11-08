@@ -144,7 +144,7 @@ export class Inviter extends Machine {
             }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
-            const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId());
+            const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase });
             s.issueTheirs = doc;
             s.receiptMine = receipt;
             s.held = s.held.filter((h) => h.id !== doc.id); // a held copy taken now is no longer held
@@ -188,7 +188,7 @@ export class Inviter extends Machine {
         const accept = await sc.accept(this.party, p, nowMs, this.o.newId());
         const binding = await sc.binding(s.id, p.id);
         const vrc = await sc.credential(this.party, p.payload.relationshipDid, p.id, binding, channel, nowMs, { profile: this.o.credentialProfile });
-        const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest });
+        const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase });
         Object.assign(s, { accept, binding, issueMine });
         const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }]);
         // held documents one by one; one that throws stays held (it leaves on a successful later take or a decision)
@@ -256,7 +256,7 @@ export class Responder extends Machine {
                 return result([], [{ kind: 'refused', type, reason: r }]);
             const binding = await sc.binding(s.link.id, s.challenge);
             const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.link.id, binding, s.channel, nowMs, { profile: this.o.credentialProfile });
-            const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest });
+            const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase });
             Object.assign(s, { accept: doc, binding, issueMine });
             const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }]);
             for (const h of [...s.held]) {
@@ -286,7 +286,7 @@ export class Responder extends Machine {
             }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
-            const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId());
+            const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase });
             s.issueTheirs = doc;
             s.receiptMine = receipt;
             s.held = s.held.filter((h) => h.id !== doc.id);

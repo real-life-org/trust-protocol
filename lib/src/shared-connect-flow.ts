@@ -44,7 +44,8 @@ export type FlowEvent =
 export interface FlowResult { send: any[], events: FlowEvent[], finished: boolean }
 /** `statedDigest: false`: the own issue carries no `vrcDigestMultibase` (see `issue()`). */
 /** `credentialProfile: 'dtg'`: the own credential in the bare DTG form (see `credential()`). */
-export interface FlowOptions { newId: () => string, statedDigest?: boolean, credentialProfile?: 'rltp' | 'dtg' }
+/** `digestBase: 'z'`: the own digests in base58btc for a counterpart that compares the string (see `digestIn()`). */
+export interface FlowOptions { newId: () => string, statedDigest?: boolean, credentialProfile?: 'rltp' | 'dtg', digestBase?: 'u' | 'z' }
 /** What the inviter's app shows while it waits for the person. */
 export interface Pending { propose: any, name: string | null, relationshipDid: string }
 
@@ -150,7 +151,7 @@ export class Inviter extends Machine<InviterSnapshot> {
         issuerPair: s.propose.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.id, binding: s.binding!,
       }, nowMs)
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
-      const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId())
+      const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase })
       s.issueTheirs = doc; s.receiptMine = receipt
       s.held = s.held.filter((h) => h.id !== doc.id) // a held copy taken now is no longer held
       const events: FlowEvent[] = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-responder' }]
@@ -185,7 +186,7 @@ export class Inviter extends Machine<InviterSnapshot> {
     const accept = await sc.accept(this.party, p, nowMs, this.o.newId())
     const binding = await sc.binding(s.id, p.id)
     const vrc = await sc.credential(this.party, p.payload.relationshipDid, p.id, binding, channel, nowMs, { profile: this.o.credentialProfile })
-    const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest })
+    const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase })
     Object.assign(s, { accept, binding, issueMine })
     const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }])
     // held documents one by one; one that throws stays held (it leaves on a successful later take or a decision)
@@ -241,7 +242,7 @@ export class Responder extends Machine<ResponderSnapshot> {
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
       const binding = await sc.binding(s.link.id, s.challenge)
       const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.link.id, binding, s.channel, nowMs, { profile: this.o.credentialProfile })
-      const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest })
+      const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase })
       Object.assign(s, { accept: doc, binding, issueMine })
       const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }])
       for (const h of [...s.held]) {
@@ -260,7 +261,7 @@ export class Responder extends Machine<ResponderSnapshot> {
         issuerPair: s.accept.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.challenge, binding: s.binding!,
       }, nowMs)
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
-      const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId())
+      const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase })
       s.issueTheirs = doc; s.receiptMine = receipt
       s.held = s.held.filter((h) => h.id !== doc.id)
       const events: FlowEvent[] = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-inviter' }]
