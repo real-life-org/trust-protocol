@@ -578,6 +578,46 @@ export async function receipt(me, issueDoc, nowMs, id) {
     };
     return signStep(me.messaging, doc, when);
 }
+// ── the pairwise identifier (relationshipDid) ──────────────────────────
+// An Ed25519 `did:key`, or the same key as `did:peer:0` (numalgo 0 is a
+// did:key under another method name; Keyring writes it). Both resolve locally.
+export const pairKeyOf = (did) => {
+    if (typeof did !== 'string')
+        return null;
+    if (did.startsWith('did:key:'))
+        return edRawOfAnchor(did);
+    if (did.startsWith('did:peer:0z'))
+        return edRawOfAnchor('did:key:' + did.slice('did:peer:0'.length));
+    return null;
+};
+/** Verify a credential issued by a pairwise identifier: `did:key` through the library's
+ *  diVerify; `did:peer:0` with the same proof rules (eddsa-jcs-2022, assertionMethod, the
+ *  verification method under the issuer, @context repeated, canonical proofValue). */
+export async function verifyPairCredential(vrc, issuerPair) {
+    if (issuerPair.startsWith('did:key:'))
+        return diVerify(vrc, issuerPair);
+    const raw = pairKeyOf(issuerPair);
+    if (!raw)
+        return false;
+    const { proof, ...rest } = vrc ?? {};
+    if (!proof || proof.type !== 'DataIntegrityProof' || proof.cryptosuite !== 'eddsa-jcs-2022' || proof.proofPurpose !== 'assertionMethod')
+        return false;
+    if (typeof proof.created !== 'string' || !calOK(proof.created) || typeof proof.verificationMethod !== 'string')
+        return false;
+    if (proof.verificationMethod.split('#')[0] !== issuerPair || rest.issuer !== issuerPair)
+        return false;
+    if ('@context' in rest && jcs(proof['@context'] ?? null) !== jcs(rest['@context']))
+        return false;
+    if (typeof proof.proofValue !== 'string' || proof.proofValue[0] !== 'z')
+        return false;
+    const sig = fromBase58(proof.proofValue.slice(1));
+    if (!sig || sig.length !== 64 || 'z' + base58(sig) !== proof.proofValue)
+        return false;
+    const { proofValue, ...cfg } = proof;
+    const hashData = cat(await sha(te.encode(jcs(cfg))), await sha(te.encode(jcs(rest))));
+    const pub = await S().importKey('raw', raw, { name: 'Ed25519' }, false, ['verify']);
+    return S().verify({ name: 'Ed25519' }, pub, sig, hashData);
+}
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const closed = (o, allowed) => Object.keys(o).every((k) => allowed.includes(k));
 const optBool = (v) => v === undefined || typeof v === 'boolean';
@@ -657,7 +697,7 @@ export async function checkPropose(doc, me, nowMs) {
         return 'enactment';
     if (!canonicalChallenge(doc.id))
         return 'challenge-form';
-    if (!edRawOfAnchor(doc.payload.relationshipDid))
+    if (!pairKeyOf(doc.payload.relationshipDid))
         return 'unsupported-pair-did';
     if (!(await verifyStep(doc)))
         return 'proof';
@@ -676,7 +716,7 @@ export async function checkAccept(doc, proposeDoc, inviterDid, nowMs = Date.now(
         return 'thread';
     if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'accept')
         return 'enactment';
-    if (!edRawOfAnchor(doc.payload.relationshipDid))
+    if (!pairKeyOf(doc.payload.relationshipDid))
         return 'unsupported-pair-did';
     if (!(await verifyStep(doc, [inviterDid])))
         return 'proof';
@@ -701,7 +741,7 @@ export async function checkIssue(doc, expect, nowMs = Date.now()) {
     const vrc = doc.payload.vrc;
     if (vrc.issuer !== expect.issuerPair)
         return 'vrc-issuer';
-    if (!(await diVerify(vrc, expect.issuerPair)))
+    if (!(await verifyPairCredential(vrc, expect.issuerPair)))
         return 'vrc-proof';
     if (vrc.credentialSubject?.id !== expect.myPair)
         return 'vrc-subject';
