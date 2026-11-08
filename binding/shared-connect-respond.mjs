@@ -65,19 +65,19 @@ say(`authenticated at ${relay} as a peer DID it has never seen`);
 
 // the flow machine holds the enactment (lib shared-connect-flow.ts); this CLI only carries frames
 const flow = new fl.Responder(me, read.link, myChallenge, CHANNEL, { newId });
-const finish = (why) => { say(why); try { session.close(); } catch {} setTimeout(() => process.exit(flow.done ? 0 : 1), 200); };
+const finish = (why) => { say(why); try { session.close(); } catch {} setTimeout(() => process.exit(flow.complete ? 0 : 1), 200); };
 const sendBytes = async (bytes) => { const m = await tspPack(bytes, myDid, inviter.did, { senderSigningKey: edSecret, receiverEncryptionKey: inviter.x }); session.sendBinary(m.bytes); return m.bytes.length; };
 const sendDocument = async (doc) => { const n = await sendBytes(te.encode(JSON.stringify(flag("--bare") ? doc : { type: ENVELOPE, document: doc }))); say(`sent ${doc.type.replace("https://trusttasks.org/spec/", "")} ${doc.ceremony?.step ?? ""} (${n} B)`); };
 const apply = async (r) => {
   for (const e of r.events) {
     if (e.kind === "accepted") say(`accepted by ${read.link.label ?? "(no label)"}: relationshipDid ${e.relationshipDid}`);
     else if (e.kind === "credential") { say("the inviter's credential verified"); save("issue-inviter.json", e.vrc); }
-    else if (e.kind === "declined") say("the inviter declined");
+    else if (e.kind === "declined") say(`the inviter declined${e.message ? ": " + e.message : ""}`);
     else if (e.kind === "refused") say(`${e.type.replace("https://trusttasks.org/spec/", "")} refused: ${e.reason}`);
     else say(`${e.kind}${"type" in e ? " " + e.type.replace("https://trusttasks.org/spec/", "") : ""}${"why" in e ? " (" + e.why + ")" : ""}`);
   }
   for (const d of r.send) { save(`out-${d.ceremony.step}-${d.type.endsWith("#response") ? "response" : "request"}.json`, d); await sendDocument(d); }
-  if (flow.done) finish("enactment complete on the responder's side");
+  if (flow.complete) finish("enactment complete on the responder's side");
   else if (flow.declined) finish("declined by the inviter");
 };
 

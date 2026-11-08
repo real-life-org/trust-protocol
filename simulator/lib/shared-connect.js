@@ -570,16 +570,55 @@ export async function propose(responder, inviterDid, enactment, responderChallen
 /** The inviter's acceptance (propose#response). `id`: a fresh document id the caller draws (Entropy port).
  *  The response payload is closed (`accept`, `relationshipDid`, `witnessed`, `ext`): the inviter's name
  *  travels in the link's `_label`, not here. */
-export async function accept(inviter, proposeDoc, nowMs, id, accepting = true) {
+export async function accept(inviter, proposeDoc, nowMs, id) {
     const when = iso(nowMs);
     const doc = {
         id, type: TASK_PROPOSE + '#response', threadId: proposeDoc.id,
         issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
         ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' },
-        // a decline is the same response with accept false (propose 0.1); the pairwise identifier stays named
-        payload: { accept: accepting, relationshipDid: inviter.pair.anchor },
+        payload: { accept: true, relationshipDid: inviter.pair.anchor },
     };
     return signStep(inviter.messaging, doc, when);
+}
+/** The registry's error document a decline is (propose 0.1 §4: "a decline is an error response, not a
+ *  message type"): trust-task-error/0.5 in the propose's thread with the code
+ *  `vrc/relationships/propose:declined`, no pairwise identifier named. Keyring writes the same form. */
+export const TASK_ERROR = 'https://trusttasks.org/spec/trust-task-error/0.5';
+export const DECLINE_CODE = 'vrc/relationships/propose:declined';
+/** trust-task-error versions a decline is read in (0.2 to 0.6, as the VTI mediator profile reads them). */
+const ERROR_TYPES = new Set(['0.2', '0.3', '0.4', '0.5', '0.6'].map((v) => 'https://trusttasks.org/spec/trust-task-error/' + v));
+export async function decline(inviter, proposeDoc, nowMs, id, message) {
+    const when = iso(nowMs);
+    const doc = {
+        id, type: TASK_ERROR, threadId: proposeDoc.id,
+        issuer: inviter.messaging.did, recipient: proposeDoc.issuer, issuedAt: when,
+        ceremony: { enactment: proposeDoc.ceremony.enactment, step: 'propose' },
+        payload: { code: DECLINE_CODE, retryable: false, inResponseTo: { id: proposeDoc.id }, ...(message !== undefined ? { message } : {}) },
+    };
+    return signStep(inviter.messaging, doc, when);
+}
+/** Is `doc` a decline of this side's propose by the inviter? Envelope (any trust-task-error version read),
+ *  parties, thread, enactment and step, the code, then the proof. Any other error document is not a step. */
+export async function checkDecline(doc, proposeDoc, inviterDid, nowMs = Date.now()) {
+    if (!isObj(doc) || typeof doc.type !== 'string' || !ERROR_TYPES.has(doc.type))
+        return 'not-a-decline';
+    const e = envelopeRefusal(doc, doc.type, nowMs);
+    if (e)
+        return e;
+    if (!sameVid(doc.issuer, inviterDid))
+        return 'issuer';
+    if (!sameVid(doc.recipient, proposeDoc.issuer))
+        return 'recipient';
+    if (doc.threadId !== proposeDoc.id)
+        return 'thread';
+    if (doc.ceremony.enactment !== proposeDoc.ceremony.enactment || doc.ceremony.step !== 'propose')
+        return 'enactment';
+    const p = doc.payload;
+    if (!isObj(p) || p.code !== DECLINE_CODE || p.retryable !== false)
+        return 'not-a-decline';
+    if (!(await verifyStep(doc, [inviterDid])))
+        return 'proof';
+    return null;
 }
 /** The enactment binding both credentials carry: over the ceremony URI and both challenges (Encounter 5.4). */
 export const binding = (inviterChallenge, responderChallenge) => digestDoc({ ceremony: CEREMONY_URI, challenges: [inviterChallenge, responderChallenge].sort() });
@@ -710,6 +749,14 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
             if (!closed(p, ['vrcDigestMultibase', 'ext']) || typeof p.vrcDigestMultibase !== 'string' || !optExt(p.ext))
                 return 'payload';
             break;
+        default:
+            // a trust-task-error (the decline): the members of its registry schema, code and retryable required
+            if (ERROR_TYPES.has(expectType)) {
+                if (!closed(p, ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']) || typeof p.code !== 'string' || typeof p.retryable !== 'boolean')
+                    return 'payload';
+                if (p.message !== undefined && (typeof p.message !== 'string' || [...p.message].length > 500))
+                    return 'payload';
+            }
     }
     // TT §4.2: a document is not acted on when now ≥ expiresAt; the clock tolerance works in the document's favour
     if (doc.expiresAt !== undefined && nowMs >= Date.parse(doc.expiresAt) + CLOCK_TOLERANCE_S * 1000)

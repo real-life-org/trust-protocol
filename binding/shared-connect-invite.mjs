@@ -105,7 +105,7 @@ const flow = new fl.Inviter(party, { id: myChallenge, exp }, { newId });
 const relationship = new Set();
 let form = "bare";
 const timers = [];
-const finish = (why) => { say(why); for (const t of timers) clearTimeout(t); try { session.close(); } catch {} setTimeout(() => process.exit(flow.done ? 0 : 1), 200); };
+const finish = (why) => { say(why); for (const t of timers) clearTimeout(t); try { session.close(); } catch {} setTimeout(() => process.exit(flow.complete ? 0 : 1), 200); };
 
 const sendTo = async (peer, bytes) => {
   const msg = await tspPack(bytes, myDid, peer.did, { senderSigningKey: edSecret, receiverEncryptionKey: peer.x });
@@ -125,7 +125,7 @@ const apply = async (peer, r) => {
     else say(`${e.kind}${"type" in e ? " " + e.type.replace("https://trusttasks.org/spec/", "") : ""}${"why" in e ? " (" + e.why + ")" : ""}`);
   }
   for (const d of r.send) { save(`out-${d.ceremony.step}-${d.type.endsWith("#response") ? "response" : "request"}.json`, d); await sendDocument(peer, d); }
-  if (flow.done) finish("enactment complete: both credentials and both receipts");
+  if (flow.complete) finish("enactment complete: both credentials and both receipts");
 };
 
 // frames are handled one after another: the session does not serialise them, and the flow
@@ -167,7 +167,7 @@ async function handleFrame (qb2) {
   const r = await flow.receive(doc, peer.did, Date.now());
   await apply(peer, r);
   // the person confirms here: the app shows the (unverified) name and asks before anything is issued; dev run: accepting
-  if (flow.pending) { say("dev run: accepting"); await apply(peer, await flow.accept(Date.now())); }
+  if (flow.pending) { say("dev run: accepting"); await apply(peer, await flow.accept(Date.now(), "displayed")); }
 }
 
 const session = new MediatorSession({
