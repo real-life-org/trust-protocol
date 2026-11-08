@@ -1,0 +1,101 @@
+{
+  "slug": "shared-connect",
+  "version": "0.1",
+  "title": "Connect two people across apps",
+  "summary": "One person shows a code or sends a link that names a per-encounter messaging identifier with its relays and a fresh single-use handle; the other scans it, proposes the relationship, and both issue a relationship credential to each other. Two existing registry tasks, no third party. Every step carries a proof. When both are offline the proposal is shown back as a code and the rest follows once a carrier exists.",
+  "status": "draft",
+  "targetFrameworkVersion": "0.6.0",
+  "authors": [
+    "RLTP (Real Life Trust Protocol)",
+    "Consensual"
+  ],
+  "keywords": [
+    "relationship",
+    "peer-to-peer",
+    "qr",
+    "trigger-link",
+    "offline",
+    "web-of-trust"
+  ],
+  "roles": {
+    "inviter": {
+      "description": "Shows the code or sends the link that names its per-encounter messaging identifier, relays and challenge; accepts the proposal and issues a credential about the responder.",
+      "cardinality": "one"
+    },
+    "responder": {
+      "description": "Scans the code or opens the link; proposes the relationship and issues a credential about the inviter.",
+      "cardinality": "one"
+    }
+  },
+  "steps": {
+    "propose": {
+      "kind": "task",
+      "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+      "issuer": "responder",
+      "recipient": "inviter",
+      "description": "The responder's proposal and the inviter's acceptance (its #response, naming the inviter's pairwise relationship identifier). The proposal's id is the responder's fresh challenge and the threadId of every later document; ceremony.enactment is the handle from the inviter's link, minted by the inviter alone and single-use: the inviter accepts one proposal per handle and refuses every later one, so one link connects one person. The proposal is sent to a relay named in the inviter's identifier, or shown back as a code when both are offline; an inviter accepts a first message from an identifier it has never seen only while its handle is live. Every document of this and the following steps, request and response alike, carries a proof with the recipient in band, signed by the authentication key of the issuer's messaging identifier; issuer, proof signer and transport sender are one identifier (propose 0.1 makes the proof optional, this ceremony does not).",
+      "prev": []
+    },
+    "issue-inviter": {
+      "kind": "task",
+      "type": "https://trusttasks.org/spec/vrc/relationships/issue/0.1",
+      "issuer": "inviter",
+      "recipient": "responder",
+      "description": "The inviter's relationship credential about the responder, and the responder's receipt (its #response, carrying the digest of the credential as stored). Follows the acceptance and may travel with it. The credential is signed by the inviter's pairwise relationship identifier, which is not its messaging identifier.",
+      "prev": [
+        "propose"
+      ]
+    },
+    "issue-responder": {
+      "kind": "task",
+      "type": "https://trusttasks.org/spec/vrc/relationships/issue/0.1",
+      "issuer": "responder",
+      "recipient": "inviter",
+      "description": "The responder's relationship credential about the inviter, and the inviter's receipt. Follows the acceptance and does not wait for the inviter's credential; the two issue steps may cross. Signed by the responder's pairwise relationship identifier.",
+      "prev": [
+        "propose"
+      ],
+      "terminal": true
+    }
+  },
+  "anchor": {
+    "kind": "openingStep"
+  },
+  "completion": {
+    "allOf": [
+      "propose",
+      "issue-inviter",
+      "issue-responder"
+    ]
+  },
+  "evidence": {
+    "level": "countersigned"
+  },
+  "enactmentPrivacy": "shared",
+  "sideEffects": {
+    "level": "mutating",
+    "rationale": "Each party mints a credential about the other. Not compensatable by this ceremony; revocation is the issuer's own act."
+  },
+  "exposure": {
+    "discloses": "secret",
+    "actsAsSubject": true,
+    "rationale": "Each issue step delivers credential material the other party retains, and each party issues on its own authority about a person present or named. enactmentPrivacy is shared because the two parties are meant to know they share this flow, and the pairwise relationship identifiers already correlate the pair. A leaked pair of credentials names the two relationship identifiers, the handle and the two challenges: it links everything else issued under those relationship identifiers, and nothing beyond them as long as each identifier is made for this one relationship and appears in no other disclosure; the messaging identifiers are per encounter and add no further link. Evidence is countersigned in the bilateral sense of mutual-attestation/0.1: both parties sign steps of the one enactment; no step carries prev digests of another."
+  },
+  "related": [
+    "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+    "https://trusttasks.org/spec/vrc/relationships/issue/0.1",
+    "https://github.com/trustoverip/dtgwg-trust-tasks-tf/blob/main/ceremonies/mutual-attestation/0.1/ceremony.json",
+    "https://github.com/trustoverip/dtgwg-trust-tasks-tf/issues/1034"
+  ],
+  "ext": {
+    "org.real-life.rltp": {
+      "note": "The definition proposed in trustoverip/dtgwg-trust-tasks-tf#1034 (three steps, 8 November 2026), kept here so DTGWG tooling and the test vector agree on one text. The flow is implemented in lib/src/shared-connect.ts and exercised by vectors/shared-connect.json. Until the registry publishes the definition, steps carry {enactment, step} (and terminal: true on the last step) and no definition or definitionDigest.",
+      "entry": "A VTI trigger link on the shared origin: https://link.trustoverip.org/t#_from=<per-encounter peer DID with relays>&_id=<16-byte challenge, canonical base64url>&_exp=<epoch seconds>&_type=/vti/flow/shared-connect/0.1[&_label=<display name, code shown in person only>]. _from is a did:peer:2 or a long-form did:peer:4 with the relay as a service; _id is ceremony.enactment. A code shown in person expires within 10 minutes, a link sent in a message within 7 days.",
+      "identifiers": "Two layers on each side: a per-encounter messaging identifier (the inviter's is the peer DID in _from, the responder's is the propose issuer) and a pairwise relationship identifier (relationshipDid: an Ed25519 did:key or did:peer:0, made for this one relationship; it signs the credential and stays stable while the messaging identifier may change). What an observer sees depends on the carrier: a relay carrying sealed documents sees the messaging identifiers and the timing, not the relationship identifiers or the content; anyone who sees a code sees what it carries, the inviter's messaging identifier and handle in the link, and in the offline back-code also the responder's messaging identifier, its relationship identifier (rel), its name (n) and the proof.",
+      "credential": "Each issue carries a VC of types VerifiableCredential, DTGCredential and RelationshipCredential (plus EncounterCredential when the issuer's channel was scan or displayed) with credentialSubject {id: the other party's relationshipDid, ceremony: https://trusttasks.org/ceremony/shared-connect/0.1, challenge: the subject's own challenge (the propose id in the inviter's credential, the link's handle in the responder's), enactmentBinding, channel: scan | displayed | link | sent}. enactmentBinding is a multibase multihash over the JCS canonicalization of {ceremony, challenges: [the two challenges, sorted]}, so a credential names both fresh values although ceremony.enactment carries only the inviter's.",
+      "offline": "When neither side has a network the responder shows its signed proposal back as a code in a reconstruction form (_from=<responder's peer DID>, _id=<the proposal's id, the responder's challenge>, _type=/vti/flow/shared-connect/0.1/back, rel=<relationshipDid>, t=<issuedAt as epoch seconds>, n=<reason, percent-encoded>, sig=<proofValue>); the inviter rebuilds the propose document, with ceremony.enactment taken from the handle it issued and holds locally, and verifies the proof. The form requires: no expiresAt, issuedAt in whole seconds, proof.created equal to issuedAt, and the verification method being the authentication method of _from. Measured 466 to 584 characters. The acceptance and the issue steps then follow over any carrier; the acceptance is subject to the freshness window below, so today the inviter has to be able to send it within that window, see freshness.",
+      "freshness": "The proposal is accepted within 10 minutes of its issuedAt and before the link's _exp; the acceptance within 10 minutes of its issuedAt; 60 seconds of clock tolerance in the document's favour. The issue steps and receipts have no window of their own: the credentials' timestamps are read as evidence, not as commands. No maxDuration is declared for this reason. Open: whether the acceptance should have a window at all, since it answers in the proposal's thread and a late one changes nothing (an inbox fetched late, or an inviter that was offline when the proposal arrived, cannot complete today).",
+      "proofs": "Step proofs are eddsa-jcs-2022 by an Ed25519 key under authentication of the messaging identifier (#key-1 as this library writes its DIDs; a did:peer:0 relationship identifier names its one method <did>#<multikey>); credential proofs by the relationship identifier under assertionMethod, with the credential's @context repeated in the proof."
+    }
+  }
+}
