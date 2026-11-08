@@ -692,6 +692,18 @@ export interface IssueExpectation { issuerDid: string, myDid: string, threadId: 
 
 /** Check an issue document: envelope, then the credential against the accepted proposal.
  *  No freshness window: the inviter's credential may follow long after the acceptance. */
+/** The multihash bytes behind a DigestMultibase, base58btc (`z`) or base64url (`u`); null for anything else. */
+export const digestBytesOf = (v: unknown): Uint8Array | null => {
+  if (typeof v !== 'string' || v.length < 2) return null
+  const raw = v[0] === 'z' ? fromBase58(v.slice(1)) : v[0] === 'u' ? fromB64u(v.slice(1)) : null
+  return raw && raw.length === 34 && raw[0] === 0x12 && raw[1] === 0x20 ? raw : null
+}
+/** Two DigestMultibase values name one digest when their decoded multihash bytes agree (TT §4.9.3), whatever the base. */
+export const sameDigest = (a: unknown, b: unknown): boolean => {
+  const x = digestBytesOf(a), y = digestBytesOf(b)
+  return !!x && !!y && x.length === y.length && x.every((byte, i) => byte === y[i])
+}
+
 export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: number = Date.now()): Promise<StepRefusal | null> {
   const e = envelopeRefusal(doc, TASK_ISSUE, nowMs); if (e) return e
   if (!sameVid(doc.issuer, expect.issuerDid)) return 'issuer'
@@ -703,7 +715,7 @@ export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: num
   if (vrc.issuer !== expect.issuerPair) return 'vrc-issuer'
   if (!(await verifyPairCredential(vrc, expect.issuerPair))) return 'vrc-proof'
   if (vrc.credentialSubject?.id !== expect.myPair) return 'vrc-subject'
-  if (doc.payload.vrcDigestMultibase !== undefined && doc.payload.vrcDigestMultibase !== await digestDoc(vrc)) return 'vrc-digest'
+  if (doc.payload.vrcDigestMultibase !== undefined && !sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(vrc))) return 'vrc-digest'
   // profile checks for a credential of this ceremony's RLTP profile; other
   // profiles (Consensual's, Keyring's) carry their own members and pass here
   const cs = vrc.credentialSubject
@@ -720,7 +732,7 @@ export async function checkReceipt (doc: any, sentIssue: any, expect: { issuerDi
   if (!sameVid(doc.recipient, expect.myDid)) return 'recipient'
   if (doc.threadId !== sentIssue.threadId) return 'thread'
   if (doc.ceremony.enactment !== sentIssue.ceremony.enactment || doc.ceremony.step !== sentIssue.ceremony.step) return 'enactment'
-  if (doc.payload.vrcDigestMultibase !== await digestDoc(sentIssue.payload.vrc)) return 'vrc-digest'
+  if (!sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(sentIssue.payload.vrc))) return 'vrc-digest'
   if (!(await verifyStep(doc, [expect.issuerDid]))) return 'proof'
   return null
 }

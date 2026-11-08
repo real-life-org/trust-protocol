@@ -764,6 +764,18 @@ export async function checkAccept(doc, proposeDoc, inviterDid, nowMs = Date.now(
 }
 /** Check an issue document: envelope, then the credential against the accepted proposal.
  *  No freshness window: the inviter's credential may follow long after the acceptance. */
+/** The multihash bytes behind a DigestMultibase, base58btc (`z`) or base64url (`u`); null for anything else. */
+export const digestBytesOf = (v) => {
+    if (typeof v !== 'string' || v.length < 2)
+        return null;
+    const raw = v[0] === 'z' ? fromBase58(v.slice(1)) : v[0] === 'u' ? fromB64u(v.slice(1)) : null;
+    return raw && raw.length === 34 && raw[0] === 0x12 && raw[1] === 0x20 ? raw : null;
+};
+/** Two DigestMultibase values name one digest when their decoded multihash bytes agree (TT §4.9.3), whatever the base. */
+export const sameDigest = (a, b) => {
+    const x = digestBytesOf(a), y = digestBytesOf(b);
+    return !!x && !!y && x.length === y.length && x.every((byte, i) => byte === y[i]);
+};
 export async function checkIssue(doc, expect, nowMs = Date.now()) {
     const e = envelopeRefusal(doc, TASK_ISSUE, nowMs);
     if (e)
@@ -785,7 +797,7 @@ export async function checkIssue(doc, expect, nowMs = Date.now()) {
         return 'vrc-proof';
     if (vrc.credentialSubject?.id !== expect.myPair)
         return 'vrc-subject';
-    if (doc.payload.vrcDigestMultibase !== undefined && doc.payload.vrcDigestMultibase !== await digestDoc(vrc))
+    if (doc.payload.vrcDigestMultibase !== undefined && !sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(vrc)))
         return 'vrc-digest';
     // profile checks for a credential of this ceremony's RLTP profile; other
     // profiles (Consensual's, Keyring's) carry their own members and pass here
@@ -811,7 +823,7 @@ export async function checkReceipt(doc, sentIssue, expect, nowMs = Date.now()) {
         return 'thread';
     if (doc.ceremony.enactment !== sentIssue.ceremony.enactment || doc.ceremony.step !== sentIssue.ceremony.step)
         return 'enactment';
-    if (doc.payload.vrcDigestMultibase !== await digestDoc(sentIssue.payload.vrc))
+    if (!sameDigest(doc.payload.vrcDigestMultibase, await digestDoc(sentIssue.payload.vrc)))
         return 'vrc-digest';
     if (!(await verifyStep(doc, [expect.issuerDid])))
         return 'proof';
