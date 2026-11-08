@@ -74,10 +74,11 @@ abstract class Machine<S extends Common> {
   /** complete, declined, or ended by the other side's error: nothing more to send or take */
   get finished (): boolean { return this.complete || !!this.s.decline || !!this.s.failed }
   /** the other side's error that ended the enactment, if any */
-  get failure (): { code: string, step: string, message: string | null } | null { return this.s.failed }
+  get failure (): { code: string, step: string, message: string | null } | null { return this.s.failed ?? null }
   get declined (): boolean { return !!this.s.decline }
   /** the own documents of the enactment so far, in the order they were made: what to send again after a restart */
-  outbox (): any[] { return this.complete ? [] : [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d) }
+  /** after `complete` or the other side's `failed` nothing goes out again; after our decline the decline does */
+  outbox (): any[] { return this.complete || this.s.failed ? [] : [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d) }
   protected abstract ownDocs (): any[]
   /** a trust-task-error of the other side in our thread ends the enactment (`failed`), unless the flow
    *  read it as a decline before; anything else is not a step */
@@ -87,7 +88,7 @@ abstract class Machine<S extends Common> {
     if (r === 'not-an-error') return result([], [{ kind: 'ignored', type, why: 'not-a-step' }])
     if (typeof r === 'string') return result([], [{ kind: 'refused', type, reason: r }])
     if (this.s.failed) return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true)
-    if (this.complete) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true)
+    if (this.complete || this.s.decline) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true)
     this.s.failed = r; this.s.held = []
     return result([], [{ kind: 'failed', ...r }], true)
   }
@@ -274,7 +275,7 @@ export class Responder extends Machine<ResponderSnapshot> {
     // decline; any other code ends the enactment as failed; anything else is not a step
     const d = await sc.checkDecline(doc, s.propose, s.link.from, nowMs)
     if (d === null) {
-      if (s.accept) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], this.finished)
+      if (s.accept || s.failed) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], this.finished)
       if (s.decline) return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true)
       s.decline = doc; s.held = []
       return result([], [{ kind: 'declined', message: doc.payload.message ?? null }], true)

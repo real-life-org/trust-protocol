@@ -696,7 +696,8 @@ function envelopeRefusal (doc: any, expectType: string, nowMs: number, window?: 
         if (!closed(p, ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']) || typeof p.code !== 'string' || typeof p.retryable !== 'boolean') return 'payload'
         if (p.message !== undefined && (typeof p.message !== 'string' || [...p.message].length > 1024)) return 'payload'
         // inResponseTo as the registry schema has it: {typeUri, id?}, nothing else
-        if (p.inResponseTo !== undefined && (!isObj(p.inResponseTo) || !closed(p.inResponseTo, ['typeUri', 'id']) || typeof p.inResponseTo.typeUri !== 'string' || (p.inResponseTo.id !== undefined && typeof p.inResponseTo.id !== 'string'))) return 'payload'
+        if (p.inResponseTo !== undefined && (!isObj(p.inResponseTo) || !closed(p.inResponseTo, ['typeUri', 'id']) || typeof p.inResponseTo.typeUri !== 'string' || p.inResponseTo.typeUri.length === 0 || (p.inResponseTo.id !== undefined && (typeof p.inResponseTo.id !== 'string' || p.inResponseTo.id.length === 0)))) return 'payload'
+        if (p.details !== undefined && !isObj(p.details)) return 'payload'
       }
   }
   // TT §4.2: a document is not acted on when now ≥ expiresAt; the clock tolerance works in the document's favour

@@ -57,10 +57,11 @@ class Machine {
     /** complete, declined, or ended by the other side's error: nothing more to send or take */
     get finished() { return this.complete || !!this.s.decline || !!this.s.failed; }
     /** the other side's error that ended the enactment, if any */
-    get failure() { return this.s.failed; }
+    get failure() { return this.s.failed ?? null; }
     get declined() { return !!this.s.decline; }
     /** the own documents of the enactment so far, in the order they were made: what to send again after a restart */
-    outbox() { return this.complete ? [] : [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d); }
+    /** after `complete` or the other side's `failed` nothing goes out again; after our decline the decline does */
+    outbox() { return this.complete || this.s.failed ? [] : [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d); }
     /** a trust-task-error of the other side in our thread ends the enactment (`failed`), unless the flow
      *  read it as a decline before; anything else is not a step */
     async takeError(doc, expect, nowMs) {
@@ -72,7 +73,7 @@ class Machine {
             return result([], [{ kind: 'refused', type, reason: r }]);
         if (this.s.failed)
             return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true);
-        if (this.complete)
+        if (this.complete || this.s.decline)
             return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
         this.s.failed = r;
         this.s.held = [];
@@ -307,7 +308,7 @@ export class Responder extends Machine {
         // decline; any other code ends the enactment as failed; anything else is not a step
         const d = await sc.checkDecline(doc, s.propose, s.link.from, nowMs);
         if (d === null) {
-            if (s.accept)
+            if (s.accept || s.failed)
                 return result([], [{ kind: 'ignored', type, why: 'after-decision' }], this.finished);
             if (s.decline)
                 return result([], [{ kind: 'ignored', type, why: 'duplicate' }], true);
