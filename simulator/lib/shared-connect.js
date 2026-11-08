@@ -647,13 +647,15 @@ export async function credential(me, subjectPair, subjectChallenge, enactmentBin
     return diSign(me.pair, body, when);
 }
 /** The delivery of a credential (vrc/relationships/issue 0.1). */
-export async function issue(me, recipientDid, threadId, enactment, step, vrc, nowMs, id) {
+/** `statedDigest: false` leaves `vrcDigestMultibase` off (issue 0.1 makes it a SHOULD): for a counterpart that
+ *  compares the stated digest as a string in another base (Keyring, November 2026) until it compares bytes. */
+export async function issue(me, recipientDid, threadId, enactment, step, vrc, nowMs, id, opts = {}) {
     const when = iso(nowMs);
     const doc = {
         id, type: TASK_ISSUE, threadId,
         issuer: me.messaging.did, recipient: recipientDid, issuedAt: when,
         ceremony: { enactment, step, ...(step === 'issue-responder' ? { terminal: true } : {}) },
-        payload: { vrc, vrcDigestMultibase: await digestDoc(vrc) },
+        payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestDoc(vrc) }) },
     };
     return signStep(me.messaging, doc, when);
 }

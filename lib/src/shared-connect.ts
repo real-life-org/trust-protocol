@@ -595,13 +595,15 @@ export async function credential (me: Party, subjectPair: string, subjectChallen
 }
 
 /** The delivery of a credential (vrc/relationships/issue 0.1). */
-export async function issue (me: Party, recipientDid: string, threadId: string, enactment: string, step: 'issue-inviter' | 'issue-responder', vrc: any, nowMs: number, id: string) {
+/** `statedDigest: false` leaves `vrcDigestMultibase` off (issue 0.1 makes it a SHOULD): for a counterpart that
+ *  compares the stated digest as a string in another base (Keyring, November 2026) until it compares bytes. */
+export async function issue (me: Party, recipientDid: string, threadId: string, enactment: string, step: 'issue-inviter' | 'issue-responder', vrc: any, nowMs: number, id: string, opts: { statedDigest?: boolean } = {}) {
   const when = iso(nowMs)
   const doc = {
     id, type: TASK_ISSUE, threadId,
     issuer: me.messaging.did, recipient: recipientDid, issuedAt: when,
     ceremony: { enactment, step, ...(step === 'issue-responder' ? { terminal: true } : {}) } as Ceremony,
-    payload: { vrc, vrcDigestMultibase: await digestDoc(vrc) },
+    payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestDoc(vrc) }) },
   }
   return signStep(me.messaging, doc, when)
 }
