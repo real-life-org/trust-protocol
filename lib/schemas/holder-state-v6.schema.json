@@ -4900,6 +4900,16 @@
         "openedAt": {
           "$ref": "#/$defs/Millis"
         },
+        "closedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Millis"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "status": {
           "enum": [
             "open",
@@ -4910,16 +4920,6 @@
         },
         "flow": {
           "type": "object"
-        },
-        "promptId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "contactId": {
           "anyOf": [
@@ -4961,9 +4961,9 @@
         "link",
         "channel",
         "openedAt",
+        "closedAt",
         "status",
         "flow",
-        "promptId",
         "contactId",
         "theirPair",
         "name"

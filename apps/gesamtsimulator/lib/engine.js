@@ -507,7 +507,7 @@ class HolderEngine {
         const contentKey = typeof ports.keys.contentKey === 'function'
             ? guard(ports.keys, ['contentKey'], 'key-provider').contentKey
             : async () => { throw new InfraError('key-provider', 'key-provider: contentKey is not provided; a founding needs it (lib 0.13.0)'); };
-        // sharedConnectMessaging (lib 0.16.0) is needed by the shared-connect
+        // sharedConnectMessaging (shared-connect on the holder) is needed by the shared-connect
         // module alone; a provider without it starts, and the module refuses
         // `keys-missing`
         const sharedConnectMessaging = typeof ports.keys.sharedConnectMessaging === 'function'

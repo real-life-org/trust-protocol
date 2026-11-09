@@ -71,7 +71,10 @@
     "CHANGELOG.md",
     "DEVIATIONS.md",
     "dist/shared-connect.*",
-    "dist/shared-connect-flow.*"
+    "dist/shared-connect-flow.*",
+    "dist/shared-connect-holder.*",
+    "dist/holder-state-v6.*",
+    "schemas/holder-state-v6.schema.json"
   ],
   "exports": {
     ".": {

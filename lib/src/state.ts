@@ -88,9 +88,10 @@ export interface SharedConnectEnactment {
   link: { from: string, id: string, exp: number, label: string | null }
   channel: 'scan' | 'displayed' | 'link' | 'sent'
   openedAt: Millis
+  /** when the enactment left `open` (complete, declined, failed); retention of a closed enactment counts from here */
+  closedAt: Millis | null
   status: 'open' | 'complete' | 'declined' | 'failed'
   flow: Record<string, Json>
-  promptId: string | null
   contactId: string | null
   theirPair: string | null
   name: string | null

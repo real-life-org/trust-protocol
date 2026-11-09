@@ -59,7 +59,7 @@ export const MIGRATIONS = Object.freeze({
             return [id, { ...rest, phase: 'member', syncs: {} }];
         })),
     }),
-    // codec 6 (lib 0.16.0): the shared-connect enactments slice, empty on a migrated state
+    // codec 6 (shared-connect on the holder): the shared-connect enactments slice, empty on a migrated state
     5: (state) => ({ ...state, codec: 6, sharedConnect: { enactments: {} } }),
 });
 /** A stored state the library will not load (or a state it will not write). */
@@ -472,9 +472,9 @@ const sharedConnectEnactment = obj({
     id: str, role: lit('inviter', 'responder'), label: str, did: str,
     relays: arr(obj({ kind: str, address: str }, { multiaddrs: arr(str) })),
     link: obj({ from: str, id: str, exp: natural, label: nullable(str) }),
-    channel: lit('scan', 'displayed', 'link', 'sent'), openedAt: millis,
+    channel: lit('scan', 'displayed', 'link', 'sent'), openedAt: millis, closedAt: nullable(millis),
     status: lit('open', 'complete', 'declined', 'failed'), flow: anyObj,
-    promptId: nullable(str), contactId: nullable(str), theirPair: nullable(str), name: nullable(str),
+    contactId: nullable(str), theirPair: nullable(str), name: nullable(str),
 });
 /** Structural validators per codec version; every readable codec has one. */
 const codec3 = codecShape(3);

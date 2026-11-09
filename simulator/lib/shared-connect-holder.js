@@ -10,7 +10,9 @@ import { Inviter, Responder, Machine } from './shared-connect-flow.js';
 export const SC_COMMANDS = Object.freeze({ show: 'sharedconnect.show', propose: 'sharedconnect.propose', receive: 'sharedconnect.receive' });
 export const SC_PROMPT = 'shared-connect-confirm';
 export const promptIdOf = (id) => 'sharedconnect:' + id;
-/** closed enactments are kept this long (the credentials stay in the relationship where one was opened) */
+/** a declined, failed or never answered enactment is kept this long after it closed (or its link expired);
+ *  a complete enactment stays: its flow snapshot holds both signed credentials and the propose they cite,
+ *  the only place the holder keeps them (the relationship stores identifiers and keys, no credentials) */
 export const RETENTION = 30 * 24 * 3_600_000;
 const no = (code, ref) => ({ ok: false, code, ...(ref ? { ref } : {}) });
 const isRefusal = (x) => !!x && typeof x === 'object' && x.ok === false;
@@ -18,7 +20,7 @@ const isRefusal = (x) => !!x && typeof x === 'object' && x.ok === false;
 const nonceOf = (e) => fromB64u(e.role === 'inviter' ? e.id : e.flow.challenge);
 async function partyOf(ctx, e) {
     if (!ctx.keys.sharedConnectMessaging)
-        throw new Error('sharedconnect: the KeyProvider has no sharedConnectMessaging');
+        return null;
     const m = await ctx.keys.sharedConnectMessaging(nonceOf(e));
     const own = await ctx.keys.anchorOf(e.label);
     const p = { messaging: { did: e.did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(e.label, h) } };
@@ -26,12 +28,11 @@ async function partyOf(ctx, e) {
         p.name = e.name;
     return p;
 }
+/** the options of one preparation: document ids from this holder's entropy; never shared between holders */
 const flowOpts = (ctx) => ({ newId: () => ctx.entropy.id('doc.id'), card: true });
-const machineOf = (party, e) => e.role === 'inviter'
-    ? new Inviter(party, { id: e.id, exp: e.link.exp }, flowOpts0, e.flow)
-    : new Responder(party, e.link, e.flow.challenge, e.channel, flowOpts0, e.flow);
-// ids for documents made during receive/decide come from the engine's entropy at prepare time (below)
-let flowOpts0 = { newId: () => { throw new Error('sharedconnect: newId outside prepare'); }, card: true };
+const machineOf = (ctx, party, e) => e.role === 'inviter'
+    ? new Inviter(party, { id: e.id, exp: e.link.exp }, flowOpts(ctx), e.flow)
+    : new Responder(party, e.link, e.flow.challenge, e.channel, flowOpts(ctx), e.flow);
 function applyStep(state, step, when, extra = []) {
     const e = state.sharedConnect.enactments[step.id];
     if (!e)
@@ -41,6 +42,7 @@ function applyStep(state, step, when, extra = []) {
     const after = step.after;
     const events = [...extra];
     let s = state;
+    let duties = [];
     let prompts = state.prompts;
     let status = e.status;
     let contactId = e.contactId;
@@ -65,10 +67,16 @@ function applyStep(state, step, when, extra = []) {
             case 'credential':
                 events.push({ type: 'sharedconnect.credential', id: e.id, step: ev.step });
                 break;
-            case 'failed':
+            case 'failed': {
                 status = 'failed';
+                // the counterpart ended the enactment while the person had not decided: the prompt closes with it
+                if (Object.hasOwn(prompts, promptIdOf(e.id))) {
+                    prompts = { ...prompts };
+                    delete prompts[promptIdOf(e.id)];
+                }
                 events.push({ type: 'sharedconnect.failed', id: e.id, code: ev.code });
                 break;
+            }
             case 'refused':
                 events.push({ type: 'sharedconnect.refused', id: e.id, docType: ev.type, reason: ev.reason });
                 break;
@@ -84,8 +92,7 @@ function applyStep(state, step, when, extra = []) {
                         s = opened.state;
                         contactId = ids.contactId;
                         events.push(...(opened.events ?? []));
-                        if (opened.duties?.length)
-                            s = { ...s, duties: { ...s.duties, ...Object.fromEntries(opened.duties.map((d) => [d.id, d])) } };
+                        duties = opened.duties ?? [];
                     }
                 }
                 events.push({ type: 'sharedconnect.complete', id: e.id, contactId });
@@ -96,8 +103,8 @@ function applyStep(state, step, when, extra = []) {
     }
     if (step.r.send.length)
         events.push({ type: 'sharedconnect.send', id: e.id, to: e.role === 'inviter' ? after.propose?.issuer ?? '' : e.link.from, docs: step.r.send });
-    const next = { ...e, flow: after, status, contactId, theirPair };
-    return { state: { ...s, prompts, sharedConnect: { enactments: { ...s.sharedConnect.enactments, [e.id]: next } } }, events };
+    const next = { ...e, flow: after, status, contactId, theirPair, closedAt: e.closedAt ?? (status !== 'open' ? when : null) };
+    return { state: { ...s, prompts, sharedConnect: { enactments: { ...s.sharedConnect.enactments, [e.id]: next } } }, events, duties };
 }
 const showDef = {
     human: true,
@@ -124,9 +131,8 @@ const showDef = {
         catch {
             return no('link-invalid');
         }
-        flowOpts0 = flowOpts(ctx);
         const party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) };
-        const flow = new Inviter(party, { id, exp }, flowOpts0).snapshot();
+        const flow = new Inviter(party, { id, exp }, flowOpts(ctx)).snapshot();
         return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel };
     },
     apply(state, prepared, _input, when) {
@@ -137,8 +143,8 @@ const showDef = {
             throw new Error('sharedconnect.show: the label or the handle is not fresh');
         const e = {
             id: p.id, role: 'inviter', label: p.label, did: p.did, relays: p.relays.map((r) => ({ kind: r.kind, address: r.address, ...(r.multiaddrs ? { multiaddrs: [...r.multiaddrs] } : {}) })),
-            link: { from: p.did, id: p.id, exp: p.exp, label: p.channel === 'displayed' ? p.name : null }, channel: p.channel, openedAt: when, status: 'open',
-            flow: p.flow, promptId: null, contactId: null, theirPair: null, name: p.name,
+            link: { from: p.did, id: p.id, exp: p.exp, label: p.channel === 'displayed' ? p.name : null }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
+            flow: p.flow, contactId: null, theirPair: null, name: p.name,
         };
         return {
             state: {
@@ -172,9 +178,8 @@ const proposeDef = {
         const m = await ctx.keys.sharedConnectMessaging(ch16);
         const did = sc.peer2Of(m.ed, m.x, relays);
         const name = typeof input.name === 'string' && input.name.length ? input.name : null;
-        flowOpts0 = flowOpts(ctx);
         const party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) };
-        const R = new Responder(party, read.link, challenge, channel, flowOpts0);
+        const R = new Responder(party, read.link, challenge, channel, flowOpts(ctx));
         const r = await R.start(ctx.when);
         const link = { from: read.link.from.did, id: read.link.id, exp: read.link.exp, label: read.link.label ?? null };
         return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id: read.link.id, did, link, flow: R.snapshot(), send: r.send, relays, name, channel };
@@ -186,10 +191,10 @@ const proposeDef = {
         if (state.register.labels.includes(p.label))
             throw new Error('sharedconnect.propose: the label is not fresh');
         if (Object.hasOwn(state.sharedConnect.enactments, p.id))
-            return no('enactment-closed', 'this link was already answered');
+            return no('enactment-closed', state.sharedConnect.enactments[p.id].role === 'responder' ? 'this link was already answered' : 'this is the handle of an own link');
         const e = {
             id: p.id, role: 'responder', label: p.label, did: p.did, relays: p.relays.map((r) => ({ kind: r.kind, address: r.address, ...(r.multiaddrs ? { multiaddrs: [...r.multiaddrs] } : {}) })),
-            link: p.link, channel: p.channel, openedAt: when, status: 'open', flow: p.flow, promptId: null, contactId: null, theirPair: null, name: p.name,
+            link: p.link, channel: p.channel, openedAt: when, closedAt: null, status: 'open', flow: p.flow, contactId: null, theirPair: null, name: p.name,
         };
         return {
             state: {
@@ -215,8 +220,10 @@ const receiveDef = {
             return no('enactment-unknown');
         if (typeof input?.sender !== 'string')
             return no('enactment-unknown', 'sender');
-        flowOpts0 = flowOpts(ctx);
-        const machine = machineOf(await partyOf(ctx, e), e);
+        const party = await partyOf(ctx, e);
+        if (!party)
+            return no('keys-missing');
+        const machine = machineOf(ctx, party, e);
         const r = await machine.receive(input.doc, input.sender, ctx.when);
         return { id, before: jcs(e.flow), after: machine.snapshot(), r };
     },
@@ -235,10 +242,12 @@ const confirmDecision = {
         if (!e || e.role !== 'inviter')
             return no('enactment-unknown');
         const flow = e.flow;
-        if (!flow.propose || flow.accept || flow.decline)
+        if (!flow.propose || flow.accept || flow.decline || flow.failed)
             return no('not-pending');
-        flowOpts0 = flowOpts(ctx);
-        const machine = machineOf(await partyOf(ctx, e), e);
+        const party = await partyOf(ctx, e);
+        if (!party)
+            return no('keys-missing');
+        const machine = machineOf(ctx, party, e);
         const r = choice === 'accept' ? await machine.accept(ctx.when, e.channel) : await machine.decline(ctx.when);
         return { id, before: jcs(e.flow), after: machine.snapshot(), r };
     },
@@ -250,13 +259,18 @@ const confirmDecision = {
     },
 };
 // ── retention and keys ─────────────────────────────────────────────────
+/** when a not complete enactment leaves the state; `null` for a complete one (it stays) and for an open one before any decision */
+const leavesAt = (e) => e.status === 'open' ? (e.link.exp + sc.CLOCK_TOLERANCE_S) * 1000 + RETENTION
+    : e.status === 'complete' ? null
+        : e.closedAt === null ? null : e.closedAt + RETENTION;
 function retain(state, when) {
-    const gone = Object.values(state.sharedConnect.enactments).filter((e) => e.status !== 'open' && when - e.openedAt > RETENTION && !(e.status === 'complete' && e.contactId === null));
-    const expired = Object.values(state.sharedConnect.enactments).filter((e) => e.status === 'open' && when > (e.link.exp + sc.CLOCK_TOLERANCE_S) * 1000 + RETENTION);
-    if (!gone.length && !expired.length)
+    // complete enactments stay (see RETENTION); declined and failed ones leave RETENTION after they closed,
+    // never answered ones RETENTION after the link expired (their prompt, if any, expires with them)
+    const gone = Object.values(state.sharedConnect.enactments).filter((e) => { const d = leavesAt(e); return d !== null && when >= d; });
+    if (!gone.length)
         return state;
     const enactments = { ...state.sharedConnect.enactments };
-    for (const e of [...gone, ...expired])
+    for (const e of gone)
         delete enactments[e.id];
     return { ...state, sharedConnect: { enactments } };
 }
@@ -267,7 +281,7 @@ export function sharedConnectModule() {
         decisions: Object.freeze({ [SC_PROMPT]: confirmDecision }),
         keepKeys: (state) => Object.entries(state.addresses.keys).filter(([, k]) => Object.values(state.sharedConnect.enactments).some((e) => e.label === k.label)).map(([rkid]) => rkid),
         retain,
-        deadlines: (state) => Object.values(state.sharedConnect.enactments).map((e) => (e.status === 'open' ? (e.link.exp + sc.CLOCK_TOLERANCE_S) * 1000 : e.openedAt) + RETENTION),
+        deadlines: (state) => Object.values(state.sharedConnect.enactments).map(leavesAt).filter((d) => d !== null),
     });
 }
 export function sharedConnectView(state) {
@@ -279,7 +293,7 @@ export function sharedConnectView(state) {
             theirDid: e.role === 'inviter' ? f.propose?.issuer ?? null : e.link.from,
             theirPair: e.theirPair, name: e.role === 'inviter' ? (f.propose?.payload?.reason ?? null) : e.link.label,
             channel: e.channel, promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
-            theirCredential: f.issueTheirs?.payload?.vrc ?? null, outbox: Machine.outboxOf(f), openedAt: e.openedAt,
+            theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f), openedAt: e.openedAt, closedAt: e.closedAt,
         };
     });
 }

@@ -1026,9 +1026,9 @@ export type SharedConnectEnactmentV6 = {
   }
   channel: "scan" | "displayed" | "link" | "sent"
   openedAt: MillisV6
+  closedAt: (MillisV6) | (null)
   status: "open" | "complete" | "declined" | "failed"
   flow: { [k: string]: Json }
-  promptId: (string) | (null)
   contactId: (string) | (null)
   theirPair: (string) | (null)
   name: (string) | (null)

@@ -35,7 +35,11 @@ pair anchor in `ext["org.real-life.rltp"].card` (`issueCard`, `cardOfIssue`,
 `checkIssue` verifies it, refusal `card`; `FlowOptions.card`); when both cards
 came, completion opens a contact and relationship through the continuity tuple
 (a WoT-to-WoT enactment), otherwise the credential is held without an RLTP
-channel. Signers of the steps and the credential may be callbacks
+channel. A complete enactment stays: its snapshot is where the holder keeps both
+signed credentials and the cited propose (the relationship stores identifiers and
+keys, no credentials). A declined or failed enactment leaves 30 days after it
+closed (`closedAt`), a never answered one 30 days after its link expired; the
+counterpart's error while the confirmation is open closes the prompt. Signers of the steps and the credential may be callbacks
 (`StepSigner`, `PairSigner`), so a module signs through the KeyProvider; the
 flow machines copy a restored snapshot instead of mutating it.
 
