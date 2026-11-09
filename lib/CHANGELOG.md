@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.17.1
+
+shared-connect: `SharedConnectView.failure` names how the counterpart ended an enactment
+(`status: 'failed'`): the code, the step and the message of its trust-task-error, as sent.
+Until now the app saw only the event's code at the moment it came; a failure kept in the
+enactment could not be read back.
+
 ## 0.17.0
 
 shared-connect: the relationship the ceremony opens is carried. `sharedConnectShow`

@@ -349,6 +349,9 @@ export interface SharedConnectView {
    *  came of it (declined, failed, never answered, a counterpart without a card), the app that set up a
    *  carrier for it reads here which one to take down */
   carrierNonce: string | null
+  /** how the counterpart ended the enactment (`status: 'failed'`): its trust-task-error's code, the step it
+   *  named and its message as sent (the counterpart's text, unverified); null otherwise */
+  failure: { code: string, step: string, message: string | null } | null
   /** the own documents to send again after a restart */
   outbox: JsonObject[]
   openedAt: Millis
@@ -365,6 +368,7 @@ export function sharedConnectView (state: Readonly<HolderState>): SharedConnectV
       theirPair: e.theirPair, name: e.role === 'inviter' ? ((f as InviterSnapshot).propose?.payload?.reason ?? null) : e.link.label,
       channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
       carrierNonce: canonicalCarrierNonce(state.register, idsOf(e.label).relId)?.nonce ?? null,
+      failure: f.failed ? { code: f.failed.code, step: f.failed.step, message: f.failed.message } : null,
       theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f) as JsonObject[], openedAt: e.openedAt, closedAt: e.closedAt,
     }
   })
