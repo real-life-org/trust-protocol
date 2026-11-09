@@ -930,7 +930,8 @@ export function sharedConnectIndex (state: Readonly<HolderState>): SharedConnect
 }
 
 /** the shared-connect origin of an entry, by the tuples of its relationships (a husk without tuples
- *  says nothing); null when none came from an enactment */
+ *  says nothing); null when none came from an enactment. A tuple under no enactment (an encounter,
+ *  an introduction; a deactivated one too, historical evidence) means the entry met. */
 export function sharedConnectOriginOf (state: Readonly<HolderState>, contact: Readonly<Contact>, ix: SharedConnectIndex = sharedConnectIndex(state)): SharedConnectOrigin | null {
   const own: SharedConnectEnactment[] = []
   let other = false

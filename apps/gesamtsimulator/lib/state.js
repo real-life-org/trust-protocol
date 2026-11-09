@@ -53,7 +53,8 @@ export function sharedConnectIndex(state) {
     return ix;
 }
 /** the shared-connect origin of an entry, by the tuples of its relationships (a husk without tuples
- *  says nothing); null when none came from an enactment */
+ *  says nothing); null when none came from an enactment. A tuple under no enactment (an encounter,
+ *  an introduction; a deactivated one too, historical evidence) means the entry met. */
 export function sharedConnectOriginOf(state, contact, ix = sharedConnectIndex(state)) {
     const own = [];
     let other = false;
