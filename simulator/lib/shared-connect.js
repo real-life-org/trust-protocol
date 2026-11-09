@@ -645,8 +645,15 @@ export const RLTP_IRI = 'https://real-life.org/rltp/v1#';
 export const CHANNEL_IRI = RLTP_IRI + 'channel';
 /** The task digest of a Trust Task document (TT §4.9.3): JCS over the document without its top-level proof. */
 export const taskDigest = async (doc, base = 'z') => { const { proof, ...rest } = doc ?? {}; return digestIn(rest, base); };
-/** The issuer's channel of a credential, under the IRI or the earlier short name. */
-export const channelOf = (vrc) => vrc?.credentialSubject?.[CHANNEL_IRI] ?? vrc?.credentialSubject?.channel;
+/** The issuer's channel of a credential, under the IRI or the earlier short name. Both present with
+ *  different values is a contradiction in a signed document and reads as `conflict`, never as either (#185). */
+export const channelOf = (vrc) => {
+    const cs = vrc?.credentialSubject;
+    const a = cs?.[CHANNEL_IRI], b = cs?.channel;
+    if (a !== undefined && b !== undefined && a !== b)
+        return 'conflict';
+    return a ?? b;
+};
 /** `profile: 'dtg'` leaves out `channel` and the citation (a probe). */
 export async function credential(me, subjectPair, proposeDoc, channel, nowMs, opts = {}) {
     const when = iso(nowMs);
@@ -886,7 +893,7 @@ export async function checkIssue(doc, expect, nowMs = Date.now()) {
         return 'vrc-citation';
     if (vrc.taskDigestMultibase !== undefined && !sameDigest(vrc.taskDigestMultibase, await taskDigest(expect.propose)))
         return 'vrc-citation';
-    // the RLTP channel, when present, is one of the four values
+    // the RLTP channel, when present, is one of the four values (and not two spellings that disagree)
     const ch = channelOf(vrc);
     if (ch !== undefined && !['scan', 'displayed', 'link', 'sent'].includes(ch))
         return 'vrc-channel';
