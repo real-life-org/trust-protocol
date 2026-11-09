@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.17.1
+## 0.18.0
+
+shared-connect: a contact met when this side read or showed the code in one place and the
+counterpart does not state `link` or `sent` (`metInEnactment`). Before, the counterpart had to
+state `scan` or `displayed` too; a counterpart whose credential carries no `channel` (Keyring,
+Consensual) left every contact "not met". The counterpart's statement is a self-report like our
+own and adds no evidence; it stays a veto (an explicit link corrects the picture). Trust toward a
+contact connected over a link is still refused (`not-met`).
+
 
 shared-connect: `SharedConnectView.failure` names how the counterpart ended an enactment
 (`status: 'failed'`): the code, the step and the message of its trust-task-error, as sent.
