@@ -47,11 +47,13 @@ export interface FlowResult { send: any[], events: FlowEvent[], finished: boolea
 /** `credentialProfile: 'dtg'`: the own credential in the bare DTG form (see `credential()`). */
 /** `digestBase: 'z'`: the own digests in base58btc for a counterpart that compares the string (see `digestIn()`). */
 /** `card: true`: the own issue carries the pair's card in the RLTP ext (needs `party.pair.keyAgreement`). */
-export interface FlowOptions { newId: () => string, statedDigest?: boolean, credentialProfile?: 'rltp' | 'dtg', digestBase?: 'u' | 'z', card?: boolean }
+/** `deliveryHints`: this side's delivery hints for the card (with `card`); kept in the snapshot from the
+ *  machine's first construction, so a restored machine issues the same card without them in its options. */
+export interface FlowOptions { newId: () => string, statedDigest?: boolean, credentialProfile?: 'rltp' | 'dtg', digestBase?: 'u' | 'z', card?: boolean, deliveryHints?: string[] }
 /** What the inviter's app shows while it waits for the person. */
 export interface Pending { propose: any, name: string | null, relationshipDid: string }
 
-interface Common { propose: any, accept: any, decline: any, failed: { code: string, step: string, message: string | null } | null, issueMine: any, issueTheirs: any, receiptMine: any, receiptTheirs: any, held: any[] }
+interface Common { deliveryHints?: string[], propose: any, accept: any, decline: any, failed: { code: string, step: string, message: string | null } | null, issueMine: any, issueTheirs: any, receiptMine: any, receiptTheirs: any, held: any[] }
 export interface InviterSnapshot extends Common { role: 'inviter', id: string, exp: number }
 export interface ResponderSnapshot extends Common { role: 'responder', link: { from: string, id: string, exp: number, label: string | null }, challenge: string, channel: Channel }
 
@@ -72,6 +74,8 @@ export abstract class Machine<S extends Common> {
   private chain: Promise<unknown> = Promise.resolve()
   /** the machine owns a copy of what it was given: a restored snapshot may be frozen (holder state) */
   constructor (protected readonly party: Party, s: S, protected readonly o: FlowOptions) { this.s = JSON.parse(JSON.stringify(s)) }
+  /** the party as the card is issued for it: with the delivery hints the snapshot keeps */
+  protected get cardParty (): Party { return this.s.deliveryHints?.length ? { ...this.party, deliveryHints: this.s.deliveryHints } : this.party }
   /** one call at a time: two documents arriving together are handled one after another */
   protected serial<T> (f: () => Promise<T>): Promise<T> { const p = this.chain.then(f, f); this.chain = p.catch(() => {}); return p }
   snapshot (): S { return JSON.parse(JSON.stringify(this.s)) }
@@ -117,7 +121,7 @@ export abstract class Machine<S extends Common> {
 export class Inviter extends Machine<InviterSnapshot> {
   constructor (party: Party, link: { id: string, exp: number }, o: FlowOptions, restore?: InviterSnapshot) {
     if (restore && restore.role !== 'inviter') throw new Error('not an inviter snapshot')
-    super(party, restore ?? { role: 'inviter', id: link.id, exp: link.exp, ...empty() }, o)
+    super(party, restore ?? { role: 'inviter', id: link.id, exp: link.exp, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}) }, o)
   }
   protected ownDocs (): any[] { return [this.s.accept, this.s.decline] }
   /** the propose the person has to answer, or null */
@@ -195,7 +199,7 @@ export class Inviter extends Machine<InviterSnapshot> {
     // everything built first, the state set once all of it exists
     const accept = await sc.accept(this.party, p, nowMs, this.o.newId())
     const vrc = await sc.credential(this.party, p.payload.relationshipDid, p, channel, nowMs, { profile: this.o.credentialProfile })
-    const card = this.o.card ? await sc.issueCard(this.party, s.id, nowMs) : undefined
+    const card = this.o.card ? await sc.issueCard(this.cardParty, s.id, nowMs) : undefined
     const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) })
     Object.assign(s, { accept, issueMine })
     const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }])
@@ -225,7 +229,7 @@ export class Responder extends Machine<ResponderSnapshot> {
   constructor (party: Party, link: ReadLink | ResponderSnapshot['link'], challenge: string, channel: Channel, o: FlowOptions, restore?: ResponderSnapshot) {
     if (restore && restore.role !== 'responder') throw new Error('not a responder snapshot')
     const l = typeof (link as ReadLink).from === 'object' ? { from: (link as ReadLink).from.did, id: link.id, exp: link.exp, label: (link as ReadLink).label ?? null } : link as ResponderSnapshot['link']
-    super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty() }, o)
+    super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}) }, o)
   }
   protected ownDocs (): any[] { return [this.s.propose] }
   get theirPair (): string | null { return this.s.accept?.payload.relationshipDid ?? null }
@@ -251,7 +255,7 @@ export class Responder extends Machine<ResponderSnapshot> {
       const r = await sc.checkAccept(doc, s.propose, s.link.from, nowMs)
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
       const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.propose, s.channel, nowMs, { profile: this.o.credentialProfile })
-      const card = this.o.card ? await sc.issueCard(this.party, s.challenge, nowMs) : undefined
+      const card = this.o.card ? await sc.issueCard(this.cardParty, s.challenge, nowMs) : undefined
       const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) })
       Object.assign(s, { accept: doc, issueMine })
       const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }])

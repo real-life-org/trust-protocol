@@ -50,6 +50,8 @@ export class Machine {
         this.o = o;
         this.s = JSON.parse(JSON.stringify(s));
     }
+    /** the party as the card is issued for it: with the delivery hints the snapshot keeps */
+    get cardParty() { return this.s.deliveryHints?.length ? { ...this.party, deliveryHints: this.s.deliveryHints } : this.party; }
     /** one call at a time: two documents arriving together are handled one after another */
     serial(f) { const p = this.chain.then(f, f); this.chain = p.catch(() => { }); return p; }
     snapshot() { return JSON.parse(JSON.stringify(this.s)); }
@@ -103,7 +105,7 @@ export class Inviter extends Machine {
     constructor(party, link, o, restore) {
         if (restore && restore.role !== 'inviter')
             throw new Error('not an inviter snapshot');
-        super(party, restore ?? { role: 'inviter', id: link.id, exp: link.exp, ...empty() }, o);
+        super(party, restore ?? { role: 'inviter', id: link.id, exp: link.exp, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}) }, o);
     }
     ownDocs() { return [this.s.accept, this.s.decline]; }
     /** the propose the person has to answer, or null */
@@ -197,7 +199,7 @@ export class Inviter extends Machine {
         // everything built first, the state set once all of it exists
         const accept = await sc.accept(this.party, p, nowMs, this.o.newId());
         const vrc = await sc.credential(this.party, p.payload.relationshipDid, p, channel, nowMs, { profile: this.o.credentialProfile });
-        const card = this.o.card ? await sc.issueCard(this.party, s.id, nowMs) : undefined;
+        const card = this.o.card ? await sc.issueCard(this.cardParty, s.id, nowMs) : undefined;
         const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) });
         Object.assign(s, { accept, issueMine });
         const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }]);
@@ -235,7 +237,7 @@ export class Responder extends Machine {
         if (restore && restore.role !== 'responder')
             throw new Error('not a responder snapshot');
         const l = typeof link.from === 'object' ? { from: link.from.did, id: link.id, exp: link.exp, label: link.label ?? null } : link;
-        super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty() }, o);
+        super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}) }, o);
     }
     ownDocs() { return [this.s.propose]; }
     get theirPair() { return this.s.accept?.payload.relationshipDid ?? null; }
@@ -265,7 +267,7 @@ export class Responder extends Machine {
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
             const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.propose, s.channel, nowMs, { profile: this.o.credentialProfile });
-            const card = this.o.card ? await sc.issueCard(this.party, s.challenge, nowMs) : undefined;
+            const card = this.o.card ? await sc.issueCard(this.cardParty, s.challenge, nowMs) : undefined;
             const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) });
             Object.assign(s, { accept: doc, issueMine });
             const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }]);

@@ -76,7 +76,9 @@
 //     on the record of the relationship's first tuple, whose relId is the
 //     relationship's id (the enactment that opened it): a re-encounter's
 //     record names the husk it opened, so its card never replaces the
-//     first contact's hints. A chained relationship (a husk) is no
+//     first contact's hints; for a relationship a shared-connect enactment
+//     opened (no record), the deliveryHints of the counterparty's card in
+//     its issue step, held in the enactment. A chained relationship (a husk) is no
 //     RelationshipView of its own, only an id in chainedFrom: it shows no
 //     carrierNonce, because no adapter instance runs for it (profile
 //     RLTP-VTI-1230)
@@ -88,6 +90,7 @@ import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
 import { messageChannel } from './message/holder.js';
 import { canonicalCarrierNonce } from './identity-state.js';
+import { cardOfIssue } from './shared-connect.js';
 // ── helpers ────────────────────────────────────────────────────────────
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
@@ -141,17 +144,21 @@ const relationshipsOf = (state, c, ids, ix) => {
  *  relationship `r`: the record of its first tuple's label (a chaining
  *  appends, so the first tuple stays the one the relationship opened with),
  *  found in the per-read label index. */
-const firstHints = (r, rix) => {
+const firstHints = (r, rix, scix) => {
     const first = r.tuples[0];
     const rec = first ? rix.get(first.ownPairLabel) : undefined;
-    if (!rec || rec.relId !== r.id)
+    // a relationship a shared-connect enactment opened has no record: the counterparty's card is the one
+    // in its issue step, held in the enactment's flow snapshot (shared-connect-holder.ts)
+    const sce = !rec && first ? scix.get(first.ownPairLabel) : undefined;
+    const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? cardOfIssue(sce.flow.issueTheirs) : undefined;
+    if (!card)
         return undefined;
-    const h = rec.card?.deliveryHints;
+    const h = card?.deliveryHints;
     return Array.isArray(h) && h.length ? h.filter((x) => typeof x === 'string') : undefined;
 };
-const relationshipView = (state, r, rix) => {
+const relationshipView = (state, r, rix, scix) => {
     const n = canonicalCarrierNonce(state.register, r.id);
-    const hints = firstHints(r, rix);
+    const hints = firstHints(r, rix, scix);
     return {
         id: r.id, tuples: r.tuples.length,
         chainedFrom: Object.values(state.relationships).filter((x) => x.chainedInto === r.id).map((x) => x.id).sort(cmp),
@@ -209,7 +216,7 @@ const project = (state, c, ix, rix, scix) => {
         commitSeq: state.commitSeq,
         id: c.id,
         aliases: [...c.aliases],
-        relationships: own.map((r) => relationshipView(state, r, rix)),
+        relationships: own.map((r) => relationshipView(state, r, rix, scix)),
         ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
         provenance: origin.provenance.kind,
         ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),

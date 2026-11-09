@@ -122,6 +122,12 @@ const offerInput = (c) => c === undefined ? undefined : {
     nonce: c?.nonce instanceof Uint8Array ? b64uOf(c.nonce) : null,
     deliveryHints: Array.isArray(c?.deliveryHints) ? [...c.deliveryHints] : null,
 };
+/** A shared-connect act's input with its carrier offer as act input (the same form as show and scan journal). */
+const withOffer = (input) => {
+    const { carrier, ...rest } = (input ?? {});
+    const offer = offerInput(carrier);
+    return { ...rest, ...(offer === undefined ? {} : { carrier: offer }) };
+};
 /** A holder over its ports: `{store, keys, entropy?, log?, access?, retry?, crypto?}`.
  *  The crypto handle (default globalThis.crypto) is resolved and probed
  *  here and also feeds the default entropy; an app that injects one
@@ -163,8 +169,8 @@ export async function createHolder(ports, opts = {}) {
         captureSentCard: (card, o) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
         counter: (contactId, o) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
         // shared-connect 0.1 (shared-connect-holder.ts)
-        sharedConnectShow: (input, o) => human(SC_COMMANDS.show, input, o),
-        sharedConnectPropose: (input, o) => human(SC_COMMANDS.propose, input, o),
+        sharedConnectShow: (input, o) => human(SC_COMMANDS.show, withOffer(input), o),
+        sharedConnectPropose: (input, o) => human(SC_COMMANDS.propose, withOffer(input), o),
         sharedConnectReceive: (doc, sender, when) => engine.act(SC_COMMANDS.receive, { doc, sender }, when),
         foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),
         foundPersonalCommunity: (c, o) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
