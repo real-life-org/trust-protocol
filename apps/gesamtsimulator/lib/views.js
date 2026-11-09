@@ -82,7 +82,7 @@
 //     RLTP-VTI-1230)
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
-import { heldOf, triasOf } from './state.js';
+import { heldOf, triasOf, sharedConnectOriginOf, sharedConnectIndex } from './state.js';
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js';
 import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
@@ -159,7 +159,7 @@ const relationshipView = (state, r, rix) => {
         ...(hints ? { counterpartDeliveryHints: hints } : {}),
     };
 };
-const project = (state, c, ix, rix) => {
+const project = (state, c, ix, rix, scix) => {
     const ids = new Set([c.id, ...c.aliases]);
     const { own, all: rels } = relationshipsOf(state, c, ids, ix);
     const mine = (t) => ids.has(t.entryId);
@@ -204,6 +204,7 @@ const project = (state, c, ix, rix) => {
     const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined;
     const stars = heads.map((h) => h.t.starIn.accepted).filter((a) => a !== null);
     const sharedContacts = stars.length ? [...new Set(stars.flatMap((a) => a.matches))].sort(cmp) : undefined;
+    const scOrigin = sharedConnectOriginOf(state, c, scix);
     return {
         commitSeq: state.commitSeq,
         id: c.id,
@@ -212,6 +213,7 @@ const project = (state, c, ix, rix) => {
         ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
         provenance: origin.provenance.kind,
         ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),
+        ...(scOrigin ? { sharedConnect: scOrigin } : {}),
         verification: out && inn ? 'mutual' : out ? 'outgoing' : inn ? 'incoming' : 'met',
         trust: {
             given: trusted,
@@ -267,12 +269,13 @@ export function contactsView(state) {
     });
     const ix = entryIndex(state);
     const rix = recordIndex(state);
-    return freezeDeep(order.map((c) => project(state, c, ix, rix)));
+    const scix = sharedConnectIndex(state);
+    return freezeDeep(order.map((c) => project(state, c, ix, rix, scix)));
 }
 /** One contact by entry id or alias; undefined if there is none. */
 export function contactView(state, id) {
     const c = findContact(state, id);
-    return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state))) : undefined;
+    return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state), sharedConnectIndex(state))) : undefined;
 }
 /** The holder's groups, by genesis digest. */
 export function groupsView(state) {

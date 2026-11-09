@@ -10,6 +10,7 @@
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md);
 // Identity §n is identity-layer.md, Delivery §n delivery-contract.md.
 import type { Json, JsonObject } from './core.js'
+import { channelOf } from './shared-connect.js'
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
 import type { DeliveryFailure, LogHead, PreTransportReason, ReceiverRefusalCode, Recipient } from './ports.js'
@@ -904,4 +905,66 @@ export function emptyState (codec: number): HolderState {
     joining: { preludes: {}, invites: {}, surfaced: [], declined: [] },
     messages: { blocked: [], rates: {}, ready: [], records: {}, inbox: {} },
   }
+}
+
+// ── shared-connect origin of a contact ─────────────────────────────────
+
+/** The channel of a shared-connect enactment as one side states it in its credential (shared-connect
+ *  0.1 §3): `scan` / `displayed` a code read in one place, `link` / `sent` a link opened elsewhere. */
+export type SharedConnectChannel = SharedConnectEnactment['channel']
+
+/** What the contact book shows of a shared-connect contact: the enactment that opened it (the
+ *  oldest, where several tuples of the entry came from enactments), this side's channel in it,
+ *  the counterpart's channel as its credential states it (null where the credential names
+ *  none, a foreign profile), and whether the entry met. An entry met when any of its tuples
+ *  came from an encounter or an introduction, or from an enactment in which **both** sides
+ *  state a code read in one place; one side's statement alone is not a meeting, and the two
+ *  statements together are what the two participants said, not proof of co-presence. */
+export interface SharedConnectOrigin { enactmentId: string, channel: SharedConnectChannel, theirChannel: SharedConnectChannel | null, met: boolean }
+
+const CHANNELS: readonly SharedConnectChannel[] = ['scan', 'displayed', 'link', 'sent']
+/** a code read in one place, this side */
+export const metByChannel = (channel: SharedConnectChannel): boolean => channel === 'scan' || channel === 'displayed'
+
+/** the counterpart's channel from the credential it issued (the one of the four values; null for none, or a value outside them) */
+export function theirChannelOf (e: Readonly<SharedConnectEnactment>): SharedConnectChannel | null {
+  const issue = (e.flow as { issueTheirs?: { payload?: { vrc?: unknown } } }).issueTheirs
+  const ch = channelOf(issue?.payload?.vrc)
+  return (CHANNELS as readonly unknown[]).includes(ch) ? ch as SharedConnectChannel : null
+}
+
+/** both sides state a code read in one place */
+export const metInEnactment = (e: Readonly<SharedConnectEnactment>): boolean => {
+  const theirs = theirChannelOf(e)
+  return metByChannel(e.channel) && theirs !== null && metByChannel(theirs)
+}
+
+/** own pair label → the shared-connect enactment that opened a relationship under it. The label
+ *  is the tuple's identity (2280): a merge, a split, a rename of the entry and a chaining by
+ *  continuity (6a.4, which moves the tuple and swaps the relationship id) leave it as it is,
+ *  where the enactment's `contactId` and the entry's `relIds` do not. */
+export type SharedConnectIndex = Map<string, SharedConnectEnactment>
+export function sharedConnectIndex (state: Readonly<HolderState>): SharedConnectIndex {
+  const ix: SharedConnectIndex = new Map()
+  for (const e of Object.values(state.sharedConnect.enactments)) if (e.contactId !== null) ix.set(e.label, e)
+  return ix
+}
+
+/** the shared-connect origin of an entry, by the tuples of its relationships (a husk without tuples
+ *  says nothing); null when none came from an enactment. A tuple under no enactment (an encounter,
+ *  an introduction; a deactivated one too, historical evidence) means the entry met. One derivation
+ *  for the contact view and for the trust check (`not-met`). */
+export function sharedConnectOriginOf (state: Readonly<HolderState>, contact: Readonly<Contact>, ix: SharedConnectIndex = sharedConnectIndex(state)): SharedConnectOrigin | null {
+  const own: SharedConnectEnactment[] = []
+  let other = false
+  for (const relId of contact.relIds) {
+    for (const t of state.relationships[relId]?.tuples ?? []) {
+      const e = ix.get(t.ownPairLabel)
+      if (e) own.push(e); else other = true
+    }
+  }
+  if (!own.length) return null
+  const oldest = [...own].sort((a, b) => (a.openedAt - b.openedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0]
+  const met = other || own.some(metInEnactment)
+  return { enactmentId: oldest.id, channel: oldest.channel, theirChannel: theirChannelOf(oldest), met }
 }
