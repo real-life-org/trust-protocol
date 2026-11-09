@@ -506,6 +506,9 @@ export interface Party {
   pair: PairSigner
   /** display name, optional; travels in the propose `reason` (the inviter's in the link's `_label`) */
   name?: string
+  /** this side's delivery hints for the relationship the ceremony opens (Encounter 6080, 6090), signed into
+   *  the card of the issue step; absent without a carrier offer */
+  deliveryHints?: string[]
 }
 
 /** The responder's proposal. `responderChallenge` becomes the document id. */
@@ -627,12 +630,13 @@ export async function credential (me: Party, subjectPair: string, proposeDoc: an
 
 /** The RLTP card of the issue step (design (d), 9 November 2026): the pair's X25519 key, signed under the pair anchor,
  *  with this side's own challenge of the ceremony (the inviter's link handle, the responder's propose id), so the key is
- *  bound to the anchor (Identity §8.4 A3) and to the enactment. Travels in `ext["org.real-life.rltp"].card` of the
+ *  bound to the anchor (Identity §8.4 A3) and to the enactment; with `me.deliveryHints` also this side's delivery
+ *  hints, as the card of encounter-scan carries them (Encounter 6080). Travels in `ext["org.real-life.rltp"].card` of the
  *  issue; a counterpart that does not read it (Keyring) loses nothing. Needs `pair.keyAgreement`. */
 export async function issueCard (me: Party, ownChallenge: string, nowMs: number): Promise<Record<string, any>> {
   if (!me.pair.keyAgreement) throw new Error('issueCard: the pair has no keyAgreement Multikey')
   const when = iso(nowMs)
-  const body = cardBody({ anchor: me.pair.anchor, keyAgreement: me.pair.keyAgreement }, { challenge: { value: ownChallenge, issuedAt: when } })
+  const body = cardBody({ anchor: me.pair.anchor, keyAgreement: me.pair.keyAgreement }, { ...(me.deliveryHints?.length ? { deliveryHints: me.deliveryHints } : {}), challenge: { value: ownChallenge, issuedAt: when } })
   const sign = 'sign' in me.pair && me.pair.sign ? me.pair.sign : async (h: Uint8Array) => new Uint8Array(await S().sign({ name: 'Ed25519' }, (me.pair as Signer).ed.priv, h))
   return diSignWith(me.pair.anchor, sign, body as unknown as Record<string, any>, when)
 }

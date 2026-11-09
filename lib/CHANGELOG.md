@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.17.0
+
+shared-connect: the relationship the ceremony opens is carried. `sharedConnectShow`
+and `sharedConnectPropose` take a carrier offer (`carrier: { nonce, deliveryHints }`),
+the one `show` and `scan` take (Encounter 6080, 6090; Identity §7a.3), with the same
+checks (`card-invalid`, `carrier-nonce-invalid`). The nonce enters the register at
+the act, under the relationship the pair label opens; the hints travel under the
+pair anchor's signature in this side's card of the issue step
+(`ext["org.real-life.rltp"].card.deliveryHints`; `Party.deliveryHints`,
+`FlowOptions.deliveryHints`, kept in the flow snapshot across a restart). The
+contact view of such a relationship shows `carrierNonce` and the counterpart's
+`counterpartDeliveryHints` from its card, so a carrier adapter runs for it as for a
+relationship of encounter-scan. Without an offer nothing changes: no nonce, no
+hints, the relationship is not carried. No codec change (the snapshot is opaque
+to the codec).
+
 ## 0.16.0
 
 shared-connect on the holder, 9 November 2026: the flow machines (`sharedConnectFlow`),

@@ -198,7 +198,7 @@ const nameFor = (state, name) => {
  *  announces nothing, a card without hints needs no offer); the bounds of
  *  6090 (at most eight, each at most 512 characters); then N's form (32
  *  bytes, canonical base64url). null where there is no offer or it passes. */
-function offerRefusal(carrier) {
+export function offerRefusal(carrier) {
     if (carrier === undefined)
         return null;
     const c = carrier;
@@ -215,7 +215,7 @@ function offerRefusal(carrier) {
     return null;
 }
 /** N is fresh (Identity §7a.3): no carrier or pair nonce of the register, and not this act's pair nonce. */
-const nonceStale = (state, carrier, pairNonce) => carrier !== undefined && (carrier.nonce === pairNonce || carrierNonceHeld(state.register, carrier.nonce));
+export const nonceStale = (state, carrier, pairNonce) => carrier !== undefined && (carrier.nonce === pairNonce || carrierNonceHeld(state.register, carrier.nonce));
 /** A fresh pair label from 32 fresh nonce bytes (Identity 6.1, Encounter 4.4). */
 async function freshLabel(ctx) {
     const n = ctx.entropy.bytes('founding.nonce', 32);

@@ -158,6 +158,13 @@ const offerInput = (c: CarrierOffer | undefined): Record<string, Json> | undefin
   deliveryHints: Array.isArray(c?.deliveryHints) ? [...c.deliveryHints] : null,
 }
 
+/** A shared-connect act's input with its carrier offer as act input (the same form as show and scan journal). */
+const withOffer = <T extends { carrier?: CarrierOffer }>(input: T): Record<string, Json> => {
+  const { carrier, ...rest } = (input ?? {}) as T
+  const offer = offerInput(carrier)
+  return { ...(rest as Record<string, Json>), ...(offer === undefined ? {} : { carrier: offer }) }
+}
+
 export interface Holder {
   /** any registered command by name, for modules and tests; apps use the typed acts */
   act (command: string, input: unknown, when: Millis, opts?: { actId?: string }): Promise<ActResult>
@@ -210,9 +217,9 @@ export interface Holder {
   /** the counter-step toward a contact met as displayer (Encounter 5.8 step 4); human */
   counter (contactId: string, opts: HumanActOptions): Promise<ActResult>
   /** shared-connect 0.1 (shared-connect-holder.ts): the inviter's link under a fresh pair label and messaging identity */
-  sharedConnectShow (input: ShowInput, opts: HumanActOptions): Promise<ActResult>
+  sharedConnectShow (input: Omit<ShowInput, 'carrier'> & { carrier?: CarrierOffer }, opts: HumanActOptions): Promise<ActResult>
   /** the responder: the link read, the proposal made (its documents in the event sharedconnect.send) */
-  sharedConnectPropose (input: ProposeInput, opts: HumanActOptions): Promise<ActResult>
+  sharedConnectPropose (input: Omit<ProposeInput, 'carrier'> & { carrier?: CarrierOffer }, opts: HumanActOptions): Promise<ActResult>
   /** a shared-connect document the carrier delivered, opened, with the TSP sender it verified */
   sharedConnectReceive (doc: unknown, sender: string, when: Millis): Promise<ActResult>
   /** a group founded under a fresh pair anchor (Access 3.4.1); its rule
@@ -358,8 +365,8 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     captureSentCard: (card: Json, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
     counter: (contactId: string, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
     // shared-connect 0.1 (shared-connect-holder.ts)
-    sharedConnectShow: (input: ShowInput, o: HumanActOptions) => human(SC_COMMANDS.show, input, o),
-    sharedConnectPropose: (input: ProposeInput, o: HumanActOptions) => human(SC_COMMANDS.propose, input, o),
+    sharedConnectShow: (input: Omit<ShowInput, 'carrier'> & { carrier?: CarrierOffer }, o: HumanActOptions) => human(SC_COMMANDS.show, withOffer(input), o),
+    sharedConnectPropose: (input: Omit<ProposeInput, 'carrier'> & { carrier?: CarrierOffer }, o: HumanActOptions) => human(SC_COMMANDS.propose, withOffer(input), o),
     sharedConnectReceive: (doc: unknown, sender: string, when: Millis) => engine.act(SC_COMMANDS.receive, { doc, sender } satisfies ReceiveInput, when),
     foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),
     foundPersonalCommunity: (c: { name: string }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),

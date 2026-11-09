@@ -32,8 +32,8 @@ import type { ActError } from './results.js'
 import type { EventDraft } from './engine.js'
 import { jcs, b64uOf, fromB64u } from './core.js'
 import { digestBytes } from './crypto.js'
-import { withPairNonce } from './identity-state.js'
-import { idsOf } from './encounter/ceremony.js'
+import { withPairNonce, withCarrierNonce } from './identity-state.js'
+import { idsOf, offerRefusal, nonceStale, type CarrierOfferInput } from './encounter/ceremony.js'
 import { openTuple } from './trust/continuity.js'
 import * as sc from './shared-connect.js'
 import type { Party, Relay, Channel } from './shared-connect.js'
@@ -47,11 +47,17 @@ export const promptIdOf = (id: string): string => 'sharedconnect:' + id
  *  the only place the holder keeps them (the relationship stores identifiers and keys, no credentials) */
 export const RETENTION = 30 * 24 * 3_600_000
 
-export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent' }
-export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string }
+/** `carrier`: the carrier offer as show and scan take it (Encounter 6080, 6090; Identity §7a.3): the nonce N
+ *  enters the register under the relationship the pair label opens, the hints travel in this side's card of
+ *  the issue step, so the relationship the ceremony opens is carried like one of encounter-scan */
+export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput }
+export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string, carrier?: CarrierOfferInput }
 export interface ReceiveInput { doc: unknown, sender: string }
 
 const no = (code: ActError, ref?: string): Refusal => ({ ok: false, code, ...(ref ? { ref } : {}) })
+/** the register with the offer's carrier nonce under the relationship `label` opens, or unchanged without an offer */
+const carrierOf = (r: HolderState['register'], label: string, carrier: CarrierOfferInput | undefined): HolderState['register'] =>
+  carrier === undefined ? r : withCarrierNonce(r, idsOf(label).relId, carrier.nonce)
 const isRefusal = (x: unknown): x is Refusal => !!x && typeof x === 'object' && (x as Refusal).ok === false
 type Snap = InviterSnapshot | ResponderSnapshot
 
@@ -67,7 +73,7 @@ async function partyOf (ctx: PrepareCtx, e: Pick<SharedConnectEnactment, 'role' 
   return p
 }
 /** the options of one preparation: document ids from this holder's entropy; never shared between holders */
-const flowOpts = (ctx: PrepareCtx): FlowOptions => ({ newId: () => ctx.entropy.id('doc.id'), card: true })
+const flowOpts = (ctx: PrepareCtx, carrier?: CarrierOfferInput): FlowOptions => ({ newId: () => ctx.entropy.id('doc.id'), card: true, ...(carrier ? { deliveryHints: [...carrier.deliveryHints] } : {}) })
 const machineOf = (ctx: PrepareCtx, party: Party, e: SharedConnectEnactment): Inviter | Responder => e.role === 'inviter'
   ? new Inviter(party, { id: e.id, exp: e.link.exp }, flowOpts(ctx), e.flow as unknown as InviterSnapshot)
   : new Responder(party, e.link, (e.flow as unknown as ResponderSnapshot).challenge, e.channel, flowOpts(ctx), e.flow as unknown as ResponderSnapshot)
@@ -142,6 +148,8 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
   human: true,
   async prepare (ctx, input) {
     if (!ctx.keys.sharedConnectMessaging) return no('keys-missing')
+    const offer = offerRefusal(input?.carrier)
+    if (offer) return offer
     const relays = Array.isArray(input?.relays) ? input.relays : []
     const channel = input?.channel === 'sent' ? 'sent' : 'displayed'
     const n32 = ctx.entropy.bytes('founding.nonce', 32)
@@ -158,12 +166,13 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     let link: string
     try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, undefined, nowS) } catch { return no('link-invalid') }
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
-    const flow = new Inviter(party, { id, exp }, flowOpts(ctx)).snapshot()
+    const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot()
     return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel }
   },
-  apply (state, prepared, _input, when) {
+  apply (state, prepared, input, when) {
     const p = prepared.value
     if (isRefusal(p)) return p
+    if (nonceStale(state, input?.carrier, p.nonce)) return no('carrier-nonce-invalid')
     if (state.register.labels.includes(p.label) || Object.hasOwn(state.sharedConnect.enactments, p.id)) throw new Error('sharedconnect.show: the label or the handle is not fresh')
     const e: SharedConnectEnactment = {
       id: p.id, role: 'inviter', label: p.label, did: p.did, relays: p.relays.map((r) => ({ kind: r.kind, address: r.address, ...(r.multiaddrs ? { multiaddrs: [...r.multiaddrs] } : {}) })),
@@ -173,7 +182,8 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     return {
       state: {
         ...state,
-        register: withPairNonce(state.register, p.label, p.nonce),
+        // the carrier nonce beside the label, under the relationship the label opens (as encounter.show does)
+        register: carrierOf(withPairNonce(state.register, p.label, p.nonce), p.label, input?.carrier),
         addresses: { ...state.addresses, keys: { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: when } } },
         sharedConnect: { enactments: { ...state.sharedConnect.enactments, [p.id]: e } },
       },
@@ -191,6 +201,8 @@ const proposeDef: CommandDef<ProposeInput, ProposePrep> = {
   async prepare (ctx, input) {
     if (!ctx.keys.sharedConnectMessaging) return no('keys-missing')
     if (typeof input?.link !== 'string') return no('link-invalid')
+    const offer = offerRefusal(input.carrier)
+    if (offer) return offer
     const nowS = Math.floor(ctx.when / 1000)
     const read = await sc.readSharedConnectLink(input.link, nowS)
     if (!read.ok) return no('link-invalid', read.reason)
@@ -205,14 +217,15 @@ const proposeDef: CommandDef<ProposeInput, ProposePrep> = {
     const did = sc.peer2Of(m.ed, m.x, relays)
     const name = typeof input.name === 'string' && input.name.length ? input.name : null
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
-    const R = new Responder(party, read.link, challenge, channel, flowOpts(ctx))
+    const R = new Responder(party, read.link, challenge, channel, flowOpts(ctx, input.carrier))
     const r = await R.start(ctx.when)
     const link = { from: read.link.from.did, id: read.link.id, exp: read.link.exp, label: read.link.label ?? null }
     return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id: read.link.id, did, link, flow: R.snapshot(), send: r.send, relays, name, channel }
   },
-  apply (state, prepared, _input, when) {
+  apply (state, prepared, input, when) {
     const p = prepared.value
     if (isRefusal(p)) return p
+    if (nonceStale(state, input?.carrier, p.nonce)) return no('carrier-nonce-invalid')
     if (state.register.labels.includes(p.label)) throw new Error('sharedconnect.propose: the label is not fresh')
     if (Object.hasOwn(state.sharedConnect.enactments, p.id)) return no('enactment-closed', state.sharedConnect.enactments[p.id].role === 'responder' ? 'this link was already answered' : 'this is the handle of an own link')
     const e: SharedConnectEnactment = {
@@ -222,7 +235,7 @@ const proposeDef: CommandDef<ProposeInput, ProposePrep> = {
     return {
       state: {
         ...state,
-        register: withPairNonce(state.register, p.label, p.nonce),
+        register: carrierOf(withPairNonce(state.register, p.label, p.nonce), p.label, input?.carrier),
         addresses: { ...state.addresses, keys: { ...state.addresses.keys, [p.rkid]: { label: p.label, lastShown: when } } },
         sharedConnect: { enactments: { ...state.sharedConnect.enactments, [p.id]: e } },
       },
