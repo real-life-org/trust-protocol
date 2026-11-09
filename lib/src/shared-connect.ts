@@ -515,8 +515,10 @@ export interface Party {
 export async function propose (responder: Party, inviterDid: string, enactment: string, responderChallenge: string, nowMs: number, expiresMs?: number) {
   if (!canonicalChallenge(responderChallenge) || !canonicalChallenge(enactment)) throw new Error('challenges must be canonical 16-byte values')
   const when = iso(nowMs)
+  // the propose opens the exchange: its threadId is its own id, the thread every later document names
+  // (SPEC §4.9; Keyring's inviter requires it on the opening document too)
   const doc: Record<string, any> = {
-    id: responderChallenge, type: TASK_PROPOSE,
+    id: responderChallenge, type: TASK_PROPOSE, threadId: responderChallenge,
     issuer: responder.messaging.did, recipient: inviterDid, issuedAt: when,
     ceremony: { enactment, step: 'propose' } as Ceremony,
     payload: { relationshipDid: responder.pair.anchor } as Record<string, any>,
@@ -886,7 +888,7 @@ export async function proposeFromBackCode (code: string, me: { did: string, id: 
   const vm = peer2MethodFor(peer, 'authentication'); if (!vm) return null
   const when = iso(Number(t) * 1000)
   const doc: Record<string, any> = {
-    id, type: TASK_PROPOSE, issuer: peer.did, recipient: me.did, issuedAt: when,
+    id, type: TASK_PROPOSE, threadId: id, issuer: peer.did, recipient: me.did, issuedAt: when,
     ceremony: { enactment: me.id, step: 'propose' },
     payload: { relationshipDid: rel } as Record<string, any>,
   }

@@ -552,8 +552,10 @@ export async function propose(responder, inviterDid, enactment, responderChallen
     if (!canonicalChallenge(responderChallenge) || !canonicalChallenge(enactment))
         throw new Error('challenges must be canonical 16-byte values');
     const when = iso(nowMs);
+    // the propose opens the exchange: its threadId is its own id, the thread every later document names
+    // (SPEC §4.9; Keyring's inviter requires it on the opening document too)
     const doc = {
-        id: responderChallenge, type: TASK_PROPOSE,
+        id: responderChallenge, type: TASK_PROPOSE, threadId: responderChallenge,
         issuer: responder.messaging.did, recipient: inviterDid, issuedAt: when,
         ceremony: { enactment, step: 'propose' },
         payload: { relationshipDid: responder.pair.anchor },
@@ -998,7 +1000,7 @@ export async function proposeFromBackCode(code, me) {
         return null;
     const when = iso(Number(t) * 1000);
     const doc = {
-        id, type: TASK_PROPOSE, issuer: peer.did, recipient: me.did, issuedAt: when,
+        id, type: TASK_PROPOSE, threadId: id, issuer: peer.did, recipient: me.did, issuedAt: when,
         ceremony: { enactment: me.id, step: 'propose' },
         payload: { relationshipDid: rel },
     };

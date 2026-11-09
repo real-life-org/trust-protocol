@@ -2,6 +2,9 @@
 
 ## 0.18.0
 
+shared-connect: the propose carries `threadId` equal to its `id`, as the opening document of the
+exchange (SPEC §4.9); Keyring's inviter drops a propose without it. Vector regenerated.
+
 shared-connect: a contact met when this side read or showed the code in one place and the
 counterpart does not state `link` or `sent` (`metInEnactment`). Before, the counterpart had to
 state `scan` or `displayed` too; a counterpart whose credential carries no `channel` (Keyring,

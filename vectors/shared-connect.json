@@ -22,7 +22,7 @@
   },
   "citation": {
     "taskContext": "8PHy8_T19vf4-fr7_P3-_w",
-    "taskDigestMultibase": "zQmf2e67fHcSGrMzFp5twsQYBkRAA9cYDLao4mrBJvSinAt"
+    "taskDigestMultibase": "zQmVeAwW5BQJpNn8KQHFiqxPpYopDECVnsDYJCVuQw328P2"
   },
   "inviter": {
     "messaging": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
@@ -150,6 +150,7 @@
     "propose": {
       "id": "8PHy8_T19vf4-fr7_P3-_w",
       "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+      "threadId": "8PHy8_T19vf4-fr7_P3-_w",
       "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
       "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
       "issuedAt": "2026-11-07T10:00:05Z",
@@ -167,7 +168,7 @@
         "created": "2026-11-07T10:00:05Z",
         "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe"
+        "proofValue": "z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8"
       }
     },
     "accept": {
@@ -219,7 +220,7 @@
           "issuer": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
           "issuerScope": "pairwise",
           "taskContext": "8PHy8_T19vf4-fr7_P3-_w",
-          "taskDigestMultibase": "zQmf2e67fHcSGrMzFp5twsQYBkRAA9cYDLao4mrBJvSinAt",
+          "taskDigestMultibase": "zQmVeAwW5BQJpNn8KQHFiqxPpYopDECVnsDYJCVuQw328P2",
           "validFrom": "2026-11-07T10:00:07Z",
           "credentialSubject": {
             "id": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
@@ -235,10 +236,10 @@
               "https://www.w3.org/ns/credentials/v2",
               "https://registry.trustoverip.org/dtg/context/v1"
             ],
-            "proofValue": "zYW7A9E1uBNvYtZEPRuvwtx4JCkvrQnSjiG6xmayJv65SNfz5mRwurm2sGKCKnGgGo1Edwow8VaWfS7h55nHj4gL"
+            "proofValue": "z5LoLAfNBttqa8qVwGyJZ7hEDW2VCdKGrJW9kKJ6SURMfvf6orPuK83eVb8CN3jzkSNjpFJKmF66eRGTREtAwVQvf"
           }
         },
-        "vrcDigestMultibase": "uEiA_DqxqhzfT3NJdBRLb5OSfvBk1wNslwW-7Z-1afUQB5g"
+        "vrcDigestMultibase": "uEiDBwJwWctALwuGloKR6MgQmNXzL05GFR5fKb4_stFi2jg"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -246,7 +247,7 @@
         "created": "2026-11-07T10:00:07Z",
         "verificationMethod": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z5ZdXNGaTfFxgEHL2SiZBt6EfvV3jrSUEbmDpZa8GNYMHsmqmtgLgvnmLKE5jD4uDX5XNKGiRfxwQDR5ihCL9PVM7"
+        "proofValue": "z21hweqGdPCxxx9VgCMGZfVREiLmthHg81tuw4Wi2maAoHFkNga3qHwbmWZKTWgdDpa1pnNPunJ3sStjABCQSmTHo"
       }
     },
     "receipt-inviter": {
@@ -261,7 +262,7 @@
         "step": "issue-inviter"
       },
       "payload": {
-        "vrcDigestMultibase": "uEiA_DqxqhzfT3NJdBRLb5OSfvBk1wNslwW-7Z-1afUQB5g"
+        "vrcDigestMultibase": "uEiDBwJwWctALwuGloKR6MgQmNXzL05GFR5fKb4_stFi2jg"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -269,7 +270,7 @@
         "created": "2026-11-07T10:00:08Z",
         "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z4QiWokbaRAVen7hyKThRoGwyJyUqkNQLfhJztUM7qxL3D6esmTkfvDaNK1TabNaQDZ3CwbG9PLY1AsqC6f38TH18"
+        "proofValue": "zSWB3Mfqkz29tAKChEamgHNPkubosi4cSuZupfEw1fNagLwAus3qGSoauZyS3udWCUf63c7zR8KaS4rLbgMv3e58"
       }
     },
     "issue-responder": {
@@ -298,7 +299,7 @@
           "issuer": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
           "issuerScope": "pairwise",
           "taskContext": "8PHy8_T19vf4-fr7_P3-_w",
-          "taskDigestMultibase": "zQmf2e67fHcSGrMzFp5twsQYBkRAA9cYDLao4mrBJvSinAt",
+          "taskDigestMultibase": "zQmVeAwW5BQJpNn8KQHFiqxPpYopDECVnsDYJCVuQw328P2",
           "validFrom": "2026-11-07T10:00:09Z",
           "credentialSubject": {
             "id": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
@@ -314,10 +315,10 @@
               "https://www.w3.org/ns/credentials/v2",
               "https://registry.trustoverip.org/dtg/context/v1"
             ],
-            "proofValue": "zGsWrcFTfr43ECqXsnxMaQzC6L1KJrHu3M5xVgamq9u7HEZXJmYD2RJfSJWG79X8dJDwz3gTPmau5hBd7By8YGPg"
+            "proofValue": "z2r1ccmuRt7DQbSXq8yFu11CiQroxRgLTSYZrho72EWFh1iV4XHrzdM6QbmzA7LaXYfGBUF8m9cdsvU4DJpcv377J"
           }
         },
-        "vrcDigestMultibase": "uEiDp0Vbf48pTbRMUFhGvUU_Vyt0gKGrwMox2YOtpQYp6Zw"
+        "vrcDigestMultibase": "uEiDf9O-cgOUUInmeEgVK7wxyZrjgpV_RlZB18sDZ4n-pvA"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -325,7 +326,7 @@
         "created": "2026-11-07T10:00:09Z",
         "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "zwzouf3xe8FA3kemFX9MUmhHijDY17sGzeDAvepFF4mUP47GKtsQV38iPqNnQVkm2pHYnXG22CrTLKaE6BZ6Vs6m"
+        "proofValue": "zA2RhHRjQwV6PnM9aZTN3oErzhLMJ96kMKq7HaVeDDkeN5ipZ5HDqadta4LvpYDnBjvhPV7qrk1JtnZCgJSE6aLR"
       }
     },
     "receipt-responder": {
@@ -340,7 +341,7 @@
         "step": "issue-responder"
       },
       "payload": {
-        "vrcDigestMultibase": "uEiDp0Vbf48pTbRMUFhGvUU_Vyt0gKGrwMox2YOtpQYp6Zw"
+        "vrcDigestMultibase": "uEiDf9O-cgOUUInmeEgVK7wxyZrjgpV_RlZB18sDZ4n-pvA"
       },
       "proof": {
         "type": "DataIntegrityProof",
@@ -348,12 +349,12 @@
         "created": "2026-11-07T10:00:10Z",
         "verificationMethod": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ#key-1",
         "proofPurpose": "authentication",
-        "proofValue": "z2ERhvbZBuzvs2nRz6KyF1msvBgEPuponEDPP7dLfWPwNZ8JdwGqoXHh4qwg2FcNyu9nt6BQcQvMduEjMKZ25RuAJ"
+        "proofValue": "zDq7eFGgw3opwVWyWn6BCVCJaw2MFo76sL9K7qZPqAjcDWiXo9c7RUDwgy5XphYu4LBK8gTGhAZqbneqDCn1hcgk"
       }
     }
   },
   "backCode": {
-    "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&sig=z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe",
+    "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
     "length": 516,
     "rebuilds": "steps.propose"
   },
@@ -466,6 +467,7 @@
       "propose": {
         "id": "8PHy8_T19vf4-fr7_P3-_w",
         "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+        "threadId": "8PHy8_T19vf4-fr7_P3-_w",
         "issuer": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD:zazckB5oGehrDcMvkWRQJFP7B68U4VFHhAh5sZHyypCb4s5JF2xggD8gmbuXrbBqKc7ZXNBm28w9G11f4ZQZrFdZzdx6n1mZ6PcZKcdftFFkgZZ1GByidoSLBjtPLySAXER23LpHz4gWqfuqrByxiF8iKogCZBBH1DupGEdULgrEpiWqqbRYtAPVUmRNd2XKVerU91aXcBTMomoVpNZ62XXVdYDiZHjXuDonxeMggKyaEVmeEaFxb2vGg3BqWXQp7Yx33gmfunkUtdsTFsqDEzyXrwKnXMKDcNfz6E1kLYRasQJX6SyRYJnZaaBs4sFG6mxEGUFuuAGYunAhZQ1U6Dqy3SAEssLePPzbMKXFxARPqf3LKYyZadXsBC5j6Sph1cdXsYX4KDhFC13ZsX9Yor7CEkyB3npJy9kQwigtwjBtsjcF5vAW9eVdrwShGS7Guk9mhDDUZKMXwC4zyiYowM1STK88qktvZn6B29qoV58WcQxx7W4nSVk4dJUH8DigmnDZdejDxJF1HHnF4ATns48SkdBoPH4CLBJFYhrr1XQkEArCqRuWnVxwFwSo2vYcUo7a",
         "recipient": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS:zYrR2JLhgxr9J21Ld3wfA2hUWWWtQBDLBNSA9XyQcG5xfhUCBT5PFSPX8G5ZhkYoj8WkeyKRtsALuuzqvWxtVEAb3AKMAhYEtx4442EBZAx9RsemR1K1ujSWzXguByzTyC7iP4f9Zorv7nCCQivTtgMzoq34gkc7afUvaQLg9YzdZAghTWfDc44iD2QawnrmncLsE828oYgXEN7xnUekc3MgJJGubsSJvCfiNgK1WnvSKqZTBXcrWzZeEACrt74rY9ESg4b3MeJ3Z2QfnB1VmsXGCLRRwudWQu8eKPr46paEMbK9EK2uGdLyX9ybFSvJa8GJhDTgwzZEFH4x29JZk2gXxHdf7RgSpH3nXhWjqWcoWCFvXRqSReJ9WeQyAiydfFkFDPwX5k1Ftc4G73xG45qZqCKrnx1ibzSPNCLTFu3qgmbo4WhPurUnFruFn9PegdLWq8CpbF153MwsAVBXi14yMKVDVFMVHvcS6L5dkduboka3qvAYWxQFR7b2okQfxULfMeRZtv8jDsxbUzj4eNeK5zT2YJZbjPp26oEwp2EusVLHxzx8qVwShDDV8TnqttQnSVUbwMX3wUpp5iRLTfykPxaqSoBKJ2hevjJ8DsLMD3XkBpwAs9E41VNbMHUr4w5DA193uYa3EzuLXo7aKP15dKysbfUGY75AJX5N48cPi8xr5jQG",
         "issuedAt": "2026-11-07T10:00:05Z",
@@ -483,7 +485,7 @@
           "created": "2026-11-07T10:00:05Z",
           "verificationMethod": "did:peer:4zQmeYm64FmWvSg8doeiYmHxNwpTpydUScF8Gxj8PnurwRCD#key-1",
           "proofPurpose": "authentication",
-          "proofValue": "zojMU64A8DaWgT9q26xeefwZuZNyG6kb8H62KTPF85n3hsFHUyFrvsS8hrgTqa2sT1QfQpxywC9cFgdpodtojM9W"
+          "proofValue": "z3XnRoduc3ZUiHezAytob6o2dWbeU5W4TUpXxNgkWWJ5b5YxCiqZhd5dXePwM31TnQAuLN4dFVSFbpYssPaT4B2Rm"
         }
       },
       "accept": {
@@ -535,7 +537,7 @@
             "issuer": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
             "issuerScope": "pairwise",
             "taskContext": "8PHy8_T19vf4-fr7_P3-_w",
-            "taskDigestMultibase": "zQmYauqMTns63a4LmCG2r58nyzyaMRg7h5PYNFgzNLVAoba",
+            "taskDigestMultibase": "zQmPUthbzZyhcXMaJAtPdLTwZNWQFGAkdubfkBjJtUo4iQL",
             "validFrom": "2026-11-07T10:00:07Z",
             "credentialSubject": {
               "id": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
@@ -551,10 +553,10 @@
                 "https://www.w3.org/ns/credentials/v2",
                 "https://registry.trustoverip.org/dtg/context/v1"
               ],
-              "proofValue": "z4qnYRP3YXD6cCnmgU99KHGctXbjhcF9GfAGtUmZ9vLscWqqovvYVQivPQnD8tE8Hko19QmBz3b7GQDpQyujub5WM"
+              "proofValue": "z2EfhYSnc2RvWq4xYH51b1D89S3aqTg6nwfTryY7A3JEsHxCYu1E4RRNJqSYatWyuyHZdoTSNFs9J8FVWBmvY3f2N"
             }
           },
-          "vrcDigestMultibase": "uEiDelqB3vd7axrqFpmpneqs8N_l5Hkqji5h4-KEdqdz45g"
+          "vrcDigestMultibase": "uEiDS0fkXJB6-zR7l9qqr6CkGwsHbxjmLcZxjDQ_bEQgLRA"
         },
         "proof": {
           "type": "DataIntegrityProof",
@@ -562,7 +564,7 @@
           "created": "2026-11-07T10:00:07Z",
           "verificationMethod": "did:peer:4zQmQsR2wmJfCJaNARcndpH5mUnNCYGVeny2VcXQtwVnWEpS#key-1",
           "proofPurpose": "authentication",
-          "proofValue": "z36SUeEJ1Z8wnUDNnsAckVQoSrUJoQz7BvkiMrkwNdGNEtqMwS6CpSRKtXBZAXueRepWvWx5aFTn1Qzi3efhLDWbi"
+          "proofValue": "z5WuGeGAxD9VBWeGKzSPhPPeSSoAUcnvNzAzWC1mRb2yxM3e6uHLZVx2MwTriKiew64NJmLeQhb88kckxHjoEMYa9"
         }
       }
     }
@@ -624,6 +626,7 @@
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+          "threadId": "8PHy8_T19vf4-fr7_P3-_w",
           "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
           "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
           "issuedAt": "2026-11-07T10:00:05Z",
@@ -641,7 +644,7 @@
             "created": "2026-11-07T10:00:05Z",
             "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe"
+            "proofValue": "z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8"
           }
         },
         "me": {
@@ -657,6 +660,7 @@
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+          "threadId": "8PHy8_T19vf4-fr7_P3-_w",
           "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
           "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
           "issuedAt": "2026-11-07T10:00:05Z",
@@ -674,7 +678,7 @@
             "created": "2026-11-07T10:00:05Z",
             "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe"
+            "proofValue": "z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8"
           }
         },
         "me": {
@@ -690,6 +694,7 @@
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+          "threadId": "8PHy8_T19vf4-fr7_P3-_w",
           "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
           "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
           "issuedAt": "2026-11-07T10:12:00Z",
@@ -707,7 +712,7 @@
             "created": "2026-11-07T10:12:00Z",
             "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z4cjynCF2yc5zw5Kvouc6cNFjtHrrTjUsnL9yM9TUKmFBQQrjxfmHVHuosB6zmdvkGukwaARxPyXfZYiiQmRRTgim"
+            "proofValue": "z3NCvpuvdAC2pQmgkf5URkZNQQ8W3wXkNAfK8296Gg9iTTsA5hp6HAStuN3f9PXdWyJrDXTzkEwq7z464BqGxmj7H"
           }
         },
         "me": {
@@ -723,6 +728,7 @@
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+          "threadId": "8PHy8_T19vf4-fr7_P3-_w",
           "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
           "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
           "issuedAt": "2026-11-07T10:00:05Z",
@@ -740,7 +746,7 @@
             "created": "2026-11-07T10:00:05Z",
             "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe"
+            "proofValue": "z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8"
           }
         },
         "me": {
@@ -756,6 +762,7 @@
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+          "threadId": "8PHy8_T19vf4-fr7_P3-_w",
           "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
           "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
           "issuedAt": "2026-11-07T10:00:05Z",
@@ -773,7 +780,7 @@
             "created": "2026-11-07T10:00:05Z",
             "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe"
+            "proofValue": "z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8"
           }
         },
         "me": {
@@ -789,6 +796,7 @@
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
+          "threadId": "8PHy8_T19vf4-fr7_P3-_w",
           "issuer": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9",
           "recipient": "did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ",
           "issuedAt": "2026-11-07T10:00:05Z",
@@ -807,7 +815,7 @@
             "created": "2026-11-07T10:00:05Z",
             "verificationMethod": "did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9#key-1",
             "proofPurpose": "authentication",
-            "proofValue": "z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe"
+            "proofValue": "z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8"
           }
         },
         "me": {
@@ -853,17 +861,17 @@
     "backCodes": [
       {
         "name": "back-code with a repeated name",
-        "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&sig=z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe&rel=did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+        "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8&rel=did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
         "result": "not a back-code"
       },
       {
         "name": "back-code on another host with the path form",
-        "code": "https://example.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&sig=z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe",
+        "code": "https://example.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
         "result": "not a back-code"
       },
       {
         "name": "back-code with a changed name",
-        "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Dan&sig=z3aXaRbbNsNJ4nRCPYYD11oYvjqPyvuE8LW1pftVQvv4e6pB77btdkREKvWQb4a8vnA9uC81cX7jg7vGMX8KUqMTe",
+        "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Dan&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
         "reason": "proof"
       }
     ]
