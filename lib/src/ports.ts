@@ -92,6 +92,11 @@ export interface KeyProvider {
    *  prefix of stage 1 (DEVIATION D5); derived again after a restart, never stored. Optional
    *  until the app's port is cast. */
   sharedConnectSeeds? (nonce: Uint8Array): Promise<{ messaging: Uint8Array, pair: Uint8Array }>
+  /** the messaging identity of one shared-connect encounter for the holder: the public keys (the did:peer:2 is
+   *  built from them with the relays) and a signing callback over hash data; the key stays inside. The same
+   *  derivation as `sharedConnectSeeds().messaging` through `partyFromSeeds`, so the app's wire and the holder
+   *  hold one identity. The pairwise identifier is a register label (`anchorOf`), not derived here (design (d)). */
+  sharedConnectMessaging? (nonce: Uint8Array): Promise<{ ed: Uint8Array, x: Uint8Array, sign: (hashData: Uint8Array) => Promise<Uint8Array> }>
 }
 
 // ── Log (user: rotation; optional) ─────────────────────────────────────

@@ -93,6 +93,25 @@ export type HolderEvent = EventBase & (
   /** a message accepted into the inbox (4.5), by its inbox id; the contact
    *  of the relationship it arrived on */
   | { type: 'message.received', contactId: string, inboxId: string }
+  // ── shared-connect 0.1 (shared-connect-holder.ts): one enactment by its id (the link handle) ──
+  /** the link is written and the inviter listens under `did` */
+  | { type: 'sharedconnect.shown', id: string, link: string, did: string }
+  /** the responder read the link and proposed under `did` */
+  | { type: 'sharedconnect.proposed', id: string, did: string }
+  /** documents for the counterpart, in order: the app's carrier sends them to `to` */
+  | { type: 'sharedconnect.send', id: string, to: string, docs: JsonObject[] }
+  /** the inviter's confirmation is open (prompt `sharedconnect:<id>`): `name` as the proposal says, unverified */
+  | { type: 'sharedconnect.pending', id: string, promptId: string, name: string | null }
+  | { type: 'sharedconnect.accepted', id: string }
+  | { type: 'sharedconnect.declined', id: string }
+  /** the counterpart's credential verified and held in the enactment */
+  | { type: 'sharedconnect.credential', id: string, step: 'issue-inviter' | 'issue-responder' }
+  /** both credentials and receipts: the enactment is complete; `contactId` when a contact was opened (a card came) */
+  | { type: 'sharedconnect.complete', id: string, contactId: string | null }
+  /** the counterpart ended the enactment with an error */
+  | { type: 'sharedconnect.failed', id: string, code: string }
+  /** a document refused or ignored on this enactment, for the diagnostics */
+  | { type: 'sharedconnect.refused', id: string, docType: string, reason: string }
 )
 
 export type HolderEventType = HolderEvent['type']

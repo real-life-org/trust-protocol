@@ -111,6 +111,7 @@ import { PROFILE_SET } from './trust/profile.js';
 import { TRUST_COMMANDS } from './trust/mapping.js';
 import { ENTRY_COMMANDS } from './trust/entries.js';
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js';
+import { sharedConnectModule, sharedConnectView, SC_COMMANDS } from './shared-connect-holder.js';
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js';
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js';
@@ -126,7 +127,7 @@ const offerInput = (c) => c === undefined ? undefined : {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder(ports, opts = {}) {
-    const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), messageModule(), ...(opts.modules ?? [])];
+    const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), messageModule(), sharedConnectModule(), ...(opts.modules ?? [])];
     const check = opts.invariants === true
         ? (before, after, op) => {
             const v = commitViolations(before, after, op);
@@ -161,6 +162,10 @@ export async function createHolder(ports, opts = {}) {
         },
         captureSentCard: (card, o) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
         counter: (contactId, o) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
+        // shared-connect 0.1 (shared-connect-holder.ts)
+        sharedConnectShow: (input, o) => human(SC_COMMANDS.show, input, o),
+        sharedConnectPropose: (input, o) => human(SC_COMMANDS.propose, input, o),
+        sharedConnectReceive: (doc, sender, when) => engine.act(SC_COMMANDS.receive, { doc, sender }, when),
         foundGroup: (g, o) => human(MEMBERSHIP_COMMANDS.found, g, o),
         foundPersonalCommunity: (c, o) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
         invite: (groupId, contactId, o) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
@@ -184,6 +189,7 @@ export async function createHolder(ports, opts = {}) {
             const s = await engine.snapshot();
             return Object.freeze({ commitSeq: s.commitSeq, state: toOpaque(s.state) });
         },
+        sharedConnect: async () => sharedConnectView(await read()),
         contacts: async () => contactsView(await read()),
         contact: async (id) => contactView(await read(), id),
         groups: async () => groupsView(await read()),

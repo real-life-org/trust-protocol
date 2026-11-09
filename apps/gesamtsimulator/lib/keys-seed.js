@@ -21,7 +21,7 @@
 // a status (`unknown`, `invalid`) or a TypeError; a derivation or WebCrypto
 // failure throws, so the engine reports it as InfraError('key-provider').
 import { base58, b64uOf, fromB64u } from './core.js';
-import { cat } from './crypto.js';
+import { cat, edFromSeed, xFromSeed, hkdf as hkdfOf } from './crypto.js';
 import { canonicalLabel } from './identity.js';
 import { CARRIER_INFO_PREFIX, validCarrierIdentifier } from './carrier-identity.js';
 import { CryptoUnavailableError } from './results.js';
@@ -122,6 +122,15 @@ export function seedKeys(seed, crypto) {
             return 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
         },
         contentKey: (group) => hkdf(CONTENT_KEY_STAGE1_PREFIX + group),
+        async sharedConnectMessaging(nonce) {
+            if (!(nonce instanceof Uint8Array) || nonce.length !== 16)
+                throw new RangeError('shared-connect nonce must be 16 bytes (the challenge this side minted)');
+            const msgSeed = await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + await mh(new Uint8Array(nonce)));
+            // the same two labels partyFromSeeds applies to the messaging seed (shared-connect.ts)
+            const ed = await edFromSeed(await hkdfOf(msgSeed, 'shared-connect/messaging/ed25519', 32, S), S);
+            const x = await xFromSeed(await hkdfOf(msgSeed, 'shared-connect/messaging/x25519', 32, S), S);
+            return { ed: ed.pubRaw, x: x.pubRaw, sign: async (hashData) => new Uint8Array(await S.sign({ name: 'Ed25519' }, ed.priv, hashData)) };
+        },
         async sharedConnectSeeds(nonce) {
             if (!(nonce instanceof Uint8Array) || nonce.length !== 16)
                 throw new RangeError('shared-connect nonce must be 16 bytes (the challenge this side minted)');

@@ -43,8 +43,8 @@ import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso, sameDigest } fro
 // multihash bytes with core's strict sameDigest (TT §4.9.3 / §6.6): base58btc and base64url both
 // occur (Keyring writes z, we write u), canonical spelling only, an undecodable string is unequal.
 export { sameDigest };
-import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diVerify, edFromSeed, xFromSeed, hkdf } from './crypto.js';
-import { CRED_CONTEXT } from './encounter.js';
+import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diSignWith, diVerify, edFromSeed, xFromSeed, hkdf } from './crypto.js';
+import { CRED_CONTEXT, cardBody, cardOk } from './encounter.js';
 const te = new TextEncoder();
 const td = new TextDecoder();
 const S = () => globalThis.crypto.subtle;
@@ -488,6 +488,7 @@ export async function readSharedConnectLink(link, nowS = Math.floor(Date.now() /
     }
     return { ok: true, link: out };
 }
+const signWith = async (ctx, hashData) => 'sign' in ctx && ctx.sign ? ctx.sign(hashData) : new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.ed.priv, hashData));
 /** Sign a step document under `authentication` with the did:peer:2's authentication key (eddsa-jcs-2022). */
 export async function signStep(ctx, doc, created) {
     const peer = await parsePeer(ctx.did);
@@ -498,7 +499,7 @@ export async function signStep(ctx, doc, created) {
     if ('@context' in doc)
         cfg['@context'] = doc['@context'];
     const hashData = cat(await sha(te.encode(jcs(cfg))), await sha(te.encode(jcs(doc))));
-    const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.ed.priv, hashData));
+    const sig = await signWith(ctx, hashData);
     return { ...doc, proof: { ...cfg, proofValue: 'z' + base58(sig) } };
 }
 /** Verify a step document's proof: the verification method belongs to the document's
@@ -669,8 +670,23 @@ export async function credential(me, subjectPair, proposeDoc, channel, nowMs, op
         validFrom: when,
         credentialSubject: bare ? { id: subjectPair } : { id: subjectPair, [CHANNEL_IRI]: channel },
     };
-    return diSign(me.pair, body, when);
+    return 'sign' in me.pair && me.pair.sign ? diSignWith(me.pair.anchor, me.pair.sign, body, when) : diSign(me.pair, body, when);
 }
+/** The RLTP card of the issue step (design (d), 9 November 2026): the pair's X25519 key, signed under the pair anchor,
+ *  with this side's own challenge of the ceremony (the inviter's link handle, the responder's propose id), so the key is
+ *  bound to the anchor (Identity §8.4 A3) and to the enactment. Travels in `ext["org.real-life.rltp"].card` of the
+ *  issue; a counterpart that does not read it (Keyring) loses nothing. Needs `pair.keyAgreement`. */
+export async function issueCard(me, ownChallenge, nowMs) {
+    if (!me.pair.keyAgreement)
+        throw new Error('issueCard: the pair has no keyAgreement Multikey');
+    const when = iso(nowMs);
+    const body = cardBody({ anchor: me.pair.anchor, keyAgreement: me.pair.keyAgreement }, { challenge: { value: ownChallenge, issuedAt: when } });
+    const sign = 'sign' in me.pair && me.pair.sign ? me.pair.sign : async (h) => new Uint8Array(await S().sign({ name: 'Ed25519' }, me.pair.ed.priv, h));
+    return diSignWith(me.pair.anchor, sign, body, when);
+}
+export const RLTP_EXT = 'org.real-life.rltp';
+/** The card an issue document carries in its RLTP ext, or null. */
+export const cardOfIssue = (doc) => doc?.payload?.ext?.[RLTP_EXT]?.card ?? null;
 /** The delivery of a credential (vrc/relationships/issue 0.1). */
 /** A DigestMultibase over `doc` in the chosen base: base64url (`u`, ours) or base58btc (`z`, Keyring's). Both
  *  conform; a counterpart that compares the string needs its own spelling until it compares bytes. */
@@ -686,7 +702,7 @@ export async function issue(me, recipientDid, threadId, enactment, step, vrc, no
         id, type: TASK_ISSUE, threadId,
         issuer: me.messaging.did, recipient: recipientDid, issuedAt: when,
         ceremony: { enactment, step, ...(step === 'issue-responder' ? { terminal: true } : {}) },
-        payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestIn(vrc, opts.digestBase) }) },
+        payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestIn(vrc, opts.digestBase) }), ...(opts.card ? { ext: { [RLTP_EXT]: { card: opts.card } } } : {}) },
     };
     return signStep(me.messaging, doc, when);
 }
@@ -899,6 +915,13 @@ export async function checkIssue(doc, expect, nowMs = Date.now()) {
     const ch = channelOf(vrc);
     if (ch !== undefined && !['scan', 'displayed', 'link', 'sent'].includes(ch))
         return 'vrc-channel';
+    // the RLTP card in ext (design (d)): under the issuer's pair anchor, with the issuer's own challenge
+    const card = cardOfIssue(doc);
+    if (card !== null) {
+        const theirChallenge = expect.step === 'issue-inviter' ? expect.enactment : expect.threadId;
+        if ((await cardOk(card)) !== null || card.anchor !== expect.issuerPair || card.challenge?.value !== theirChallenge || card.sentTo !== undefined || card.boundTo !== undefined)
+            return 'card';
+    }
     return null;
 }
 /** Check a receipt (issue#response) for an issue this side sent. */

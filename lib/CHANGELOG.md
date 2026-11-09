@@ -16,6 +16,33 @@ with this form the run completed on both sides without accommodation. Vector
 regenerated. Probes for a counterpart: `statedDigest`, `digestBase`,
 `credentialProfile` (`--no-stated-digest`, `--digest-base58`, `--plain-vrc`).
 
+shared-connect on the holder (new module `shared-connect-holder.ts`, registered
+in `createHolder`; codec 6 slice `sharedConnect.enactments`): the acts
+`sharedconnect.show` (the inviter: fresh pair label, fresh 16-byte handle, the
+link), `sharedconnect.propose` (the responder: reads a link, proposes, sends)
+and `sharedconnect.receive` (a document the carrier delivered, with its TSP
+sender); the propose opens a prompt of kind `shared-connect-confirm`, decided
+through `decide(promptId, 'accept' | 'decline')`; the view `sharedConnect()`;
+events `sharedconnect.shown` / `proposed` / `send` / `pending` / `accepted` /
+`declined` / `credential` / `complete` / `failed` / `refused`; refusals
+`link-invalid`, `enactment-unknown`, `enactment-closed`, `not-pending`,
+`concurrent`, `keys-missing`. The pair identifier of an enactment is a register
+label (anchor and X25519 key from the KeyProvider, as encounter-scan); the
+messaging identity is the per-encounter did:peer:2 from the new optional
+`KeyProvider.sharedConnectMessaging(nonce)` (`seedKeys` has it; D5 narrowed to
+it). The issue step carries this side's X25519 key as a card signed under the
+pair anchor in `ext["org.real-life.rltp"].card` (`issueCard`, `cardOfIssue`,
+`checkIssue` verifies it, refusal `card`; `FlowOptions.card`); when both cards
+came, completion opens a contact and relationship through the continuity tuple
+(a WoT-to-WoT enactment), otherwise the credential is held without an RLTP
+channel. A complete enactment stays: its snapshot is where the holder keeps both
+signed credentials and the cited propose (the relationship stores identifiers and
+keys, no credentials). A declined or failed enactment leaves 30 days after it
+closed (`closedAt`), a never answered one 30 days after its link expired; the
+counterpart's error while the confirmation is open closes the prompt. Signers of the steps and the credential may be callbacks
+(`StepSigner`, `PairSigner`), so a module signs through the KeyProvider; the
+flow machines copy a restored snapshot instead of mutating it.
+
 ## 0.14.0
 
 shared-connect after the first live run with Keyring and the reviews of

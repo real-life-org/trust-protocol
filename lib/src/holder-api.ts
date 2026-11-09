@@ -117,6 +117,7 @@ import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass 
 import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js'
+import { sharedConnectModule, sharedConnectView, SC_COMMANDS, type ShowInput, type ProposeInput, type ReceiveInput, type SharedConnectView } from './shared-connect-holder.js'
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js'
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js'
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js'
@@ -208,6 +209,12 @@ export interface Holder {
   captureSentCard (card: Json, opts: HumanActOptions): Promise<ActResult>
   /** the counter-step toward a contact met as displayer (Encounter 5.8 step 4); human */
   counter (contactId: string, opts: HumanActOptions): Promise<ActResult>
+  /** shared-connect 0.1 (shared-connect-holder.ts): the inviter's link under a fresh pair label and messaging identity */
+  sharedConnectShow (input: ShowInput, opts: HumanActOptions): Promise<ActResult>
+  /** the responder: the link read, the proposal made (its documents in the event sharedconnect.send) */
+  sharedConnectPropose (input: ProposeInput, opts: HumanActOptions): Promise<ActResult>
+  /** a shared-connect document the carrier delivered, opened, with the TSP sender it verified */
+  sharedConnectReceive (doc: unknown, sender: string, when: Millis): Promise<ActResult>
   /** a group founded under a fresh pair anchor (Access 3.4.1); its rule
    *  vouchThreshold (default "1") is group state; event group.founded; human */
   foundGroup (group: { name: string, vouchThreshold?: string, listed?: boolean }, opts: HumanActOptions): Promise<ActResult>
@@ -273,6 +280,8 @@ export interface Holder {
   /** after every commit: its commitSeq and events, the cue to re-read the views */
   subscribe (listener: CommitListener): () => void
   snapshot (): Promise<HolderSnapshot>
+  /** the shared-connect enactments: open confirmations, documents to resend, held credentials */
+  sharedConnect (): Promise<SharedConnectView[]>
   contacts (): Promise<ContactView[]>
   /** by entry id or alias */
   contact (id: string): Promise<ContactView | undefined>
@@ -311,7 +320,7 @@ export interface Holder {
  *  here and also feeds the default entropy; an app that injects one
  *  passes the same handle to seedKeys(seed, crypto). */
 export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}): Promise<Holder> {
-  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), messageModule(), ...(opts.modules ?? [])]
+  const modules = [identityModule(), trustModule(), encounterModule(), membershipModule(), introductionModule(), messageModule(), sharedConnectModule(), ...(opts.modules ?? [])]
   const check = opts.invariants === true
     ? (before: Readonly<HolderState>, after: Readonly<HolderState>, op: CommitOp) => {
         const v = commitViolations(before, after, op)
@@ -348,6 +357,10 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     },
     captureSentCard: (card: Json, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.capture, { card }, o),
     counter: (contactId: string, o: HumanActOptions) => human(ENCOUNTER_COMMANDS.counter, { contactId }, o),
+    // shared-connect 0.1 (shared-connect-holder.ts)
+    sharedConnectShow: (input: ShowInput, o: HumanActOptions) => human(SC_COMMANDS.show, input, o),
+    sharedConnectPropose: (input: ProposeInput, o: HumanActOptions) => human(SC_COMMANDS.propose, input, o),
+    sharedConnectReceive: (doc: unknown, sender: string, when: Millis) => engine.act(SC_COMMANDS.receive, { doc, sender } satisfies ReceiveInput, when),
     foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),
     foundPersonalCommunity: (c: { name: string }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
     invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),
@@ -374,6 +387,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
       const s = await engine.snapshot()
       return Object.freeze({ commitSeq: s.commitSeq, state: toOpaque(s.state) })
     },
+    sharedConnect: async () => sharedConnectView(await read()),
     contacts: async () => contactsView(await read()),
     contact: async (id: string) => contactView(await read(), id),
     groups: async () => groupsView(await read()),

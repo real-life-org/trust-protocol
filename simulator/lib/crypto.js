@@ -57,9 +57,9 @@ export const digestDoc = async (obj, subtle) => digestBytes(te.encode(jcs(obj)),
 const ED_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20]);
 const X_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22, 0x04, 0x20]);
 const jwkX = async (priv, subtle = S()) => fromB64u((await subtle.exportKey('jwk', priv)).x);
-export async function edFromSeed(seed) {
-    const priv = await S().importKey('pkcs8', cat(ED_PKCS8, seed), { name: 'Ed25519' }, true, ['sign']);
-    return { priv, pubRaw: await jwkX(priv) };
+export async function edFromSeed(seed, subtle = S()) {
+    const priv = await subtle.importKey('pkcs8', cat(ED_PKCS8, seed), { name: 'Ed25519' }, true, ['sign']);
+    return { priv, pubRaw: await jwkX(priv, subtle) };
 }
 export async function xFromSeed(seed, subtle = S()) {
     const priv = await subtle.importKey('pkcs8', cat(X_PKCS8, seed), { name: 'X25519' }, true, ['deriveBits']);

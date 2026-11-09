@@ -87,6 +87,7 @@ export * as visibility from './visibility.js';
 export * as ceremony from './ceremony.js';
 export * as sharedConnect from './shared-connect.js';
 export * as sharedConnectFlow from './shared-connect-flow.js';
+export { SC_COMMANDS, SC_PROMPT, sharedConnectModule, sharedConnectView } from './shared-connect-holder.js';
 import { decodeState as decodeStructural } from './codec.js';
 export { CODEC, StateCodecError } from './codec.js';
 /** Load a stored state (a JSON string or a parsed value): an independent,
