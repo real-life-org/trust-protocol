@@ -37,7 +37,7 @@ export const DECIDE = 'prompt.decide'
 
 export interface DecideInput { promptId: string, choice: PromptChoice }
 
-const KINDS: readonly PromptKind[] = ['encounter-confirm', 'group-invite', 'introduction']
+const KINDS: readonly PromptKind[] = ['encounter-confirm', 'group-invite', 'introduction', 'shared-connect-confirm']
 
 export type Decisions = ReadonlyMap<PromptKind, DecisionHandler>
 

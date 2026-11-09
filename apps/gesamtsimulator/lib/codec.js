@@ -39,7 +39,7 @@
 import { jcs } from './core.js';
 import { TASK_NAMESPACE } from './task-uri.js';
 /** The codec this library writes. */
-export const CODEC = 5;
+export const CODEC = 6;
 /**
  * Migrations keyed by the codec they read: MIGRATIONS[n] maps a valid
  * codec-n state to a codec-(n+1) state. Pure, never async, never keys.
@@ -59,6 +59,8 @@ export const MIGRATIONS = Object.freeze({
             return [id, { ...rest, phase: 'member', syncs: {} }];
         })),
     }),
+    // codec 6 (lib 0.16.0): the shared-connect enactments slice, empty on a migrated state
+    5: (state) => ({ ...state, codec: 6, sharedConnect: { enactments: {} } }),
 });
 /** A stored state the library will not load (or a state it will not write). */
 export class StateCodecError extends Error {
@@ -430,7 +432,7 @@ const codecShape = (n) => obj({
         id: str, from: dec, to: dec, step: lit('register', 'log', 'duties'), startedAt: millis,
         entry: json, overHead: logHead, awaitHead: rec(nullable(str)),
     }), 'id'),
-    prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
+    prompts: keyed(obj({ id: str, kind: lit('encounter-confirm', 'group-invite', 'introduction', 'shared-connect-confirm'), openedAt: millis }, { contactId: str, groupId: str, expiresAt: millis }), 'id'),
     acts: keyed(obj({ actId: str, inputHash: str, commitSeq: dec, outboundDigests: arr(str), events: arr(eventOf(n)), at: millis }), 'actId'),
     encounter: obj({
         challenges: keyed(obj({ value: str, tCh: millis, label: str, card: anyObj }), 'value'),
@@ -453,15 +455,27 @@ const codecShape = (n) => obj({
         records: rec(rec(obj({ bodyDigest: str, sentAt: millis }))),
         inbox: keyed(obj({ id: str, tuple: str, mid: str, body: anyObj, receivedAt: millis, displayAt: millis }), 'id'),
     }),
+    // codec 6: the shared-connect enactments (shared-connect-holder.ts)
+    ...(n >= 6 ? { sharedConnect: obj({ enactments: keyed(sharedConnectEnactment, 'id') }) } : {}),
+});
+const sharedConnectEnactment = obj({
+    id: str, role: lit('inviter', 'responder'), label: str, did: str,
+    relays: arr(obj({ kind: str, address: str }, { multiaddrs: arr(str) })),
+    link: obj({ from: str, id: str, exp: natural, label: nullable(str) }),
+    channel: lit('scan', 'displayed', 'link', 'sent'), openedAt: millis,
+    status: lit('open', 'complete', 'declined', 'failed'), flow: anyObj,
+    promptId: nullable(str), contactId: nullable(str), theirPair: nullable(str), name: nullable(str),
 });
 /** Structural validators per codec version; every readable codec has one. */
 const codec3 = codecShape(3);
 const codec4 = codecShape(4);
 const codec5 = codecShape(5);
+const codec6 = codecShape(6);
 export const VALIDATORS = Object.freeze({
     3: (raw) => codec3(raw, '$'),
     4: (raw) => codec4(raw, '$'),
     5: (raw) => codec5(raw, '$'),
+    6: (raw) => codec6(raw, '$'),
 });
 // ── the codec ──────────────────────────────────────────────────────────
 /** Canonical JSON text of a JSON-pure value, or not-json. */

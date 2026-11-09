@@ -3,7 +3,7 @@
 import { handlerPrepared } from './receive.js';
 /** The command name of the decision. */
 export const DECIDE = 'prompt.decide';
-const KINDS = ['encounter-confirm', 'group-invite', 'introduction'];
+const KINDS = ['encounter-confirm', 'group-invite', 'introduction', 'shared-connect-confirm'];
 /** The decision handlers of the modules, one per kind at most. */
 export function collectDecisions(modules) {
     const out = new Map();

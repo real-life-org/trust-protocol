@@ -71,7 +71,31 @@ export interface HolderState {
   /** Message Tasks 0.2 on the holder: the block of relationships and the
    *  rates per relationship (message/holder.ts) */
   messages: MessagesState
+  /** shared-connect 0.1 on the holder (shared-connect-holder.ts): the enactments this holder opened or
+   *  joined, each with its flow snapshot, until complete, declined or failed and then retained */
+  sharedConnect: SharedConnectState
 }
+
+/** One shared-connect enactment on the holder. `flow` is the step machine's snapshot
+ *  (shared-connect-flow.ts); `label` the own pair label of the relationship it opens; `did` the own
+ *  messaging identity; `link` the trigger link as read or written. */
+export interface SharedConnectEnactment {
+  id: string
+  role: 'inviter' | 'responder'
+  label: string
+  did: string
+  relays: Array<{ kind: string, address: string, multiaddrs?: string[] }>
+  link: { from: string, id: string, exp: number, label: string | null }
+  channel: 'scan' | 'displayed' | 'link' | 'sent'
+  openedAt: Millis
+  status: 'open' | 'complete' | 'declined' | 'failed'
+  flow: Record<string, Json>
+  promptId: string | null
+  contactId: string | null
+  theirPair: string | null
+  name: string | null
+}
+export interface SharedConnectState { enactments: Record<string, SharedConnectEnactment> }
 
 // ── Message Tasks: the block and the rates ─────────────────────────────
 
@@ -678,7 +702,7 @@ export interface Rotation {
   awaitHead: Record<string, string | null>
 }
 
-export type PromptKind = 'encounter-confirm' | 'group-invite' | 'introduction'
+export type PromptKind = 'encounter-confirm' | 'group-invite' | 'introduction' | 'shared-connect-confirm'
 /** The human's answer to a prompt (prompts.ts). */
 export type PromptChoice = 'accept' | 'decline'
 
@@ -875,6 +899,7 @@ export function emptyState (codec: number): HolderState {
     prompts: {},
     acts: {},
     encounter: { challenges: {}, records: {}, introductions: {}, offers: {}, designators: {}, declarations: {} },
+    sharedConnect: { enactments: {} },
     joining: { preludes: {}, invites: {}, surfaced: [], declined: [] },
     messages: { blocked: [], rates: {}, ready: [], records: {}, inbox: {} },
   }
