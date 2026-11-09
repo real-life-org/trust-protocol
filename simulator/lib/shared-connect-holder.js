@@ -69,7 +69,8 @@ function applyStep(state, step, when, extra = []) {
                 break;
             case 'failed': {
                 status = 'failed';
-                // the counterpart ended the enactment while the person had not decided: the prompt closes with it
+                // the counterpart ended the enactment while the person had not decided: the prompt closes with it,
+                // silently (as membership does); `sharedconnect.failed` is the event the app reads, no `prompt.*`
                 if (Object.hasOwn(prompts, promptIdOf(e.id))) {
                     prompts = { ...prompts };
                     delete prompts[promptIdOf(e.id)];
