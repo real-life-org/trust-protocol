@@ -70,7 +70,8 @@
 //   - the entry commit of 2240 runs on trust.recover and on any accepted
 //     mapping of the relationship, the repeat included
 //   - issuance needs a community anchor (register.community): without one
-//     the Trust act is refused as no-community, a duty stays refused
+//     the Trust act is refused as no-community (and as not-met toward a shared-connect
+//     entry over a link only, A3), a duty stays refused
 //   - the community key agrees through the KeyProvider under a release the
 //     module derives from the register (the current generation's label),
 //     not from `addresses`: it is no delivery address (Delivery §5)
@@ -448,7 +449,7 @@ function setClass(state, contactId, cls, setting) {
     if (cls === 'anchorMapping' && setting === 'on' && state.register.community === null)
         return { ok: false, code: 'no-community' };
     // a shared-connect contact over a link only (no code read in one place) is not met: no trust toward it
-    if (cls === 'anchorMapping' && setting === 'on' && sharedConnectOriginOf(state, c.id)?.met === false)
+    if (cls === 'anchorMapping' && setting === 'on' && sharedConnectOriginOf(state, c)?.met === false)
         return { ok: false, code: 'not-met' };
     return changeSettings(state, c, settings, c.groupSettings);
 }

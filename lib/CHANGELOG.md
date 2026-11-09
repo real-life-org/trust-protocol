@@ -50,7 +50,9 @@ met (`met`: the code read in one place, `scan` / `displayed`; false over a `link
 without an RLTP channel (a counterpart without a card: Keyring, Consensual) shows its
 class from there. Trust goes only to a contact that met: `trust.set` and
 `trust.setClass anchorMapping on` refuse `not-met` for a shared-connect contact over a
-link. Helpers `sharedConnectOriginOf(state, contactId)`, `metByChannel`. No new state:
+link; the origin is found by the entry's relationships, so it follows a merge, a split and a
+rename (an entry met when any of its relationships did). Exported: `SharedConnectOrigin`,
+`metByChannel`. No new state:
 under design (d) a WoT-to-WoT enactment opens the ordinary contact and relationship
 through the continuity tuple, and a foreign counterpart's credentials stay in the
 enactment.

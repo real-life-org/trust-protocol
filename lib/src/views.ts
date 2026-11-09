@@ -81,7 +81,7 @@
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
-import { heldOf, triasOf, sharedConnectOriginOf } from './state.js'
+import { heldOf, triasOf, sharedConnectOriginOf, sharedConnectIndex } from './state.js'
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
@@ -89,7 +89,7 @@ import { messageChannel } from './message/holder.js'
 import { canonicalCarrierNonce } from './identity-state.js'
 import type {
   EnactmentRecord,
-  Contact, Dec, GroupPhase, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, SharedConnectOrigin, TrustClass, Tuple,
+  Contact, Dec, GroupPhase, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, SharedConnectIndex, SharedConnectOrigin, TrustClass, Tuple,
 } from './state.js'
 import type { DeliveryFailure, PreTransportReason, ReceiverRefusalCode } from './ports.js'
 
@@ -127,9 +127,10 @@ export interface ContactView {
   provenance: 'ceremony' | 'introduced'
   /** the introducer, for an introduced contact */
   via?: string
-  /** for a contact a shared-connect enactment opened (design (d), both cards came): the enactment,
-   *  this side's channel and whether the two met in one place; absent for an encounter or an
-   *  introduction. Trust goes only to a contact that met (`not-met` otherwise). */
+  /** for an entry a shared-connect enactment opened (design (d), both cards came): the oldest such
+   *  enactment, this side's channel in it, and whether the entry met (any relationship from an
+   *  encounter, an introduction, or an enactment whose code was read in one place); absent when no
+   *  relationship came from an enactment. Trust goes only to an entry that met (`not-met` otherwise). */
   sharedConnect?: SharedConnectOrigin
   verification: 'mutual' | 'outgoing' | 'incoming' | 'met'
   trust: { given: boolean, received: boolean, paused: boolean, pending: boolean }
@@ -336,7 +337,7 @@ const relationshipView = (state: Readonly<HolderState>, r: Readonly<Relationship
   }
 }
 
-const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex, rix: RecordIndex): ContactView => {
+const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIndex, rix: RecordIndex, scix: SharedConnectIndex): ContactView => {
   const ids = new Set([c.id, ...c.aliases])
   const { own, all: rels } = relationshipsOf(state, c, ids, ix)
   const mine = (t: Tuple): boolean => ids.has(t.entryId)
@@ -377,7 +378,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
   const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined
   const stars = heads.map((h) => h.t.starIn.accepted).filter((a) => a !== null)
   const sharedContacts = stars.length ? [...new Set(stars.flatMap((a) => a.matches))].sort(cmp) : undefined
-  const scOrigin = sharedConnectOriginOf(state, c.id)
+  const scOrigin = sharedConnectOriginOf(state, c, scix)
   return {
     commitSeq: state.commitSeq,
     id: c.id,
@@ -435,13 +436,14 @@ export function contactsView (state: Readonly<HolderState>): ContactView[] {
   })
   const ix = entryIndex(state)
   const rix = recordIndex(state)
-  return freezeDeep(order.map((c) => project(state, c, ix, rix)))
+  const scix = sharedConnectIndex(state)
+  return freezeDeep(order.map((c) => project(state, c, ix, rix, scix)))
 }
 
 /** One contact by entry id or alias; undefined if there is none. */
 export function contactView (state: Readonly<HolderState>, id: string): ContactView | undefined {
   const c = findContact(state, id)
-  return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state))) : undefined
+  return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state), sharedConnectIndex(state))) : undefined
 }
 
 /** The holder's groups, by genesis digest. */

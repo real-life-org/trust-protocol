@@ -908,17 +908,31 @@ export function emptyState (codec: number): HolderState {
 
 // ── shared-connect origin of a contact ─────────────────────────────────
 
-/** What the contact book shows of a shared-connect contact: the enactment that opened it, the
- *  channel of this side, and whether the two met (the code shown and scanned in one place:
- *  `scan` / `displayed`) or only exchanged a link (`link` / `sent`). */
+/** What the contact book shows of a shared-connect contact: the enactment that opened it (the
+ *  oldest, where several relationships of the entry came from enactments), the channel of this
+ *  side in it, and whether the entry met: any of its relationships came from an encounter or an
+ *  introduction, or from an enactment whose code was read in one place (`scan` / `displayed`);
+ *  an entry whose every relationship came over a link (`link` / `sent`) did not. */
 export interface SharedConnectOrigin { enactmentId: string, channel: SharedConnectEnactment['channel'], met: boolean }
 
 /** `met` for the channels of a code read in one place, the encounter proper (shared-connect 0.1 §3) */
 export const metByChannel = (channel: SharedConnectEnactment['channel']): boolean => channel === 'scan' || channel === 'displayed'
 
-/** the shared-connect enactment that opened the contact, if one did (null for an encounter or an introduction) */
-export function sharedConnectOriginOf (state: Readonly<HolderState>, contactId: string): SharedConnectOrigin | null {
-  const e = Object.values(state.sharedConnect.enactments).find((x) => x.contactId === contactId)
-  return e ? { enactmentId: e.id, channel: e.channel, met: metByChannel(e.channel) } : null
+/** relationship id → the shared-connect enactment that opened it. The relationship id is the one
+ *  `idsOf(label)` (encounter/ceremony.ts) gives the enactment's pair label; it survives a merge,
+ *  a split and a rename of the entry (2140, 6a.4), which the enactment's `contactId` does not. */
+export type SharedConnectIndex = Map<string, SharedConnectEnactment>
+export function sharedConnectIndex (state: Readonly<HolderState>): SharedConnectIndex {
+  const ix: SharedConnectIndex = new Map()
+  for (const e of Object.values(state.sharedConnect.enactments)) if (e.contactId !== null) ix.set('r-' + e.label.slice('pair/'.length), e)
+  return ix
 }
 
+/** the shared-connect origin of an entry, by its relationships; null when none came from an enactment */
+export function sharedConnectOriginOf (state: Readonly<HolderState>, contact: Readonly<Contact>, ix: SharedConnectIndex = sharedConnectIndex(state)): SharedConnectOrigin | null {
+  const own = contact.relIds.map((r) => ix.get(r)).filter((e): e is SharedConnectEnactment => e !== undefined)
+  if (!own.length) return null
+  const oldest = [...own].sort((a, b) => (a.openedAt - b.openedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0]
+  const met = contact.relIds.some((r) => !ix.has(r)) || own.some((e) => metByChannel(e.channel))
+  return { enactmentId: oldest.id, channel: oldest.channel, met }
+}
