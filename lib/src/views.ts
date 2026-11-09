@@ -81,7 +81,7 @@
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
-import { heldOf, triasOf } from './state.js'
+import { heldOf, triasOf, sharedConnectOriginOf } from './state.js'
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
@@ -89,7 +89,7 @@ import { messageChannel } from './message/holder.js'
 import { canonicalCarrierNonce } from './identity-state.js'
 import type {
   EnactmentRecord,
-  Contact, Dec, GroupPhase, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, TrustClass, Tuple,
+  Contact, Dec, GroupPhase, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, SharedConnectOrigin, TrustClass, Tuple,
 } from './state.js'
 import type { DeliveryFailure, PreTransportReason, ReceiverRefusalCode } from './ports.js'
 
@@ -127,6 +127,10 @@ export interface ContactView {
   provenance: 'ceremony' | 'introduced'
   /** the introducer, for an introduced contact */
   via?: string
+  /** for a contact a shared-connect enactment opened (design (d), both cards came): the enactment,
+   *  this side's channel and whether the two met in one place; absent for an encounter or an
+   *  introduction. Trust goes only to a contact that met (`not-met` otherwise). */
+  sharedConnect?: SharedConnectOrigin
   verification: 'mutual' | 'outgoing' | 'incoming' | 'met'
   trust: { given: boolean, received: boolean, paused: boolean, pending: boolean }
   classes: ClassesView
@@ -373,6 +377,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
   const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined
   const stars = heads.map((h) => h.t.starIn.accepted).filter((a) => a !== null)
   const sharedContacts = stars.length ? [...new Set(stars.flatMap((a) => a.matches))].sort(cmp) : undefined
+  const scOrigin = sharedConnectOriginOf(state, c.id)
   return {
     commitSeq: state.commitSeq,
     id: c.id,
@@ -381,6 +386,7 @@ const project = (state: Readonly<HolderState>, c: Readonly<Contact>, ix: EntryIn
     ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
     provenance: origin.provenance.kind,
     ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),
+    ...(scOrigin ? { sharedConnect: scOrigin } : {}),
     verification: out && inn ? 'mutual' : out ? 'outgoing' : inn ? 'incoming' : 'met',
     trust: {
       given: trusted,

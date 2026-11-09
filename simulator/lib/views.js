@@ -82,7 +82,7 @@
 //     RLTP-VTI-1230)
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
-import { heldOf, triasOf } from './state.js';
+import { heldOf, triasOf, sharedConnectOriginOf } from './state.js';
 import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js';
 import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
@@ -204,6 +204,7 @@ const project = (state, c, ix, rix) => {
     const sharedGroups = received.length ? [...new Set(received.flatMap((a) => a.groups))].sort(cmp) : undefined;
     const stars = heads.map((h) => h.t.starIn.accepted).filter((a) => a !== null);
     const sharedContacts = stars.length ? [...new Set(stars.flatMap((a) => a.matches))].sort(cmp) : undefined;
+    const scOrigin = sharedConnectOriginOf(state, c.id);
     return {
         commitSeq: state.commitSeq,
         id: c.id,
@@ -212,6 +213,7 @@ const project = (state, c, ix, rix) => {
         ...(profile?.name !== undefined ? { displayName: profile.name } : cardName !== undefined ? { displayName: cardName } : {}),
         provenance: origin.provenance.kind,
         ...(origin.provenance.kind === 'introduced' && origin.provenance.via !== undefined ? { via: origin.provenance.via } : {}),
+        ...(scOrigin ? { sharedConnect: scOrigin } : {}),
         verification: out && inn ? 'mutual' : out ? 'outgoing' : inn ? 'incoming' : 'met',
         trust: {
             given: trusted,

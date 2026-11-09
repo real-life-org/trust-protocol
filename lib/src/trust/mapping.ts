@@ -110,6 +110,7 @@ import type { Arrival, ReceivedDocument, TaskRefusal } from '../receive.js'
 import type { Applied, CommandDef, DutyHandler, EventDraft, HolderModule, OutboundDraft, PrepareCtx, Refusal } from '../engine.js'
 import type { KeyRelease } from '../ports.js'
 import type { ClassOnDuty, Contact, Dec, Duty, HolderState, ReissueMappingDuty, Relationship, Setting, TrustClass, Tuple } from '../state.js'
+import { sharedConnectOriginOf } from '../state.js'
 import {
   ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel, unionBindings,
 } from './state.js'
@@ -465,6 +466,8 @@ function setClass (state: Readonly<HolderState>, contactId: string, cls: TrustCl
   if (!c) return { ok: false, code: 'unknown-contact' }
   const settings = { ...c.settings, [cls]: setting }
   if (cls === 'anchorMapping' && setting === 'on' && state.register.community === null) return { ok: false, code: 'no-community' }
+  // a shared-connect contact over a link only (no code read in one place) is not met: no trust toward it
+  if (cls === 'anchorMapping' && setting === 'on' && sharedConnectOriginOf(state, c.id)?.met === false) return { ok: false, code: 'not-met' }
   return changeSettings(state, c, settings, c.groupSettings)
 }
 

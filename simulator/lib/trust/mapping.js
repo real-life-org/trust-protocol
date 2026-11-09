@@ -104,6 +104,7 @@ import { communityLabel } from '../identity.js';
 import { SCHEMAS } from '../schemas.js';
 import { LINEAGE_MAX, MAPPING_CONDITION_RULE, assembleAnchorMapping, bindingOf, classifyMapping, lineageLinks, mappingBindings, rawProofValue, verifyAnchorMappingWith, } from '../anchor.js';
 import { tupleByRkid } from '../receive.js';
+import { sharedConnectOriginOf } from '../state.js';
 import { ADMISSION_BOUND, CLASSES, activeTuple, classOnToward, entryOf, entryRelationships, findContact, lags, liveRel, unionBindings, } from './state.js';
 import { admitPending, entryCommands, mergeDutiesAfter, mergeDuty, settleHead, splitIfUnlinked } from './entries.js';
 import { classOnHandler, followClasses, owedOn } from './duties.js';
@@ -446,6 +447,9 @@ function setClass(state, contactId, cls, setting) {
     const settings = { ...c.settings, [cls]: setting };
     if (cls === 'anchorMapping' && setting === 'on' && state.register.community === null)
         return { ok: false, code: 'no-community' };
+    // a shared-connect contact over a link only (no code read in one place) is not met: no trust toward it
+    if (cls === 'anchorMapping' && setting === 'on' && sharedConnectOriginOf(state, c.id)?.met === false)
+        return { ok: false, code: 'not-met' };
     return changeSettings(state, c, settings, c.groupSettings);
 }
 const commands = {

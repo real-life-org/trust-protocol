@@ -43,3 +43,10 @@ export function emptyState(codec) {
         messages: { blocked: [], rates: {}, ready: [], records: {}, inbox: {} },
     };
 }
+/** `met` for the channels of a code read in one place, the encounter proper (shared-connect 0.1 §3) */
+export const metByChannel = (channel) => channel === 'scan' || channel === 'displayed';
+/** the shared-connect enactment that opened the contact, if one did (null for an encounter or an introduction) */
+export function sharedConnectOriginOf(state, contactId) {
+    const e = Object.values(state.sharedConnect.enactments).find((x) => x.contactId === contactId);
+    return e ? { enactmentId: e.id, channel: e.channel, met: metByChannel(e.channel) } : null;
+}

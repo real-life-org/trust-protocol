@@ -905,3 +905,20 @@ export function emptyState (codec: number): HolderState {
     messages: { blocked: [], rates: {}, ready: [], records: {}, inbox: {} },
   }
 }
+
+// ── shared-connect origin of a contact ─────────────────────────────────
+
+/** What the contact book shows of a shared-connect contact: the enactment that opened it, the
+ *  channel of this side, and whether the two met (the code shown and scanned in one place:
+ *  `scan` / `displayed`) or only exchanged a link (`link` / `sent`). */
+export interface SharedConnectOrigin { enactmentId: string, channel: SharedConnectEnactment['channel'], met: boolean }
+
+/** `met` for the channels of a code read in one place, the encounter proper (shared-connect 0.1 §3) */
+export const metByChannel = (channel: SharedConnectEnactment['channel']): boolean => channel === 'scan' || channel === 'displayed'
+
+/** the shared-connect enactment that opened the contact, if one did (null for an encounter or an introduction) */
+export function sharedConnectOriginOf (state: Readonly<HolderState>, contactId: string): SharedConnectOrigin | null {
+  const e = Object.values(state.sharedConnect.enactments).find((x) => x.contactId === contactId)
+  return e ? { enactmentId: e.id, channel: e.channel, met: metByChannel(e.channel) } : null
+}
+

@@ -26,6 +26,7 @@
 // machines holds here by construction: the snapshot is in the commit before the event is released.
 import type { HolderModule, CommandDef, DecisionDef, PrepareCtx, Applied, Refusal } from './engine.js'
 import type { HolderState, SharedConnectEnactment, Prompt, Millis } from './state.js'
+import { metByChannel } from './state.js'
 import type { Json, JsonObject } from './core.js'
 import type { ActError } from './results.js'
 import type { EventDraft } from './engine.js'
@@ -316,6 +317,8 @@ export interface SharedConnectView {
   theirPair: string | null
   name: string | null
   channel: SharedConnectEnactment['channel']
+  /** the two met in one place (`scan` / `displayed`); false over a link (`link` / `sent`): no trust toward such a contact (A3) */
+  met: boolean
   /** the open confirmation, inviter side */
   promptId: string | null
   contactId: string | null
@@ -337,7 +340,7 @@ export function sharedConnectView (state: Readonly<HolderState>): SharedConnectV
       id: e.id, role: e.role, status: e.status, link: e.link, did: e.did,
       theirDid: e.role === 'inviter' ? (f as InviterSnapshot).propose?.issuer ?? null : e.link.from,
       theirPair: e.theirPair, name: e.role === 'inviter' ? ((f as InviterSnapshot).propose?.payload?.reason ?? null) : e.link.label,
-      channel: e.channel, promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
+      channel: e.channel, met: metByChannel(e.channel), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
       theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f) as JsonObject[], openedAt: e.openedAt, closedAt: e.closedAt,
     }
   })
