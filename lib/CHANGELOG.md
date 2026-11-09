@@ -43,6 +43,18 @@ counterpart's error while the confirmation is open closes the prompt. Signers of
 (`StepSigner`, `PairSigner`), so a module signs through the KeyProvider; the
 flow machines copy a restored snapshot instead of mutating it.
 
+shared-connect contacts in the contact book (plan A2/A3): `ContactView.sharedConnect`
+names the enactment that opened the contact, this side's channel and whether the two
+met (`met`: the code read in one place, `scan` / `displayed`; false over a `link` /
+`sent`); `SharedConnectView.met` says the same for every enactment, so a contact
+without an RLTP channel (a counterpart without a card: Keyring, Consensual) shows its
+class from there. Trust goes only to a contact that met: `trust.set` and
+`trust.setClass anchorMapping on` refuse `not-met` for a shared-connect contact over a
+link. Helpers `sharedConnectOriginOf(state, contactId)`, `metByChannel`. No new state:
+under design (d) a WoT-to-WoT enactment opens the ordinary contact and relationship
+through the continuity tuple, and a foreign counterpart's credentials stay in the
+enactment.
+
 ## 0.14.0
 
 shared-connect after the first live run with Keyring and the reviews of
