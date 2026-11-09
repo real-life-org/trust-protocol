@@ -753,6 +753,78 @@ export type EventV6 = ({
   groupId: string
   member: string
   actId?: string
+}) | ({
+  type: "sharedconnect.shown"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  link: string
+  did: string
+  actId?: string
+}) | ({
+  type: "sharedconnect.proposed"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  did: string
+  actId?: string
+}) | ({
+  type: "sharedconnect.send"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  to: string
+  docs: { [k: string]: Json }[]
+  actId?: string
+}) | ({
+  type: "sharedconnect.pending"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  promptId: string
+  name: (string) | (null)
+  actId?: string
+}) | ({
+  type: "sharedconnect.accepted"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  actId?: string
+}) | ({
+  type: "sharedconnect.declined"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  actId?: string
+}) | ({
+  type: "sharedconnect.credential"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  step: "issue-inviter" | "issue-responder"
+  actId?: string
+}) | ({
+  type: "sharedconnect.complete"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  contactId: (string) | (null)
+  actId?: string
+}) | ({
+  type: "sharedconnect.failed"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  code: string
+  actId?: string
+}) | ({
+  type: "sharedconnect.refused"
+  eventId: string
+  commitSeq: DecV6
+  id: string
+  docType: string
+  reason: string
+  actId?: string
 })
 
 export type RosterEntryV6 = {

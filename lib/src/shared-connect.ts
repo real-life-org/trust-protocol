@@ -42,8 +42,8 @@ import { jcs, base58, fromBase58, b64uOf, fromB64u, calOK, iso, sameDigest } fro
 // multihash bytes with core's strict sameDigest (TT §4.9.3 / §6.6): base58btc and base64url both
 // occur (Keyring writes z, we write u), canonical spelling only, an undecodable string is unequal.
 export { sameDigest }
-import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diVerify, edFromSeed, xFromSeed, hkdf, type Signer, type KeyPair } from './crypto.js'
-import { CRED_CONTEXT } from './encounter.js'
+import { sha, cat, digestDoc, anchorOfEd, mkOfX, edRawOfAnchor, xRawOfMk, diSign, diSignWith, diVerify, edFromSeed, xFromSeed, hkdf, type Signer, type KeyPair } from './crypto.js'
+import { CRED_CONTEXT, cardBody, cardOk } from './encounter.js'
 
 const te = new TextEncoder()
 const td = new TextDecoder()
@@ -448,7 +448,14 @@ export async function readSharedConnectLink (link: string, nowS: number = Math.f
 }
 
 // ── step documents (Trust Task envelopes) ───────────────────────────────
-export interface StepSigner { did: string, ed: { priv: CryptoKey } }
+/** The messaging identity that signs steps: its DID and either the Ed25519 key or a signing callback over the
+ *  hash data (a KeyProvider or the app's wire holds the key; modules never see it). */
+export type StepSigner = { did: string, ed: { priv: CryptoKey } } | { did: string, sign: (hashData: Uint8Array) => Promise<Uint8Array> }
+/** The pairwise identifier that signs the credential and the card: its anchor and the key or a callback; `keyAgreement`
+ *  (the X25519 Multikey of the pair, from the register) is needed to write the card of the issue step. */
+export type PairSigner = (Signer | { anchor: string, sign: (hashData: Uint8Array) => Promise<Uint8Array> }) & { keyAgreement?: string }
+const signWith = async (ctx: { ed?: { priv: CryptoKey }, sign?: (h: Uint8Array) => Promise<Uint8Array> }, hashData: Uint8Array): Promise<Uint8Array> =>
+  'sign' in ctx && ctx.sign ? ctx.sign(hashData) : new Uint8Array(await S().sign({ name: 'Ed25519' }, (ctx as { ed: { priv: CryptoKey } }).ed.priv, hashData))
 export interface Ceremony { enactment: string, step: Step, definition?: string, definitionDigest?: string, terminal?: boolean }
 
 /** Sign a step document under `authentication` with the did:peer:2's authentication key (eddsa-jcs-2022). */
@@ -458,7 +465,7 @@ export async function signStep<T extends Record<string, any>> (ctx: StepSigner, 
   const cfg: Record<string, any> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created, verificationMethod: vm.id, proofPurpose: 'authentication' }
   if ('@context' in doc) cfg['@context'] = doc['@context']
   const hashData = cat(await sha(te.encode(jcs(cfg))), await sha(te.encode(jcs(doc))))
-  const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.ed.priv, hashData))
+  const sig = await signWith(ctx, hashData)
   return { ...doc, proof: { ...cfg, proofValue: 'z' + base58(sig) } }
 }
 
@@ -495,8 +502,8 @@ export async function verifyStep (doc: any, known: Iterable<string> = []): Promi
 export interface Party {
   /** B: the per-encounter messaging identity (a peer DID) and its signing key */
   messaging: StepSigner
-  /** A: the pairwise identifier that issues the credential (did:key) */
-  pair: Signer
+  /** A: the pairwise identifier that issues the credential (did:key), with its key or a signing callback */
+  pair: PairSigner
   /** display name, optional; travels in the propose `reason` (the inviter's in the link's `_label`) */
   name?: string
 }
@@ -615,8 +622,23 @@ export async function credential (me: Party, subjectPair: string, proposeDoc: an
     validFrom: when,
     credentialSubject: bare ? { id: subjectPair } : { id: subjectPair, [CHANNEL_IRI]: channel },
   }
-  return diSign(me.pair, body, when)
+  return 'sign' in me.pair && me.pair.sign ? diSignWith(me.pair.anchor, me.pair.sign, body as Record<string, any>, when) : diSign(me.pair as Signer, body, when)
 }
+
+/** The RLTP card of the issue step (design (d), 9 November 2026): the pair's X25519 key, signed under the pair anchor,
+ *  with this side's own challenge of the ceremony (the inviter's link handle, the responder's propose id), so the key is
+ *  bound to the anchor (Identity §8.4 A3) and to the enactment. Travels in `ext["org.real-life.rltp"].card` of the
+ *  issue; a counterpart that does not read it (Keyring) loses nothing. Needs `pair.keyAgreement`. */
+export async function issueCard (me: Party, ownChallenge: string, nowMs: number): Promise<Record<string, any>> {
+  if (!me.pair.keyAgreement) throw new Error('issueCard: the pair has no keyAgreement Multikey')
+  const when = iso(nowMs)
+  const body = cardBody({ anchor: me.pair.anchor, keyAgreement: me.pair.keyAgreement }, { challenge: { value: ownChallenge, issuedAt: when } })
+  const sign = 'sign' in me.pair && me.pair.sign ? me.pair.sign : async (h: Uint8Array) => new Uint8Array(await S().sign({ name: 'Ed25519' }, (me.pair as Signer).ed.priv, h))
+  return diSignWith(me.pair.anchor, sign, body as unknown as Record<string, any>, when)
+}
+export const RLTP_EXT = 'org.real-life.rltp'
+/** The card an issue document carries in its RLTP ext, or null. */
+export const cardOfIssue = (doc: any): any | null => doc?.payload?.ext?.[RLTP_EXT]?.card ?? null
 
 /** The delivery of a credential (vrc/relationships/issue 0.1). */
 /** A DigestMultibase over `doc` in the chosen base: base64url (`u`, ours) or base58btc (`z`, Keyring's). Both
@@ -628,13 +650,13 @@ export const digestIn = async (doc: unknown, base: 'u' | 'z' = 'u'): Promise<str
 
 /** `statedDigest: false` leaves `vrcDigestMultibase` off (issue 0.1 makes it a SHOULD): for a counterpart that
  *  compares the stated digest as a string in another base (Keyring, November 2026) until it compares bytes. */
-export async function issue (me: Party, recipientDid: string, threadId: string, enactment: string, step: 'issue-inviter' | 'issue-responder', vrc: any, nowMs: number, id: string, opts: { statedDigest?: boolean, digestBase?: 'u' | 'z' } = {}) {
+export async function issue (me: Party, recipientDid: string, threadId: string, enactment: string, step: 'issue-inviter' | 'issue-responder', vrc: any, nowMs: number, id: string, opts: { statedDigest?: boolean, digestBase?: 'u' | 'z', card?: Record<string, any> } = {}) {
   const when = iso(nowMs)
   const doc = {
     id, type: TASK_ISSUE, threadId,
     issuer: me.messaging.did, recipient: recipientDid, issuedAt: when,
     ceremony: { enactment, step, ...(step === 'issue-responder' ? { terminal: true } : {}) } as Ceremony,
-    payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestIn(vrc, opts.digestBase) }) },
+    payload: { vrc, ...(opts.statedDigest === false ? {} : { vrcDigestMultibase: await digestIn(vrc, opts.digestBase) }), ...(opts.card ? { ext: { [RLTP_EXT]: { card: opts.card } } } : {}) },
   }
   return signStep(me.messaging, doc, when)
 }
@@ -687,7 +709,7 @@ export async function verifyPairCredential (vrc: any, issuerPair: string): Promi
 export type StepRefusal =
   | 'type' | 'envelope' | 'payload' | 'issuer-not-peer' | 'issuer' | 'recipient' | 'enactment' | 'thread'
   | 'expired-link' | 'expired' | 'not-fresh' | 'proof'
-  | 'challenge-form' | 'unsupported-pair-did' | 'accept-flag' | 'vrc-citation' | 'vrc-channel'
+  | 'challenge-form' | 'unsupported-pair-did' | 'accept-flag' | 'card' | 'vrc-citation' | 'vrc-channel'
   | 'vrc-proof' | 'vrc-issuer' | 'vrc-subject' | 'vrc-digest'
 
 const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -800,6 +822,12 @@ export async function checkIssue (doc: any, expect: IssueExpectation, nowMs: num
   // the RLTP channel, when present, is one of the four values (and not two spellings that disagree)
   const ch = channelOf(vrc)
   if (ch !== undefined && !['scan', 'displayed', 'link', 'sent'].includes(ch as string)) return 'vrc-channel'
+  // the RLTP card in ext (design (d)): under the issuer's pair anchor, with the issuer's own challenge
+  const card = cardOfIssue(doc)
+  if (card !== null) {
+    const theirChallenge = expect.step === 'issue-inviter' ? expect.enactment : expect.threadId
+    if ((await cardOk(card)) !== null || card.anchor !== expect.issuerPair || card.challenge?.value !== theirChallenge || card.sentTo !== undefined || card.boundTo !== undefined) return 'card'
+  }
   return null
 }
 

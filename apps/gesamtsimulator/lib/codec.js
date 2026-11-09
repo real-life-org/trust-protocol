@@ -293,8 +293,8 @@ const EVENT_FIELDS = {
     'group.void': [{ groupId: str }],
     'group.left': [{ groupId: str }],
     'group.departed': [{ groupId: str, member: str }],
-    'prompt.opened': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction') }],
-    'prompt.decided': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction'), choice: lit('accept', 'decline') }],
+    'prompt.opened': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction', 'shared-connect-confirm') }],
+    'prompt.decided': [{ promptId: str, kind: lit('encounter-confirm', 'group-invite', 'introduction', 'shared-connect-confirm'), choice: lit('accept', 'decline') }],
     'delivery.status': [{ digest: str, threadId: str, status: lit('submitted', 'accepted', 'delivered', 'failed') }, { late: bool }],
     'profile.updated': [{ contactId: nullable(str) }],
     'anchor.rotated': [{ generation: dec }],
@@ -313,6 +313,16 @@ const EVENT_FIELDS = {
     'contact.blocked': [{ contactId: str, blocked: bool }],
     'message.sent': [{ contactId: str, mid: str, digest: str }],
     'message.received': [{ contactId: str, inboxId: str }],
+    'sharedconnect.shown': [{ id: str, link: str, did: str }],
+    'sharedconnect.proposed': [{ id: str, did: str }],
+    'sharedconnect.send': [{ id: str, to: str, docs: arr(anyObj) }],
+    'sharedconnect.pending': [{ id: str, promptId: str, name: nullable(str) }],
+    'sharedconnect.accepted': [{ id: str }],
+    'sharedconnect.declined': [{ id: str }],
+    'sharedconnect.credential': [{ id: str, step: lit('issue-inviter', 'issue-responder') }],
+    'sharedconnect.complete': [{ id: str, contactId: nullable(str) }],
+    'sharedconnect.failed': [{ id: str, code: str }],
+    'sharedconnect.refused': [{ id: str, docType: str, reason: str }],
 };
 /** a journaled event of a type this library emits, in codec n: from
  *  codec 4 on, `delivery.status` may carry `held: true` */

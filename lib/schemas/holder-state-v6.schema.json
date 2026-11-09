@@ -3645,6 +3645,344 @@
             "member"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.shown"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "link": {
+              "type": "string"
+            },
+            "did": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "link",
+            "did"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.proposed"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "did": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "did"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.send"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "docs": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "to",
+            "docs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.pending"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "promptId": {
+              "type": "string"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "promptId",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.accepted"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.declined"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.credential"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "step": {
+              "enum": [
+                "issue-inviter",
+                "issue-responder"
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.complete"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "contactId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "contactId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.failed"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "code": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "code"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sharedconnect.refused"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "commitSeq": {
+              "$ref": "#/$defs/Dec"
+            },
+            "id": {
+              "type": "string"
+            },
+            "docType": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "actId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "commitSeq",
+            "id",
+            "docType",
+            "reason"
+          ],
+          "additionalProperties": false
         }
       ]
     },

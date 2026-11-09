@@ -14,6 +14,8 @@ export interface ResumeResult { outbound: Outbound[], events: HolderEvent[], nex
 
 /** Why an act was refused; `ref` on the result may name the rule. */
 export type ActError =
+  // shared-connect (shared-connect-holder.ts)
+  | 'link-invalid' | 'enactment-unknown' | 'enactment-closed' | 'not-pending' | 'concurrent' | 'keys-missing'
   | 'unknown-contact'
   | 'no-own-channel'
   | 'tuple-deactivated'

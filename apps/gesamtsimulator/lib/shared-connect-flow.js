@@ -39,15 +39,16 @@ const hold = (s, doc) => {
     s.held.push(doc);
     return { kind: 'held', type: typeOf(doc) };
 };
-class Machine {
+export class Machine {
     party;
     o;
     s;
     chain = Promise.resolve();
+    /** the machine owns a copy of what it was given: a restored snapshot may be frozen (holder state) */
     constructor(party, s, o) {
         this.party = party;
         this.o = o;
-        this.s = s;
+        this.s = JSON.parse(JSON.stringify(s));
     }
     /** one call at a time: two documents arriving together are handled one after another */
     serial(f) { const p = this.chain.then(f, f); this.chain = p.catch(() => { }); return p; }
@@ -68,6 +69,16 @@ class Machine {
         if (this.complete)
             return [this.s.receiptMine].filter((d) => d);
         return [this.ownDocs(), this.s.issueMine, this.s.receiptMine].flat().filter((d) => d);
+    }
+    /** `outbox()` of a stored snapshot, without a party: what a holder resends after a restart */
+    static outboxOf(s) {
+        if (s.failed)
+            return [];
+        const complete = !!(s.issueTheirs && s.receiptTheirs);
+        if (complete)
+            return [s.receiptMine].filter((d) => d);
+        const own = s.role === 'inviter' ? [s.accept, s.decline] : [s.propose];
+        return [own, s.issueMine, s.receiptMine].flat().filter((d) => d);
     }
     /** a trust-task-error of the other side in our thread ends the enactment (`failed`), unless the flow
      *  read it as a decline before; anything else is not a step */
@@ -147,7 +158,7 @@ export class Inviter extends Machine {
             s.issueTheirs = doc;
             s.receiptMine = receipt;
             s.held = s.held.filter((h) => h.id !== doc.id); // a held copy taken now is no longer held
-            const events = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-responder' }];
+            const events = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-responder', card: sc.cardOfIssue(doc) }];
             if (this.complete)
                 events.push({ kind: 'complete' });
             return result([receipt], events, this.finished);
@@ -186,7 +197,8 @@ export class Inviter extends Machine {
         // everything built first, the state set once all of it exists
         const accept = await sc.accept(this.party, p, nowMs, this.o.newId());
         const vrc = await sc.credential(this.party, p.payload.relationshipDid, p, channel, nowMs, { profile: this.o.credentialProfile });
-        const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase });
+        const card = this.o.card ? await sc.issueCard(this.party, s.id, nowMs) : undefined;
+        const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) });
         Object.assign(s, { accept, issueMine });
         const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }]);
         // held documents one by one; one that throws stays held (it leaves on a successful later take or a decision)
@@ -253,7 +265,8 @@ export class Responder extends Machine {
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
             const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.propose, s.channel, nowMs, { profile: this.o.credentialProfile });
-            const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase });
+            const card = this.o.card ? await sc.issueCard(this.party, s.challenge, nowMs) : undefined;
+            const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) });
             Object.assign(s, { accept: doc, issueMine });
             const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }]);
             for (const h of [...s.held]) {
@@ -287,7 +300,7 @@ export class Responder extends Machine {
             s.issueTheirs = doc;
             s.receiptMine = receipt;
             s.held = s.held.filter((h) => h.id !== doc.id);
-            const events = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-inviter' }];
+            const events = [{ kind: 'credential', vrc: doc.payload.vrc, step: 'issue-inviter', card: sc.cardOfIssue(doc) }];
             if (this.complete)
                 events.push({ kind: 'complete' });
             return result([receipt], events, this.finished);
