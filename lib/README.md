@@ -206,7 +206,11 @@ Every act returns `{ok: true, outbound, events} | {ok: false, code, ref?}`;
 
 The human acts: `show`, `scan`, `captureSentCard`, `counter` (the encounter),
 `decide` (a prompt: confirm an encounter, accept an invitation, take up or
-consent to an introduction), `trust`, `untrust`, `pauseTrust`, `setClass`,
+consent to an introduction, confirm a shared-connect proposal),
+`sharedConnectShow`, `sharedConnectPropose` (the ceremony across apps; the
+document the carrier delivers goes to `sharedConnectReceive`, not human),
+`trust` (refused `not-met` toward a shared-connect contact that did not
+meet), `untrust`, `pauseTrust`, `setClass`,
 `setGroupClass`, `merge`, `depart`, `setProfile`, `foundPersonalCommunity`,
 `foundGroup`, `invite`, `leaveGroup`,
 `vouchFor`, `introduce`, `sendMessage`, `block`, `unblock`, `rotateAnchor`,
@@ -282,8 +286,9 @@ journal, and acting anew is the human's decision. Custody:
 - The ports: `Store`, `KeyProvider`, `Entropy`, `Log`, `Access`,
   `RetryPolicy`, `DeliveryReport`, `Outbound`; `seedKeys(seed)` is the
   default KeyProvider, `randomEntropy` the default Entropy.
-- The views: `ContactView`, `GroupView`, `PromptView`, `ProfileView`,
-  `InboxMessageView`, `DeliveryStatusView` and their parts.
+- The views: `ContactView` (with `sharedConnect`: the origin and class of a
+  shared-connect contact), `GroupView`, `PromptView`, `ProfileView`,
+  `InboxMessageView`, `DeliveryStatusView`, `SharedConnectView` and their parts.
 - The results and events: `ActResult`, `ReceiveResult`, `ResumeResult`,
   `InfraError`, `CryptoUnavailableError`, `HolderEvent`.
 - The state as an opaque type (`HolderState`), `decodeState`, `CODEC`,
@@ -317,7 +322,9 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | `identity` | Identity 0.55 §6.1, §6.2, §5.4, §5.5 | context derivation under the closed label registry: `group/<digest>` and its generations, `pair/…`, `persona/…`, `device/<n>/<c>`; the name pipeline pinned to Unicode 15.0 |
 | `identity-state` | Identity §2, §5.4, §5.5 | the label register with monotone sets, device names and revocation marks, the community anchor's rotation as a procedure over the Log port (register before log before duties) |
 | `encounter`, `encounter/ceremony` | Encounter 0.32 §4–§7 | `encounter-scan@0.25`: challenges and their aging latch (5.3), the enactment record (5.5), the 5.6 acceptance in its order, both paths of 5.8, `encounter-bundle/0.1` and `encounter-credential-delivery/0.1` with signed acks, the confirm prompt |
-| `sharedConnect` | draft: tf#1034 (three steps, 8 Nov 2026), vti#86; definition `interop/ceremonies/shared-connect.ceremony.json` | the shared connection ceremony across apps on `vrc/relationships/propose/0.1` and `issue/0.1`: the messaging identity as did:peer:2 or long-form did:peer:4 (`peer2Of`, `peer4Of`, `parsePeer`, `sameVid`), the trigger link (`sharedConnectLink`, `readSharedConnectLink`, async), the six documents of the three steps, `checkPropose` / `checkAccept` / `checkIssue` / `checkReceipt` (digests compared over bytes), the pairwise identifier as did:key or did:peer:0, the enactment `binding`, the offline back-code; run live against Keyring's scanner (first run 7 Nov) |
+| `sharedConnect` | draft: tf#1034 (three steps, 8 Nov 2026), vti#86; definition `interop/ceremonies/shared-connect.ceremony.json` | the shared connection ceremony across apps on `vrc/relationships/propose/0.1` and `issue/0.1`: the messaging identity as did:peer:2 or long-form did:peer:4 (`peer2Of`, `peer4Of`, `parsePeer`, `sameVid`), the trigger link (`sharedConnectLink`, `readSharedConnectLink`, async), the six documents of the three steps, `checkPropose` / `checkAccept` / `checkIssue` / `checkReceipt` (digests compared over bytes), the credential citing the propose (DTG Trust Task Context Binding), this side's X25519 key as a card signed under the pair anchor in the issue step's `ext["org.real-life.rltp"].card` (`issueCard`, `cardOfIssue`), the offline back-code; complete live run against Keyring's scanner on 8 Nov 2026 |
+| `sharedConnectFlow` | the same ceremony | the enactment as a step machine per role (`Inviter`, `Responder`): documents in, documents and events out, held and redelivered documents, the person's accept/decline, a decline or the counterpart's error as the end, `snapshot()` / `outbox()` for a restart; what the holder module and the CLIs run on |
+| `shared-connect-holder` | the same ceremony; design (d) of 9 Nov 2026 | the ceremony as holder acts: `sharedconnect.show` (the inviter's link under a fresh `pair/…` label and a fresh 16-byte handle), `sharedconnect.propose` (the responder reads a link), `sharedconnect.receive` (a document the carrier delivered, with its TSP sender); the inviter's confirmation as the prompt `shared-connect-confirm`; the messaging identity from `KeyProvider.sharedConnectMessaging(nonce)` (D5); when both cards came, a contact and relationship through the continuity tuple, otherwise the credentials held in the enactment (a counterpart without a card: Keyring); the view `sharedConnect()`; retention: a complete enactment stays, a declined or failed one leaves 30 days after it closed |
 | `trust/mapping` | Trust Section 2, 2a, §6.1–§6.5 | the trust act and the class settings (2720–2850), `anchor-mapping@4` issuance (6300/6310, 6420) and verification (6.3, conditions 4a, 4b, 8), the entry commit and the admission bound |
 | `trust/star`, `trust/group-star` | Trust §5.1–§5.4, §5.2b | `star@2` and `group-star@1` reconciled per recipient (5.4: salt scope, baseline automaton, completion by the ack), reception with assemblies and lower bounds |
 | `trust/entries` | Trust Section 2, §6a.1 | merge (net and manual, 6640), split (2080–2115), departure (2260), the head rule and the binding rule (6605) |
@@ -353,7 +360,16 @@ A holder's state is pure JSON under a codec version. The Store port takes
 the state as opaque JSON and gives it back; the library decodes it
 (`decodeState`), the adapter never migrates.
 
-- **Codec 4** is the format this library writes. It holds the state of
+- **Codec 6** is the format this library writes: codec 5 and the
+  shared-connect enactments (`sharedConnect.enactments`: the flow
+  snapshot per enactment, both credentials where it completed, the
+  contact it opened). Codec 5 is read through a migration that adds the
+  empty slice.
+- **Codec 5** (lib 0.13.0 to 0.14.0): a group carries `phase`, `log`,
+  `syncs`, `issuer`, `contentKey`, `joinUntil`; codec 4 is read through a
+  migration under which a group of the earlier form stands as a member's
+  group without a log.
+- **Codec 4** (lib 0.10.0 to 0.12.0) holds the state of
   Message Tasks 0.2 (`messages`: the block, the rates, the ready tuples,
   the completion record, the inbox), an outbox item's sender lifetime
   (`expiresAt`) and `failed(task-expired)`, the record of surfaced and the
@@ -434,6 +450,7 @@ This package uses its own semver; the specification uses castings.
 |---|---|---|
 | identity | Identity 0.55 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.32, cards 0.25, credentials 0.26 | — |
+| shared-connect | ceremony definition `interop/ceremonies/shared-connect.ceremony.json` (tf#1034 draft, 8 Nov 2026) | a messaging channel toward a counterpart without a card (tf discussion #1013); the Encounter casting that adopts the ceremony (D5) |
 | trust | Trust Layer 0.31 | — |
 | membership | Membership Tasks 0.21, Access 0.58 | `access-operation/0.1` (Membership 3.3: this library sends its own `x-membership-welcome/0.1` and the new member fetches the log); an admission prompt after the bound of RLTP-MT-3282; of Access: key distribution and transitions (§7, §9.4 beyond the genesis commitment), the conflict matrix (3.6), `policy.change`, device cards (5.1), views (7.3), `member.remove`, the pending exit (5.4); the service identity is provisional (D3); one device per person; the log reaches the members along the invitation tree only |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |

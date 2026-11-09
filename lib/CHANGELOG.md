@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.16.0
+
+shared-connect on the holder, 9 November 2026: the flow machines (`sharedConnectFlow`),
+the holder module with its acts, prompt and view, the contact book's origin and class,
+and trust only toward an entry that met. Codec 6 (migration from 5: an empty
+`sharedConnect.enactments`). 0.15.0 was prepared (the flow machines alone) and not
+published; this release carries it.
 
 shared-connect: the credential carries the two registry contexts only and no
 vendor type, and cites its enactment with the DTG spec's own members:

@@ -75,6 +75,16 @@ act's journaled result or `unknown-act` and never runs the act again.
 `InMemoryStore` is for tests;
 an app brings its own store, which passes the `storeContract` suite.
 
+The holder also runs the shared connection ceremony across apps
+(`interop/ceremonies/shared-connect.ceremony.json`): `sharedConnectShow`
+gives the trigger link to display, `sharedConnectPropose` reads one, and
+every document the carrier delivers for it goes to `sharedConnectReceive`
+with its TSP sender; the inviter confirms the proposal as a prompt. Where
+both sides are holders of this library the ceremony opens an ordinary
+contact; a counterpart of another app leaves its credential with the
+holder (`sharedConnect()` view), and trust goes only to a contact the two
+sides state they met.
+
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)
 lists every act, every export and entry point, and for each module the
 sections of the specifications it implements.
