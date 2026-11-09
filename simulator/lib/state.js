@@ -49,15 +49,26 @@ export function sharedConnectIndex(state) {
     const ix = new Map();
     for (const e of Object.values(state.sharedConnect.enactments))
         if (e.contactId !== null)
-            ix.set('r-' + e.label.slice('pair/'.length), e);
+            ix.set(e.label, e);
     return ix;
 }
-/** the shared-connect origin of an entry, by its relationships; null when none came from an enactment */
+/** the shared-connect origin of an entry, by the tuples of its relationships (a husk without tuples
+ *  says nothing); null when none came from an enactment */
 export function sharedConnectOriginOf(state, contact, ix = sharedConnectIndex(state)) {
-    const own = contact.relIds.map((r) => ix.get(r)).filter((e) => e !== undefined);
+    const own = [];
+    let other = false;
+    for (const relId of contact.relIds) {
+        for (const t of state.relationships[relId]?.tuples ?? []) {
+            const e = ix.get(t.ownPairLabel);
+            if (e)
+                own.push(e);
+            else
+                other = true;
+        }
+    }
     if (!own.length)
         return null;
     const oldest = [...own].sort((a, b) => (a.openedAt - b.openedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0];
-    const met = contact.relIds.some((r) => !ix.has(r)) || own.some((e) => metByChannel(e.channel));
+    const met = other || own.some((e) => metByChannel(e.channel));
     return { enactmentId: oldest.id, channel: oldest.channel, met };
 }

@@ -918,21 +918,30 @@ export interface SharedConnectOrigin { enactmentId: string, channel: SharedConne
 /** `met` for the channels of a code read in one place, the encounter proper (shared-connect 0.1 §3) */
 export const metByChannel = (channel: SharedConnectEnactment['channel']): boolean => channel === 'scan' || channel === 'displayed'
 
-/** relationship id → the shared-connect enactment that opened it. The relationship id is the one
- *  `idsOf(label)` (encounter/ceremony.ts) gives the enactment's pair label; it survives a merge,
- *  a split and a rename of the entry (2140, 6a.4), which the enactment's `contactId` does not. */
+/** own pair label → the shared-connect enactment that opened a relationship under it. The label
+ *  is the tuple's identity (2280): a merge, a split, a rename of the entry and a chaining by
+ *  continuity (6a.4, which moves the tuple and swaps the relationship id) leave it as it is,
+ *  where the enactment's `contactId` and the entry's `relIds` do not. */
 export type SharedConnectIndex = Map<string, SharedConnectEnactment>
 export function sharedConnectIndex (state: Readonly<HolderState>): SharedConnectIndex {
   const ix: SharedConnectIndex = new Map()
-  for (const e of Object.values(state.sharedConnect.enactments)) if (e.contactId !== null) ix.set('r-' + e.label.slice('pair/'.length), e)
+  for (const e of Object.values(state.sharedConnect.enactments)) if (e.contactId !== null) ix.set(e.label, e)
   return ix
 }
 
-/** the shared-connect origin of an entry, by its relationships; null when none came from an enactment */
+/** the shared-connect origin of an entry, by the tuples of its relationships (a husk without tuples
+ *  says nothing); null when none came from an enactment */
 export function sharedConnectOriginOf (state: Readonly<HolderState>, contact: Readonly<Contact>, ix: SharedConnectIndex = sharedConnectIndex(state)): SharedConnectOrigin | null {
-  const own = contact.relIds.map((r) => ix.get(r)).filter((e): e is SharedConnectEnactment => e !== undefined)
+  const own: SharedConnectEnactment[] = []
+  let other = false
+  for (const relId of contact.relIds) {
+    for (const t of state.relationships[relId]?.tuples ?? []) {
+      const e = ix.get(t.ownPairLabel)
+      if (e) own.push(e); else other = true
+    }
+  }
   if (!own.length) return null
   const oldest = [...own].sort((a, b) => (a.openedAt - b.openedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0]
-  const met = contact.relIds.some((r) => !ix.has(r)) || own.some((e) => metByChannel(e.channel))
+  const met = other || own.some((e) => metByChannel(e.channel))
   return { enactmentId: oldest.id, channel: oldest.channel, met }
 }
