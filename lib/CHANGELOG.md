@@ -13,7 +13,10 @@ pair anchor's signature in this side's card of the issue step
 contact view of such a relationship shows `carrierNonce` and the counterpart's
 `counterpartDeliveryHints` from its card, so a carrier adapter runs for it as for a
 relationship of encounter-scan. Without an offer nothing changes: no nonce, no
-hints, the relationship is not carried. No codec change (the snapshot is opaque
+hints, the relationship is not carried. `SharedConnectView.carrierNonce` names the
+nonce of an enactment, also one that ended without a relationship (the nonce stays
+in the register; the app takes its carrier down). The act's input types are exported
+(`SharedConnectShowInput`, `SharedConnectProposeInput`). No codec change (the snapshot is opaque
 to the codec).
 
 ## 0.16.0

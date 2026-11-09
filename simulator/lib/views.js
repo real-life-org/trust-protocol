@@ -90,6 +90,7 @@ import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
 import { messageChannel } from './message/holder.js';
 import { canonicalCarrierNonce } from './identity-state.js';
+import { cardOfIssue } from './shared-connect.js';
 // ── helpers ────────────────────────────────────────────────────────────
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const cmpDec = (a, b) => { const x = BigInt(a), y = BigInt(b); return x < y ? -1 : x > y ? 1 : 0; };
@@ -149,7 +150,7 @@ const firstHints = (r, rix, scix) => {
     // a relationship a shared-connect enactment opened has no record: the counterparty's card is the one
     // in its issue step, held in the enactment's flow snapshot (shared-connect-holder.ts)
     const sce = !rec && first ? scix.get(first.ownPairLabel) : undefined;
-    const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? sce.flow.issueTheirs?.payload?.ext?.['org.real-life.rltp']?.card : undefined;
+    const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? cardOfIssue(sce.flow.issueTheirs) : undefined;
     if (!card)
         return undefined;
     const h = card?.deliveryHints;

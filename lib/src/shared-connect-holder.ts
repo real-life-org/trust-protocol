@@ -32,7 +32,7 @@ import type { ActError } from './results.js'
 import type { EventDraft } from './engine.js'
 import { jcs, b64uOf, fromB64u } from './core.js'
 import { digestBytes } from './crypto.js'
-import { withPairNonce, withCarrierNonce } from './identity-state.js'
+import { withPairNonce, withCarrierNonce, canonicalCarrierNonce } from './identity-state.js'
 import { idsOf, offerRefusal, nonceStale, type CarrierOfferInput } from './encounter/ceremony.js'
 import { openTuple } from './trust/continuity.js'
 import * as sc from './shared-connect.js'
@@ -49,7 +49,9 @@ export const RETENTION = 30 * 24 * 3_600_000
 
 /** `carrier`: the carrier offer as show and scan take it (Encounter 6080, 6090; Identity §7a.3): the nonce N
  *  enters the register under the relationship the pair label opens, the hints travel in this side's card of
- *  the issue step, so the relationship the ceremony opens is carried like one of encounter-scan */
+ *  the issue step, so the relationship the ceremony opens is carried like one of encounter-scan. The hints
+ *  are the act's: fixed and journaled with it, signed into the card when the issue step comes (for a sent
+ *  link up to days later); a carrier changed in between is not reflected, the app starts a new enactment */
 export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput }
 export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string, carrier?: CarrierOfferInput }
 export interface ReceiveInput { doc: unknown, sender: string }
@@ -342,6 +344,11 @@ export interface SharedConnectView {
   theirCredential: JsonObject | null
   /** the credential this side issued */
   myCredential: JsonObject | null
+  /** the carrier nonce the act's offer put into the register for the relationship this enactment may open
+   *  (null without an offer). It stays in the register whatever the enactment's end: where no relationship
+   *  came of it (declined, failed, never answered, a counterpart without a card), the app that set up a
+   *  carrier for it reads here which one to take down */
+  carrierNonce: string | null
   /** the own documents to send again after a restart */
   outbox: JsonObject[]
   openedAt: Millis
@@ -357,6 +364,7 @@ export function sharedConnectView (state: Readonly<HolderState>): SharedConnectV
       theirDid: e.role === 'inviter' ? (f as InviterSnapshot).propose?.issuer ?? null : e.link.from,
       theirPair: e.theirPair, name: e.role === 'inviter' ? ((f as InviterSnapshot).propose?.payload?.reason ?? null) : e.link.label,
       channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
+      carrierNonce: canonicalCarrierNonce(state.register, idsOf(e.label).relId)?.nonce ?? null,
       theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f) as JsonObject[], openedAt: e.openedAt, closedAt: e.closedAt,
     }
   })

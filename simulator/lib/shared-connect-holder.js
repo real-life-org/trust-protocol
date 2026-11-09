@@ -3,7 +3,7 @@
 import { metInEnactment, theirChannelOf } from './state.js';
 import { jcs, b64uOf, fromB64u } from './core.js';
 import { digestBytes } from './crypto.js';
-import { withPairNonce, withCarrierNonce } from './identity-state.js';
+import { withPairNonce, withCarrierNonce, canonicalCarrierNonce } from './identity-state.js';
 import { idsOf, offerRefusal, nonceStale } from './encounter/ceremony.js';
 import { openTuple } from './trust/continuity.js';
 import * as sc from './shared-connect.js';
@@ -308,6 +308,7 @@ export function sharedConnectView(state) {
             theirDid: e.role === 'inviter' ? f.propose?.issuer ?? null : e.link.from,
             theirPair: e.theirPair, name: e.role === 'inviter' ? (f.propose?.payload?.reason ?? null) : e.link.label,
             channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
+            carrierNonce: canonicalCarrierNonce(state.register, idsOf(e.label).relId)?.nonce ?? null,
             theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f), openedAt: e.openedAt, closedAt: e.closedAt,
         };
     });

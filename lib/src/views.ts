@@ -89,6 +89,7 @@ import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
 import { messageChannel } from './message/holder.js'
 import { canonicalCarrierNonce } from './identity-state.js'
+import { cardOfIssue } from './shared-connect.js'
 import type {
   EnactmentRecord,
   Contact, Dec, GroupPhase, HolderState, Millis, OutboxItem, OutboxStatus, PromptKind, Relationship, Setting, SharedConnectIndex, SharedConnectOrigin, TrustClass, Tuple,
@@ -326,7 +327,7 @@ const firstHints = (r: Readonly<Relationship>, rix: RecordIndex, scix: SharedCon
   // a relationship a shared-connect enactment opened has no record: the counterparty's card is the one
   // in its issue step, held in the enactment's flow snapshot (shared-connect-holder.ts)
   const sce = !rec && first ? scix.get(first.ownPairLabel) : undefined
-  const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? (sce.flow as { issueTheirs?: { payload?: { ext?: Record<string, { card?: unknown }> } } }).issueTheirs?.payload?.ext?.['org.real-life.rltp']?.card : undefined
+  const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? cardOfIssue((sce.flow as { issueTheirs?: unknown }).issueTheirs) : undefined
   if (!card) return undefined
   const h = (card as { deliveryHints?: unknown } | undefined)?.deliveryHints
   return Array.isArray(h) && h.length ? h.filter((x): x is string => typeof x === 'string') : undefined
