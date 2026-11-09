@@ -1,6 +1,6 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
-import { metByChannel } from './state.js';
+import { metInEnactment, theirChannelOf } from './state.js';
 import { jcs, b64uOf, fromB64u } from './core.js';
 import { digestBytes } from './crypto.js';
 import { withPairNonce } from './identity-state.js';
@@ -294,7 +294,7 @@ export function sharedConnectView(state) {
             id: e.id, role: e.role, status: e.status, link: e.link, did: e.did,
             theirDid: e.role === 'inviter' ? f.propose?.issuer ?? null : e.link.from,
             theirPair: e.theirPair, name: e.role === 'inviter' ? (f.propose?.payload?.reason ?? null) : e.link.label,
-            channel: e.channel, met: metByChannel(e.channel), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
+            channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
             theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f), openedAt: e.openedAt, closedAt: e.closedAt,
         };
     });

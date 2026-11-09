@@ -10,6 +10,7 @@
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md);
 // Identity §n is identity-layer.md, Delivery §n delivery-contract.md.
 import type { Json, JsonObject } from './core.js'
+import { channelOf } from './shared-connect.js'
 import type { Envelope } from './delivery.js'
 import type { HolderEvent } from './events.js'
 import type { DeliveryFailure, LogHead, PreTransportReason, ReceiverRefusalCode, Recipient } from './ports.js'
@@ -908,15 +909,35 @@ export function emptyState (codec: number): HolderState {
 
 // ── shared-connect origin of a contact ─────────────────────────────────
 
-/** What the contact book shows of a shared-connect contact: the enactment that opened it (the
- *  oldest, where several relationships of the entry came from enactments), the channel of this
- *  side in it, and whether the entry met: any of its relationships came from an encounter or an
- *  introduction, or from an enactment whose code was read in one place (`scan` / `displayed`);
- *  an entry whose every relationship came over a link (`link` / `sent`) did not. */
-export interface SharedConnectOrigin { enactmentId: string, channel: SharedConnectEnactment['channel'], met: boolean }
+/** The channel of a shared-connect enactment as one side states it in its credential (shared-connect
+ *  0.1 §3): `scan` / `displayed` a code read in one place, `link` / `sent` a link opened elsewhere. */
+export type SharedConnectChannel = SharedConnectEnactment['channel']
 
-/** `met` for the channels of a code read in one place, the encounter proper (shared-connect 0.1 §3) */
-export const metByChannel = (channel: SharedConnectEnactment['channel']): boolean => channel === 'scan' || channel === 'displayed'
+/** What the contact book shows of a shared-connect contact: the enactment that opened it (the
+ *  oldest, where several tuples of the entry came from enactments), this side's channel in it,
+ *  the counterpart's channel as its credential states it (null where the credential names
+ *  none, a foreign profile), and whether the entry met. An entry met when any of its tuples
+ *  came from an encounter or an introduction, or from an enactment in which **both** sides
+ *  state a code read in one place; one side's statement alone is not a meeting, and the two
+ *  statements together are what the two participants said, not proof of co-presence. */
+export interface SharedConnectOrigin { enactmentId: string, channel: SharedConnectChannel, theirChannel: SharedConnectChannel | null, met: boolean }
+
+const CHANNELS: readonly SharedConnectChannel[] = ['scan', 'displayed', 'link', 'sent']
+/** a code read in one place, this side */
+export const metByChannel = (channel: SharedConnectChannel): boolean => channel === 'scan' || channel === 'displayed'
+
+/** the counterpart's channel from the credential it issued (the one of the four values; null for none, or a value outside them) */
+export function theirChannelOf (e: Readonly<SharedConnectEnactment>): SharedConnectChannel | null {
+  const issue = (e.flow as { issueTheirs?: { payload?: { vrc?: unknown } } }).issueTheirs
+  const ch = channelOf(issue?.payload?.vrc)
+  return (CHANNELS as readonly unknown[]).includes(ch) ? ch as SharedConnectChannel : null
+}
+
+/** both sides state a code read in one place */
+export const metInEnactment = (e: Readonly<SharedConnectEnactment>): boolean => {
+  const theirs = theirChannelOf(e)
+  return metByChannel(e.channel) && theirs !== null && metByChannel(theirs)
+}
 
 /** own pair label → the shared-connect enactment that opened a relationship under it. The label
  *  is the tuple's identity (2280): a merge, a split, a rename of the entry and a chaining by
@@ -931,7 +952,8 @@ export function sharedConnectIndex (state: Readonly<HolderState>): SharedConnect
 
 /** the shared-connect origin of an entry, by the tuples of its relationships (a husk without tuples
  *  says nothing); null when none came from an enactment. A tuple under no enactment (an encounter,
- *  an introduction; a deactivated one too, historical evidence) means the entry met. */
+ *  an introduction; a deactivated one too, historical evidence) means the entry met. One derivation
+ *  for the contact view and for the trust check (`not-met`). */
 export function sharedConnectOriginOf (state: Readonly<HolderState>, contact: Readonly<Contact>, ix: SharedConnectIndex = sharedConnectIndex(state)): SharedConnectOrigin | null {
   const own: SharedConnectEnactment[] = []
   let other = false
@@ -943,6 +965,6 @@ export function sharedConnectOriginOf (state: Readonly<HolderState>, contact: Re
   }
   if (!own.length) return null
   const oldest = [...own].sort((a, b) => (a.openedAt - b.openedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0]
-  const met = other || own.some((e) => metByChannel(e.channel))
-  return { enactmentId: oldest.id, channel: oldest.channel, met }
+  const met = other || own.some(metInEnactment)
+  return { enactmentId: oldest.id, channel: oldest.channel, theirChannel: theirChannelOf(oldest), met }
 }

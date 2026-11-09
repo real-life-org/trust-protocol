@@ -89,7 +89,7 @@ export * as sharedConnect from './shared-connect.js';
 export * as sharedConnectFlow from './shared-connect-flow.js';
 export { SC_COMMANDS, SC_PROMPT, sharedConnectModule, sharedConnectView } from './shared-connect-holder.js';
 import { decodeState as decodeStructural } from './codec.js';
-export { metByChannel } from './state.js';
+export { metByChannel, metInEnactment } from './state.js';
 export { CODEC, StateCodecError } from './codec.js';
 /** Load a stored state (a JSON string or a parsed value): an independent,
  *  opaque copy at the current codec, or StateCodecError. */

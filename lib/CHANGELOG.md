@@ -44,18 +44,21 @@ counterpart's error while the confirmation is open closes the prompt. Signers of
 flow machines copy a restored snapshot instead of mutating it.
 
 shared-connect contacts in the contact book (plan A2/A3): `ContactView.sharedConnect`
-names the enactment that opened the contact, this side's channel and whether the two
-met (`met`: the code read in one place, `scan` / `displayed`; false over a `link` /
-`sent`); `SharedConnectView.met` says the same for every enactment, so a contact
-without an RLTP channel (a counterpart without a card: Keyring, Consensual) shows its
-class from there. Trust goes only to a contact that met: `trust.set` and
-`trust.setClass anchorMapping on` refuse `not-met` for a shared-connect contact over a
-link; the origin is found by the pair labels of the entry's tuples, so it follows a merge, a
-split, a rename and a chaining by continuity (an entry met when any of its tuples did). Exported: `SharedConnectOrigin`,
-`metByChannel`. No new state:
-under design (d) a WoT-to-WoT enactment opens the ordinary contact and relationship
-through the continuity tuple, and a foreign counterpart's credentials stay in the
-enactment.
+names the enactment that opened the contact, this side's channel, the counterpart's
+channel as its credential states it, and whether the entry met. An entry met when any of
+its tuples came from an encounter, an introduction, or an enactment in which both sides
+state a code read in one place (`scan` / `displayed`); one side's statement is not a
+meeting, a link (`link` / `sent`) on either side is not, and the two statements are what
+the participants said, not proof of co-presence. `SharedConnectView.theirChannel` and
+`.met` say the same for every enactment, so a contact without an RLTP channel (a
+counterpart without a card: Keyring, Consensual) shows its class from there. Trust goes
+only to an entry that met: `trust.set` and `trust.setClass anchorMapping on` refuse
+`not-met`. One derivation for the view and the check, by the pair labels of the entry's
+tuples, so it follows a merge, a split, a rename and a chaining by continuity, and a later
+link never devalues an earlier meeting. Exported: `SharedConnectOrigin`,
+`SharedConnectChannel`, `metByChannel`, `metInEnactment`. No new state: under design (d) a
+WoT-to-WoT enactment opens the ordinary contact and relationship through the continuity
+tuple, and a foreign counterpart's credentials stay in the enactment.
 
 ## 0.14.0
 
