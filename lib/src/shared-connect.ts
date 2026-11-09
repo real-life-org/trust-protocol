@@ -595,9 +595,12 @@ export const taskDigest = async (doc: any, base: 'u' | 'z' = 'z'): Promise<strin
 /** The issuer's channel of a credential, under the IRI or the earlier short name. Both present with
  *  different values is a contradiction in a signed document and reads as `conflict`, never as either (#185). */
 export const channelOf = (vrc: any): unknown => {
-  const cs = vrc?.credentialSubject; const a = cs?.[CHANNEL_IRI], b = cs?.channel
+  const cs = vrc?.credentialSubject
+  const a = cs && Object.hasOwn(cs, CHANNEL_IRI) ? cs[CHANNEL_IRI] : undefined
+  const b = cs && Object.hasOwn(cs, 'channel') ? cs.channel : undefined
   if (a !== undefined && b !== undefined && a !== b) return 'conflict'
-  return a ?? b
+  // a member that is present but null (or any non-string) is a value, not an absence: it fails the value check
+  return a !== undefined ? a : b
 }
 /** `profile: 'dtg'` leaves out `channel` and the citation (a probe). */
 export async function credential (me: Party, subjectPair: string, proposeDoc: any, channel: Channel, nowMs: number, opts: { profile?: 'rltp' | 'dtg' } = {}) {
