@@ -57,9 +57,9 @@ const jwkX = async (priv: CryptoKey, subtle: SubtleCrypto = S()): Promise<Uint8A
 /** A key pair as this library carries it: the private CryptoKey plus the raw public bytes. */
 export interface KeyPair { priv: CryptoKey, pubRaw: Uint8Array }
 
-export async function edFromSeed (seed: Uint8Array): Promise<KeyPair> {
-  const priv = await S().importKey('pkcs8', cat(ED_PKCS8, seed), { name: 'Ed25519' }, true, ['sign'])
-  return { priv, pubRaw: await jwkX(priv) }
+export async function edFromSeed (seed: Uint8Array, subtle: SubtleCrypto = S()): Promise<KeyPair> {
+  const priv = await subtle.importKey('pkcs8', cat(ED_PKCS8, seed), { name: 'Ed25519' }, true, ['sign'])
+  return { priv, pubRaw: await jwkX(priv, subtle) }
 }
 export async function xFromSeed (seed: Uint8Array, subtle: SubtleCrypto = S()): Promise<KeyPair> {
   const priv = await subtle.importKey('pkcs8', cat(X_PKCS8, seed), { name: 'X25519' }, true, ['deriveBits'])

@@ -124,8 +124,8 @@ export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): Ke
       if (!(nonce instanceof Uint8Array) || nonce.length !== 16) throw new RangeError('shared-connect nonce must be 16 bytes (the challenge this side minted)')
       const msgSeed = await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + await mh(new Uint8Array(nonce)))
       // the same two labels partyFromSeeds applies to the messaging seed (shared-connect.ts)
-      const ed = await edFromSeed(await hkdfOf(msgSeed, 'shared-connect/messaging/ed25519'))
-      const x = await xFromSeed(await hkdfOf(msgSeed, 'shared-connect/messaging/x25519'), S)
+      const ed = await edFromSeed(await hkdfOf(msgSeed, 'shared-connect/messaging/ed25519', 32, S), S)
+      const x = await xFromSeed(await hkdfOf(msgSeed, 'shared-connect/messaging/x25519', 32, S), S)
       return { ed: ed.pubRaw, x: x.pubRaw, sign: async (hashData: Uint8Array) => new Uint8Array(await S.sign({ name: 'Ed25519' }, ed.priv, hashData)) }
     },
 
