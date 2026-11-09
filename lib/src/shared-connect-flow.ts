@@ -49,7 +49,7 @@ export interface FlowOptions { newId: () => string, statedDigest?: boolean, cred
 /** What the inviter's app shows while it waits for the person. */
 export interface Pending { propose: any, name: string | null, relationshipDid: string }
 
-interface Common { propose: any, accept: any, decline: any, failed: { code: string, step: string, message: string | null } | null, binding: string | null, issueMine: any, issueTheirs: any, receiptMine: any, receiptTheirs: any, held: any[] }
+interface Common { propose: any, accept: any, decline: any, failed: { code: string, step: string, message: string | null } | null, issueMine: any, issueTheirs: any, receiptMine: any, receiptTheirs: any, held: any[] }
 export interface InviterSnapshot extends Common { role: 'inviter', id: string, exp: number }
 export interface ResponderSnapshot extends Common { role: 'responder', link: { from: string, id: string, exp: number, label: string | null }, challenge: string, channel: Channel }
 
@@ -57,7 +57,7 @@ export interface ResponderSnapshot extends Common { role: 'responder', link: { f
 const HELD_MAX = 8
 const same = (a: any, b: any): boolean => JSON.stringify(a) === JSON.stringify(b)
 const result = (send: any[] = [], events: FlowEvent[] = [], finished = false): FlowResult => ({ send, events, finished })
-const empty = (): Common => ({ propose: null, accept: null, decline: null, failed: null, binding: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] })
+const empty = (): Common => ({ propose: null, accept: null, decline: null, failed: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] })
 const typeOf = (doc: any): string => (typeof doc?.type === 'string' ? doc.type : 'untyped')
 const hold = (s: Common, doc: any): FlowEvent => {
   if (s.held.some((h) => h.id === doc.id)) return { kind: 'ignored', type: typeOf(doc), why: 'duplicate' }
@@ -147,7 +147,7 @@ export class Inviter extends Machine<InviterSnapshot> {
       if (s.failed) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true)
       const r = await sc.checkIssue(doc, {
         issuerDid: s.propose.issuer, myDid: me, threadId: s.propose.id, enactment: s.id, step: 'issue-responder',
-        issuerPair: s.propose.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.id, binding: s.binding!,
+        issuerPair: s.propose.payload.relationshipDid, myPair: this.party.pair.anchor, propose: s.propose,
       }, nowMs)
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
       const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase })
@@ -183,10 +183,9 @@ export class Inviter extends Machine<InviterSnapshot> {
     const p = s.propose
     // everything built first, the state set once all of it exists
     const accept = await sc.accept(this.party, p, nowMs, this.o.newId())
-    const binding = await sc.binding(s.id, p.id)
-    const vrc = await sc.credential(this.party, p.payload.relationshipDid, p.id, binding, channel, nowMs, { profile: this.o.credentialProfile })
+    const vrc = await sc.credential(this.party, p.payload.relationshipDid, p, channel, nowMs, { profile: this.o.credentialProfile })
     const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase })
-    Object.assign(s, { accept, binding, issueMine })
+    Object.assign(s, { accept, issueMine })
     const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }])
     // held documents one by one; one that throws stays held (it leaves on a successful later take or a decision)
     for (const h of [...s.held]) {
@@ -239,10 +238,9 @@ export class Responder extends Machine<ResponderSnapshot> {
       if (s.decline || s.failed) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true)
       const r = await sc.checkAccept(doc, s.propose, s.link.from, nowMs)
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
-      const binding = await sc.binding(s.link.id, s.challenge)
-      const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.link.id, binding, s.channel, nowMs, { profile: this.o.credentialProfile })
+      const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.propose, s.channel, nowMs, { profile: this.o.credentialProfile })
       const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase })
-      Object.assign(s, { accept: doc, binding, issueMine })
+      Object.assign(s, { accept: doc, issueMine })
       const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }])
       for (const h of [...s.held]) {
         try { const r2 = await this.take(h, peerDid, nowMs); out.send.push(...r2.send); out.events.push(...r2.events) } catch { continue }
@@ -257,7 +255,7 @@ export class Responder extends Machine<ResponderSnapshot> {
       if (s.failed) return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true)
       const r = await sc.checkIssue(doc, {
         issuerDid: s.link.from, myDid: me, threadId: s.propose.id, enactment: s.link.id, step: 'issue-inviter',
-        issuerPair: s.accept.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.challenge, binding: s.binding!,
+        issuerPair: s.accept.payload.relationshipDid, myPair: this.party.pair.anchor, propose: s.propose,
       }, nowMs)
       if (r) return result([], [{ kind: 'refused', type, reason: r }])
       const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase })

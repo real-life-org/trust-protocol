@@ -5,7 +5,7 @@
 // the link per trustoverip/dtgwg-vti-spec#86): the inviter's did:peer:2 and
 // link, the responder's did:peer:2, the propose, the acceptance, both
 // credentials with their issue documents and receipts, the enactment
-// binding, and the offline back-code of the propose. Everything is derived
+// citation of the propose, and the offline back-code of the propose. Everything is derived
 // from two fixed seeds and fixed timestamps, so a second implementation
 // reproduces every byte except where it uses its own keys.
 //
@@ -43,11 +43,11 @@ if (!read.ok) throw new Error('link does not read: ' + read.reason)
 
 const propose = await sc.propose(responder, read.link.from.did, read.link.id, responderChallenge, T('05'))
 const accept = await sc.accept(inviter, propose, T('07'), await fixedId('accept'))
-const binding = await sc.binding(inviterChallenge, responderChallenge)
-const vrcInviter = await sc.credential(inviter, propose.payload.relationshipDid, responderChallenge, binding, 'displayed', T('07'))
+const taskDigest = await sc.taskDigest(propose)
+const vrcInviter = await sc.credential(inviter, propose.payload.relationshipDid, propose, 'displayed', T('07'))
 const issueInviter = await sc.issue(inviter, propose.issuer, propose.id, inviterChallenge, 'issue-inviter', vrcInviter, T('07'), await fixedId('issue-inviter'))
 const receiptInviter = await sc.receipt(responder, issueInviter, T('08'), await fixedId('receipt-inviter'))
-const vrcResponder = await sc.credential(responder, accept.payload.relationshipDid, inviterChallenge, binding, 'scan', T('09'))
+const vrcResponder = await sc.credential(responder, accept.payload.relationshipDid, propose, 'scan', T('09'))
 const issueResponder = await sc.issue(responder, inviter.messaging.did, propose.id, inviterChallenge, 'issue-responder', vrcResponder, T('09'), await fixedId('issue-responder'))
 const receiptResponder = await sc.receipt(inviter, issueResponder, T('10'), await fixedId('receipt-responder'))
 const backCode = sc.backCodeOf(propose)
@@ -57,8 +57,8 @@ const fail = (what) => { throw new Error('vector does not pass its own checks: '
 const me = { did: inviter.messaging.did, id: inviterChallenge, exp }
 if (await sc.checkPropose(propose, me, T('06')) !== null) fail('propose')
 if (await sc.checkAccept(accept, propose, inviter.messaging.did, T('08')) !== null) fail('accept')
-if (await sc.checkIssue(issueInviter, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter.pair.anchor, myPair: responder.pair.anchor, myChallenge: responderChallenge, binding }, T('08')) !== null) fail('issue-inviter')
-if (await sc.checkIssue(issueResponder, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-responder', issuerPair: responder.pair.anchor, myPair: inviter.pair.anchor, myChallenge: inviterChallenge, binding }, T('10')) !== null) fail('issue-responder')
+if (await sc.checkIssue(issueInviter, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter.pair.anchor, myPair: responder.pair.anchor, propose }, T('08')) !== null) fail('issue-inviter')
+if (await sc.checkIssue(issueResponder, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did, threadId: propose.id, enactment: inviterChallenge, step: 'issue-responder', issuerPair: responder.pair.anchor, myPair: inviter.pair.anchor, propose }, T('10')) !== null) fail('issue-responder')
 if (await sc.checkReceipt(receiptInviter, issueInviter, { issuerDid: responder.messaging.did, myDid: inviter.messaging.did }, T('09')) !== null) fail('receipt-inviter')
 if (await sc.checkReceipt(receiptResponder, issueResponder, { issuerDid: inviter.messaging.did, myDid: responder.messaging.did }, T('11')) !== null) fail('receipt-responder')
 const rebuilt = (await sc.proposeFromBackCode(backCode, { did: inviter.messaging.did, id: inviterChallenge }))
@@ -104,20 +104,20 @@ const responder4 = await sc.partyFromSeeds(await seed('responder/messaging'), aw
 const link4 = (await sc.sharedConnectLink({ from: inviter4.messaging.did, id: inviterChallenge, exp, kind: 'link' }, undefined, nowS))
 const propose4 = await sc.propose(responder4, inviter4.messaging.did, inviterChallenge, responderChallenge, T('05'))
 const accept4 = await sc.accept(inviter4, propose4, T('07'), await fixedId('accept'))
-const vrcInviter4 = await sc.credential(inviter4, propose4.payload.relationshipDid, responderChallenge, binding, 'displayed', T('07'))
+const vrcInviter4 = await sc.credential(inviter4, propose4.payload.relationshipDid, propose4, 'displayed', T('07'))
 const issueInviter4 = await sc.issue(inviter4, propose4.issuer, propose4.id, inviterChallenge, 'issue-inviter', vrcInviter4, T('07'), await fixedId('issue-inviter'))
 const me4 = { did: inviter4.messaging.did, id: inviterChallenge, exp }
 if (await sc.checkPropose(propose4, me4, T('06')) !== null) fail('propose (peer4)')
 if (await sc.checkAccept(accept4, propose4, inviter4.messaging.did, T('08')) !== null) fail('accept (peer4)')
-if (await sc.checkIssue(issueInviter4, { issuerDid: inviter4.messaging.did, myDid: responder4.messaging.did, threadId: propose4.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter4.pair.anchor, myPair: responder4.pair.anchor, myChallenge: responderChallenge, binding }, T('08')) !== null) fail('issue-inviter (peer4)')
+if (await sc.checkIssue(issueInviter4, { issuerDid: inviter4.messaging.did, myDid: responder4.messaging.did, threadId: propose4.id, enactment: inviterChallenge, step: 'issue-inviter', issuerPair: inviter4.pair.anchor, myPair: responder4.pair.anchor, propose: propose4 }, T('08')) !== null) fail('issue-inviter (peer4)')
 
 const out = {
-  description: 'One enactment of the shared connection ceremony (shared-connect 0.1) on the registry tasks vrc/relationships/propose 0.1 and vrc/relationships/issue 0.1, started by a VTI trigger link whose _from is the inviter\'s per-encounter did:peer:2 carrying its relays as services. The responder proposes (its challenge is the propose id and the threadId of every later document); ceremony.enactment is the link\'s _id (the inviter\'s challenge) on every step. Step documents are signed under authentication by #key-1 of the issuer\'s did:peer:2 (eddsa-jcs-2022); credentials are signed by the pairwise did:key (relationshipDid) under assertionMethod, with the document @context repeated in the proof. The enactment binding is the construction of Encounter RLTP-ENC-5330 under the ceremony URI. The back-code is the responder\'s propose in reconstruction form for the offline path: recipient, type, step, enactment and the proof configuration are rebuilt from the inviter\'s own state. Keys derive from fixed seeds and the challenges are fixed bytes; Ed25519 is deterministic, so a second implementation with the same seeds reproduces every byte, link, back-code and proofValues included, and one with its own keys verifies the proofs instead. `mustFail` lists what a reader or a receiving side refuses, with the expected reason. Generated by scripts/gen-shared-connect-vector.mjs; lib/test/shared-connect-vector.test.mjs verifies every proof and check.',
+  description: 'One enactment of the shared connection ceremony (shared-connect 0.1) on the registry tasks vrc/relationships/propose 0.1 and vrc/relationships/issue 0.1, started by a VTI trigger link whose _from is the inviter\'s per-encounter did:peer:2 carrying its relays as services. The responder proposes (its challenge is the propose id and the threadId of every later document); ceremony.enactment is the link\'s _id (the inviter\'s challenge) on every step. Step documents are signed under authentication by #key-1 of the issuer\'s did:peer:2 (eddsa-jcs-2022); credentials are signed by the pairwise did:key (relationshipDid) under assertionMethod, with the document @context repeated in the proof; they carry the two registry contexts only and cite the propose with the DTG members taskContext (its id) and taskDigestMultibase (its task digest, base58btc), plus the issuer\'s channel as the IRI https://real-life.org/rltp/v1#channel. The back-code is the responder\'s propose in reconstruction form for the offline path: recipient, type, step, enactment and the proof configuration are rebuilt from the inviter\'s own state. Keys derive from fixed seeds and the challenges are fixed bytes; Ed25519 is deterministic, so a second implementation with the same seeds reproduces every byte, link, back-code and proofValues included, and one with its own keys verifies the proofs instead. `mustFail` lists what a reader or a receiving side refuses, with the expected reason. Generated by scripts/gen-shared-connect-vector.mjs; lib/test/shared-connect-vector.test.mjs verifies every proof and check.',
   ceremony: sc.CEREMONY_URI,
   flow: sc.FLOW_URI,
   seeds: { note: 'hkdf(sha-256, ikm = utf8 of `seed`, no salt, info = label); messaging keys: Ed25519 from hkdf(msgSeed, "shared-connect/messaging/ed25519"), X25519 from hkdf(msgSeed, "shared-connect/messaging/x25519"); pair anchor: Ed25519 from the pair seed directly', seed: 'rltp shared-connect vector seed 2026-11', labels: { inviter: ['inviter/messaging', 'inviter/pair'], responder: ['responder/messaging', 'responder/pair'] } },
   challenges: { inviter: inviterChallenge, responder: responderChallenge },
-  binding,
+  citation: { taskContext: propose.id, taskDigestMultibase: taskDigest },
   inviter: { messaging: inviter.messaging.did, document: inviter.peer.doc, relays: inviter.peer.relays, relationshipDid: inviter.pair.anchor },
   responder: { messaging: responder.messaging.did, document: responder.peer.doc, relays: responder.peer.relays, relationshipDid: responder.pair.anchor },
   link: { value: link, length: link.length, read: { from: read.link.from.did, id: read.link.id, exp: read.link.exp, type: read.link.type, label: read.link.label } },

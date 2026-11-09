@@ -65,23 +65,21 @@ ok((await sc.checkPropose(propAt, me, now + 1000)) === null, "checkPropose passe
 
 // accept + issue → responder
 const accept = await sc.accept(inviter.party, propAt, now + 2000, b64uOf(rand(16)));
-const binding = await sc.binding(id, propAt.id);
-const vrcInv = await sc.credential(inviter.party, propAt.payload.relationshipDid, propAt.id, binding, "displayed", now + 2000);
+const vrcInv = await sc.credential(inviter.party, propAt.payload.relationshipDid, propAt, "displayed", now + 2000);
 const issueInv = await sc.issue(inviter.party, propAt.issuer, propAt.id, id, "issue-inviter", vrcInv, now + 2000, b64uOf(rand(16)));
 const accAt = await hop(inviter, responder, accept);
 const issInvAt = await hop(inviter, responder, issueInv);
 ok((await sc.checkAccept(accAt, propose, inviter.did, now + 3000)) === null, "checkAccept passes at the responder");
-const bindingResp = await sc.binding(id, respId);
-ok((await sc.checkIssue(issInvAt, { issuerDid: inviter.did, myDid: responder.did, threadId: respId, enactment: id, step: "issue-inviter", issuerPair: accAt.payload.relationshipDid, myPair: responder.party.pair.anchor, myChallenge: respId, binding: bindingResp })) === null, "checkIssue passes for the inviter's credential");
+ok((await sc.checkIssue(issInvAt, { issuerDid: inviter.did, myDid: responder.did, threadId: respId, enactment: id, step: "issue-inviter", issuerPair: accAt.payload.relationshipDid, myPair: responder.party.pair.anchor, propose: propose })) === null, "checkIssue passes for the inviter's credential");
 
 // receipt + issue → inviter
 const rcpInv = await sc.receipt(responder.party, issInvAt, now + 3000, b64uOf(rand(16)));
-const vrcResp = await sc.credential(responder.party, accAt.payload.relationshipDid, id, bindingResp, "scan", now + 3000);
+const vrcResp = await sc.credential(responder.party, accAt.payload.relationshipDid, propose, "scan", now + 3000);
 const issueResp = await sc.issue(responder.party, inviter.did, respId, id, "issue-responder", vrcResp, now + 3000, b64uOf(rand(16)));
 const rcpAt = await hop(responder, inviter, rcpInv);
 const issRespAt = await hop(responder, inviter, issueResp);
 ok((await sc.checkReceipt(rcpAt, issueInv, { issuerDid: responder.did, myDid: inviter.did })) === null, "the responder's receipt names the credential the inviter sent");
-ok((await sc.checkIssue(issRespAt, { issuerDid: responder.did, myDid: inviter.did, threadId: respId, enactment: id, step: "issue-responder", issuerPair: propAt.payload.relationshipDid, myPair: inviter.party.pair.anchor, myChallenge: id, binding })) === null, "checkIssue passes for the responder's credential");
+ok((await sc.checkIssue(issRespAt, { issuerDid: responder.did, myDid: inviter.did, threadId: respId, enactment: id, step: "issue-responder", issuerPair: propAt.payload.relationshipDid, myPair: inviter.party.pair.anchor, propose: propAt })) === null, "checkIssue passes for the responder's credential");
 const rcpResp = await sc.receipt(inviter.party, issRespAt, now + 4000, b64uOf(rand(16)));
 const rcpRespAt = await hop(inviter, responder, rcpResp);
 ok((await sc.checkReceipt(rcpRespAt, issueResp, { issuerDid: inviter.did, myDid: responder.did })) === null, "the inviter's receipt names the credential the responder sent");

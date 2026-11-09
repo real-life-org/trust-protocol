@@ -634,18 +634,40 @@ export const binding = (inviterChallenge, responderChallenge) => digestDoc({ cer
  *  `EncounterCredential` is set only for this side's own observation of an encounter: `scan` (the
  *  responder captured the code with its camera) or `displayed` (the inviter showed it as a code).
  *  Over a link (`link`, `sent`) the credential is a plain `RelationshipCredential`. */
-/** `profile: 'dtg'` writes the bare DTG RelationshipCredential (the two registry contexts, no RLTP members, no
- *  EncounterCredential type): a probe for a counterpart that cannot store the RLTP profile. The default is RLTP's. */
-export async function credential(me, subjectPair, subjectChallenge, enactmentBinding, channel, nowMs, opts = {}) {
+/** The credential cites the enactment with the DTG spec's own members (Trust Task Context Binding):
+ *  `taskContext` is the id of the propose (the document that opened the exchange; also the responder's
+ *  challenge) and `taskDigestMultibase` the task digest of that propose (JCS without the proof, sha-256,
+ *  base58btc, as the DTG spec requires of issuers). Both credentials of one enactment cite the same propose,
+ *  so a third party pairs them without the transport, and holds the propose as outcome evidence. The one
+ *  member DTG has no term for, `channel` (the issuer's own observation), is a full IRI under RLTP's
+ *  namespace in `credentialSubject`; proposed to the DTG registry context. No vendor context. */
+export const RLTP_IRI = 'https://real-life.org/rltp/v1#';
+export const CHANNEL_IRI = RLTP_IRI + 'channel';
+/** The task digest of a Trust Task document (TT §4.9.3): JCS over the document without its top-level proof. */
+export const taskDigest = async (doc, base = 'z') => { const { proof, ...rest } = doc ?? {}; return digestIn(rest, base); };
+/** The issuer's channel of a credential, under the IRI or the earlier short name. Both present with
+ *  different values is a contradiction in a signed document and reads as `conflict`, never as either (#185). */
+export const channelOf = (vrc) => {
+    const cs = vrc?.credentialSubject;
+    const a = cs && Object.hasOwn(cs, CHANNEL_IRI) ? cs[CHANNEL_IRI] : undefined;
+    const b = cs && Object.hasOwn(cs, 'channel') ? cs.channel : undefined;
+    if (a !== undefined && b !== undefined && a !== b)
+        return 'conflict';
+    // a member that is present but null (or any non-string) is a value, not an absence: it fails the value check
+    return a !== undefined ? a : b;
+};
+/** `profile: 'dtg'` leaves out `channel` and the citation (a probe). */
+export async function credential(me, subjectPair, proposeDoc, channel, nowMs, opts = {}) {
     const when = iso(nowMs);
-    const dtg = opts.profile === 'dtg';
+    const bare = opts.profile === 'dtg';
     const body = {
-        '@context': dtg ? CRED_CONTEXT.slice(0, 2) : [...CRED_CONTEXT],
-        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential', ...(!dtg && (channel === 'scan' || channel === 'displayed') ? ['EncounterCredential'] : [])],
+        '@context': CRED_CONTEXT.slice(0, 2),
+        type: ['VerifiableCredential', 'DTGCredential', 'RelationshipCredential'],
         issuer: me.pair.anchor,
         issuerScope: 'pairwise',
+        ...(bare ? {} : { taskContext: proposeDoc.id, taskDigestMultibase: await taskDigest(proposeDoc) }),
         validFrom: when,
-        credentialSubject: dtg ? { id: subjectPair } : { id: subjectPair, ceremony: CEREMONY_URI, challenge: subjectChallenge, enactmentBinding, channel },
+        credentialSubject: bare ? { id: subjectPair } : { id: subjectPair, [CHANNEL_IRI]: channel },
     };
     return diSign(me.pair, body, when);
 }
@@ -868,13 +890,15 @@ export async function checkIssue(doc, expect, nowMs = Date.now()) {
         return 'vrc-digest';
     // profile checks for a credential of this ceremony's RLTP profile; other
     // profiles (Consensual's, Keyring's) carry their own members and pass here
-    const cs = vrc.credentialSubject;
-    if (cs.enactmentBinding !== undefined && !sameDigest(cs.enactmentBinding, expect.binding))
-        return 'vrc-binding';
-    if (cs.binding !== undefined && !sameDigest(cs.binding, expect.binding))
-        return 'vrc-binding';
-    if (cs.challenge !== undefined && cs.challenge !== expect.myChallenge)
-        return 'vrc-challenge';
+    // the citation (DTG Trust Task Context Binding): the propose of this enactment, by id and task digest
+    if (vrc.taskContext !== undefined && vrc.taskContext !== expect.threadId)
+        return 'vrc-citation';
+    if (vrc.taskDigestMultibase !== undefined && !sameDigest(vrc.taskDigestMultibase, await taskDigest(expect.propose)))
+        return 'vrc-citation';
+    // the RLTP channel, when present, is one of the four values (and not two spellings that disagree)
+    const ch = channelOf(vrc);
+    if (ch !== undefined && !['scan', 'displayed', 'link', 'sent'].includes(ch))
+        return 'vrc-channel';
     return null;
 }
 /** Check a receipt (issue#response) for an issue this side sent. */

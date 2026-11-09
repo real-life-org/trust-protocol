@@ -2,31 +2,19 @@
 
 ## Unreleased
 
-shared-connect: the flow of one enactment as a step machine for either role
-(`sharedConnectFlow.Inviter`, `sharedConnectFlow.Responder`, new module
-`shared-connect-flow.ts`): documents in, documents to send and events for the
-person out; every branch checks the document's issuer against the TSP sender
-first; holds what arrives out of order (one per id, at most eight), answers a
-redelivery with the same documents it sent, keeps the handle single-use, waits
-for the person between the propose and the acceptance (`accept(now, channel)`
-/ `decline(now, message?)`), changes state only after everything it builds
-exists, serialises its calls, and continues from a `snapshot()` after a
-restart with `outbox()` naming what to send again (the caller persists the
-snapshot before it sends). `complete` (both credentials and receipts) and
-`finished` (complete, declined, or ended by the other side's error) are told apart. A decline is the registry's
-`trust-task-error/0.5` with `vrc/relationships/propose:declined` in the
-propose's thread, no pairwise identifier named (propose 0.1 §4, as Keyring
-writes it): `decline()`, `checkDecline()` (reads error versions 0.2 to 0.6),
-`TASK_ERROR`, `DECLINE_CODE`; `inResponseTo` names the propose's type and id as the
-registry schema requires. Any other signed trust-task-error of the counterpart in
-the enactment's thread (a refused credential, say) ends the enactment as `failed`
-(`checkError`, event `failed`, `failure`), on both sides. `KeyProvider.sharedConnectSeeds(nonce)`
-(optional; `seedKeys` has it; DEVIATIONS D5): the two seeds of one encounter
-from the root and the 16-byte challenge this side minted (the inviter's `_id`,
-the responder's propose id), under `rltp/v1/x-shared-connect-stage1/`. The two
-CLIs run on the machines; the loopback is unchanged. Decision 8 November: one
-code, shared-connect is the one ceremony of the app
-(design/interop/shared-connect-app-modell).
+shared-connect: the credential carries the two registry contexts only and no
+vendor type, and cites its enactment with the DTG spec's own members:
+`taskContext` (the propose's id) and `taskDigestMultibase` (the propose's task
+digest, base58btc; `taskDigest()`), compared over bytes (`vrc-citation`). The
+one member DTG has no term for, `channel`, is the IRI
+`https://real-life.org/rltp/v1#channel` in `credentialSubject` (`CHANNEL_IRI`,
+`channelOf()`, `vrc-channel`); proposed to the DTG registry context. `binding`
+stays as the Encounter construction but the credential no longer carries it
+(`credential(me, subjectPair, proposeDoc, channel, now)`, `IssueExpectation.propose`).
+Keyring's store refused a credential with a third context (8 November, run 3);
+with this form the run completed on both sides without accommodation. Vector
+regenerated. Probes for a counterpart: `statedDigest`, `digestBase`,
+`credentialProfile` (`--no-stated-digest`, `--digest-base58`, `--plain-vrc`).
 
 ## 0.14.0
 

@@ -29,7 +29,7 @@ import * as sc from './shared-connect.js';
 const HELD_MAX = 8;
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const result = (send = [], events = [], finished = false) => ({ send, events, finished });
-const empty = () => ({ propose: null, accept: null, decline: null, failed: null, binding: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] });
+const empty = () => ({ propose: null, accept: null, decline: null, failed: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] });
 const typeOf = (doc) => (typeof doc?.type === 'string' ? doc.type : 'untyped');
 const hold = (s, doc) => {
     if (s.held.some((h) => h.id === doc.id))
@@ -139,7 +139,7 @@ export class Inviter extends Machine {
                 return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkIssue(doc, {
                 issuerDid: s.propose.issuer, myDid: me, threadId: s.propose.id, enactment: s.id, step: 'issue-responder',
-                issuerPair: s.propose.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.id, binding: s.binding,
+                issuerPair: s.propose.payload.relationshipDid, myPair: this.party.pair.anchor, propose: s.propose,
             }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
@@ -185,10 +185,9 @@ export class Inviter extends Machine {
         const p = s.propose;
         // everything built first, the state set once all of it exists
         const accept = await sc.accept(this.party, p, nowMs, this.o.newId());
-        const binding = await sc.binding(s.id, p.id);
-        const vrc = await sc.credential(this.party, p.payload.relationshipDid, p.id, binding, channel, nowMs, { profile: this.o.credentialProfile });
+        const vrc = await sc.credential(this.party, p.payload.relationshipDid, p, channel, nowMs, { profile: this.o.credentialProfile });
         const issueMine = await sc.issue(this.party, p.issuer, p.id, s.id, 'issue-inviter', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase });
-        Object.assign(s, { accept, binding, issueMine });
+        Object.assign(s, { accept, issueMine });
         const out = result([accept, issueMine], [{ kind: 'accepted', relationshipDid: p.payload.relationshipDid }]);
         // held documents one by one; one that throws stays held (it leaves on a successful later take or a decision)
         for (const h of [...s.held]) {
@@ -253,10 +252,9 @@ export class Responder extends Machine {
             const r = await sc.checkAccept(doc, s.propose, s.link.from, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
-            const binding = await sc.binding(s.link.id, s.challenge);
-            const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.link.id, binding, s.channel, nowMs, { profile: this.o.credentialProfile });
+            const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.propose, s.channel, nowMs, { profile: this.o.credentialProfile });
             const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase });
-            Object.assign(s, { accept: doc, binding, issueMine });
+            Object.assign(s, { accept: doc, issueMine });
             const out = result([issueMine], [{ kind: 'accepted', relationshipDid: doc.payload.relationshipDid }]);
             for (const h of [...s.held]) {
                 try {
@@ -281,7 +279,7 @@ export class Responder extends Machine {
                 return result([], [{ kind: 'ignored', type, why: 'after-decision' }], true);
             const r = await sc.checkIssue(doc, {
                 issuerDid: s.link.from, myDid: me, threadId: s.propose.id, enactment: s.link.id, step: 'issue-inviter',
-                issuerPair: s.accept.payload.relationshipDid, myPair: this.party.pair.anchor, myChallenge: s.challenge, binding: s.binding,
+                issuerPair: s.accept.payload.relationshipDid, myPair: this.party.pair.anchor, propose: s.propose,
             }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
