@@ -777,7 +777,8 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
         return 'envelope';
     if (doc.expiresAt !== undefined && (typeof doc.expiresAt !== 'string' || !calOK(doc.expiresAt)))
         return 'envelope';
-    if (!isObj(doc.ceremony) || !canonicalChallenge(doc.ceremony.enactment) || typeof doc.ceremony.step !== 'string')
+    // the step as the counterpart named it: a name, never a text (the machines check it against the ceremony's)
+    if (!isObj(doc.ceremony) || !canonicalChallenge(doc.ceremony.enactment) || typeof doc.ceremony.step !== 'string' || doc.ceremony.step.length === 0 || doc.ceremony.step.length > 64)
         return 'envelope';
     if (doc.threadId !== undefined && typeof doc.threadId !== 'string')
         return 'envelope';
@@ -810,7 +811,8 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
         default:
             // a trust-task-error (the decline): the members of its registry schema, code and retryable required
             if (ERROR_TYPES.has(expectType)) {
-                if (!closed(p, ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']) || typeof p.code !== 'string' || typeof p.retryable !== 'boolean')
+                // the code is a registry code (`<task>:<reason>`), bounded like an id; the message free text up to 1024 code points
+                if (!closed(p, ['code', 'retryable', 'inResponseTo', 'message', 'retryAfter', 'details']) || typeof p.code !== 'string' || p.code.length === 0 || p.code.length > 256 || typeof p.retryable !== 'boolean')
                     return 'payload';
                 if (p.message !== undefined && (typeof p.message !== 'string' || [...p.message].length > 1024))
                     return 'payload';

@@ -83,8 +83,9 @@ with its TSP sender; the inviter confirms the proposal as a prompt. Where
 both sides are holders of this library the ceremony opens an ordinary
 contact, carried like one of an encounter when both acts were given a
 carrier offer; a counterpart of another app leaves its credential with the
-holder (`sharedConnect()` view), and trust goes only to a contact the two
-sides state they met.
+holder (`sharedConnect()` view, which also names how a counterpart ended an
+enactment with an error), and trust goes only to a contact the two sides
+state they met.
 
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)
 lists every act, every export and entry point, and for each module the

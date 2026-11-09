@@ -349,8 +349,11 @@ export interface SharedConnectView {
    *  came of it (declined, failed, never answered, a counterpart without a card), the app that set up a
    *  carrier for it reads here which one to take down */
   carrierNonce: string | null
-  /** how the counterpart ended the enactment (`status: 'failed'`): its trust-task-error's code, the step it
-   *  named and its message as sent (the counterpart's text, unverified); null otherwise */
+  /** how the counterpart ended the enactment (`status: 'failed'`); null otherwise. The document was checked
+   *  (issuer, recipient, thread, enactment, signature), its content is the counterpart's: `code` (up to 256
+   *  characters) and `step` (up to 64) as it named them, `message` its free text as sent (up to 1024 code
+   *  points, any characters, not filtered): an app shows it as plain text, never as markup. Kept as long as
+   *  the enactment, 30 days after it closed. */
   failure: { code: string, step: string, message: string | null } | null
   /** the own documents to send again after a restart */
   outbox: JsonObject[]
