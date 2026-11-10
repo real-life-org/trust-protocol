@@ -2,6 +2,10 @@
 
 ## 0.18.0
 
+`sharedConnectShow` takes `origin`: the link's host (the app's own, verified as an app link, with a
+page for someone without the app); `_type` is then the absolute flow URI, and any reader of the
+specification reads it.
+
 shared-connect: the propose carries `threadId` equal to its `id`, as the opening document of the
 exchange (SPEC §4.9); Keyring's inviter drops a propose without it. Vector regenerated.
 

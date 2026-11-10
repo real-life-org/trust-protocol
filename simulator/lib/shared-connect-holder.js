@@ -18,6 +18,22 @@ export const RETENTION = 30 * 24 * 3_600_000;
 const no = (code, ref) => ({ ok: false, code, ...(ref ? { ref } : {}) });
 /** the register with the offer's carrier nonce under the relationship `label` opens, or unchanged without an offer */
 const carrierOf = (r, label, carrier) => carrier === undefined ? r : withCarrierNonce(r, idsOf(label).relId, carrier.nonce);
+/** `origin` as a bare https origin, as the URL parser reads it: no credentials, no path, no query or fragment,
+ *  no port (the link host is a public name); anything else falls back to the default host */
+const linkOrigin = (v) => {
+    if (typeof v !== 'string')
+        return undefined;
+    let u;
+    try {
+        u = new URL(v);
+    }
+    catch {
+        return undefined;
+    }
+    if (u.protocol !== 'https:' || u.username || u.password || u.port || u.pathname !== '/' || u.search || u.hash)
+        return undefined;
+    return u.origin === v ? v : undefined;
+};
 const isRefusal = (x) => !!x && typeof x === 'object' && x.ok === false;
 /** the nonce the messaging identity derives from: the inviter's handle, the responder's own challenge */
 const nonceOf = (e) => fromB64u(e.role === 'inviter' ? e.id : e.flow.challenge);
@@ -132,8 +148,9 @@ const showDef = {
         const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap);
         const name = typeof input?.name === 'string' && input.name.length ? input.name : null;
         let link;
+        const origin = linkOrigin(input?.origin);
         try {
-            link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, undefined, nowS);
+            link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, origin, nowS);
         }
         catch {
             return no('link-invalid');
