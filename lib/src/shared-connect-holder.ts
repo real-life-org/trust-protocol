@@ -63,6 +63,15 @@ const no = (code: ActError, ref?: string): Refusal => ({ ok: false, code, ...(re
 /** the register with the offer's carrier nonce under the relationship `label` opens, or unchanged without an offer */
 const carrierOf = (r: HolderState['register'], label: string, carrier: CarrierOfferInput | undefined): HolderState['register'] =>
   carrier === undefined ? r : withCarrierNonce(r, idsOf(label).relId, carrier.nonce)
+/** `origin` as a bare https origin, as the URL parser reads it: no credentials, no path, no query or fragment,
+ *  no port (the link host is a public name); anything else falls back to the default host */
+const linkOrigin = (v: unknown): string | undefined => {
+  if (typeof v !== 'string') return undefined
+  let u: URL
+  try { u = new URL(v) } catch { return undefined }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port || u.pathname !== '/' || u.search || u.hash) return undefined
+  return u.origin === v ? v : undefined
+}
 const isRefusal = (x: unknown): x is Refusal => !!x && typeof x === 'object' && (x as Refusal).ok === false
 type Snap = InviterSnapshot | ResponderSnapshot
 
@@ -169,7 +178,7 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap)
     const name = typeof input?.name === 'string' && input.name.length ? input.name : null
     let link: string
-    const origin = typeof input?.origin === 'string' && /^https:\/\/[^/?#]+$/.test(input.origin) ? input.origin : undefined
+    const origin = linkOrigin(input?.origin)
     try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, origin, nowS) } catch { return no('link-invalid') }
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
     const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot()
