@@ -917,9 +917,9 @@ export type SharedConnectChannel = SharedConnectEnactment['channel']
  *  oldest, where several tuples of the entry came from enactments), this side's channel in it,
  *  the counterpart's channel as its credential states it (null where the credential names
  *  none, a foreign profile), and whether the entry met. An entry met when any of its tuples
- *  came from an encounter or an introduction, or from an enactment in which **both** sides
- *  state a code read in one place; one side's statement alone is not a meeting, and the two
- *  statements together are what the two participants said, not proof of co-presence. */
+ *  came from an encounter or an introduction, or from an enactment in which this side read or
+ *  showed the code in one place and the counterpart does not state a link (`metInEnactment`); what
+ *  either side states is its own report, not proof of co-presence. */
 export interface SharedConnectOrigin { enactmentId: string, channel: SharedConnectChannel, theirChannel: SharedConnectChannel | null, met: boolean }
 
 const CHANNELS: readonly SharedConnectChannel[] = ['scan', 'displayed', 'link', 'sent']
@@ -933,10 +933,14 @@ export function theirChannelOf (e: Readonly<SharedConnectEnactment>): SharedConn
   return (CHANNELS as readonly unknown[]).includes(ch) ? ch as SharedConnectChannel : null
 }
 
-/** both sides state a code read in one place */
+/** This side read or showed the code in one place, and the counterpart does not say otherwise. The
+ *  own channel is what this holder knows (its camera read a code, or its code was shown and the
+ *  person confirmed); the counterpart's statement is a self-report like our own and adds no evidence,
+ *  so it is a veto, not a condition: a counterpart that states `link` or `sent` corrects our picture
+ *  (the code was passed on), one that states nothing (a profile without the member) leaves it. */
 export const metInEnactment = (e: Readonly<SharedConnectEnactment>): boolean => {
   const theirs = theirChannelOf(e)
-  return metByChannel(e.channel) && theirs !== null && metByChannel(theirs)
+  return metByChannel(e.channel) && (theirs === null || metByChannel(theirs))
 }
 
 /** own pair label → the shared-connect enactment that opened a relationship under it. The label

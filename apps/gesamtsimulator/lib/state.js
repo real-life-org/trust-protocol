@@ -53,10 +53,14 @@ export function theirChannelOf(e) {
     const ch = channelOf(issue?.payload?.vrc);
     return CHANNELS.includes(ch) ? ch : null;
 }
-/** both sides state a code read in one place */
+/** This side read or showed the code in one place, and the counterpart does not say otherwise. The
+ *  own channel is what this holder knows (its camera read a code, or its code was shown and the
+ *  person confirmed); the counterpart's statement is a self-report like our own and adds no evidence,
+ *  so it is a veto, not a condition: a counterpart that states `link` or `sent` corrects our picture
+ *  (the code was passed on), one that states nothing (a profile without the member) leaves it. */
 export const metInEnactment = (e) => {
     const theirs = theirChannelOf(e);
-    return metByChannel(e.channel) && theirs !== null && metByChannel(theirs);
+    return metByChannel(e.channel) && (theirs === null || metByChannel(theirs));
 };
 export function sharedConnectIndex(state) {
     const ix = new Map();

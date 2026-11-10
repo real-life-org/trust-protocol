@@ -309,6 +309,7 @@ export function sharedConnectView(state) {
             theirPair: e.theirPair, name: e.role === 'inviter' ? (f.propose?.payload?.reason ?? null) : e.link.label,
             channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
             carrierNonce: canonicalCarrierNonce(state.register, idsOf(e.label).relId)?.nonce ?? null,
+            failure: f.failed ? { code: f.failed.code, step: f.failed.step, message: f.failed.message } : null,
             theirCredential: f.issueTheirs?.payload?.vrc ?? null, myCredential: f.issueMine?.payload?.vrc ?? null, outbox: Machine.outboxOf(f), openedAt: e.openedAt, closedAt: e.closedAt,
         };
     });
