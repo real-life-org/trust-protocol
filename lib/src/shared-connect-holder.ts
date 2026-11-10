@@ -52,7 +52,10 @@ export const RETENTION = 30 * 24 * 3_600_000
  *  the issue step, so the relationship the ceremony opens is carried like one of encounter-scan. The hints
  *  are the act's: fixed and journaled with it, signed into the card when the issue step comes (for a sent
  *  link up to days later); a carrier changed in between is not reflected, the app starts a new enactment */
-export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput }
+/** `origin`: the link's host (`https://…`, no path), where the app that shows it is reachable as an app link and
+ *  a page explains the code to someone without the app; the flow stays the registered URI (`_type` absolute).
+ *  Default: the VTI link host. */
+export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput, origin?: string }
 export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string, carrier?: CarrierOfferInput }
 export interface ReceiveInput { doc: unknown, sender: string }
 
@@ -166,7 +169,8 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap)
     const name = typeof input?.name === 'string' && input.name.length ? input.name : null
     let link: string
-    try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, undefined, nowS) } catch { return no('link-invalid') }
+    const origin = typeof input?.origin === 'string' && /^https:\/\/[^/?#]+$/.test(input.origin) ? input.origin : undefined
+    try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, origin, nowS) } catch { return no('link-invalid') }
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
     const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot()
     return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel }
