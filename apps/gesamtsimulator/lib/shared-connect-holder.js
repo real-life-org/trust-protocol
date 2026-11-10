@@ -132,8 +132,9 @@ const showDef = {
         const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap);
         const name = typeof input?.name === 'string' && input.name.length ? input.name : null;
         let link;
+        const origin = typeof input?.origin === 'string' && /^https:\/\/[^/?#]+$/.test(input.origin) ? input.origin : undefined;
         try {
-            link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, undefined, nowS);
+            link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, origin, nowS);
         }
         catch {
             return no('link-invalid');
