@@ -84,9 +84,10 @@ both sides are holders of this library the ceremony opens an ordinary
 contact, carried like one of an encounter when both acts were given a
 carrier offer; a counterpart of another app leaves its credential with the
 holder (`sharedConnect()` view, which also names how a counterpart ended an
-enactment with an error). A contact met when this side read or showed the
-code in one place and the counterpart does not state a link; trust goes only
-to a contact that met.
+enactment with an error). An enactment met when this side read or showed
+the code in one place and the counterpart does not state a link; a contact
+met when any of its relationships came from an encounter, an introduction or
+an enactment that met. Trust goes only to a contact that met.
 
 The [library README](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md)
 lists every act, every export and entry point, and for each module the
