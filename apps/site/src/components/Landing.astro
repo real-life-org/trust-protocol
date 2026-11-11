@@ -136,19 +136,19 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     <div>
       <div class="tp-badge">In action</div>
       <h2>See it run</h2>
-      <p>Three simulators in your browser. Real Ed25519, X25519 and AES-GCM, no installation, nothing leaves your tab.</p>
+      <p>Two simulators in your browser. Real Ed25519, X25519 and AES-GCM, no installation, nothing leaves your tab.</p>
     </div>
-    <div class="tp-cards three">
-      <a class="tp-card shot" href={sim('network.html')}>
+    <div class="tp-cards two">
+      <a class="tp-card shot" href="https://web-of-trust.de/simulator/">
         <div class="tp-shot devices" aria-hidden="true">
           <span class="tp-phone"><i class="hd"></i><i></i><i></i><i class="short"></i></span>
           <span class="tp-phone tall"><i class="hd"></i><i></i><i class="ok"></i><i></i><i class="short"></i></span>
           <span class="tp-phone"><i class="hd"></i><i></i><i class="warn"></i><i class="short"></i></span>
         </div>
         <div class="tp-shot-copy">
-          <strong>The app</strong>
-          <span>The same app on three devices side by side: verify, introduce, trust, found and join groups. Every sealed envelope on the wire, with fault injection.</span>
-          <em class="tp-cta">Open the app →</em>
+          <strong>The workbench</strong>
+          <span>The real Web of Trust app on several phones in one trust network: meet, verify, give trust. The graph from above or through one person's eyes, a clock, and every envelope on the wire.</span>
+          <em class="tp-cta">Open the workbench →</em>
         </div>
       </a>
       <a class="tp-card shot" href={sim('index.html')}>
@@ -161,26 +161,6 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
           <strong>The ceremony</strong>
           <span>One encounter under the microscope: two devices, one delivery channel, every receive stage, clock skew.</span>
           <em class="tp-cta">Open the ceremony →</em>
-        </div>
-      </a>
-      <a class="tp-card shot" href={sim('graph.html')}>
-        <div class="tp-shot graph" aria-hidden="true">
-          <svg viewBox="0 0 300 150">
-            <line x1="72" y1="57" x2="156" y2="39" class="edge" />
-            <line x1="72" y1="57" x2="156" y2="96" class="edge" />
-            <line x1="156" y1="39" x2="234" y2="66" class="edge ok" />
-            <line x1="156" y1="96" x2="234" y2="66" class="edge warn" />
-            <circle cx="72" cy="57" r="8" class="node" />
-            <circle cx="156" cy="39" r="8" class="node" />
-            <circle cx="156" cy="96" r="8" class="node" />
-            <circle cx="234" cy="66" r="8" class="node ok" />
-          </svg>
-          <code>chapter 3 / 8</code>
-        </div>
-        <div class="tp-shot-copy">
-          <strong>The graph</strong>
-          <span>The same world from above: who can prove what about whom, told in eight chapters.</span>
-          <em class="tp-cta">Open the graph →</em>
         </div>
       </a>
     </div>
@@ -218,7 +198,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     <div class="tp-stats">
       <div class="tp-stat"><strong>8</strong><span>specifications converged</span></div>
       <div class="tp-stat"><strong>{info.lib}</strong><span>library on npm, with provenance</span></div>
-      <div class="tp-stat"><strong>3</strong><span>simulators, in your browser</span></div>
+      <div class="tp-stat"><strong>2</strong><span>simulators, in your browser</span></div>
       <div class="tp-stat live"><strong>In production</strong><span>wot-spec, the previous generation</span></div>
     </div>
   </section>
