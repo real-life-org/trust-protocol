@@ -2,6 +2,11 @@
 
 ## 0.18.0
 
+Access stage 1: an entry in the joining buffer that the issuer's page brings again leaves the
+buffer and is judged as an arrival. Before, it stayed buffered: a joining holder whose buffer held
+its own admission, or an ancestor of it, was never a member and became void at its deadline. No
+member forwards such an entry (`forwards`), so holders that follow the exchange never met it.
+
 `sharedConnectShow` takes `origin`: the link's host (the app's own, verified as an app link, with a
 page for someone without the app); `_type` is then the absolute flow URI, and any reader of the
 specification reads it.
