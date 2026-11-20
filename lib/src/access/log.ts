@@ -375,8 +375,8 @@ export async function admit (log: GroupLog, env: unknown, at: AdmitAt, subtle: S
   }
   if (log.held[e.id]) {
     const h = log.held[e.id]!
-    // the joining buffer holds what nobody asked for. An answer that brings a buffered entry is judged
-    // as an arrival: else an own admission in the buffer, or one of its ancestors, would never be accepted
+    // a buffered entry outside buffering (an answer brings it again, or the intake of an answer judges
+    // the buffer, access/exchange.ts): it leaves the buffer and is judged as an arrival
     if (h.reason === 'joining' && !at.buffer) {
       const m = mergeProof(h.env, e)
       const env = envelopeBytes(m) > ENTRY_BOUND ? h.env : m
