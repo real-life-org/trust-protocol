@@ -375,6 +375,15 @@ export async function admit (log: GroupLog, env: unknown, at: AdmitAt, subtle: S
   }
   if (log.held[e.id]) {
     const h = log.held[e.id]!
+    // a buffered entry outside buffering (an answer brings it again, or the intake of an answer judges
+    // the buffer, access/exchange.ts): it leaves the buffer and is judged as an arrival
+    if (h.reason === 'joining' && !at.buffer) {
+      const m = mergeProof(h.env, e)
+      const env = envelopeBytes(m) > ENTRY_BOUND ? h.env : m
+      const out = { ...log, held: { ...log.held, [e.id]: { ...h, env, bytes: envelopeBytes(env), reason: (BUILT_OPS.has(env.op) ? 'missing-parent' : 'unsupported') as HoldReason } } }
+      const r = await tryAccept(out, e.id, subtle)
+      return r.verdict.kind === 'held' && r.log.held[e.id] ? { log: { ...r.log, held: { ...r.log.held, [e.id]: { ...r.log.held[e.id]!, reason: r.verdict.reason } } }, verdict: r.verdict } : r
+    }
     const merged = mergeProof(h.env, e)
     if (merged === h.env) return { log, verdict: { kind: 'duplicate' } }
     // the merged entry is counted again; over the entry bound it keeps its proof

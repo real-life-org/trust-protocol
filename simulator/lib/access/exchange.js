@@ -220,8 +220,9 @@ export const protectedIds = (r, now) => new Set(Object.entries(r.repairs).filter
 /** Takes entries from one source into the replica (Replication 7.1),
  *  each judged on its own, in order. `answers`: the entries are the answer
  *  to a request sent to this source, which ends the repairs toward it.
- *  `buffer`: the replica is joining and buffers. An empty list is a defined
- *  effect (the end of an exchange). */
+ *  `buffer`: the replica is joining and buffers; the next intake without
+ *  it judges what was buffered. An empty list is a defined effect (the end
+ *  of an exchange). */
 export async function intake(replica, entries, at, subtle = platformSubtle()) {
     let log = expireHeld(replica.log, at.now);
     let repairs = replica.repairs;
@@ -236,11 +237,13 @@ export async function intake(replica, entries, at, subtle = platformSubtle()) {
     const verdicts = [];
     const applied = [];
     const want = new Set();
-    for (const entry of entries) {
+    /** one entry judged; `listed` where it is one of `entries` (its verdict is reported) */
+    const take = async (entry, listed) => {
         const r = await admit(log, entry, { source: at.source, now: at.now, ...(at.bounds ? { bounds: at.bounds } : {}), protected: protectedIds({ log, repairs }, at.now), ...(at.buffer ? { buffer: true } : {}) }, subtle);
         const before = log;
         log = r.log;
-        verdicts.push(r.verdict);
+        if (listed)
+            verdicts.push(r.verdict);
         if (r.verdict.kind === 'applied') {
             const id = entry.id;
             if (!before.accepted[id])
@@ -248,18 +251,29 @@ export async function intake(replica, entries, at, subtle = platformSubtle()) {
             applied.push(...r.verdict.healed);
         }
         // the repair: once per held instance, for a missing parent only (an
-        // ineligible proof heals by a merge, not by a closure), inside the reserve
+        // ineligible proof heals by a merge, not by a closure), inside the reserve.
+        // An entry that left the joining buffer in this step is a new instance
         if (r.verdict.kind === 'held' && r.verdict.reason === 'missing-parent') {
             const e = entry;
             // a parent this replica holds itself (unsupported, ineligible) is asked for by nobody: no repair, no reserve taken
             const missing = e.prev.filter((p) => !log.accepted[p] && !log.held[p]);
-            if (missing.length && !before.held[e.id] && repairs[e.id] === undefined && protectedIds({ log, repairs }, at.now).size < REPAIR_MAX) {
+            const fresh = !before.held[e.id] || before.held[e.id].reason === 'joining';
+            if (missing.length && fresh && repairs[e.id] === undefined && protectedIds({ log, repairs }, at.now).size < REPAIR_MAX) {
                 repairs = { ...repairs, [e.id]: { source: at.source, since: at.now, active: true } };
                 for (const p of missing)
                     want.add(p);
             }
         }
-    }
+    };
+    for (const entry of entries)
+        await take(entry, true);
+    // the joining buffer lasts until the issuer's next answer: the buffer spares the requests a joining replica
+    // would send for parents its first page brings anyway. With an answer at hand every buffered entry is judged
+    // as an arrival (admit), after the answer's own entries, and asks for a parent that is still missing
+    if (!at.buffer)
+        for (const id of Object.keys(log.held).sort())
+            if (log.held[id]?.reason === 'joining')
+                await take(log.held[id].env, false);
     // a parent that arrived later in the same intake is no longer missing
     for (const p of [...want])
         if (log.accepted[p] || log.held[p])

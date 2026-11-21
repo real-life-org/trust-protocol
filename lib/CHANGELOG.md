@@ -2,6 +2,14 @@
 
 ## 0.18.0
 
+Access stage 1: the joining buffer lasts until the issuer's next answer. A page judges every
+buffered entry as an arrival, after its own entries, and a buffered entry whose parent is still
+missing is held for it with a repair, so the holder asks for that parent by name. Before, buffered
+entries stayed unjudged until the own admission was accepted: a joining holder whose buffer held
+its own admission, or an ancestor or a descendant the page did not bring, stayed joining until its
+deadline unless a resume asked again. No member forwards an admission to its subject (`forwards`),
+so holders that follow the exchange did not meet the first case.
+
 `sharedConnectShow` takes `origin`: the link's host (the app's own, verified as an app link, with a
 page for someone without the app); `_type` is then the absolute flow URI, and any reader of the
 specification reads it.
