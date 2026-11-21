@@ -113,6 +113,7 @@ import { ENTRY_COMMANDS } from './trust/entries.js';
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js';
 import { sharedConnectModule, sharedConnectView, SC_COMMANDS } from './shared-connect-holder.js';
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js';
+import { provenanceOf } from './membership/replica.js';
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js';
 import { b64uOf } from './core.js';
@@ -199,6 +200,12 @@ export async function createHolder(ports, opts = {}) {
         contacts: async () => contactsView(await read()),
         contact: async (id) => contactView(await read(), id),
         groups: async () => groupsView(await read()),
+        groupProvenance: async (groupId) => {
+            const s = await read();
+            const g = typeof groupId === 'string' && Object.hasOwn(s.groups, groupId) ? s.groups[groupId] : undefined;
+            // the engine resolved and probed this handle at creation
+            return g ? (await provenanceOf(g, (ports.crypto ?? globalThis.crypto).subtle)) ?? undefined : undefined;
+        },
         profile: async () => profileView(await read()),
         prompts: async () => promptsView(await read()),
         inbox: async () => inboxView(await read()),
