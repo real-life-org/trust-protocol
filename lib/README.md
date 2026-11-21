@@ -218,8 +218,17 @@ meet), `untrust`, `pauseTrust`, `setClass`,
 human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`,
 `syncGroups` (ask the group's members for the log when the app comes back
 online).
-Reads: `contacts`, `contact`, `groups`, `profile`, `prompts`, `inbox`,
-`deliveryStatus`, `deviceKey`, `replay`, `snapshot`, `subscribe`.
+Reads: `contacts`, `contact`, `groups`, `groupProvenance`, `profile`,
+`prompts`, `inbox`, `deliveryStatus`, `deviceKey`, `replay`, `snapshot`,
+`subscribe`.
+
+**Who invited whom** (Membership RLTP-MT-3400, RLTP-MT-8070).
+`groupProvenance(groupId)` answers, per member anchor of the group's
+current members, the member anchors whose signed invites its canonical
+admissions enclose. It is read from the log, so every member reads the
+same; where two members admitted the same person at once it lists both;
+the founder has no entry. An inviter who has left since is named by its
+anchor and is no entry of `GroupView.members`.
 
 **Delivery hints** (Encounter RLTP-ENC-6080, 6090; Identity §7a.3; VTI
 Mediator Adapter Profile 0.30 §1b). `show` and `scan` take a carrier

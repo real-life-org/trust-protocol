@@ -2,6 +2,10 @@
 
 ## 0.18.0
 
+`groupProvenance(groupId)` on the holder: who invited whom, read from the invites the log's canonical
+admissions enclose (Membership RLTP-MT-3400, RLTP-MT-8070); plural where two members admitted the
+same person at once.
+
 Access stage 1: the joining buffer lasts until the issuer's next answer. A page judges every
 buffered entry as an arrival, after its own entries, and a buffered entry whose parent is still
 missing is held for it with a repair, so the holder asks for that parent by name. Before, buffered

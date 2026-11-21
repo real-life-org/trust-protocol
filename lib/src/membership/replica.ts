@@ -92,6 +92,29 @@ export async function factsOf (log: GroupLog, subtle: SubtleCrypto): Promise<Fac
   return { m, names }
 }
 
+/** Invitation provenance of a group's current members (Membership
+ *  RLTP-MT-3400, RLTP-MT-8070; Access RLTP-ACC-5300): per member anchor,
+ *  the member anchors that issued the invites enclosed in its canonical
+ *  admissions, sorted. Read from the log's signed documents, never from a
+ *  field; several where concurrent admissions made provenance plural. The
+ *  founder has no entry. null where the group holds no log. */
+export async function provenanceOf (g: Readonly<Group>, subtle: SubtleCrypto): Promise<Record<string, string[]> | null> {
+  const r = replicaOf(g)
+  if (!r) return null
+  const m = await materialize(r.log, subtle)
+  const out: Record<string, string[]> = {}
+  for (const [id, env] of Object.entries(r.log.accepted)) {
+    if (env.op !== ADD_OP || m.verdict[id] !== 'canonical') continue
+    const body = env.body as { subject?: unknown, admission?: { invite?: { payload?: { invite?: { issuer?: unknown } } } } }
+    const inviter = body.admission?.invite?.payload?.invite?.issuer
+    if (typeof body.subject !== 'string' || typeof inviter !== 'string' || !m.members.includes(body.subject)) continue
+    const list = (out[body.subject] ??= [])
+    if (!list.includes(inviter)) list.push(inviter)
+  }
+  for (const list of Object.values(out)) list.sort()
+  return out
+}
+
 type EdgeOf = Record<string, { contactId: string, rkid: string }>
 
 /** The roster a materialization yields: its members, each with what the
