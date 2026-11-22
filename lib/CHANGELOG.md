@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.18.0
+## 0.19.0
 
 `groupProvenance(groupId)` on the holder: who invited whom, read from the invites the log's canonical
 admissions enclose (Membership RLTP-MT-3400, RLTP-MT-8070); plural where two members admitted the
@@ -13,6 +13,8 @@ entries stayed unjudged until the own admission was accepted: a joining holder w
 its own admission, or an ancestor or a descendant the page did not bring, stayed joining until its
 deadline unless a resume asked again. No member forwards an admission to its subject (`forwards`),
 so holders that follow the exchange did not meet the first case.
+
+## 0.18.0
 
 `sharedConnectShow` takes `origin`: the link's host (the app's own, verified as an app link, with a
 page for someone without the app); `_type` is then the absolute flow URI, and any reader of the
