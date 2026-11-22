@@ -235,6 +235,11 @@ export interface PromptView {
   kind: PromptKind
   contactId?: string
   groupId?: string
+  /** for a `group-invite`: the group's name as the invitation states it
+   *  (Membership 3.2: stated by the inviter under the credential's proof and
+   *  read by the invitee; at most 200 characters). The inviter's statement,
+   *  shown before the person answers; absent where the invitation names none */
+  groupName?: string
   openedAt: Millis
   expiresAt?: Millis
 }
@@ -481,13 +486,19 @@ export function profileView (state: Readonly<HolderState>): ProfileView {
 /** The open prompts, by opening time, then id. Expired prompts stay
  *  listed until tick removes them; deciding one is refused. */
 export function promptsView (state: Readonly<HolderState>): PromptView[] {
-  return freezeDeep(Object.values(state.prompts).sort((a, b) => (a.openedAt - b.openedAt) || cmp(a.id, b.id)).map((p) => ({
-    commitSeq: state.commitSeq, id: p.id, kind: p.kind,
-    ...(p.contactId !== undefined ? { contactId: p.contactId } : {}),
-    ...(p.groupId !== undefined ? { groupId: p.groupId } : {}),
-    openedAt: p.openedAt,
-    ...(p.expiresAt !== undefined ? { expiresAt: p.expiresAt } : {}),
-  })))
+  // the invitation a group-invite prompt belongs to, by the prompt's id
+  const invited = new Map(Object.values(state.joining.invites).map((i) => [i.promptId, i] as const))
+  return freezeDeep(Object.values(state.prompts).sort((a, b) => (a.openedAt - b.openedAt) || cmp(a.id, b.id)).map((p) => {
+    const name = p.kind === 'group-invite' ? invited.get(p.id)?.name : undefined
+    return {
+      commitSeq: state.commitSeq, id: p.id, kind: p.kind,
+      ...(p.contactId !== undefined ? { contactId: p.contactId } : {}),
+      ...(p.groupId !== undefined ? { groupId: p.groupId } : {}),
+      ...(typeof name === 'string' && name.length > 0 ? { groupName: name } : {}),
+      openedAt: p.openedAt,
+      ...(p.expiresAt !== undefined ? { expiresAt: p.expiresAt } : {}),
+    }
+  }))
 }
 
 /** The sender status of the documents whose digest or threadId is `x`. */

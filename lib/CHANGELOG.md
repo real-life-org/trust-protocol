@@ -2,6 +2,9 @@
 
 ## 0.19.0
 
+`PromptView.groupName` for a `group-invite`: the group's name as the invitation states it, so an app
+can show which group a person is invited into before they answer.
+
 `groupProvenance(groupId)` on the holder: who invited whom, read from the invites the log's canonical
 admissions enclose (Membership RLTP-MT-3400, RLTP-MT-8070); plural where two members admitted the
 same person at once.
