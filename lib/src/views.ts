@@ -478,25 +478,25 @@ export function contactView (state: Readonly<HolderState>, id: string): ContactV
 
 /** The members of the holder's groups its contacts proved to be: per group
  *  and member anchor, the contact that proved it by the sealed pair of a
- *  group star (class V, 5580). The pair lies in the relationship's memory;
- *  the contact it belongs to is read from the tuples that accepted a group
- *  star naming the group (`groupStarIn.accepted.groups`): the entry those
- *  tuples belong to. A relationship that stands behind two entries (2145)
- *  thus keeps an earlier proof with the entry that gave it, and never
- *  hands it to the entry of its new head. Where the tuples that could have
- *  carried the pair belong to different entries, or the proofs for one
- *  member point at different entries, the member is named as neither. */
+ *  group star (class V, 5580). The pair lies in the relationship's memory
+ *  and does not say on which tuple it was checked. So it is named only
+ *  while the relationship belongs to one entry: every tuple of it, the
+ *  deactivated and older ones included. While a relationship stands behind
+ *  two entries that are still apart (2145), which of them gave the proof
+ *  is open, and the member is named as neither; once the entries merge it
+ *  is named again. Where the proofs for one member point at different
+ *  entries, it is named as neither. */
 function provenMembers (state: Readonly<HolderState>): Map<string, Map<string, string>> {
   const claims = new Map<string, Map<string, Set<string>>>()
   for (const r of Object.values(state.relationships)) {
     const held = r.memory.groupMembers
     if (held === null || typeof held !== 'object' || Array.isArray(held)) continue
+    const entries = new Set(r.tuples.map((t) => findContact(state, t.entryId)?.id))
+    const [entry] = entries
+    if (entries.size !== 1 || entry === undefined) continue
     for (const [group, pair] of Object.entries(held)) {
       const member = (pair as { member?: unknown } | null)?.member
       if (typeof member !== 'string') continue
-      const entries = new Set(r.tuples.filter((t) => t.groupStarIn.accepted?.groups.includes(group)).map((t) => findContact(state, t.entryId)?.id))
-      const [entry] = entries
-      if (entries.size !== 1 || entry === undefined) continue
       const of = claims.get(group) ?? new Map<string, Set<string>>()
       of.set(member, (of.get(member) ?? new Set<string>()).add(entry))
       claims.set(group, of)
