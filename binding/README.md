@@ -53,6 +53,44 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
 - `RLTP_WIRE_DEPOSIT` (or `cfg.depositMode`): `routed` (default) follows
   the adapter's mode; `direct` forces the fallback for every deposit.
 
+## A local test mediator
+
+`test-mediator/docker-compose.yml` starts the mediator image and the
+settings of `mediator.web-of-trust.de` with Redis, over plain HTTP, bound
+to `127.0.0.1:7037`. Probes that open many sessions, or that make sessions
+fight for a socket, belong there and not on a shared instance. Its
+identity is a `did:peer` generated once (git-ignored, with its secrets):
+
+```sh
+cd binding/test-mediator
+IMAGE=ghcr.io/affinidi/messaging-mediator:v0.45.0@sha256:3e53ea634d9a3a26352480ff0b5266b8486489e0e672faa6bd6705549005f538
+mkdir -p setup secrets
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/setup:/work" -w /work \
+  --entrypoint mediator-setup "$IMAGE" \
+  --non-interactive --deployment container --protocol tsp \
+  --did-method peer --public-url "http://127.0.0.1:7037/mediator/v1" --ssl none \
+  --secret-storage file --database-url "redis://redis:6379/" \
+  --admin generate -c conf/mediator.toml > /dev/null   # stdout carries the admin key
+cp setup/conf/secrets.json secrets/secrets.json && chmod 600 secrets/secrets.json
+{ echo "MEDIATOR_DID=$(sed -n 's/^mediator_did = "did:\/\/\(.*\)"/\1/p' setup/conf/mediator.toml)"
+  echo "ADMIN_DID=$(sed -n 's/^admin_did = "did:\/\/\(.*\)"/\1/p' setup/conf/mediator.toml)"
+  echo "MEDIATOR_UID=$(id -u)"; echo "MEDIATOR_GID=$(id -g)"; } > .env
+docker compose up -d
+```
+
+Then, from `binding/`:
+
+```sh
+RLTP_LIVE_MEDIATOR=1 MEDIATOR_ALLOW_INSECURE=1 \
+  MEDIATOR_DID="$(sed -n 's/^MEDIATOR_DID=//p' test-mediator/.env)" node live-probe.mjs
+```
+
+`docker compose down -v` stops it and forgets every account and message.
+Against this mediator `live-probe.mjs` passes and
+`live-two-devices-probe.mjs` gives the result measured on the shared
+instance, with one difference: without a rate limit in front, the two
+devices that share a DID change places faster.
+
 ## Tests and probes
 
 - `test/wire-demux.test.mjs` — offline (`npm test`): the real wire, the
@@ -78,6 +116,14 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   unconcluded is handed to the other; the device without the socket
   cannot deposit (`transport-unreachable`). The two wires reconnect against
   each other for the whole run: keep runs rare and short.
+- `live-device-addresses-probe.mjs` — the counterpart: one carrier nonce,
+  so one connection DID, per device, and at the peer one leg per device.
+  On 23 November 2026 against the local test mediator (below), three runs:
+  the peer's document on both legs reaches both devices; a device that was
+  offline gets its copy when it comes back, although the other concluded
+  its own; both devices deposit at the same time and the peer gets both;
+  a leg between the two devices carries a document each way; the mediator
+  reports no duplicate websocket.
 - `live-delivery-probe.mjs` — the full delivery contract live: a
   lib-sealed document, the staged `receive()`, a signed `delivery-ack/0.1`
   back, the trias closing `accepted → delivered`.

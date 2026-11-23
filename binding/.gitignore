@@ -1,1 +1,4 @@
 node_modules/
+test-mediator/setup/
+test-mediator/secrets/
+test-mediator/.env
