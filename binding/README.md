@@ -66,6 +66,18 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   TSP 1.0 mediator ≥ 0.45): two sides of one relationship exchange a
   carried document both ways (deposit → deliver → conclude) and print
   delivery, frame sizes and times.
+- `live-two-devices-probe.mjs` — one address, two devices: two wires over
+  the same relationship root and carrier nonce (the same connection DID)
+  and one for the peer. A measurement, not a verdict; it prints what the
+  mediator does. On 23 November 2026 against `mediator.web-of-trust.de`
+  (mediator 0.45.0): the mediator keeps one live websocket per DID
+  (`w.websocket.duplicate-channel-refused`, `w.websocket.duplicate-channel`)
+  and the two devices take turns at it. With both online the first is
+  handed a document at once and the second about five seconds later; a
+  document one device concluded is gone for the other; one left
+  unconcluded is handed to the other; the device without the socket
+  cannot deposit (`transport-unreachable`). The two wires reconnect against
+  each other for the whole run: keep runs rare and short.
 - `live-delivery-probe.mjs` — the full delivery contract live: a
   lib-sealed document, the staged `receive()`, a signed `delivery-ack/0.1`
   back, the trias closing `accepted → delivered`.
