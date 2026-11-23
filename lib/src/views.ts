@@ -84,7 +84,7 @@
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
 import { heldOf, triasOf, sharedConnectOriginOf, sharedConnectIndex } from './state.js'
-import { CLASSES, activeTuple, classOn, entryOf, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
+import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
 import { messageChannel } from './message/holder.js'
@@ -477,21 +477,26 @@ export function contactView (state: Readonly<HolderState>, id: string): ContactV
 }
 
 /** The members of the holder's groups its contacts proved to be: per group
- *  and member anchor, the entry of the relationship whose memory holds the
- *  sealed pair of a group star (class V, 5580). The entry is the one the
- *  relationship's verifications go to (entryOf, 2145), never whichever
- *  contact happens to list the relationship; where two relationships of
- *  different entries hold a pair for the same member, the member is named
- *  as neither. */
+ *  and member anchor, the contact that proved it by the sealed pair of a
+ *  group star (class V, 5580). The pair lies in the relationship's memory;
+ *  the contact it belongs to is read from the tuples that accepted a group
+ *  star naming the group (`groupStarIn.accepted.groups`): the entry those
+ *  tuples belong to. A relationship that stands behind two entries (2145)
+ *  thus keeps an earlier proof with the entry that gave it, and never
+ *  hands it to the entry of its new head. Where the tuples that could have
+ *  carried the pair belong to different entries, or the proofs for one
+ *  member point at different entries, the member is named as neither. */
 function provenMembers (state: Readonly<HolderState>): Map<string, Map<string, string>> {
   const claims = new Map<string, Map<string, Set<string>>>()
   for (const r of Object.values(state.relationships)) {
-    const entry = entryOf(state, r)?.id
     const held = r.memory.groupMembers
-    if (entry === undefined || held === null || typeof held !== 'object' || Array.isArray(held)) continue
+    if (held === null || typeof held !== 'object' || Array.isArray(held)) continue
     for (const [group, pair] of Object.entries(held)) {
       const member = (pair as { member?: unknown } | null)?.member
       if (typeof member !== 'string') continue
+      const entries = new Set(r.tuples.filter((t) => t.groupStarIn.accepted?.groups.includes(group)).map((t) => findContact(state, t.entryId)?.id))
+      const [entry] = entries
+      if (entries.size !== 1 || entry === undefined) continue
       const of = claims.get(group) ?? new Map<string, Set<string>>()
       of.set(member, (of.get(member) ?? new Set<string>()).add(entry))
       claims.set(group, of)
