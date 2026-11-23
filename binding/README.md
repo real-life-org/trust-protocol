@@ -106,16 +106,32 @@ devices that share a DID change places faster.
   delivery, frame sizes and times.
 - `live-two-devices-probe.mjs` — one address, two devices: two wires over
   the same relationship root and carrier nonce (the same connection DID)
-  and one for the peer. A measurement, not a verdict; it prints what the
-  mediator does. On 23 November 2026 against `mediator.web-of-trust.de`
-  (mediator 0.45.0): the mediator keeps one live websocket per DID
-  (`w.websocket.duplicate-channel-refused`, `w.websocket.duplicate-channel`)
-  and the two devices take turns at it. With both online the first is
-  handed a document at once and the second about five seconds later; a
-  document one device concluded is gone for the other; one left
-  unconcluded is handed to the other; the device without the socket
-  cannot deposit (`transport-unreachable`). The two wires reconnect against
-  each other for the whole run: keep runs rare and short.
+  and one for the peer. A measurement, not a verdict; it prints what
+  happens. On 23 November 2026 against `mediator.web-of-trust.de` and the
+  local test mediator (mediator 0.45.0): the mediator keeps one live
+  websocket per DID (`w.websocket.duplicate-channel-refused`,
+  `w.websocket.duplicate-channel`); a document one device concluded is
+  gone for the other; one left unconcluded is handed to the other. Two
+  further results are this binding's doing, not the mediator's: the two
+  wires reconnect against each other for the whole run (the wire reopens
+  its socket as soon as it closes), and the device without the socket
+  cannot deposit (`transport-unreachable`: the wire deposits only on its
+  socket). Run it on the local mediator.
+- `live-shared-address-probe.mjs` — the same shared connection DID without
+  those two habits of the binding, against the local test mediator (three
+  runs, the same each time): a second session without a socket is
+  admitted beside the device that holds it, which keeps its socket and is
+  told of no duplicate; over HTTP that session fetches (`/fetch`) the
+  document the first collected and has not concluded, and deposits
+  (`/inbound`) a document the peer receives. When the first device does
+  not reconnect after losing the socket, the second holds the unconcluded
+  document about 30 ms after starting, deposits and is handed the peer's
+  next document; the mediator reports one `duplicate-channel` to the
+  device that yielded and nothing to the one that took over. For a
+  recipient that is offline the mediator refuses the sender with
+  `e.p.limits.queue.peer` (per-peer limit 50 in its configuration); of
+  120 documents deposited the recipient was handed 8 on return, a number
+  this probe does not explain.
 - `live-device-addresses-probe.mjs` — the counterpart: one carrier nonce,
   so one connection DID, per device, and at the peer one leg per device.
   On 23 November 2026 against the local test mediator (below), three runs:

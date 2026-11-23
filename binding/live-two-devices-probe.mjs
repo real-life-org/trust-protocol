@@ -19,16 +19,17 @@
 //
 // Measured on 23 November 2026 against a mediator 0.45.0: the mediator keeps
 // one live websocket per DID (`w.websocket.duplicate-channel-refused`,
-// `w.websocket.duplicate-channel`). The two devices take turns at it: in
-// step 1 the first is handed the document at once and the second about five
-// seconds later; a document one device concluded is gone for the other (3);
-// one left unconcluded is handed to the other (4); the device without the
-// socket cannot deposit (5). A run makes the two wires reconnect against
-// each other for its whole length: keep runs rare and short.
+// `w.websocket.duplicate-channel`). A document one device concluded is gone
+// for the other (3); one left unconcluded is handed to the other (4).
 //
-// It is a measurement: every step prints what happened and none of them is
-// a pass or a fail. Only a broken setup exits non-zero. No secrets are
-// printed; the identities are fresh and thrown away.
+// Two things this probe shows are properties of this binding, not of the
+// mediator: the two wires reconnect against each other for the whole run,
+// because the wire reopens its socket as soon as it closes; and the device
+// without the socket cannot deposit (5), because the wire deposits only on
+// its socket. live-shared-address-probe.mjs measures the mediator without
+// either: a session without a socket fetches and deposits over HTTP, and a
+// socket changes hands in tens of milliseconds when the loser does not
+// reconnect. Keep runs of this probe rare, short, and on the local mediator.
 //
 // Network-gated: set RLTP_LIVE_MEDIATOR=1 to run.
 //   MEDIATOR_DID=...   the instance, required: a TSP 1.0 mediator (>= 0.45).
