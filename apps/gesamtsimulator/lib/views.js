@@ -284,15 +284,63 @@ export function contactView(state, id) {
     const c = findContact(state, id);
     return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state), sharedConnectIndex(state))) : undefined;
 }
+/** The members of the holder's groups its contacts proved to be: per group
+ *  and member anchor, the contact that proved it by the sealed pair of a
+ *  group star (class V, 5580). The pair lies in the relationship's memory
+ *  and does not say on which tuple it was checked. So it is named only
+ *  while the relationship belongs to one entry: every tuple of it, the
+ *  deactivated and older ones included. While a relationship stands behind
+ *  two entries that are still apart (2145), which of them gave the proof
+ *  is open, and the member is named as neither; once the entries merge it
+ *  is named again. Where the proofs for one member point at different
+ *  entries, it is named as neither. */
+function provenMembers(state) {
+    const claims = new Map();
+    for (const r of Object.values(state.relationships)) {
+        const held = r.memory.groupMembers;
+        if (held === null || typeof held !== 'object' || Array.isArray(held))
+            continue;
+        const entries = new Set(r.tuples.map((t) => findContact(state, t.entryId)?.id));
+        const [entry] = entries;
+        if (entries.size !== 1 || entry === undefined)
+            continue;
+        for (const [group, pair] of Object.entries(held)) {
+            const member = pair?.member;
+            if (typeof member !== 'string')
+                continue;
+            const of = claims.get(group) ?? new Map();
+            of.set(member, (of.get(member) ?? new Set()).add(entry));
+            claims.set(group, of);
+        }
+    }
+    const out = new Map();
+    for (const [group, of] of claims) {
+        const one = new Map();
+        for (const [member, entries] of of)
+            if (entries.size === 1)
+                one.set(member, [...entries][0]);
+        out.set(group, one);
+    }
+    return out;
+}
+/** The invitations accepted and not yet answered, by group, then inviter. */
+export function pendingJoinsView(state) {
+    return freezeDeep(Object.values(state.joining.invites)
+        .filter((i) => i.status === 'accepted' && !Object.hasOwn(state.groups, i.group))
+        .sort((a, b) => cmp(a.group, b.group) || cmp(a.credDigest, b.credDigest))
+        .map((i) => ({ commitSeq: state.commitSeq, group: i.group, name: i.name, ...(i.contactId !== undefined ? { contactId: findContact(state, i.contactId)?.id ?? i.contactId } : {}), validUntil: i.validUntil })));
+}
 /** The holder's groups, by genesis digest. */
 export function groupsView(state) {
     // the personal community is the holder's own (Identity §2): a group of one, never shown as a group
     const personal = state.register.community?.genesis;
+    const proven = provenMembers(state);
     return freezeDeep(Object.values(state.groups).filter((g) => g.id !== personal).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
         commitSeq: state.commitSeq, id: g.id, name: g.name, phase: g.phase, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
-        members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
-            anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
-        })),
+        members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => {
+            const contactId = m.anchor === g.memberAnchor ? undefined : m.contactId ?? proven.get(g.id)?.get(m.anchor);
+            return { anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(contactId !== undefined ? { contactId } : {}), self: m.anchor === g.memberAnchor };
+        }),
         pending: Object.values(g.evidence).map((e) => {
             const acc = e.accept.payload?.accept;
             return { member: acc?.subject ?? '', ...(typeof acc?.card?.name === 'string' ? { name: acc.card.name } : {}), vouches: e.vouches.length };

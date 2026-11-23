@@ -218,9 +218,26 @@ meet), `untrust`, `pauseTrust`, `setClass`,
 human: `receive`, `report`, `resume`, `tick`, `recover`, `takeMessages`,
 `syncGroups` (ask the group's members for the log when the app comes back
 online).
-Reads: `contacts`, `contact`, `groups`, `groupProvenance`, `profile`,
+Reads: `contacts`, `contact`, `groups`, `pendingJoins`, `groupProvenance`,
+`profile`,
 `prompts`, `inbox`, `deliveryStatus`, `deviceKey`, `replay`, `snapshot`,
 `subscribe`.
+
+**Who a member is.** `groups()` lists each group's members by member
+anchor. A member carries a `contactId` where the holder knows which
+contact it is: over the invitation between the two, or because the
+contact's sealed group star proved it (Trust 5530–5580; sent by default
+only to a contact one trusts). The blinded group star alone says that a
+contact shares the group (`ContactView.sharedGroups`), not which member
+it is. The proof is kept per relationship; while a relationship
+stands behind two contact entries that have not merged (after a
+re-encounter under a new anchor generation), which of them gave it is
+open and the member carries no `contactId`.
+
+**Between the accept and the welcome.** `pendingJoins()` lists the
+invitations the holder accepted and whose inviter has not answered yet:
+the group's id and name, the inviting contact, and until when the
+invitation holds. The group appears in `groups()` with the welcome.
 
 **Who invited whom** (Membership RLTP-MT-3400, RLTP-MT-8070).
 `groupProvenance(groupId)` answers, per member anchor of the group's

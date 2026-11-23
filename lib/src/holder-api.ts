@@ -124,8 +124,8 @@ import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js'
 import type { Json } from './core.js'
 import { b64uOf } from './core.js'
-import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, profileView, promptsView } from './views.js'
-import type { ContactView, DeliveryStatusView, GroupView, InboxMessageView, ProfileView, PromptView } from './views.js'
+import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, pendingJoinsView, profileView, promptsView } from './views.js'
+import type { ContactView, DeliveryStatusView, GroupView, InboxMessageView, PendingJoinView, ProfileView, PromptView } from './views.js'
 
 /** The committed state and its commitSeq; the state is opaque (note §4.5):
  *  apps read the views, store tooling may persist it. */
@@ -294,6 +294,9 @@ export interface Holder {
   /** by entry id or alias */
   contact (id: string): Promise<ContactView | undefined>
   groups (): Promise<GroupView[]>
+  /** the invitations accepted and not yet answered by their inviters: no
+   *  group stands for them in `groups()` yet */
+  pendingJoins (): Promise<PendingJoinView[]>
   /** who invited whom (Membership RLTP-MT-3400, RLTP-MT-8070): per member
    *  anchor of the group's current members, the member anchors whose signed
    *  invites its canonical admissions enclose, read from the log; several
@@ -406,6 +409,7 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     contacts: async () => contactsView(await read()),
     contact: async (id: string) => contactView(await read(), id),
     groups: async () => groupsView(await read()),
+    pendingJoins: async () => pendingJoinsView(await read()),
     groupProvenance: async (groupId: string) => {
       const s = await read()
       const g = typeof groupId === 'string' && Object.hasOwn(s.groups, groupId) ? s.groups[groupId] : undefined
