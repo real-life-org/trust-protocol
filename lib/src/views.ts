@@ -217,10 +217,28 @@ export interface GroupView {
   vouchThreshold: Dec
   /** the current members by member anchor, as the group's log yields them
    *  (while joining: as the welcome named them); `self` marks the own one,
-   *  `contactId` a member the holder knows as a contact */
+   *  `contactId` a member the holder knows as a contact: over the
+   *  invitation between the two, or by the sealed pair of the contact's
+   *  group star, opened and checked against this group (5530–5580) */
   members: Array<{ anchor: string, name?: string, contactId?: string, self: boolean }>
   /** consent pairs held toward an admission (Membership 3.4), by subject */
   pending: Array<{ member: string, name?: string, vouches: number }>
+}
+
+/** An invitation the holder accepted and the inviter has not answered yet
+ *  (Membership 3.2): the accept is out, no welcome has come, so there is no
+ *  group in `groups()` to show it. It leaves this view when the welcome
+ *  makes the group (`joining`), or when the invitation is retained away. */
+export interface PendingJoinView {
+  commitSeq: Dec
+  /** genesis digest: the id the group will have in `groups()` */
+  group: string
+  /** the group's name, as the invitation gave it */
+  name: string
+  /** the contact that invited, where the invitation was attributed to one */
+  contactId?: string
+  /** until when the invitation holds */
+  validUntil: number
 }
 
 /** The holder's own profile (6450), and its community anchor (Identity
@@ -458,15 +476,47 @@ export function contactView (state: Readonly<HolderState>, id: string): ContactV
   return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state), sharedConnectIndex(state))) : undefined
 }
 
+/** The members of the holder's groups its contacts proved to be: per group
+ *  and member anchor, the entry of the relationship whose memory holds the
+ *  sealed pair of a group star (class V, 5580). */
+function provenMembers (state: Readonly<HolderState>): Map<string, Map<string, string>> {
+  const out = new Map<string, Map<string, string>>()
+  const entryOfRel = new Map<string, string>()
+  for (const c of Object.values(state.contacts)) for (const id of c.relIds) entryOfRel.set(id, c.id)
+  for (const [relId, r] of Object.entries(state.relationships).sort(([a], [b]) => cmp(a, b))) {
+    const entry = entryOfRel.get(relId)
+    const held = r.memory.groupMembers
+    if (entry === undefined || held === null || typeof held !== 'object' || Array.isArray(held)) continue
+    for (const [group, pair] of Object.entries(held)) {
+      const member = (pair as { member?: unknown } | null)?.member
+      if (typeof member !== 'string') continue
+      const of = out.get(group) ?? new Map<string, string>()
+      if (!of.has(member)) of.set(member, entry)
+      out.set(group, of)
+    }
+  }
+  return out
+}
+
+/** The invitations accepted and not yet answered, by group, then inviter. */
+export function pendingJoinsView (state: Readonly<HolderState>): PendingJoinView[] {
+  return freezeDeep(Object.values(state.joining.invites)
+    .filter((i) => i.status === 'accepted' && !Object.hasOwn(state.groups, i.group))
+    .sort((a, b) => cmp(a.group, b.group) || cmp(a.credDigest, b.credDigest))
+    .map((i) => ({ commitSeq: state.commitSeq, group: i.group, name: i.name, ...(i.contactId !== undefined ? { contactId: findContact(state, i.contactId)?.id ?? i.contactId } : {}), validUntil: i.validUntil })))
+}
+
 /** The holder's groups, by genesis digest. */
 export function groupsView (state: Readonly<HolderState>): GroupView[] {
   // the personal community is the holder's own (Identity §2): a group of one, never shown as a group
   const personal = state.register.community?.genesis
+  const proven = provenMembers(state)
   return freezeDeep(Object.values(state.groups).filter((g) => g.id !== personal).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
     commitSeq: state.commitSeq, id: g.id, name: g.name, phase: g.phase, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
-    members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
-      anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
-    })),
+    members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => {
+      const contactId = m.anchor === g.memberAnchor ? undefined : m.contactId ?? proven.get(g.id)?.get(m.anchor)
+      return { anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(contactId !== undefined ? { contactId } : {}), self: m.anchor === g.memberAnchor }
+    }),
     pending: Object.values(g.evidence).map((e) => {
       const acc = (e.accept as { payload?: { accept?: { subject?: string, card?: { name?: string } } } }).payload?.accept
       return { member: acc?.subject ?? '', ...(typeof acc?.card?.name === 'string' ? { name: acc.card.name } : {}), vouches: e.vouches.length }

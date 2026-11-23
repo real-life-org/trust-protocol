@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.20.0
+
+`GroupView.members[].contactId` also names a member whose contact proved who it is: the sealed pair
+of the contact's group star, opened and checked against the group (5530–5580), now reaches the
+roster. Before, only the two ends of an invitation knew each other there; two members that came in
+through a third stayed unnamed to each other even after the proof was held.
+
+`pendingJoins()` on the holder: the invitations accepted and not yet answered by their inviters,
+with the group's id and name and the inviting contact. No group stands for them in `groups()` until
+the welcome arrives, so an app had nothing to show between the accept and the welcome.
+
 ## 0.19.0
 
 `PromptView.groupName` for a `group-invite`: the group's name as the invitation states it, so an app

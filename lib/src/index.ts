@@ -113,7 +113,7 @@ export { seedKeys, CONTENT_KEY_STAGE1_PREFIX, SERVICE_IDENTITY_STAGE1_PREFIX } f
 export { createHolder } from './holder-api.js'
 export type { CarrierOffer, Holder, HolderOptions, HolderSnapshot, HumanActOptions } from './holder-api.js'
 export type { DeviceKeyResult } from './identity-state.js'
-export type { ContactView, RelationshipView, ClassView, SealedClassView, ClassesView, ContactProfileView, GroupView, ProfileView, PromptView, InboxMessageView, DeliveryItemView, DeliveryStatusView } from './views.js'
+export type { ContactView, RelationshipView, ClassView, SealedClassView, ClassesView, ContactProfileView, GroupView, PendingJoinView, ProfileView, PromptView, InboxMessageView, DeliveryItemView, DeliveryStatusView } from './views.js'
 export type { EnginePorts, CommitListener, CryptoHandle, TransportEntry, TransportView, TransportRefusal, AnswerableEntry } from './engine.js'
 export type { ContractHarness } from './store-contract.js'
 

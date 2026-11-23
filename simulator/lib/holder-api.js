@@ -117,7 +117,7 @@ import { provenanceOf } from './membership/replica.js';
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js';
 import { MESSAGE_COMMANDS, messageModule } from './message/holder.js';
 import { b64uOf } from './core.js';
-import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, profileView, promptsView } from './views.js';
+import { contactView, contactsView, deliveryStatusView, groupsView, inboxView, pendingJoinsView, profileView, promptsView } from './views.js';
 /** The offer as act input: N in canonical base64url (bound and journaled with the act). */
 const offerInput = (c) => c === undefined ? undefined : {
     nonce: c?.nonce instanceof Uint8Array ? b64uOf(c.nonce) : null,
@@ -200,6 +200,7 @@ export async function createHolder(ports, opts = {}) {
         contacts: async () => contactsView(await read()),
         contact: async (id) => contactView(await read(), id),
         groups: async () => groupsView(await read()),
+        pendingJoins: async () => pendingJoinsView(await read()),
         groupProvenance: async (groupId) => {
             const s = await read();
             const g = typeof groupId === 'string' && Object.hasOwn(s.groups, groupId) ? s.groups[groupId] : undefined;

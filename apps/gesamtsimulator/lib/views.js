@@ -284,15 +284,50 @@ export function contactView(state, id) {
     const c = findContact(state, id);
     return c ? freezeDeep(project(state, c, entryIndex(state), recordIndex(state), sharedConnectIndex(state))) : undefined;
 }
+/** The members of the holder's groups its contacts proved to be: per group
+ *  and member anchor, the entry of the relationship whose memory holds the
+ *  sealed pair of a group star (class V, 5580). */
+function provenMembers(state) {
+    const out = new Map();
+    const entryOfRel = new Map();
+    for (const c of Object.values(state.contacts))
+        for (const id of c.relIds)
+            entryOfRel.set(id, c.id);
+    for (const [relId, r] of Object.entries(state.relationships).sort(([a], [b]) => cmp(a, b))) {
+        const entry = entryOfRel.get(relId);
+        const held = r.memory.groupMembers;
+        if (entry === undefined || held === null || typeof held !== 'object' || Array.isArray(held))
+            continue;
+        for (const [group, pair] of Object.entries(held)) {
+            const member = pair?.member;
+            if (typeof member !== 'string')
+                continue;
+            const of = out.get(group) ?? new Map();
+            if (!of.has(member))
+                of.set(member, entry);
+            out.set(group, of);
+        }
+    }
+    return out;
+}
+/** The invitations accepted and not yet answered, by group, then inviter. */
+export function pendingJoinsView(state) {
+    return freezeDeep(Object.values(state.joining.invites)
+        .filter((i) => i.status === 'accepted' && !Object.hasOwn(state.groups, i.group))
+        .sort((a, b) => cmp(a.group, b.group) || cmp(a.credDigest, b.credDigest))
+        .map((i) => ({ commitSeq: state.commitSeq, group: i.group, name: i.name, ...(i.contactId !== undefined ? { contactId: findContact(state, i.contactId)?.id ?? i.contactId } : {}), validUntil: i.validUntil })));
+}
 /** The holder's groups, by genesis digest. */
 export function groupsView(state) {
     // the personal community is the holder's own (Identity §2): a group of one, never shown as a group
     const personal = state.register.community?.genesis;
+    const proven = provenMembers(state);
     return freezeDeep(Object.values(state.groups).filter((g) => g.id !== personal).sort((a, b) => cmp(a.id, b.id)).map((g) => ({
         commitSeq: state.commitSeq, id: g.id, name: g.name, phase: g.phase, listed: g.listed, vouchThreshold: g.rules.vouchThreshold,
-        members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => ({
-            anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(m.contactId !== undefined ? { contactId: m.contactId } : {}), self: m.anchor === g.memberAnchor,
-        })),
+        members: Object.values(g.roster).sort((a, b) => cmp(a.anchor, b.anchor)).map((m) => {
+            const contactId = m.anchor === g.memberAnchor ? undefined : m.contactId ?? proven.get(g.id)?.get(m.anchor);
+            return { anchor: m.anchor, ...(m.name !== undefined ? { name: m.name } : {}), ...(contactId !== undefined ? { contactId } : {}), self: m.anchor === g.memberAnchor };
+        }),
         pending: Object.values(g.evidence).map((e) => {
             const acc = e.accept.payload?.accept;
             return { member: acc?.subject ?? '', ...(typeof acc?.card?.name === 'string' ? { name: acc.card.name } : {}), vouches: e.vouches.length };
