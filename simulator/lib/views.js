@@ -85,7 +85,7 @@
 //   - a contact without a relationship breaks an invariant and throws
 import { freezeDeep } from './util-freeze.js';
 import { heldOf, triasOf, sharedConnectOriginOf, sharedConnectIndex } from './state.js';
-import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js';
+import { CLASSES, activeTuple, classOn, entryOf, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js';
 import { sealedOn } from './trust/group-star.js';
 import { classOfDuty } from './trust/duties.js';
 import { messageChannel } from './message/holder.js';
@@ -286,15 +286,15 @@ export function contactView(state, id) {
 }
 /** The members of the holder's groups its contacts proved to be: per group
  *  and member anchor, the entry of the relationship whose memory holds the
- *  sealed pair of a group star (class V, 5580). */
+ *  sealed pair of a group star (class V, 5580). The entry is the one the
+ *  relationship's verifications go to (entryOf, 2145), never whichever
+ *  contact happens to list the relationship; where two relationships of
+ *  different entries hold a pair for the same member, the member is named
+ *  as neither. */
 function provenMembers(state) {
-    const out = new Map();
-    const entryOfRel = new Map();
-    for (const c of Object.values(state.contacts))
-        for (const id of c.relIds)
-            entryOfRel.set(id, c.id);
-    for (const [relId, r] of Object.entries(state.relationships).sort(([a], [b]) => cmp(a, b))) {
-        const entry = entryOfRel.get(relId);
+    const claims = new Map();
+    for (const r of Object.values(state.relationships)) {
+        const entry = entryOf(state, r)?.id;
         const held = r.memory.groupMembers;
         if (entry === undefined || held === null || typeof held !== 'object' || Array.isArray(held))
             continue;
@@ -302,11 +302,18 @@ function provenMembers(state) {
             const member = pair?.member;
             if (typeof member !== 'string')
                 continue;
-            const of = out.get(group) ?? new Map();
-            if (!of.has(member))
-                of.set(member, entry);
-            out.set(group, of);
+            const of = claims.get(group) ?? new Map();
+            of.set(member, (of.get(member) ?? new Set()).add(entry));
+            claims.set(group, of);
         }
+    }
+    const out = new Map();
+    for (const [group, of] of claims) {
+        const one = new Map();
+        for (const [member, entries] of of)
+            if (entries.size === 1)
+                one.set(member, [...entries][0]);
+        out.set(group, one);
     }
     return out;
 }

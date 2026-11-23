@@ -84,7 +84,7 @@
 import { freezeDeep } from './util-freeze.js'
 import type { Json } from './core.js'
 import { heldOf, triasOf, sharedConnectOriginOf, sharedConnectIndex } from './state.js'
-import { CLASSES, activeTuple, classOn, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
+import { CLASSES, activeTuple, classOn, entryOf, findContact, lags, trusted as isTrusted, tupleByLabel } from './trust/state.js'
 import { sealedOn } from './trust/group-star.js'
 import { classOfDuty } from './trust/duties.js'
 import { messageChannel } from './message/holder.js'
@@ -478,22 +478,30 @@ export function contactView (state: Readonly<HolderState>, id: string): ContactV
 
 /** The members of the holder's groups its contacts proved to be: per group
  *  and member anchor, the entry of the relationship whose memory holds the
- *  sealed pair of a group star (class V, 5580). */
+ *  sealed pair of a group star (class V, 5580). The entry is the one the
+ *  relationship's verifications go to (entryOf, 2145), never whichever
+ *  contact happens to list the relationship; where two relationships of
+ *  different entries hold a pair for the same member, the member is named
+ *  as neither. */
 function provenMembers (state: Readonly<HolderState>): Map<string, Map<string, string>> {
-  const out = new Map<string, Map<string, string>>()
-  const entryOfRel = new Map<string, string>()
-  for (const c of Object.values(state.contacts)) for (const id of c.relIds) entryOfRel.set(id, c.id)
-  for (const [relId, r] of Object.entries(state.relationships).sort(([a], [b]) => cmp(a, b))) {
-    const entry = entryOfRel.get(relId)
+  const claims = new Map<string, Map<string, Set<string>>>()
+  for (const r of Object.values(state.relationships)) {
+    const entry = entryOf(state, r)?.id
     const held = r.memory.groupMembers
     if (entry === undefined || held === null || typeof held !== 'object' || Array.isArray(held)) continue
     for (const [group, pair] of Object.entries(held)) {
       const member = (pair as { member?: unknown } | null)?.member
       if (typeof member !== 'string') continue
-      const of = out.get(group) ?? new Map<string, string>()
-      if (!of.has(member)) of.set(member, entry)
-      out.set(group, of)
+      const of = claims.get(group) ?? new Map<string, Set<string>>()
+      of.set(member, (of.get(member) ?? new Set<string>()).add(entry))
+      claims.set(group, of)
     }
+  }
+  const out = new Map<string, Map<string, string>>()
+  for (const [group, of] of claims) {
+    const one = new Map<string, string>()
+    for (const [member, entries] of of) if (entries.size === 1) one.set(member, [...entries][0]!)
+    out.set(group, one)
   }
   return out
 }
