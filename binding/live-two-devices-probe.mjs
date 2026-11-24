@@ -112,23 +112,25 @@ async function waitsFor (d, doc, ms = WAIT_MS) {
   }
 }
 /** One reader for several documents on one inbox: counts each over all collections it takes and
- *  concludes every collection. Returns, per document, the time it arrived or null. */
+ *  concludes every collection at once, without waiting for its acknowledgement, so that the
+ *  reading goes on while acknowledgements are on their way. What became of them is read once,
+ *  at the end, from the adapter's ack state as it then is. Returns, per document, the time it
+ *  arrived or null, and the acknowledgements still pending. */
 async function waitsForAll (d, docs, ms = WAIT_MS) {
-  const t0 = now(), at = docs.map(() => null), acks = [];
+  const t0 = now(), at = docs.map(() => null), ids = [];
   for (;;) {
     const c = d.adapter.collect(now());
     for (const i of c.items) { const k = docs.findIndex((doc, n) => at[n] === null && same(i.bytes, doc)); if (k >= 0) at[k] = now() - t0; }
-    if (c.items.length) acks.push(await concludes(d, c));
-    if (at.every((x) => x !== null) || now() - t0 > ms) return { at, acks };
+    if (c.items.length) { ids.push(...c.items.map((i) => i.queueId)); d.adapter.conclude(c, now()); }
+    if (at.every((x) => x !== null) || now() - t0 > ms) break;
     await sleep(250);
   }
+  return { at, ack: await acknowledged(d, ids) };
 }
-/** Concludes a collection and says what became of its acknowledgements. The conclusion is local;
- *  the acknowledgement to the mediator is sent afterwards and can fail without `conclude` or
- *  `settle` saying so: it then stays pending in the adapter's ack state. Tries again for `ms`. */
-async function concludes (d, c, ms = 4000) {
-  const ids = c.items.map((i) => i.queueId), t0 = now();
-  d.adapter.conclude(c, now());
+/** Waits for the acknowledgements of the queue entries `ids` to go out, driving the adapter's
+ *  retries for `ms`; says how many are still pending in the ack state at the end. */
+async function acknowledged (d, ids, ms = 4000) {
+  const t0 = now();
   for (;;) {
     await d.adapter.settle();
     const pending = d.adapter.ackState().pending.filter((id) => ids.includes(id)).length;
@@ -136,6 +138,13 @@ async function concludes (d, c, ms = 4000) {
     await sleep(500);
     d.adapter.advance(now());
   }
+}
+/** Concludes a collection and says what became of its acknowledgements. The conclusion is local;
+ *  the acknowledgement to the mediator is sent afterwards and can fail without `conclude` or
+ *  `settle` saying so: it then stays pending in the adapter's ack state. Tries again for `ms`. */
+async function concludes (d, c, ms = 4000) {
+  d.adapter.conclude(c, now());
+  return acknowledged(d, c.items.map((i) => i.queueId), ms);
 }
 const acked = (a) => (a.pending === 0 ? "concluded, the acknowledgement went out" : `concluded locally, but ${a.pending} of ${a.of} acknowledgement(s) did not go out within ${a.ms} ms: the mediator may still hold the document`);
 async function deposit (from, doc) {
@@ -246,8 +255,8 @@ try {
   const [dx, dy] = [await depositTrying(A1, x), await depositTrying(A2, y)];
   note(5, `deposits: first device ${dx.seen.join(" → ")} after ${dx.ms} ms, second device ${dy.seen.join(" → ")} after ${dy.ms} ms`);
   // one reader on the peer's inbox counts both documents, over as many collections as they come in
-  const { at: [gx, gy], acks } = await waitsForAll(B, [x, y]);
-  note(5, `the peer got ${gx !== null && gy !== null ? `both documents (after ${gx} and ${gy} ms)` : gx !== null ? "only the first device's document" : gy !== null ? "only the second device's document" : "neither document"} within ${WAIT_MS} ms${acks.some((a) => a.pending) ? "; some of its acknowledgements did not go out" : ""}`);
+  const { at: [gx, gy], ack } = await waitsForAll(B, [x, y]);
+  note(5, `the peer got ${gx !== null && gy !== null ? `both documents (after ${gx} and ${gy} ms)` : gx !== null ? "only the first device's document" : gy !== null ? "only the second device's document" : "neither document"} within ${WAIT_MS} ms${ack.pending ? `; ${ack.pending} of its ${ack.of} acknowledgement(s) had not gone out ${ack.ms} ms later` : ""}`);
 } catch (e) {
   console.error(`✗ setup broke: ${String(e?.stack ?? e).split("\n").slice(0, 4).join(" | ")}`);
   for (const d of [A1, A2, B]) if (d) close(d);

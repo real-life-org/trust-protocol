@@ -26,6 +26,7 @@
 //
 //   RLTP_LIVE_MEDIATOR=1 MEDIATOR_ALLOW_INSECURE=1 MEDIATOR_DID=... node live-shared-address-probe.mjs
 //   QUEUE_N=...   how many documents step 3 deposits (default 120).
+//   HTTP_MS=...   the deadline of each HTTP request of the probe, body included (default 8000).
 
 import { WebSocket } from "ws";
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
@@ -55,6 +56,13 @@ const findings = [];
 const note = (step, text) => { findings.push([step, text]); say(`  → ${text}`); };
 const didOf = async (root, nonce) => (await carrierScopedIdentity(root, MEDIATOR_DID, nonce, "connection")).did;
 
+/** An HTTP request with a deadline that also covers reading the body: a mediator that keeps a
+ *  response open ends as an observation (status 0), not as a probe that hangs. */
+const HTTP_MS = Number(process.env.HTTP_MS ?? 8000);
+const post = (url, init) => fetch(url, { ...init, method: "POST", signal: AbortSignal.timeout(HTTP_MS) })
+  .then(async (r) => ({ status: r.status, text: await r.text() }))
+  .catch((e) => ({ status: 0, text: e?.name === "TimeoutError" || e?.name === "AbortError" ? `no complete answer within ${HTTP_MS} ms` : String(e) }));
+
 /** A stand-in for the socket of a session that has none: it "opens" at once,
  *  never receives, and hands every TSP frame to the mediator's HTTP route
  *  `/inbound` under the session's bearer token. DIDComm text frames (live
@@ -70,8 +78,8 @@ function httpOnlySocket (record) {
     }
     send (data) {
       if (typeof data === "string") { record.textDropped++; return; }
-      record.posts.push(fetch(`${record.base}/inbound`, { method: "POST", headers: { authorization: `Bearer ${record.jwt}`, "content-type": "application/octet-stream" }, body: data })
-        .then(async (r) => ({ status: r.status, body: (await r.text()).slice(0, 160) }), (e) => ({ status: 0, body: String(e).slice(0, 160) })));
+      record.posts.push(post(`${record.base}/inbound`, { headers: { authorization: `Bearer ${record.jwt}`, "content-type": "application/octet-stream" }, body: data })
+        .then((r) => ({ status: r.status, body: r.text.slice(0, 160) })));
     }
     close () { this.readyState = 3; setTimeout(() => this.onclose?.({ code: 1000 }), 0); }
   };
@@ -141,9 +149,8 @@ try {
     // the second session asks for the inbox over HTTP
     let fetched = null;
     for (const body of [{ limit: 10, delete_policy: "DoNotDelete" }, { limit: 10, start_id: null, delete_policy: "do_not_delete" }, { limit: 10 }]) {
-      const r = await fetch(`${http.base}/fetch`, { method: "POST", headers: { authorization: `Bearer ${http.jwt}`, "content-type": "application/json" }, body: JSON.stringify(body) });
-      const text = await r.text();
-      fetched = { status: r.status, text, body };
+      const r = await post(`${http.base}/fetch`, { headers: { authorization: `Bearer ${http.jwt}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+      fetched = { status: r.status, text: r.text, body };
       if (r.status === 200) break;
     }
     let count = null;
