@@ -17,19 +17,33 @@
 //   5. both devices deposit to the peer under the same connection DID: does
 //      the peer get both?
 //
-// Measured on 23 November 2026 against a mediator 0.45.0: the mediator keeps
-// one live websocket per DID (`w.websocket.duplicate-channel-refused`,
-// `w.websocket.duplicate-channel`). A document one device concluded is gone
-// for the other (3); one left unconcluded is handed to the other (4).
+// Measured on 24 November 2026 against the local test mediator (0.45.0),
+// three runs, the same each time: the mediator keeps one live websocket per
+// DID (`w.websocket.duplicate-channel-refused`,
+// `w.websocket.duplicate-channel`). Both devices are handed a deposited
+// document, the second up to 5 s later (1). Of their two conclusions one
+// acknowledgement does not go out within 4 s (2). A document whose
+// acknowledgement went out was not handed to the device that was offline
+// within 8 s of its return (3); one left unconcluded is handed to the other
+// after 250 ms (4). The peer gets the documents of both devices; the second
+// deposit is accepted after about 5 s of retrying (5).
+//
+// What the probe can say about a concluded document (2, 3) is bounded two
+// ways, and the output names both. A conclusion is local; the
+// acknowledgement that deletes the document at the mediator goes out
+// afterwards and may still be pending, so the probe prints which of the two
+// it saw. And "the other device was not handed it" holds for the seconds the
+// probe watched, not for good.
 //
 // Two things this probe shows are properties of this binding, not of the
 // mediator: the two wires reconnect against each other for the whole run,
 // because the wire reopens its socket as soon as it closes; and the device
-// without the socket cannot deposit (5), because the wire deposits only on
-// its socket. live-shared-address-probe.mjs measures the mediator without
-// either: a session without a socket fetches and deposits over HTTP, and a
-// socket changes hands in tens of milliseconds when the loser does not
-// reconnect. Keep runs of this probe rare, short, and on the local mediator.
+// without the socket deposits late and acknowledges late or not at all,
+// because the wire does both only on its socket.
+// live-shared-address-probe.mjs measures the mediator without either: a
+// session without a socket fetches and deposits over HTTP, and a socket
+// changes hands in tens of milliseconds when the loser does not reconnect.
+// Keep runs of this probe rare, short, and on the local mediator.
 //
 // Network-gated: set RLTP_LIVE_MEDIATOR=1 to run.
 //   MEDIATOR_DID=...   the instance, required: a TSP 1.0 mediator (>= 0.45).
@@ -83,23 +97,55 @@ async function device (name, root, nonce, peerDid) {
 }
 const close = (d) => { if (d.open) { d.adapter.close(); d.wire.close(); d.open = false; } };
 
-/** Waits until the device holds `doc` uncollected, or the time is up. Returns the collection or null. */
+/** Waits until the device holds `doc` uncollected, or the time is up. Returns the collection or null.
+ *  A collection without the document goes back whole (`keep`), so that nothing a later wait looks
+ *  for is taken out of the inbox here. One reader per inbox: two of these on one device would
+ *  take each other's documents; `waitsForAll` reads for several. */
 async function waitsFor (d, doc, ms = WAIT_MS) {
   const t0 = now();
   for (;;) {
     const c = d.adapter.collect(now());
     if (c.items.some((i) => same(i.bytes, doc))) return { c, ms: now() - t0 };
+    if (c.items.length) d.adapter.conclude(c, now(), { keep: c.items.map((i) => i.queueId) });
     if (now() - t0 > ms) return null;
     await sleep(250);
   }
 }
+/** One reader for several documents on one inbox: counts each over all collections it takes and
+ *  concludes every collection. Returns, per document, the time it arrived or null. */
+async function waitsForAll (d, docs, ms = WAIT_MS) {
+  const t0 = now(), at = docs.map(() => null), acks = [];
+  for (;;) {
+    const c = d.adapter.collect(now());
+    for (const i of c.items) { const k = docs.findIndex((doc, n) => at[n] === null && same(i.bytes, doc)); if (k >= 0) at[k] = now() - t0; }
+    if (c.items.length) acks.push(await concludes(d, c));
+    if (at.every((x) => x !== null) || now() - t0 > ms) return { at, acks };
+    await sleep(250);
+  }
+}
+/** Concludes a collection and says what became of its acknowledgements. The conclusion is local;
+ *  the acknowledgement to the mediator is sent afterwards and can fail without `conclude` or
+ *  `settle` saying so: it then stays pending in the adapter's ack state. Tries again for `ms`. */
+async function concludes (d, c, ms = 4000) {
+  const ids = c.items.map((i) => i.queueId), t0 = now();
+  d.adapter.conclude(c, now());
+  for (;;) {
+    await d.adapter.settle();
+    const pending = d.adapter.ackState().pending.filter((id) => ids.includes(id)).length;
+    if (pending === 0 || now() - t0 > ms) return { of: ids.length, pending, ms: now() - t0 };
+    await sleep(500);
+    d.adapter.advance(now());
+  }
+}
+const acked = (a) => (a.pending === 0 ? "concluded, the acknowledgement went out" : `concluded locally, but ${a.pending} of ${a.of} acknowledgement(s) did not go out within ${a.ms} ms: the mediator may still hold the document`);
 async function deposit (from, doc) {
   const id = from.adapter.submit(doc, now());
   await from.adapter.settle();
   const st = from.adapter.status(id);
   if (st?.state !== "accepted") throw new Error(`${from.name}: deposit not accepted: ${JSON.stringify(st)}`);
 }
-/** A deposit that may find the device's socket closed: tries for a while and says what it saw. */
+/** A deposit that may find the device's socket closed: tries for a while (`advance` drives the
+ *  adapter's retries) and says what it saw. */
 async function depositTrying (from, doc, ms = 8000) {
   const t0 = now();
   const id = from.adapter.submit(doc, now());
@@ -111,7 +157,7 @@ async function depositTrying (from, doc, ms = 8000) {
     if (seen.at(-1) !== tag) seen.push(tag);
     if (st?.state === "accepted" || now() - t0 > ms) return { ok: st?.state === "accepted", seen, ms: now() - t0 };
     await sleep(500);
-    from.adapter.resume?.(now());
+    from.adapter.advance(now());
   }
 }
 
@@ -138,21 +184,21 @@ try {
   const firstGot = g1 ?? g2, otherGot = first === A1 ? g2 : g1;
   if (!first) note(2, "skipped: no device got the document");
   else {
-    first.adapter.conclude(firstGot.c, now());
-    await first.adapter.settle();
+    const a2 = await concludes(first, firstGot.c);
+    note(2, `the device that got it: ${acked(a2)}`);
     if (otherGot) {
       // the other device holds it too: its own conclude names a queue entry the mediator may have deleted
-      let err = null;
-      try { other.adapter.conclude(otherGot.c, now()); await other.adapter.settle(); } catch (e) { err = e; }
-      note(2, `the other device held it as well; its own conclude ${err ? `failed: ${String(err.message ?? err).slice(0, 120)}` : "went through"}`);
+      let err = null, b2 = null;
+      try { b2 = await concludes(other, otherGot.c); } catch (e) { err = e; }
+      note(2, `the other device held it as well; its own conclude ${err ? `failed: ${String(err.message ?? err).slice(0, 120)}` : `returned: ${acked(b2)}`}`);
     } else {
       const late = await waitsFor(other, d1, 6000);
-      note(2, late ? `the other device got it ${late.ms} ms after the conclude` : "the other device did not get it within 6 s after the conclude");
+      note(2, late ? `the other device got it ${late.ms} ms after the conclude` : "the other device was not handed it within 6 s after the conclude");
       close(other);
       const back = await device(other.name, aRoot, aNonce, bDid);
       const again = await waitsFor(back, d1, 6000);
-      note(2, again ? "after reconnecting, the other device got it" : "after reconnecting, the other device still did not get it: the document is gone for it");
-      if (again) { back.adapter.conclude(again.c, now()); await back.adapter.settle(); }
+      note(2, again ? "after reconnecting, the other device got it" : `after reconnecting, the other device was not handed it within 6 s${a2.pending ? " (the acknowledgement had not gone out, so this says nothing about deletion)" : ""}`);
+      if (again) await concludes(back, again.c);
       if (other === A1) A1 = back; else A2 = back;
     }
   }
@@ -165,12 +211,12 @@ try {
   const g3 = await waitsFor(A1, d3);
   if (!g3) note(3, "the online device did not get the document");
   else {
-    A1.adapter.conclude(g3.c, now());
-    await A1.adapter.settle();
+    const a3 = await concludes(A1, g3.c);
+    note(3, `the online device: ${acked(a3)}`);
     A2 = await device("A2", aRoot, aNonce, bDid);
     const back = await waitsFor(A2, d3, 8000);
-    note(3, back ? "the device that was offline got the document after coming back" : "the device that was offline did not get the document: after the conclude it is gone for it");
-    if (back) { A2.adapter.conclude(back.c, now()); await A2.adapter.settle(); }
+    note(3, back ? `the device that was offline got the document after coming back${a3.pending ? " (the acknowledgement had not gone out)" : ", although the acknowledgement had gone out"}` : `the device that was offline was not handed the document within 8 s of coming back${a3.pending ? "; the acknowledgement had not gone out, so this says nothing about deletion" : ", after an acknowledgement that went out"}`);
+    if (back) await concludes(A2, back.c);
   }
 
   // ── 4. collected, not concluded, then offline
@@ -185,11 +231,12 @@ try {
     A2 = await device("A2", aRoot, aNonce, bDid);
     const back = await waitsFor(A2, d4, 8000);
     note(4, back ? `the other device got the unconcluded document after ${back.ms} ms` : "the other device did not get the unconcluded document within 8 s");
-    if (back) { A2.adapter.conclude(back.c, now()); await A2.adapter.settle(); }
+    const a4 = back ? await concludes(A2, back.c) : null;
+    if (a4) note(4, `the other device: ${acked(a4)}`);
     A1 = await device("A1", aRoot, aNonce, bDid);
     const again = await waitsFor(A1, d4, 6000);
-    note(4, again ? "the first device, back online, is handed the document again" : back ? "the first device, back online, is not handed it again (the other concluded)" : "the first device, back online, is not handed it again");
-    if (again) { A1.adapter.conclude(again.c, now()); await A1.adapter.settle(); }
+    note(4, again ? "the first device, back online, is handed the document again" : `the first device, back online, is not handed it again within 6 s${a4 && a4.pending === 0 ? " (the other concluded and its acknowledgement went out)" : ""}`);
+    if (again) await concludes(A1, again.c);
   }
 
   // ── 5. both devices deposit
@@ -198,10 +245,9 @@ try {
   const [x, y] = [stand(56), stand(60)];
   const [dx, dy] = [await depositTrying(A1, x), await depositTrying(A2, y)];
   note(5, `deposits: first device ${dx.seen.join(" → ")} after ${dx.ms} ms, second device ${dy.seen.join(" → ")} after ${dy.ms} ms`);
-  const [gx, gy] = await Promise.all([waitsFor(B, x), waitsFor(B, y)]);
-  note(5, `the peer got ${gx && gy ? "both documents" : gx ? "only the first device's document" : gy ? "only the second device's document" : "neither document"}`);
-  const last = B.adapter.collect(now());
-  if (last.items.length) { B.adapter.conclude(last, now()); await B.adapter.settle(); }
+  // one reader on the peer's inbox counts both documents, over as many collections as they come in
+  const { at: [gx, gy], acks } = await waitsForAll(B, [x, y]);
+  note(5, `the peer got ${gx !== null && gy !== null ? `both documents (after ${gx} and ${gy} ms)` : gx !== null ? "only the first device's document" : gy !== null ? "only the second device's document" : "neither document"} within ${WAIT_MS} ms${acks.some((a) => a.pending) ? "; some of its acknowledgements did not go out" : ""}`);
 } catch (e) {
   console.error(`✗ setup broke: ${String(e?.stack ?? e).split("\n").slice(0, 4).join(" | ")}`);
   for (const d of [A1, A2, B]) if (d) close(d);

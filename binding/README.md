@@ -107,16 +107,24 @@ devices that share a DID change places faster.
 - `live-two-devices-probe.mjs` — one address, two devices: two wires over
   the same relationship root and carrier nonce (the same connection DID)
   and one for the peer. A measurement, not a verdict; it prints what
-  happens. On 23 November 2026 against `mediator.web-of-trust.de` and the
-  local test mediator (mediator 0.45.0): the mediator keeps one live
+  happens. On 24 November 2026 against the local test mediator (mediator
+  0.45.0), three runs, the same each time: the mediator keeps one live
   websocket per DID (`w.websocket.duplicate-channel-refused`,
-  `w.websocket.duplicate-channel`); a document one device concluded is
-  gone for the other; one left unconcluded is handed to the other. Two
+  `w.websocket.duplicate-channel`); both devices are handed a deposited
+  document, the second up to 5 s later; of their two conclusions one
+  acknowledgement does not go out within 4 s; a document whose
+  acknowledgement went out was not handed to the device that was offline
+  within 8 s of its return; one left unconcluded is handed to the other
+  after 250 ms; the peer gets the documents of both devices, the second
+  deposit after about 5 s of retrying. Two bounds on what this says: a
+  conclusion is local, and an acknowledgement that fails stays pending
+  without `conclude` or `settle` saying so, so the probe prints whether it
+  went out; and "not handed" holds for the seconds the probe watched. Two
   further results are this binding's doing, not the mediator's: the two
   wires reconnect against each other for the whole run (the wire reopens
   its socket as soon as it closes), and the device without the socket
-  cannot deposit (`transport-unreachable`: the wire deposits only on its
-  socket). Run it on the local mediator.
+  deposits late and acknowledges late or not at all (the wire does both
+  only on its socket). Run it on the local mediator.
 - `live-shared-address-probe.mjs` — the same shared connection DID without
   those two habits of the binding, against the local test mediator (three
   runs, the same each time): a second session without a socket is
