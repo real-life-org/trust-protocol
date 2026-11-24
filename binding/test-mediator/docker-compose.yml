@@ -1,0 +1,62 @@
+# Local test mediator for the live probes in binding/: the image and the settings
+# of mediator.web-of-trust.de (web-of-trust, deploy/mediator), with a local
+# did:peer identity, plain HTTP and the port bound to 127.0.0.1 only.
+# Start: docker compose up -d      Stop and forget everything: docker compose down -v
+name: mediator-test
+
+services:
+  redis:
+    image: redis:7.4.11-alpine@sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193
+    container_name: mediator-test-redis
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    networks: [internal]
+    labels: ["com.centurylinklabs.watchtower.enable=false"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mediator:
+    image: ghcr.io/affinidi/messaging-mediator:v0.45.0@sha256:3e53ea634d9a3a26352480ff0b5266b8486489e0e672faa6bd6705549005f538
+    container_name: mediator-test
+    user: "${MEDIATOR_UID}:${MEDIATOR_GID}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:7037:7037"
+    volumes:
+      - ./secrets/secrets.json:/etc/mediator/secrets.json:ro
+    environment:
+      LOG_JSON: "true"
+      MEDIATOR_DID: did://${MEDIATOR_DID}
+      ADMIN_DID: did://${ADMIN_DID}
+      MEDIATOR_SECRETS_BACKEND: file:///etc/mediator/secrets.json
+      LOCAL_ENDPOINTS: http://127.0.0.1:7037
+      DATABASE_URL: redis://redis:6379/
+      MEDIATOR_ACL_MODE: explicit_deny
+      GLOBAL_DEFAULT_ACL: DENY_ALL,MODE_EXPLICIT_DENY,LOCAL,SEND_MESSAGES,RECEIVE_MESSAGES,SEND_FORWARDED
+      ENABLE_INTER_MEDIATOR_RELAY: "true"
+      LOCAL_DIRECT_DELIVERY_ALLOWED: "true"
+      LOCAL_DIRECT_DELIVERY_ALLOW_ANON: "false"
+      FORCE_SESSION_DID_MATCH: "true"
+      BLOCK_ANONYMOUS_OUTER_ENVELOPE: "true"
+      BLOCK_REMOTE_ADMIN_MSGS: "true"
+      TRUST_TASK_VERIFICATION: warn
+      CORS_ALLOW_ORIGIN: "*"
+      JWT_ACCESS_EXPIRY: "900"
+      JWT_REFRESH_EXPIRY: "86400"
+      LIMIT_MESSAGE_EXPIRY_SECONDS: "604800"
+      LIMIT_DELIVERED_EXPIRY_SECONDS: "0"
+      LIMIT_RATE_LIMIT_PER_IP: "0"
+      LIMIT_DID_RATE_LIMIT_PER_SECOND: "0"
+    networks: [internal, edge]
+    labels: ["com.centurylinklabs.watchtower.enable=false"]
+
+networks:
+  edge:
+    name: mediator-test-edge
+  internal:
+    name: mediator-test-internal
+    internal: true
