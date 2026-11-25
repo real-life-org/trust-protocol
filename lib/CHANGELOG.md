@@ -16,7 +16,7 @@ carrier and complete the enactment as before. `sharedConnectBack` is refused as 
 link this side did not scan and as `no-card` for a link without a card (a sent link, a link of
 0.20.0 or of another app).
 
-A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code).
+The card in a link is signed over a digest of the link's `_from`, `_id` and `_exp` (`linkCardChallenge`), so it holds only under that messaging identity, handle and expiry; the card in a back-code is over the proposal's id. A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code). A back-code that would pass 1200 characters (`BACK_BUDGET`) goes without the hints. An enactment that ended takes nothing from a back-code and shows none.
 An acceptance that names another pair than the card in the link, and an issue whose card names
 another key than the card in the code, are refused as `card`. An enactment that opened a contact
 is kept whatever its end. `readBackCode` reads a back-code with its card; `proposeFromBackCode`

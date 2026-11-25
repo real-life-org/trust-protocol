@@ -208,9 +208,16 @@ export class Inviter extends Machine {
     receiveBack(code, nowMs) {
         return this.serial(async () => {
             const s = this.s;
+            // an enactment that ended takes nothing from a code, and answers nothing
+            if (this.finished)
+                return result([], [{ kind: 'ignored', type: sc.TASK_PROPOSE, why: 'after-decision' }], true);
             const read = await sc.readBackCode(code, { did: this.party.messaging.did, id: s.id });
             if (!read)
                 return result([], [{ kind: 'refused', type: sc.TASK_PROPOSE, reason: 'back-code' }]);
+            // the card of the code against the card of an issue taken before: the same key, whichever came first
+            const issued = sc.cardOfIssue(s.issueTheirs);
+            if (read.card && issued && issued.keyAgreement !== read.card.keyAgreement)
+                return result([], [{ kind: 'refused', type: sc.TASK_PROPOSE, reason: 'card' }]);
             const r = await this.take(read.propose, read.propose.issuer, nowMs);
             if (read.card && !s.codeCard && s.propose && same(s.propose, read.propose))
                 s.codeCard = read.card;
@@ -279,14 +286,28 @@ export class Responder extends Machine {
             const s = this.s;
             if (!s.propose || s.channel !== 'scan' || !s.codeCard || !this.o.card || !this.party.pair.keyAgreement)
                 return null;
-            const card = await sc.issueCard(this.cardParty, s.challenge, Date.parse(s.propose.issuedAt));
-            const code = sc.backCodeOf(s.propose, origin, card);
-            s.backShown = true;
-            return code;
+            // an enactment that ended shows nothing; one that completed has nothing left to show
+            if (this.finished)
+                return null;
+            // with this side's delivery hints where the code stays one a camera reads, else the bare card
+            const at = Date.parse(s.propose.issuedAt);
+            for (const party of this.s.deliveryHints?.length ? [this.cardParty, this.party] : [this.party]) {
+                let code;
+                try {
+                    code = sc.backCodeOf(s.propose, origin, await sc.issueCard(party, s.challenge, at));
+                }
+                catch {
+                    continue;
+                }
+                s.backShown = true;
+                return code;
+            }
+            return null;
         });
     }
     ownDocs() { return [this.s.propose]; }
-    get theirPair() { return this.s.accept?.payload.relationshipDid ?? null; }
+    /** the inviter's pair: from its acceptance, before that from its card once this side showed its code back */
+    get theirPair() { return this.s.accept?.payload.relationshipDid ?? (this.s.backShown ? this.s.codeCard?.anchor ?? null : null); }
     get theirDid() { return this.s.link.from; }
     /** the proposal (once; a restart sends the same one again) */
     start(nowMs) {

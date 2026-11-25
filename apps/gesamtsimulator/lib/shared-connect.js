@@ -379,9 +379,17 @@ export async function parsePeer(did, known = []) {
 //   ka    the pair's X25519 key agreement Multikey
 //   h     the card's deliveryHints: base64url of the JSON array, absent without hints
 //   csig  the proofValue of the card
-// The challenge value is the code's own `_id` (the link's handle, the propose's id), so a card copied
-// into another code fails its proof. The card rebuilt is the same document as a card of the issue step
-// and passes the same check (`cardOk`).
+// The card's challenge binds it to its code, so a card copied into another code fails its proof. In the
+// back-code the challenge is the propose's id: the propose, signed by the responder's messaging identity,
+// names the card's anchor as its relationshipDid. The link has no signed document, so there the challenge
+// is `linkCardChallenge`: a digest over the link's `_from`, `_id` and `_exp`. The pair key thereby states
+// which messaging identity, handle and expiry it stands behind; a card under another `_from`, or a link
+// whose expiry was changed, fails. The card rebuilt passes the check of a card of the issue step (`cardOk`).
+/** The challenge of the card in a link: 16 bytes of sha-256 over the JCS of the ceremony, `_from`, `_id` and `_exp`. */
+export const linkCardChallenge = async (from, id, exp) => challengeOf16((await sha(te.encode(jcs({ ceremony: CEREMONY_URI, exp, from, id })))).subarray(0, 16));
+/** Producer budget for a back-code (characters): one code a camera reads from a phone's screen. */
+export const BACK_BUDGET = 1200;
+const CARD_NAMES = ['rel', 't', 'ka', 'h', 'csig'];
 const cardParams = (card) => '&ka=' + card.keyAgreement + (card.deliveryHints?.length ? '&h=' + b64uOf(te.encode(JSON.stringify(card.deliveryHints))) : '') + '&csig=' + card.proof.proofValue;
 /** Rebuild and verify the card a code carries; `challenge` is the code's `_id`. Null when a part is
  *  missing or malformed, or the card does not pass `cardOk`. */
@@ -441,8 +449,8 @@ export async function sharedConnectLink(f, origin = LINK_ORIGIN, nowS = Math.flo
         // a card travels only in a code shown in person, as the name does
         if ((f.kind ?? 'code') !== 'code')
             throw new Error('a card is for codes shown in person, not for sent links');
-        if (f.card.challenge?.value !== f.id)
-            throw new Error('the card of a link carries the link\'s _id as its challenge');
+        if (f.card.challenge?.value !== await linkCardChallenge(f.from, f.id, f.exp))
+            throw new Error('the card of a link carries linkCardChallenge(_from, _id, _exp) as its challenge');
         const t = Math.floor(Date.parse(f.card.challenge.issuedAt) / 1000);
         frag += '&rel=' + f.card.anchor + '&t=' + t + cardParams(f.card);
     }
@@ -536,7 +544,11 @@ export async function readSharedConnectLink(link, nowS = Math.floor(Date.now() /
     const out = { from: peer, id, exp, type: flow, params };
     // the inviter's card, where the link carries one (`csig`): a card that does not verify refuses the link
     if (params.has('csig')) {
-        const card = await cardFromParams(params, id);
+        // the card's names are ours: one value each (a second value another reader might take instead)
+        const names = url.hash.slice(1).split('&').map((kv) => kv.split('=')[0]);
+        if (CARD_NAMES.some((n) => names.filter((x) => x === n).length > 1))
+            return { ok: false, reason: 'bad-card' };
+        const card = await cardFromParams(params, await linkCardChallenge(from, id, exp));
         if (!card)
             return { ok: false, reason: 'bad-card' };
         out.card = card;
@@ -1038,7 +1050,10 @@ export function backCodeOf(proposeDoc, origin = LINK_ORIGIN, card) {
     if (card !== undefined)
         frag += cardParams(card);
     frag += '&sig=' + proposeDoc.proof.proofValue;
-    return origin + LINK_PATH + '#' + frag;
+    const code = origin + LINK_PATH + '#' + frag;
+    if (card !== undefined && code.length > BACK_BUDGET)
+        throw new Error('back-code exceeds the budget of ' + BACK_BUDGET + ' characters');
+    return code;
 }
 /** Read a back-code: the propose rebuilt (the caller then runs checkPropose) and the responder's card where the
  *  code carries one, verified. Null when the code is not a well-formed back-code (same grammar as the link:

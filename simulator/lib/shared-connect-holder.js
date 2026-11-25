@@ -174,9 +174,10 @@ const showDef = {
         const hints = input?.carrier?.deliveryHints;
         const cards = [];
         if (channel === 'displayed') {
+            const bound = await sc.linkCardChallenge(did, id, exp);
             if (hints?.length)
-                cards.push(await sc.issueCard({ ...party, deliveryHints: [...hints] }, id, nowS * 1000));
-            cards.push(await sc.issueCard(party, id, nowS * 1000));
+                cards.push(await sc.issueCard({ ...party, deliveryHints: [...hints] }, bound, nowS * 1000));
+            cards.push(await sc.issueCard(party, bound, nowS * 1000));
         }
         cards.push(undefined);
         let link;

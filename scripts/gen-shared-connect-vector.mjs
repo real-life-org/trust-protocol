@@ -104,7 +104,8 @@ const pairX = async (who) => mkOfX((await xFromSeed(await seed(who + '/pair/x255
 const HINT = JSON.stringify({ id: 'did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#tsp', serviceEndpoint: MED.address, type: 'TSPTransport' })
 const inviterC = { ...inviter, pair: { ...inviter.pair, keyAgreement: await pairX('inviter') }, deliveryHints: [HINT] }
 const responderC = { ...responder, pair: { ...responder.pair, keyAgreement: await pairX('responder') } }
-const cardInviter = await sc.issueCard(inviterC, inviterChallenge, T('00'))
+const linkChallenge = await sc.linkCardChallenge(inviter.messaging.did, inviterChallenge, exp)
+const cardInviter = await sc.issueCard(inviterC, linkChallenge, T('00'))
 const cardResponder = await sc.issueCard(responderC, responderChallenge, T('05'))
 const linkCard = await sc.sharedConnectLink({ from: inviter.messaging.did, id: inviterChallenge, exp, label: 'Anton', card: cardInviter }, undefined, nowS)
 const readCard = await sc.readSharedConnectLink(linkCard, nowS)
@@ -115,6 +116,9 @@ if (!readBack || JSON.stringify(readBack.propose) !== JSON.stringify(propose) ||
 const offlineLinkCases = [
   { name: 'link whose card names another key agreement key (the card\'s proof)', link: linkCard.replace('&ka=' + cardInviter.keyAgreement, '&ka=' + cardResponder.keyAgreement), reason: 'bad-card' },
   { name: 'link whose card was made for another handle', link: linkCard.replace('_id=' + inviterChallenge, '_id=' + responderChallenge), reason: 'bad-card' },
+  { name: 'link whose expiry was changed (the card is over _from, _id and _exp)', link: linkCard.replace('_exp=' + exp, '_exp=' + (exp - 1)), reason: 'bad-card' },
+  { name: 'link whose card stands under another messaging identity', link: linkCard.replace(inviter.messaging.did, responder.messaging.did), reason: 'bad-card' },
+  { name: 'link with a second key agreement key', link: linkCard + '&ka=' + cardResponder.keyAgreement, reason: 'bad-card' },
   { name: 'link with the proof of a card and no key', link: linkCard.replace('&ka=' + cardInviter.keyAgreement, ''), reason: 'bad-card' },
 ]
 for (const c of offlineLinkCases) { const r = await sc.readSharedConnectLink(c.link, nowS); if (r.ok || r.reason !== c.reason) fail('offline link case ' + c.name) }
@@ -150,7 +154,8 @@ const out = {
   steps: { propose, accept, 'issue-inviter': issueInviter, 'receipt-inviter': receiptInviter, 'issue-responder': issueResponder, 'receipt-responder': receiptResponder },
   backCode: { value: backCode, length: backCode.length, rebuilds: 'steps.propose' },
   offline: {
-    note: 'The two codes of the offline path. Each carries its side\'s card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement), h (deliveryHints: base64url of the JSON array, absent without hints) and csig (the proofValue of the card). The card\'s challenge value is the code\'s own _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, "<side>/pair/x25519"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.',
+    note: 'The two codes of the offline path. Each carries its side\'s card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement), h (deliveryHints: base64url of the JSON array, absent without hints) and csig (the proofValue of the card). The card\'s challenge value binds it to its code: in the back-code the propose\'s id, in the link `linkChallenge`, the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link\'s _exp (a number), _from and _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, "<side>/pair/x25519"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.',
+    linkChallenge,
     inviter: { keyAgreement: cardInviter.keyAgreement, card: cardInviter },
     responder: { keyAgreement: cardResponder.keyAgreement, card: cardResponder },
     link: { value: linkCard, length: linkCard.length },

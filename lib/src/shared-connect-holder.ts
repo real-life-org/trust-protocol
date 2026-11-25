@@ -210,8 +210,9 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const hints = input?.carrier?.deliveryHints
     const cards: Array<Record<string, any> | undefined> = []
     if (channel === 'displayed') {
-      if (hints?.length) cards.push(await sc.issueCard({ ...party, deliveryHints: [...hints] }, id, nowS * 1000))
-      cards.push(await sc.issueCard(party, id, nowS * 1000))
+      const bound = await sc.linkCardChallenge(did, id, exp)
+      if (hints?.length) cards.push(await sc.issueCard({ ...party, deliveryHints: [...hints] }, bound, nowS * 1000))
+      cards.push(await sc.issueCard(party, bound, nowS * 1000))
     }
     cards.push(undefined)
     let link: string | undefined
