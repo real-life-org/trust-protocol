@@ -83,7 +83,7 @@ const proposeCases = [
   { name: 'propose for another inviter (recipient)', doc: propose, me: { ...me, did: responder.messaging.did }, at: T('06'), reason: 'recipient' },
   { name: 'propose under another _id (enactment)', doc: propose, me: { ...me, id: responderChallenge }, at: T('06'), reason: 'enactment' },
   { name: 'propose after the link expired, itself fresh', doc: latePropose, me, at: lateProposeAt + 1000, reason: 'expired-link' },
-  { name: 'propose older than the age gate', doc: propose, me, at: T('05') + 16 * 60_000, reason: 'not-fresh' },
+  { name: 'propose that arrives sixteen minutes after the code was shown: no age gate of its own, the link expired', doc: propose, me, at: T('05') + 16 * 60_000, reason: 'expired-link' },
   { name: 'propose with a changed name (proof)', doc: { ...propose, payload: { ...propose.payload, reason: 'Dan' } }, me, at: T('06'), reason: 'proof' },
   { name: 'propose with an unknown payload member', doc: { ...propose, payload: { ...propose.payload, extra: true } }, me, at: T('06'), reason: 'payload' },
 ]
