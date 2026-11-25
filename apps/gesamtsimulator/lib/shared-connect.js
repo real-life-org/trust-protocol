@@ -29,6 +29,10 @@
 // Offline: the responder shows its propose back as a code in a
 // RECONSTRUCTION form (what the inviter does not already hold); the
 // inviter rebuilds the document from its own state and verifies the proof.
+// A code shown in person also carries its side's card (the pair's X25519
+// key under the pair anchor), the link the inviter's and the back-code the
+// responder's: after the two codes each side holds the other's pair keys,
+// and the acceptance, the credentials and the receipts follow by a carrier.
 //
 // Both did:peer:2 and did:peer:4 are read and written as the messaging
 // identity (the long form of did:peer:4 in the link and on a propose; the
@@ -364,6 +368,52 @@ export async function parsePeer(did, known = []) {
         return parsePeer4(did, known);
     return null;
 }
+// ── a card in a code (the offline path) ─────────────────────────────────
+// A code can carry its side's card (`issueCard`) in a RECONSTRUCTION form, so that the side that reads
+// the code holds the pair keys of the side that shows it without a carrier: the link carries the
+// inviter's card, the back-code the responder's. What travels, under names without the reserved `_`
+// (a reader that does not know them passes over them, VTI-LNK-011):
+//   rel   the pair anchor (a did:key); in the back-code it is the propose's relationshipDid too
+//   t     the card's challenge.issuedAt and proof.created, as epoch seconds; in the back-code the
+//         propose's issuedAt too
+//   ka    the pair's X25519 key agreement Multikey
+//   h     the card's deliveryHints: base64url of the JSON array, absent without hints
+//   csig  the proofValue of the card
+// The challenge value is the code's own `_id` (the link's handle, the propose's id), so a card copied
+// into another code fails its proof. The card rebuilt is the same document as a card of the issue step
+// and passes the same check (`cardOk`).
+const cardParams = (card) => '&ka=' + card.keyAgreement + (card.deliveryHints?.length ? '&h=' + b64uOf(te.encode(JSON.stringify(card.deliveryHints))) : '') + '&csig=' + card.proof.proofValue;
+/** Rebuild and verify the card a code carries; `challenge` is the code's `_id`. Null when a part is
+ *  missing or malformed, or the card does not pass `cardOk`. */
+async function cardFromParams(p, challenge) {
+    const rel = p.get('rel'), t = p.get('t'), ka = p.get('ka'), h = p.get('h'), csig = p.get('csig');
+    if (!rel || !rel.startsWith('did:key:') || !ka || !csig || !/^[1-9][0-9]{0,11}$/.test(t ?? ''))
+        return null;
+    let deliveryHints;
+    if (h !== undefined) {
+        try {
+            deliveryHints = JSON.parse(td.decode(fromB64u(h)));
+        }
+        catch {
+            return null;
+        }
+        if (!Array.isArray(deliveryHints) || !deliveryHints.length || deliveryHints.some((x) => typeof x !== 'string') || b64uOf(te.encode(JSON.stringify(deliveryHints))) !== h)
+            return null;
+    }
+    const when = iso(Number(t) * 1000);
+    const card = {
+        ...cardBody({ anchor: rel, keyAgreement: ka }, { ...(deliveryHints ? { deliveryHints } : {}), challenge: { value: challenge, issuedAt: when } }),
+        proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created: when, verificationMethod: rel + '#' + rel.slice('did:key:'.length), proofPurpose: 'assertionMethod', proofValue: csig },
+    };
+    try {
+        if ((await cardOk(card)) !== null)
+            return null;
+    }
+    catch {
+        return null;
+    }
+    return card;
+}
 const LABEL_FORBIDDEN = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]');
 /** The one label rule, applied by writer and reader alike: NFC, 1 to 64 code points, no control, bidi, zero-width or line
  *  characters. Percent-encoded that is at most 768 bytes, which the link budget absorbs. */
@@ -387,6 +437,15 @@ export async function sharedConnectLink(f, origin = LINK_ORIGIN, nowS = Math.flo
         throw new Error(`_exp must lie within the next ${cap} seconds`);
     const type = f.type ?? (origin === LINK_ORIGIN ? FLOW_PATH : FLOW_URI);
     let frag = '_from=' + f.from + '&_id=' + f.id + '&_exp=' + f.exp + '&_type=' + type;
+    if (f.card !== undefined) {
+        // a card travels only in a code shown in person, as the name does
+        if ((f.kind ?? 'code') !== 'code')
+            throw new Error('a card is for codes shown in person, not for sent links');
+        if (f.card.challenge?.value !== f.id)
+            throw new Error('the card of a link carries the link\'s _id as its challenge');
+        const t = Math.floor(Date.parse(f.card.challenge.issuedAt) / 1000);
+        frag += '&rel=' + f.card.anchor + '&t=' + t + cardParams(f.card);
+    }
     if (f.label !== undefined) {
         // a name travels only in a code shown in person: a sent link is forwardable (Brendan, #86)
         if ((f.kind ?? 'code') !== 'code')
@@ -475,6 +534,13 @@ export async function readSharedConnectLink(link, nowS = Math.floor(Date.now() /
     if (nowS >= exp)
         return { ok: false, reason: 'expired' };
     const out = { from: peer, id, exp, type: flow, params };
+    // the inviter's card, where the link carries one (`csig`): a card that does not verify refuses the link
+    if (params.has('csig')) {
+        const card = await cardFromParams(params, id);
+        if (!card)
+            return { ok: false, reason: 'bad-card' };
+        out.card = card;
+    }
     const rawLabel = params.get('_label');
     if (rawLabel !== undefined) {
         let decoded = null;
@@ -956,21 +1022,28 @@ export async function checkReceipt(doc, sentIssue, expect, nowMs = Date.now()) {
 // absorbing that is the caller's (by the propose id). The link's `_exp`
 // bounds the code too: checkPropose refuses it once `_id` has expired.
 export const BACK_PATH = FLOW_PATH + '/back';
-export function backCodeOf(proposeDoc, origin = LINK_ORIGIN) {
+/** `card`: the responder's card (`issueCard` over the propose's id, at the propose's issuedAt), so the inviter
+ *  holds the responder's pair keys from the code alone. */
+export function backCodeOf(proposeDoc, origin = LINK_ORIGIN, card) {
     if (proposeDoc.expiresAt !== undefined)
         throw new Error('a propose shown as a code carries no expiresAt; the link\'s _exp bounds the handle');
     if (proposeDoc.proof.created !== proposeDoc.issuedAt)
         throw new Error('back-code form: proof.created must equal issuedAt');
+    if (card !== undefined && (card.anchor !== proposeDoc.payload.relationshipDid || card.challenge?.value !== proposeDoc.id || card.challenge.issuedAt !== proposeDoc.issuedAt || card.proof?.created !== proposeDoc.issuedAt))
+        throw new Error('back-code form: the card is the proposer\'s, over the propose\'s id, at its issuedAt');
     const t = Math.floor(Date.parse(proposeDoc.issuedAt) / 1000);
     let frag = '_from=' + proposeDoc.issuer + '&_id=' + proposeDoc.id + '&_type=' + (origin === LINK_ORIGIN ? BACK_PATH : LINK_ORIGIN + BACK_PATH) + '&rel=' + proposeDoc.payload.relationshipDid + '&t=' + t;
     if (proposeDoc.payload.reason !== undefined)
         frag += '&n=' + encodeURIComponent(proposeDoc.payload.reason);
+    if (card !== undefined)
+        frag += cardParams(card);
     frag += '&sig=' + proposeDoc.proof.proofValue;
     return origin + LINK_PATH + '#' + frag;
 }
-/** Rebuild the propose from a back-code; the caller then runs checkPropose. Null when the code
- *  is not a well-formed back-code (same grammar as the link: https, one value per name). */
-export async function proposeFromBackCode(code, me) {
+/** Read a back-code: the propose rebuilt (the caller then runs checkPropose) and the responder's card where the
+ *  code carries one, verified. Null when the code is not a well-formed back-code (same grammar as the link:
+ *  https, one value per name), or its card does not verify. */
+export async function readBackCode(code, me) {
     let url;
     try {
         url = new URL(code);
@@ -1011,7 +1084,18 @@ export async function proposeFromBackCode(code, me) {
         }
     }
     doc.proof = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created: when, verificationMethod: vm.id, proofPurpose: 'authentication', proofValue: sig };
-    return doc;
+    let card = null;
+    if (p.has('csig')) {
+        card = await cardFromParams(p, id);
+        if (!card)
+            return null;
+    }
+    return { propose: doc, card };
+}
+/** Rebuild the propose from a back-code; the caller then runs checkPropose. Null when the code
+ *  is not a well-formed back-code. */
+export async function proposeFromBackCode(code, me) {
+    return (await readBackCode(code, me))?.propose ?? null;
 }
 /** Build a party from two 32-byte seeds: the messaging identity (Ed + X derived from `msgSeed`) and the pair anchor. */
 export async function partyFromSeeds(msgSeed, pairSeed, relays, name, method = 'peer2', opts = {}) {

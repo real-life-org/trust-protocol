@@ -78,7 +78,8 @@
 //     record names the husk it opened, so its card never replaces the
 //     first contact's hints; for a relationship a shared-connect enactment
 //     opened (no record), the deliveryHints of the counterparty's card in
-//     its issue step, held in the enactment. A chained relationship (a husk) is no
+//     its issue step, held in the enactment; before that step came (the
+//     offline path), of the card the counterparty's code carried. A chained relationship (a husk) is no
 //     RelationshipView of its own, only an id in chainedFrom: it shows no
 //     carrierNonce, because no adapter instance runs for it (profile
 //     RLTP-VTI-1230)
@@ -150,7 +151,7 @@ const firstHints = (r, rix, scix) => {
     // a relationship a shared-connect enactment opened has no record: the counterparty's card is the one
     // in its issue step, held in the enactment's flow snapshot (shared-connect-holder.ts)
     const sce = !rec && first ? scix.get(first.ownPairLabel) : undefined;
-    const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? cardOfIssue(sce.flow.issueTheirs) : undefined;
+    const card = rec ? (rec.relId === r.id ? rec.card : undefined) : sce && 'r-' + sce.label.slice('pair/'.length) === r.id ? (cardOfIssue(sce.flow.issueTheirs) ?? sce.flow.codeCard) : undefined;
     if (!card)
         return undefined;
     const h = card?.deliveryHints;

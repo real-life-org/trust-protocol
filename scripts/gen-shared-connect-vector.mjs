@@ -5,7 +5,7 @@
 // the link per trustoverip/dtgwg-vti-spec#86): the inviter's did:peer:2 and
 // link, the responder's did:peer:2, the propose, the acceptance, both
 // credentials with their issue documents and receipts, the enactment
-// citation of the propose, and the offline back-code of the propose. Everything is derived
+// citation of the propose, the offline back-code of the propose, and the two codes with their cards. Everything is derived
 // from two fixed seeds and fixed timestamps, so a second implementation
 // reproduces every byte except where it uses its own keys.
 //
@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { sharedConnect as sc } from '../lib/dist/index.js'
-import { hkdf } from '../lib/dist/crypto.js'
+import { hkdf, xFromSeed, mkOfX } from '../lib/dist/crypto.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CHECK = process.argv.includes('--check')
@@ -98,6 +98,32 @@ for (const c of backCases) if ((await sc.proposeFromBackCode(c.code, me)) !== nu
 const backTampered = backCode.replace('n=Day', 'n=Dan')
 if (await sc.checkPropose((await sc.proposeFromBackCode(backTampered, me)), me, T('06')) !== 'proof') fail('back-code tampered')
 
+// the offline path: the link with the inviter's card, the back-code with the responder's. The pair's X25519 key
+// derives from its own seed; the cards are the cards of the issue step, over each side's own challenge
+const pairX = async (who) => mkOfX((await xFromSeed(await seed(who + '/pair/x25519'))).pubRaw)
+const HINT = JSON.stringify({ id: 'did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#tsp', serviceEndpoint: MED.address, type: 'TSPTransport' })
+const inviterC = { ...inviter, pair: { ...inviter.pair, keyAgreement: await pairX('inviter') }, deliveryHints: [HINT] }
+const responderC = { ...responder, pair: { ...responder.pair, keyAgreement: await pairX('responder') } }
+const cardInviter = await sc.issueCard(inviterC, inviterChallenge, T('00'))
+const cardResponder = await sc.issueCard(responderC, responderChallenge, T('05'))
+const linkCard = await sc.sharedConnectLink({ from: inviter.messaging.did, id: inviterChallenge, exp, label: 'Anton', card: cardInviter }, undefined, nowS)
+const readCard = await sc.readSharedConnectLink(linkCard, nowS)
+if (!readCard.ok || JSON.stringify(readCard.link.card) !== JSON.stringify(cardInviter)) fail('link with card')
+const backCard = sc.backCodeOf(propose, undefined, cardResponder)
+const readBack = await sc.readBackCode(backCard, me)
+if (!readBack || JSON.stringify(readBack.propose) !== JSON.stringify(propose) || JSON.stringify(readBack.card) !== JSON.stringify(cardResponder)) fail('back-code with card')
+const offlineLinkCases = [
+  { name: 'link whose card names another key agreement key (the card\'s proof)', link: linkCard.replace('&ka=' + cardInviter.keyAgreement, '&ka=' + cardResponder.keyAgreement), reason: 'bad-card' },
+  { name: 'link whose card was made for another handle', link: linkCard.replace('_id=' + inviterChallenge, '_id=' + responderChallenge), reason: 'bad-card' },
+  { name: 'link with the proof of a card and no key', link: linkCard.replace('&ka=' + cardInviter.keyAgreement, ''), reason: 'bad-card' },
+]
+for (const c of offlineLinkCases) { const r = await sc.readSharedConnectLink(c.link, nowS); if (r.ok || r.reason !== c.reason) fail('offline link case ' + c.name) }
+const offlineBackCases = [
+  { name: 'back-code whose card names another key agreement key', code: backCard.replace('&ka=' + cardResponder.keyAgreement, '&ka=' + cardInviter.keyAgreement) },
+  { name: 'back-code whose card carries hints it was not signed with', code: backCard.replace('&csig=', '&h=' + Buffer.from(JSON.stringify([HINT])).toString('base64url') + '&csig=') },
+]
+for (const c of offlineBackCases) if ((await sc.readBackCode(c.code, me)) !== null) fail(c.name)
+
 // the same enactment with did:peer:4 messaging identities (long form in the link and on the propose)
 const inviter4 = await sc.partyFromSeeds(await seed('inviter/messaging'), await seed('inviter/pair'), [MED, NOSTR], 'Anton', 'peer4')
 const responder4 = await sc.partyFromSeeds(await seed('responder/messaging'), await seed('responder/pair'), [MED], 'Day', 'peer4')
@@ -123,6 +149,17 @@ const out = {
   link: { value: link, length: link.length, read: { from: read.link.from.did, id: read.link.id, exp: read.link.exp, type: read.link.type, label: read.link.label } },
   steps: { propose, accept, 'issue-inviter': issueInviter, 'receipt-inviter': receiptInviter, 'issue-responder': issueResponder, 'receipt-responder': receiptResponder },
   backCode: { value: backCode, length: backCode.length, rebuilds: 'steps.propose' },
+  offline: {
+    note: 'The two codes of the offline path. Each carries its side\'s card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement), h (deliveryHints: base64url of the JSON array, absent without hints) and csig (the proofValue of the card). The card\'s challenge value is the code\'s own _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, "<side>/pair/x25519"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.',
+    inviter: { keyAgreement: cardInviter.keyAgreement, card: cardInviter },
+    responder: { keyAgreement: cardResponder.keyAgreement, card: cardResponder },
+    link: { value: linkCard, length: linkCard.length },
+    backCode: { value: backCard, length: backCard.length, rebuilds: 'steps.propose' },
+    mustFail: {
+      links: offlineLinkCases.map((c) => ({ name: c.name, link: c.link, readAt: nowS, reason: c.reason })),
+      backCodes: offlineBackCases.map((c) => ({ name: c.name, code: c.code, result: 'not a back-code' })),
+    },
+  },
   peer4: {
     note: 'The same keys, challenges and times with did:peer:4 messaging identities: the long form in the link and as issuer/recipient; key ids under the short form. The pairwise did:key and the credentials are unchanged in kind. A link with a long-form did:peer:4 is over the in-person size of about 450 characters, so it is rendered as a sent link (kind link, 990 characters at most).',
     inviter: { messaging: inviter4.messaging.did, short: sc.peer4Short(inviter4.messaging.did), document: inviter4.peer.doc, relays: inviter4.peer.relays },

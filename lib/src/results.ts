@@ -16,6 +16,8 @@ export interface ResumeResult { outbound: Outbound[], events: HolderEvent[], nex
 export type ActError =
   // shared-connect (shared-connect-holder.ts)
   | 'link-invalid' | 'enactment-unknown' | 'enactment-closed' | 'not-pending' | 'concurrent' | 'keys-missing'
+  /** sharedconnect.back: the link this side answered carried no card of the inviter, so nothing opens without a carrier */
+  | 'no-card'
   | 'unknown-contact'
   | 'no-own-channel'
   | 'tuple-deactivated'

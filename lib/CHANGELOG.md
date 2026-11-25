@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+shared-connect without a carrier: two codes leave both sides with a contact. A link shown in person
+carries the inviter's card (the pair's X25519 key under the pair anchor, with the delivery hints of
+the act's carrier offer where the link has room), and the responder's back-code carries its card;
+both in a reconstruction form under names a reader of another app passes over (`rel`, `t`, `ka`,
+`h`, `csig`). Two holder acts use them: `sharedConnectBack({ id })` (human) gives the back-code in
+the event `sharedconnect.shown` and opens the responder's contact from the card in the link it
+scanned; `sharedConnectReadBack(id, code, when)` takes the code on the inviter's side as a
+delivered proposal, and the contact opens when the person accepts. Trust and an invitation into a
+group are possible from then on; a message waits, as on every fresh tuple, for the first document
+of the counterpart (`not-ready`). The acceptance, the credentials and the receipts follow by a
+carrier and complete the enactment as before. `sharedConnectBack` is refused as `not-met` for a
+link this side did not scan and as `no-card` for a link without a card (a sent link, a link of
+0.20.0 or of another app).
+
+A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code).
+An acceptance that names another pair than the card in the link, and an issue whose card names
+another key than the card in the code, are refused as `card`. An enactment that opened a contact
+is kept whatever its end. `readBackCode` reads a back-code with its card; `proposeFromBackCode`
+and a back-code without a card read as before. Links grow: about 225 characters for the card, about
+210 more with one delivery hint; a link that would pass the budget of 990 goes without the hints,
+then without the card.
+
+A document handed over again is recognised whatever order its members are written in (the step
+machines compared the serialised text).
+
 shared-connect: the proposal has no age gate of its own. The inviter refused a proposal older than
 ten minutes (`not-fresh`), also on a link sent in a message that lives up to seven days: the person
 who opened such a link was connected only if the inviter's device fetched the proposal within eleven
