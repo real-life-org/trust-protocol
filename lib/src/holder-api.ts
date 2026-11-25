@@ -225,7 +225,8 @@ export interface Holder {
   sharedConnectReceive (doc: unknown, sender: string, when: Millis): Promise<ActResult>
   /** the responder, without a carrier: its proposal shown back as a code with its card (the event
    *  sharedconnect.shown carries the back-code in `link`); the contact opens from the inviter's card in the
-   *  link. Refused as `not-met` for a link this side did not scan, as `no-card` for a link without a card */
+   *  link. Refused as `not-met` for a link this side did not scan, as `no-card` for a link without a card, as
+   *  `code-too-long` when the code would not fit one QR code (nothing opens, the enactment stays open) */
   sharedConnectBack (input: BackInput, opts: HumanActOptions): Promise<ActResult>
   /** the inviter's camera read a back-code for the link `id`: the proposal as if a carrier had delivered it
    *  (the confirmation opens); with the responder's card in the code the contact opens when the person accepts */

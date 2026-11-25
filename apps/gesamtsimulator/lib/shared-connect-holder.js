@@ -317,7 +317,15 @@ const backDef = {
         // would open a contact here that the other side can no longer get
         if (Math.floor(ctx.when / 1000) >= e.link.exp)
             return no('enactment-closed', 'expired');
-        const code = await machine.back(linkOrigin(input.origin));
+        // a code too long to show as one QR code is not shown and opens nothing (the proposal's name is signed
+        // into it; the enactment stays open and completes by a carrier as it would have)
+        let code;
+        try {
+            code = await machine.back(linkOrigin(input.origin));
+        }
+        catch {
+            return no('code-too-long');
+        }
         if (code === null)
             return no('no-card');
         return { id: e.id, before: jcs(e.flow), after: machine.snapshot(), code };

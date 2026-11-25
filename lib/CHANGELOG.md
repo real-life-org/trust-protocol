@@ -11,8 +11,10 @@ delivered proposal, and the contact opens when the person accepts. Trust and an 
 group are possible from then on; a message waits, as on every fresh tuple, for the first document
 of the counterpart (`not-ready`). The acceptance, the credentials and the receipts follow by a
 carrier and complete the enactment as before. `sharedConnectBack` is refused as `not-met` for a
-link this side did not scan and as `no-card` for a link without a card (a sent link, a link of
-0.20.0 or of another app).
+link this side did not scan, as `no-card` for a link without a card (a sent link, a link of
+0.20.0 or of another app), and as `code-too-long` when the back-code would pass 1200 characters
+(`BACK_BUDGET`; the proposal's name is signed into the code): then no contact opens and the
+enactment stays open.
 
 The card in a link is signed over a digest of the link's `_from`, `_id` and `_exp` (`linkCardChallenge`), so it holds only under that messaging identity, handle and expiry; the card in a back-code is over the same digest of its `_from`, the proposal's id and the inviter's handle (`backCardChallenge`), so it holds for that one link. A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code). An enactment that ended takes nothing from a back-code and shows none.
 An acceptance that names another pair than the card in the link, and an issue whose card names

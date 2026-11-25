@@ -269,7 +269,8 @@ export class Responder extends Machine<ResponderSnapshot> {
 
   /** the proposal shown back as a code, with this side's card (the offline path). Only for a code this side's
    *  camera read (`scan`) that carried the inviter's card, and with a card of its own (`card: true`): otherwise
-   *  null. The card is issued at the proposal's time, so the same code comes out every time. */
+   *  null. The card is issued at the proposal's time, so the same code comes out every time. Throws, and leaves
+   *  the state as it was, when the code would pass `BACK_BUDGET` (a long name in the proposal). */
   back (origin?: string): Promise<string | null> {
     return this.serial(async () => {
       const s = this.s

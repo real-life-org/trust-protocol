@@ -391,6 +391,10 @@ export const linkCardChallenge = async (from, id, exp) => challengeOf16((await s
 /** The challenge of the card in a back-code: the same digest over the ceremony, the responder's `_from`, the
  *  propose's id and the enactment (the inviter's handle, which the back-code does not carry). */
 export const backCardChallenge = async (from, id, enactment) => challengeOf16((await sha(te.encode(jcs({ ceremony: CEREMONY_URI, enactment, from, id })))).subarray(0, 16));
+/** Producer budget for a back-code that carries a card (characters; the code is ASCII, so bytes): one QR code
+ *  a camera reads from a phone's screen, far inside the 2953 bytes of the largest QR code. The proposal's name
+ *  is signed and cannot be left out, so a code beyond the budget is not written. */
+export const BACK_BUDGET = 1200;
 const CARD_NAMES = ['rel', 't', 'ka', 'csig'];
 const cardParams = (card) => {
     if (card.deliveryHints !== undefined || card.name !== undefined)
@@ -1045,7 +1049,10 @@ export function backCodeOf(proposeDoc, origin = LINK_ORIGIN, card) {
     if (card !== undefined)
         frag += cardParams(card);
     frag += '&sig=' + proposeDoc.proof.proofValue;
-    return origin + LINK_PATH + '#' + frag;
+    const code = origin + LINK_PATH + '#' + frag;
+    if (card !== undefined && code.length > BACK_BUDGET)
+        throw new Error('back-code exceeds the budget of ' + BACK_BUDGET + ' characters');
+    return code;
 }
 /** Read a back-code: the propose rebuilt (the caller then runs checkPropose) and the responder's card where the
  *  code carries one, verified. Null when the code is not a well-formed back-code (same grammar as the link:

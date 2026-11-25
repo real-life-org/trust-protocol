@@ -18,6 +18,8 @@ export type ActError =
   | 'link-invalid' | 'enactment-unknown' | 'enactment-closed' | 'not-pending' | 'concurrent' | 'keys-missing'
   /** sharedconnect.back: the link this side answered carried no card of the inviter, so nothing opens without a carrier */
   | 'no-card'
+  /** sharedconnect.back: the back-code would not fit one QR code (`BACK_BUDGET`; a long name in the proposal) */
+  | 'code-too-long'
   | 'unknown-contact'
   | 'no-own-channel'
   | 'tuple-deactivated'
