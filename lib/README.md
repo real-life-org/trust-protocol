@@ -314,8 +314,8 @@ journal, and acting anew is the human's decision. Custody:
   default KeyProvider, `randomEntropy` the default Entropy.
 - Experimental: `KeyProvider.loginIdentity(origin)` (D6, issue #211), the
   person's identity toward one web app they log into (a SIOPv2-shaped
-  login): a `did:key` per origin and a signing callback, the key stays
-  inside; `loginOrigin` checks an origin, `LOGIN_EXPERIMENTAL_PREFIX` names
+  login): a `did:key` per origin (shared by web apps on paths of one
+  origin) and a signing callback, the key stays inside; `loginOrigin` checks an origin, `LOGIN_EXPERIMENTAL_PREFIX` names
   the derivation. Replaced at identity stage 3; accounts made with it are
   not migrated.
 - The views: `ContactView` (with `sharedConnect`: the origin and class of a

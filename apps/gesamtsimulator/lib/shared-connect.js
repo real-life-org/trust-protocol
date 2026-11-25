@@ -768,7 +768,7 @@ const optBool = (v) => v === undefined || typeof v === 'boolean';
 const optExt = (v) => v === undefined || isObj(v);
 /** The envelope (TT §4.2) and the payload shape of the task (§7.2 item 2), before any signature work.
  *  `window`: the freshness window on `issuedAt` in ms, where the step has one. */
-function envelopeRefusal(doc, expectType, nowMs, window) {
+function envelopeRefusal(doc, expectType, nowMs) {
     if (!isObj(doc) || doc.type !== expectType)
         return 'type';
     if (typeof doc.id !== 'string' || doc.id.length === 0 || doc.id.length > 256)
@@ -831,19 +831,16 @@ function envelopeRefusal(doc, expectType, nowMs, window) {
     // no step is dated in the future beyond the tolerance
     if (Date.parse(doc.issuedAt) > nowMs + CLOCK_TOLERANCE_S * 1000)
         return 'not-fresh';
-    if (window !== undefined) {
-        const age = nowMs - Date.parse(doc.issuedAt);
-        if (!(age < window && age > -CLOCK_TOLERANCE_S * 1000))
-            return 'not-fresh';
-    }
     return null;
 }
-const FRESH_MS = (MAX_EXP_CODE_S + CLOCK_TOLERANCE_S) * 1000;
 /** Check a propose the inviter received for its own link (`_id`, `exp`, own did:peer:2).
- *  The link's `_exp` bounds the handle: a propose for an expired `_id` is refused, whatever
- *  its own freshness. Age gate on the document: 10 minutes + clock tolerance. */
+ *  The link's `_exp` bounds the handle: a propose for an expired `_id` is refused. The document has
+ *  no age gate of its own: a code shown in person lives at most 10 minutes, so its `_exp` bounds the
+ *  age as well; a link sent in a message is answered while the inviter may be offline, and its
+ *  propose is taken whenever it arrives before `_exp` (issuedAt in the future and the propose's own
+ *  expiresAt are still refused). */
 export async function checkPropose(doc, me, nowMs) {
-    const e = envelopeRefusal(doc, TASK_PROPOSE, nowMs, FRESH_MS);
+    const e = envelopeRefusal(doc, TASK_PROPOSE, nowMs);
     if (e)
         return e;
     if (nowMs >= (me.exp + CLOCK_TOLERANCE_S) * 1000)

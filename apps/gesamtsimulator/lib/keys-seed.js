@@ -88,6 +88,7 @@ export function seedKeys(seed, crypto) {
         return p;
     };
     const carriers = new Map();
+    // the derivation is cached; every caller gets its own frozen object, so changing one never changes another's
     const logins = new Map();
     return {
         async anchorOf(label) {
@@ -155,8 +156,8 @@ export function seedKeys(seed, crypto) {
             const n = await mh(new Uint8Array(nonce));
             return { messaging: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + n), pair: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'pair/' + n) };
         },
-        // DEVIATION D6, EXPERIMENTAL: one identity per web app, from the root and the web app's origin
-        loginIdentity(origin) {
+        // DEVIATION D6, EXPERIMENTAL: one identity per origin (two web apps on paths of one origin share it)
+        async loginIdentity(origin) {
             const o = loginOrigin(origin);
             if (o === null)
                 return Promise.reject(new TypeError('loginIdentity: the origin must be scheme://host[:port] over https or http'));
@@ -170,7 +171,8 @@ export function seedKeys(seed, crypto) {
                 p.catch(() => logins.delete(o));
                 logins.set(o, p);
             }
-            return p;
+            const { did, sign } = await p;
+            return Object.freeze({ did, sign });
         },
         carrierPrincipal(nonce, carrier) {
             if (!validCarrierIdentifier(carrier))

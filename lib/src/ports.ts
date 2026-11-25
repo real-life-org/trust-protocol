@@ -99,7 +99,9 @@ export interface KeyProvider {
   sharedConnectMessaging? (nonce: Uint8Array): Promise<{ ed: Uint8Array, x: Uint8Array, sign: (hashData: Uint8Array) => Promise<Uint8Array> }>
   /** EXPERIMENTAL, DEVIATION D6: the person's identity toward one web app they log into (a
    *  SIOPv2-shaped login): a did:key and a signing callback over raw bytes; the key stays inside.
-   *  One identity per origin (`scheme://host[:port]`), so two web apps cannot link the person.
+   *  One identity per origin (`scheme://host[:port]`): web apps on two origins cannot link the person;
+   *  two web apps on different paths of one origin get the same identity. Every call returns its own
+   *  frozen object.
    *  Derived from the root and the origin outside the label registry of Identity §6.1; replaced
    *  at identity stage 3, no migration of accounts made with it is promised (issue #211). */
   loginIdentity? (origin: string): Promise<{ did: string, sign: (bytes: Uint8Array) => Promise<Uint8Array> }>

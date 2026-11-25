@@ -87,6 +87,7 @@ export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): Ke
   }
 
   const carriers = new Map<string, Promise<CarrierKey>>()
+  // the derivation is cached; every caller gets its own frozen object, so changing one never changes another's
   const logins = new Map<string, Promise<{ did: string, sign: (bytes: Uint8Array) => Promise<Uint8Array> }>>()
 
   return {
@@ -147,8 +148,8 @@ export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): Ke
       return { messaging: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + n), pair: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'pair/' + n) }
     },
 
-    // DEVIATION D6, EXPERIMENTAL: one identity per web app, from the root and the web app's origin
-    loginIdentity (origin) {
+    // DEVIATION D6, EXPERIMENTAL: one identity per origin (two web apps on paths of one origin share it)
+    async loginIdentity (origin) {
       const o = loginOrigin(origin)
       if (o === null) return Promise.reject(new TypeError('loginIdentity: the origin must be scheme://host[:port] over https or http'))
       let p = logins.get(o)
@@ -161,7 +162,8 @@ export function seedKeys (seed: Uint8Array, crypto?: Pick<Crypto, 'subtle'>): Ke
         p.catch(() => logins.delete(o))
         logins.set(o, p)
       }
-      return p
+      const { did, sign } = await p
+      return Object.freeze({ did, sign })
     },
 
     carrierPrincipal (nonce, carrier) {
