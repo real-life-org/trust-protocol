@@ -1,16 +1,6 @@
 # Changelog
 
-## 0.21.0
-
-Experimental: `KeyProvider.loginIdentity(origin)` on `seedKeys`, the person's identity toward one web
-origin they log into (a SIOPv2-shaped login, prototype in port-experimente `src/lab/anmeldung/`). One
-`did:key` per origin (`scheme://host[:port]`, https or http), the same on every device with the same
-root, different for every origin and every person; two web apps on different paths of the same origin
-get the same identity. A signing callback over raw bytes, the key stays inside; every call returns its
-own frozen object. Derived outside the label registry of Identity §6.1 under
-`rltp/v1/x-login-experimental/` (deviation D6, issue #211). It is replaced at identity stage 3;
-accounts a web app keeps for these identifiers are not migrated. New exports `loginOrigin`,
-`LOGIN_EXPERIMENTAL_PREFIX`.
+## 0.22.0
 
 shared-connect without a carrier: two codes leave both sides with a contact. A link shown in person
 carries the inviter's card (the pair's X25519 key under the pair anchor), and the responder's back-code carries its card;
@@ -36,6 +26,18 @@ characters; a link that would pass the budget of 990 goes without the card.
 
 A document handed over again is recognised whatever order its members are written in (the step
 machines compared the serialised text).
+
+## 0.21.0
+
+Experimental: `KeyProvider.loginIdentity(origin)` on `seedKeys`, the person's identity toward one web
+origin they log into (a SIOPv2-shaped login, prototype in port-experimente `src/lab/anmeldung/`). One
+`did:key` per origin (`scheme://host[:port]`, https or http), the same on every device with the same
+root, different for every origin and every person; two web apps on different paths of the same origin
+get the same identity. A signing callback over raw bytes, the key stays inside; every call returns its
+own frozen object. Derived outside the label registry of Identity §6.1 under
+`rltp/v1/x-login-experimental/` (deviation D6, issue #211). It is replaced at identity stage 3;
+accounts a web app keeps for these identifiers are not migrated. New exports `loginOrigin`,
+`LOGIN_EXPERIMENTAL_PREFIX`.
 
 shared-connect: the proposal has no age gate of its own. The inviter refused a proposal older than
 ten minutes (`not-fresh`), also on a link sent in a message that lives up to seven days: the person

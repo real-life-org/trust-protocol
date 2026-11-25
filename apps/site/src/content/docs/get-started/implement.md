@@ -80,10 +80,12 @@ The holder also runs the shared connection ceremony across apps
 gives the trigger link to display, `sharedConnectPropose` reads one, and
 every document the carrier delivers for it goes to `sharedConnectReceive`
 with its TSP sender; the inviter confirms the proposal as a prompt. Without
-a carrier, `sharedConnectBack` gives the responder's proposal as a code to
-show back and `sharedConnectReadBack` takes it on the inviter's side: the
-two codes carry each side's card, so both hold a contact at once and the
-documents follow when a carrier is there. Where
+a carrier the two codes carry each side's card. `sharedConnectBack` gives
+the responder's proposal as a code to show back, and the responder's contact
+opens with it, from the card in the link it scanned. `sharedConnectReadBack`
+takes that code on the inviter's side and opens the confirmation; the
+inviter's contact opens when the person accepts. The documents follow when
+a carrier is there. Where
 both sides are holders of this library the ceremony opens an ordinary
 contact, carried like one of an encounter when both acts were given a
 carrier offer; a counterpart of another app leaves its credential with the
