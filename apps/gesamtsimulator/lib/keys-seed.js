@@ -31,6 +31,23 @@ export const SERVICE_IDENTITY_STAGE1_PREFIX = 'rltp/v1/x-service-identity-stage1
 export const CONTENT_KEY_STAGE1_PREFIX = 'rltp/v1/x-content-key-stage1/';
 /** DEVIATION D5: the HKDF info prefix of the shared-connect encounter seeds (stage 1, outside the label registry of Identity §6.1); the purpose and the multihash of the nonce follow. */
 export const SHARED_CONNECT_STAGE1_PREFIX = 'rltp/v1/x-shared-connect-stage1/';
+/** DEVIATION D6, EXPERIMENTAL: the HKDF info prefix of the identity toward a web app the person logs into (outside the label registry of Identity §6.1); the multihash of the web app's origin follows. Replaced at identity stage 3; no migration of accounts made with it is promised. */
+export const LOGIN_EXPERIMENTAL_PREFIX = 'rltp/v1/x-login-experimental/';
+/** The origin of a web app as the login identity takes it: `scheme://host[:port]`, https or http, nothing else. */
+export function loginOrigin(origin) {
+    if (typeof origin !== 'string')
+        return null;
+    let u;
+    try {
+        u = new URL(origin);
+    }
+    catch {
+        return null;
+    }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:')
+        return null;
+    return u.origin === origin ? origin : null;
+}
 const te = new TextEncoder();
 /** PKCS#8 prefixes of a raw 32-byte Ed25519 / X25519 private key */
 export const ED_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20]);
@@ -71,6 +88,7 @@ export function seedKeys(seed, crypto) {
         return p;
     };
     const carriers = new Map();
+    const logins = new Map();
     return {
         async anchorOf(label) {
             const k = await derive(label);
@@ -136,6 +154,23 @@ export function seedKeys(seed, crypto) {
                 throw new RangeError('shared-connect nonce must be 16 bytes (the challenge this side minted)');
             const n = await mh(new Uint8Array(nonce));
             return { messaging: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'messaging/' + n), pair: await hkdf(SHARED_CONNECT_STAGE1_PREFIX + 'pair/' + n) };
+        },
+        // DEVIATION D6, EXPERIMENTAL: one identity per web app, from the root and the web app's origin
+        loginIdentity(origin) {
+            const o = loginOrigin(origin);
+            if (o === null)
+                return Promise.reject(new TypeError('loginIdentity: the origin must be scheme://host[:port] over https or http'));
+            let p = logins.get(o);
+            if (!p) {
+                p = (async () => {
+                    const priv = await edKey(await hkdf(LOGIN_EXPERIMENTAL_PREFIX + await mh(te.encode(o))));
+                    const did = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
+                    return { did, sign: async (bytes) => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, new Uint8Array(bytes))) };
+                })();
+                p.catch(() => logins.delete(o));
+                logins.set(o, p);
+            }
+            return p;
         },
         carrierPrincipal(nonce, carrier) {
             if (!validCarrierIdentifier(carrier))

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.21.0
+
+Experimental: `KeyProvider.loginIdentity(origin)` on `seedKeys`, the person's identity toward one web
+app they log into (a SIOPv2-shaped login, prototype in port-experimente `src/lab/anmeldung/`). One
+`did:key` per origin (`scheme://host[:port]`, https or http), the same on every device with the same
+root, different for every web app and every person; a signing callback over raw bytes, the key stays
+inside. Derived outside the label registry of Identity §6.1 under `rltp/v1/x-login-experimental/`
+(deviation D6, issue #211). It is replaced at identity stage 3; accounts a web app keeps for these
+identifiers are not migrated. New exports `loginOrigin`, `LOGIN_EXPERIMENTAL_PREFIX`.
+
 ## 0.20.0
 
 `GroupView.members[].contactId` also names a member whose contact proved who it is: the sealed pair

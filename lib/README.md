@@ -312,6 +312,12 @@ journal, and acting anew is the human's decision. Custody:
 - The ports: `Store`, `KeyProvider`, `Entropy`, `Log`, `Access`,
   `RetryPolicy`, `DeliveryReport`, `Outbound`; `seedKeys(seed)` is the
   default KeyProvider, `randomEntropy` the default Entropy.
+- Experimental: `KeyProvider.loginIdentity(origin)` (D6, issue #211), the
+  person's identity toward one web app they log into (a SIOPv2-shaped
+  login): a `did:key` per origin and a signing callback, the key stays
+  inside; `loginOrigin` checks an origin, `LOGIN_EXPERIMENTAL_PREFIX` names
+  the derivation. Replaced at identity stage 3; accounts made with it are
+  not migrated.
 - The views: `ContactView` (with `sharedConnect`: the origin and class of a
   shared-connect contact), `GroupView`, `PromptView`, `ProfileView`,
   `InboxMessageView`, `DeliveryStatusView`, `SharedConnectView` and their parts.
