@@ -117,7 +117,7 @@ import type { Dec, Millis, OpaqueHolderState, PromptChoice, Setting, TrustClass 
 import { TRUST_COMMANDS } from './trust/mapping.js'
 import { ENTRY_COMMANDS } from './trust/entries.js'
 import { ENCOUNTER_COMMANDS, encounterModule } from './encounter/ceremony.js'
-import { sharedConnectModule, sharedConnectView, SC_COMMANDS, type ShowInput, type ProposeInput, type ReceiveInput, type SharedConnectView } from './shared-connect-holder.js'
+import { sharedConnectModule, sharedConnectView, SC_COMMANDS, type ShowInput, type ProposeInput, type ReceiveInput, type BackInput, type ReadBackInput, type SharedConnectView } from './shared-connect-holder.js'
 import { MEMBERSHIP_COMMANDS, localAccess, membershipModule } from './membership/holder.js'
 import { provenanceOf } from './membership/replica.js'
 import { INTRODUCTION_COMMANDS, introductionModule } from './introduction/holder.js'
@@ -223,6 +223,14 @@ export interface Holder {
   sharedConnectPropose (input: Omit<ProposeInput, 'carrier'> & { carrier?: CarrierOffer }, opts: HumanActOptions): Promise<ActResult>
   /** a shared-connect document the carrier delivered, opened, with the TSP sender it verified */
   sharedConnectReceive (doc: unknown, sender: string, when: Millis): Promise<ActResult>
+  /** the responder, without a carrier: its proposal shown back as a code with its card (the event
+   *  sharedconnect.shown carries the back-code in `link`); the contact opens from the inviter's card in the
+   *  link. Refused as `not-met` for a link this side did not scan, as `no-card` for a link without a card, as
+   *  `code-too-long` when the code would not fit one QR code (nothing opens, the enactment stays open) */
+  sharedConnectBack (input: BackInput, opts: HumanActOptions): Promise<ActResult>
+  /** the inviter's camera read a back-code for the link `id`: the proposal as if a carrier had delivered it
+   *  (the confirmation opens); with the responder's card in the code the contact opens when the person accepts */
+  sharedConnectReadBack (id: string, code: string, when: Millis): Promise<ActResult>
   /** a group founded under a fresh pair anchor (Access 3.4.1); its rule
    *  vouchThreshold (default "1") is group state; event group.founded; human */
   foundGroup (group: { name: string, vouchThreshold?: string, listed?: boolean }, opts: HumanActOptions): Promise<ActResult>
@@ -379,6 +387,8 @@ export async function createHolder (ports: EnginePorts, opts: HolderOptions = {}
     sharedConnectShow: (input: Omit<ShowInput, 'carrier'> & { carrier?: CarrierOffer }, o: HumanActOptions) => human(SC_COMMANDS.show, withOffer(input), o),
     sharedConnectPropose: (input: Omit<ProposeInput, 'carrier'> & { carrier?: CarrierOffer }, o: HumanActOptions) => human(SC_COMMANDS.propose, withOffer(input), o),
     sharedConnectReceive: (doc: unknown, sender: string, when: Millis) => engine.act(SC_COMMANDS.receive, { doc, sender } satisfies ReceiveInput, when),
+    sharedConnectBack: (input: BackInput, o: HumanActOptions) => human(SC_COMMANDS.back, input, o),
+    sharedConnectReadBack: (id: string, code: string, when: Millis) => engine.act(SC_COMMANDS.readBack, { id, code } satisfies ReadBackInput, when),
     foundGroup: (g: { name: string, vouchThreshold?: string, listed?: boolean }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.found, g, o),
     foundPersonalCommunity: (c: { name: string }, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.foundPersonal, c, o),
     invite: (groupId: string, contactId: string, o: HumanActOptions) => human(MEMBERSHIP_COMMANDS.invite, { groupId, contactId }, o),

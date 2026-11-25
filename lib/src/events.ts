@@ -94,7 +94,8 @@ export type HolderEvent = EventBase & (
    *  of the relationship it arrived on */
   | { type: 'message.received', contactId: string, inboxId: string }
   // ── shared-connect 0.1 (shared-connect-holder.ts): one enactment by its id (the link handle) ──
-  /** the link is written and the inviter listens under `did` */
+  /** the code this side shows is written: the inviter's link, under whose `did` it listens; or, after
+   *  `sharedconnect.back`, the responder's back-code (in `link`) */
   | { type: 'sharedconnect.shown', id: string, link: string, did: string }
   /** the responder read the link and proposed under `did` */
   | { type: 'sharedconnect.proposed', id: string, did: string }

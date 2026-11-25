@@ -12,6 +12,31 @@ own frozen object. Derived outside the label registry of Identity §6.1 under
 accounts a web app keeps for these identifiers are not migrated. New exports `loginOrigin`,
 `LOGIN_EXPERIMENTAL_PREFIX`.
 
+shared-connect without a carrier: two codes leave both sides with a contact. A link shown in person
+carries the inviter's card (the pair's X25519 key under the pair anchor), and the responder's back-code carries its card;
+both in a reconstruction form under names a reader of another app passes over (`rel`, `t`, `ka`, `csig`). Two holder acts use them: `sharedConnectBack({ id })` (human) gives the back-code in
+the event `sharedconnect.shown` and opens the responder's contact from the card in the link it
+scanned; `sharedConnectReadBack(id, code, when)` takes the code on the inviter's side as a
+delivered proposal, and the contact opens when the person accepts. Trust and an invitation into a
+group are possible from then on; a message waits, as on every fresh tuple, for the first document
+of the counterpart (`not-ready`). The acceptance, the credentials and the receipts follow by a
+carrier and complete the enactment as before. `sharedConnectBack` is refused as `not-met` for a
+link this side did not scan, as `no-card` for a link without a card (a sent link, a link of
+0.20.0 or of another app), and as `code-too-long` when the back-code would pass 1200 characters
+(`BACK_BUDGET`; the proposal's name is signed into the code): then no contact opens and the
+enactment stays open.
+
+The card in a link is signed over a digest of the link's `_from`, `_id` and `_exp` (`linkCardChallenge`), so it holds only under that messaging identity, handle and expiry; the card in a back-code is over the same digest of its `_from`, the proposal's id and the inviter's handle (`backCardChallenge`), so it holds for that one link. A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code). An enactment that ended takes nothing from a back-code and shows none.
+An acceptance that names another pair than the card in the link, and an issue whose card names
+another key than the card in the code, are refused as `card`. An enactment that opened a contact
+is kept whatever its end. `readBackCode` reads a back-code with its card; `proposeFromBackCode`
+and a back-code without a card read as before. The card of a code carries no delivery hints: they come with the card of the issue step, so the
+relationship is carried from the first documents a carrier brings. Links grow by about 225
+characters; a link that would pass the budget of 990 goes without the card.
+
+A document handed over again is recognised whatever order its members are written in (the step
+machines compared the serialised text).
+
 shared-connect: the proposal has no age gate of its own. The inviter refused a proposal older than
 ten minutes (`not-fresh`), also on a link sent in a message that lives up to seven days: the person
 who opened such a link was connected only if the inviter's device fetched the proposal within eleven

@@ -15,8 +15,19 @@
 //                                       the trigger link; event sharedconnect.shown
 //               sharedconnect.propose   the responder: the link read, fresh pair label and challenge,
 //                                       the propose; events sharedconnect.proposed, .send
+//               sharedconnect.back      the responder, without a carrier: its proposal shown back as a
+//                                       code with its card; the relationship opens from the inviter's
+//                                       card in the link; event sharedconnect.shown (the back-code)
 //   act         sharedconnect.receive   a document the carrier delivered (opened; the TSP sender named):
 //                                       the machine's answer as events and .send
+//               sharedconnect.readBack  the inviter's camera read a back-code: the proposal as if delivered,
+//                                       the responder's card kept; the relationship opens when the person
+//                                       accepts
+//
+// The offline path (two codes, no carrier): a link shown in person carries the inviter's card, the
+// back-code the responder's. The responder opens when it shows the back-code, the inviter when its
+// person accepts a proposal read from one; the acceptance, the credentials and the receipts follow by
+// a carrier whenever there is one, and complete the enactment as they do otherwise.
 //   decision    shared-connect-confirm  the inviter's accept / decline of the proposal
 //   keepKeys    the pair labels' keys of open enactments
 //   retain      enactments closed longer than RETENTION ago are dropped
@@ -39,7 +50,7 @@ import * as sc from './shared-connect.js'
 import type { Party, Relay, Channel } from './shared-connect.js'
 import { Inviter, Responder, type FlowResult, type InviterSnapshot, type ResponderSnapshot, type FlowOptions, Machine } from './shared-connect-flow.js'
 
-export const SC_COMMANDS = Object.freeze({ show: 'sharedconnect.show', propose: 'sharedconnect.propose', receive: 'sharedconnect.receive' })
+export const SC_COMMANDS = Object.freeze({ show: 'sharedconnect.show', propose: 'sharedconnect.propose', receive: 'sharedconnect.receive', back: 'sharedconnect.back', readBack: 'sharedconnect.readBack' })
 export const SC_PROMPT = 'shared-connect-confirm' as const
 export const promptIdOf = (id: string): string => 'sharedconnect:' + id
 /** a declined, failed or never answered enactment is kept this long after it closed (or its link expired);
@@ -58,6 +69,10 @@ export const RETENTION = 30 * 24 * 3_600_000
 export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput, origin?: string }
 export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string, carrier?: CarrierOfferInput }
 export interface ReceiveInput { doc: unknown, sender: string }
+/** `id`: the enactment this side answered as responder; `origin`: the host of the code, as `show` takes it */
+export interface BackInput { id: string, origin?: string }
+/** `id`: the enactment whose link this side shows; `code`: the back-code its camera read */
+export interface ReadBackInput { id: string, code: string }
 
 const no = (code: ActError, ref?: string): Refusal => ({ ok: false, code, ...(ref ? { ref } : {}) })
 /** the register with the offer's carrier nonce under the relationship `label` opens, or unchanged without an offer */
@@ -95,6 +110,17 @@ const machineOf = (ctx: PrepareCtx, party: Party, e: SharedConnectEnactment): In
 // ── the machine's result into the holder's state ───────────────────────
 
 interface Step { id: string, before: string, after: Snap, r: FlowResult }
+
+/** The relationship an enactment opens, from the counterpart's card (design (d)): a tuple under the
+ *  enactment's pair label, a contact for it. Null where it cannot open (the label's key is not held, or the
+ *  relationship or the contact exists). */
+function openFor (s: HolderState, e: SharedConnectEnactment, theirPair: string, keyAgreement: string, when: Millis): (Applied & { contactId: string }) | null {
+  const ids = idsOf(e.label)
+  const rkid = Object.entries(s.addresses.keys).find(([, k]) => k.label === e.label)?.[0]
+  if (!rkid || Object.hasOwn(s.relationships, ids.relId) || Object.hasOwn(s.contacts, ids.contactId)) return null
+  const opened = openTuple(s, { relId: ids.relId, contactId: ids.contactId, ownPairLabel: e.label, counterpartAnchor: theirPair, counterpartKeyAgreement: keyAgreement, provenance: { kind: 'ceremony' } }, rkid, when)
+  return { ...opened, contactId: ids.contactId }
+}
 
 function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extra: EventDraft[] = []): Applied | Refusal {
   const e = state.sharedConnect.enactments[step.id]
@@ -134,20 +160,20 @@ function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extr
         // design (d): the counterpart's card in its issue opens the relationship; without one the credentials stay here
         const card = sc.cardOfIssue(after.issueTheirs)
         if (card && theirPair && contactId === null) {
-          const ids = idsOf(e.label)
-          const rkid = Object.entries(s.addresses.keys).find(([, k]) => k.label === e.label)?.[0]
-          if (rkid && !Object.hasOwn(s.relationships, ids.relId) && !Object.hasOwn(s.contacts, ids.contactId)) {
-            const opened = openTuple(s, { relId: ids.relId, contactId: ids.contactId, ownPairLabel: e.label, counterpartAnchor: theirPair, counterpartKeyAgreement: card.keyAgreement as string, provenance: { kind: 'ceremony' } }, rkid, when)
-            s = opened.state; contactId = ids.contactId
-            events.push(...(opened.events ?? []))
-            duties = opened.duties ?? []
-          }
+          const opened = openFor(s, e, theirPair, card.keyAgreement as string, when)
+          if (opened) { s = opened.state; contactId = opened.contactId; events.push(...(opened.events ?? [])); duties = opened.duties ?? [] }
         }
         events.push({ type: 'sharedconnect.complete', id: e.id, contactId })
         break
       }
       default: break // held, ignored: nothing to show
     }
+  }
+  // the offline path, inviter: its camera read the responder's card from a back-code and its person accepted.
+  // Only for a link this side showed in person: a sent link carries no card of ours, the other side cannot open
+  if (contactId === null && status === 'open' && e.role === 'inviter' && e.channel === 'displayed' && after.accept && after.codeCard && theirPair === after.codeCard.anchor) {
+    const opened = openFor(s, e, after.codeCard.anchor as string, after.codeCard.keyAgreement as string, when)
+    if (opened) { s = opened.state; contactId = opened.contactId; events.push(...(opened.events ?? [])); duties = opened.duties ?? [] }
   }
   if (step.r.send.length) events.push({ type: 'sharedconnect.send', id: e.id, to: e.role === 'inviter' ? (after as InviterSnapshot).propose?.issuer ?? '' : e.link.from, docs: step.r.send as JsonObject[] })
   const next: SharedConnectEnactment = { ...e, flow: after as unknown as Record<string, Json>, status, contactId, theirPair, closedAt: e.closedAt ?? (status !== 'open' ? when : null) }
@@ -177,10 +203,18 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const cap = channel === 'sent' ? sc.MAX_EXP_LINK_S : sc.MAX_EXP_CODE_S
     const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap)
     const name = typeof input?.name === 'string' && input.name.length ? input.name : null
-    let link: string
     const origin = linkOrigin(input?.origin)
-    try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}) }, origin, nowS) } catch { return no('link-invalid') }
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
+    // a code shown in person carries this side's card (the pair keys; the delivery hints come with the issue
+    // step); a link too long with the card goes without
+    const cards: Array<Record<string, any> | undefined> = []
+    if (channel === 'displayed') cards.push(await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000))
+    cards.push(undefined)
+    let link: string | undefined
+    for (const card of cards) {
+      try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}), ...(card ? { card } : {}) }, origin, nowS); break } catch { /* the next, shorter form */ }
+    }
+    if (link === undefined) return no('link-invalid')
     const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot()
     return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel }
   },
@@ -282,6 +316,73 @@ const receiveDef: CommandDef<ReceiveInput, Refusal | Step> = {
   },
 }
 
+// ── the offline path: the back-code ────────────────────────────────────
+
+type BackPrep = Refusal | { id: string, before: string, after: ResponderSnapshot, code: string }
+
+const backDef: CommandDef<BackInput, BackPrep> = {
+  human: true,
+  async prepare (ctx, input) {
+    const e = typeof input?.id === 'string' ? ctx.snapshot.sharedConnect.enactments[input.id] : undefined
+    if (!e || e.role !== 'responder') return no('enactment-unknown')
+    if (e.status !== 'open') return no('enactment-closed')
+    const party = await partyOf(ctx, e); if (!party) return no('keys-missing')
+    const machine = machineOf(ctx, party, e) as Responder
+    // only a code this side's camera read counts as shown in person; and only a link with the inviter's card
+    // lets this side open without a carrier
+    if (e.channel !== 'scan') return no('not-met')
+    if (!machine.codeCard) return no('no-card')
+    // the inviter takes the proposal only while its link lives (`expired-link` after): a code shown later
+    // would open a contact here that the other side can no longer get
+    if (Math.floor(ctx.when / 1000) >= e.link.exp) return no('enactment-closed', 'expired')
+    // a code too long to show as one QR code is not shown and opens nothing (the proposal's name is signed
+    // into it; the enactment stays open and completes by a carrier as it would have). Only that is the
+    // refusal: a signer that fails is the key provider's failure and is thrown as every act throws it
+    let code: string | null
+    try { code = await machine.back(linkOrigin(input.origin)) } catch (e) { if (e instanceof sc.BackCodeTooLong) return no('code-too-long'); throw e }
+    if (code === null) return no('no-card')
+    return { id: e.id, before: jcs(e.flow), after: machine.snapshot(), code }
+  },
+  apply (state, prepared, _input, when) {
+    const p = prepared.value
+    if (isRefusal(p)) return p
+    const e = state.sharedConnect.enactments[p.id]
+    if (!e) return no('enactment-unknown')
+    if (jcs(e.flow) !== p.before) return no('concurrent')
+    if (e.status !== 'open') return no('enactment-closed')
+    const card = p.after.codeCard as { anchor: string, keyAgreement: string }
+    let s: HolderState = state as HolderState
+    let contactId = e.contactId
+    const events: EventDraft[] = []
+    let duties: Applied['duties'] = []
+    if (contactId === null) {
+      const opened = openFor(s, e, card.anchor, card.keyAgreement, when)
+      if (opened) { s = opened.state; contactId = opened.contactId; events.push(...(opened.events ?? [])); duties = opened.duties ?? [] }
+    }
+    events.push({ type: 'sharedconnect.shown', id: e.id, link: p.code, did: e.did })
+    const next: SharedConnectEnactment = { ...e, flow: p.after as unknown as Record<string, Json>, contactId, theirPair: e.theirPair ?? card.anchor }
+    return { state: { ...s, sharedConnect: { enactments: { ...s.sharedConnect.enactments, [e.id]: next } } }, events, duties }
+  },
+}
+
+const readBackDef: CommandDef<ReadBackInput, Refusal | Step> = {
+  human: false,
+  async prepare (ctx, input) {
+    const e = typeof input?.id === 'string' ? ctx.snapshot.sharedConnect.enactments[input.id] : undefined
+    if (!e || e.role !== 'inviter') return no('enactment-unknown')
+    if (typeof input.code !== 'string') return no('link-invalid')
+    const party = await partyOf(ctx, e); if (!party) return no('keys-missing')
+    const machine = machineOf(ctx, party, e) as Inviter
+    const r = await machine.receiveBack(input.code, ctx.when)
+    return { id: e.id, before: jcs(e.flow), after: machine.snapshot(), r }
+  },
+  apply (state, prepared, _input, when) {
+    const p = prepared.value
+    if (isRefusal(p)) return p
+    return applyStep(state, p, when)
+  },
+}
+
 // ── the inviter's decision ─────────────────────────────────────────────
 
 const confirmDecision: DecisionDef<Refusal | Step> = {
@@ -307,7 +408,9 @@ const confirmDecision: DecisionDef<Refusal | Step> = {
 
 /** when a not complete enactment leaves the state; `null` for a complete one (it stays) and for an open one before any decision */
 const leavesAt = (e: SharedConnectEnactment): Millis | null =>
-  e.status === 'open' ? (e.link.exp + sc.CLOCK_TOLERANCE_S) * 1000 + RETENTION
+  // an enactment that opened a relationship stays whatever its end: the contact's `met` is read from its
+  // channel, and the counterpart's delivery hints from the card of its issue step once that came
+  e.contactId !== null ? null : e.status === 'open' ? (e.link.exp + sc.CLOCK_TOLERANCE_S) * 1000 + RETENTION
     : e.status === 'complete' ? null
       : e.closedAt === null ? null : e.closedAt + RETENTION
 
@@ -324,7 +427,7 @@ function retain (state: Readonly<HolderState>, when: Millis): HolderState {
 export function sharedConnectModule (): HolderModule {
   return Object.freeze({
     name: 'shared-connect',
-    commands: Object.freeze({ [SC_COMMANDS.show]: showDef, [SC_COMMANDS.propose]: proposeDef, [SC_COMMANDS.receive]: receiveDef }),
+    commands: Object.freeze({ [SC_COMMANDS.show]: showDef, [SC_COMMANDS.propose]: proposeDef, [SC_COMMANDS.receive]: receiveDef, [SC_COMMANDS.back]: backDef, [SC_COMMANDS.readBack]: readBackDef }),
     decisions: Object.freeze({ [SC_PROMPT]: confirmDecision }),
     keepKeys: (state: Readonly<HolderState>) => Object.entries(state.addresses.keys).filter(([, k]) => Object.values(state.sharedConnect.enactments).some((e) => e.label === k.label)).map(([rkid]) => rkid),
     retain,

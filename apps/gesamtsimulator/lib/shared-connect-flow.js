@@ -25,9 +25,16 @@
 // the state as it was). Calls on one machine are serialised internally;
 // `snapshot()` is not, so take it between calls, as the persistence rule says.
 import * as sc from './shared-connect.js';
+import { jcs } from './core.js';
 /** held documents: one per id, at most this many (a peer the handle admitted, before the decision) */
 const HELD_MAX = 8;
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** one document, whatever order its members are written in (a store may reorder them; a back-code rebuilds) */
+const same = (a, b) => { try {
+    return jcs(a) === jcs(b);
+}
+catch {
+    return false;
+} };
 const result = (send = [], events = [], finished = false) => ({ send, events, finished });
 const empty = () => ({ propose: null, accept: null, decline: null, failed: null, issueMine: null, issueTheirs: null, receiptMine: null, receiptTheirs: null, held: [] });
 const typeOf = (doc) => (typeof doc?.type === 'string' ? doc.type : 'untyped');
@@ -38,6 +45,11 @@ const hold = (s, doc) => {
         return { kind: 'ignored', type: typeOf(doc), why: 'held-full' };
     s.held.push(doc);
     return { kind: 'held', type: typeOf(doc) };
+};
+/** the card of an issue against the card read from a code: the same key agreement key, or no card on either side */
+const cardAgrees = (s, issueDoc) => {
+    const c = sc.cardOfIssue(issueDoc);
+    return !s.codeCard || !c || c.keyAgreement === s.codeCard.keyAgreement;
 };
 export class Machine {
     party;
@@ -156,6 +168,8 @@ export class Inviter extends Machine {
             }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
+            if (!cardAgrees(s, doc))
+                return result([], [{ kind: 'refused', type, reason: 'card' }]);
             const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase });
             s.issueTheirs = doc;
             s.receiptMine = receipt;
@@ -187,6 +201,28 @@ export class Inviter extends Machine {
         if (!s.propose)
             return result([], [{ kind: 'ignored', type, why: 'not-a-step' }]);
         return this.takeError(doc, { threadId: s.propose.id, enactment: s.id, issuerDid: s.propose.issuer }, nowMs);
+    }
+    /** the responder's back-code, read by this side's camera: its proposal, taken as if a carrier had delivered
+     *  it, and its card, kept where the code carries one. A code whose proposal is the one already taken (it came
+     *  by a carrier first) still gives its card. */
+    receiveBack(code, nowMs) {
+        return this.serial(async () => {
+            const s = this.s;
+            // an enactment that ended takes nothing from a code, and answers nothing
+            if (this.finished)
+                return result([], [{ kind: 'ignored', type: sc.TASK_PROPOSE, why: 'after-decision' }], true);
+            const read = await sc.readBackCode(code, { did: this.party.messaging.did, id: s.id });
+            if (!read)
+                return result([], [{ kind: 'refused', type: sc.TASK_PROPOSE, reason: 'back-code' }]);
+            // the card of the code against the card of an issue taken before: the same key, whichever came first
+            const issued = sc.cardOfIssue(s.issueTheirs);
+            if (read.card && issued && issued.keyAgreement !== read.card.keyAgreement)
+                return result([], [{ kind: 'refused', type: sc.TASK_PROPOSE, reason: 'card' }]);
+            const r = await this.take(read.propose, read.propose.issuer, nowMs);
+            if (read.card && !s.codeCard && s.propose && same(s.propose, read.propose))
+                s.codeCard = read.card;
+            return r;
+        });
     }
     /** the person accepts: the acceptance and our credential go out; held documents are taken afterwards.
      *  `channel` is this side's own observation: `displayed` for a code shown in person, `sent` for a link sent. */
@@ -237,10 +273,33 @@ export class Responder extends Machine {
         if (restore && restore.role !== 'responder')
             throw new Error('not a responder snapshot');
         const l = typeof link.from === 'object' ? { from: link.from.did, id: link.id, exp: link.exp, label: link.label ?? null } : link;
-        super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}) }, o);
+        const card = typeof link.from === 'object' ? link.card : undefined;
+        super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}), ...(card ? { codeCard: card } : {}) }, o);
+    }
+    /** the inviter's card from the link, or null */
+    get codeCard() { return this.s.codeCard ?? null; }
+    /** the proposal shown back as a code, with this side's card (the offline path). Only for a code this side's
+     *  camera read (`scan`) that carried the inviter's card, and with a card of its own (`card: true`): otherwise
+     *  null. The card is issued at the proposal's time, so the same code comes out every time. Throws
+     *  `BackCodeTooLong`, and leaves the state as it was, when the code would pass `BACK_BUDGET` (a long name in the
+     *  proposal); a failure of the signer is thrown as it is. */
+    back(origin) {
+        return this.serial(async () => {
+            const s = this.s;
+            if (!s.propose || s.channel !== 'scan' || !s.codeCard || !this.o.card || !this.party.pair.keyAgreement)
+                return null;
+            // an enactment that ended shows nothing; one that completed has nothing left to show
+            if (this.finished)
+                return null;
+            // the card of a code is the bare card: the pair keys, no delivery hints (they come with the issue step)
+            const code = sc.backCodeOf(s.propose, origin, await sc.issueCard(this.party, await sc.backCardChallenge(s.propose.issuer, s.challenge, s.link.id), Date.parse(s.propose.issuedAt)));
+            s.backShown = true;
+            return code;
+        });
     }
     ownDocs() { return [this.s.propose]; }
-    get theirPair() { return this.s.accept?.payload.relationshipDid ?? null; }
+    /** the inviter's pair: from its acceptance, before that from its card once this side showed its code back */
+    get theirPair() { return this.s.accept?.payload.relationshipDid ?? (this.s.backShown ? this.s.codeCard?.anchor ?? null : null); }
     get theirDid() { return this.s.link.from; }
     /** the proposal (once; a restart sends the same one again) */
     start(nowMs) {
@@ -266,6 +325,9 @@ export class Responder extends Machine {
             const r = await sc.checkAccept(doc, s.propose, s.link.from, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
+            // the acceptance names the pair whose card the link carried
+            if (s.codeCard && doc.payload.relationshipDid !== s.codeCard.anchor)
+                return result([], [{ kind: 'refused', type, reason: 'card' }]);
             const vrc = await sc.credential(this.party, doc.payload.relationshipDid, s.propose, s.channel, nowMs, { profile: this.o.credentialProfile });
             const card = this.o.card ? await sc.issueCard(this.cardParty, s.challenge, nowMs) : undefined;
             const issueMine = await sc.issue(this.party, s.link.from, s.propose.id, s.link.id, 'issue-responder', vrc, nowMs, this.o.newId(), { statedDigest: this.o.statedDigest, digestBase: this.o.digestBase, ...(card ? { card } : {}) });
@@ -298,6 +360,8 @@ export class Responder extends Machine {
             }, nowMs);
             if (r)
                 return result([], [{ kind: 'refused', type, reason: r }]);
+            if (!cardAgrees(s, doc))
+                return result([], [{ kind: 'refused', type, reason: 'card' }]);
             const receipt = await sc.receipt(this.party, doc, nowMs, this.o.newId(), { digestBase: this.o.digestBase });
             s.issueTheirs = doc;
             s.receiptMine = receipt;
