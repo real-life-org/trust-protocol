@@ -277,7 +277,7 @@ export class Responder extends Machine<ResponderSnapshot> {
       // an enactment that ended shows nothing; one that completed has nothing left to show
       if (this.finished) return null
       // the card of a code is the bare card: the pair keys, no delivery hints (they come with the issue step)
-      const code = sc.backCodeOf(s.propose, origin, await sc.issueCard(this.party, s.challenge, Date.parse(s.propose.issuedAt)))
+      const code = sc.backCodeOf(s.propose, origin, await sc.issueCard(this.party, await sc.backCardChallenge(s.propose.issuer, s.challenge, s.link.id), Date.parse(s.propose.issuedAt)))
       s.backShown = true
       return code
     })

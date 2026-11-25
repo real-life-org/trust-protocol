@@ -380,14 +380,17 @@ export async function parsePeer(did, known = []) {
 //   csig  the proofValue of the card
 // The card of a code carries no delivery hints: nothing is delivered without a carrier, and the card of
 // the issue step brings them when there is one.
-// The card's challenge binds it to its code, so a card copied into another code fails its proof. In the
-// back-code the challenge is the propose's id: the propose, signed by the responder's messaging identity,
-// names the card's anchor as its relationshipDid. The link has no signed document, so there the challenge
-// is `linkCardChallenge`: a digest over the link's `_from`, `_id` and `_exp`. The pair key thereby states
-// which messaging identity, handle and expiry it stands behind; a card under another `_from`, or a link
-// whose expiry was changed, fails. The card rebuilt passes the check of a card of the issue step (`cardOk`).
+// The card's challenge binds it to its code, so a card copied into another code fails its proof: a digest
+// over the code's `_from`, its `_id` and what else fixes the enactment, the link's `_exp` (`linkCardChallenge`)
+// or, in the back-code, the inviter's handle (`backCardChallenge`). The pair key thereby states which
+// messaging identity and which enactment it stands behind; a card under another `_from`, a link whose expiry
+// was changed, and a back-code's card shown for another link fail. The card rebuilt passes the check of a
+// card of the issue step (`cardOk`).
 /** The challenge of the card in a link: 16 bytes of sha-256 over the JCS of the ceremony, `_from`, `_id` and `_exp`. */
 export const linkCardChallenge = async (from, id, exp) => challengeOf16((await sha(te.encode(jcs({ ceremony: CEREMONY_URI, exp, from, id })))).subarray(0, 16));
+/** The challenge of the card in a back-code: the same digest over the ceremony, the responder's `_from`, the
+ *  propose's id and the enactment (the inviter's handle, which the back-code does not carry). */
+export const backCardChallenge = async (from, id, enactment) => challengeOf16((await sha(te.encode(jcs({ ceremony: CEREMONY_URI, enactment, from, id })))).subarray(0, 16));
 const CARD_NAMES = ['rel', 't', 'ka', 'csig'];
 const cardParams = (card) => {
     if (card.deliveryHints !== undefined || card.name !== undefined)
@@ -1026,15 +1029,15 @@ export async function checkReceipt(doc, sentIssue, expect, nowMs = Date.now()) {
 // absorbing that is the caller's (by the propose id). The link's `_exp`
 // bounds the code too: checkPropose refuses it once `_id` has expired.
 export const BACK_PATH = FLOW_PATH + '/back';
-/** `card`: the responder's card (`issueCard` over the propose's id, at the propose's issuedAt), so the inviter
+/** `card`: the responder's card (`issueCard` over `backCardChallenge(issuer, id, enactment)`, at the propose's issuedAt), so the inviter
  *  holds the responder's pair keys from the code alone. */
 export function backCodeOf(proposeDoc, origin = LINK_ORIGIN, card) {
     if (proposeDoc.expiresAt !== undefined)
         throw new Error('a propose shown as a code carries no expiresAt; the link\'s _exp bounds the handle');
     if (proposeDoc.proof.created !== proposeDoc.issuedAt)
         throw new Error('back-code form: proof.created must equal issuedAt');
-    if (card !== undefined && (card.anchor !== proposeDoc.payload.relationshipDid || card.challenge?.value !== proposeDoc.id || card.challenge.issuedAt !== proposeDoc.issuedAt || card.proof?.created !== proposeDoc.issuedAt))
-        throw new Error('back-code form: the card is the proposer\'s, over the propose\'s id, at its issuedAt');
+    if (card !== undefined && (card.anchor !== proposeDoc.payload.relationshipDid || card.challenge?.issuedAt !== proposeDoc.issuedAt || card.proof?.created !== proposeDoc.issuedAt))
+        throw new Error('back-code form: the card is the proposer\'s, at the propose\'s issuedAt');
     const t = Math.floor(Date.parse(proposeDoc.issuedAt) / 1000);
     let frag = '_from=' + proposeDoc.issuer + '&_id=' + proposeDoc.id + '&_type=' + (origin === LINK_ORIGIN ? BACK_PATH : LINK_ORIGIN + BACK_PATH) + '&rel=' + proposeDoc.payload.relationshipDid + '&t=' + t;
     if (proposeDoc.payload.reason !== undefined)
@@ -1090,7 +1093,7 @@ export async function readBackCode(code, me) {
     doc.proof = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created: when, verificationMethod: vm.id, proofPurpose: 'authentication', proofValue: sig };
     let card = null;
     if (p.has('csig')) {
-        card = await cardFromParams(p, id);
+        card = await cardFromParams(p, await backCardChallenge(peer.did, id, me.id));
         if (!card)
             return null;
     }

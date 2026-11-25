@@ -359,8 +359,9 @@
     "rebuilds": "steps.propose"
   },
   "offline": {
-    "note": "The two codes of the offline path. Each carries its side's card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement) and csig (the proofValue of the card); the card of a code carries no deliveryHints and no name. The card's challenge value binds it to its code: in the back-code the propose's id, in the link `linkChallenge`, the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link's _exp (a number), _from and _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, \"<side>/pair/x25519\"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.",
+    "note": "The two codes of the offline path. Each carries its side's card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement) and csig (the proofValue of the card); the card of a code carries no deliveryHints and no name. The card's challenge value binds it to its code: the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link's _exp (a number), _from and _id (`linkChallenge`), and in the back-code of {ceremony, enactment, from, id} with the inviter's handle, the back-code's _from and its _id (`backChallenge`). The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, \"<side>/pair/x25519\"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.",
     "linkChallenge": "75rtVJGjJgjgst2NnEO8Qw",
+    "backChallenge": "O1JB1IGaXH8oHDguESd0UQ",
     "inviter": {
       "keyAgreement": "z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc",
       "card": {
@@ -388,7 +389,7 @@
         "anchor": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
         "keyAgreement": "z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg",
         "challenge": {
-          "value": "8PHy8_T19vf4-fr7_P3-_w",
+          "value": "O1JB1IGaXH8oHDguESd0UQ",
           "issuedAt": "2026-11-07T10:00:05Z"
         },
         "proof": {
@@ -397,7 +398,7 @@
           "created": "2026-11-07T10:00:05Z",
           "verificationMethod": "did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj#z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj",
           "proofPurpose": "assertionMethod",
-          "proofValue": "z3P744kvWUHnhbMEFUpGNRrLGJKUgRnVvVkCAXM23VxcfBDDQPGa3eR2xHkmjvgTjHTebrRgmHaaofADdkRn6Nna8"
+          "proofValue": "z45HBKhNhDJ7gGCbXr2oPDTrmpqYqbfrCrJ52raWMqSiTfwmXTZ5ngxP5u2Ygx3NyLfKPx5Gbtcmws35tMFY5YkEK"
         }
       }
     },
@@ -406,7 +407,7 @@
       "length": 651
     },
     "backCode": {
-      "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg&csig=z3P744kvWUHnhbMEFUpGNRrLGJKUgRnVvVkCAXM23VxcfBDDQPGa3eR2xHkmjvgTjHTebrRgmHaaofADdkRn6Nna8&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
+      "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg&csig=z45HBKhNhDJ7gGCbXr2oPDTrmpqYqbfrCrJ52raWMqSiTfwmXTZ5ngxP5u2Ygx3NyLfKPx5Gbtcmws35tMFY5YkEK&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
       "length": 663,
       "rebuilds": "steps.propose"
     },
@@ -452,7 +453,7 @@
       "backCodes": [
         {
           "name": "back-code whose card names another key agreement key",
-          "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z3P744kvWUHnhbMEFUpGNRrLGJKUgRnVvVkCAXM23VxcfBDDQPGa3eR2xHkmjvgTjHTebrRgmHaaofADdkRn6Nna8&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
+          "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z45HBKhNhDJ7gGCbXr2oPDTrmpqYqbfrCrJ52raWMqSiTfwmXTZ5ngxP5u2Ygx3NyLfKPx5Gbtcmws35tMFY5YkEK&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
           "result": "not a back-code"
         },
         {
