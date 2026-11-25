@@ -101,8 +101,7 @@ if (await sc.checkPropose((await sc.proposeFromBackCode(backTampered, me)), me, 
 // the offline path: the link with the inviter's card, the back-code with the responder's. The pair's X25519 key
 // derives from its own seed; the cards are the cards of the issue step, over each side's own challenge
 const pairX = async (who) => mkOfX((await xFromSeed(await seed(who + '/pair/x25519'))).pubRaw)
-const HINT = JSON.stringify({ id: 'did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#tsp', serviceEndpoint: MED.address, type: 'TSPTransport' })
-const inviterC = { ...inviter, pair: { ...inviter.pair, keyAgreement: await pairX('inviter') }, deliveryHints: [HINT] }
+const inviterC = { ...inviter, pair: { ...inviter.pair, keyAgreement: await pairX('inviter') } }
 const responderC = { ...responder, pair: { ...responder.pair, keyAgreement: await pairX('responder') } }
 const linkChallenge = await sc.linkCardChallenge(inviter.messaging.did, inviterChallenge, exp)
 const cardInviter = await sc.issueCard(inviterC, linkChallenge, T('00'))
@@ -124,7 +123,7 @@ const offlineLinkCases = [
 for (const c of offlineLinkCases) { const r = await sc.readSharedConnectLink(c.link, nowS); if (r.ok || r.reason !== c.reason) fail('offline link case ' + c.name) }
 const offlineBackCases = [
   { name: 'back-code whose card names another key agreement key', code: backCard.replace('&ka=' + cardResponder.keyAgreement, '&ka=' + cardInviter.keyAgreement) },
-  { name: 'back-code whose card carries hints it was not signed with', code: backCard.replace('&csig=', '&h=' + Buffer.from(JSON.stringify([HINT])).toString('base64url') + '&csig=') },
+  { name: 'back-code whose card is the one of the link', code: backCard.replace('&ka=' + cardResponder.keyAgreement, '&ka=' + cardInviter.keyAgreement).replace('&csig=' + cardResponder.proof.proofValue, '&csig=' + cardInviter.proof.proofValue) },
 ]
 for (const c of offlineBackCases) if ((await sc.readBackCode(c.code, me)) !== null) fail(c.name)
 
@@ -154,7 +153,7 @@ const out = {
   steps: { propose, accept, 'issue-inviter': issueInviter, 'receipt-inviter': receiptInviter, 'issue-responder': issueResponder, 'receipt-responder': receiptResponder },
   backCode: { value: backCode, length: backCode.length, rebuilds: 'steps.propose' },
   offline: {
-    note: 'The two codes of the offline path. Each carries its side\'s card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement), h (deliveryHints: base64url of the JSON array, absent without hints) and csig (the proofValue of the card). The card\'s challenge value binds it to its code: in the back-code the propose\'s id, in the link `linkChallenge`, the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link\'s _exp (a number), _from and _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, "<side>/pair/x25519"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.',
+    note: 'The two codes of the offline path. Each carries its side\'s card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement) and csig (the proofValue of the card); the card of a code carries no deliveryHints and no name. The card\'s challenge value binds it to its code: in the back-code the propose\'s id, in the link `linkChallenge`, the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link\'s _exp (a number), _from and _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, "<side>/pair/x25519"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.',
     linkChallenge,
     inviter: { keyAgreement: cardInviter.keyAgreement, card: cardInviter },
     responder: { keyAgreement: cardResponder.keyAgreement, card: cardResponder },

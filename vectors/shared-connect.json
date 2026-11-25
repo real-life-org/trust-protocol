@@ -359,7 +359,7 @@
     "rebuilds": "steps.propose"
   },
   "offline": {
-    "note": "The two codes of the offline path. Each carries its side's card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement), h (deliveryHints: base64url of the JSON array, absent without hints) and csig (the proofValue of the card). The card's challenge value binds it to its code: in the back-code the propose's id, in the link `linkChallenge`, the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link's _exp (a number), _from and _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, \"<side>/pair/x25519\"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.",
+    "note": "The two codes of the offline path. Each carries its side's card in reconstruction form: rel (the pair anchor; in the back-code also the relationshipDid of the propose), t (challenge.issuedAt and proof.created of the card as epoch seconds; in the back-code also the issuedAt of the propose), ka (keyAgreement) and csig (the proofValue of the card); the card of a code carries no deliveryHints and no name. The card's challenge value binds it to its code: in the back-code the propose's id, in the link `linkChallenge`, the first 16 bytes (base64url) of sha-256 over the JCS of {ceremony, exp, from, id} with the link's _exp (a number), _from and _id. The reader rebuilds the card (version rltp-card/0.25, eddsa-jcs-2022 under assertionMethod of the anchor, no @context) and verifies it; a card that does not verify refuses the code. The pair X25519 keys derive from hkdf(seed, \"<side>/pair/x25519\"). The link is the one of `link` with the card added; the back-code rebuilds `steps.propose`.",
     "linkChallenge": "75rtVJGjJgjgst2NnEO8Qw",
     "inviter": {
       "keyAgreement": "z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc",
@@ -367,9 +367,6 @@
         "version": "rltp-card/0.25",
         "anchor": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
         "keyAgreement": "z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc",
-        "deliveryHints": [
-          "{\"id\":\"did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#tsp\",\"serviceEndpoint\":\"wss://mediator.web-of-trust.de\",\"type\":\"TSPTransport\"}"
-        ],
         "challenge": {
           "value": "75rtVJGjJgjgst2NnEO8Qw",
           "issuedAt": "2026-11-07T10:00:00Z"
@@ -380,7 +377,7 @@
           "created": "2026-11-07T10:00:00Z",
           "verificationMethod": "did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG#z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG",
           "proofPurpose": "assertionMethod",
-          "proofValue": "z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX"
+          "proofValue": "z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde"
         }
       }
     },
@@ -405,8 +402,8 @@
       }
     },
     "link": {
-      "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton",
-      "length": 865
+      "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton",
+      "length": 651
     },
     "backCode": {
       "value": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg&csig=z3P744kvWUHnhbMEFUpGNRrLGJKUgRnVvVkCAXM23VxcfBDDQPGa3eR2xHkmjvgTjHTebrRgmHaaofADdkRn6Nna8&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
@@ -417,37 +414,37 @@
       "links": [
         {
           "name": "link whose card names another key agreement key (the card's proof)",
-          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton",
+          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton",
           "readAt": 1794045600,
           "reason": "bad-card"
         },
         {
           "name": "link whose card was made for another handle",
-          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=8PHy8_T19vf4-fr7_P3-_w&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton",
+          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=8PHy8_T19vf4-fr7_P3-_w&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton",
           "readAt": 1794045600,
           "reason": "bad-card"
         },
         {
           "name": "link whose expiry was changed (the card is over _from, _id and _exp)",
-          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046199&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton",
+          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046199&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton",
           "readAt": 1794045600,
           "reason": "bad-card"
         },
         {
           "name": "link whose card stands under another messaging identity",
-          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton",
+          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton",
           "readAt": 1794045600,
           "reason": "bad-card"
         },
         {
           "name": "link with a second key agreement key",
-          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg",
+          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg",
           "readAt": 1794045600,
           "reason": "bad-card"
         },
         {
           "name": "link with the proof of a card and no key",
-          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z5aag4byg9wdJrtRi9JmFH8EMsDbUyDC5eGXr2bbhJadabP5XPjKc26LruHxaag4xudaFCp8gmd8GC8vSXRfa5DuX&_label=Anton",
+          "link": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Az6MksFb4ZWHKLUKRigDKitLhapbUHqEGKjkeaitbZKEruWCu.Ez6LSd2MuaWu33o7eFdLQsk5392ETCPzPoH55yRQeNyEjinAN.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9.SeyJ0IjoiTm9zdHJSZWxheSIsInMiOiJ3c3M6Ly9ub3N0ci5teWNlbGkuYWwifQ&_id=AAECAwQFBgcICQoLDA0ODw&_exp=1794046200&_type=/vti/flow/shared-connect/0.1&rel=did:key:z6MkqixyamGdsHxAEnynPqNT2qFknRZc9H9W17tNerWqjnUG&t=1794045600&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&_label=Anton",
           "readAt": 1794045600,
           "reason": "bad-card"
         }
@@ -459,8 +456,8 @@
           "result": "not a back-code"
         },
         {
-          "name": "back-code whose card carries hints it was not signed with",
-          "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSn9xc8zUdwUBdrqSy4zdxaaZJeNngfgP5c1psbmhJMbBg&h=WyJ7XCJpZFwiOlwiZGlkOmtleTp6Nk1rcFRIUjhWTnNCeFlBQVdIdXQyR2VhZGQ5alN3dUJWOHhSb0Fud1dzZHZrdEgjdHNwXCIsXCJzZXJ2aWNlRW5kcG9pbnRcIjpcIndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZVwiLFwidHlwZVwiOlwiVFNQVHJhbnNwb3J0XCJ9Il0&csig=z3P744kvWUHnhbMEFUpGNRrLGJKUgRnVvVkCAXM23VxcfBDDQPGa3eR2xHkmjvgTjHTebrRgmHaaofADdkRn6Nna8&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
+          "name": "back-code whose card is the one of the link",
+          "code": "https://link.trustoverip.org/t#_from=did:peer:2.Vz6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Az6MkhioYmd2ACedBirZFN15xD4k7PqJskSy29fFm81txAQQE.Ez6LSf8sU62v5VMDnZc23mzwZRqR1PvVxwRZ1jMXtEw1hentL.SeyJ0IjoiVFNQVHJhbnNwb3J0IiwicyI6IndzczovL21lZGlhdG9yLndlYi1vZi10cnVzdC5kZSJ9&_id=8PHy8_T19vf4-fr7_P3-_w&_type=/vti/flow/shared-connect/0.1/back&rel=did:key:z6MkpFmUjXkc355J9FLfS1vknaYQNE5S3poL1i5FC5Qp4foj&t=1794045605&n=Day&ka=z6LSq5YDYX2tgDDr6Mo2pww8EPZxJJYKCTDCMskWgs4zgyJc&csig=z23ovKxnTMKm5fxvkJBNR7yAeBp2WRpK42R1FCe9jirGwgGJw7YxTGr6U7iPanYKo1dWuZerFP5LRzTcaEHKPjsde&sig=z5hqKimCAazmbKcTptAGwzsSj2ghNZYqTGzWf18u74aFTCkJak4G8ZZKXJyustx7XtdK6kVpYFYrrXy76HRWJ5qx8",
           "result": "not a back-code"
         }
       ]

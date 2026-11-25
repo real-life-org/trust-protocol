@@ -289,20 +289,10 @@ export class Responder extends Machine {
             // an enactment that ended shows nothing; one that completed has nothing left to show
             if (this.finished)
                 return null;
-            // with this side's delivery hints where the code stays one a camera reads, else the bare card
-            const at = Date.parse(s.propose.issuedAt);
-            for (const party of this.s.deliveryHints?.length ? [this.cardParty, this.party] : [this.party]) {
-                let code;
-                try {
-                    code = sc.backCodeOf(s.propose, origin, await sc.issueCard(party, s.challenge, at));
-                }
-                catch {
-                    continue;
-                }
-                s.backShown = true;
-                return code;
-            }
-            return null;
+            // the card of a code is the bare card: the pair keys, no delivery hints (they come with the issue step)
+            const code = sc.backCodeOf(s.propose, origin, await sc.issueCard(this.party, s.challenge, Date.parse(s.propose.issuedAt)));
+            s.backShown = true;
+            return code;
         });
     }
     ownDocs() { return [this.s.propose]; }

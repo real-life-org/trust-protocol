@@ -377,8 +377,9 @@ export async function parsePeer(did, known = []) {
 //   t     the card's challenge.issuedAt and proof.created, as epoch seconds; in the back-code the
 //         propose's issuedAt too
 //   ka    the pair's X25519 key agreement Multikey
-//   h     the card's deliveryHints: base64url of the JSON array, absent without hints
 //   csig  the proofValue of the card
+// The card of a code carries no delivery hints: nothing is delivered without a carrier, and the card of
+// the issue step brings them when there is one.
 // The card's challenge binds it to its code, so a card copied into another code fails its proof. In the
 // back-code the challenge is the propose's id: the propose, signed by the responder's messaging identity,
 // names the card's anchor as its relationshipDid. The link has no signed document, so there the challenge
@@ -387,30 +388,21 @@ export async function parsePeer(did, known = []) {
 // whose expiry was changed, fails. The card rebuilt passes the check of a card of the issue step (`cardOk`).
 /** The challenge of the card in a link: 16 bytes of sha-256 over the JCS of the ceremony, `_from`, `_id` and `_exp`. */
 export const linkCardChallenge = async (from, id, exp) => challengeOf16((await sha(te.encode(jcs({ ceremony: CEREMONY_URI, exp, from, id })))).subarray(0, 16));
-/** Producer budget for a back-code (characters): one code a camera reads from a phone's screen. */
-export const BACK_BUDGET = 1200;
-const CARD_NAMES = ['rel', 't', 'ka', 'h', 'csig'];
-const cardParams = (card) => '&ka=' + card.keyAgreement + (card.deliveryHints?.length ? '&h=' + b64uOf(te.encode(JSON.stringify(card.deliveryHints))) : '') + '&csig=' + card.proof.proofValue;
+const CARD_NAMES = ['rel', 't', 'ka', 'csig'];
+const cardParams = (card) => {
+    if (card.deliveryHints !== undefined || card.name !== undefined)
+        throw new Error('the card of a code carries the pair keys and its challenge, nothing else');
+    return '&ka=' + card.keyAgreement + '&csig=' + card.proof.proofValue;
+};
 /** Rebuild and verify the card a code carries; `challenge` is the code's `_id`. Null when a part is
  *  missing or malformed, or the card does not pass `cardOk`. */
 async function cardFromParams(p, challenge) {
-    const rel = p.get('rel'), t = p.get('t'), ka = p.get('ka'), h = p.get('h'), csig = p.get('csig');
+    const rel = p.get('rel'), t = p.get('t'), ka = p.get('ka'), csig = p.get('csig');
     if (!rel || !rel.startsWith('did:key:') || !ka || !csig || !/^[1-9][0-9]{0,11}$/.test(t ?? ''))
         return null;
-    let deliveryHints;
-    if (h !== undefined) {
-        try {
-            deliveryHints = JSON.parse(td.decode(fromB64u(h)));
-        }
-        catch {
-            return null;
-        }
-        if (!Array.isArray(deliveryHints) || !deliveryHints.length || deliveryHints.some((x) => typeof x !== 'string') || b64uOf(te.encode(JSON.stringify(deliveryHints))) !== h)
-            return null;
-    }
     const when = iso(Number(t) * 1000);
     const card = {
-        ...cardBody({ anchor: rel, keyAgreement: ka }, { ...(deliveryHints ? { deliveryHints } : {}), challenge: { value: challenge, issuedAt: when } }),
+        ...cardBody({ anchor: rel, keyAgreement: ka }, { challenge: { value: challenge, issuedAt: when } }),
         proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', created: when, verificationMethod: rel + '#' + rel.slice('did:key:'.length), proofPurpose: 'assertionMethod', proofValue: csig },
     };
     try {
@@ -1050,10 +1042,7 @@ export function backCodeOf(proposeDoc, origin = LINK_ORIGIN, card) {
     if (card !== undefined)
         frag += cardParams(card);
     frag += '&sig=' + proposeDoc.proof.proofValue;
-    const code = origin + LINK_PATH + '#' + frag;
-    if (card !== undefined && code.length > BACK_BUDGET)
-        throw new Error('back-code exceeds the budget of ' + BACK_BUDGET + ' characters');
-    return code;
+    return origin + LINK_PATH + '#' + frag;
 }
 /** Read a back-code: the propose rebuilt (the caller then runs checkPropose) and the responder's card where the
  *  code carries one, verified. Null when the code is not a well-formed back-code (same grammar as the link:

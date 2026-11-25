@@ -3,10 +3,8 @@
 ## Unreleased
 
 shared-connect without a carrier: two codes leave both sides with a contact. A link shown in person
-carries the inviter's card (the pair's X25519 key under the pair anchor, with the delivery hints of
-the act's carrier offer where the link has room), and the responder's back-code carries its card;
-both in a reconstruction form under names a reader of another app passes over (`rel`, `t`, `ka`,
-`h`, `csig`). Two holder acts use them: `sharedConnectBack({ id })` (human) gives the back-code in
+carries the inviter's card (the pair's X25519 key under the pair anchor), and the responder's back-code carries its card;
+both in a reconstruction form under names a reader of another app passes over (`rel`, `t`, `ka`, `csig`). Two holder acts use them: `sharedConnectBack({ id })` (human) gives the back-code in
 the event `sharedconnect.shown` and opens the responder's contact from the card in the link it
 scanned; `sharedConnectReadBack(id, code, when)` takes the code on the inviter's side as a
 delivered proposal, and the contact opens when the person accepts. Trust and an invitation into a
@@ -16,13 +14,13 @@ carrier and complete the enactment as before. `sharedConnectBack` is refused as 
 link this side did not scan and as `no-card` for a link without a card (a sent link, a link of
 0.20.0 or of another app).
 
-The card in a link is signed over a digest of the link's `_from`, `_id` and `_exp` (`linkCardChallenge`), so it holds only under that messaging identity, handle and expiry; the card in a back-code is over the proposal's id. A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code). A back-code that would pass 1200 characters (`BACK_BUDGET`) goes without the hints. An enactment that ended takes nothing from a back-code and shows none.
+The card in a link is signed over a digest of the link's `_from`, `_id` and `_exp` (`linkCardChallenge`), so it holds only under that messaging identity, handle and expiry; the card in a back-code is over the proposal's id. A code whose card does not verify is refused (`bad-card` for a link, no proposal from a back-code). An enactment that ended takes nothing from a back-code and shows none.
 An acceptance that names another pair than the card in the link, and an issue whose card names
 another key than the card in the code, are refused as `card`. An enactment that opened a contact
 is kept whatever its end. `readBackCode` reads a back-code with its card; `proposeFromBackCode`
-and a back-code without a card read as before. Links grow: about 225 characters for the card, about
-210 more with one delivery hint; a link that would pass the budget of 990 goes without the hints,
-then without the card.
+and a back-code without a card read as before. The card of a code carries no delivery hints: they come with the card of the issue step, so the
+relationship is carried from the first documents a carrier brings. Links grow by about 225
+characters; a link that would pass the budget of 990 goes without the card.
 
 A document handed over again is recognised whatever order its members are written in (the step
 machines compared the serialised text).

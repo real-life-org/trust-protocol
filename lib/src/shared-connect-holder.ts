@@ -205,15 +205,10 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const name = typeof input?.name === 'string' && input.name.length ? input.name : null
     const origin = linkOrigin(input?.origin)
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
-    // a code shown in person carries this side's card, with its delivery hints where the link has room for
-    // them (they come again in the card of the issue step); a link too long with the bare card goes without
-    const hints = input?.carrier?.deliveryHints
+    // a code shown in person carries this side's card (the pair keys; the delivery hints come with the issue
+    // step); a link too long with the card goes without
     const cards: Array<Record<string, any> | undefined> = []
-    if (channel === 'displayed') {
-      const bound = await sc.linkCardChallenge(did, id, exp)
-      if (hints?.length) cards.push(await sc.issueCard({ ...party, deliveryHints: [...hints] }, bound, nowS * 1000))
-      cards.push(await sc.issueCard(party, bound, nowS * 1000))
-    }
+    if (channel === 'displayed') cards.push(await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000))
     cards.push(undefined)
     let link: string | undefined
     for (const card of cards) {
@@ -409,8 +404,8 @@ const confirmDecision: DecisionDef<Refusal | Step> = {
 
 /** when a not complete enactment leaves the state; `null` for a complete one (it stays) and for an open one before any decision */
 const leavesAt = (e: SharedConnectEnactment): Millis | null =>
-  // an enactment that opened a relationship stays whatever its end: it holds the counterpart's card (the
-  // delivery hints) and the channel the contact's `met` is read from
+  // an enactment that opened a relationship stays whatever its end: the contact's `met` is read from its
+  // channel, and the counterpart's delivery hints from the card of its issue step once that came
   e.contactId !== null ? null : e.status === 'open' ? (e.link.exp + sc.CLOCK_TOLERANCE_S) * 1000 + RETENTION
     : e.status === 'complete' ? null
       : e.closedAt === null ? null : e.closedAt + RETENTION
