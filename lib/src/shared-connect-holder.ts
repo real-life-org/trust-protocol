@@ -336,9 +336,10 @@ const backDef: CommandDef<BackInput, BackPrep> = {
     // would open a contact here that the other side can no longer get
     if (Math.floor(ctx.when / 1000) >= e.link.exp) return no('enactment-closed', 'expired')
     // a code too long to show as one QR code is not shown and opens nothing (the proposal's name is signed
-    // into it; the enactment stays open and completes by a carrier as it would have)
+    // into it; the enactment stays open and completes by a carrier as it would have). Only that is the
+    // refusal: a signer that fails is the key provider's failure and is thrown as every act throws it
     let code: string | null
-    try { code = await machine.back(linkOrigin(input.origin)) } catch { return no('code-too-long') }
+    try { code = await machine.back(linkOrigin(input.origin)) } catch (e) { if (e instanceof sc.BackCodeTooLong) return no('code-too-long'); throw e }
     if (code === null) return no('no-card')
     return { id: e.id, before: jcs(e.flow), after: machine.snapshot(), code }
   },

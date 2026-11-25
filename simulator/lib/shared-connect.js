@@ -395,6 +395,14 @@ export const backCardChallenge = async (from, id, enactment) => challengeOf16((a
  *  a camera reads from a phone's screen, far inside the 2953 bytes of the largest QR code. The proposal's name
  *  is signed and cannot be left out, so a code beyond the budget is not written. */
 export const BACK_BUDGET = 1200;
+/** What `backCodeOf` throws for a code beyond `BACK_BUDGET`: told apart from every other failure by its class. */
+export class BackCodeTooLong extends Error {
+    length;
+    constructor(length) {
+        super('back-code of ' + length + ' characters exceeds the budget of ' + BACK_BUDGET);
+        this.length = length;
+    }
+}
 const CARD_NAMES = ['rel', 't', 'ka', 'csig'];
 const cardParams = (card) => {
     if (card.deliveryHints !== undefined || card.name !== undefined)
@@ -1051,7 +1059,7 @@ export function backCodeOf(proposeDoc, origin = LINK_ORIGIN, card) {
     frag += '&sig=' + proposeDoc.proof.proofValue;
     const code = origin + LINK_PATH + '#' + frag;
     if (card !== undefined && code.length > BACK_BUDGET)
-        throw new Error('back-code exceeds the budget of ' + BACK_BUDGET + ' characters');
+        throw new BackCodeTooLong(code.length);
     return code;
 }
 /** Read a back-code: the propose rebuilt (the caller then runs checkPropose) and the responder's card where the
