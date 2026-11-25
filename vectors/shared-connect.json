@@ -724,7 +724,7 @@
         "reason": "expired-link"
       },
       {
-        "name": "propose older than the age gate",
+        "name": "propose that arrives sixteen minutes after the code was shown: no age gate of its own, the link expired",
         "document": {
           "id": "8PHy8_T19vf4-fr7_P3-_w",
           "type": "https://trusttasks.org/spec/vrc/relationships/propose/0.1",
@@ -755,7 +755,7 @@
           "exp": 1794046200
         },
         "at": "2026-11-07T10:16:05Z",
-        "reason": "not-fresh"
+        "reason": "expired-link"
       },
       {
         "name": "propose with a changed name (proof)",

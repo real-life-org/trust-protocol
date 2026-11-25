@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+shared-connect: the proposal has no age gate of its own. The inviter refused a proposal older than
+ten minutes (`not-fresh`), also on a link sent in a message that lives up to seven days: the person
+who opened such a link was connected only if the inviter's device fetched the proposal within eleven
+minutes. The link's `_exp` bounds the proposal now (`expired-link`); a code shown in person lives at
+most ten minutes, so nothing changes there. A proposal dated in the future, and one past its own
+`expiresAt`, are refused as before. The vector's must-fail case for the age gate fails as
+`expired-link`; the definition's `freshness` text follows.
+
 ## 0.20.0
 
 `GroupView.members[].contactId` also names a member whose contact proved who it is: the sealed pair
