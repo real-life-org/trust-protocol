@@ -444,12 +444,13 @@ export interface SharedConnectView {
   status: SharedConnectEnactment['status']
   link: SharedConnectEnactment['link']
   did: string
-  /** the nonce this side's messaging identity (`did`) derives from, base64url as the holder writes it: the
-   *  inviter's handle (`id`), the responder's own challenge (not `id`, which is the inviter's handle). The
-   *  argument a wire gives `KeyProvider.sharedConnectMessaging` for this enactment. Not `carrierNonce`. */
+  /** the nonce this side's messaging identity (`did`) derives from, base64url (16 bytes once decoded): the
+   *  inviter's handle (`id`), the responder's own challenge (not `id`, which is the inviter's handle). Decoded
+   *  to bytes, the argument a wire gives `KeyProvider.sharedConnectMessaging` for this enactment. Not `carrierNonce`. */
   nonce: string
   /** the acceptance happened: the inviter's person accepted the proposal / the inviter's acceptance arrived at
-   *  the responder. Set with the acceptance, before the credentials (each side issues its own at that moment) */
+   *  the responder. Each side stores its own credential's issue in the same step, so `accepted` and this
+   *  side's `myCredential` change together; the counterpart's credential may come later */
   accepted: boolean
   /** the responder showed its proposal back as a code (`sharedconnect.back`); false for the inviter */
   backShown: boolean

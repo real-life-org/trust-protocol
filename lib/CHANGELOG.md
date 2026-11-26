@@ -12,8 +12,9 @@ members (trust-protocol#216):
 - `accepted`: the inviter's person accepted, or the inviter's acceptance arrived at the responder.
 - `backShown`: the responder showed its proposal back as a code.
 
-Nothing in the stored state changes. `test/exports.json` holds the exports of every entry point;
-a change to them fails `test/exports.test.mjs` until the inventory moves with it.
+Nothing in the stored state changes. `test/exports.json` holds the runtime exports of every entry
+point of `package.json`, with the members of exported namespace objects (types are not listed); a
+change to them fails `test/exports.test.mjs` until the inventory moves with it.
 
 ## 0.22.0
 
