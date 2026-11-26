@@ -52,7 +52,7 @@
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire } from "./vti-wire.mjs";
-import { carrierScopedIdentity } from "../lib/dist/carrier-identity.js";
+import { seedKeys } from "../lib/dist/keys-seed.js";
 import { jcs } from "../lib/dist/core.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
@@ -60,6 +60,8 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   process.exit(0);
 }
 const MEDIATOR_DID = process.env.MEDIATOR_DID;
+/** the carrier context of one relationship at the mediator, as a host opens it (the wire over OpenVTC needs its key released) */
+const ctxOf = (root, nonce) => seedKeys(root, { exportConnectionSeed: true }).carrierContext(nonce, MEDIATOR_DID);
 if (!MEDIATOR_DID) {
   console.error("live-two-devices-probe: set MEDIATOR_DID to a TSP 1.0 mediator (>= 0.45)");
   process.exit(2);
@@ -83,14 +85,14 @@ say(`  mediator (C): ${MEDIATOR_DID}`);
 
 // A: one relationship root and nonce for both devices. B: its own.
 const aRoot = rand(32), aNonce = rand(32), bRoot = rand(32), bNonce = rand(32);
-const connectionOf = async (root, nonce) => (await carrierScopedIdentity(root, MEDIATOR_DID, nonce, "connection")).did;
+const connectionOf = async (root, nonce) => (await ctxOf(root, nonce)).connection.did;
 const aDid = await connectionOf(aRoot, aNonce), bDid = await connectionOf(bRoot, bNonce);
 
 /** A device: its own wire and adapter over the given root and nonce. */
 async function device (name, root, nonce, peerDid) {
   const lines = [];
-  const wire = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid, log: (l) => lines.push(l) });
-  const adapter = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire);
+  const wire = await createVtiWire({ connection: (await ctxOf(root, nonce)).connection, peerDid, log: (l) => lines.push(l) });
+  const adapter = await MediatorCarrierAdapter.open(await ctxOf(root, nonce), wire);
   adapter.register([], now());
   await adapter.settle();
   return { name, wire, adapter, lines, open: true };

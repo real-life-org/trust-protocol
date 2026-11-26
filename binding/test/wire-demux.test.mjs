@@ -26,7 +26,8 @@ import * as tspHpke from "@openvtc/vti-tsp-js/hpke";
 // cannot be built through the public API (by design)
 import { encodeFields, finalizeFrame } from "../node_modules/@openvtc/vti-tsp-js/dist/v1/envelope.js";
 import { encodePayloadFrame } from "../node_modules/@openvtc/vti-tsp-js/dist/v1/payload.js";
-import { MediatorCarrierAdapter, depositAddressing, wrapSealed, WireError } from "../../lib/dist/adapters/vti-mediator.js";
+import { MediatorCarrierAdapter, depositAddressing, deliveryHintOf, readDeliveryHint, wrapSealed, WireError } from "../../lib/dist/adapters/vti-mediator.js";
+import { seedKeys } from "../../lib/dist/keys-seed.js";
 import { createVtiWire, deriveWireIdentities, peerKeys } from "../vti-wire.mjs";
 
 const MEDIATOR_DID = "did:example:mediator-double";
@@ -234,7 +235,7 @@ async function pair(med, logs, { A, B, mediatorDid = MEDIATOR_DID, depositMode, 
   A.ids = await deriveWireIdentities(A.root, mediatorDid, A.nonce);
   B.ids = await deriveWireIdentities(B.root, mediatorDid, B.nonce);
   const mk = (self, peer) => createVtiWire({
-    rootIkm: self.root, mediatorDid, nonce: self.nonce,
+    connection: self.ids.context.connection,
     peerDid: peer.ids.conn.did,
     transport: med.transport, log: (l) => logs.push(l), depositMode,
   });
@@ -242,10 +243,10 @@ async function pair(med, logs, { A, B, mediatorDid = MEDIATOR_DID, depositMode, 
   // the adapter's consumer, for tests that fill its buffer directly
   const onDeliverA = wireA.onDeliver;
   wireA.onDeliver = (cb) => { A.consumer = cb; onDeliverA.call(wireA, cb); };
-  const alice = await MediatorCarrierAdapter.create(A.root, mediatorDid, A.nonce, wireA);
+  const alice = await MediatorCarrierAdapter.open(A.ids.context, wireA);
   const bob = restoredB
-    ? await MediatorCarrierAdapter.create(B.root, mediatorDid, B.nonce, wireB, restoredB, Date.now())
-    : await MediatorCarrierAdapter.create(B.root, mediatorDid, B.nonce, wireB);
+    ? await MediatorCarrierAdapter.open(B.ids.context, wireB, restoredB, Date.now())
+    : await MediatorCarrierAdapter.open(B.ids.context, wireB);
   // one handshake at a time: the double keys tokens by the last challenge
   alice.register([], Date.now()); await alice.settle();
   bob.register([], Date.now()); await bob.settle();
@@ -412,7 +413,7 @@ test("RLTP-VTI-7140: the consumer receives the payload unchanged with its authen
   const B = { root: rand(32), nonce: rand(32) };
   A.ids = await deriveWireIdentities(A.root, MEDIATOR_DID, A.nonce);
   B.ids = await deriveWireIdentities(B.root, MEDIATOR_DID, B.nonce);
-  const wire = await createVtiWire({ rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, peerDid: B.ids.conn.did, transport: med.transport, log: (l) => logs.push(l) });
+  const wire = await createVtiWire({ connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport: med.transport, log: (l) => logs.push(l) });
   const seen = [];
   wire.onDeliver(async (payload, sender) => { seen.push({ payload: new Uint8Array(payload), sender }); return true; });
   await wire.authenticate(); await tick();
@@ -547,6 +548,8 @@ test("routed addressing on the wire reproduces vectors/vti-routed-addressing.jso
       session: f.session,
     }, { inner: strip(want.inner), outer: strip(want.outer), session: want.session }, key);
     const from = keys[key[0]];
+    // the hint this side shows names the sender the wire actually used (RLTP-VTI-1215, 1120)
+    assert.equal(readDeliveryHint(deliveryHintOf(from.ids.context.connection), V.carrier).connectionDid, inner.sender, `${key}: hint = wire sender`);
     assert.deepEqual(depositAddressing("routed", from.ids.conn.did, to.ids.conn.did, V.carrier),
       { inner: strip(want.inner), outer: strip(want.outer), session: want.session }, `${key}: the lib's addressing`);
     const d = V.direct[key];
@@ -617,7 +620,7 @@ test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after
   const B = { root: rand(32), nonce: rand(32) };
   A.ids = await deriveWireIdentities(A.root, MEDIATOR_DID, A.nonce);
   B.ids = await deriveWireIdentities(B.root, MEDIATOR_DID, B.nonce);
-  const cold = await createVtiWire({ rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, peerDid: B.ids.conn.did, transport: med.transport });
+  const cold = await createVtiWire({ connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport: med.transport });
   assert.equal(cold.queueEmpty(), false, "no session");
   const p = await pair(med, logs, { A, B });
   await tick(1100);
@@ -803,8 +806,8 @@ test("RLTP-VTI-1235, 1227, 1240: a wire without the counterpart's connection DID
   const B = { root: rand(32), nonce: rand(32) };
   A.ids = await deriveWireIdentities(A.root, MEDIATOR_DID, A.nonce);
   B.ids = await deriveWireIdentities(B.root, MEDIATOR_DID, B.nonce);
-  assert.deepEqual(Object.keys(A.ids), ["conn"], "one wire identity");
-  const base = { rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, transport: mediatorDouble().transport };
+  assert.equal(A.ids.conn.did, A.ids.context.connection.did, "one wire identity: the context's connection DID");
+  const base = { connection: A.ids.context.connection, transport: mediatorDouble().transport };
   await assert.rejects(createVtiWire(base), /RLTP-VTI-1235/);
   await assert.rejects(createVtiWire({ ...base, peerDid: A.ids.conn.did }), /RLTP-VTI-1227/);
   for (const depositMode of ["egress-session", "egress", "connection"]) {
@@ -814,4 +817,29 @@ test("RLTP-VTI-1235, 1227, 1240: a wire without the counterpart's connection DID
   assert.equal(fine.connectionDid, A.ids.conn.did);
   assert.equal(fine.counterpart(), B.ids.conn.did);
   assert.equal("egressDid" in fine, false);
+});
+
+test("the wire opens from the context's connection alone: never from the root; a provider that keeps its keys fails it at the opening; an adapter refuses a wire of another context (profile §1, RLTP-VTI-1120)", async () => {
+  const A = { root: rand(32), nonce: rand(32) };
+  const B = { root: rand(32), nonce: rand(32) };
+  A.ids = await deriveWireIdentities(A.root, MEDIATOR_DID, A.nonce);
+  B.ids = await deriveWireIdentities(B.root, MEDIATOR_DID, B.nonce);
+  const transport = mediatorDouble().transport;
+  await assert.rejects(createVtiWire({ rootIkm: A.root, connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport }), /never the root/);
+  // the default provider releases nothing: the wire over OpenVTC cannot open
+  const kept = await seedKeys(A.root).carrierContext(A.nonce, MEDIATOR_DID);
+  assert.equal(kept.connection.did, A.ids.conn.did, "the same connection DID");
+  await assert.rejects(createVtiWire({ connection: kept.connection, peerDid: B.ids.conn.did, transport }), /did not release/);
+  // a copy of the connection object is not the capability
+  await assert.rejects(createVtiWire({ connection: { ...A.ids.context.connection }, peerDid: B.ids.conn.did, transport }), /did not release/);
+  // a wire of another relationship (same root, another nonce) under this context's adapter
+  const other = await deriveWireIdentities(A.root, MEDIATOR_DID, rand(32));
+  const wrong = await createVtiWire({ connection: other.context.connection, peerDid: B.ids.conn.did, transport });
+  await assert.rejects(MediatorCarrierAdapter.open(A.ids.context, wrong), /RLTP-VTI-1120/);
+  await assert.rejects(MediatorCarrierAdapter.create(A.root, MEDIATOR_DID, A.nonce, wrong), /RLTP-VTI-1120/);
+  const right = await createVtiWire({ connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport });
+  const a = await MediatorCarrierAdapter.open(A.ids.context, right);
+  assert.equal(a.connectionDid, A.ids.conn.did);
+  assert.equal(a.principal, A.ids.context.principal.principal);
+  a.close();
 });

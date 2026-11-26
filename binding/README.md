@@ -9,10 +9,16 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
 
 ## What it does
 
-- `createVtiWire({ rootIkm, mediatorDid, nonce, peerDid, log?, depositMode?, transport? })`
-  derives the one wire identity, the connection DID, from the same root,
-  carrier and nonce as the adapter (`rltp/v1/carrier-connection/ed25519/v1/`,
-  Identity §13), authenticates under it (ATM), and holds one session per
+- `createVtiWire({ connection, peerDid, log?, depositMode?, transport? })`
+  takes the connection side of the relationship's carrier context
+  (`keys.carrierContext(N, C).connection`: the connection DID and `C`), never
+  the root. The OpenVTC packages take raw key bytes, so the wire asks the
+  library's software key binding for that one connection's seed
+  (`connectionSeed`, released only by `seedKeys(seed, { exportConnectionSeed: true })`);
+  a provider that keeps its keys fails the wire here. The adapter opens
+  from the same context (`MediatorCarrierAdapter.open(context, wire)`) and
+  refuses a wire of another connection DID. The wire authenticates under
+  the connection DID (ATM) and holds one session per
   relationship and side. `peerDid` is the counterpart's connection DID,
   the `id` without `#tsp` of its delivery hint (RLTP-VTI-1240); the wire
   refuses to be built without it, or with this side's own (1235, 1227).

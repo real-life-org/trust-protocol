@@ -75,3 +75,7 @@ export { membershipModule, localAccess, MEMBERSHIP_COMMANDS, PRELUDE_REQUEST_TYP
 export type { FoundInput, InviteInput, VouchInput } from './membership/holder.js'
 export { introductionModule, INTRODUCTION_COMMANDS, OFFER_TYPE, ACK_DELAY } from './introduction/holder.js'
 export type { IntroduceInput } from './introduction/holder.js'
+// the root-derived carrier identities (Identity §7a.4, §13), for vectors and tests: a host takes
+// them from KeyProvider.carrierContext
+export { carrierPrincipal, carrierScopedIdentity, CARRIER_INFO_PREFIX, CONNECTION_INFO_PREFIX } from './carrier-identity.js'
+export type { CarrierPrincipal, CarrierScopedIdentity } from './carrier-identity.js'

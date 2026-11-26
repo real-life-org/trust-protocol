@@ -64,8 +64,9 @@ a counterpart's `trust-task-error` and `trust-task-next-step` answers
 itself; its report `accepted` with `held: true` goes to the holder like
 any other. The adapter of a relationship needs the counterpart's
 identity at the mediator: the app draws the relationship's carrier
-nonce, builds its own delivery hint from the identity the adapter
-derives from it, and passes both to `show` or `scan`
+nonce, opens its carrier context from the key provider
+(`keys.carrierContext(N, C)`), builds the adapter and its own delivery hint
+from that one context, and passes nonce and hint to `show` or `scan`
 (`carrier: {nonce, deliveryHints}`); the contact's relationships then
 name the counterpart's hints and the own nonce
 (`counterpartDeliveryHints`, `carrierNonce`) (see the

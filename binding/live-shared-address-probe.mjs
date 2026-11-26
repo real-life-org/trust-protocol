@@ -31,7 +31,7 @@
 import { WebSocket } from "ws";
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire } from "./vti-wire.mjs";
-import { carrierScopedIdentity } from "../lib/dist/carrier-identity.js";
+import { seedKeys } from "../lib/dist/keys-seed.js";
 import { jcs } from "../lib/dist/core.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
@@ -39,6 +39,8 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   process.exit(0);
 }
 const MEDIATOR_DID = process.env.MEDIATOR_DID;
+/** the carrier context of one relationship at the mediator, as a host opens it (the wire over OpenVTC needs its key released) */
+const ctxOf = (root, nonce) => seedKeys(root, { exportConnectionSeed: true }).carrierContext(nonce, MEDIATOR_DID);
 if (!MEDIATOR_DID) {
   console.error("live-shared-address-probe: set MEDIATOR_DID to the local test mediator");
   process.exit(2);
@@ -54,7 +56,7 @@ const stand = (n) => new TextEncoder().encode(jcs({ rkid: "z6LStLK2kxribiLHz6U4v
 const same = (x, y) => Buffer.compare(Buffer.from(x), Buffer.from(y)) === 0;
 const findings = [];
 const note = (step, text) => { findings.push([step, text]); say(`  → ${text}`); };
-const didOf = async (root, nonce) => (await carrierScopedIdentity(root, MEDIATOR_DID, nonce, "connection")).did;
+const didOf = async (root, nonce) => (await ctxOf(root, nonce)).connection.did;
 
 /** An HTTP request with a deadline that also covers reading the body: a mediator that keeps a
  *  response open ends as an observation (status 0), not as a probe that hangs. */
@@ -100,8 +102,8 @@ function yieldingSocket (record) {
 
 async function end (name, root, nonce, peerDid, WebSocketImpl) {
   const lines = [];
-  const wire = await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid, log: (l) => lines.push(String(l)), ...(WebSocketImpl ? { transport: { WebSocketImpl } } : {}) });
-  const adapter = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire);
+  const wire = await createVtiWire({ connection: (await ctxOf(root, nonce)).connection, peerDid, log: (l) => lines.push(String(l)), ...(WebSocketImpl ? { transport: { WebSocketImpl } } : {}) });
+  const adapter = await MediatorCarrierAdapter.open(await ctxOf(root, nonce), wire);
   adapter.register([], now());
   await adapter.settle();
   return { name, wire, adapter, lines, open: true };

@@ -252,6 +252,7 @@
   "futureOk",
   "hkdf",
   "holderContext",
+  "holderContextOf",
   "imageDimensions",
   "imageWithinBounds",
   "introCardShapeOk",
@@ -477,6 +478,7 @@
   "WireError",
   "concludable",
   "deliveryHint",
+  "deliveryHintOf",
   "deliveryReportOf",
   "depositAddressing",
   "queueIdOf",
@@ -488,13 +490,18 @@
   "sealedEnvelopeId",
   "wrapSealed"
  ],
+ "./adapters/vti-mediator/software-keys": [
+  "connectionSeed"
+ ],
  "./internal": [
   "ACK_DELAY",
   "ADMISSION_BOUND",
   "ANCHOR_MAPPING_TYPE",
   "ASSEMBLY_LIMIT",
+  "CARRIER_INFO_PREFIX",
   "CLASSES",
   "CODEC",
+  "CONNECTION_INFO_PREFIX",
   "CONTINUITY_MAPPING_TYPE",
   "CONTINUITY_PROBE_TYPE",
   "DECIDE",
@@ -530,6 +537,8 @@
   "admitPending",
   "afterChain",
   "anchorSet",
+  "carrierPrincipal",
+  "carrierScopedIdentity",
   "chainAliases",
   "chainTuple",
   "classOfDuty",

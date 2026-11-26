@@ -80,6 +80,10 @@ export function validCarrierIdentifier(c) {
     }
     return true;
 }
+/** @deprecated from the main entry point: a host takes the principal from
+ *  `KeyProvider.carrierContext(N, C)` and never holds the root or the private key. Stays in
+ *  `./internal` for vectors and tests; leaves the main entry point in a later version
+ *  (issue #220). */
 // Identity §7a.4 — derive the control principal for one relationship at
 // one carrier. `carrier` is C exactly as configured (byte-exact), `nonce`
 // is the relationship's 32-byte carrier nonce N from the register (§7a.3).
@@ -98,6 +102,10 @@ export async function carrierPrincipal(rootIkm, carrier, nonce) {
     const key = await edFromSeed(seed);
     return { principal: anchorOfEd(key.pubRaw), key, info, keyAgreement: null };
 }
+/** @deprecated from the main entry point: a host takes the connection DID from
+ *  `KeyProvider.carrierContext(N, C)` and never holds the root or the private key. Stays in
+ *  `./internal` for vectors and tests; leaves the main entry point in a later version
+ *  (issue #220). */
 // One connection DID per (relationship × carrier), same derivation
 // discipline and same input rules as the principal (§7a.4), distinct
 // prefix. Retired with the principal, never reused.

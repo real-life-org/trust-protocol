@@ -62,6 +62,32 @@ export interface CarrierKey {
   sign (bytes: Uint8Array): Promise<Uint8Array>
 }
 
+/** The connection side of a carrier context (profile spec/adapter-vti-mediator.md §1): the
+ *  connection DID of one relationship at one carrier and that carrier's identifier `C`. Public
+ *  values only; this is what a wire factory receives. */
+export interface CarrierConnection {
+  readonly did: string
+  readonly carrier: string
+}
+
+/**
+ * One relationship at one carrier, opened once from its 32-byte carrier nonce `N` and `C`
+ * (Identity §7a.4, §13): the control principal with its signing operation, and the connection
+ * DID. Both sides come from the same (`N`, `C`) in one call, so an adapter, a delivery hint, a
+ * holder's proofs and a wire built from one context speak for one relationship. Every part is
+ * frozen. `N` itself is not in it.
+ *
+ * Trust boundary: for `seedKeys` the common origin holds by construction (`N` copied at entry,
+ * both derived from that copy). A provider a host writes itself (a keystore) MUST keep it: a
+ * context whose principal and connection come from two relationships is a non-conforming
+ * provider, and no consumer can detect it from the two DIDs.
+ */
+export interface CarrierContext {
+  readonly carrier: string
+  readonly principal: CarrierKey
+  readonly connection: CarrierConnection
+}
+
 /**
  * Key operations over the holder's secret. Reads no state; modules never
  * see a seed. The library's default is seedKeys(seed); an app may bind a
@@ -76,6 +102,11 @@ export interface KeyProvider {
   agree (rkid: string, epk: Uint8Array, allowed: KeyRelease): Promise<Agreement>
   /** Identity §7a.4: nonce is the relationship's 32-byte carrier nonce */
   carrierPrincipal (nonce: Uint8Array, carrier: string): Promise<CarrierKey>
+  /** DEVIATION D7: the carrier context of one relationship at one carrier (`CarrierContext`): `nonce` is the
+   *  relationship's 32-byte carrier nonce, `carrier` is `C` exactly as configured. Every call
+   *  returns new frozen objects. A host builds the transport adapter, its delivery hint and the
+   *  wire from it and never needs the root. Optional until the app's port is cast. */
+  carrierContext? (nonce: Uint8Array, carrier: string): Promise<CarrierContext>
   /** the holder's service identity for the group it founds, as a did:key
    *  (Access 3265). DEVIATION D3: derived from the root IKM and the group
    *  DID under a prefix of stage 1, since Identity §7's derivation needs
