@@ -8,12 +8,13 @@ certifying institution. Cryptography proves freshness and authorship;
 only a human can witness a human.
 
 Published by the [Real Life Organisation](https://real-life.org). RLTP is
-the third generation of this protocol. The second,
-[`wot-spec`](https://github.com/real-life-org/wot-spec), runs in production
-in the [Web of Trust app](https://web-of-trust.de/), whose ceremony flows
-have been exercised at festivals and community gatherings since 2026; it
-is repaired toward these contracts. Its users move to generation 3
-once their identities are migrated, planned as the last step.
+the third generation of this protocol and runs in the
+[Web of Trust app](https://github.com/real-life-org/web-of-trust/tree/main/apps/wot-v3),
+available in the [App Store](https://apps.apple.com/de/app/web-of-trust/id6829947239)
+and from our own [F-Droid repository](https://fdroid.utopia-lab.org/fdroid/repo/).
+The second generation,
+[`wot-spec`](https://github.com/real-life-org/wot-spec), was its field
+test at festivals and community gatherings.
 
 ## What is different about it
 
@@ -40,24 +41,16 @@ once their identities are migrated, planned as the last step.
 
 ## Try it in your browser
 
-Three views of the same protocol, no installation, everything running
-locally in your tab — real Ed25519/X25519/AES-GCM, no mocked crypto:
+Two simulators, no installation, everything running locally in your
+tab — real Ed25519/X25519/AES-GCM, no mocked crypto:
 
-- **[The app](https://trust-protocol.real-life.org/simulator/network.html)** — the
-  same app on three devices side by side: verify someone by QR (with the
-  automatic offline two-way-scan fallback), introduce two contacts
-  through a third person who is never needed again afterwards, give
-  trust as a separate deliberate act, found groups and join them with
-  candidacy and vouching. The wire panel shows every sealed envelope
-  and the stage at which it was accepted — and lets you inject faults.
+- **[The workbench](https://web-of-trust.de/simulator/)** — the real
+  Web of Trust app on several phones in one trust network: meet, verify,
+  give trust. The graph from above or through one person's eyes, a
+  clock, and every envelope on the wire.
 - **[The ceremony](https://trust-protocol.real-life.org/simulator/index.html)** —
   one encounter under the microscope: two devices, one delivery
-  channel, nine receive stages per envelope, clock skew and fault
-  injection, and every artifact each device stores.
-- **[The graph](https://trust-protocol.real-life.org/simulator/graph.html)** — the
-  same world seen from above: who can *prove* what about whom, told as
-  eight chapters, switchable between the omniscient view and what any
-  single person can actually see.
+  channel, every receive stage, clock skew.
 
 Everything a person sees in the app is a function of what their own
 device holds. No identifier is correlatable across relationships:
@@ -208,18 +201,19 @@ Copyright 2026 Anton Tranelis and trust-protocol contributors.
 
 ## Implementations
 
-- **Library:** [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
-  0.5.0, published with provenance from its tag: one person's device as
+- **Library:** [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol),
+  published with provenance from its tag: one person's device as
   a holder, with encounters, trust, continuity, introductions, groups,
   messages and the block.
 - **Simulators:** [`simulator/`](simulator/) and the workbench
   [`apps/gesamtsimulator/`](apps/gesamtsimulator/), both on the real
   library.
-- **Web of Trust app (generation 3):** in preparation; it will live under
-  `apps/`, next to the workbench.
-- **Generation 2 in production:**
-  [`@web_of_trust/core`](https://www.npmjs.com/package/@web_of_trust/core)
-  in [`real-life-org/web-of-trust`](https://github.com/real-life-org/web-of-trust).
+- **Web of Trust app:** a demonstration of the protocol on iOS and
+  Android, built on the library: in the
+  [App Store](https://apps.apple.com/de/app/web-of-trust/id6829947239) and
+  from our own [F-Droid repository](https://fdroid.utopia-lab.org/fdroid/repo/)
+  (not the official F-Droid catalogue); source in
+  [`real-life-org/web-of-trust`](https://github.com/real-life-org/web-of-trust/tree/main/apps/wot-v3).
 - **An independent implementation** is the goal, not yet a fact. The
   [vectors](vectors/) and the [conformance runner](conformance/) are the
   test it would have to pass.
