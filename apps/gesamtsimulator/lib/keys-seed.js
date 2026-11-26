@@ -112,7 +112,7 @@ export function seedKeys(seed, options) {
                 const principal = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
                 const connectionSeed = await hkdf(CONNECTION_INFO_PREFIX + parts);
                 const connection = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(await edKey(connectionSeed))));
-                const sign = async (bytes) => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, new Uint8Array(bytes)));
+                const sign = Object.freeze(async (bytes) => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, new Uint8Array(bytes))));
                 return { principal, sign, connection, connectionSeed: exportConnectionSeed ? connectionSeed : null };
             })();
             p.catch(() => carriers.delete(key));
@@ -211,6 +211,7 @@ export function seedKeys(seed, options) {
             // its own frozen object per call: a caller changing one never changes another's
             return Object.freeze({ principal: p.principal, sign: p.sign });
         },
+        // DEVIATION D7: the pair the profile has the adapter's factory derive, given by the provider
         async carrierContext(nonce, carrier) {
             const p = await carrierPair(nonce, carrier);
             const connection = Object.freeze({ did: p.connection, carrier });

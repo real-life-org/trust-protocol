@@ -37,8 +37,11 @@ export interface HolderContext {
  *  key leaves the provider. Frozen. */
 export function holderContextOf (context: CarrierContext, rkid: string, generation: number): HolderContext {
   const carrier = context.carrier
-  const { principal, sign } = context.principal
-  if (typeof principal !== 'string' || typeof sign !== 'function') throw new TypeError('holderContextOf: the context has no principal with a sign operation')
+  const key = context.principal
+  const principal = key?.principal
+  if (typeof principal !== 'string' || typeof key.sign !== 'function') throw new TypeError('holderContextOf: the context has no principal with a sign operation')
+  // called on the provider's own object: a sign that is a method keeps its receiver
+  const sign = (bytes: Uint8Array): Promise<Uint8Array> => key.sign(bytes)
   return Object.freeze({ carrier, identity: Object.freeze({ principal, sign }), rkid, generation })
 }
 
@@ -49,7 +52,7 @@ export function holderContextOf (context: CarrierContext, rkid: string, generati
  *  derive-and-wrap: one holder context per (relationship × carrier) */
 export async function holderContext (
   rootIkm: Uint8Array, carrier: string, nonce: Uint8Array, rkid: string, generation: number,
-): Promise<HolderContext> {
+): Promise<HolderContext & { identity: CarrierPrincipal }> {
   return { carrier, identity: await carrierPrincipal(rootIkm, carrier, nonce), rkid, generation }
 }
 

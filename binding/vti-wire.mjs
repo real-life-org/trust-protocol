@@ -61,9 +61,9 @@ function wireIdentityOfSeed(edSecret) {
 
 /** The wire identity of a carrier context's connection: the released seed, checked against the
  *  connection DID the context names. */
-function wireIdentity(connection) {
+function wireIdentityOf(connection, did) {
   const conn = wireIdentityOfSeed(connectionSeed(connection));
-  if (conn.did !== connection.did) throw new Error("createVtiWire: the released key is not the connection DID's");
+  if (conn.did !== did) throw new Error("createVtiWire: the released key is not the connection DID's");
   return conn;
 }
 
@@ -72,7 +72,7 @@ function wireIdentity(connection) {
  *  the context through seedKeys, as a host does. */
 export async function deriveWireIdentities(rootIkm, mediatorDid, nonce) {
   const context = await seedKeys(rootIkm, { exportConnectionSeed: true }).carrierContext(nonce, mediatorDid);
-  return { conn: wireIdentity(context.connection), context };
+  return { conn: wireIdentityOf(context.connection, context.connection.did), context };
 }
 
 /** Public TSP keys of a peer did:key, resolved offline. */
@@ -144,8 +144,11 @@ class RltpMediatorSession extends MediatorSession {
  */
 export async function createVtiWire(cfg) {
   if (cfg.rootIkm !== undefined) throw new Error("createVtiWire: takes the carrier context's connection, never the root");
-  const conn = wireIdentity(cfg.connection);
-  const mediatorDid = cfg.connection.carrier;
+  // the connection read once: the key, the DID and C come from the same reading
+  const given = cfg.connection;
+  const connection = Object.freeze({ did: given?.did, carrier: given?.carrier });
+  const conn = wireIdentityOf(given, connection.did);
+  const mediatorDid = connection.carrier;
 
   let session = null;
   let consumer = null;
@@ -334,7 +337,7 @@ export async function createVtiWire(cfg) {
   /** The last frames' sizes and modes, for the probes' measurements. */
   const sent = [];
 
-  return {
+  const wire = {
     connectionDid: conn.did,
 
     async authChallenge() {
@@ -460,4 +463,7 @@ export async function createVtiWire(cfg) {
       try { session?.close(); } catch { /* teardown */ }
     },
   };
+  // the DID the adapter checks is the one the session runs under, and stays so
+  Object.defineProperty(wire, "connectionDid", { value: conn.did, writable: false, configurable: false, enumerable: true });
+  return wire;
 }

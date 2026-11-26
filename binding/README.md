@@ -17,7 +17,11 @@ adapter (`lib/src/adapters/vti-mediator.ts`) takes any wire that keeps the
   (`connectionSeed`, released only by `seedKeys(seed, { exportConnectionSeed: true })`);
   a provider that keeps its keys fails the wire here. The adapter opens
   from the same context (`MediatorCarrierAdapter.open(context, wire)`) and
-  refuses a wire of another connection DID. The wire authenticates under
+  refuses a wire of another connection DID (`connectionDid` is read-only).
+  The opt-in holds for the whole provider: whoever holds it can open an
+  exporting context for any (N, C) it knows, so a host passes the wire the
+  `connection` only. The release works within one copy of the library; a
+  second copy loaded beside it refuses the first one's connections. The wire authenticates under
   the connection DID (ATM) and holds one session per
   relationship and side. `peerDid` is the counterpart's connection DID,
   the `id` without `#tsp` of its delivery hint (RLTP-VTI-1240); the wire

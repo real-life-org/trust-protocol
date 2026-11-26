@@ -155,7 +155,7 @@ export function deliveryHintOf(connection) {
 }
 /** @deprecated Use `deliveryHintOf(context.connection)` with a context from
  *  `KeyProvider.carrierContext(N, C)`; this form needs the root and goes away in a later
- *  version (issue #220).
+ *  version (issue #219).
  *
  *  This side's hint for carrier `C` in the relationship of carrier nonce
  *  `N` (RLTP-VTI-1210, 1215): the connection DID derived here from (root,
@@ -829,7 +829,7 @@ export class MediatorCarrierAdapter {
     }
     /** @deprecated Use `MediatorCarrierAdapter.open(context, wire, …)` with a context from
      *  `KeyProvider.carrierContext(N, C)`; this form needs the root and goes away in a later
-     *  version (issue #220).
+     *  version (issue #219).
      *
      *  The pair is DERIVED here from
      *  one root, one carrier, one nonce — so principal and connection DID
@@ -844,10 +844,6 @@ export class MediatorCarrierAdapter {
         const n = new Uint8Array(nonce);
         const principal = await carrierPrincipal(ikm, carrier, n);
         const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection');
-        // a wire that names its connection DID names this one
-        if (wire?.connectionDid !== undefined && wire.connectionDid !== connection.did) {
-            throw new Error('MediatorCarrierAdapter.create: the wire does not speak for this connection DID (profile §1, RLTP-VTI-1120)');
-        }
         return new MediatorCarrierAdapter(KEY, principal.principal, connection.did, wire, restored, restoredAt);
     }
     constructor(key, principal, connectionDid, wire, restored, restoredAt) {

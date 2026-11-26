@@ -836,7 +836,7 @@ test("the wire opens from the context's connection alone: never from the root; a
   const other = await deriveWireIdentities(A.root, MEDIATOR_DID, rand(32));
   const wrong = await createVtiWire({ connection: other.context.connection, peerDid: B.ids.conn.did, transport });
   await assert.rejects(MediatorCarrierAdapter.open(A.ids.context, wrong), /RLTP-VTI-1120/);
-  await assert.rejects(MediatorCarrierAdapter.create(A.root, MEDIATOR_DID, A.nonce, wrong), /RLTP-VTI-1120/);
+  assert.throws(() => { "use strict"; wrong.connectionDid = A.ids.conn.did; }, TypeError, "the wire's connection DID cannot be rewritten");
   const right = await createVtiWire({ connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport });
   const a = await MediatorCarrierAdapter.open(A.ids.context, right);
   assert.equal(a.connectionDid, A.ids.conn.did);

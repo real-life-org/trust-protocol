@@ -128,7 +128,7 @@ export function seedKeys (seed: Uint8Array, options?: Pick<Crypto, 'subtle'> | S
         const principal = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)))
         const connectionSeed = await hkdf(CONNECTION_INFO_PREFIX + parts)
         const connection = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(await edKey(connectionSeed))))
-        const sign = async (bytes: Uint8Array): Promise<Uint8Array> => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, new Uint8Array(bytes)))
+        const sign = Object.freeze(async (bytes: Uint8Array): Promise<Uint8Array> => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, new Uint8Array(bytes))))
         return { principal, sign, connection, connectionSeed: exportConnectionSeed ? connectionSeed : null }
       })()
       p.catch(() => carriers.delete(key))

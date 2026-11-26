@@ -9,6 +9,12 @@
 // object of each carrier context it opens, and only that object releases it, through the narrow
 // entry point `./adapters/vti-mediator/software-keys`. A provider that keeps its keys (a
 // keystore) binds nothing, and the wire fails at its opening with a clear error.
+//
+// Two limits, stated: the opt-in is the provider's, so whoever holds a provider built with it can
+// open an exporting context for every (N, C) it knows; the scope to one relationship holds where
+// only the `connection` object is passed on (to the wire). And the binding lives in this module
+// instance: a second copy of the library loaded beside the first has its own map and refuses a
+// connection of the first.
 
 const seeds = new WeakMap<object, Uint8Array>()
 

@@ -23,8 +23,7 @@ issue #219).
   got the same cached object).
 - Deprecated, removed in a later version (issue #219): `MediatorCarrierAdapter.create`,
   `deliveryHint`, `holderContext`, and `carrierPrincipal` / `carrierScopedIdentity` on the main
-  entry point (they stay in `./internal`). `create` now also refuses a wire that names another
-  connection DID.
+  entry point (they stay in `./internal`). Their behaviour is unchanged.
 - The reference wire binding (`binding/vti-wire.mjs`) opens from the context's connection and
   refuses a root.
 

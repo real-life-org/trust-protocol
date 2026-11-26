@@ -1008,10 +1008,6 @@ export class MediatorCarrierAdapter {
     const n = new Uint8Array(nonce)
     const principal = await carrierPrincipal(ikm, carrier, n)
     const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection')
-    // a wire that names its connection DID names this one
-    if (wire?.connectionDid !== undefined && wire.connectionDid !== connection.did) {
-      throw new Error('MediatorCarrierAdapter.create: the wire does not speak for this connection DID (profile §1, RLTP-VTI-1120)')
-    }
     return new MediatorCarrierAdapter(KEY, principal.principal, connection.did, wire, restored, restoredAt)
   }
 

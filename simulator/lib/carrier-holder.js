@@ -24,14 +24,17 @@ const te = new TextEncoder();
  *  key leaves the provider. Frozen. */
 export function holderContextOf(context, rkid, generation) {
     const carrier = context.carrier;
-    const { principal, sign } = context.principal;
-    if (typeof principal !== 'string' || typeof sign !== 'function')
+    const key = context.principal;
+    const principal = key?.principal;
+    if (typeof principal !== 'string' || typeof key.sign !== 'function')
         throw new TypeError('holderContextOf: the context has no principal with a sign operation');
+    // called on the provider's own object: a sign that is a method keeps its receiver
+    const sign = (bytes) => key.sign(bytes);
     return Object.freeze({ carrier, identity: Object.freeze({ principal, sign }), rkid, generation });
 }
 /** @deprecated Use `holderContextOf(context, rkid, generation)` with a context from
  *  `KeyProvider.carrierContext(N, C)`: this form needs the root and holds the principal's private
- *  key; it goes away in a later version (issue #220).
+ *  key; it goes away in a later version (issue #219).
  *
  *  derive-and-wrap: one holder context per (relationship × carrier) */
 export async function holderContext(rootIkm, carrier, nonce, rkid, generation) {
