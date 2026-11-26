@@ -91,7 +91,8 @@ const isRefusal = (x: unknown): x is Refusal => !!x && typeof x === 'object' && 
 type Snap = InviterSnapshot | ResponderSnapshot
 
 /** the nonce the messaging identity derives from: the inviter's handle, the responder's own challenge */
-const nonceOf = (e: SharedConnectEnactment): Uint8Array => fromB64u(e.role === 'inviter' ? e.id : (e.flow as unknown as ResponderSnapshot).challenge)
+const nonceB64Of = (e: Pick<SharedConnectEnactment, 'role' | 'id' | 'flow'>): string => e.role === 'inviter' ? e.id : (e.flow as unknown as ResponderSnapshot).challenge
+const nonceOf = (e: SharedConnectEnactment): Uint8Array => fromB64u(nonceB64Of(e))
 
 async function partyOf (ctx: PrepareCtx, e: Pick<SharedConnectEnactment, 'role' | 'id' | 'label' | 'did' | 'name' | 'flow'>): Promise<Party | null> {
   if (!ctx.keys.sharedConnectMessaging) return null
@@ -443,6 +444,16 @@ export interface SharedConnectView {
   status: SharedConnectEnactment['status']
   link: SharedConnectEnactment['link']
   did: string
+  /** the nonce this side's messaging identity (`did`) derives from, base64url (16 bytes once decoded): the
+   *  inviter's handle (`id`), the responder's own challenge (not `id`, which is the inviter's handle). Decoded
+   *  to bytes, the argument a wire gives `KeyProvider.sharedConnectMessaging` for this enactment. Not `carrierNonce`. */
+  nonce: string
+  /** the acceptance happened: the inviter's person accepted the proposal / the inviter's acceptance arrived at
+   *  the responder. Each side stores its own credential's issue in the same step, so `accepted` and this
+   *  side's `myCredential` change together; the counterpart's credential may come later */
+  accepted: boolean
+  /** the responder showed its proposal back as a code (`sharedconnect.back`); false for the inviter */
+  backShown: boolean
   /** the counterpart's messaging identity once known (the propose issuer / the link's from) */
   theirDid: string | null
   theirPair: string | null
@@ -483,6 +494,9 @@ export function sharedConnectView (state: Readonly<HolderState>): SharedConnectV
     const pending = e.role === 'inviter' && f.propose && !f.accept && !f.decline && e.status === 'open'
     return {
       id: e.id, role: e.role, status: e.status, link: e.link, did: e.did,
+      nonce: nonceB64Of(e),
+      accepted: f.accept !== null && f.accept !== undefined,
+      backShown: e.role === 'responder' && (f as ResponderSnapshot).backShown === true,
       theirDid: e.role === 'inviter' ? (f as InviterSnapshot).propose?.issuer ?? null : e.link.from,
       theirPair: e.theirPair, name: e.role === 'inviter' ? ((f as InviterSnapshot).propose?.payload?.reason ?? null) : e.link.label,
       channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
