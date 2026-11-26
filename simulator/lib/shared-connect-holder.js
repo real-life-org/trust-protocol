@@ -36,7 +36,8 @@ const linkOrigin = (v) => {
 };
 const isRefusal = (x) => !!x && typeof x === 'object' && x.ok === false;
 /** the nonce the messaging identity derives from: the inviter's handle, the responder's own challenge */
-const nonceOf = (e) => fromB64u(e.role === 'inviter' ? e.id : e.flow.challenge);
+const nonceB64Of = (e) => e.role === 'inviter' ? e.id : e.flow.challenge;
+const nonceOf = (e) => fromB64u(nonceB64Of(e));
 async function partyOf(ctx, e) {
     if (!ctx.keys.sharedConnectMessaging)
         return null;
@@ -444,6 +445,9 @@ export function sharedConnectView(state) {
         const pending = e.role === 'inviter' && f.propose && !f.accept && !f.decline && e.status === 'open';
         return {
             id: e.id, role: e.role, status: e.status, link: e.link, did: e.did,
+            nonce: nonceB64Of(e),
+            accepted: f.accept !== null && f.accept !== undefined,
+            backShown: e.role === 'responder' && f.backShown === true,
             theirDid: e.role === 'inviter' ? f.propose?.issuer ?? null : e.link.from,
             theirPair: e.theirPair, name: e.role === 'inviter' ? (f.propose?.payload?.reason ?? null) : e.link.label,
             channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,

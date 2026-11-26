@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.23.0
+
+`SharedConnectView` states three facts a host read from the holder's state or derived from other
+members (trust-protocol#216):
+
+- `nonce`: the nonce this side's messaging identity derives from, the argument a wire gives
+  `KeyProvider.sharedConnectMessaging`. The inviter's handle (`id`) for the inviter; the
+  responder's own challenge for the responder, which is not `id` (the inviter's handle) and not
+  `carrierNonce`.
+- `accepted`: the inviter's person accepted, or the inviter's acceptance arrived at the responder.
+- `backShown`: the responder showed its proposal back as a code.
+
+Nothing in the stored state changes. `test/exports.json` holds the exports of every entry point;
+a change to them fails `test/exports.test.mjs` until the inventory moves with it.
+
 ## 0.22.0
 
 shared-connect without a carrier: two codes leave both sides with a contact. A link shown in person
