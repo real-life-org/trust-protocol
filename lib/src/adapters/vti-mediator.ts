@@ -110,9 +110,8 @@
 import { jcs, iso, makeValidator } from '../core.js'
 import type { Json } from '../core.js'
 import { anchorOfEd, edRawOfAnchor, sha, cat, base58, fromBase58, b64uOf, fromB64u, platformSubtle } from '../crypto.js'
-import { carrierPrincipal, carrierScopedIdentity } from '../carrier-identity.js'
-import type { CarrierPrincipal, CarrierScopedIdentity } from '../carrier-identity.js'
-import type { DeliveryReport, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
+import { carrierPrincipal, carrierScopedIdentity, validCarrierIdentifier } from '../carrier-identity.js'
+import type { CarrierConnection, CarrierContext, DeliveryReport, ReceiverRefusalCode, SubmissionRef } from '../ports.js'
 import type { AnswerableEntry, TransportEntry, TransportView } from '../engine.js'
 import type { ReceiveResult } from '../results.js'
 import type { Envelope } from '../delivery.js'
@@ -159,7 +158,22 @@ const edDidKey = (x: unknown): x is string => {
   return raw !== null && anchorOfEd(raw) === x
 }
 
-/** This side's hint for carrier `C` in the relationship of carrier nonce
+/** This side's hint for its carrier context's connection (RLTP-VTI-1210, 1215): the JCS form of
+ *  the TSPTransport service entry naming the connection DID (`id`, with `#tsp`) and `C`
+ *  (`serviceEndpoint`), both taken from `connection` (a CarrierContext's `connection`), the same
+ *  object the adapter of this relationship opens with (`MediatorCarrierAdapter.open`), so the
+ *  hint and the wire's sender come from one context. DEVIATION D7: the identity is the key
+ *  provider's, not derived here from the root. */
+export function deliveryHintOf (connection: CarrierConnection): string {
+  const { did, carrier } = connectionOf(connection)
+  return jcs({ id: did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier })
+}
+
+/** @deprecated Use `deliveryHintOf(context.connection)` with a context from
+ *  `KeyProvider.carrierContext(N, C)`; this form needs the root and goes away in a later
+ *  version (issue #219).
+ *
+ *  This side's hint for carrier `C` in the relationship of carrier nonce
  *  `N` (RLTP-VTI-1210, 1215): the connection DID derived here from (root,
  *  `C`, `N`), exactly as the factory derives the instance's — derived, not
  *  supplied, so the two cannot come from different relationships — as the
@@ -171,6 +185,17 @@ export async function deliveryHint (rootIkm: Uint8Array, carrier: string, nonce:
   const n = new Uint8Array(nonce)
   const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection')
   return jcs({ id: connection.did + '#tsp', type: 'TSPTransport', serviceEndpoint: carrier })
+}
+
+/** The connection side of a context, read once: a canonical Ed25519 did:key and a valid `C`. */
+function connectionOf (connection: unknown): { did: string, carrier: string } {
+  if (connection === null || typeof connection !== 'object') throw new TypeError('not a carrier connection')
+  const c = connection as { did?: unknown, carrier?: unknown }
+  const did = c.did
+  const carrier = c.carrier
+  if (!edDidKey(did)) throw new TypeError('carrier connection: the connection DID is not a canonical Ed25519 did:key (RLTP-VTI-1210)')
+  if (!validCarrierIdentifier(carrier)) throw new TypeError('carrier connection: invalid carrier identifier (7a.2)')
+  return { did, carrier }
 }
 
 /** One hint read strictly (RLTP-VTI-1210, 1220) for carrier `C`: JSON,
@@ -625,6 +650,10 @@ export class WireError extends Error {
 }
 
 export interface MediatorWire {
+  /** The connection DID the wire authenticates and sends under. `MediatorCarrierAdapter.open`
+   *  requires it and refuses a wire whose connection DID is not its context's (profile §1,
+   *  RLTP-VTI-1120): an adapter never runs over a wire that speaks for another relationship. */
+  readonly connectionDid?: string
   authChallenge (did: string): Promise<{ challenge: string, sessionId: string }>
   authenticate (answer: { did: string, challenge: string, sessionId: string }): Promise<TokenSet>
   // A transient failure MUST be a WireError 'unreachable' or
@@ -866,8 +895,8 @@ function sealOfBytes (bytes: Uint8Array): Envelope {
 const hex = (b: Uint8Array): string =>
   Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
 
-// construction capability: only create() holds it
-const KEY = Symbol('MediatorCarrierAdapter.create')
+// construction capability: only open() and create() hold it
+const KEY = Symbol('MediatorCarrierAdapter.open')
 
 // ── The adapter ──────────────────────────────────────────────────────
 export class MediatorCarrierAdapter {
@@ -931,7 +960,39 @@ export class MediatorCarrierAdapter {
   /** this instance has concluded a collection that left nothing pending */
   #cleanConcluded = false
 
-  /** The only way to build an adapter: the pair is DERIVED here from
+  /** Open the adapter of one relationship at one carrier from its carrier context
+   *  (`KeyProvider.carrierContext(N, C)`): the principal and the connection DID are taken from
+   *  that one context, read once at entry; `wire` must name the same connection DID
+   *  (`MediatorWire.connectionDid`) before anything authenticates. The host never holds the
+   *  root. DEVIATION D7: the pair is the key provider's, derived there from one (`N`, `C`), not
+   *  derived by this factory from the root (profile §1, §8); the coupling is the provider's
+   *  (`CarrierContext`, trust boundary). */
+  static async open (
+    context: CarrierContext, wire: MediatorWire, restored?: AckState, restoredAt?: number,
+  ): Promise<MediatorCarrierAdapter> {
+    if (context === null || typeof context !== 'object') throw new TypeError('MediatorCarrierAdapter.open: not a carrier context')
+    // every value read once, here: a context changed after this line changes nothing
+    const carrier = context.carrier
+    const principalKey = context.principal
+    const principal = principalKey !== null && typeof principalKey === 'object' ? principalKey.principal : undefined
+    const connection = connectionOf(context.connection)
+    if (!validCarrierIdentifier(carrier) || connection.carrier !== carrier) {
+      throw new TypeError('MediatorCarrierAdapter.open: the context names two carriers, or none (7a.2)')
+    }
+    if (!edDidKey(principal)) throw new TypeError('MediatorCarrierAdapter.open: the principal is not a canonical Ed25519 did:key (Identity 7a.4)')
+    if (wire === null || typeof wire !== 'object') throw new TypeError('MediatorCarrierAdapter.open: no wire')
+    const wireDid = wire.connectionDid
+    if (wireDid !== connection.did) {
+      throw new Error('MediatorCarrierAdapter.open: the wire does not speak for this context\'s connection DID (profile §1, RLTP-VTI-1120)')
+    }
+    return new MediatorCarrierAdapter(KEY, principal, connection.did, wire, restored, restoredAt)
+  }
+
+  /** @deprecated Use `MediatorCarrierAdapter.open(context, wire, …)` with a context from
+   *  `KeyProvider.carrierContext(N, C)`; this form needs the root and goes away in a later
+   *  version (issue #219).
+   *
+   *  The pair is DERIVED here from
    *  one root, one carrier, one nonce — so principal and connection DID
    *  cannot come from different relationships (R7-B2: the coupling is
    *  enforced by construction, not by inspecting caller-supplied
@@ -947,28 +1008,25 @@ export class MediatorCarrierAdapter {
     const n = new Uint8Array(nonce)
     const principal = await carrierPrincipal(ikm, carrier, n)
     const connection = await carrierScopedIdentity(ikm, carrier, n, 'connection')
-    return new MediatorCarrierAdapter(KEY, principal, connection, wire, restored, restoredAt)
+    return new MediatorCarrierAdapter(KEY, principal.principal, connection.did, wire, restored, restoredAt)
   }
 
   constructor (
     key: symbol,
-    principal: CarrierPrincipal,
-    connection: CarrierScopedIdentity,
+    principal: string,
+    connectionDid: string,
     wire: MediatorWire,
     restored?: AckState,
     restoredAt?: number,
   ) {
     if (key !== KEY) {
-      throw new Error('use MediatorCarrierAdapter.create — the identities must be derived, not supplied (5a.10)')
+      throw new Error('use MediatorCarrierAdapter.open — the identities come from a carrier context, never supplied one by one (5a.10)')
     }
-    if (connection.scope !== 'connection') {
-      throw new Error('the scoped identity passed in the wrong role')
-    }
-    if (principal.principal === connection.did) {
+    if (principal === connectionDid) {
       throw new Error('principal and connection DID must be distinct (5a.10)')
     }
-    this.#principal = principal.principal
-    this.#connectionDid = connection.did
+    this.#principal = principal
+    this.#connectionDid = connectionDid
     this.#wire = wire
     if (restored) {
       // The restore instant anchors the duplicate-window: an expired,

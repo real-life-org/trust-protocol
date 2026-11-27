@@ -21,7 +21,7 @@ import {
 } from "../lib/dist/crypto.js";
 import { jcs } from "../lib/dist/core.js";
 import { createVtiWire } from "./vti-wire.mjs";
-import { carrierScopedIdentity } from "../lib/dist/carrier-identity.js";
+import { seedKeys } from "../lib/dist/keys-seed.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   console.log("live-delivery-probe: skipped (set RLTP_LIVE_MEDIATOR=1)");
@@ -30,6 +30,8 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
 
 // the binding speaks TSP 1.0: the instance must be a mediator >= 0.45
 const MEDIATOR_DID = process.env.MEDIATOR_DID;
+/** the carrier context of one relationship at the mediator, as a host opens it (the wire over OpenVTC needs its key released) */
+const ctxOf = (root, nonce) => seedKeys(root, { exportConnectionSeed: true }).carrierContext(nonce, MEDIATOR_DID);
 if (!MEDIATOR_DID) {
   console.error("live-delivery-probe: set MEDIATOR_DID to a TSP 1.0 mediator (>= 0.45)");
   process.exit(2);
@@ -72,11 +74,11 @@ async function party() {
 
 const A = await party(); const B = await party();
 
-const connectionOf = async (P) => (await carrierScopedIdentity(P.root, MEDIATOR_DID, P.nonce, "connection")).did;
-const wireA = await createVtiWire({ rootIkm: A.root, mediatorDid: MEDIATOR_DID, nonce: A.nonce, peerDid: await connectionOf(B), log: (l) => say(`  · ${l}`) });
-const wireB = await createVtiWire({ rootIkm: B.root, mediatorDid: MEDIATOR_DID, nonce: B.nonce, peerDid: wireA.connectionDid, log: (l) => say(`  · ${l}`) });
-const alice = await MediatorCarrierAdapter.create(A.root, MEDIATOR_DID, A.nonce, wireA);
-const bob = await MediatorCarrierAdapter.create(B.root, MEDIATOR_DID, B.nonce, wireB);
+const connectionOf = async (P) => (await ctxOf(P.root, P.nonce)).connection.did;
+const wireA = await createVtiWire({ connection: (await ctxOf(A.root, A.nonce)).connection, peerDid: await connectionOf(B), log: (l) => say(`  · ${l}`) });
+const wireB = await createVtiWire({ connection: (await ctxOf(B.root, B.nonce)).connection, peerDid: wireA.connectionDid, log: (l) => say(`  · ${l}`) });
+const alice = await MediatorCarrierAdapter.open(await ctxOf(A.root, A.nonce), wireA);
+const bob = await MediatorCarrierAdapter.open(await ctxOf(B.root, B.nonce), wireB);
 alice.register([A.rkid], now()); bob.register([B.rkid], now());
 await alice.settle(); await bob.settle();
 say(`  ✓ both parties admitted; rkids: A ${A.rkid.slice(0, 12)}… B ${B.rkid.slice(0, 12)}…`);

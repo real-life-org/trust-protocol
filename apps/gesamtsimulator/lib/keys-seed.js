@@ -11,6 +11,8 @@
 //                       device key is the anchor of its device label
 //                       device/<n>/<c> (§5.5, identity.ts deviceLabel)
 //   carrier principal   CARRIER_INFO_PREFIX + Dc + Dn (Identity §7a.4)
+//   connection DID      CONNECTION_INFO_PREFIX + Dc + Dn (Identity §13,
+//                       profile spec/adapter-vti-mediator.md §1)
 //
 // The provider reads no state. agree() asks the engine's release
 // (`allowed(rkid)`, from `addresses`) on EVERY call, cached key or not,
@@ -23,7 +25,8 @@
 import { base58, b64uOf, fromB64u } from './core.js';
 import { cat, edFromSeed, xFromSeed, hkdf as hkdfOf } from './crypto.js';
 import { canonicalLabel } from './identity.js';
-import { CARRIER_INFO_PREFIX, validCarrierIdentifier } from './carrier-identity.js';
+import { CARRIER_INFO_PREFIX, CONNECTION_INFO_PREFIX, validCarrierIdentifier } from './carrier-identity.js';
+import { bindConnectionSeed } from './connection-seed.js';
 import { CryptoUnavailableError } from './results.js';
 /** DEVIATION D3: the HKDF info prefix of the stage-1 service identity (never the frozen prefix of Identity §7, Access 11080); the group DID follows. */
 export const SERVICE_IDENTITY_STAGE1_PREFIX = 'rltp/v1/x-service-identity-stage1/';
@@ -52,10 +55,14 @@ const te = new TextEncoder();
 /** PKCS#8 prefixes of a raw 32-byte Ed25519 / X25519 private key */
 export const ED_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20]);
 export const X_PKCS8 = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22, 0x04, 0x20]);
-/** The default KeyProvider over a root seed (the identity's root IKM). */
-export function seedKeys(seed, crypto) {
+/** The default KeyProvider over a root seed (the identity's root IKM). The second argument is
+ *  the WebCrypto handle or the options. */
+export function seedKeys(seed, options) {
     if (!(seed instanceof Uint8Array) || seed.length < 32)
         throw new TypeError('seedKeys: the root seed must be at least 32 bytes');
+    const opts = options && 'subtle' in options ? { crypto: options } : options ?? {};
+    const crypto = opts.crypto;
+    const exportConnectionSeed = opts.exportConnectionSeed === true;
     const S = (crypto ?? globalThis.crypto)?.subtle;
     if (!S)
         throw new CryptoUnavailableError(['subtle']);
@@ -87,7 +94,32 @@ export function seedKeys(seed, crypto) {
         }
         return p;
     };
+    // Identity §7a.4 and §13: the principal and the connection DID of one (N, C), derived together
+    // from ONE copy of N taken at entry, so the two cannot come from different relationships
     const carriers = new Map();
+    const carrierPair = (nonce, carrier) => {
+        if (!validCarrierIdentifier(carrier))
+            return Promise.reject(new Error('invalid carrier identifier (7a.2)'));
+        if (!(nonce instanceof Uint8Array) || nonce.length !== 32)
+            return Promise.reject(new Error('carrier nonce must be 32 bytes (7a.3)'));
+        const n = new Uint8Array(nonce);
+        const key = carrier + '\u0000' + b64uOf(n);
+        let p = carriers.get(key);
+        if (!p) {
+            p = (async () => {
+                const parts = await mh(te.encode(carrier)) + await mh(n);
+                const priv = await edKey(await hkdf(CARRIER_INFO_PREFIX + parts));
+                const principal = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
+                const connectionSeed = await hkdf(CONNECTION_INFO_PREFIX + parts);
+                const connection = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(await edKey(connectionSeed))));
+                const sign = Object.freeze(async (bytes) => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, new Uint8Array(bytes))));
+                return { principal, sign, connection, connectionSeed: exportConnectionSeed ? connectionSeed : null };
+            })();
+            p.catch(() => carriers.delete(key));
+            carriers.set(key, p);
+        }
+        return p;
+    };
     // the derivation is cached; every caller gets its own frozen object, so changing one never changes another's
     const logins = new Map();
     return {
@@ -174,25 +206,18 @@ export function seedKeys(seed, crypto) {
             const { did, sign } = await p;
             return Object.freeze({ did, sign });
         },
-        carrierPrincipal(nonce, carrier) {
-            if (!validCarrierIdentifier(carrier))
-                return Promise.reject(new Error('invalid carrier identifier (7a.2)'));
-            if (!(nonce instanceof Uint8Array) || nonce.length !== 32)
-                return Promise.reject(new Error('carrier nonce must be 32 bytes (7a.3)'));
-            const n = new Uint8Array(nonce);
-            const key = carrier + '\u0000' + b64uOf(n);
-            let p = carriers.get(key);
-            if (!p) {
-                p = (async () => {
-                    const info = CARRIER_INFO_PREFIX + await mh(te.encode(carrier)) + await mh(n);
-                    const priv = await edKey(await hkdf(info));
-                    const principal = 'did:key:z' + base58(cat(Uint8Array.from([0xed, 0x01]), await pubOf(priv)));
-                    return { principal, sign: async (bytes) => new Uint8Array(await S.sign({ name: 'Ed25519' }, priv, bytes)) };
-                })();
-                p.catch(() => carriers.delete(key));
-                carriers.set(key, p);
-            }
-            return p;
+        async carrierPrincipal(nonce, carrier) {
+            const p = await carrierPair(nonce, carrier);
+            // its own frozen object per call: a caller changing one never changes another's
+            return Object.freeze({ principal: p.principal, sign: p.sign });
+        },
+        // DEVIATION D7: the pair the profile has the adapter's factory derive, given by the provider
+        async carrierContext(nonce, carrier) {
+            const p = await carrierPair(nonce, carrier);
+            const connection = Object.freeze({ did: p.connection, carrier });
+            if (p.connectionSeed !== null)
+                bindConnectionSeed(connection, p.connectionSeed);
+            return Object.freeze({ carrier, principal: Object.freeze({ principal: p.principal, sign: p.sign }), connection });
         },
     };
 }

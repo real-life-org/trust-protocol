@@ -29,12 +29,15 @@
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { jcs } from "../lib/dist/core.js";
 import { createVtiWire } from "./vti-wire.mjs";
+import { seedKeys } from "../lib/dist/keys-seed.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
   console.log("live-interop-probe: skipped (set RLTP_LIVE_MEDIATOR=1)");
   process.exit(0);
 }
 const MEDIATOR_DID = process.env.MEDIATOR_DID;
+/** the carrier context of one relationship at the mediator, as a host opens it (the wire over OpenVTC needs its key released) */
+const ctxOf = (root, nonce) => seedKeys(root, { exportConnectionSeed: true }).carrierContext(nonce, MEDIATOR_DID);
 const FOREIGN_DID = process.env.FOREIGN_DID;
 const EXPECT = process.env.EXPECT ?? "unsupportedType";
 if (!MEDIATOR_DID || !FOREIGN_DID || !["unsupportedType", "next-step", "indeterminate"].includes(EXPECT)) {
@@ -74,8 +77,8 @@ const tap = (w) => {
   });
   return w;
 };
-const wire = tap(await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } }));
-const a = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, wire);
+const wire = tap(await createVtiWire({ connection: (await ctxOf(root, nonce)).connection, peerDid: FOREIGN_DID, log: (l) => { logged.push(l); say(`  · ${l}`) } }));
+const a = await MediatorCarrierAdapter.open(await ctxOf(root, nonce), wire);
 a.register([], Date.now());
 await a.settle();
 say(`  ✓ admitted under the connection DID ${a.connectionDid}`);
@@ -97,8 +100,8 @@ say(`  ✓ carried document deposited and accepted (mode ${frame.mode}: payload 
 const log = (l) => { logged.push(l); say(`  · ${l}`) };
 /** a new opening over the same relationship, the document offered for binding (RLTP-VTI-5065) */
 async function opening (registerFirst) {
-  const w = tap(await createVtiWire({ rootIkm: root, mediatorDid: MEDIATOR_DID, nonce, peerDid: FOREIGN_DID, log }));
-  const x = await MediatorCarrierAdapter.create(root, MEDIATOR_DID, nonce, w);
+  const w = tap(await createVtiWire({ connection: (await ctxOf(root, nonce)).connection, peerDid: FOREIGN_DID, log }));
+  const x = await MediatorCarrierAdapter.open(await ctxOf(root, nonce), w);
   if (registerFirst) {
     x.register([], Date.now()); await x.settle();
     await new Promise((r) => setTimeout(r, 3000));

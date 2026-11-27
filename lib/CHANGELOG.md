@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.24.0
+
+The carrier context: a host builds the VTI mediator adapter, its delivery hint, the holder's
+carrier proofs and the wire of one relationship at one carrier without the root (DEVIATION D7,
+issue #219).
+
+- `KeyProvider.carrierContext(N, C)` (optional on the port): the principal with its `sign` and the
+  connection DID (`connection: {did, carrier}`) from one call, every part frozen, `N` not in it.
+  `seedKeys` copies `N` once and derives both from that copy. A provider a host writes itself must
+  keep the two from one relationship.
+- `MediatorCarrierAdapter.open(context, wire, restored?, restoredAt?)`: takes both DIDs from the
+  context and refuses a wire whose `connectionDid` (new, optional on `MediatorWire`) is not the
+  context's. `deliveryHintOf(connection)` builds the hint from the same context.
+  `holderContextOf(context, rkid, generation)` signs the carrier proofs through `sign`; the proofs
+  are byte-identical.
+- `./adapters/vti-mediator/software-keys` (new entry point): `connectionSeed(connection)` releases
+  the 32-byte seed of one context's connection DID, for a wire over OpenVTC's packages, and only
+  for a context of `seedKeys(seed, { exportConnectionSeed: true })`. `seedKeys` takes the WebCrypto
+  handle or an options object as its second argument.
+- `seedKeys(...).carrierPrincipal` returns a new frozen object on every call (before, every caller
+  got the same cached object).
+- Deprecated, removed in a later version (issue #219): `MediatorCarrierAdapter.create`,
+  `deliveryHint`, `holderContext`, and `carrierPrincipal` / `carrierScopedIdentity` on the main
+  entry point (they stay in `./internal`). Their behaviour is unchanged.
+- The reference wire binding (`binding/vti-wire.mjs`) opens from the context's connection and
+  refuses a root.
+
 ## 0.23.0
 
 `SharedConnectView` states three facts a host read from the holder's state or derived from other

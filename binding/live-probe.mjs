@@ -17,7 +17,7 @@
 
 import { MediatorCarrierAdapter } from "../lib/dist/adapters/vti-mediator.js";
 import { createVtiWire } from "./vti-wire.mjs";
-import { carrierScopedIdentity } from "../lib/dist/carrier-identity.js";
+import { seedKeys } from "../lib/dist/keys-seed.js";
 import { jcs } from "../lib/dist/core.js";
 
 if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
@@ -27,6 +27,8 @@ if (process.env.RLTP_LIVE_MEDIATOR !== "1") {
 
 // the binding speaks TSP 1.0: the instance must be a mediator >= 0.45
 const MEDIATOR_DID = process.env.MEDIATOR_DID;
+/** the carrier context of one relationship at the mediator, as a host opens it (the wire over OpenVTC needs its key released) */
+const ctxOf = (root, nonce) => seedKeys(root, { exportConnectionSeed: true }).carrierContext(nonce, MEDIATOR_DID);
 if (!MEDIATOR_DID) {
   console.error("live-probe: set MEDIATOR_DID to a TSP 1.0 mediator (>= 0.45)");
   process.exit(2);
@@ -52,13 +54,13 @@ say(`  deposit form: ${process.env.RLTP_WIRE_DEPOSIT ?? "routed"} (vti-wire.mjs;
 // derives the identical connection DID the adapter's factory derives.
 const aliceRoot = rand(32); const aliceNonce = rand(32);
 const bobRoot = rand(32); const bobNonce = rand(32);
-const connectionOf = async (root, nonce) => (await carrierScopedIdentity(root, MEDIATOR_DID, nonce, "connection")).did;
+const connectionOf = async (root, nonce) => (await ctxOf(root, nonce)).connection.did;
 const log = (l) => say(`  · ${l}`);
-const wireA = await createVtiWire({ rootIkm: aliceRoot, mediatorDid: MEDIATOR_DID, nonce: aliceNonce, peerDid: await connectionOf(bobRoot, bobNonce), log });
-const wireB = await createVtiWire({ rootIkm: bobRoot, mediatorDid: MEDIATOR_DID, nonce: bobNonce, peerDid: wireA.connectionDid, log });
+const wireA = await createVtiWire({ connection: (await ctxOf(aliceRoot, aliceNonce)).connection, peerDid: await connectionOf(bobRoot, bobNonce), log });
+const wireB = await createVtiWire({ connection: (await ctxOf(bobRoot, bobNonce)).connection, peerDid: wireA.connectionDid, log });
 
-const alice = await MediatorCarrierAdapter.create(aliceRoot, MEDIATOR_DID, aliceNonce, wireA);
-const bob = await MediatorCarrierAdapter.create(bobRoot, MEDIATOR_DID, bobNonce, wireB);
+const alice = await MediatorCarrierAdapter.open(await ctxOf(aliceRoot, aliceNonce), wireA);
+const bob = await MediatorCarrierAdapter.open(await ctxOf(bobRoot, bobNonce), wireB);
 
 // transport admission (profile §3): register opens the ATM session
 // and the pickup socket — collection has no wire traffic of its own

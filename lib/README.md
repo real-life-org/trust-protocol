@@ -252,7 +252,7 @@ anchor and is no entry of `GroupView.members`.
 Mediator Adapter Profile 0.30 §1b). `show` and `scan` take a carrier
 offer, `carrier: {nonce, deliveryHints}`: the relationship's carrier
 nonce N (32 bytes the app draws fresh) and the hints the app built from
-the connection DID its adapter derives from N. The card (the displayed
+the connection DID of N's carrier context (`keys.carrierContext(N, C)`). The card (the displayed
 card, or the scanner's sent card) carries the hints under its proof, and
 N enters the register under the relationship the card opens — at `show`
 already, as the card's pair label does. More than eight hints or a hint
@@ -271,17 +271,19 @@ once its id appears in another relationship's `chainedFrom`. The
 library offers no rotation or replacement of N (profile RLTP-VTI-1245);
 with its one writer per holder, `carrierNonce` is the N the counterpart
 saw. The VTI adapter module builds and reads the hint:
-`deliveryHint(rootIkm, C, N)` (derived like the adapter's connection DID),
+`deliveryHintOf(context.connection)` (the connection DID the adapter
+opened from the same context runs under),
 `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, {connection})`
 (profile §1b; total readers, three members or a fourth `rltpEgress`
 ignored, a hint naming `self`'s connection DID ignored).
 
 ```ts
-import { deliveryHint } from '@real-life/trust-protocol/adapters/vti-mediator'
+import { deliveryHintOf } from '@real-life/trust-protocol/adapters/vti-mediator'
 
-// rootIkm and C: the same inputs the app gives MediatorCarrierAdapter.create
+// keys: the holder's KeyProvider; the app opens MediatorCarrierAdapter.open(context, wire) from the same context
 const nonce = crypto.getRandomValues(new Uint8Array(32))
-const hint = await deliveryHint(rootIkm, C, nonce)
+const context = await keys.carrierContext!(nonce, C)
+const hint = deliveryHintOf(context.connection)
 const shown = await holder.show({ when: Date.now(), actId: crypto.randomUUID(), carrier: { nonce, deliveryHints: [hint] } })
 const [rel] = (await holder.contacts())[0]?.relationships ?? []
 // rel?.carrierNonce: this side's N; rel?.counterpartDeliveryHints: the counterpart's hints, as signed
@@ -313,6 +315,13 @@ journal, and acting anew is the human's decision. Custody:
 - The ports: `Store`, `KeyProvider`, `Entropy`, `Log`, `Access`,
   `RetryPolicy`, `DeliveryReport`, `Outbound`; `seedKeys(seed)` is the
   default KeyProvider, `randomEntropy` the default Entropy.
+- The carrier context (D7, issue #219): `KeyProvider.carrierContext(N, C)` gives the principal
+  (with `sign`) and the connection DID of one relationship at one carrier from one call, frozen,
+  without `N`. A host builds the adapter (`MediatorCarrierAdapter.open(context, wire)`), the
+  delivery hint (`deliveryHintOf(context.connection)`) and the holder's carrier proofs
+  (`holderContextOf(context, rkid, generation)`) from it and never holds the root. The root-based
+  `MediatorCarrierAdapter.create`, `deliveryHint`, `holderContext`, `carrierPrincipal` and
+  `carrierScopedIdentity` are deprecated (the last two stay in `./internal`).
 - Experimental: `KeyProvider.loginIdentity(origin)` (D6, issue #211), the
   person's identity toward one web app they log into (a SIOPv2-shaped
   login): a `did:key` per origin (shared by web apps on paths of one
@@ -342,7 +351,8 @@ Other entry points:
 |---|---|
 | `./testing` | `InMemoryStore`, `memoryLog`, `scriptedEntropy`, `storeContract`, `emptyState`, `stateBuilder`, `freezeDeep`, `sampleState`, `openPromptModule`, the invariant checks, `forgeMapping` (deniability, Trust 6.1), `SCHEMAS` and the generated `wire` types. For tests, vectors and adapter authors; not for production holders. |
 | `./internal` | The structural `HolderState`, `encodeState` and the codec chain, the engine's module types, the pure view functions, the modules' factories and pure reads. For the library's own modules and tests; not an app contract. |
-| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.30): every sealed envelope carried as a `sealed-envelope/0.1` document in the Trust Tasks TSP binding (`wrapSealed`, `readBindingEnvelope`), a counterpart's `trust-task-error` and `trust-task-next-step` bound by the carried document's `id` and applied (`readTrustTaskNextStep`; `accepted` with `held`); its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `direct` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `direct` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, and `deliveryHint(rootIkm, C, N)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error` of a version in `TRUST_TASK_ERROR_TYPES` (0.2 to 0.6; RLTP-VTI-5015) into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
+| `./adapters/vti-mediator/software-keys` | `connectionSeed(connection)`: the 32-byte seed of a carrier context's connection DID, for a wire over OpenVTC's packages, which take raw key bytes. Released only for a context of `seedKeys(seed, { exportConnectionSeed: true })`; any other connection throws. Goes away once OpenVTC takes signing and agreement callbacks. |
+| `./adapters/vti-mediator` | The VTI mediator as a transport adapter (profile 0.30): every sealed envelope carried as a `sealed-envelope/0.1` document in the Trust Tasks TSP binding (`wrapSealed`, `readBindingEnvelope`), a counterpart's `trust-task-error` and `trust-task-next-step` bound by the carried document's `id` and applied (`readTrustTaskNextStep`; `accepted` with `held`); its submission states as `DeliveryReport`, collection and ack handling, the selective conclusion of a collection (`conclude(c, now, {keep})`, `concludable(result)`: a `failed(rate-limited)` item stays with the carrier), the sending form of §3a: every deposit names its `SendMode` (`routed`, or `direct` after the one-way switch of RLTP-VTI-3130), the send state (mode, open routed deposits) travels in `AckState.send` (a `submit()` without a digest opens nothing), a `WireError('routed-refused')` switches at once, a refusal of direct delivery in `direct` (`wire.directRefused?()`, or `WireError('direct-refused')`) is recorded as `AckState.send.directRefusedAt` and stops every hand-over across openings, a wire without `queueEmpty()` never completes a collection and so never switches, `answered(digest, now)` carries the holder's answers to a later instance, `depositAddressing(mode, self, peerConnection, carrier)` gives both layers' addressing, `MediatorCarrierAdapter.open(context, wire)` opens from a carrier context and refuses a wire whose `connectionDid` is not the context's, and `deliveryHintOf(connection)`, `readDeliveryHint(hint, C)`, `readDeliveryHints(hints, C, self)` build and read the delivery hint of §1b (total readers), and `readTrustTaskError(doc)` reads a counterpart's `trust-task-error` of a version in `TRUST_TASK_ERROR_TYPES` (0.2 to 0.6; RLTP-VTI-5015) into a verdict (§5, total), whose retry `receiverRetry(id, retryAfter)` takes. |
 
 ## The modules and the rules they implement
 
@@ -383,7 +393,7 @@ Bare four-digit numbers are RLTP-TRU rules; the other layers name theirs.
 | Chromium ≥ 137, Firefox ≥ 129, Safari ≥ 17 | expected: they carry Ed25519 and X25519 in WebCrypto; not tested here |
 
 The WebCrypto handle is resolved when a holder is built, not at import: an
-app may pass its own (`createHolder({crypto})`, `seedKeys(seed, crypto)`),
+app may pass its own (`createHolder({crypto})`, `seedKeys(seed, crypto)` or `seedKeys(seed, { crypto })`),
 and a runtime without Ed25519 or X25519 is reported then as
 `CryptoUnavailableError`.
 

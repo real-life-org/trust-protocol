@@ -21,3 +21,6 @@ export { createEngine } from './engine.js';
 export { encounterModule, ENCOUNTER_COMMANDS, resolve as resolveChallenge, idsOf as encounterIdsOf, confirmPromptId } from './encounter/ceremony.js';
 export { membershipModule, localAccess, MEMBERSHIP_COMMANDS, PRELUDE_REQUEST_TYPE, PRELUDE_REPLY_TYPE, WELCOME_TYPE } from './membership/holder.js';
 export { introductionModule, INTRODUCTION_COMMANDS, OFFER_TYPE, ACK_DELAY } from './introduction/holder.js';
+// the root-derived carrier identities (Identity §7a.4, §13), for vectors and tests: a host takes
+// them from KeyProvider.carrierContext
+export { carrierPrincipal, carrierScopedIdentity, CARRIER_INFO_PREFIX, CONNECTION_INFO_PREFIX } from './carrier-identity.js';

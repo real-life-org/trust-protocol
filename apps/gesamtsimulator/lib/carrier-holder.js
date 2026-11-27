@@ -18,7 +18,25 @@ import { PROOF_V } from './carrier.js';
 import { platformSubtle } from './crypto.js';
 const S = platformSubtle;
 const te = new TextEncoder();
-/** derive-and-wrap: one holder context per (relationship × carrier) */
+/** One holder context per (relationship × carrier) from its carrier context
+ *  (`KeyProvider.carrierContext(N, C)`): the proofs are signed through the principal's `sign`,
+ *  over the same JCS bytes, so they are byte-identical to those of the derived pair; no private
+ *  key leaves the provider. Frozen. */
+export function holderContextOf(context, rkid, generation) {
+    const carrier = context.carrier;
+    const key = context.principal;
+    const principal = key?.principal;
+    if (typeof principal !== 'string' || typeof key.sign !== 'function')
+        throw new TypeError('holderContextOf: the context has no principal with a sign operation');
+    // called on the provider's own object: a sign that is a method keeps its receiver
+    const sign = (bytes) => key.sign(bytes);
+    return Object.freeze({ carrier, identity: Object.freeze({ principal, sign }), rkid, generation });
+}
+/** @deprecated Use `holderContextOf(context, rkid, generation)` with a context from
+ *  `KeyProvider.carrierContext(N, C)`: this form needs the root and holds the principal's private
+ *  key; it goes away in a later version (issue #219).
+ *
+ *  derive-and-wrap: one holder context per (relationship × carrier) */
 export async function holderContext(rootIkm, carrier, nonce, rkid, generation) {
     return { carrier, identity: await carrierPrincipal(rootIkm, carrier, nonce), rkid, generation };
 }
@@ -28,7 +46,12 @@ async function sign(ctx, fields) {
         carrier: ctx.carrier, principal: ctx.identity.principal, rkid: ctx.rkid,
         ...fields,
     };
-    const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.identity.key.priv, te.encode(jcs(p))));
+    const bytes = te.encode(jcs(p));
+    const id = ctx.identity;
+    // the capability first: a CarrierKey signs through its provider, whatever else it carries
+    const sig = typeof id.sign === 'function'
+        ? new Uint8Array(await id.sign(bytes))
+        : new Uint8Array(await S().sign({ name: 'Ed25519' }, id.key.priv, bytes));
     return { ...p, sig: 'z' + base58(sig) };
 }
 /** register/rebind proof: both succession fields present (§5a.3).

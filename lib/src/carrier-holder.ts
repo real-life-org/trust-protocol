@@ -17,21 +17,42 @@ import type { CarrierPrincipal } from './carrier-identity.js'
 import { PROOF_V } from './carrier.js'
 import type { CarrierProof, RegistrationVerdict } from './carrier.js'
 import { platformSubtle } from './crypto.js'
+import type { CarrierContext, CarrierKey } from './ports.js'
 
 const S = platformSubtle
 const te = new TextEncoder()
 
 export interface HolderContext {
   carrier: string                 // C, byte-exact
-  identity: CarrierPrincipal      // from carrierPrincipal(rootIkm, C, N)
+  /** the control principal: its signing operation (holderContextOf, from a carrier context), or
+   *  the derived pair (the deprecated holderContext) */
+  identity: CarrierKey | CarrierPrincipal
   rkid: string                    // the relationship address at this carrier
   generation: number              // the register's generation for N (§7a.3)
 }
 
-/** derive-and-wrap: one holder context per (relationship × carrier) */
+/** One holder context per (relationship × carrier) from its carrier context
+ *  (`KeyProvider.carrierContext(N, C)`): the proofs are signed through the principal's `sign`,
+ *  over the same JCS bytes, so they are byte-identical to those of the derived pair; no private
+ *  key leaves the provider. Frozen. */
+export function holderContextOf (context: CarrierContext, rkid: string, generation: number): HolderContext {
+  const carrier = context.carrier
+  const key = context.principal
+  const principal = key?.principal
+  if (typeof principal !== 'string' || typeof key.sign !== 'function') throw new TypeError('holderContextOf: the context has no principal with a sign operation')
+  // called on the provider's own object: a sign that is a method keeps its receiver
+  const sign = (bytes: Uint8Array): Promise<Uint8Array> => key.sign(bytes)
+  return Object.freeze({ carrier, identity: Object.freeze({ principal, sign }), rkid, generation })
+}
+
+/** @deprecated Use `holderContextOf(context, rkid, generation)` with a context from
+ *  `KeyProvider.carrierContext(N, C)`: this form needs the root and holds the principal's private
+ *  key; it goes away in a later version (issue #219).
+ *
+ *  derive-and-wrap: one holder context per (relationship × carrier) */
 export async function holderContext (
   rootIkm: Uint8Array, carrier: string, nonce: Uint8Array, rkid: string, generation: number,
-): Promise<HolderContext> {
+): Promise<HolderContext & { identity: CarrierPrincipal }> {
   return { carrier, identity: await carrierPrincipal(rootIkm, carrier, nonce), rkid, generation }
 }
 
@@ -41,7 +62,12 @@ async function sign (ctx: HolderContext, fields: Record<string, Json>): Promise<
     carrier: ctx.carrier, principal: ctx.identity.principal, rkid: ctx.rkid,
     ...fields,
   }
-  const sig = new Uint8Array(await S().sign({ name: 'Ed25519' }, ctx.identity.key.priv, te.encode(jcs(p as unknown as Json))))
+  const bytes = te.encode(jcs(p as unknown as Json))
+  const id = ctx.identity
+  // the capability first: a CarrierKey signs through its provider, whatever else it carries
+  const sig = typeof (id as CarrierKey).sign === 'function'
+    ? new Uint8Array(await (id as CarrierKey).sign(bytes))
+    : new Uint8Array(await S().sign({ name: 'Ed25519' }, (id as CarrierPrincipal).key.priv, bytes))
   return { ...(p as unknown as CarrierProof), sig: 'z' + base58(sig) }
 }
 

@@ -3,8 +3,10 @@
 // the M-2 duty live HERE, below the adapter's byte boundary).
 //
 // Responsibilities:
-//   · derive the wire identity's RAW seed by re-running the lib's
-//     own HKDF (same prefix → byte-identical DID to the adapter's)
+//   · take the wire identity's RAW seed from the carrier context's
+//     connection (the lib's software key binding, released only by
+//     seedKeys with exportConnectionSeed), never from the root, and check
+//     that it is the context's connection DID
 //   · ATM auth under the CONNECTION DID; one socket per principal; the
 //     one wire identity sends and collects (profile 0.29 §1a)
 //   · deposit in the sending form of profile 0.29 §3a, in the mode the
@@ -38,24 +40,16 @@ import {
 } from "@openvtc/vti-didcomm-js";
 import { pack as tspPack, unpack as tspUnpack, packRouted, decodeEnvelope } from "@openvtc/vti-tsp-js";
 import { depositAddressing, WireError } from "../lib/dist/adapters/vti-mediator.js";
-import { hkdf, sha } from "../lib/dist/crypto.js";
-import { CONNECTION_INFO_PREFIX } from "../lib/dist/carrier-identity.js";
+import { sha } from "../lib/dist/crypto.js";
+import { seedKeys } from "../lib/dist/keys-seed.js";
+import { connectionSeed } from "../lib/dist/adapters/vti-mediator-software-keys.js";
 
 const te = new TextEncoder();
 const hexOf = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
-const mh = async (bytes) => {
-  const d = await sha(bytes);
-  const withPrefix = new Uint8Array(2 + d.length);
-  withPrefix.set([0x12, 0x20]); withPrefix.set(d, 2);
-  return "u" + Buffer.from(withPrefix).toString("base64url");
-};
 
-/** The same derivation the lib performs — prefix + Dc + Dn — but
- *  yielding the RAW Ed seed the TSP wire needs (the lib keeps its
- *  keys non-extractable; the binding re-derives from the same root). */
-async function wireIdentity(rootIkm, carrier, nonce, prefix) {
-  const info = prefix + (await mh(te.encode(carrier))) + (await mh(nonce));
-  const edSecret = await hkdf(rootIkm, info);
+/** The raw keys of a connection DID from its 32-byte Ed25519 seed, as vti-tsp-js and
+ *  vti-didcomm-js take them (X25519 by toMontgomery). */
+function wireIdentityOfSeed(edSecret) {
   const edPublic = ed25519.getPublicKey(edSecret);
   const xSecret = ed25519.utils.toMontgomerySecret(edSecret);
   const xPublic = x25519.getPublicKey(xSecret);
@@ -65,10 +59,20 @@ async function wireIdentity(rootIkm, carrier, nonce, prefix) {
   return { did, kid: agreementId, edSecret, edPublic, xSecret, xPublic };
 }
 
+/** The wire identity of a carrier context's connection: the released seed, checked against the
+ *  connection DID the context names. */
+function wireIdentityOf(connection, did) {
+  const conn = wireIdentityOfSeed(connectionSeed(connection));
+  if (conn.did !== did) throw new Error("createVtiWire: the released key is not the connection DID's");
+  return conn;
+}
+
 /** The wire identity (the connection DID) of one relationship × carrier,
- *  including RAW secrets — for tests that act as the counterpart. */
+ *  including RAW secrets — for tests that act as the counterpart. Opens
+ *  the context through seedKeys, as a host does. */
 export async function deriveWireIdentities(rootIkm, mediatorDid, nonce) {
-  return { conn: await wireIdentity(rootIkm, mediatorDid, nonce, CONNECTION_INFO_PREFIX) };
+  const context = await seedKeys(rootIkm, { exportConnectionSeed: true }).carrierContext(nonce, mediatorDid);
+  return { conn: wireIdentityOf(context.connection, context.connection.did), context };
 }
 
 /** Public TSP keys of a peer did:key, resolved offline. */
@@ -120,9 +124,11 @@ class RltpMediatorSession extends MediatorSession {
  * One wire = one principal's mediation relationship (§5a.10).
  *
  * @param {Object} cfg
- * @param {Uint8Array} cfg.rootIkm       the relationship root
- * @param {string}     cfg.mediatorDid   C, exactly as configured
- * @param {Uint8Array} cfg.nonce         the 32-byte carrier nonce N
+ * @param {{did: string, carrier: string}} cfg.connection  the connection side
+ *        of the relationship's carrier context (KeyProvider.carrierContext(N, C)),
+ *        nothing else of it: C is its `carrier`; its key is released only by a
+ *        provider that lets it go (seedKeys with exportConnectionSeed), else the
+ *        wire fails here
  * @param {string}     cfg.peerDid       counterpart's CONNECTION did:key, the
  *        `id` without `#tsp` of its delivery hint (profile 0.29 §1b,
  *        RLTP-VTI-1240): the receiver of every message this side sends, the
@@ -137,7 +143,12 @@ class RltpMediatorSession extends MediatorSession {
  *        socket); omitted, the real ones are used
  */
 export async function createVtiWire(cfg) {
-  const conn = await wireIdentity(cfg.rootIkm, cfg.mediatorDid, cfg.nonce, CONNECTION_INFO_PREFIX);
+  if (cfg.rootIkm !== undefined) throw new Error("createVtiWire: takes the carrier context's connection, never the root");
+  // the connection read once: the key, the DID and C come from the same reading
+  const given = cfg.connection;
+  const connection = Object.freeze({ did: given?.did, carrier: given?.carrier });
+  const conn = wireIdentityOf(given, connection.did);
+  const mediatorDid = connection.carrier;
 
   let session = null;
   let consumer = null;
@@ -326,7 +337,7 @@ export async function createVtiWire(cfg) {
   /** The last frames' sizes and modes, for the probes' measurements. */
   const sent = [];
 
-  return {
+  const wire = {
     connectionDid: conn.did,
 
     async authChallenge() {
@@ -337,7 +348,7 @@ export async function createVtiWire(cfg) {
 
     async authenticate() {
       const auth = await authenticateToMediator({
-        mediatorDid: cfg.mediatorDid,
+        mediatorDid: mediatorDid,
         clientDid: conn.did,
         clientX25519Private: conn.xSecret,
         clientX25519Public: conn.xPublic,
@@ -376,7 +387,7 @@ export async function createVtiWire(cfg) {
 
     async deposit(_token, bytes, adapterMode = "routed") {
       const mode = depositMode === "routed" ? adapterMode : depositMode;
-      const addr = depositAddressing(mode, conn.did, cfg.peerDid, cfg.mediatorDid);
+      const addr = depositAddressing(mode, conn.did, cfg.peerDid, mediatorDid);
       // inner: TSP 1.0 direct, connection DID → peer's connection DID,
       // HPKE-Base to its key, signed by the connection DID (RLTP-VTI-1120, 3110)
       const inner = await tspPack(bytes, addr.inner.sender, addr.inner.receiver, {
@@ -452,4 +463,7 @@ export async function createVtiWire(cfg) {
       try { session?.close(); } catch { /* teardown */ }
     },
   };
+  // the DID the adapter checks is the one the session runs under, and stays so
+  Object.defineProperty(wire, "connectionDid", { value: conn.did, writable: false, configurable: false, enumerable: true });
+  return wire;
 }
