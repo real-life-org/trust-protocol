@@ -30,6 +30,12 @@ npm i @real-life/trust-protocol
 `createHolder` is one person's device: its state behind the human acts, the
 delivery channel's three calls and the views an app reads.
 
+One person has one identity, derived from one root seed. A second device or a second app of the
+same person cannot yet hold that identity: two holders over one root seed write without
+reconciling, so never give the same root seed to two holders. Multiple devices of one identity
+come with the next Trust Layer casting. Until then an app without access to the person's identity
+creates its own; the contacts made under it stay with it.
+
 ```ts
 import { createHolder, seedKeys } from '@real-life/trust-protocol'
 import { InMemoryStore } from '@real-life/trust-protocol/testing'

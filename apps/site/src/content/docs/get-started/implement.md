@@ -25,6 +25,13 @@ the minimum; which runtimes are tested is in the
 derived from the person's root seed; the holder keeps its state behind the
 human acts.
 
+One person has one identity. A second device or a second app of the same
+person cannot yet hold it: two holders over one root seed write without
+reconciling, so an app never gives the same root seed to two holders.
+Multiple devices of one identity come with the next Trust Layer casting.
+Until then an app without access to the person's identity creates its own,
+and the contacts made under it stay with it.
+
 ```ts
 import { createHolder, seedKeys } from '@real-life/trust-protocol'
 import { InMemoryStore } from '@real-life/trust-protocol/testing'
