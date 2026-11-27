@@ -171,15 +171,24 @@ const showDef = {
         const origin = linkOrigin(input?.origin);
         const party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) };
         // a code shown in person carries this side's card (the pair keys; the delivery hints come with the issue
-        // step); a link too long with the card goes without
-        const cards = [];
-        if (channel === 'displayed')
-            cards.push(await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000));
-        cards.push(undefined);
+        // step) and the name as its label. Too long, the label goes first: without the card the counterpart can
+        // open no contact offline (`no-card`), without the label it only lacks the name. A link without the card
+        // is the last form, for a counterpart reached by a carrier
+        const card = channel === 'displayed' ? await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000) : undefined;
+        // the name as the link carries it (NFC, the one label rule); an invalid name is refused as before, only a
+        // valid one that does not fit is dropped
+        const shownName = name && channel === 'displayed' ? sc.normalLabel(name) ?? null : undefined;
+        if (shownName === null)
+            return no('link-invalid');
+        const forms = card
+            ? [{ card, label: shownName }, { card }, { label: shownName }, {}]
+            : [{ label: shownName }, {}];
         let link;
-        for (const card of cards) {
+        let linkLabel = null;
+        for (const f of forms) {
             try {
-                link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}), ...(card ? { card } : {}) }, origin, nowS);
+                link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(f.label ? { label: f.label } : {}), ...(f.card ? { card: f.card } : {}) }, origin, nowS);
+                linkLabel = f.label ?? null;
                 break;
             }
             catch { /* the next, shorter form */ }
@@ -187,7 +196,7 @@ const showDef = {
         if (link === undefined)
             return no('link-invalid');
         const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot();
-        return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel };
+        return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, linkLabel, channel };
     },
     apply(state, prepared, input, when) {
         const p = prepared.value;
@@ -199,7 +208,7 @@ const showDef = {
             throw new Error('sharedconnect.show: the label or the handle is not fresh');
         const e = {
             id: p.id, role: 'inviter', label: p.label, did: p.did, relays: p.relays.map((r) => ({ kind: r.kind, address: r.address, ...(r.multiaddrs ? { multiaddrs: [...r.multiaddrs] } : {}) })),
-            link: { from: p.did, id: p.id, exp: p.exp, label: p.channel === 'displayed' ? p.name : null }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
+            link: { from: p.did, id: p.id, exp: p.exp, label: p.linkLabel }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
             flow: p.flow, contactId: null, theirPair: null, name: p.name,
         };
         return {
