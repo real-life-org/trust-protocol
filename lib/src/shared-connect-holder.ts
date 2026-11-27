@@ -207,13 +207,17 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const origin = linkOrigin(input?.origin)
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
     // a code shown in person carries this side's card (the pair keys; the delivery hints come with the issue
-    // step); a link too long with the card goes without
-    const cards: Array<Record<string, any> | undefined> = []
-    if (channel === 'displayed') cards.push(await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000))
-    cards.push(undefined)
+    // step) and the name as its label. Too long, the label goes first: without the card the counterpart can
+    // open no contact offline (`no-card`), without the label it only lacks the name. A link without the card
+    // is the last form, for a counterpart reached by a carrier
+    const card = channel === 'displayed' ? await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000) : undefined
+    const shownName = name && channel === 'displayed' ? name : undefined
+    const forms: Array<{ card?: Record<string, any>, label?: string }> = card
+      ? [{ card, label: shownName }, { card }, { label: shownName }, {}]
+      : [{ label: shownName }, {}]
     let link: string | undefined
-    for (const card of cards) {
-      try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(name && channel === 'displayed' ? { label: name } : {}), ...(card ? { card } : {}) }, origin, nowS); break } catch { /* the next, shorter form */ }
+    for (const f of forms) {
+      try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(f.label ? { label: f.label } : {}), ...(f.card ? { card: f.card } : {}) }, origin, nowS); break } catch { /* the next, shorter form */ }
     }
     if (link === undefined) return no('link-invalid')
     const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot()

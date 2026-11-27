@@ -26,6 +26,9 @@ issue #219).
   entry point (they stay in `./internal`). Their behaviour is unchanged.
 - The reference wire binding (`binding/vti-wire.mjs`) opens from the context's connection and
   refuses a root.
+- `sharedConnectShow`: a code shown in person whose name does not fit the link budget beside the
+  card now drops the name, not the card (before, the card went and an offline scan ended in
+  `no-card`). The forms tried: card and name, card alone, name alone, neither.
 
 ## 0.23.0
 
