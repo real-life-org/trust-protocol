@@ -48,9 +48,10 @@ async function sign(ctx, fields) {
     };
     const bytes = te.encode(jcs(p));
     const id = ctx.identity;
-    const sig = 'key' in id
-        ? new Uint8Array(await S().sign({ name: 'Ed25519' }, id.key.priv, bytes))
-        : new Uint8Array(await id.sign(bytes));
+    // the capability first: a CarrierKey signs through its provider, whatever else it carries
+    const sig = typeof id.sign === 'function'
+        ? new Uint8Array(await id.sign(bytes))
+        : new Uint8Array(await S().sign({ name: 'Ed25519' }, id.key.priv, bytes));
     return { ...p, sig: 'z' + base58(sig) };
 }
 /** register/rebind proof: both succession fields present (§5a.3).

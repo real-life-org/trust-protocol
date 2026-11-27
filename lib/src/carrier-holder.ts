@@ -64,9 +64,10 @@ async function sign (ctx: HolderContext, fields: Record<string, Json>): Promise<
   }
   const bytes = te.encode(jcs(p as unknown as Json))
   const id = ctx.identity
-  const sig = 'key' in id
-    ? new Uint8Array(await S().sign({ name: 'Ed25519' }, id.key.priv, bytes))
-    : new Uint8Array(await id.sign(bytes))
+  // the capability first: a CarrierKey signs through its provider, whatever else it carries
+  const sig = typeof (id as CarrierKey).sign === 'function'
+    ? new Uint8Array(await (id as CarrierKey).sign(bytes))
+    : new Uint8Array(await S().sign({ name: 'Ed25519' }, (id as CarrierPrincipal).key.priv, bytes))
   return { ...(p as unknown as CarrierProof), sig: 'z' + base58(sig) }
 }
 
