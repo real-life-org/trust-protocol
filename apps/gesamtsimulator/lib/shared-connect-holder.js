@@ -176,13 +176,18 @@ const showDef = {
         // is the last form, for a counterpart reached by a carrier
         const card = channel === 'displayed' ? await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000) : undefined;
         const shownName = name && channel === 'displayed' ? name : undefined;
+        // an invalid name is refused as before; only a valid one that does not fit is dropped
+        if (shownName !== undefined && sc.normalLabel(shownName) === null)
+            return no('link-invalid');
         const forms = card
             ? [{ card, label: shownName }, { card }, { label: shownName }, {}]
             : [{ label: shownName }, {}];
         let link;
+        let linkLabel = null;
         for (const f of forms) {
             try {
                 link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(f.label ? { label: f.label } : {}), ...(f.card ? { card: f.card } : {}) }, origin, nowS);
+                linkLabel = f.label ?? null;
                 break;
             }
             catch { /* the next, shorter form */ }
@@ -190,7 +195,7 @@ const showDef = {
         if (link === undefined)
             return no('link-invalid');
         const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot();
-        return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel };
+        return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, linkLabel, channel };
     },
     apply(state, prepared, input, when) {
         const p = prepared.value;
@@ -202,7 +207,7 @@ const showDef = {
             throw new Error('sharedconnect.show: the label or the handle is not fresh');
         const e = {
             id: p.id, role: 'inviter', label: p.label, did: p.did, relays: p.relays.map((r) => ({ kind: r.kind, address: r.address, ...(r.multiaddrs ? { multiaddrs: [...r.multiaddrs] } : {}) })),
-            link: { from: p.did, id: p.id, exp: p.exp, label: p.channel === 'displayed' ? p.name : null }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
+            link: { from: p.did, id: p.id, exp: p.exp, label: p.linkLabel }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
             flow: p.flow, contactId: null, theirPair: null, name: p.name,
         };
         return {

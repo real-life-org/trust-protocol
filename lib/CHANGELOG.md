@@ -28,7 +28,9 @@ issue #219).
   refuses a root.
 - `sharedConnectShow`: a code shown in person whose name does not fit the link budget beside the
   card now drops the name, not the card (before, the card went and an offline scan ended in
-  `no-card`). The forms tried: card and name, card alone, name alone, neither.
+  `no-card`). The forms tried: card and name, card alone, name alone, neither. The enactment's
+  `link.label` states the link as written (`null` when the name was dropped); an invalid name is
+  refused with `link-invalid` as before.
 
 ## 0.23.0
 

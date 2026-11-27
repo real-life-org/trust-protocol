@@ -183,7 +183,7 @@ function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extr
 
 // ── show ───────────────────────────────────────────────────────────────
 
-type ShowPrep = Refusal | { label: string, nonce: string, rkid: string, id: string, did: string, link: string, exp: number, flow: Snap, relays: Relay[], name: string | null, channel: 'displayed' | 'sent' }
+type ShowPrep = Refusal | { label: string, nonce: string, rkid: string, id: string, did: string, link: string, exp: number, flow: Snap, relays: Relay[], name: string | null, linkLabel: string | null, channel: 'displayed' | 'sent' }
 
 const showDef: CommandDef<ShowInput, ShowPrep> = {
   human: true,
@@ -212,16 +212,19 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     // is the last form, for a counterpart reached by a carrier
     const card = channel === 'displayed' ? await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000) : undefined
     const shownName = name && channel === 'displayed' ? name : undefined
+    // an invalid name is refused as before; only a valid one that does not fit is dropped
+    if (shownName !== undefined && sc.normalLabel(shownName) === null) return no('link-invalid')
     const forms: Array<{ card?: Record<string, any>, label?: string }> = card
       ? [{ card, label: shownName }, { card }, { label: shownName }, {}]
       : [{ label: shownName }, {}]
     let link: string | undefined
+    let linkLabel: string | null = null
     for (const f of forms) {
-      try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(f.label ? { label: f.label } : {}), ...(f.card ? { card: f.card } : {}) }, origin, nowS); break } catch { /* the next, shorter form */ }
+      try { link = await sc.sharedConnectLink({ from: did, id, exp, kind: channel === 'sent' ? 'link' : 'code', ...(f.label ? { label: f.label } : {}), ...(f.card ? { card: f.card } : {}) }, origin, nowS); linkLabel = f.label ?? null; break } catch { /* the next, shorter form */ }
     }
     if (link === undefined) return no('link-invalid')
     const flow = new Inviter(party, { id, exp }, flowOpts(ctx, input?.carrier)).snapshot()
-    return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, channel }
+    return { label, nonce: b64uOf(n32), rkid: own.keyAgreement, id, did, link, exp, flow, relays, name, linkLabel, channel }
   },
   apply (state, prepared, input, when) {
     const p = prepared.value
@@ -230,7 +233,7 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     if (state.register.labels.includes(p.label) || Object.hasOwn(state.sharedConnect.enactments, p.id)) throw new Error('sharedconnect.show: the label or the handle is not fresh')
     const e: SharedConnectEnactment = {
       id: p.id, role: 'inviter', label: p.label, did: p.did, relays: p.relays.map((r) => ({ kind: r.kind, address: r.address, ...(r.multiaddrs ? { multiaddrs: [...r.multiaddrs] } : {}) })),
-      link: { from: p.did, id: p.id, exp: p.exp, label: p.channel === 'displayed' ? p.name : null }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
+      link: { from: p.did, id: p.id, exp: p.exp, label: p.linkLabel }, channel: p.channel, openedAt: when, closedAt: null, status: 'open',
       flow: p.flow as unknown as Record<string, Json>, contactId: null, theirPair: null, name: p.name,
     }
     return {
