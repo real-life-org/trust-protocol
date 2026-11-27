@@ -211,9 +211,10 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     // open no contact offline (`no-card`), without the label it only lacks the name. A link without the card
     // is the last form, for a counterpart reached by a carrier
     const card = channel === 'displayed' ? await sc.issueCard(party, await sc.linkCardChallenge(did, id, exp), nowS * 1000) : undefined
-    const shownName = name && channel === 'displayed' ? name : undefined
-    // an invalid name is refused as before; only a valid one that does not fit is dropped
-    if (shownName !== undefined && sc.normalLabel(shownName) === null) return no('link-invalid')
+    // the name as the link carries it (NFC, the one label rule); an invalid name is refused as before, only a
+    // valid one that does not fit is dropped
+    const shownName = name && channel === 'displayed' ? sc.normalLabel(name) ?? null : undefined
+    if (shownName === null) return no('link-invalid')
     const forms: Array<{ card?: Record<string, any>, label?: string }> = card
       ? [{ card, label: shownName }, { card }, { label: shownName }, {}]
       : [{ label: shownName }, {}]
