@@ -50,6 +50,7 @@ test('the schema refuses a register of the wrong form, with the path of the faul
     [(r) => { part(r, 0).status = 'built-differently' }, "/documents/0/parts/0: must have required property 'differences'"],
     [(r) => { delete part(r, 1).note; delete part(r, 1).differences }, "/documents/0/parts/1: must have required property 'note'"],
     [(r) => { part(r, 0).status = 'superseded' }, "/documents/0/parts/0: must have required property 'target'"],
+    [(r) => { Object.assign(part(r, 0), { status: 'superseded', target: 'lib/src/x.ts', direction: 'direction/a.md' }) }, '/documents/0/parts/0: must NOT be valid'],
     [(r) => { part(r, 0).status = 'direction-changed' }, "/documents/0/parts/0: must have required property 'direction'"],
     [(r) => { delete part(r, 0).evidence }, "/documents/0/parts/0: must have required property 'evidence'"],
     [(r) => { part(r, 0).evidence = ['lib/README.md'] }, '/documents/0/parts/0/evidence: must contain at least 1 valid item'],

@@ -71,6 +71,13 @@ test('a page whose generated regions changed while its handwritten text stayed i
   assert.deepEqual(pendingPages(root, ['spec/status.json', file], { base }), [{ file, specs: [], generated: true }])
 })
 
+test('a box set for the first time on a page otherwise unchanged makes it pending', () => {
+  const file = `${DOCS}/understand/groups.md`
+  const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text.') })
+  const base = new Map([[file, page('[access-layer]').replace('Body', 'Text.')]])
+  assert.deepEqual(pendingPages(root, [file], { base }), [{ file, specs: [], generated: true }])
+})
+
 test('a page edited by hand, or new, is not pending, whatever else changed', () => {
   const file = `${DOCS}/understand/groups.md`
   const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text, edited.'), 'understand/new.md': page('[access-layer]') })

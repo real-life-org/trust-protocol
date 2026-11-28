@@ -23,8 +23,9 @@ assumptions that the planned model gives up:
 - the words (the mnemonic) are the root of every identity (its Section 4);
 - an identifier is its key: an anchor is a `did:key` and cannot rotate as
   an identifier (its Section 8);
-- every key is derived from the seed and a context label (its Sections 5
-  and 6);
+- the keys of the named anchor contexts (groups, personas, relationships
+  and their devices) are derived from the seed and a context label (its
+  Sections 5 and 6);
 - recovery requires the words, together with a copy of the person's state
   (its Section 9).
 

@@ -33,7 +33,7 @@ const README = 'README.md'
 const SITE = 'apps/site/src/content/docs/reference/specifications.md'
 const DOCS = 'apps/site/src/content/docs'
 const PRECEDENCE = 'Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.'
-const BUILT_MEANS = '*Built* means the library implements the part; the text has not been reconciled with the library rule by rule, so single rules may differ.'
+const BUILT = '*Built* means the library implements the part'
 const DIFFERENCES_AT = 'Differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.'
 
 // ── regions ─────────────────────────────────────────────────────────────
@@ -76,8 +76,14 @@ export function fill(text, file, body) {
   return { text: out + text.slice(at), errors }
 }
 
-// What a person wrote: the file with the content of its regions removed.
-export const handwritten = (text, file) => fill(text, file, () => '').text
+// What a person wrote: the file without its regions, markers included, and
+// with runs of blank lines read as one, so that setting a region is no edit.
+export function handwritten(text, file) {
+  const { list } = regions(text, file)
+  let out = '', at = 0
+  for (const r of list) { out += text.slice(at, r.at); at = r.end }
+  return (out + text.slice(at)).replace(/\n{3,}/g, '\n\n')
+}
 
 // The content of a file's regions, one after another.
 export const generated = (text, file) => regions(text, file).list.map((r) => text.slice(r.from, r.to)).join('\n')
@@ -125,7 +131,7 @@ function partRow(p) {
 export function renderSpecBlock(doc) {
   const reconciled = doc.lastReconciled === 'not reconciled'
     ? `**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; ${lowerFirst(DIFFERENCES_AT)}`
-    : `**Last reconciled against the library:** ${doc.lastReconciled}. ${BUILT_MEANS} ${DIFFERENCES_AT}`
+    : `**Last reconciled against the library:** ${cell(doc.lastReconciled)}. ${BUILT}. ${DIFFERENCES_AT}`
   const direction = doc.direction ? ` **Direction:** ${link(`spec/${doc.direction}`, doc.direction, 'spec')} (not built, not normative).` : ''
   return [
     `> **Status, generated from [\`status.json\`](status.json).** This text is frozen at version ${doc.version} (${doc.date}) and is not edited. ${PRECEDENCE} The library is [\`lib/\`](${REPO}/lib/README.md). Earlier versions under [\`archive/\`](archive/) are history, not the current state.`,
@@ -143,11 +149,11 @@ const directionLink = (d, from) => d.direction ? ` (${link(`spec/${d.direction}`
 
 export function renderReadme(status) {
   return [
-    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} ${DIFFERENCES_AT.replace('`lib/DEVIATIONS.md`', '[`lib/DEVIATIONS.md`](lib/DEVIATIONS.md)')} ${PRECEDENCE}`,
+    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT}; where a text has not been reconciled with the library rule by rule (the last column), single rules may differ. ${DIFFERENCES_AT.replace('`lib/DEVIATIONS.md`', '[`lib/DEVIATIONS.md`](lib/DEVIATIONS.md)')} ${PRECEDENCE}`,
     '',
     '| Document | Version | State | Last reconciled |',
     '|---|---|---|---|',
-    ...status.documents.map((d) => `| ${link(`spec/${d.file}`, d.title, 'root')} | ${d.version} | ${cell(d.state)}${directionLink(d, 'root')} | ${d.lastReconciled} |`),
+    ...status.documents.map((d) => `| ${link(`spec/${d.file}`, cell(d.title), 'root')} | ${d.version} | ${cell(d.state)}${directionLink(d, 'root')} | ${cell(d.lastReconciled)} |`),
   ].join('\n')
 }
 
@@ -157,7 +163,7 @@ export function renderSite(status) {
     '',
     '| Document | Role | Version | State |',
     '|---|---|---|---|',
-    ...status.documents.map((d) => `| ${link(`spec/${d.file}`, d.title, 'site')} | ${cell(d.role)} | ${d.version} | ${cell(d.state)}${directionLink(d, 'site')} |`),
+    ...status.documents.map((d) => `| ${link(`spec/${d.file}`, cell(d.title), 'site')} | ${cell(d.role)} | ${d.version} | ${cell(d.state)}${directionLink(d, 'site')} |`),
   ].join('\n')
 }
 
