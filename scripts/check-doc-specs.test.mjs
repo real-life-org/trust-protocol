@@ -56,6 +56,14 @@ test('a specification whose frozen text changed makes its pages pending; a chang
   ])
 })
 
+test('a specification whose state in spec/status.json changed makes its pages pending', () => {
+  const root = repo({ 'get-started/try-it.md': page('[access-layer, trust-layer]'), 'understand/trust.md': page('[trust-layer]') })
+  writeFileSync(join(root, 'spec/status.json'), JSON.stringify({ documents: [{ file: 'access-layer.md', state: 'Built' }, { file: 'trust-layer.md', state: 'Built' }] }))
+  assert.deepEqual(pendingPages(root, ['spec/status.json'], { baseStates: new Map([['trust-layer.md', 'Built']]) }), [
+    { file: `${DOCS}/get-started/try-it.md`, specs: ['access-layer'] },
+  ])
+})
+
 test('a page whose generated regions changed while its handwritten text stayed is pending', () => {
   const file = `${DOCS}/understand/groups.md`
   const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text.') })

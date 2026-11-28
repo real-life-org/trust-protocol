@@ -90,11 +90,15 @@ export function checkDeclarations(root) {
 // pending and `generated: true` for one whose regions changed. `base` maps
 // changed specifications and pages to their text at the merge base (null
 // for a new file); without it, a changed specification counts as changed
-// in its frozen text and a changed page as edited by a person.
-export function pendingPages(root, changedFiles, { release = false, base = new Map() } = {}) {
+// in its frozen text and a changed page as edited by a person. A
+// specification whose `state` in spec/status.json differs from `baseStates`
+// (file → state at the merge base; a file without one counts) changed too.
+export function pendingPages(root, changedFiles, { release = false, base = new Map(), baseStates } = {}) {
   const read = (f) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : '')
   const frozenChanged = (f) => !base.has(f) || frozenText(base.get(f) ?? '') !== frozenText(read(f))
   const changed = new Set(changedFiles.filter((f) => SPEC.test(f) && frozenChanged(f)).map((f) => f.match(SPEC)[1]))
+  const register = read('spec/status.json')
+  if (baseStates && register) for (const d of JSON.parse(register).documents) if (baseStates.get(d.file) !== d.state) changed.add(d.file.replace(/\.md$/, ''))
   const edited = new Set(changedFiles)
   const out = []
   for (const file of pages(root)) {
@@ -138,7 +142,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const show = (f) => { try { return execFileSync('git', ['show', `${merge}:${f}`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } }
     const changed = diff.split('\n').filter(Boolean)
     const base = new Map(changed.filter((f) => SPEC.test(f) || f.startsWith(`${DOCS}/`)).map((f) => [f, show(f)]))
-    pending = pendingPages(ROOT, changed, { release: released(since), base })
+    const baseStates = new Map((JSON.parse(show('spec/status.json') ?? '{}').documents ?? []).map((d) => [d.file, d.state]))
+    pending = pendingPages(ROOT, changed, { release: released(since), base, baseStates })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
       const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : []), ...(p.generated ? ['spec/status.json, whose generated text on it changed'] : [])].join(', ')
