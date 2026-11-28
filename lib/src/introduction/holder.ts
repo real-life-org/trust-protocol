@@ -49,7 +49,7 @@
 //               chaining mid-act deactivates it, tick keeps its key (8270,
 //               8290)
 //
-// Choices this file makes where spec and note leave them open:
+// Implementation choices and deviations:
 //   - who starts: §8 has the requester mint the act and name the target by
 //     the mediator's designator (8.3), but says nothing of how the
 //     requester learns that designator. This library has the mediator's
