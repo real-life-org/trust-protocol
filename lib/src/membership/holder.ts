@@ -29,7 +29,7 @@
 //               binding once its relationship ended and no open or accepted
 //               invitation rests on it (RLTP-MT-3945)
 //
-// Choices this file makes where spec and note leave them open:
+// Implementation choices and deviations:
 //   - the prelude (Membership 3.5) travels over the relationship tuple as
 //     its two registered types; the invitee's holder answers on its own
 //     (3960), registering its member label and key first (Identity 6.1),

@@ -90,7 +90,7 @@
 // probe (6820, 6830), behind the testing module's non-human command
 // continuity.newTuple.
 //
-// Choices this file makes where note and spec leave them open:
+// Implementation choices and deviations:
 //   - the prior-candidate set is the active-head tuples of every live
 //     relationship at tuple creation, in the order their heads were
 //     created (entryOrder.heads), the fresh tuple excluded (2300, 6740)
@@ -229,8 +229,7 @@
 //      never chained. (Had C issued on x before rotating, x's earliest
 //      anchor would be the earlier generation and the segment would reach
 //      A; the divergent chains and the endless duty of step 3 remain.)
-// Each local decision follows a rule as written (6900, 6910, 6960); the
-// refusal of step 2 is this library's conservative reading, which 6900
+// The refusal of step 2 is this library's conservative reading, which 6900
 // does not state; the end state violates the progress rules 6870 and
 // 6990. What 0.32 needs to decide, either:
 //   (a) order competing chainings: one deterministic winner among fresh

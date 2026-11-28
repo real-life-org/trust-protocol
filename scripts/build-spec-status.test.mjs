@@ -57,6 +57,7 @@ test('the schema refuses a register of the wrong form, with the path of the faul
     [(r) => { part(r, 1).differences = ['lib/test/x.test.mjs'] }, '/documents/0/parts/1/differences/0: must match pattern'],
     [(r) => { part(r, 0).target = '../outside.md' }, '/documents/0/parts/0/target: must match pattern'],
     [(r) => { part(r, 0).evidence.push('https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65') }, '/documents/0/parts/0/evidence/1: must match pattern'],
+    [(r) => { r.statements.s1.short = 'Two\nlines.' }, '/statements/s1/short: must match pattern'],
     [(r) => { delete r.statements.s1.evidence }, "/statements/s1: must have required property 'evidence'"],
     [(r) => { r.documents[0].textDigest = 'abc' }, '/documents/0/textDigest: must match pattern'],
   ]

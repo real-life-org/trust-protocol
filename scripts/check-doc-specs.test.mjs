@@ -98,6 +98,7 @@ test('pages that state protocol rules are pending when those specifications chan
     assert.ok(pendingFor(spec).includes('get-started/try-it.md'), `try-it.md for ${spec}`)
   }
   assert.ok(pendingFor('encounter-layer').includes('get-started/implement.md'))
+  assert.ok(pendingFor('identity-layer').includes('get-started/implement.md'))
 })
 
 test('pages that list registered task types are pending when a registering specification changes', () => {
