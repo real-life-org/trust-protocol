@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
-import { parseSpecs, parseLibrary, checkDeclarations, pendingPages, changedStatusEntries } from './check-doc-specs.mjs'
+import { parseSpecs, parseLibrary, checkDeclarations, pendingPages } from './check-doc-specs.mjs'
 
 const DOCS = 'apps/site/src/content/docs'
 const page = (specs) => `---\ntitle: T\ndescription: D\n${specs === undefined ? '' : `specs: ${specs}\n`}---\n\nBody with specs: [not, frontmatter]\n`
@@ -41,22 +41,33 @@ test('every page declares its specs, and only specifications that exist', () => 
   ])
 })
 
-test('a changed specification makes its pages pending unless the same change touches them', () => {
-  const root = repo({
-    'understand/groups.md': page('[access-layer, membership-tasks]'),
-    'understand/group-keys.md': page('[access-layer]'),
-    'understand/trust.md': page('[trust-layer]'),
-    'get-started/try-it.md': page('[]'),
-  })
-  const changed = ['spec/access-layer.md', `${DOCS}/understand/group-keys.md`, 'spec/archive/access-layer-0.56.md', 'README.md']
-  assert.deepEqual(pendingPages(root, changed), [
+// ── what makes a page pending ───────────────────────────────────────────
+
+const block = (body) => `<!-- spec-status -->\n${body}\n<!-- /spec-status -->\n\n`
+const boxed = (specs, box, text) => page(specs).replace('Body', `<!-- spec-box -->\n${box}\n<!-- /spec-box -->\n\n${text}`)
+
+test('a specification whose frozen text changed makes its pages pending; a change of its status block alone does not', () => {
+  const root = repo({ 'understand/groups.md': page('[access-layer]'), 'understand/trust.md': page('[trust-layer]') })
+  writeFileSync(join(root, 'spec/access-layer.md'), `${block('new status')}# access-layer\nedited\n`)
+  writeFileSync(join(root, 'spec/trust-layer.md'), `${block('new status')}# trust-layer\n`)
+  const base = new Map([['spec/access-layer.md', `${block('old status')}# access-layer\n`], ['spec/trust-layer.md', `${block('old status')}# trust-layer\n`]])
+  assert.deepEqual(pendingPages(root, ['spec/access-layer.md', 'spec/trust-layer.md', 'spec/archive/access-layer-0.56.md'], { base }), [
     { file: `${DOCS}/understand/groups.md`, specs: ['access-layer'] },
   ])
 })
 
-test('no changed specification, nothing pending', () => {
-  const root = repo({ 'understand/groups.md': page('[access-layer]') })
-  assert.deepEqual(pendingPages(root, ['spec/archive/access-layer-0.56.md', `${DOCS}/understand/groups.md`]), [])
+test('a page whose generated regions changed while its handwritten text stayed is pending', () => {
+  const file = `${DOCS}/understand/groups.md`
+  const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text.') })
+  const base = new Map([[file, boxed('[access-layer]', 'Access: not built.', 'Text.')]])
+  assert.deepEqual(pendingPages(root, ['spec/status.json', file], { base }), [{ file, specs: [], generated: true }])
+})
+
+test('a page edited by hand, or new, is not pending, whatever else changed', () => {
+  const file = `${DOCS}/understand/groups.md`
+  const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text, edited.'), 'understand/new.md': page('[access-layer]') })
+  const base = new Map([[file, boxed('[access-layer]', 'Access: not built.', 'Text.')], [`${DOCS}/understand/new.md`, null]])
+  assert.deepEqual(pendingPages(root, ['spec/access-layer.md', file, `${DOCS}/understand/new.md`], { base }), [])
 })
 
 // ── the repository's own mapping ────────────────────────────────────────
@@ -122,68 +133,4 @@ test('a library release makes the library pages pending unless the same change t
 
 test('the Implement page follows every library release', () => {
   assert.ok(pendingPages(ROOT, ['lib/package.json'], { release: true }).some((p) => p.file.endsWith('get-started/implement.md')))
-})
-
-test('a changed entry in spec/status.json counts as a change of its specification', () => {
-  const entry = (state, digest = 'sha256:a') => ({ file: 'access-layer.md', title: 'Access', state, textDigest: digest, parts: [] })
-  const status = (...docs) => JSON.stringify({ documents: docs })
-  const other = { file: 'trust-layer.md', state: 'Built', parts: [] }
-  // built -> superseded: the specification counts as changed, its pages are pending
-  const changed = changedStatusEntries(status(entry('Built'), other), status(entry('Superseded'), other))
-  assert.deepEqual(changed, ['spec/access-layer.md'])
-  const root = repo({ 'understand/groups.md': page('[access-layer]'), 'understand/trust.md': page('[trust-layer]') })
-  assert.deepEqual(pendingPages(root, changed).map((p) => p.file), [`${DOCS}/understand/groups.md`])
-  // the digest alone does not count; an unchanged entry does not count
-  assert.deepEqual(changedStatusEntries(status(entry('Built', 'sha256:a')), status(entry('Built', 'sha256:b'))), [])
-  // a new or removed entry counts; no file before counts every entry
-  assert.deepEqual(changedStatusEntries(null, status(entry('Built'), other)), ['spec/access-layer.md', 'spec/trust-layer.md'])
-  assert.deepEqual(changedStatusEntries(status(entry('Built'), other), status(other)), ['spec/access-layer.md'])
-})
-
-test('a changed statement makes the pages that carry it pending; its evidence does not count', async () => {
-  const { changedStatements } = await import('./check-doc-specs.mjs')
-  const before = JSON.stringify({ statements: { groups: { short: 'A log.', evidence: ['lib/src/a.ts'] }, identity: { short: 'Seed.', evidence: ['lib/src/b.ts'] } } })
-  const after = JSON.stringify({ statements: { groups: { short: 'A log, no removal.', evidence: ['lib/src/a.ts'] }, identity: { short: 'Seed.', evidence: ['lib/src/c.ts'] } } })
-  assert.deepEqual(changedStatements(before, after), ['groups'])
-  const root = repo({
-    'understand/groups.md': page('[]').replace('Body', 'Design. <!-- now:groups -->A log.<!-- /now:groups --> Body'),
-    'understand/why.mdx': page('[]').replace('Body', 'Design. {/* now:groups */}A log.{/* /now:groups */} Body'),
-    'understand/trust.md': page('[]').replace('Body', 'x <!-- now:identity -->Seed.<!-- /now:identity --> Body'),
-  })
-  const pending = pendingPages(root, ['spec/status.json'], { statements: ['groups'] })
-  assert.deepEqual(pending.map((p) => p.file), [`${DOCS}/understand/groups.md`, `${DOCS}/understand/why.mdx`])
-  assert.deepEqual(pending[0].statements, ['groups'])
-  // a page the same change touches is not pending
-  assert.deepEqual(pendingPages(root, ['spec/status.json', `${DOCS}/understand/groups.md`], { statements: ['groups'] }).map((p) => p.file), [`${DOCS}/understand/why.mdx`])
-})
-
-test('a page the change touched only inside generated places stays pending for a changed statement', async () => {
-  const { outsideGenerated } = await import('./build-spec-status.mjs')
-  const before = 'Design. <!-- now:group-conflicts -->Old.<!-- /now:group-conflicts --> More.\n'
-  const after = 'Design. <!-- now:group-conflicts -->New.<!-- /now:group-conflicts --> More.\n'
-  assert.equal(outsideGenerated(before, 'a.md'), outsideGenerated(after, 'a.md'))
-  assert.notEqual(outsideGenerated(after.replace('More', 'Read'), 'a.md'), outsideGenerated(before, 'a.md'))
-  const root = repo({ 'understand/groups.md': page('[]').replace('Body', after) })
-  const file = `${DOCS}/understand/groups.md`
-  // regenerated only: changed, but not touched by a person
-  assert.deepEqual(pendingPages(root, ['spec/status.json', file], { statements: ['group-conflicts'], touched: ['spec/status.json'] }).map((p) => p.file), [file])
-  assert.deepEqual(pendingPages(root, ['spec/status.json', file], { statements: ['group-conflicts'], touched: ['spec/status.json', file] }), [])
-})
-
-test('specs names an entry of spec/status.json, not just a file under spec/', () => {
-  const root = repo({ 'understand/a.md': page('[access-layer]'), 'understand/b.md': page('[trust-layer]'), 'understand/c.md': page('[direction/identity]') })
-  writeFileSync(join(root, 'spec/status.json'), JSON.stringify({ documents: [{ file: 'access-layer.md' }] }))
-  const errors = checkDeclarations(root)
-  assert.ok(errors.some((e) => e.file.endsWith('b.md') && e.msg.includes('no entry in spec/status.json')))
-  assert.ok(errors.some((e) => e.file.endsWith('c.md') && e.msg.includes('no specification')))
-  assert.ok(!errors.some((e) => e.file.endsWith('a.md')))
-})
-
-test('the order keys are written in is no change of a status entry', async () => {
-  const { changedStatusEntries } = await import('./check-doc-specs.mjs')
-  const a = JSON.stringify({ documents: [{ file: 'access-layer.md', title: 'Access', state: 'Built', parts: [{ title: 'x', status: 'built' }] }] })
-  const b = JSON.stringify({ documents: [{ state: 'Built', file: 'access-layer.md', parts: [{ status: 'built', title: 'x' }], title: 'Access' }] })
-  assert.deepEqual(changedStatusEntries(a, b), [])
-  const c = JSON.stringify({ documents: [{ file: 'access-layer.md', title: 'Access', state: 'Built', parts: [{ title: 'y', status: 'built' }, { title: 'x', status: 'built' }] }] })
-  assert.deepEqual(changedStatusEntries(a, c), ['spec/access-layer.md'], 'the order of parts still counts')
 })

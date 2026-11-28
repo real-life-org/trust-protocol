@@ -1,492 +1,160 @@
+// Probes for scripts/build-spec-status.mjs, one rule each.
+//   usage: node --test scripts/build-spec-status.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
-import { BEGIN, END, splitSpec, joinSpec, replaceBetween, renderSpecBlock, checkStatus, digestOf, fillStatements, checkStatements, statementUses, renderStatement, generate, fileProblem } from './build-spec-status.mjs'
+import { validateForm, checkRegister, regions, fill, generate, frozenText, digestOf } from './build-spec-status.mjs'
 
-const STATUSES = { built: '', 'built-differently': '', superseded: '', 'not-built': '' }
-const SPEC0 = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\ntext\n'
-const doc = (over = {}) => ({ file: 'a-layer.md', title: 'A', role: 'Layer 1', version: '0.1.0-draft', date: '2026-01-01', state: 'Built', lastReconciled: 'not reconciled', textDigest: digestOf(SPEC0), parts: [{ sections: ['2'], title: 'Two', status: 'built', evidence: ['lib/src/x.ts'] }], note: '', ...over })
-const SPEC = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\ntext\n'
+const SITE = 'apps/site/src/content/docs/reference/specifications.md'
+const SPEC = '# A Layer\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 1. Intro\n\n## 2a. More\n'
 
-function repo(files) {
+// A repository with one specification and every kind of region.
+function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'spec-status-'))
-  for (const [f, t] of Object.entries({ 'lib/src/x.ts': '// x\n', ...files })) { mkdirSync(join(root, f, '..'), { recursive: true }); writeFileSync(join(root, f), t) }
+  const files = {
+    'spec/a-layer.md': `<!-- spec-status -->\nold\n<!-- /spec-status -->\n\n${SPEC}`,
+    'spec/direction/a.md': 'Today: <!-- now:s1 -->old<!-- /now:s1 -->\n',
+    'lib/DEVIATIONS.md': '| id | issue |\n|---|---|\n| D1 | x |\n',
+    'lib/src/x.ts': '// x\n',
+    'lib/test/x.test.mjs': "test('one thing works', () => {})\n",
+    'README.md': '# R\n\n<!-- spec-status -->\nold\n<!-- /spec-status -->\n\n<!-- now:s1:long -->\nold\n<!-- /now:s1 -->\n',
+    [SITE]: '---\ntitle: S\nspecs: [a-layer]\n---\n\n<!-- spec-status -->\n<!-- /spec-status -->\n',
+    'apps/site/src/content/docs/understand/p.md': '---\ntitle: P\nspecs: [a-layer]\n---\n\n<!-- spec-box -->\n<!-- /spec-box -->\n\nText.\n',
+  }
+  for (const [f, t] of Object.entries(files)) { mkdirSync(join(root, dirname(f)), { recursive: true }); writeFileSync(join(root, f), t) }
   return root
 }
 
-test('the block is added on top and replaced; the rest stays byte for byte', () => {
-  const block = renderSpecBlock(doc())
-  const once = joinSpec(block, splitSpec(SPEC).rest)
-  assert.ok(once.startsWith(BEGIN))
-  assert.equal(splitSpec(once).rest, SPEC)
-  const again = joinSpec(renderSpecBlock(doc({ state: 'Parked' })), splitSpec(once).rest)
-  assert.equal(splitSpec(again).rest, SPEC)
-  assert.match(again, /\*\*State:\*\* Parked/)
+const STATUSES = Object.fromEntries(['built', 'partly-built', 'built-differently', 'not-built', 'superseded', 'parked', 'direction-changed', 'not-verified'].map((s) => [s, s]))
+const register = () => ({
+  statuses: { ...STATUSES },
+  statements: { s1: { short: 'Short.', long: 'Long.', evidence: ['lib/src/x.ts'] } },
+  documents: [{
+    file: 'a-layer.md', title: 'A Layer', role: 'Layer 1', version: '0.1.0-draft', date: '2026-01-01',
+    state: 'Built; one in part', lastReconciled: 'not reconciled', direction: 'direction/a.md', textDigest: digestOf(SPEC),
+    parts: [
+      { sections: ['1'], title: 'Intro', status: 'built', evidence: ['lib/src/x.ts'] },
+      { sections: ['2a'], title: 'More', status: 'partly-built', note: 'Half.', differences: ['D1', 'lib/test/x.test.mjs#one thing'], evidence: ['lib/test/x.test.mjs'] },
+    ],
+  }],
 })
+const part = (r, i) => r.documents[0].parts[i]
+const errorsWith = (root, change) => { const r = register(); change(r); return checkRegister(root, r) }
 
-test('a page is replaced between its markers only', () => {
-  const page = `x\n${BEGIN}\nold\n${END}\ny\n`
-  assert.equal(replaceBetween(page, 'new'), `x\n${BEGIN}\nnew\n${END}\ny\n`)
-  assert.equal(replaceBetween('no markers', 'new'), null)
-})
-
-test('status.json and spec/ must match, sections and deviations must exist', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'spec/b-layer.md': SPEC, 'lib/DEVIATIONS.md': '| id |\n|---|\n| D1 | x |\n' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [{ sections: ['3'], title: 'Three', status: 'built-differently', ref: ['D9'] }] })] })
-  assert.ok(errors.some((e) => e.includes('b-layer.md has no entry')))
-  assert.ok(errors.some((e) => e.includes('has no section 3')))
-  assert.ok(errors.some((e) => e.includes('D9 is no row')))
-  assert.ok(errors.some((e) => e.includes('D1 is named by no part')))
-})
-
-test('the version must be the header version', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  assert.deepEqual(checkStatus(root, { statuses: STATUSES, documents: [doc()] }), [])
-  assert.ok(checkStatus(root, { statuses: STATUSES, documents: [doc({ version: '0.2.0-draft' })] }).some((e) => e.includes('header says 0.1.0-draft')))
-})
-
-test('an edit of a frozen text fails against its digest', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC.replace('text', 'edited'), 'lib/DEVIATIONS.md': '' })
-  assert.ok(checkStatus(root, { statuses: STATUSES, documents: [doc()] }).some((e) => e.includes('the frozen text has changed')))
-})
-
-test('a duplicate entry, a missing source, an empty ref fail', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [
-    doc({ parts: [{ title: 'x', status: 'built', source: 'lib/nonexistent.md (header)' }, { title: 'y', status: 'built-differently', ref: [] }, { title: 'z', status: 'built-differently', ref: '' }] }),
-    doc(),
-  ] })
-  assert.ok(errors.some((e) => e.includes('more than once')))
-  assert.ok(errors.some((e) => e.includes('source lib/nonexistent.md does not exist')))
-  assert.equal(errors.filter((e) => e.includes('an empty ref')).length, 2)
-})
-
-test('a deviation must be named at each document its reading names', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'spec/access-layer.md': SPEC, 'lib/DEVIATIONS.md': '| id | issue | code | since | reading |\n|---|---|---|---|---|\n| D1 | i | c | 0.1 | read against Access 3.6 |\n' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [
-    doc({ parts: [{ title: 'x', status: 'built-differently', ref: ['D1'] }] }),
-    doc({ file: 'access-layer.md' }),
-  ] })
-  assert.ok(errors.some((e) => e.includes('D1 names access-layer.md')))
-})
-
-test('a link out of spec/ from a spec block is a repository link', () => {
-  const block = renderSpecBlock(doc({ parts: [{ title: 'x', status: 'built-differently', ref: ['D1'] }] }))
-  assert.match(block, /\(https:\/\/github\.com\/real-life-org\/trust-protocol\/blob\/main\/lib\/DEVIATIONS\.md\)/)
-  assert.doesNotMatch(block, /\(\.\.\/lib\//)
-})
-
-test('ref and source read a file path the same way: a missing file fails in both', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [
-    { title: 'x', status: 'built-differently', ref: 'lib/nonexistent.ts', differences: ['lib/src/x.ts'], evidence: ['lib/src/x.ts'] },
-    { title: 'y', status: 'built', source: 'missing.md', evidence: ['lib/src/x.ts'] },
-    { title: 'z', status: 'built', source: 'Status of This Document', evidence: ['lib/src/x.ts'] },
-  ] })] })
-  assert.ok(errors.some((e) => e.includes('ref lib/nonexistent.ts does not exist')))
-  assert.ok(errors.some((e) => e.includes('source missing.md does not exist')))
-  assert.equal(errors.length, 2)
-})
-
-test('a status that is no own key of the legend, and partly-built without a note, fail', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  const statuses = { ...STATUSES, 'partly-built': '' }
-  const errors = checkStatus(root, { statuses, documents: [doc({ parts: [
-    { title: 'x', status: 'constructor' },
-    { title: 'y', status: 'partly-built' },
-    { title: 'z', status: 'partly-built', note: '  ' },
-  ] })] })
-  assert.ok(errors.some((e) => e.includes('"x"') && e.includes('unknown status constructor')))
-  assert.equal(errors.filter((e) => e.includes('partly-built without a note')).length, 2)
-})
-
-test('a cited section must be a heading of its own, not the prefix of a child heading', () => {
-  const child = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2.1. Child\n\ntext\n\n## 3 Three\n\n### 3a. Letter\n'
-  const root = repo({ 'spec/a-layer.md': child, 'lib/DEVIATIONS.md': '' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ textDigest: digestOf(child), parts: [{ sections: ['2', '2.1', '3', '3a'], title: 'Two', status: 'built' }] })] })
-  assert.ok(errors.some((e) => e.includes('has no section 2')) && !errors.some((e) => e.includes('has no section 2.1')))
-  assert.ok(!errors.some((e) => e.includes('has no section 3')))
-})
-
-test('exactly one begin and one end marker: a second block on a page or in a spec fails', () => {
-  const page = `x\n${BEGIN}\nold\n${END}\ny\n`
-  assert.equal(replaceBetween(page + `${BEGIN}\nConverged: all documents\n${END}\n`, 'new'), null)
-  assert.equal(replaceBetween(`x\n${END}\n${BEGIN}\n`, 'new'), null)
-  const spec = joinSpec(renderSpecBlock(doc()), SPEC) + `\n${BEGIN}\nConverged\n${END}\n`
-  const root = repo({ 'spec/a-layer.md': spec, 'lib/DEVIATIONS.md': '' })
-  assert.ok(checkStatus(root, { statuses: STATUSES, documents: [doc()] }).some((e) => e.includes('2 begin and 2 end markers')))
-})
-
-test('direction-changed needs a ref to an existing note under spec/direction/', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'spec/direction/identity.md': '# note\n', 'lib/DEVIATIONS.md': '' })
-  const statuses = { ...STATUSES, 'direction-changed': '' }
-  const errors = checkStatus(root, { statuses, documents: [doc({ parts: [
-    { title: 'x', status: 'direction-changed', ref: 'typo' },
-    { title: 'y', status: 'direction-changed', ref: 'direction/missing.md' },
-    { title: 'z', status: 'direction-changed', ref: 'direction/identity.md' },
-  ] })] })
-  assert.equal(errors.filter((e) => e.includes('direction-changed without a ref')).length, 2)
-  assert.ok(!errors.some((e) => e.includes('"z"')))
-})
-
-test('a built part needs evidence: existing paths in the library, the vectors or the ceremony definitions', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [
-    { sections: ['2'], title: 'none', status: 'built' },
-    { sections: ['2'], title: 'missing', status: 'built', evidence: ['lib/test/missing.test.mjs'] },
-    { sections: ['2'], title: 'prose', status: 'built', evidence: ['lib/README.md'] },
-    { sections: ['2'], title: 'fine', status: 'built', evidence: ['lib/src/x.ts'] },
-  ] })] })
-  assert.ok(errors.some((e) => e.includes('"none"') && e.includes('no evidence')))
-  assert.ok(errors.some((e) => e.includes('evidence lib/test/missing.test.mjs does not exist')))
-  assert.ok(errors.some((e) => e.includes('evidence lib/README.md is no path')))
-  assert.ok(!errors.some((e) => e.includes('"fine"')))
-})
-
-const STMTS = { groups: { short: 'The library runs a `log` ([status](https://x/s.json)).', long: 'Long form.', evidence: ['lib/src/x.ts'] } }
-
-test('a marked place is filled from its statement, inline and as a block, in Markdown, MDX and Astro', () => {
-  const md = 'Design. <!-- now:groups -->old<!-- /now:groups --> More.\n\n<!-- now:groups:long -->\nold\n<!-- /now:groups -->\n'
-  const r = fillStatements(md, STMTS, 'a.md')
-  assert.deepEqual(r.errors, [])
-  assert.equal(r.text, 'Design. <!-- now:groups -->The library runs a `log` ([status](https://x/s.json)).<!-- /now:groups --> More.\n\n<!-- now:groups:long -->\nLong form.\n<!-- /now:groups -->\n')
-  const mdx = 'Design. {/* now:groups */}{/* /now:groups */}\n'
-  assert.equal(fillStatements(mdx, STMTS, 'a.mdx').text, 'Design. {/* now:groups */}' + STMTS.groups.short + '{/* /now:groups */}\n')
-  const astro = '<p>Design. <!-- now:groups --><!-- /now:groups --></p>'
-  assert.equal(fillStatements(astro, STMTS, 'a.astro').text, '<p>Design. <!-- now:groups -->The library runs a <code>log</code> (<a href="https://x/s.json">status</a>).<!-- /now:groups --></p>')
-  assert.deepEqual(statementUses(md, 'a.md'), [{ id: 'groups', form: 'short' }, { id: 'groups', form: 'long' }])
-  assert.equal(renderStatement('a < b', 'x.astro'), 'a &lt; b')
-})
-
-test('a marker that names no statement or form, a begin without its end, a stray end, a nested begin fail', () => {
-  const errs = (t, f = 'a.md') => fillStatements(t, STMTS, f).errors
-  assert.ok(errs('x <!-- now:nope --><!-- /now:nope -->').some((e) => e.includes('now:nope names no statement')))
-  assert.ok(errs('x <!-- now:groups:medium --><!-- /now:groups -->').some((e) => e.includes('names no form medium')))
-  assert.ok(errs('x <!-- now:groups -->text').some((e) => e.includes('no end marker')))
-  assert.ok(errs('x <!-- /now:groups -->').some((e) => e.includes('1 end markers for 0 statements')))
-  assert.ok(errs('x <!-- now:groups --> <!-- now:groups --><!-- /now:groups -->').some((e) => e.includes('no end marker before the next statement')))
-  assert.ok(errs('x {/* now:groups */}', 'a.mdx').some((e) => e.includes('no end marker')))
-})
-
-test('every statement is used, has a short form, known fields and existing evidence', () => {
-  const root = repo({ 'page.md': 'x <!-- now:groups --><!-- /now:groups -->\n' })
-  const statements = { ...STMTS, unused: { short: 'S.', evidence: ['lib/src/x.ts'] }, bad: { long: 'L.', evidence: ['lib/src/none.ts'], extra: 1 } }
-  const errors = checkStatements(root, { statements }, ['page.md'])
-  assert.ok(errors.some((e) => e.includes('statement unused: used on no page')))
-  assert.ok(errors.some((e) => e.includes('statement bad: no short form')))
-  assert.ok(errors.some((e) => e.includes('statement bad: unknown field extra')))
-  assert.ok(errors.some((e) => e.includes('evidence lib/src/none.ts does not exist')))
-  assert.ok(!errors.some((e) => e.includes('statement groups')))
-})
-
-test('generation runs one text per file through every step: a wrong site table and README are both corrected', () => {
-  const SITE = 'apps/site/src/content/docs/reference/specifications.md'
-  const root = repo({
-    'spec/a-layer.md': SPEC,
-    'lib/DEVIATIONS.md': '',
-    'README.md': `Design. <!-- now:groups -->stale<!-- /now:groups -->\n\n${BEGIN}\nConverged: all documents\n${END}\n`,
-    [SITE]: `---\ntitle: S\nspecs: []\n---\n\n${BEGIN}\n| Converged; its ceremony |\n${END}\n\nMore <!-- now:groups -->stale<!-- /now:groups -->\n`,
-  })
-  const status = { statuses: STATUSES, statements: STMTS, documents: [doc()] }
-  const { errors, outputs } = generate(root, status)
-  assert.deepEqual(errors, [])
-  const out = Object.fromEntries(outputs.map(([f, , after]) => [f, after]))
-  assert.ok(!out[SITE].includes('Converged'), 'the site table is regenerated')
-  assert.ok(out[SITE].includes('| Document | Role | Version | State |'))
-  assert.ok(out[SITE].includes(`<!-- now:groups -->${STMTS.groups.short}<!-- /now:groups -->`), 'and its statement filled in the same pass')
-  assert.ok(!out['README.md'].includes('Converged') && out['README.md'].includes(STMTS.groups.short))
-  assert.ok(out['spec/a-layer.md'].startsWith(BEGIN))
-  // a second generation over the result changes nothing
-  for (const [f, , after] of outputs) writeFileSync(join(root, f), after)
-  const again = generate(root, status)
-  assert.deepEqual(again.errors, [], 'the second generation runs without errors')
-  assert.deepEqual(again.outputs.map(([f]) => f).sort(), outputs.map(([f]) => f).sort(), 'over the same files')
-  assert.ok(again.outputs.every(([, b, a]) => b === a))
-})
-
-test('a path must be a regular file in normal form inside its directory', () => {
-  const root = repo({ 'spec/direction/identity.md': '# n\n', 'spec/access-layer.md': '# a\n', 'README.md': '# r\n' })
-  assert.equal(fileProblem(root, 'lib/src/x.ts', 'lib/src/'), null)
-  assert.match(fileProblem(root, 'lib/src/', 'lib/src/'), /normal form|not a file/)
-  assert.match(fileProblem(root, 'lib/src/../../README.md', 'lib/src/'), /normal form/)
-  assert.match(fileProblem(root, 'spec/direction/../access-layer.md', 'spec/direction/'), /normal form/)
-  assert.match(fileProblem(root, 'spec/direction', 'spec/direction/'), /not under|not a file/)
-  const errors = checkStatus(root, { statuses: { ...STATUSES, 'direction-changed': '' }, documents: [] })
-  assert.deepEqual(errors.filter((e) => e.includes('direction')), [])
-  const ev = checkStatements(root, { statements: { s: { short: 'S.', evidence: ['lib/src/', 'lib/src/../../README.md'] } } }, [])
-  assert.equal(ev.filter((e) => e.includes('evidence')).length, 2)
-})
-
-test('a direction ref that leaves spec/direction/ fails', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'spec/direction/identity.md': '# n\n', 'spec/access-layer.md': '# a\n', 'lib/DEVIATIONS.md': '' })
-  const statuses = { ...STATUSES, 'direction-changed': '' }
-  const errors = checkStatus(root, { statuses, documents: [doc({ parts: [{ title: 'x', status: 'direction-changed', ref: 'direction/../access-layer.md' }] })] })
-  assert.ok(errors.some((e) => e.includes('direction-changed without a ref')))
-})
-
-test('a comment that looks like a statement marker but is none fails', () => {
-  const errs = fillStatements('x <!-- now:GROUPS -->old<!-- /now:GROUPS -->', STMTS, 'a.md').errors
-  assert.ok(errs.some((e) => e.includes('<!-- now:GROUPS --> is no statement marker')))
-  assert.ok(fillStatements('x {/* now:Groups */}old{/* /now:Groups */}', STMTS, 'a.mdx').errors.some((e) => e.includes('is no statement marker')))
-})
-
-test('evidence about the app is a file of the public app repository at a fixed commit', () => {
-  const root = repo({})
-  const ok = 'https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/x.ts#L1-L2'
-  const errs = (e) => checkStatements(root, { statements: { s: { short: 'S.', evidence: [e] } } }, []).filter((x) => x.includes('evidence'))
-  assert.deepEqual(errs(ok), [])
-  assert.equal(errs('https://github.com/real-life-org/web-of-trust/blob/main/apps/wot-v3/src/x.ts').length, 1)
-})
-
-test('a statement whose markers were removed while its text stayed fails', async () => {
-  const long = { groups: { short: 'The library runs a membership log replicated among the members, with founding.', evidence: ['lib/src/x.ts'] } }
-  const root = repo({ 'page.md': 'Design. The library runs a membership log replicated among the members, with founding.\n\nx <!-- now:groups --><!-- /now:groups -->\n' })
-  assert.ok(checkStatements(root, { statements: long }, ['page.md']).some((e) => e.includes('the statement groups stands without its markers')))
-  const { unmarkedAgainstBase } = await import('./check-doc-specs.mjs')
-  // against the merge base: the old wording left behind after the markers went
-  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', text: 'Design. The library runs a membership log replicated among the members, with founding.\n' }], long), [{ file: 'a.md', id: 'groups' }])
-  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', text: 'Design. <!-- now:groups -->The library runs a membership log replicated among the members, with founding.<!-- /now:groups -->\n' }], long), [])
-})
-
-test('an end marker only in the syntax the parser consumes; other marker misuse fails', () => {
-  const errs = (t, f = 'a.md') => fillStatements(t, STMTS, f).errors
-  // an end that names a form is not consumed
-  assert.ok(errs('x <!-- now:groups:long -->a<!-- /now:groups:long -->').some((e) => e.includes('<!-- /now:groups:long --> is no statement marker')))
-  assert.ok(errs('x <!-- /now:groups:long -->').some((e) => e.includes('is no statement marker')))
-  // the end of another statement inside a place
-  assert.ok(errs('x <!-- now:groups --> y <!-- /now:other --> <!-- /now:groups -->').some((e) => e.includes('2 end markers for 1 statements')))
-  // an inline place that starts a line would be raw HTML in Markdown
-  assert.ok(errs('<!-- now:groups -->old<!-- /now:groups -->\n').some((e) => e.includes('starts a line')))
-  assert.deepEqual(errs('<!-- now:groups -->\nold\n<!-- /now:groups -->\n'), [])
-})
-
-test('the box: set under the frontmatter of every explaining page with specs, from status.json, exactly once', async () => {
-  const { boxPages, renderBox, placeBox, BOX, outsideGenerated } = await import('./build-spec-status.mjs')
-  const D = 'apps/site/src/content/docs'
-  const status = { statuses: STATUSES, statements: STMTS, documents: [doc()] }
-  const root = repo({
-    'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '',
-    'README.md': `x <!-- now:groups --><!-- /now:groups -->\n\n${BEGIN}\n${END}\n`,
-    [`${D}/reference/specifications.md`]: `---\ntitle: S\nspecs: [a-layer]\n---\n\n${BEGIN}\n${END}\n`,
-    [`${D}/understand/one.md`]: '---\ntitle: One\nspecs: [a-layer]\n---\n\n## First\n\nText.\n',
-    [`${D}/understand/two.mdx`]: "---\ntitle: Two\nspecs: [a-layer]\n---\n\nimport X from './x.astro'\n\nText.\n",
-    [`${D}/reference/glossary.mdx`]: '---\ntitle: G\nspecs: []\n---\n\nText.\n',
-  })
-  assert.deepEqual(boxPages(root).map((p) => p.file), [`${D}/understand/one.md`, `${D}/understand/two.mdx`])
-  const box = renderBox(['a-layer'], status, 'x.md')
-  assert.match(box, /^<!-- spec-box:begin[^\n]*\n:::note\[Design and status\]\n/)
-  assert.ok(box.includes('- [A](https://github.com/real-life-org/trust-protocol/blob/main/spec/a-layer.md): built'))
-  assert.ok(!box.includes('<details>'))
-  assert.ok(renderBox(['a-layer', 'a-layer', 'a-layer', 'a-layer', 'a-layer'], status, 'x.md').includes('<summary>The 5 specifications this page rests on</summary>'))
-  // generation sets the box; a second generation changes nothing
-  const { errors, outputs } = generate(root, status)
-  assert.deepEqual(errors, [])
-  const out = Object.fromEntries(outputs.map(([f, , a]) => [f, a]))
-  assert.ok(out[`${D}/understand/one.md`].startsWith('---\ntitle: One\nspecs: [a-layer]\n---\n\n' + BOX.md.begin))
-  assert.ok(out[`${D}/understand/two.mdx`].includes("import X from './x.astro'\n\n" + BOX.mdx.begin))
-  for (const [f, , a] of outputs) writeFileSync(join(root, f), a)
-  const again = generate(root, status)
-  assert.deepEqual(again.errors, [], 'the second generation runs without errors')
-  assert.deepEqual(again.outputs.map(([f]) => f).sort(), outputs.map(([f]) => f).sort(), 'over the same files')
-  assert.ok(again.outputs.every(([, b, a]) => b === a))
-  // a second box fails; a regenerated box is no human edit
-  assert.match(placeBox(`${BOX.md.begin}\n${BOX.md.end}\n${BOX.md.begin}\n${BOX.md.end}\n`, box, 'p.md').error, /2 box begin and 2 box end markers/)
-  assert.equal(outsideGenerated(`a\n${BOX.md.begin}\nold\n${BOX.md.end}\nb`, 'p.md'), outsideGenerated(`a\n${BOX.md.begin}\nnew\n${BOX.md.end}\nb`, 'p.md'))
-})
-
-test('the box: pages at any depth, the named exception, its place under the frontmatter, no second visible box', async () => {
-  const { boxPages, renderBox, placeBox, BOX, BOX_EXCEPTIONS, outsideGenerated } = await import('./build-spec-status.mjs')
-  const D = 'apps/site/src/content/docs'
-  const root = repo({
-    [`${D}/reference/specifications.md`]: '---\ntitle: S\nspecs: [a-layer]\n---\n',
-    [`${D}/understand/deep/inner.md`]: '---\ntitle: I\nspecs: [a-layer]\n---\n\nText.\n',
-  })
-  assert.deepEqual(boxPages(root).map((p) => p.file), [`${D}/understand/deep/inner.md`])
-  assert.ok(Object.hasOwn(BOX_EXCEPTIONS, `${D}/reference/specifications.md`))
-  const status = { documents: [doc()] }
-  const box = renderBox(['a-layer'], status, 'p.md')
-  const fm = '---\ntitle: P\nspecs: [a-layer]\n---\n'
-  // the unchanged box at the end of the page
-  assert.match(placeBox(`${fm}\n## First\n\nText.\n\n${box}\n`, box, 'p.md').error, /does not stand directly under the frontmatter/)
-  // a second visible copy without markers
-  const copy = box.split('\n').slice(1, -1).join('\n')
-  assert.match(placeBox(`${fm}\n${box}\n\n${copy}\n`, box, 'p.md').error, /a second box stands outside the markers/)
-  assert.match(placeBox(`${fm}\n${copy}\n`, box, 'p.md').error, /a box stands without its markers/)
-  // the first setting of a box is no edit of a person
-  const without = `${fm}\n## First\n\nText.\n`
-  const withBox = placeBox(without, box, 'p.md').text
-  assert.equal(outsideGenerated(withBox, 'p.md'), outsideGenerated(without, 'p.md'))
-})
-
-test('a statement left behind with a line break in it is still found', () => {
-  const long = { groups: { short: 'The library runs a membership log replicated among the members, with founding.', evidence: ['lib/src/x.ts'] } }
-  const root = repo({ 'page.md': 'Design. The library runs a membership log replicated\namong the members, with founding.\n\nx <!-- now:groups --><!-- /now:groups -->\n' })
-  assert.ok(checkStatements(root, { statements: long }, ['page.md']).some((e) => e.includes('the statement groups stands without its markers')))
-})
-
-test('a count in the state is the count of the parts', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  const statuses = { ...STATUSES, 'partly-built': '' }
-  const parts = [{ sections: ['2'], title: 'x', status: 'partly-built', note: 'n', evidence: ['lib/src/x.ts'] }]
-  assert.ok(checkStatus(root, { statuses, documents: [doc({ state: 'Mostly built; two in part', parts })] }).some((e) => e.includes('the state says two in part, the parts have 1')))
-  assert.ok(!checkStatus(root, { statuses, documents: [doc({ state: 'Mostly built; one in part', parts })] }).some((e) => e.includes('the state says')))
-})
-
-test('a box on a page that gets none, and specs naming no entry, fail', async () => {
-  const { strayBoxes, BOX } = await import('./build-spec-status.mjs')
-  const D = 'apps/site/src/content/docs'
-  const root = repo({
-    'spec/a-layer.md': SPEC, 'spec/direction/identity.md': '# n\n', 'lib/DEVIATIONS.md': '',
-    'README.md': `x <!-- now:groups --><!-- /now:groups -->\n\n${BEGIN}\n${END}\n`,
-    'apps/site/src/content/docs/reference/specifications.md': `---\ntitle: S\nspecs: []\n---\n\n${BEGIN}\n${END}\n`,
-    [`${D}/understand/none.md`]: `---\ntitle: N\nspecs: []\n---\n\n${BOX.md.begin}\n:::note[Design and status]\nold\n:::\n${BOX.md.end}\n\nText.\n`,
-    [`${D}/understand/odd.md`]: '---\ntitle: O\nspecs: [b-layer]\n---\n\nText.\n',
-    'spec/b-layer.md': '# b\n',
-  })
-  assert.deepEqual(strayBoxes(root), [`${D}/understand/none.md`])
-  const { errors } = generate(root, { statuses: STATUSES, statements: STMTS, documents: [doc()] })
-  assert.ok(errors.some((e) => e.includes('none.md: a box on a page that gets none')))
-  assert.ok(errors.some((e) => e.includes('odd.md: specs names b-layer, which has no entry')))
-})
-
-test('setting a box is no edit of a person, whatever the space after the frontmatter or the imports', async () => {
-  const { renderBox, placeBox, outsideGenerated } = await import('./build-spec-status.mjs')
-  const box = renderBox(['a-layer'], { documents: [doc()] }, 'p.md')
-  for (const page of ['---\ntitle: P\nspecs: [a-layer]\n---\nFirst paragraph.\n', '---\ntitle: P\nspecs: [a-layer]\n---\n\n\nFirst paragraph.\n']) {
-    assert.equal(outsideGenerated(placeBox(page, box, 'p.md').text, 'p.md'), outsideGenerated(page, 'p.md'))
-  }
-  const mdxBox = renderBox(['a-layer'], { documents: [doc()] }, 'p.mdx')
-  for (const page of ["---\ntitle: P\nspecs: [a-layer]\n---\nimport X from './x'\nText.\n", "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport X from './x'\n\n\nText.\n"]) {
-    assert.equal(outsideGenerated(placeBox(page, mdxBox, 'p.mdx').text, 'p.mdx'), outsideGenerated(page, 'p.mdx'))
-  }
-})
-
-test('differences point to a row of lib/DEVIATIONS.md, the header of a source file or a test, and must exist', async () => {
-  const { renderDifferences } = await import('./build-spec-status.mjs')
-  const root = repo({
-    'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '| id | issue | code | since | reading |\n|---|---|---|---|---|\n| D1 | i | c | 0.1 | read |\n',
-    'lib/test/t.test.mjs': "test('one-sided chaining: a case', () => {})\n",
-  })
-  const statuses = { ...STATUSES, 'partly-built': '' }
-  const ok = [{ sections: ['2'], title: 'x', status: 'built-differently', differences: ['D1', 'lib/src/x.ts', 'lib/test/t.test.mjs#one-sided chaining'], evidence: ['lib/src/x.ts'] }]
-  assert.deepEqual(checkStatus(root, { statuses, documents: [doc({ parts: ok })] }), [])
-  const bad = [
-    { sections: ['2'], title: 'none', status: 'built-differently', evidence: ['lib/src/x.ts'] },
-    { sections: ['2'], title: 'd9', status: 'built-differently', differences: ['D9'], evidence: ['lib/src/x.ts'] },
-    { sections: ['2'], title: 'path', status: 'built-differently', differences: ['lib/src/missing.ts'], evidence: ['lib/src/x.ts'] },
-    { sections: ['2'], title: 'test', status: 'built-differently', differences: ['lib/test/t.test.mjs#no such test'], evidence: ['lib/src/x.ts'] },
-    { sections: ['2'], title: 'outside', status: 'built-differently', differences: ['README.md'], evidence: ['lib/src/x.ts'] },
+test('the schema refuses a register of the wrong form, with the path of the fault', () => {
+  assert.deepEqual(validateForm(register()), [])
+  const cases = [
+    [(r) => { part(r, 0).status = 'done' }, '/documents/0/parts/0/status'],
+    [(r) => { part(r, 0).status = 'built-differently' }, "/documents/0/parts/0: must have required property 'differences'"],
+    [(r) => { delete part(r, 1).note; delete part(r, 1).differences }, "/documents/0/parts/1: must have required property 'note'"],
+    [(r) => { part(r, 0).status = 'superseded' }, "/documents/0/parts/0: must have required property 'target'"],
+    [(r) => { part(r, 0).status = 'direction-changed' }, "/documents/0/parts/0: must have required property 'direction'"],
+    [(r) => { delete part(r, 0).evidence }, "/documents/0/parts/0: must have required property 'evidence'"],
+    [(r) => { part(r, 0).evidence = ['lib/README.md'] }, '/documents/0/parts/0/evidence: must contain at least 1 valid item'],
+    [(r) => { part(r, 1).differences = ['lib/test/x.test.mjs'] }, '/documents/0/parts/1/differences/0: must match pattern'],
+    [(r) => { part(r, 0).target = '../outside.md' }, '/documents/0/parts/0/target: must match pattern'],
+    [(r) => { delete r.statements.s1.evidence }, "/statements/s1: must have required property 'evidence'"],
+    [(r) => { r.documents[0].textDigest = 'abc' }, '/documents/0/textDigest: must match pattern'],
   ]
-  const errors = checkStatus(root, { statuses, documents: [doc({ parts: bad })] })
-  assert.ok(errors.some((e) => e.includes('"none": built-differently without differences')))
-  assert.ok(errors.some((e) => e.includes('D9 is no row')))
-  assert.ok(errors.some((e) => e.includes('difference lib/src/missing.ts does not exist')))
-  assert.ok(errors.some((e) => e.includes('has 0 tests whose name starts "no such test", not one')))
-  assert.ok(errors.some((e) => e.includes('difference README.md is not under lib/src/')))
-  assert.equal(renderDifferences(ok[0], 'root'), 'Differences: [D1](lib/DEVIATIONS.md), the header of [`lib/src/x.ts`](lib/src/x.ts), test `one-sided chaining` in [`t.test.mjs`](lib/test/t.test.mjs).')
+  for (const [change, expected] of cases) {
+    const r = register(); change(r)
+    assert.ok(validateForm(r).some((e) => e.includes(expected)), `${expected} in ${validateForm(r).join('; ')}`)
+  }
 })
 
-test('a box inside the frontmatter, and an import over several lines, are refused', async () => {
-  const { renderBox, placeBox } = await import('./build-spec-status.mjs')
-  const box = renderBox(['a-layer'], { documents: [doc()] }, 'p.md')
-  const inYaml = `---\ntitle: P\ndescription: |\n  ${box.split('\n').join('\n  ')}\nspecs: [a-layer]\n---\n\nText.\n`
-  assert.match(placeBox(inYaml, box, 'p.md').error, /a box marker stands inside the frontmatter/)
-  const mdxBox = renderBox(['a-layer'], { documents: [doc()] }, 'p.mdx')
-  const multi = "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport {\n  A,\n  B,\n} from './x'\n\nText.\n"
-  assert.match(placeBox(multi, mdxBox, 'p.mdx').error, /an import over several lines/)
-  assert.equal(placeBox("---\ntitle: P\nspecs: [a-layer]\n---\n\nimport { A, B } from './x'\n\nText.\n", mdxBox, 'p.mdx').error, undefined)
+test('every specification has exactly one entry and every entry a file', () => {
+  const root = fixture()
+  writeFileSync(join(root, 'spec/b-layer.md'), SPEC)
+  assert.deepEqual(errorsWith(root, (r) => r.documents.push({ ...r.documents[0], file: 'c-layer.md' })), [
+    'spec/b-layer.md: not exactly one entry in spec/status.json',
+    'spec/status.json names c-layer.md, which is not in spec/',
+  ])
 })
 
-test('a statement about the app needs a pinned app permalink; a test reference needs one test name found once', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '', 'lib/test/t.test.mjs': "test('alpha one', () => {})\ntest('alpha two', () => {})\n", 'page.md': 'x <!-- now:s --><!-- /now:s -->\n' })
-  const app = 'https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/x.ts#L1-L2'
-  const say = (evidence) => checkStatements(root, { statements: { s: { short: 'The library and the app run a log.', evidence } } }, ['page.md'])
-  assert.ok(say(['lib/src/x.ts']).some((e) => e.includes('speaks of the app without a pinned app permalink')))
-  assert.ok(!say(['lib/src/x.ts', app]).some((e) => e.includes('speaks of the app')))
-  const part = (differences) => checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [{ sections: ['2'], title: 'x', status: 'built-differently', differences, evidence: ['lib/src/x.ts'] }] })] })
-  assert.ok(part(['lib/test/t.test.mjs']).some((e) => e.includes('names no test')))
-  assert.ok(part(['lib/test/t.test.mjs#alpha']).some((e) => e.includes('has 2 tests whose name starts "alpha", not one')))
-  assert.ok(part(['lib/src/x.ts#alpha']).some((e) => e.includes('takes no test name')))
-  assert.deepEqual(part(['lib/test/t.test.mjs#alpha one']), [])
+test('version and date are those of the header', () => {
+  assert.deepEqual(errorsWith(fixture(), (r) => { r.documents[0].version = '0.2.0-draft'; r.documents[0].date = '2026-02-02' }), [
+    'spec/status.json a-layer.md: version 0.2.0-draft, the header says 0.1.0-draft',
+    'spec/status.json a-layer.md: date 2026-02-02, the header says 2026-01-01',
+  ])
 })
 
-test('markers count only in the visible flow: in the frontmatter or a code block they are errors', async () => {
-  const { hiddenMarkers, statementUses, replaceBetween } = await import('./build-spec-status.mjs')
-  const yaml = '---\ntitle: P\ndescription: x <!-- now:holder -->One holder.<!-- /now:holder -->\nspecs: []\n---\n\nText.\n'
-  assert.deepEqual(statementUses(yaml, 'p.md'), [])
-  assert.ok(hiddenMarkers(yaml, 'p.md').some((e) => e.includes('<!-- now:holder --> stands in the frontmatter or in a code block')))
-  const fenced = `---\ntitle: S\nspecs: []\n---\n\n\`\`\`md\n${BEGIN}\n| Document | Role |\n${END}\n\`\`\`\n`
-  assert.equal(replaceBetween(fenced, 'new'), null)
-  assert.ok(hiddenMarkers(fenced, 'p.md').some((e) => e.includes('spec-status:begin')))
-  assert.deepEqual(hiddenMarkers('---\ntitle: P\n---\n\nx <!-- now:holder -->a<!-- /now:holder -->\n', 'p.md'), [])
+test('the frozen text below the status block has the named digest', () => {
+  const root = fixture()
+  writeFileSync(join(root, 'spec/a-layer.md'), `<!-- spec-status -->\nanother block\n<!-- /spec-status -->\n\n${SPEC}`)
+  assert.deepEqual(checkRegister(root, register()), [])
+  writeFileSync(join(root, 'spec/a-layer.md'), `<!-- spec-status -->\n<!-- /spec-status -->\n\n${SPEC}edited\n`)
+  assert.match(checkRegister(root, register()).join('\n'), /a-layer\.md: the frozen text has changed/)
 })
 
-test('two one-line imports with a blank line between: the box goes after both', async () => {
-  const { renderBox, placeBox } = await import('./build-spec-status.mjs')
-  const box = renderBox(['a-layer'], { documents: [doc()] }, 'p.mdx')
-  const page = "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport A from './a'\n\nimport B from './b'\n\nText.\n"
-  const placed = placeBox(page, box, 'p.mdx')
-  assert.equal(placed.error, undefined)
-  assert.ok(placed.text.indexOf("import B from './b'") < placed.text.indexOf('spec-box:begin'))
-  assert.equal(placeBox(placed.text, box, 'p.mdx').error, undefined)
+test('a named section is a heading of the specification, by its whole number', () => {
+  assert.deepEqual(errorsWith(fixture(), (r) => { part(r, 0).sections = ['2', '3'] }), [
+    'spec/status.json a-layer.md "Intro": spec/a-layer.md has no section 2',
+    'spec/status.json a-layer.md "Intro": spec/a-layer.md has no section 3',
+  ])
 })
 
-test('a short statement that lost its markers is found, here and against the merge base', async () => {
-  const short = { rot: { short: 'The library supports key rotation.', evidence: ['lib/src/x.ts'] } }
-  const root = repo({ 'page.md': 'Design. The library supports key rotation.\n\nx <!-- now:rot --><!-- /now:rot -->\n' })
-  assert.ok(checkStatements(root, { statements: short }, ['page.md']).some((e) => e.includes('the statement rot stands without its markers')))
-  const { unmarkedAgainstBase } = await import('./check-doc-specs.mjs')
-  const baseText = 'Design. <!-- now:rot -->The library supports key rotation.<!-- /now:rot -->\n'
-  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', baseText, text: 'Design. The library supports key rotation.\n' }], short), [{ file: 'a.md', id: 'rot' }])
-  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', baseText, text: 'Design.\n' }], short), [], 'removed with its text: no finding')
+test('every named path is a file, and a named test occurs in its file', () => {
+  assert.deepEqual(checkRegister(fixture(), register()), [])
+  assert.deepEqual(errorsWith(fixture(), (r) => {
+    part(r, 0).evidence.push('lib/src/gone.ts'); part(r, 0).target = 'interop/gone.json'
+    r.documents[0].direction = 'direction/gone.md'; r.statements.s1.evidence.push('vectors/gone.json')
+    part(r, 1).differences = ['D1', 'lib/test/x.test.mjs#another thing']
+  }), [
+    'statement s1: vectors/gone.json is no file',
+    'spec/status.json a-layer.md: spec/direction/gone.md is no file',
+    'spec/status.json a-layer.md "Intro": lib/src/gone.ts is no file',
+    'spec/status.json a-layer.md "Intro": interop/gone.json is no file',
+    'spec/status.json a-layer.md "More": lib/test/x.test.mjs has no test whose name starts "another thing"',
+  ])
 })
 
-
-test('a register with wrongly typed entries is reported, entry by entry, and never throws', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '', 'page.md': 'x <!-- now:groups --><!-- /now:groups -->\n' })
-  const bad = { statuses: STATUSES, documents: [
-    null,
-    { file: 5 },
-    doc({ parts: [null, { title: 'p', status: 'built', evidence: ['lib/src/x.ts'], differences: {}, sections: 2, source: 7, note: {} }], state: 9, note: [] }),
-  ] }
-  let errors
-  assert.doesNotThrow(() => { errors = checkStatus(root, bad) })
-  assert.ok(errors.some((e) => e.includes('documents[0]: not an entry with a file name')))
-  assert.ok(errors.some((e) => e.includes('documents[1]: not an entry with a file name')))
-  assert.ok(errors.some((e) => e.includes('parts[0]: not an object')))
-  assert.ok(errors.some((e) => e.includes('"p": differences is not a list')))
-  assert.ok(errors.some((e) => e.includes('"p": sections is not a list')))
-  assert.ok(errors.some((e) => e.includes('"p": source is not text')))
-  assert.ok(errors.some((e) => e.includes('no state as text')))
-  assert.deepEqual(checkStatus(root, { documents: {} }), ['spec/status.json: documents is not a list'])
-  assert.deepEqual(checkStatus(root, null), ['spec/status.json: not an object'])
-  let st
-  assert.doesNotThrow(() => { st = checkStatements(root, { statements: { groups: null, other: { short: 5, evidence: 'lib/src/x.ts' } } }, ['page.md']) })
-  assert.ok(st.some((e) => e.includes('statement groups: not an object')))
-  assert.ok(st.some((e) => e.includes('statement other: evidence is not a list')))
-  assert.deepEqual(checkStatements(root, { statements: [] }, ['page.md']), ['spec/status.json: statements is not an object'])
-  assert.doesNotThrow(() => generate(root, bad))
+test('every deviation named is a row of lib/DEVIATIONS.md, and every row is named', () => {
+  assert.deepEqual(errorsWith(fixture(), (r) => { part(r, 1).differences = ['D9'] }), [
+    'spec/status.json a-layer.md "More": D9 is no row of lib/DEVIATIONS.md',
+    'lib/DEVIATIONS.md D1 is named by no part in spec/status.json',
+  ])
 })
 
-test('a built part needs evidence in this repository; an app permalink alone is not enough', () => {
-  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
-  const app = 'https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/x.ts#L1-L2'
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [{ sections: ['2'], title: 'x', status: 'built', evidence: [app] }] })] })
-  assert.ok(errors.some((e) => e.includes('"x": no evidence in the library')))
+test('a count the state names is the count of the parts', () => {
+  assert.deepEqual(errorsWith(fixture(), (r) => { r.documents[0].state = 'Built; two in part' }), [
+    'spec/status.json a-layer.md: the state says two in part, the parts have 1',
+  ])
 })
 
-test('a section is a heading of the visible text, not a line in a code block', () => {
-  const spec = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\n```md\n## 3. Three\n```\n'
-  const root = repo({ 'spec/a-layer.md': spec, 'lib/DEVIATIONS.md': '' })
-  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ textDigest: digestOf(spec), parts: [{ sections: ['3'], title: 'x', status: 'built', evidence: ['lib/src/x.ts'] }] })] })
-  assert.ok(errors.some((e) => e.includes('has no section 3')))
+test('regions are filled in one pass; a stray end, a nested begin, a missing end and an unknown id are errors', () => {
+  const body = (r) => (r.id === 'gone' ? { error: 'no statement gone' } : `<${r.kind}>`)
+  assert.deepEqual(fill('a <!-- now:x -->old<!-- /now:x --> b\n<!-- spec-box -->\nold\n<!-- /spec-box -->\n', 'p.md', body),
+    { text: 'a <!-- now:x --><now><!-- /now:x --> b\n<!-- spec-box -->\n<spec-box>\n<!-- /spec-box -->\n', errors: [] })
+  assert.equal(fill('{/* now:x */}old{/* /now:x */}', 'p.mdx', body).text, '{/* now:x */}<now>{/* /now:x */}')
+  assert.deepEqual(regions('<!-- /now:x --> <!-- now:x --><!-- spec-box --><!-- /now:x --> <!-- now:y -->', 'p.md').errors, [
+    'p.md: <!-- /now:x --> closes no open region',
+    'p.md: <!-- spec-box --> opens inside <!-- now:x -->',
+    'p.md: <!-- now:y --> has no end marker',
+  ])
+  assert.deepEqual(fill('<!-- now:gone --><!-- /now:gone -->', 'p.md', body).errors, ['p.md: <!-- now:gone -->: no statement gone'])
+  assert.equal(frozenText('<!-- spec-status -->\nx\n<!-- /spec-status -->\n\nbody\n'), 'body\n')
 })
 
-test('a statement place inside or across the status block is refused before anything is written', async () => {
-  const { statusOverlap } = await import('./build-spec-status.mjs')
-  assert.match(statusOverlap(`${BEGIN}\nx <!-- now:groups -->a<!-- /now:groups -->\n${END}\n`, 'README.md'), /inside the status block/)
-  assert.match(statusOverlap(`x <!-- now:groups -->a\n${BEGIN}\n${END}\nb<!-- /now:groups -->\n`, 'README.md'), /open across the status block/)
-  assert.equal(statusOverlap(`x <!-- now:groups -->a<!-- /now:groups -->\n\n${BEGIN}\n${END}\n`, 'README.md'), null)
+test('a region the file has no place for, or a box page without its box, is an error', () => {
+  const root = fixture()
+  writeFileSync(join(root, 'spec/direction/a.md'), '<!-- spec-box -->\n<!-- /spec-box -->\n<!-- now:s1:wide -->x<!-- /now:s1 -->\n')
+  writeFileSync(join(root, 'apps/site/src/content/docs/understand/p.md'), '---\ntitle: P\nspecs: [a-layer]\n---\n\nText.\n')
+  assert.deepEqual(generate(root, register()).errors, [
+    'spec/direction/a.md: <!-- spec-box -->: no such region in spec/direction/a.md',
+    'spec/direction/a.md: <!-- now:s1:wide -->: no statement s1 with a wide form in spec/status.json',
+    'apps/site/src/content/docs/understand/p.md: not exactly one spec-box region',
+  ])
+})
+
+test('generating is idempotent, and a file that differs from what it generates is stale', () => {
+  const root = fixture()
+  const stale = () => [...generate(root, register()).outputs].filter(([f, t]) => readFileSync(join(root, f), 'utf8') !== t).map(([f]) => f)
+  for (const [f, t] of generate(root, register()).outputs) writeFileSync(join(root, f), t)
+  assert.deepEqual(stale(), [])
+  const readme = readFileSync(join(root, 'README.md'), 'utf8')
+  assert.match(readme, /<!-- now:s1:long -->\nLong\.\n<!-- \/now:s1 -->/)
+  writeFileSync(join(root, 'README.md'), readme.replace('Long.', 'Long, edited by hand.'))
+  assert.deepEqual(stale(), ['README.md'])
 })

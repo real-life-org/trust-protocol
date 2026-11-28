@@ -135,8 +135,8 @@ into spec sections and of the castings the READMEs name
 (`scripts/check-doc-refs.mjs`), the `specs:` declarations of the site
 pages (`scripts/check-doc-specs.mjs`), the check of this file and `CLAUDE.md`
 against the repository (`scripts/check-agents-md.mjs`), the check of
-`spec/status.json` and of the places generated from it
-(`scripts/build-spec-status.mjs --check`),
+`spec/status.json` against `spec/status.schema.json` and the repository,
+and of the regions generated from it (`scripts/build-spec-status.mjs --check`),
 the schema and vector validation, the reading of the Trust Tasks TF's
 shared proof vectors (`conformance/tf-proof-vectors.mjs` over
 `vectors/tf-proof/`), the freshness of the generated
@@ -183,16 +183,16 @@ CI (`.github/workflows/validate.yml`) runs the check steps above.
 The protocol is designed in test benches and in the library. A change of
 behaviour changes the library with its vectors and flows, and the pages
 that describe it, in the same pull request. The texts under `spec/*.md`
-are frozen: do not edit them, apart from the status block at their top,
-which `node scripts/build-spec-status.mjs` writes from `spec/status.json`
-together with the status section of `README.md` and the document table of
-the site. What holds is in `spec/status.json`; change it there and
-regenerate. Statements about what the library builds today stand on
-`README.md`, the site and the direction notes only in places generated
-from the `statements` of `spec/status.json` (`<!-- now:<id> -->`); change
-them there and regenerate. Every page under `understand/` and `reference/`
-that rests on specifications opens with a box the generator writes from
-its `specs:` and `spec/status.json`, except `reference/specifications.md`, which is the status table itself. The landing page documents what is
+are frozen: do not edit them, apart from the status block at their top.
+What holds is in `spec/status.json` (its form in `spec/status.schema.json`);
+change it there and run `node scripts/build-spec-status.mjs`, which fills
+every region between `<!-- spec-status -->`, `<!-- spec-box -->` or
+`<!-- now:<id> -->` and its end marker: the status block of each
+specification, the status section of `README.md` and the document table
+of the site; the box on every page under `understand/` and `reference/`
+that rests on specifications (`reference/specifications.md`, the table
+itself, excepted); and every statement about what the library builds
+today, from `statements`. Edit the register, never a region. The landing page documents what is
 live and changes only in a change of its own that the author decides, not
 on the side of another pull request. Where a text and the library disagree, the
 library with its vectors and flows holds until the text is brought up to
@@ -210,11 +210,8 @@ A change also updates, where it touches them:
    (`.github/workflows/docs-follow.yml`) fails a pull request that edits
    one of them until the pages are updated or a person has read them and
    labelled the pull request `docs-checked`. A page also becomes pending
-   when the entry in `spec/status.json` of a specification it rests on, or
-   the wording of a statement it carries, changes; regenerating the page
-   does not clear that. Edit the page outside its generated places, or
-   have a person read it and label the pull request `docs-checked`. The
-   links alone prove nothing about the text.
+   when a generated region on it changes while the text a person wrote
+   there stays as it was. The links alone prove nothing about the text.
 3. **Term register** `terms/rltp.skos.jsonld` for terms added, renamed, or
    removed; the glossary follows from it.
 4. **This file and `CLAUDE.md`** when the change adds a directory, a
