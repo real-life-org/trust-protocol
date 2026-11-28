@@ -23,7 +23,8 @@ Details, part by part: [Specifications](/reference/specifications/) and the stat
 :::
 <!-- /spec-box -->
 
-In the frozen specification texts, RLTP uses three verifiable
+In the frozen Encounter Layer, Membership Tasks and Access Layer texts,
+RLTP uses three verifiable
 credentials: the encounter credential, the invitation credential and the
 admission vouch. All three are W3C
 Verifiable Credentials 2.0 in the form of the

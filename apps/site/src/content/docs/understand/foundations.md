@@ -108,7 +108,8 @@ Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/mai
 
 ## Credentials we issue
 
-In the frozen specification texts, RLTP issues three credentials, all W3C
+In the frozen Encounter Layer, Membership Tasks and Access Layer texts,
+RLTP issues three credentials, all W3C
 Verifiable Credentials 2.0
 with closed schemas and three contexts pinned by value (W3C
 credentials v2, a DTG context, RLTP v1), verified without JSON-LD

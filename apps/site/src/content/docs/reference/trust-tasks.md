@@ -33,7 +33,7 @@ documents itself carries every sealed message as the payload of one
 more type, `sealed-envelope/0.1`, whose parties are the carrier's
 identifiers. <!-- now:app-profile -->The Web of Trust app connects people with `shared-connect`, whose steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633) ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).<!-- /now:app-profile -->
 
-The types form one register, the
+The private RLTP types form one register, the
 [task registry](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types)
 of the Delivery Contract. Each type is registered by the specification
 where its semantics live, which names its payload schema, its proof
