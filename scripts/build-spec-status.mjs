@@ -122,6 +122,21 @@ function link(path, text, from) {
   return `[${text ?? path}](${href})`
 }
 
+// Where a part's differences are documented: a row of lib/DEVIATIONS.md
+// (`D2`), the header comment of a file (`lib/src/x.ts`), or a test
+// (`lib/test/x.test.mjs#name`, the start of its name).
+export function renderDifferences(part, from) {
+  const list = part.differences ?? []
+  if (!list.length) return ''
+  const items = list.map((d) => {
+    if (deviation(d)) return link('lib/DEVIATIONS.md', d, from)
+    const [path, name] = d.split('#')
+    if (name) return `test \`${name}\` in ${link(path, `\`${path.split('/').pop()}\``, from)}`
+    return `the header of ${link(path, `\`${path}\``, from)}`
+  })
+  return `Differences: ${items.join(', ')}.`
+}
+
 function refs(part, from) {
   const out = []
   const list = refsOf(part)
@@ -136,8 +151,8 @@ function refs(part, from) {
 
 export const BUILT_MEANS = '*Built* means the library implements the part; the text has not been reconciled with the library rule by rule, so single rules may differ.'
 const reconciled = (r) => r === 'not reconciled'
-  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; notes name the differences known so far.'
-  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS} Notes name the differences known so far.`
+  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md` or in the header of the source file.'
+  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS} Differences are documented where a note points, in \`lib/DEVIATIONS.md\` or in the header of the source file.`
 
 export function renderSpecBlock(doc) {
   const lines = [
@@ -151,7 +166,7 @@ export function renderSpecBlock(doc) {
     ...doc.parts.map((p) => {
       const what = [sectionsOf(p), p.title].filter(Boolean).join(' ')
       const status = [LABEL[p.status], refs(p, 'spec')].filter(Boolean).join(': ')
-      return `> | ${cell(what)} | ${cell(status)} | ${cell(p.note)} |`
+      return `> | ${cell(what)} | ${cell(status)} | ${cell([p.note, renderDifferences(p, 'spec')].filter(Boolean).join(' '))} |`
     }),
   ]
   if (doc.note) lines.push('>', `> ${doc.note}`)
@@ -161,7 +176,7 @@ export function renderSpecBlock(doc) {
 
 export function renderReadme(status) {
   return [
-    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} Notes name the differences known so far. ${PRECEDENCE}`,
+    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} Differences are documented where a note points, in [\`lib/DEVIATIONS.md\`](lib/DEVIATIONS.md) or in the header of the source file. ${PRECEDENCE}`,
     '',
     '| Document | Version | State | Last reconciled |',
     '|---|---|---|---|',
@@ -255,13 +270,30 @@ export function checkStatus(root, status) {
       const pw = `${where} "${p.title}"`
       if (!p.title) errors.push(`${where}: a part without a title`)
       if (typeof p.status !== 'string' || !Object.hasOwn(status.statuses ?? {}, p.status) || !Object.hasOwn(LABEL, p.status)) errors.push(`${pw}: unknown status ${p.status}`)
-      if (p.status === 'partly-built' && !(typeof p.note === 'string' && p.note.trim())) errors.push(`${pw}: partly-built without a note saying which part`)
+      if (p.status === 'partly-built' && !(typeof p.note === 'string' && p.note.trim()) && !(p.differences ?? []).length) errors.push(`${pw}: partly-built without a note or differences saying which part`)
       if (['built', 'partly-built', 'built-differently'].includes(p.status)) errors.push(...evidenceProblems(root, p.evidence, pw))
       else if (p.evidence !== undefined) errors.push(...evidenceProblems(root, p.evidence, pw))
       const list = refsOf(p)
       if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
       if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)
-      if (p.status === 'built-differently' && !list.length) errors.push(`${pw}: built-differently without ref`)
+      const diffs = p.differences ?? []
+      if (p.differences !== undefined && (!Array.isArray(p.differences) || !diffs.length)) errors.push(`${pw}: empty differences`)
+      if (p.status === 'built-differently' && !diffs.length) errors.push(`${pw}: built-differently without differences`)
+      for (const x of diffs) {
+        if (typeof x !== 'string') { errors.push(`${pw}: a difference is no string`); continue }
+        if (deviation(x)) {
+          ;(namedAt[x] ??= new Set()).add(d.file)
+          if (!(x in rows)) errors.push(`${pw}: ${x} is no row of lib/DEVIATIONS.md`)
+          continue
+        }
+        const [path, name] = x.split('#')
+        const why = fileProblem(root, path, /^lib\/test\//.test(path) ? 'lib/test/' : 'lib/src/')
+        if (why) { errors.push(`${pw}: difference ${path} ${why}`); continue }
+        if (name !== undefined) {
+          const body = readFileSync(join(root, path), 'utf8')
+          if (!name || !new RegExp(`\\b(test|it)\\(\\s*['"\`]${esc(name)}`).test(body)) errors.push(`${pw}: ${path} has no test whose name starts "${name}"`)
+        }
+      }
       if (p.status === 'direction-changed' && !list.some((r) => typeof r === 'string' && /\.md$/.test(pathIn(r)) && !fileProblem(root, `spec/${pathIn(r)}`, 'spec/direction/'))) errors.push(`${pw}: direction-changed without a ref to a direction note under spec/direction/`)
       if (p.status === 'superseded' && !p.target) errors.push(`${pw}: superseded without target`)
       for (const s of p.sections ?? []) {

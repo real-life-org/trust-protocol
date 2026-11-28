@@ -129,7 +129,7 @@ ceremony, a [continuity probe](term:ContinuityProbe) over the fresh channel lets
 devices find out that they already share a relationship; only a
 counterpart that holds the earlier one can answer it. In the Trust Layer
 text, on a match the new pair is chained to that relationship, and the
-chain is visible to its two holders alone. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is verified against the prior relationship key. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
+chain is visible to its two holders alone. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave relationships unchained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
 
 Spec: [Encounter Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#8-what-a-third-party-can-verify) ·
 [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44)

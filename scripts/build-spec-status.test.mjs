@@ -81,7 +81,7 @@ test('a link out of spec/ from a spec block is a repository link', () => {
 test('ref and source read a file path the same way: a missing file fails in both', () => {
   const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
   const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [
-    { title: 'x', status: 'built-differently', ref: 'lib/nonexistent.ts', evidence: ['lib/src/x.ts'] },
+    { title: 'x', status: 'built-differently', ref: 'lib/nonexistent.ts', differences: ['lib/src/x.ts'], evidence: ['lib/src/x.ts'] },
     { title: 'y', status: 'built', source: 'missing.md', evidence: ['lib/src/x.ts'] },
     { title: 'z', status: 'built', source: 'Status of This Document', evidence: ['lib/src/x.ts'] },
   ] })] })
@@ -355,4 +355,29 @@ test('setting a box is no edit of a person, whatever the space after the frontma
   for (const page of ["---\ntitle: P\nspecs: [a-layer]\n---\nimport X from './x'\nText.\n", "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport X from './x'\n\n\nText.\n"]) {
     assert.equal(outsideGenerated(placeBox(page, mdxBox, 'p.mdx').text, 'p.mdx'), outsideGenerated(page, 'p.mdx'))
   }
+})
+
+test('differences point to a row of lib/DEVIATIONS.md, the header of a source file or a test, and must exist', async () => {
+  const { renderDifferences } = await import('./build-spec-status.mjs')
+  const root = repo({
+    'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '| id | issue | code | since | reading |\n|---|---|---|---|---|\n| D1 | i | c | 0.1 | read |\n',
+    'lib/test/t.test.mjs': "test('one-sided chaining: a case', () => {})\n",
+  })
+  const statuses = { ...STATUSES, 'partly-built': '' }
+  const ok = [{ sections: ['2'], title: 'x', status: 'built-differently', differences: ['D1', 'lib/src/x.ts', 'lib/test/t.test.mjs#one-sided chaining'], evidence: ['lib/src/x.ts'] }]
+  assert.deepEqual(checkStatus(root, { statuses, documents: [doc({ parts: ok })] }), [])
+  const bad = [
+    { sections: ['2'], title: 'none', status: 'built-differently', evidence: ['lib/src/x.ts'] },
+    { sections: ['2'], title: 'd9', status: 'built-differently', differences: ['D9'], evidence: ['lib/src/x.ts'] },
+    { sections: ['2'], title: 'path', status: 'built-differently', differences: ['lib/src/missing.ts'], evidence: ['lib/src/x.ts'] },
+    { sections: ['2'], title: 'test', status: 'built-differently', differences: ['lib/test/t.test.mjs#no such test'], evidence: ['lib/src/x.ts'] },
+    { sections: ['2'], title: 'outside', status: 'built-differently', differences: ['README.md'], evidence: ['lib/src/x.ts'] },
+  ]
+  const errors = checkStatus(root, { statuses, documents: [doc({ parts: bad })] })
+  assert.ok(errors.some((e) => e.includes('"none": built-differently without differences')))
+  assert.ok(errors.some((e) => e.includes('D9 is no row')))
+  assert.ok(errors.some((e) => e.includes('difference lib/src/missing.ts does not exist')))
+  assert.ok(errors.some((e) => e.includes('has no test whose name starts "no such test"')))
+  assert.ok(errors.some((e) => e.includes('difference README.md is not under lib/src/')))
+  assert.equal(renderDifferences(ok[0], 'root'), 'Differences: [D1](lib/DEVIATIONS.md), the header of [`lib/src/x.ts`](lib/src/x.ts), test `one-sided chaining` in [`t.test.mjs`](lib/test/t.test.mjs).')
 })
