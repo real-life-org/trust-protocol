@@ -258,3 +258,34 @@ test('an end marker only in the syntax the parser consumes; other marker misuse 
   assert.ok(errs('<!-- now:groups -->old<!-- /now:groups -->\n').some((e) => e.includes('starts a line')))
   assert.deepEqual(errs('<!-- now:groups -->\nold\n<!-- /now:groups -->\n'), [])
 })
+
+test('the box: set under the frontmatter of every explaining page with specs, from status.json, exactly once', async () => {
+  const { boxPages, renderBox, placeBox, BOX, outsideGenerated } = await import('./build-spec-status.mjs')
+  const D = 'apps/site/src/content/docs'
+  const status = { statuses: STATUSES, statements: STMTS, documents: [doc()] }
+  const root = repo({
+    'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '',
+    'README.md': `x <!-- now:groups --><!-- /now:groups -->\n\n${BEGIN}\n${END}\n`,
+    [`${D}/reference/specifications.md`]: `---\ntitle: S\nspecs: [a-layer]\n---\n\n${BEGIN}\n${END}\n`,
+    [`${D}/understand/one.md`]: '---\ntitle: One\nspecs: [a-layer]\n---\n\n## First\n\nText.\n',
+    [`${D}/understand/two.mdx`]: "---\ntitle: Two\nspecs: [a-layer]\n---\n\nimport X from './x.astro'\n\nText.\n",
+    [`${D}/reference/glossary.mdx`]: '---\ntitle: G\nspecs: []\n---\n\nText.\n',
+  })
+  assert.deepEqual(boxPages(root).map((p) => p.file), [`${D}/understand/one.md`, `${D}/understand/two.mdx`])
+  const box = renderBox(['a-layer'], status, 'x.md')
+  assert.match(box, /^<!-- spec-box:begin[^\n]*\n:::note\[Design and status\]\n/)
+  assert.ok(box.includes('- [A](https://github.com/real-life-org/trust-protocol/blob/main/spec/a-layer.md): built'))
+  assert.ok(!box.includes('<details>'))
+  assert.ok(renderBox(['a-layer', 'a-layer', 'a-layer', 'a-layer', 'a-layer'], status, 'x.md').includes('<summary>The 5 specifications this page rests on</summary>'))
+  // generation sets the box; a second generation changes nothing
+  const { errors, outputs } = generate(root, status)
+  assert.deepEqual(errors, [])
+  const out = Object.fromEntries(outputs.map(([f, , a]) => [f, a]))
+  assert.ok(out[`${D}/understand/one.md`].startsWith('---\ntitle: One\nspecs: [a-layer]\n---\n\n' + BOX.md.begin))
+  assert.ok(out[`${D}/understand/two.mdx`].includes("import X from './x.astro'\n\n" + BOX.mdx.begin))
+  for (const [f, , a] of outputs) writeFileSync(join(root, f), a)
+  assert.ok(generate(root, status).outputs.every(([, b, a]) => b === a))
+  // a second box fails; a regenerated box is no human edit
+  assert.match(placeBox(`${BOX.md.begin}\n${BOX.md.end}\n${BOX.md.begin}\n${BOX.md.end}\n`, box, 'p.md').error, /2 box begin and 2 box end markers/)
+  assert.equal(outsideGenerated(`a\n${BOX.md.begin}\nold\n${BOX.md.end}\nb`, 'p.md'), outsideGenerated(`a\n${BOX.md.begin}\nnew\n${BOX.md.end}\nb`, 'p.md'))
+})

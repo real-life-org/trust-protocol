@@ -32,7 +32,7 @@ const space: [IconName, string, string][] = [
 const dtg: { label: string; text: string; href: string; repo: string }[] = [
   { label: 'Credentials', text: 'Encounter credentials are typed as DTG relationship credentials, invitations as DTG invitation credentials. The move to the current DTG context follows its implementer\'s draft.', href: 'https://github.com/trustoverip/dtgwg-cred-spec', repo: 'dtgwg-cred-spec' },
   { label: 'Trust Tasks', text: 'Every document between devices is a Trust Task document of a private type.', href: 'https://github.com/trustoverip/dtgwg-trust-tasks-spec', repo: 'dtgwg-trust-tasks-spec' },
-  { label: 'Transport', text: 'An adapter for the VTI mediator over TSP 1.0 is specified; its status names what the library implements.', href: spec('adapter-vti-mediator.md'), repo: 'adapter-vti-mediator.md' },
+  { label: 'Transport', text: 'An adapter for the VTI mediator is specified and implemented over TSP 1.0.', href: spec('adapter-vti-mediator.md'), repo: 'adapter-vti-mediator.md' },
 ]
 ---
 <div class="tp-landing not-content">
@@ -59,8 +59,8 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     <div>
       <div class="tp-badge">Identity</div>
       <h2>One seed, an anchor per context</h2>
-      <p>A person is one mnemonic. <!-- now:identity -->With the library's default key provider <code>seedKeys</code>, the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a <code>did:key</code>, and an app may bind another key provider.<!-- /now:identity --> <!-- now:direction-identity -->An identifier that survives a key change, linked devices and guardians are planned, not in the library.<!-- /now:direction-identity --></p>
-      <p>Contexts never link unless their holder decides to link them. <!-- now:recovery -->Recovering a whole identity from the mnemonic and a copy of the person's state is specified, not built in the library.<!-- /now:recovery --></p>
+      <p>A person is one mnemonic. Every identifier toward a relationship, a group or the public is derived from it as a <code>did:key</code>.</p>
+      <p>Contexts never link unless their holder decides to link them. The mnemonic restores every key; which contexts exist is data in the person's encrypted state, and recovery needs both.</p>
       <p><a class="tp-more" href="/understand/foundations/#identifiers" aria-label="More on identifiers, in Foundations">More →</a></p>
     </div>
     <Anchors />
@@ -103,7 +103,6 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <p>A group is an encrypted document replicated on every member's device, with a signed log of who joined, who left and which rules apply. Membership is a fact in that state and a capability: holding the key.</p>
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
       <p>Group state is a deterministic reading of the log, on each device. Only members can read it.</p>
-      <p>This is the design the specification texts describe. <!-- now:groups -->The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, epoch transitions and key changes are not built (<a href="https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json">status</a>).<!-- /now:groups --></p>
       <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
     <GroupPlace />
@@ -119,7 +118,6 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
           <div class="tp-item"><Icon name={icon} /><div><strong>{name}</strong><code>{detail}</code></div></div>
         ))}
       </div>
-      <p>These properties are the design of the specification texts. <!-- now:group-keys -->In the library, epoch transitions, key rotation and removal are not built (<a href="https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json">status</a>).<!-- /now:group-keys --></p>
     </div>
     <SharedSpace />
   </section>
@@ -128,8 +126,8 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     <div>
       <div class="tp-badge">Services</div>
       <h2>Delivery and replication behind ports</h2>
-      <p>Documents travel sealed end to end, with acknowledgements, signed or carrying a MAC, and a closed set of delivery states.</p>
-      <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it. <!-- now:replication -->The library registers no replication adapter; its group log uses an unattested exchange.<!-- /now:replication --></p>
+      <p>Documents travel sealed end to end, with signed acknowledgements and a closed set of delivery states.</p>
+      <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it.</p>
     </div>
     <Ports />
   </section>

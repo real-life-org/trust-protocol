@@ -29,10 +29,6 @@
       "short": "The library founds a group under `linear/0.1`; it does not build the key delivery.",
       "evidence": ["lib/src/access/genesis.ts", "lib/src/holder-api.ts"]
     },
-    "replication": {
-      "short": "The library registers no replication adapter; its group log uses an unattested exchange.",
-      "evidence": ["lib/src/access/exchange.ts", "lib/test/access-exchange.test.mjs"]
-    },
     "group-rules": {
       "short": "In the library, changing the rules (`policy.change`) is not built.",
       "evidence": ["lib/src/access/log.ts"]
