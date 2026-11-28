@@ -101,3 +101,11 @@ test('a status that is no own key of the legend, and partly-built without a note
   assert.ok(errors.some((e) => e.includes('"x"') && e.includes('unknown status constructor')))
   assert.equal(errors.filter((e) => e.includes('partly-built without a note')).length, 2)
 })
+
+test('a cited section must be a heading of its own, not the prefix of a child heading', () => {
+  const child = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2.1. Child\n\ntext\n\n## 3 Three\n\n### 3a. Letter\n'
+  const root = repo({ 'spec/a-layer.md': child, 'lib/DEVIATIONS.md': '' })
+  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ textDigest: digestOf(child), parts: [{ sections: ['2', '2.1', '3', '3a'], title: 'Two', status: 'built' }] })] })
+  assert.ok(errors.some((e) => e.includes('has no section 2')) && !errors.some((e) => e.includes('has no section 2.1')))
+  assert.ok(!errors.some((e) => e.includes('has no section 3')))
+})

@@ -206,7 +206,7 @@ export function checkStatus(root, status) {
       if (p.status === 'direction-changed' && !list.length) errors.push(`${pw}: direction-changed without ref`)
       if (p.status === 'superseded' && !p.target) errors.push(`${pw}: superseded without target`)
       for (const s of p.sections ?? []) {
-        if (!new RegExp(`^#{2,6} ${esc(s)}(?:\\.|\\s)`, 'm').test(text)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)
+        if (!new RegExp(`^#{2,6} ${esc(s)}\\.?(?:\\s|$)`, 'm').test(text)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)
       }
       for (const r of list) {
         if (deviation(r)) {
