@@ -113,8 +113,7 @@
 //     whose tuple is still the active head of a live relationship and
 //     whose mapping it can prepare (a match whose prior relationship key
 //     or scope is not available is passed over; with none, the choice
-//     stays owed), and chains on nothing yet; the non-record side reports the first such
-//     match. A match report that reaches a record side without a choice is
+//     stays owed), and chains on nothing yet. A match report that reaches a record side without a choice is
 //     chosen from where its prior is still chainable (6910), and chained
 //     with that issuance: the report is the evidence (follow-up 14; 6920
 //     has no match report cause chaining)
@@ -208,12 +207,12 @@
 //      active head, 6910), issuing its choice without chaining (follow-up
 //      14); A, record side of y, does the same for y. The two choices
 //      cross: A chains x on verifying C's (6900, 6220), C chains y on A's
-//   2. the reports and alignments follow: A's alignment on y reaches C,
-//      the record side of y, naming the prior it chose; its prior is in
-//      C's frozen prior-candidate set of y (6960 passes on the snapshot),
-//      but C's original tuple is no longer an active head: x took it.
+//   2. the reports and alignments follow: A's alignment on x reaches C,
+//      the record side of x, naming the prior it chose; its prior is in
+//      C's frozen prior-candidate set of x (6960 passes on the snapshot),
+//      but C's original tuple is no longer an active head: y took it.
 //      Nothing in 6.4 or 6a.4 says onto what C appends; this library
-//      refuses it (validation-failed, ref 6900), symmetrically at A for x.
+//      refuses it (validation-failed, ref 6900), symmetrically at A for y.
 //      Since follow-up 17 the refusal comes earlier, ref 6960: C's chaining
 //      of y put y in the original's place in x's candidates (and A's of x
 //      in y's), and each record side's re-choice on its own head meets a
