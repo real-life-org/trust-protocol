@@ -112,8 +112,7 @@
 //   - the record side chooses the first match, in prior-candidate order,
 //     whose tuple is still the active head of a live relationship and
 //     whose mapping it can prepare (a match whose prior relationship key
-//     or scope is not available is passed over; with none, the choice
-//     stays owed), and chains on nothing yet. A match report that reaches a record side without a choice is
+//     or scope is not available is passed over), and chains on nothing yet. A match report that reaches a record side without a choice is
 //     chosen from where its prior is still chainable (6910), and chained
 //     with that issuance: the report is the evidence (follow-up 14; 6920
 //     has no match report cause chaining)
