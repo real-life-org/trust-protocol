@@ -1,3 +1,19 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.30.0-draft (2026-10-28) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Built, with one deviation and the gaps listed. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §1, §1a, §1b, §2, §3, §3a, §3b, §4, §5, §6 The adapter in the library | built |  |
+> | §1, §8 The carrier context the key provider gives | built differently | Differences: [D7](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md). |
+> | §1c The displayed card's instance | not built | Not in the library: the host's and the wire's. |
+> | §7 TSP framing | not built | Not in the library: the TSP framing is the wire binding's; the repository's wire binding under `binding/` implements it. |
+> | Open Issues 4, 10 and 17 (return to routed, change of the carrier nonce, sending framework refusals) | not built |  |
+>
+> The header carries no date; the date is that of version 0.30 in Appendix B.
+<!-- /spec-status -->
+
 # RLTP Transport Adapter Profile: VTI Mediator
 
 **Real Life Trust Protocol — Transport Adapter Profile (below the port line)**

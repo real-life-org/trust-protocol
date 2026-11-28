@@ -1,3 +1,14 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.2.0-draft (2026-08-10) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Parked; direction changed. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test. **Direction:** [direction/identity.md](direction/identity.md) (not built, not normative).
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | Whole document | parked | The text says nothing in it should be implemented. |
+> | §3, §4, §5 Guardians and the succession | direction changed: [direction/identity.md](direction/identity.md) | In the planned model guardians hold shares of a secret, so the same identifier continues. |
+<!-- /spec-status -->
+
 # RLTP Succession
 
 **Real Life Trust Protocol — cross-cutting specification**

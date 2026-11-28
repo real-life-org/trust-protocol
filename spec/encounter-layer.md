@@ -1,3 +1,18 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.32.0-draft (2026-10-27) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Built; its ceremony is superseded in the app. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §4, §5, §6, §7 Anchors, credentials, challenges, enactment record, contact card | built |  |
+> | §5.8 The ceremony `encounter-scan` | superseded: by [shared-connect.ceremony.json](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json) | Still built in the library. The Web of Trust app shows `shared-connect` codes ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555)). No specification text describes `shared-connect` yet. |
+> | The messaging identity of a `shared-connect` enactment | built differently | Differences: [D5](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md). |
+> | A ceremony across several devices of one person | not built |  |
+>
+> `shared-connect` has a ceremony definition, a vector and holder acts in the library (interop/ceremonies/index.md; lib/README.md, Versions); an Encounter text that adopts it does not exist.
+<!-- /spec-status -->
+
 # RLTP Encounter Layer
 
 **Real Life Trust Protocol — Layer 2: Encounter**

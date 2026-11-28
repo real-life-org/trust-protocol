@@ -1,7 +1,7 @@
 ---
 title: Implement
 description: The library on npm, the test vectors, and the conformance runner.
-specs: [encounter-layer]
+specs: [encounter-layer, identity-layer]
 library: true
 ---
 
@@ -12,7 +12,9 @@ npm i @real-life/trust-protocol
 ```
 
 [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol)
-is the executable form of the specifications, published with provenance. It
+is the executable form of the specifications, published with provenance;
+where it and a specification text disagree, the library holds (see
+[`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)). It
 has no runtime dependencies and uses WebCrypto only (Ed25519, X25519, HKDF,
 AES-256-GCM). It has no DOM, no storage and no network: the library computes
 and verifies, the app stores the state and carries the envelopes. Node 20 is
@@ -21,9 +23,9 @@ the minimum; which runtimes are tested is in the
 
 ## One device, one holder
 
-`createHolder` is one person's device. The app passes a store and the keys
-derived from the person's root seed; the holder keeps its state behind the
-human acts.
+`createHolder` is one person's device. The app passes a store and a
+`KeyProvider` (in the example below `seedKeys`, which derives the keys from
+the person's root seed); the holder keeps its state behind the human acts.
 
 One person has one identity. A second device or a second app of the same
 person cannot yet hold it: two stores over one root seed hold two states
@@ -32,7 +34,9 @@ store, at the same time or later. Closing a holder and opening a new one over
 the same store and seed is the normal reopening.
 The library does not synchronize holder state between devices or apps. An
 app without access to the person's identity creates its own, and the contacts
-made under it stay with it.
+made under it stay with it. The identity model is planned to change, with
+a main device, linked devices and generated keys
+([direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md)). <!-- now:direction-identity:long -->The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.<!-- /now:direction-identity -->
 
 ```ts
 import { createHolder, seedKeys } from '@real-life/trust-protocol'

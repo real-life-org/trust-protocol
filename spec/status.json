@@ -1,0 +1,317 @@
+{
+  "$comment": "What holds for each specification under spec/; its form is spec/status.schema.json. The texts under spec/*.md are frozen at the casting named here and are not edited, apart from the status block at their top. scripts/build-spec-status.mjs writes that block, the status section of README.md and the document table of apps/site/src/content/docs/reference/specifications.md from this file; `npm run validate` checks them with --check, and checks each frozen text against its `textDigest`. `statements` is the source of the marked statements about what the library builds today on README.md, the site and the direction notes; the generator writes them into the places marked <!-- now:<id> -->. A part that is built, partly built or built differently names its `evidence` in the library, the vectors or the ceremony definitions. Where a text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.",
+  "statuses": {
+    "built": "the library implements this part",
+    "partly-built": "implemented in the library in part; a note names what is not built, or `differences` points to where the differences are documented",
+    "built-differently": "implemented in the library with a reading other than the text; `differences` points to where it is documented: a row of lib/DEVIATIONS.md, the header of a source file, a test",
+    "not-built": "not implemented in the library",
+    "superseded": "replaced; `target` names what replaces it",
+    "parked": "deliberately not pursued for now",
+    "direction-changed": "the planned model differs from the text; `direction` names the direction note",
+    "not-verified": "no evidence was checked for this part"
+  },
+  "statements": {
+    "groups": {
+      "short": "The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, epoch transitions and key changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "long": "The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, epoch transitions, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "evidence": ["lib/src/access/log.ts", "lib/test/access-log.test.mjs", "lib/test/membership-holder.test.mjs", "https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/adapters/rltp/acts.ts#L334-L355", "lib/src/access/exchange.ts", "https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/tests/rltp/groups.loopback.test.ts#L42-L98"]
+    },
+    "group-keys": {
+      "short": "In the library, epoch transitions, key rotation and removal are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "long": "The library builds neither key distribution nor key state transitions such as rotation; its group log uses the exchange and ingest admission of Replication §4.4 and §7, without a registered replication adapter ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "evidence": ["lib/src/access/log.ts", "lib/src/access/exchange.ts", "lib/test/access-exchange.test.mjs"]
+    },
+    "key-states": {
+      "short": "In the library no removal, rotation or rule change starts a key state, because none of them is built.",
+      "evidence": ["lib/src/access/log.ts"]
+    },
+    "linear": {
+      "short": "The library founds a group under `linear/0.1`; it does not build the key delivery.",
+      "evidence": ["lib/src/access/genesis.ts", "lib/src/holder-api.ts"]
+    },
+    "group-rules": {
+      "short": "In the library, changing the rules (`policy.change`) is not built.",
+      "evidence": ["lib/src/access/log.ts"]
+    },
+    "group-leave": {
+      "short": "In the library today a member can leave, and the leave takes effect in the log at once; a leave by the last member ends the group. Removal is not built, and no new key epoch follows a leave or a lost device, so the library does not make later content unreadable to whoever left.",
+      "evidence": ["lib/src/access/log.ts", "lib/test/access-log.test.mjs"]
+    },
+    "device-cards": {
+      "short": "In the library, device cards are not built: one device per person.",
+      "evidence": ["lib/src/access/log.ts", "lib/test/multi-device-baseline.test.mjs"]
+    },
+    "group-conflicts": {
+      "short": "In the library, two admissions of the same person made at the same time both stand and make one member. A leave at the same time as an admission of the same person, a case these rules leave open, is read as the leave winning. Removals and rule changes, and their collisions, are not built.",
+      "evidence": ["lib/test/access-log.test.mjs", "lib/src/access/log.ts"]
+    },
+    "vouch-threshold": {
+      "short": "the library founds groups with `vouchThreshold` set to 1. The inviter counts toward that threshold, so admission needs no separate vouch credential. The library does not change the rule afterwards.",
+      "evidence": ["lib/src/membership/holder.ts", "lib/src/access/log.ts"]
+    },
+    "member-remove": {
+      "short": "In the library a member leaves by a `member.leave`; `member.remove` and epoch transitions are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "evidence": ["lib/src/access/log.ts"]
+    },
+    "welcome": {
+      "short": "The library sends its own `x-membership-welcome/0.1` in place of `access-operation/0.1`, and the new member fetches the log ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "evidence": ["lib/src/membership/holder.ts", "lib/test/membership-log.test.mjs"]
+    },
+    "access-task-types": {
+      "short": "The library carries the schemas of `key-delivery/0.1` and `removal-notice/0.1` but sends and receives neither: key distribution and `member.remove` are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "evidence": ["lib/src/schemas.ts", "lib/src/wire.ts", "lib/src/holder-api.ts"]
+    },
+    "encounter-ceremony": {
+      "short": "The app connects people with `shared-connect` instead, defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies).",
+      "long": "`encounter-scan`, the ceremony of the Encounter Layer, is superseded: the Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
+      "evidence": ["interop/ceremonies/shared-connect.ceremony.json", "vectors/shared-connect.json", "lib/src/shared-connect-holder.ts", "lib/test/shared-connect-holder.test.mjs", "https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65"]
+    },
+    "app-profile": {
+      "short": "The Web of Trust app connects people with `shared-connect`, whose steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633) ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).",
+      "long": "The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link; the steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633); the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).",
+      "evidence": ["vectors/shared-connect.json", "interop/ceremonies/shared-connect.ceremony.json", "lib/src/shared-connect.ts", "https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65", "lib/src/shared-connect-flow.ts"]
+    },
+    "identity": {
+      "short": "With the library's default key provider `seedKeys`, the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`, and an app may bind another key provider.",
+      "long": "The library's seed key provider derives a person's long-lived anchor keys from one root seed. Each anchor context (a relationship, a group, a persona) has its own key, derived from the seed and the context's label, and the context's identifier is a `did:key` of that key; device keys are derived per device within an anchor context.",
+      "evidence": ["lib/src/keys-seed.ts", "lib/src/identity.ts", "lib/test/identity.test.mjs", "lib/src/ports.ts"]
+    },
+    "derived-identities": {
+      "short": "The service identity derivation of Identity §7 is not built; for a group's founding the library uses a provisional derivation ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)).",
+      "long": "The library builds the carrier identity and a provisional service identity ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)), not the recovery context.",
+      "evidence": ["lib/src/carrier-identity.ts", "lib/src/access/genesis.ts", "lib/src/keys-seed.ts", "lib/src/identity.ts"]
+    },
+    "holder": {
+      "short": "One holder holds one identity: two stores over one root seed hold two states that never reconcile, so a second device or a second app of the same person cannot hold that identity yet ([`lib/README.md`, \"The holder\"](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md#the-holder)).",
+      "evidence": ["lib/test/multi-device-baseline.test.mjs"]
+    },
+    "continuity": {
+      "short": "In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).",
+      "evidence": ["lib/src/trust/continuity.ts", "lib/test/trust-continuity.test.mjs"]
+    },
+    "direction-assumptions": {
+      "short": "the library's default key provider `seedKeys` follows the second and the third for the person's anchors; it takes the seed as bytes and does not check that they come from words.",
+      "evidence": ["lib/src/keys-seed.ts"]
+    },
+    "recovery": {
+      "short": "Recovering a whole identity from the mnemonic and a copy of the person's state is specified, not built in the library.",
+      "long": "The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state over the store that holds it and with access to the same keys, with `seedKeys` the same root seed; a holder over an empty store starts a new state.",
+      "evidence": ["lib/src/carrier-holder.ts", "lib/src/keys-seed.ts", "lib/src/holder-api.ts", "lib/test/multi-device-baseline.test.mjs", "lib/src/ports.ts"]
+    },
+    "personas": {
+      "short": "The library derives a persona's anchor from its `persona/<name>` label; no holder act creates or uses a persona.",
+      "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs", "vectors/identity-derivation.json", "lib/src/holder-api.ts"]
+    },
+    "direction-identity": {
+      "short": "An identifier that survives a key change, linked devices and guardians are planned, not in the library.",
+      "long": "The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.",
+      "evidence": ["lib/src/keys-seed.ts", "lib/src/holder-api.ts", "lib/test/multi-device-baseline.test.mjs"]
+    },
+    "vti-adapter": {
+      "short": "The library implements this adapter; the wire binding under `binding/` has live probes against a public development instance of the mediator.",
+      "evidence": ["lib/src/adapters/vti-mediator.ts", "lib/test/adapter-vti-mediator.test.mjs", "binding/live-probe.mjs"]
+    },
+    "login-identity": {
+      "short": "The library's experimental login identity ([D6](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)) is replaced at stage 3.",
+      "evidence": ["lib/src/keys-seed.ts"]
+    }
+  },
+  "documents": [
+    {
+      "file": "identity-layer.md",
+      "title": "Identity Layer",
+      "role": "Layer 1",
+      "version": "0.55.0-draft",
+      "date": "2026-10-27",
+      "state": "Partly built; direction changed",
+      "lastReconciled": "not reconciled",
+      "direction": "direction/identity.md",
+      "textDigest": "sha256:d9fb8c8f67a1fdc5c2b53b38bb072584343e8b404f0caa9092260a0cd07e3400",
+      "parts": [
+        { "sections": ["5.1", "5.2"], "title": "Labeled contexts and key agreement material", "status": "built", "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs", "lib/README.md"] },
+        { "sections": ["5.3"], "title": "Recovery context", "status": "not-built", "evidence": ["lib/README.md"] },
+        { "sections": ["5.4"], "title": "The community anchor's generations and rotation", "status": "built", "evidence": ["lib/src/identity-state.ts", "lib/test/anchor.test.mjs", "lib/README.md"] },
+        { "sections": ["5.5"], "title": "Device keys", "status": "partly-built", "note": "Built: the derivation of device keys and the registration and revocation of device names (tests `addDevice`, `revokeDevice`). Not built: several devices of one person; one writer per holder stands in for them.", "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs", "lib/README.md"] },
+        { "sections": ["6"], "title": "Context labels", "status": "built-differently", "differences": ["D3", "D5", "D6"], "evidence": ["lib/src/keys-seed.ts"] },
+        { "sections": ["7"], "title": "Derived service identities", "status": "not-built", "note": "The founder's service identity in a genesis is provisional (D3).", "evidence": ["lib/README.md"] },
+        { "sections": ["7a.1", "7a.2", "7a.4"], "title": "The carrier-relationship identity: its derivation", "status": "built", "evidence": ["lib/src/carrier-identity.ts", "lib/test/carrier.test.mjs"] },
+        { "sections": ["7a.5"], "title": "Prohibitions", "status": "partly-built", "note": "Checked: another nonce or another carrier gives another principal (test `carrierContext`). Not verified: that no social artifact names the principal.", "evidence": ["lib/test/carrier-context.test.mjs", "lib/src/carrier-identity.ts"] },
+        { "sections": ["7a.3"], "title": "The relationship's carrier nonce and its register entry", "status": "partly-built", "note": "Built: the registration at generation 1, the refusal of a nonce the register holds, the recovery flow's move to a fresh nonce through the `rotateTo` callback its caller supplies. Not built: a change of the nonce by the holder on its own, and bringing it together across devices.", "evidence": ["lib/src/identity-state.ts", "lib/src/carrier-holder.ts", "lib/test/delivery-hints.test.mjs"] },
+        { "sections": ["4"], "title": "The mnemonic and the root IKM", "status": "direction-changed", "direction": "direction/identity.md", "note": "The library's seed key provider derives the person's anchor keys from one root seed today." },
+        { "sections": ["8"], "title": "Anchors as did:key", "status": "direction-changed", "direction": "direction/identity.md" },
+        { "sections": ["9"], "title": "Recovery", "status": "direction-changed", "direction": "direction/identity.md", "note": "Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state.", "evidence": ["lib/src/carrier-holder.ts"] }
+      ],
+      "note": "With the default key provider `seedKeys`, the library derives the person's anchors from one root seed, and one holder holds one identity (lib/README.md, \"The holder\"). The planned model gives up the words as the required root, the identifier as its key, derived keys, and recovery that requires the words; it is not built."
+    },
+    {
+      "file": "encounter-layer.md",
+      "title": "Encounter Layer",
+      "role": "Layer 2",
+      "version": "0.32.0-draft",
+      "date": "2026-10-27",
+      "state": "Built; its ceremony is superseded in the app",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:e4718926645603af422bd6cdc8f5c97968980878b701cf8a179b8b3ebc209544",
+      "parts": [
+        { "sections": ["4", "5", "6", "7"], "title": "Anchors, credentials, challenges, enactment record, contact card", "status": "built", "evidence": ["lib/src/encounter.ts", "lib/test/encounter-holder.test.mjs", "vectors/encounter-cards.json", "lib/README.md"] },
+        { "sections": ["5.8"], "title": "The ceremony `encounter-scan`", "status": "superseded", "target": "interop/ceremonies/shared-connect.ceremony.json", "note": "Still built in the library. The Web of Trust app shows `shared-connect` codes ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555)). No specification text describes `shared-connect` yet." },
+        { "title": "The messaging identity of a `shared-connect` enactment", "status": "built-differently", "differences": ["D5"], "evidence": ["lib/src/shared-connect-holder.ts", "lib/src/keys-seed.ts"] },
+        { "title": "A ceremony across several devices of one person", "status": "not-built" }
+      ],
+      "note": "`shared-connect` has a ceremony definition, a vector and holder acts in the library (interop/ceremonies/index.md; lib/README.md, Versions); an Encounter text that adopts it does not exist."
+    },
+    {
+      "file": "trust-layer.md",
+      "title": "Trust Layer",
+      "role": "Layer 3",
+      "version": "0.31.0-draft",
+      "date": "2026-10-14",
+      "state": "Built, with the gaps listed",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:ffc5423d0ec5199de5886326ac3145ce8e3c6aa7c3146d3ecaca9491886ce83f",
+      "parts": [
+        { "sections": ["2", "2a", "5", "6", "6b"], "title": "Deliverable set, trust classes, stars, anchor mapping, profile", "status": "built", "evidence": ["lib/test/trust-classes.test.mjs", "lib/test/trust-star.test.mjs", "lib/test/trust-mapping.test.mjs", "lib/test/profile.test.mjs", "lib/test/trust-entries.test.mjs", "lib/README.md"], "note": "Rule 2300 (the frozen prior-candidate set): see §6a." },
+        { "sections": ["6a"], "title": "Continuity", "status": "partly-built", "differences": ["lib/src/trust/continuity.ts", "lib/test/trust-continuity.test.mjs#one-sided chaining"], "evidence": ["lib/src/trust/continuity.ts", "lib/test/trust-continuity.test.mjs", "lib/README.md"] },
+        { "sections": ["8"], "title": "The Introduction Act", "status": "partly-built", "note": "Built in its three roles.", "differences": ["lib/src/introduction/holder.ts"], "evidence": ["lib/src/introduction/holder.ts", "lib/test/introduction-holder.test.mjs", "lib/README.md"] },
+        { "sections": ["8.3"], "title": "The target designator", "status": "built-differently", "differences": ["lib/src/introduction/holder.ts"], "evidence": ["lib/src/introduction/holder.ts"] },
+        { "sections": ["9.1"], "title": "Attestation", "status": "not-built", "note": "A documented option without an artifact." },
+        { "title": "Several devices of one person", "status": "not-built", "note": "One writer per holder." }
+      ]
+    },
+    {
+      "file": "access-layer.md",
+      "title": "Access Layer",
+      "role": "Layer 4",
+      "version": "0.58.0-draft",
+      "date": "2026-10-25",
+      "state": "Mostly not built; the stage-1 group log is built",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:3c89665a4b0b286d372dc465a3915913f456756982f6baea5866c9afcc952115",
+      "parts": [
+        { "sections": ["3.3", "3.4", "3.5"], "title": "Stage-1 authority log: envelope, genesis, `member.add`, `member.leave`, materialization", "status": "built-differently", "differences": ["D1", "D2", "D4", "lib/src/access/log.ts"], "evidence": ["lib/src/access/log.ts", "lib/test/access-log.test.mjs", "lib/src/access/exchange.ts", "lib/README.md"] },
+        { "sections": ["3.4.1", "5.2"], "title": "The founder's service identity in the genesis (rule 3265)", "status": "built-differently", "differences": ["D3"], "evidence": ["lib/src/access/genesis.ts", "lib/src/keys-seed.ts"] },
+        { "sections": ["3.6"], "title": "The conflict matrix", "status": "partly-built", "note": "Built, for example: concurrent admissions of one subject (rule 3475). Not built: the rows for removal, policy change and transitions.", "differences": ["D2", "D4", "lib/src/access/log.ts", "lib/test/access-log.test.mjs#concurrent admissions of one subject"], "evidence": ["lib/test/access-log.test.mjs", "lib/src/access/log.ts"] },
+        { "sections": ["5.1"], "title": "Device cards", "status": "not-built", "evidence": ["lib/README.md"] },
+        { "sections": ["5.3"], "title": "Admission and removal", "status": "partly-built", "note": "Built: admission. Not built: `member.remove`.", "evidence": ["lib/test/membership-holder.test.mjs", "lib/src/access/log.ts", "lib/README.md"] },
+        { "sections": ["5.4"], "title": "Leave, pending exit, dissolve", "status": "partly-built", "note": "Not built: the pending exit and its transition.", "differences": ["D2", "lib/src/access/log.ts"], "evidence": ["lib/src/access/log.ts", "lib/test/access-log.test.mjs"] },
+        { "sections": ["7", "9.4"], "title": "Key distribution and epoch transitions", "status": "not-built", "note": "Beyond the genesis commitment.", "evidence": ["lib/README.md"] },
+        { "sections": ["7.3"], "title": "Authorization views", "status": "not-built", "evidence": ["lib/README.md"] },
+        { "title": "`policy.change`", "status": "not-built", "evidence": ["lib/README.md"] },
+        { "sections": ["10"], "title": "Task types `key-delivery/0.1` and `removal-notice/0.1`", "status": "not-built", "note": "Schemas and generated wire types only; no holder sends or receives them.", "evidence": ["lib/src/schemas.ts", "lib/src/wire.ts"] }
+      ],
+      "note": "The group log of today runs; the future substrate of groups is under review. The text's own status section still says the authority rules are not yet in the library."
+    },
+    {
+      "file": "membership-tasks.md",
+      "title": "Membership Tasks",
+      "role": "Layer 4, transport of membership changes",
+      "version": "0.21.1-draft",
+      "date": "2026-10-27",
+      "state": "Mostly built; one part built differently, two in part",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:219818591096b82a2dfa33d2b3eddf71a70f2156d094bbfe8ae7065b1d55192b",
+      "parts": [
+        { "sections": ["3.1", "3.5"], "title": "Invite, prelude", "status": "built", "evidence": ["lib/src/membership/holder.ts", "lib/test/membership-holder.test.mjs", "lib/README.md"] },
+        { "sections": ["3.4"], "title": "`membership-evidence/0.2`", "status": "partly-built", "note": "Built: the handlers that receive and relay the evidence and its vouches; the test reaches the outgoing relay through a group state set by hand. Not built: surfacing a candidacy (rule 3765).", "differences": ["lib/src/membership/holder.ts", "lib/test/membership-holder.test.mjs#membership: a vouch rule of two", "lib/test/membership-holder.test.mjs#membership: evidence from an anchor that is not on the roster"], "evidence": ["lib/test/membership-holder.test.mjs", "lib/src/membership/holder.ts"] },
+        { "sections": ["3.2"], "title": "`membership-accept/0.2`", "status": "partly-built", "note": "Built: the accept. Not built: an admission prompt after the bound of rule 3282.", "differences": ["lib/src/membership/holder.ts"], "evidence": ["lib/src/membership/holder.ts", "lib/test/membership-holder.test.mjs", "lib/README.md"] },
+        { "sections": ["3.3"], "title": "`access-operation/0.1`", "status": "built-differently", "differences": ["lib/src/membership/holder.ts"], "evidence": ["lib/src/membership/holder.ts"] }
+      ]
+    },
+    {
+      "file": "message-tasks.md",
+      "title": "Message Tasks",
+      "role": "Layer 3, direct messages and the block",
+      "version": "0.2.0-draft",
+      "date": "2026-10-25",
+      "state": "Partly built",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:40d94df9588113422b0e8071d5ed3f39cc5b51800c0ee4c141284f6a6ed5ac8a",
+      "parts": [
+        { "sections": ["3", "4", "6"], "title": "`message/0.1`, its reception, the completion record, the inbox, the block of `message/0.1` and of invitations", "status": "built", "differences": ["lib/src/message/holder.ts"], "evidence": ["lib/test/message-holder.test.mjs", "lib/test/block-holder.test.mjs", "vectors/message.json", "lib/README.md"] },
+        { "sections": ["5"], "title": "The `replyTo` of a sent message (RLTP-MSG-5120)", "status": "partly-built", "note": "The library checks only that `replyTo` has the form of a UUID. That it names an earlier message of the same relationship is the sending application's to ensure; the library keeps no history of sent messages to check it against.", "differences": ["lib/src/message/holder.ts"], "evidence": ["lib/src/message/holder.ts"] },
+        { "sections": ["5"], "title": "Holding a message until its tuple is ready", "status": "not-built", "note": "`sendMessage` answers `not-ready`; keeping the message until it can be sent is the application's task.", "evidence": ["lib/README.md"] },
+        { "sections": ["5"], "title": "Sending, with the sender lifetime (rule 5110)", "status": "built", "note": "The sender lifetime is a local give-up time on the outbox entry, not a field of the document. For a message the counterpart does not hold, the library's retry horizon of at most P90D ends first, as `failed(expired-by-adapter-policy)`, so the engine's outcome `failed(task-expired)` is unreachable for `message/0.1`; an entry with `held: true` is given up at neither.", "evidence": ["lib/src/message/holder.ts", "lib/src/engine.ts"] },
+        { "sections": ["6"], "title": "Incoming documents of the Trust Layer's types under a block (rule 6240)", "status": "not-built", "note": "Evaluated as without a block until the Trust Layer's next text. The holder already refuses an introduction toward or through a blocked relationship (Message Tasks rule 6410; test in `block-holder.test.mjs`).", "evidence": ["lib/src/message/holder.ts", "lib/test/block-holder.test.mjs"] }
+      ]
+    },
+    {
+      "file": "delivery-contract.md",
+      "title": "Delivery Contract",
+      "role": "Service behind a port",
+      "version": "0.85.2-draft",
+      "date": "2026-10-28",
+      "state": "Built, with the gaps listed",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:d68a07c7cdeb0a5c43c1e0f8c3c1b1e0e46018513520abec8be94d0ad49d8b85",
+      "parts": [
+        { "sections": ["4.2", "4.4", "4.6", "5", "5a", "6.1", "6.2"], "title": "Acknowledgements, registry, carried document, sealed envelope, carrier port, sender status, receive stages", "status": "built", "evidence": ["lib/src/receive.ts", "lib/test/receive.test.mjs", "lib/test/engine.test.mjs", "lib/test/carrier.test.mjs", "lib/test/delivery-held.test.mjs", "lib/test/vti-sealed-envelope-vector.test.mjs", "lib/README.md"] },
+        { "title": "Incoming documents of the Trust Layer's types under a block", "status": "not-built", "note": "Their treatment waits for the Trust Layer's next text (Message Tasks rule 6240); an outgoing introduction toward or through a blocked relationship is refused.", "evidence": ["lib/README.md", "lib/test/block-holder.test.mjs"] },
+        { "title": "Transport adapters beyond the VTI mediator adapter", "status": "not-built", "evidence": ["lib/README.md"] },
+        { "title": "Whether the app's transport matches the text", "status": "not-verified" }
+      ]
+    },
+    {
+      "file": "adapter-vti-mediator.md",
+      "title": "VTI mediator adapter",
+      "role": "Delivery profile",
+      "version": "0.30.0-draft",
+      "date": "2026-10-28",
+      "state": "Built, with one deviation and the gaps listed",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:3ef8e15eddb1a9c4394a713080bbf30e112d913364e00723053e417ec5ac57f5",
+      "parts": [
+        { "sections": ["1", "1a", "1b", "2", "3", "3a", "3b", "4", "5", "6"], "title": "The adapter in the library", "status": "built", "evidence": ["lib/src/adapters/vti-mediator.ts", "lib/test/adapter-vti-mediator.test.mjs", "lib/README.md"] },
+        { "sections": ["1", "8"], "title": "The carrier context the key provider gives", "status": "built-differently", "differences": ["D7"], "evidence": ["lib/test/carrier-context.test.mjs"] },
+        { "sections": ["1c"], "title": "The displayed card's instance", "status": "not-built", "note": "Not in the library: the host's and the wire's.", "evidence": ["lib/README.md"] },
+        { "sections": ["7"], "title": "TSP framing", "status": "not-built", "note": "Not in the library: the TSP framing is the wire binding's; the repository's wire binding under `binding/` implements it.", "evidence": ["lib/README.md"] },
+        { "title": "Open Issues 4, 10 and 17 (return to routed, change of the carrier nonce, sending framework refusals)", "status": "not-built", "evidence": ["lib/README.md"] }
+      ],
+      "note": "The header carries no date; the date is that of version 0.30 in Appendix B."
+    },
+    {
+      "file": "replication-contract.md",
+      "title": "Replication Contract",
+      "role": "Service behind a port",
+      "version": "0.26.0-draft",
+      "date": "2026-08-26",
+      "state": "Not built as a contract; parts used by the group log",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:8d4794da6f302a1d6cab592a92502a00b3d2bd24147a962e0a97bf670bd6bbbc",
+      "parts": [
+        { "sections": ["4.4", "7"], "title": "Unattested exchange profile and ingest admission", "status": "partly-built", "note": "Used by the stage-1 group log exchange.", "differences": ["D1", "lib/src/access/exchange.ts"], "evidence": ["lib/src/access/exchange.ts", "lib/test/access-exchange.test.mjs", "lib/README.md"] },
+        { "sections": ["9"], "title": "Adapter registration", "status": "not-built", "note": "No registered adapter.", "evidence": ["lib/README.md"] },
+        { "sections": ["5"], "title": "The sixteen promises", "status": "not-verified" }
+      ],
+      "note": "The group log of today runs; the future substrate of groups is under review. The text's header and status section call it converged and point to files that are not in this repository."
+    },
+    {
+      "file": "personhood-predicates.md",
+      "title": "Personhood Predicates",
+      "role": "Cross-cutting",
+      "version": "0.12.0-draft",
+      "date": "2026-08-13",
+      "state": "Not verified",
+      "lastReconciled": "not reconciled",
+      "textDigest": "sha256:4095e826d9f055a7214577b35d98d96dc9e18a44b2acc89155ad24bfadad6044",
+      "parts": [
+        { "title": "Predicates P1 to P3 and the result model", "status": "not-verified", "note": "Not checked against any implementation; lib/README.md names no module for it." }
+      ],
+      "note": "Written against Encounter 0.22 and Access 0.25."
+    },
+    {
+      "file": "succession.md",
+      "title": "Succession",
+      "role": "Cross-cutting",
+      "version": "0.2.0-draft",
+      "date": "2026-08-10",
+      "state": "Parked; direction changed",
+      "lastReconciled": "not reconciled",
+      "direction": "direction/identity.md",
+      "textDigest": "sha256:836b619ee0ccd5a3539c17369301aba72017900d7621925fb5bbcccb97565916",
+      "parts": [
+        { "title": "Whole document", "status": "parked", "note": "The text says nothing in it should be implemented." },
+        { "sections": ["3", "4", "5"], "title": "Guardians and the succession", "status": "direction-changed", "direction": "direction/identity.md", "note": "In the planned model guardians hold shares of a secret, so the same identifier continues." }
+      ]
+    }
+  ]
+}

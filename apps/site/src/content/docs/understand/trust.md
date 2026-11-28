@@ -4,6 +4,25 @@ description: What turns encounters into a network. What you reveal when you trus
 specs: [trust-layer, encounter-layer, identity-layer, access-layer, personhood-predicates]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+<details>
+<summary>The 5 specifications this page rests on</summary>
+
+- [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md): built, with the gaps listed
+- [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md): built; its ceremony is superseded in the app
+- [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md): partly built; direction changed
+- [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md): mostly not built; the stage-1 group log is built
+- [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md): not verified
+
+</details>
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 ## Trust is a second step
 
 Verifying someone means this: you met them, and this key is

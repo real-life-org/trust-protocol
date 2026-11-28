@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "The form of spec/status.json. scripts/build-spec-status.mjs validates the register against it before it checks the register against the repository and writes the places generated from it.",
+  "type": "object",
+  "required": ["statuses", "statements", "documents"],
+  "additionalProperties": false,
+  "properties": {
+    "$comment": { "type": "string" },
+    "statuses": {
+      "type": "object",
+      "required": ["built", "partly-built", "built-differently", "not-built", "superseded", "parked", "direction-changed", "not-verified"],
+      "additionalProperties": false,
+      "patternProperties": { "": { "$ref": "#/$defs/text" } }
+    },
+    "statements": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9-]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["short", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "short": { "$ref": "#/$defs/line" },
+          "long": { "$ref": "#/$defs/line" },
+          "evidence": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "documents": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/document" } }
+  },
+  "$defs": {
+    "text": { "type": "string", "pattern": "\\S" },
+    "line": { "$comment": "a statement can stand in a table cell: one line, no vertical bar", "type": "string", "pattern": "^[^\\n|]*\\S[^\\n|]*$" },
+    "path": { "type": "string", "pattern": "^(?!/)(?!.*(^|/)\\.\\.?(/|$))[A-Za-z0-9._/-]+$" },
+    "direction": { "type": "string", "pattern": "^direction/[a-z0-9-]+\\.md$" },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          { "$ref": "#/$defs/path" },
+          { "type": "string", "pattern": "^https://github\\.com/real-life-org/web-of-trust/blob/[0-9a-f]{40}/[^\\s#]+(#L[0-9]+(-L[0-9]+)?)?$" }
+        ]
+      }
+    },
+    "document": {
+      "type": "object",
+      "required": ["file", "title", "role", "version", "date", "state", "lastReconciled", "textDigest", "parts"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "pattern": "^[a-z0-9-]+\\.md$" },
+        "title": { "$ref": "#/$defs/text" },
+        "role": { "$ref": "#/$defs/text" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9.]+)?$" },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "state": { "$ref": "#/$defs/text" },
+        "lastReconciled": { "$ref": "#/$defs/text" },
+        "direction": { "$ref": "#/$defs/direction" },
+        "textDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "note": { "$ref": "#/$defs/text" },
+        "parts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/part" } }
+      }
+    },
+    "part": {
+      "type": "object",
+      "required": ["title", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "sections": { "type": "array", "items": { "type": "string", "pattern": "^[0-9]+[a-z]?(\\.[0-9]+)*$" } },
+        "title": { "$ref": "#/$defs/text" },
+        "status": { "enum": ["built", "partly-built", "built-differently", "not-built", "superseded", "parked", "direction-changed", "not-verified"] },
+        "note": { "$ref": "#/$defs/text" },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
+        "differences": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^(D[0-9]+|lib/src/[A-Za-z0-9._/-]+\\.ts|lib/test/[A-Za-z0-9._/-]+\\.mjs#.+)$" }
+        },
+        "target": { "$ref": "#/$defs/path" },
+        "direction": { "$ref": "#/$defs/direction" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["built", "partly-built", "built-differently"] } } },
+          "then": {
+            "required": ["evidence"],
+            "properties": { "evidence": { "type": "array", "contains": { "type": "string", "pattern": "^(lib/(src|test)/|vectors/|interop/ceremonies/|binding/|conformance/|schemas/)" } } }
+          }
+        },
+        { "if": { "properties": { "status": { "const": "built-differently" } } }, "then": { "required": ["differences"] } },
+        { "if": { "properties": { "status": { "const": "partly-built" } } }, "then": { "anyOf": [{ "required": ["note"] }, { "required": ["differences"] }] } },
+        { "if": { "properties": { "status": { "const": "superseded" } } }, "then": { "required": ["target"], "not": { "required": ["direction"] } } },
+        { "if": { "properties": { "status": { "const": "direction-changed" } } }, "then": { "required": ["direction"] } }
+      ]
+    }
+  }
+}

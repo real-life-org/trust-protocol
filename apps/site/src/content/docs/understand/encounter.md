@@ -4,6 +4,17 @@ description: How two people record that they met. The card, the challenge, the o
 specs: [encounter-layer, trust-layer]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+- [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md): built; its ceremony is superseded in the app
+- [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md): built, with the gaps listed
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 ## What an encounter records
 
 Two people stand together. One shows a code, the other scans it,

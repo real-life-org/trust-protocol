@@ -4,6 +4,18 @@ description: The keys a group encrypts its content with, and who carries them. T
 specs: [access-layer, membership-tasks, replication-contract]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+- [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md): mostly not built; the stage-1 group log is built
+- [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md): mostly built; one part built differently, two in part
+- [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md): not built as a contract; parts used by the group log
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 ## Two ports
 
 This page is about one kind of key: the **content key** a group

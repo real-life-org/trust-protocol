@@ -15,10 +15,15 @@
 //   · without arguments: every page declares `specs`, and every name in it
 //     is a specification in spec/ — an error otherwise (runs in
 //     npm run validate);
-//   · with --since <ref>: the specifications changed since <ref> (spec/*.md,
-//     not the archive) make every page that names them PENDING, and so
-//     does a library release for every `library: true` page, unless the
-//     same change touches that page. Pending pages fail the check, unless
+//   · with --since <ref>: a page is PENDING when, against the merge base,
+//     the frozen text of a specification it names changed (spec/*.md below
+//     its generated status block, not the archive) or its `state` in
+//     spec/status.json changed, a library release
+//     changed lib/package.json and the page has `library: true`, or the
+//     content of a region on the page that scripts/build-spec-status.mjs
+//     generates changed; unless the same change edits what a person wrote
+//     on the page (the page with its regions emptied). Pending pages fail
+//     the check, unless
 //     --checked says a person has read them and they still hold (CI passes
 //     it when the pull request carries the label `docs-checked`).
 //
@@ -29,6 +34,7 @@ import { readFileSync, readdirSync, existsSync, statSync, appendFileSync } from 
 import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { frozenText, handwritten, generated } from './build-spec-status.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = 'apps/site/src/content/docs'
@@ -51,7 +57,7 @@ export function parseSpecs(text) {
   return line[1].split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-const pages = (root) => {
+export const pages = (root) => {
   const out = []
   const walk = (dir) => {
     for (const e of readdirSync(dir).sort()) {
@@ -78,21 +84,32 @@ export function checkDeclarations(root) {
   return errors
 }
 
-// The pages that rest on a changed specification, or describe the library
-// when the change is a release, and that the change does not touch; each
-// with the changed specifications it names and `library: true` for a page
-// a release makes pending.
-export function pendingPages(root, changedFiles, { release = false } = {}) {
-  const changed = new Set(changedFiles.map((f) => f.match(SPEC)?.[1]).filter(Boolean))
-  if (!changed.size && !release) return []
-  const touched = new Set(changedFiles)
+// The pages that rest on a changed specification, describe the library
+// when the change is a release, or carry a changed generated region, and
+// whose handwritten text the change leaves as it was; each with the changed
+// specifications it names, `library: true` for a page a release makes
+// pending and `generated: true` for one whose regions changed. `base` maps
+// changed specifications and pages to their text at the merge base (null
+// for a new file); without it, a changed specification counts as changed
+// in its frozen text and a changed page as edited by a person. A
+// specification whose `state` in spec/status.json differs from `baseStates`
+// (file → state at the merge base; a file without one counts) changed too.
+export function pendingPages(root, changedFiles, { release = false, base = new Map(), baseStates } = {}) {
+  const read = (f) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : '')
+  const frozenChanged = (f) => !base.has(f) || frozenText(base.get(f) ?? '') !== frozenText(read(f))
+  const changed = new Set(changedFiles.filter((f) => SPEC.test(f) && frozenChanged(f)).map((f) => f.match(SPEC)[1]))
+  const register = read('spec/status.json')
+  if (baseStates && register) for (const d of JSON.parse(register).documents) if (baseStates.get(d.file) !== d.state) changed.add(d.file.replace(/\.md$/, ''))
+  const edited = new Set(changedFiles)
   const out = []
   for (const file of pages(root)) {
-    if (touched.has(file)) continue
-    const text = readFileSync(join(root, file), 'utf8')
+    const text = read(file)
+    const before = !edited.has(file) ? text : base.has(file) ? base.get(file) : null
+    if (before === null || handwritten(before, file) !== handwritten(text, file)) continue
     const specs = (parseSpecs(text) ?? []).filter((s) => changed.has(s))
     const library = release && parseLibrary(text) === true
-    if (specs.length || library) out.push(library ? { file, specs, library } : { file, specs })
+    const regions = generated(before, file) !== generated(text, file)
+    if (specs.length || library || regions) out.push({ file, specs, ...(library ? { library } : {}), ...(regions ? { generated: true } : {}) })
   }
   return out
 }
@@ -122,10 +139,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   let pending = []
   if (since) {
     const diff = execFileSync('git', ['diff', '--name-only', `${since}...HEAD`], { cwd: ROOT, encoding: 'utf8' })
-    pending = pendingPages(ROOT, diff.split('\n').filter(Boolean), { release: released(since) })
+    const merge = execFileSync('git', ['merge-base', since, 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim()
+    const show = (f) => { try { return execFileSync('git', ['show', `${merge}:${f}`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } }
+    const changed = diff.split('\n').filter(Boolean)
+    const base = new Map(changed.filter((f) => SPEC.test(f) || f.startsWith(`${DOCS}/`)).map((f) => [f, show(f)]))
+    const baseStates = new Map((JSON.parse(show('spec/status.json') ?? '{}').documents ?? []).map((d) => [d.file, d.state]))
+    pending = pendingPages(ROOT, changed, { release: released(since), base, baseStates })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
-      const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : [])].join(', ')
+      const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : []), ...(p.generated ? ['spec/status.json, whose generated text on it changed'] : [])].join(', ')
       const msg = `rests on ${what}${p.specs.length ? ' (edited by this change)' : ''}; update the page, or read it and label the pull request docs-checked`
       if (gh) console.log(`::${level} file=${p.file},line=1::${msg}`)
       console.error(`  ${checked ? 'CHECKED' : 'PENDING'} ${p.file} ${msg}`)
@@ -133,7 +155,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     if (process.env.GITHUB_STEP_SUMMARY && pending.length) {
       appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
         `### Site pages resting on what this change edits`, '',
-        ...pending.map((p) => `- [${checked ? 'x' : ' '}] \`${p.file}\` (${[...p.specs, ...(p.library ? ['library release'] : [])].join(', ')})`), '',
+        ...pending.map((p) => `- [${checked ? 'x' : ' '}] \`${p.file}\` (${[...p.specs, ...(p.library ? ['library release'] : []), ...(p.generated ? ['generated text'] : [])].join(', ')})`), '',
         checked ? 'Labelled `docs-checked`: read and still true.' : 'Update these pages in this pull request, or read them and add the label `docs-checked`.', '',
       ].join('\n'))
     }
