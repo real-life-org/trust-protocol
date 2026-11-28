@@ -108,10 +108,11 @@
       "role": "Layer 3, direct messages and the block",
       "version": "0.2.0-draft",
       "date": "2026-10-25",
-      "state": "Built",
+      "state": "Built; one check is left to the application",
       "lastReconciled": "not reconciled",
       "parts": [
         { "sections": ["3", "4", "5", "6"], "title": "`message/0.1`, reception, sending, the block", "status": "built", "source": "Status of This Document; lib/README.md (modules: message)" },
+        { "sections": ["5"], "title": "The `replyTo` of a sent message (RLTP-MSG-5120)", "status": "partly-built", "note": "The library checks only that `replyTo` has the form of a UUID. That it names an earlier message of the same relationship is the sending application's to ensure; the library keeps no history of sent messages to check it against.", "source": "lib/src/message/holder.ts (header)" },
         { "sections": ["5"], "title": "Holding a message until its tuple is ready", "status": "not-built", "note": "`sendMessage` answers `not-ready` and the app keeps the message; the app's behaviour is not verified.", "source": "lib/README.md (Versions: message)" },
         { "sections": ["6"], "title": "The block of the Trust Layer's types", "status": "not-built", "note": "Waits for the Trust Layer's next text.", "source": "Status of This Document" }
       ],

@@ -20,7 +20,7 @@ What holds, part by part, is in [`spec/status.json`](https://github.com/real-lif
 | [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) | Layer 3 | 0.31.0-draft | Built, with the gaps listed |
 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | Layer 4 | 0.58.0-draft | Mostly not built; the stage-1 group log is built |
 | [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | Layer 4, transport of membership changes | 0.21.1-draft | Mostly built; one part built differently |
-| [Message Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md) | Layer 3, direct messages and the block | 0.2.0-draft | Built |
+| [Message Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md) | Layer 3, direct messages and the block | 0.2.0-draft | Built; one check is left to the application |
 | [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) | Service behind a port | 0.85.2-draft | Built |
 | [VTI mediator adapter](https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md) | Delivery profile | 0.30.0-draft | Built, one deviation |
 | [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md) | Service behind a port | 0.26.0-draft | Not built as a contract; parts used by the group log |

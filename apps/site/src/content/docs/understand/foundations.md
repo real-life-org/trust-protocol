@@ -66,9 +66,9 @@ and `did:peer` are not specified.
 The mnemonic restores keys, not state. Which groups, personas and
 relationships exist is a register in the person's encrypted,
 synchronized state; with a copy of it, everything returns. A lost
-mnemonic is final, unless the person has set up succession:
-recovering an anchor through several trusted people is specified
-separately and currently parked.
+mnemonic is final. The library offers no recovery without it:
+recovering an anchor through several trusted people is the subject of
+the Succession draft, which is parked and cannot be set up.
 
 This model is planned to change: an identifier that keeps its name across
 a key change, a main device with linked devices, keys generated rather

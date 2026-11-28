@@ -118,7 +118,7 @@ The texts under [`spec/`](spec/) are frozen at the version named below and are n
 | [Trust Layer](spec/trust-layer.md) | 0.31.0-draft | Built, with the gaps listed | not reconciled |
 | [Access Layer](spec/access-layer.md) | 0.58.0-draft | Mostly not built; the stage-1 group log is built | not reconciled |
 | [Membership Tasks](spec/membership-tasks.md) | 0.21.1-draft | Mostly built; one part built differently | not reconciled |
-| [Message Tasks](spec/message-tasks.md) | 0.2.0-draft | Built | not reconciled |
+| [Message Tasks](spec/message-tasks.md) | 0.2.0-draft | Built; one check is left to the application | not reconciled |
 | [Delivery Contract](spec/delivery-contract.md) | 0.85.2-draft | Built | not reconciled |
 | [VTI mediator adapter](spec/adapter-vti-mediator.md) | 0.30.0-draft | Built, one deviation | not reconciled |
 | [Replication Contract](spec/replication-contract.md) | 0.26.0-draft | Not built as a contract; parts used by the group log | not reconciled |
