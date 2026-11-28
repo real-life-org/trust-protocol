@@ -163,12 +163,13 @@ export type ReceiveFailure =
   | 'unknown-type'         // stage 6
   | 'validation-failed'    // stages 6 (the entry's proof declaration), 8, 9
   | 'stale-issuance'       // stages 8, 9
-  /** transient (Delivery RLTP-DEL-5820, 6270, 6280): nothing committed, no
-   *  ack, no cache entry; the carrier keeps the document and the receiver
-   *  evaluates it afresh when it is delivered again — never concluded */
-  | 'rate-limited'         // stage 8
   | 'gate-future'          // stage 9
   | 'consumed-challenge'   // stage 9
+  /** the one transient failure (Delivery RLTP-DEL-5820, 6270, 6280): nothing
+   *  committed, no ack, no cache entry; the carrier keeps the document and the
+   *  receiver evaluates it afresh when it is delivered again, never concluded
+   *  (`concludable()` of the VTI adapter). Every other failure is terminal. */
+  | 'rate-limited'         // stage 8
 
 export type ReceiveStageNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
