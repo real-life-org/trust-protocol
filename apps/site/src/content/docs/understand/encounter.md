@@ -62,7 +62,7 @@ minutes.
 
 Spec: [Encounter Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#53-challenges)
 
-## One scan
+## The ceremony
 
 The [ceremony](term:Ceremony) of the Encounter Layer, `encounter-scan`,
 needs one scan on the connected path and two offline. The Web of Trust app connects people with `shared-connect`

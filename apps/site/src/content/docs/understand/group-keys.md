@@ -76,10 +76,11 @@ Spec: [Access Layer §8](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Two adapters
 
-**linear/0.1** is the procedure in use today: one content key per
-state, delivered to each device individually, healed by rotation when
-states merge. It is simple and costs one message per device per
-change.
+**linear/0.1** is the procedure the Access Layer text names for use
+today: one content key per state, delivered to each device individually,
+healed by rotation when states merge. It is simple and costs one message
+per device per change. The library founds a group under `linear/0.1`; it
+does not build the key delivery.
 
 **beekem/0.1** is experimental: a key tree in the style of MLS and
 Keyhive, where a change costs a path through the tree instead of a
