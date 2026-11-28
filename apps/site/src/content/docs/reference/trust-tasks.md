@@ -31,7 +31,7 @@ unknown type is rejected, never silently ignored. The types target
 the Trust Tasks framework 0.6.0. A carrier that carries Trust Task
 documents itself carries every sealed message as the payload of one
 more type, `sealed-envelope/0.1`, whose parties are the carrier's
-identifiers. <!-- now:app-profile -->The Web of Trust app connects people with `shared-connect`, whose documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1` ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).<!-- /now:app-profile -->
+identifiers. <!-- now:app-profile -->The Web of Trust app connects people with `shared-connect`, whose steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a `trust-task-error` ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).<!-- /now:app-profile -->
 
 The types form one register, the
 [task registry](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types)

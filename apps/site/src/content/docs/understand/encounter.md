@@ -106,7 +106,7 @@ Spec: [Encounter Layer §5](https://github.com/real-life-org/trust-protocol/blob
 The credentials of one encounter form an **[edge](term:Edge)** between the two
 anchors. If only A confirmed, the edge is one-sided: A says they
 verified B, B has said nothing. That is a legitimate outcome, not a
-failure, and the app shows it as such. The edge becomes mutual when
+failure. The edge becomes mutual when
 each side holds the other's credential. Mutuality is held, never
 inferred: a card addressed to you suggests verification, only the
 credential proves it.
@@ -129,7 +129,7 @@ ceremony, a [continuity probe](term:ContinuityProbe) over the fresh channel lets
 devices find out that they already share a relationship; only a
 counterpart that holds the earlier one can answer it. In the Trust Layer
 text, on a match the new pair is chained to that relationship, and the
-chain is visible to its two holders alone. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is processed. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
+chain is visible to its two holders alone. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is verified against the prior relationship key. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
 
 Spec: [Encounter Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#8-what-a-third-party-can-verify) ·
 [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44)

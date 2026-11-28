@@ -78,7 +78,8 @@ Each context has an Ed25519 key pair, whose public key is the anchor
 as a `did:key`, and an X25519 key for key agreement, carried in the
 [contact card](term:ContactCard). Verification needs no network.
 
-`did:key` over Ed25519 is the only DID method specified today.
+For anchors, `did:key` over Ed25519 is the only DID method the Identity
+Layer text specifies.
 Consumers treat an anchor as an opaque DID, but the schemas pin the
 `did:key` pattern, so another method would be a coordinated change. A
 `did:key` cannot rotate as an identifier. The anchor of the personal
@@ -86,7 +87,7 @@ community rotates outside it: each generation is bound in advance to
 the next by a pre-rotation binding, so only the holder of the seed can
 produce a valid successor. A verifiable key history for every anchor is
 named as open work, its format deliberately not chosen. `did:webvh`
-and `did:peer` are not specified.
+and `did:peer` are not specified as anchors.
 
 In the Identity Layer text, the mnemonic restores keys, not state. Which
 groups, personas and relationships exist is a register in the person's
@@ -114,7 +115,7 @@ credentials v2, a DTG context, RLTP v1), verified without JSON-LD
 processing. The [encounter credential](term:EncounterCredential) is a DTG Relationship
 Credential under DTG Credentials WD 0.6.0: it lists the DTG registry
 context v1 and declares `issuerScope: "pairwise"`. The [invite](term:Invite) and
-the [vouch](term:Vouch) list the DTG context of Working Draft 01. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link, the documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, and the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
+the [vouch](term:Vouch) list the DTG context of Working Draft 01. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link; the steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a `trust-task-error`; the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
@@ -171,7 +172,7 @@ switched on its own, per contact and per group.
 In the Trust Layer text, meeting the same person again needs no
 disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
-history and chains it to the existing relationship. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is processed. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
+history and chains it to the existing relationship. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is verified against the prior relationship key. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
 
 Every artifact belongs to one audience class. Class P covers
 statements meant to be shown, such as the encounter credential, the
@@ -202,7 +203,8 @@ In the frozen specification texts, every RLTP message is a Trust Task
 document of a private, versioned
 type under `https://real-life.org/trust-tasks/spec/`, with in-band
 `issuer` and `recipient` anchors and no `expiresAt`. An unknown type
-is rejected, never silently ignored. <!-- now:app-profile -->The Web of Trust app connects people with `shared-connect`, whose documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1` ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).<!-- /now:app-profile -->
+is rejected, never silently ignored. The app's ceremony uses public
+Trust Task types instead; see [Credentials we issue](#credentials-we-issue) above.
 
 | Type | Registered in | Purpose |
 |---|---|---|

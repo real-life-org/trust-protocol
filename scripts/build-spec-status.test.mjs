@@ -289,3 +289,33 @@ test('the box: set under the frontmatter of every explaining page with specs, fr
   assert.match(placeBox(`${BOX.md.begin}\n${BOX.md.end}\n${BOX.md.begin}\n${BOX.md.end}\n`, box, 'p.md').error, /2 box begin and 2 box end markers/)
   assert.equal(outsideGenerated(`a\n${BOX.md.begin}\nold\n${BOX.md.end}\nb`, 'p.md'), outsideGenerated(`a\n${BOX.md.begin}\nnew\n${BOX.md.end}\nb`, 'p.md'))
 })
+
+test('the box: pages at any depth, the named exception, its place under the frontmatter, no second visible box', async () => {
+  const { boxPages, renderBox, placeBox, BOX, BOX_EXCEPTIONS, outsideGenerated } = await import('./build-spec-status.mjs')
+  const D = 'apps/site/src/content/docs'
+  const root = repo({
+    [`${D}/reference/specifications.md`]: '---\ntitle: S\nspecs: [a-layer]\n---\n',
+    [`${D}/understand/deep/inner.md`]: '---\ntitle: I\nspecs: [a-layer]\n---\n\nText.\n',
+  })
+  assert.deepEqual(boxPages(root).map((p) => p.file), [`${D}/understand/deep/inner.md`])
+  assert.ok(Object.hasOwn(BOX_EXCEPTIONS, `${D}/reference/specifications.md`))
+  const status = { documents: [doc()] }
+  const box = renderBox(['a-layer'], status, 'p.md')
+  const fm = '---\ntitle: P\nspecs: [a-layer]\n---\n'
+  // the unchanged box at the end of the page
+  assert.match(placeBox(`${fm}\n## First\n\nText.\n\n${box}\n`, box, 'p.md').error, /does not stand directly under the frontmatter/)
+  // a second visible copy without markers
+  const copy = box.split('\n').slice(1, -1).join('\n')
+  assert.match(placeBox(`${fm}\n${box}\n\n${copy}\n`, box, 'p.md').error, /a second box stands outside the markers/)
+  assert.match(placeBox(`${fm}\n${copy}\n`, box, 'p.md').error, /a box stands without its markers/)
+  // the first setting of a box is no edit of a person
+  const without = `${fm}\n## First\n\nText.\n`
+  const withBox = placeBox(without, box, 'p.md').text
+  assert.equal(outsideGenerated(withBox, 'p.md'), outsideGenerated(without, 'p.md'))
+})
+
+test('a statement left behind with a line break in it is still found', () => {
+  const long = { groups: { short: 'The library runs a membership log replicated among the members, with founding.', evidence: ['lib/src/x.ts'] } }
+  const root = repo({ 'page.md': 'Design. The library runs a membership log replicated\namong the members, with founding.\n\nx <!-- now:groups --><!-- /now:groups -->\n' })
+  assert.ok(checkStatements(root, { statements: long }, ['page.md']).some((e) => e.includes('the statement groups stands without its markers')))
+})

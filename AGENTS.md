@@ -192,7 +192,7 @@ regenerate. Statements about what the library builds today stand on
 from the `statements` of `spec/status.json` (`<!-- now:<id> -->`); change
 them there and regenerate. Every page under `understand/` and `reference/`
 that rests on specifications opens with a box the generator writes from
-its `specs:` and `spec/status.json`. The landing page documents what is
+its `specs:` and `spec/status.json`, except `reference/specifications.md`, which is the status table itself. The landing page documents what is
 live and changes only in a change of its own that the author decides, not
 on the side of another pull request. Where a text and the library disagree, the
 library with its vectors and flows holds until the text is brought up to

@@ -136,8 +136,8 @@ function refs(part, from) {
 
 export const BUILT_MEANS = '*Built* means the library implements the part; the text has not been reconciled with the library rule by rule, so single rules may differ.'
 const reconciled = (r) => r === 'not reconciled'
-  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ.'
-  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS}`
+  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; notes name the differences known so far.'
+  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS} Notes name the differences known so far.`
 
 export function renderSpecBlock(doc) {
   const lines = [
@@ -161,7 +161,7 @@ export function renderSpecBlock(doc) {
 
 export function renderReadme(status) {
   return [
-    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} ${PRECEDENCE}`,
+    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} Notes name the differences known so far. ${PRECEDENCE}`,
     '',
     '| Document | Version | State | Last reconciled |',
     '|---|---|---|---|',
@@ -375,9 +375,10 @@ export function outsideGenerated(text, file) {
   const mdx = file.endsWith('.mdx')
   const now = mdx ? /(\{\/\* now:([a-z0-9-]+)(?::[a-z]+)? \*\/\})[\s\S]*?(\{\/\* \/now:\2 \*\/\})/g : /(<!-- now:([a-z0-9-]+)(?::[a-z]+)? -->)[\s\S]*?(<!-- \/now:\2 -->)/g
   let out = text.replace(now, '$1$3')
+  // a generated box goes entirely, with the blank lines around it: setting it is no edit of a person
   const box = BOX[mdx ? 'mdx' : 'md']
   const bb = out.indexOf(box.begin), be = out.indexOf(box.end)
-  if (bb !== -1 && be > bb) out = out.slice(0, bb + box.begin.length) + out.slice(be)
+  if (bb !== -1 && be > bb) out = out.slice(0, bb).replace(/\n+$/, '\n') + out.slice(be + box.end.length).replace(/^\n+/, '\n')
   const b = out.indexOf(BEGIN), e = out.indexOf(END)
   if (b !== -1 && e > b) out = out.slice(0, b + BEGIN.length) + out.slice(e)
   return out
@@ -386,10 +387,12 @@ export function outsideGenerated(text, file) {
 // The statements whose wording stands in a file outside its generated
 // places: a place whose markers were removed and whose text stayed.
 export function unmarkedStatements(text, file, statements) {
-  const outside = outsideGenerated(text, file)
+  // compared with white space collapsed: a line break in the text left behind changes nothing
+  const flat = (t) => t.replace(/\s+/g, ' ')
+  const outside = flat(outsideGenerated(text, file))
   const out = []
   for (const [id, st] of Object.entries(statements ?? {})) {
-    for (const form of FORMS) if (typeof st?.[form] === 'string' && st[form].length > 40 && outside.includes(renderStatement(st[form], file))) out.push(id)
+    for (const form of FORMS) if (typeof st?.[form] === 'string' && st[form].length > 40 && outside.includes(flat(renderStatement(st[form], file)))) out.push(id)
   }
   return [...new Set(out)]
 }
@@ -431,23 +434,29 @@ function evidenceProblems(root, evidence, where) {
 
 // ── the box on the explaining pages ─────────────────────────────────────
 
-// The pages under understand/ and reference/ that rest on specifications
-// (a non-empty `specs:`), with those specifications; the list of the
-// specifications itself carries the generated table instead.
+// Pages that carry no box although they rest on specifications, each with
+// the reason.
+export const BOX_EXCEPTIONS = { [SITE]: 'the status table itself' }
+
+// The pages under understand/ and reference/, at any depth, that rest on
+// specifications (a non-empty `specs:`), with those specifications, apart
+// from the named exceptions.
 export function boxPages(root) {
   const out = []
-  for (const dir of ['understand', 'reference']) {
-    const full = join(root, DOCS, dir)
-    if (!existsSync(full)) continue
-    for (const name of readdirSync(full).sort()) {
-      if (!/\.mdx?$/.test(name)) continue
-      const file = `${DOCS}/${dir}/${name}`
-      if (file === SITE) continue
+  const walk = (dir) => {
+    const full = join(root, dir)
+    if (!existsSync(full)) return
+    for (const e of readdirSync(full, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const file = `${dir}/${e.name}`
+      if (e.isDirectory()) { walk(file); continue }
+      if (!/\.mdx?$/.test(e.name) || Object.hasOwn(BOX_EXCEPTIONS, file)) continue
       const fm = readFileSync(join(root, file), 'utf8').match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''
       const specs = fm.match(/^specs:\s*\[(.*)\]\s*$/m)?.[1].split(',').map((x) => x.trim()).filter(Boolean) ?? []
       if (specs.length) out.push({ file, specs })
     }
   }
+  walk(`${DOCS}/understand`)
+  walk(`${DOCS}/reference`)
   return out
 }
 
@@ -471,17 +480,21 @@ export function placeBox(text, box, file) {
   const count = (t) => text.split(t).length - 1
   const b = count(m.begin), e = count(m.end)
   if (b > 1 || e > 1 || b !== e) return { text, error: `${file}: ${b} box begin and ${e} box end markers, not one of each` }
-  if (b === 1) {
-    const i = text.indexOf(m.begin), j = text.indexOf(m.end)
-    if (j < i) return { text, error: `${file}: the box end marker stands before its begin` }
-    return { text: text.slice(0, i) + box + text.slice(j + m.end.length) }
-  }
   const fm = text.match(/^---\n[\s\S]*?\n---\n/)
   if (!fm) return { text, error: `${file}: no frontmatter` }
   let at = fm[0].length
-  const rest = text.slice(at)
-  const imports = rest.match(/^(\n*(import [^\n]*\n)+)/)
+  const imports = text.slice(at).match(/^(\n*(import [^\n]*\n)+)/)
   if (imports) at += imports[0].length
+  // a second box without markers would show twice
+  const visible = (t) => t.split(':::note[Design and status]').length - 1
+  if (b === 1) {
+    const i = text.indexOf(m.begin), j = text.indexOf(m.end)
+    if (j < i) return { text, error: `${file}: the box end marker stands before its begin` }
+    if (text.slice(at, i).trim()) return { text, error: `${file}: the box does not stand directly under the frontmatter${imports ? ' and the imports' : ''}` }
+    if (visible(text.slice(0, i) + text.slice(j)) > 0) return { text, error: `${file}: a second box stands outside the markers` }
+    return { text: text.slice(0, i) + box + text.slice(j + m.end.length) }
+  }
+  if (visible(text) > 0) return { text, error: `${file}: a box stands without its markers` }
   const before = text.slice(0, at).replace(/\n*$/, '\n')
   return { text: `${before}\n${box}\n\n${text.slice(at).replace(/^\n+/, '')}` }
 }
