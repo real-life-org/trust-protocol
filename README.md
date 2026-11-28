@@ -58,7 +58,7 @@ Everything a person sees in the app is a function of what their own
 device holds. No identifier is correlatable across relationships:
 every encounter mints fresh pairwise anchors, and a blinded continuity
 probe re-recognizes an existing relationship afterwards — so meeting
-the same person twice produces one contact, not two, without any
+the same person twice normally produces one contact, not two, without any
 stable identifier travelling. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is processed. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
 
 ## The shape of it
