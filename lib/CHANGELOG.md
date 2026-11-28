@@ -19,9 +19,10 @@ option of the two acts.
   refuses it as well; a back-code shown before the acceptance is not given out again by a new act.
   The act that gave a code, repeated under its `actId`, is answered from the journal with the
   same code, as every repeated human act is.
-- A completed enactment opens its relationship from the counterpart's card in its issue step, or,
-  where that issue carries no card, from the card a code carried (the inviter's in the link, for
-  the responder), verified when it was read and for the pair the acceptance names. Before, a
+- The responder's completed enactment opens its relationship from the inviter's card in its issue
+  step, or, where that issue carries no card, from the inviter's card in the link, verified when
+  the link was read and for the pair the acceptance names. The inviter's rule is unchanged: a card
+  from a back-code opens only at the acceptance and only for a link shown in person. Before, a
   responder that read the inviter's card in the link and got the acceptance before showing a
   back-code ended without a contact when the inviter's issue carried none, while the inviter had
   one. A relationship opened this way has no delivery hints for the counterpart: the link card
