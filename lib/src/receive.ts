@@ -80,10 +80,9 @@
 // effect-cache entry (a redelivery is evaluated afresh and meets the lower
 // bound), no ack (the delivery must not complete), no event; the completed
 // high-water mark stays. A chunk that does not authenticate is a plain
-// refusal and touches nothing. DELIVERY GAP: Delivery §6.2 names no
-// disposition for a document whose processing ends in such a discard;
-// `discarded` (both reasons) is this library's, to be registered in
-// Delivery 0.82.
+// refusal and touches nothing. Delivery 0.85 §6.2 prescribes this
+// disposition: `discarded` (RLTP-DEL-6290), with no ack (RLTP-DEL-6300)
+// and no completed-effect cache entry (RLTP-DEL-6305).
 //
 // A verified ack runs the ack handler a module registered for the
 // acknowledged item's type, in the ack's transaction (engine.ts

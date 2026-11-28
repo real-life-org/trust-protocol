@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // membership/holder — groups on the holder (lib Stage 2, PR 7a; Membership
-// Tasks 0.21 on Access 0.58, Delivery 0.84): founding, the prelude and
+// Tasks 0.21 on Access 0.58, Delivery 0.85): founding, the prelude and
 // the invite, the accept, admission and welcome, evidence and vouches, on
 // HolderState and the engine. The pure forms and checks are the root
 // module's (membership.ts).
@@ -83,8 +83,8 @@
 //     or accepted invitation rests on it (3945); an accepted or joined invitation past
 //     validUntil + skew + two horizons — the accept's delivery and the
 //     welcome's — so the welcome finds the accepted state and the member
-//     key (kept while an invitation is open or accepted); an explicit abort
-//     is not built. A member key leaving keepKeys leaves `addresses`
+//     key (kept while an invitation is open or accepted); no document
+//     withdraws an invitation earlier (Membership Open Issue MO-8). A member key leaving keepKeys leaves `addresses`
 //     without a tombstone (an identity context, engine.ts tick), so a later
 //     invitation to the same group derives and uses the same key again
 //   - the prelude request proves its claimed inviter: a binding signed
@@ -106,10 +106,9 @@
 //     consent pair as membership-evidence/0.2 to the other members on its
 //     roster (candidacy false still permits this silent relay, 3250), and
 //     a member's vouch travels back to it as evidence with its vouch
-//   - membership-evidence: Delivery §4.4 still lists membership-evidence/
-//     0.1; Membership 0.19 registers /0.2 and keeps /0.1 receivable
-//     (3815): both are registered here, /0.2 is the one issued (a gap to
-//     close in Delivery 0.82). A relayer this holder does not have on its
+//   - membership-evidence: Membership registers /0.2 and keeps /0.1
+//     receivable (3815), as the registry of Delivery 0.85 §4.4 lists them:
+//     both are registered here, /0.2 is the one issued. A relayer this holder does not have on its
 //     roster cannot be acknowledged (its key is unknown): validation-failed
 //     where 3750 has the pending disposition incomplete(missing:
 //     group-state), which this engine does not have
