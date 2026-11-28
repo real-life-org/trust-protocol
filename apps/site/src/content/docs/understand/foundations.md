@@ -44,9 +44,9 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Identifiers
 
-A person keeps one secret, a BIP-39 mnemonic with the English
-wordlist. Every identity is derived from its seed, one **[anchor](term:Anchor)** per
-context:
+In the published Identity Layer, a person keeps one secret, a BIP-39
+mnemonic with the English wordlist, and every identity is derived from its
+seed, one **[anchor](term:Anchor)** per context. <!-- now:identity -->With the library's default key provider `seedKeys`, the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`, and an app may bind another key provider.<!-- /now:identity --> The Identity Layer text names these contexts:
 
 | Context | Label | DTG scope |
 |---|---|---|
@@ -59,9 +59,9 @@ identifier: `pairwise` is known to one counterpart, `directed` to a
 set the holder chooses, `public` to anyone. A [pair anchor](term:PairAnchor) is
 `pairwise`; a [member anchor](term:MemberAnchor) is `directed`, because every member of
 the group can correlate it; a persona is `public`, because its
-profile is meant for everyone. Personas are specified but not yet
-built, and whether RLTP also needs personas toward a chosen set is an
-open question; today that role falls to the member anchor.
+profile is meant for everyone. <!-- now:personas -->The library derives a persona's anchor from its `persona/<name>` label; no holder act creates or uses a persona.<!-- /now:personas -->
+Whether RLTP also needs personas toward a chosen set is an open question;
+in the specification texts that role falls to the member anchor.
 The Trust Tasks framework knows no `directed`: a task type declares an
 identifier that several counterparties recognise as `public`, so the
 types whose parties are member anchors declare them `public`, with the
@@ -70,14 +70,16 @@ group as the bound
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
-recovery context for the person's own encrypted state. Without the
-seed, two anchors of one person cannot be linked.
+recovery context for the person's own encrypted state. <!-- now:derived-identities:long -->The library builds the carrier identity and a provisional service identity ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)), not the recovery context.<!-- /now:derived-identities --> From the
+public anchors alone, without the seed, two anchors of one person cannot
+be linked.
 
-Each context has an Ed25519 key pair, whose public key is the anchor
+Each anchor context of the table has an Ed25519 key pair, whose public key is the anchor
 as a `did:key`, and an X25519 key for key agreement, carried in the
 [contact card](term:ContactCard). Verification needs no network.
 
-`did:key` over Ed25519 is the only DID method specified today.
+For anchors, `did:key` over Ed25519 is the only DID method the Identity
+Layer text specifies.
 Consumers treat an anchor as an opaque DID, but the schemas pin the
 `did:key` pattern, so another method would be a coordinated change. A
 `did:key` cannot rotate as an identifier. The anchor of the personal
@@ -85,27 +87,36 @@ community rotates outside it: each generation is bound in advance to
 the next by a pre-rotation binding, so only the holder of the seed can
 produce a valid successor. A verifiable key history for every anchor is
 named as open work, its format deliberately not chosen. `did:webvh`
-and `did:peer` are not specified.
+and `did:peer` are not specified as anchors.
 
-The mnemonic restores keys, not state. Which groups, personas and
-relationships exist is a register in the person's encrypted,
-synchronized state; with a copy of it, everything returns. A lost
-mnemonic is final, unless the person has set up succession:
-recovering an anchor through several trusted people is specified
-separately and currently parked.
+In the Identity Layer text, the mnemonic restores keys, not state. Which
+groups, personas and relationships exist is a register in the person's
+encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state over the store that holds it and with access to the same keys, with `seedKeys` the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery -->
+The parked Succession draft describes how guardians witness the
+transition to a new anchor.
+
+This model is planned to change: an identifier that keeps its name across
+a key change, a main device with linked devices, keys generated rather
+than derived from the words, and guardians who help restore the same
+identity. <!-- now:direction-identity:long -->The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.<!-- /now:direction-identity --> The
+[identity direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md) says how, and
+[`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json) says which parts of the
+Identity Layer hold today.
 
 Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) ·
 [Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md) (parked)
 
 ## Credentials we issue
 
-RLTP issues three credentials, all W3C Verifiable Credentials 2.0
+In the frozen Encounter Layer, Membership Tasks and Access Layer texts,
+RLTP issues three credentials, all W3C
+Verifiable Credentials 2.0
 with closed schemas and three contexts pinned by value (W3C
 credentials v2, a DTG context, RLTP v1), verified without JSON-LD
 processing. The [encounter credential](term:EncounterCredential) is a DTG Relationship
 Credential under DTG Credentials WD 0.6.0: it lists the DTG registry
 context v1 and declares `issuerScope: "pairwise"`. The [invite](term:Invite) and
-the [vouch](term:Vouch) list the DTG context of Working Draft 01.
+the [vouch](term:Vouch) list the DTG context of Working Draft 01. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link; the steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633); the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
@@ -123,11 +134,6 @@ the other, and the fact survives as a record. It does not
 establish physical presence, personhood, that a name belongs to a
 legal person, or trust. Freshness and verification are established
 toward the two participants only.
-
-Status: the credentials follow DTG Credentials WD01. The move to the
-DTG context v2 is pending, and the vouch is to become a DTG
-`StatementCredential` with its own predicate. Both are planned as one
-wire change.
 
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) ·
@@ -164,9 +170,10 @@ name with an optional picture and text: trusting someone sends the
 classes meant for trusted contacts in one step, and each class can be
 switched on its own, per contact and per group.
 
-Meeting the same person again needs no disclosure: a [continuity probe](term:ContinuityProbe)
+In the Trust Layer text, meeting the same person again needs no
+disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
-history and chains it to the existing relationship.
+history and chains it to the existing relationship. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
 
 Every artifact belongs to one audience class. Class P covers
 statements meant to be shown, such as the encounter credential, the
@@ -184,8 +191,9 @@ A third party holding both credentials of one encounter can verify
 both proofs and the shared [enactment binding](term:EnactmentBinding), and learns exactly
 this: two anchors consistently assert an encounter. Whether two
 people met, and who they are, stays with those who know the anchors.
-Personhood predicates therefore measure confirmations relative to
-anchors the verifier already knows.
+The Personhood Predicates text therefore measures confirmations relative
+to anchors the verifier already knows (P1, P2) or to the members of a
+named group (P3).
 
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
 [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) ·
@@ -193,10 +201,13 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Trust Tasks
 
-Every RLTP message is a Trust Task document of a private, versioned
+In the frozen specification texts, every RLTP message is a Trust Task
+document of a private, versioned
 type under `https://real-life.org/trust-tasks/spec/`, with in-band
-`issuer` and `recipient` anchors and no `expiresAt`. An unknown type
-is rejected, never silently ignored.
+`issuer` and `recipient` anchors and no `expiresAt`; the parties of
+`sealed-envelope/0.1` are its carrier's identifiers instead. An unknown type
+is rejected, never silently ignored. For the app's ceremony, see
+[Credentials we issue](#credentials-we-issue) above.
 
 | Type | Registered in | Purpose |
 |---|---|---|
@@ -218,6 +229,13 @@ is rejected, never silently ignored.
 | `profile/0.1` | Trust | your name, with an optional picture and text, for one contact |
 | `continuity-probe/0.1`, `continuity-mapping/0.1` | Trust | detect a re-encounter and chain it to the existing relationship |
 | `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Trust | the five steps of introducing two people through a mutual contact |
+
+<!-- now:welcome -->
+The library sends its own `x-membership-welcome/0.1` in place of `access-operation/0.1`, and the new member fetches the log ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+<!-- /now:welcome -->
+<!-- now:access-task-types -->
+The library carries the schemas of `key-delivery/0.1` and `removal-notice/0.1` but sends and receives neither: key distribution and `member.remove` are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+<!-- /now:access-task-types -->
 
 The full register, by layer, with schemas: [Trust Tasks](/reference/trust-tasks/).
 
@@ -267,6 +285,8 @@ proof of consent. A welcome sealed to the newcomer carries the
 current keys. If the group requires vouches, written `vouch(n)`, the
 newcomer needs n members who vouch for this one admission; a vouch
 never stands for a later one.
+
+This flow is described in the frozen Access Layer and Membership Tasks texts. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, epoch transitions, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 Specs: [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md)
@@ -343,6 +363,8 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
   atomically; nothing waits for an expiry date.
 - **Relationships never converge into a person.** Every relationship
   has its own anchor and, toward every carrier, its own principal.
+
+What the library builds of groups is under [Groups](#groups) above.
 
 More: [README of the specification repository](https://github.com/real-life-org/trust-protocol#what-is-different-about-it)
 

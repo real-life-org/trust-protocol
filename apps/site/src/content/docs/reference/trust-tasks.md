@@ -24,16 +24,16 @@ Details, part by part: [Specifications](/reference/specifications/) and the stat
 :::
 <!-- /spec-box -->
 
-Every RLTP message is a Trust Task document of a private, versioned
-type, named `https://real-life.org/trust-tasks/spec/<slug>/<version>`,
+In the frozen specification texts, every RLTP message is a Trust Task
+document of a private, versioned type, named `https://real-life.org/trust-tasks/spec/<slug>/<version>`,
 with in-band `issuer` and `recipient` anchors and no `expiresAt`. An
 unknown type is rejected, never silently ignored. The types target
 the Trust Tasks framework 0.6.0. A carrier that carries Trust Task
 documents itself carries every sealed message as the payload of one
 more type, `sealed-envelope/0.1`, whose parties are the carrier's
-identifiers.
+identifiers. <!-- now:app-profile -->The Web of Trust app connects people with `shared-connect`, whose steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633) ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).<!-- /now:app-profile -->
 
-The types form one register, the
+The private RLTP types form one register, the
 [task registry](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md#44-the-task-registry--companion-registered-types)
 of the Delivery Contract. Each type is registered by the specification
 where its semantics live, which names its payload schema, its proof
@@ -54,9 +54,9 @@ under [Credentials](/reference/credentials/).
 
 ## Encounter
 
-The two transmissions of the encounter ceremony
+The two transmissions of the encounter ceremony `encounter-scan`
 ([Encounter §5.8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#58-the-registered-ceremony-of-this-version)),
-registered by the Delivery Contract itself.
+registered by the Delivery Contract itself. <!-- now:encounter-ceremony -->The app connects people with `shared-connect` instead, defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies).<!-- /now:encounter-ceremony -->
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
@@ -95,7 +95,7 @@ artifact; it carries its own MAC, the document carries no proof.
 
 ## Access
 
-Key material and the removal notice.
+Key material and the removal notice. <!-- now:access-task-types -->The library carries the schemas of `key-delivery/0.1` and `removal-notice/0.1` but sends and receives neither: key distribution and `member.remove` are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:access-task-types -->
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
@@ -108,7 +108,7 @@ The transport of membership changes: the [prelude](term:Prelude) that
 precedes an invitation, invitation, consent, the admitting operation,
 and the evidence relay. A sender issues
 `membership-evidence/0.2`; a receiver also accepts `/0.1`
-([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)).
+([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)). <!-- now:welcome -->The library sends its own `x-membership-welcome/0.1` in place of `access-operation/0.1`, and the new member fetches the log ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:welcome -->
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|

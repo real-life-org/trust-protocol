@@ -23,11 +23,13 @@ Details, part by part: [Specifications](/reference/specifications/) and the stat
 :::
 <!-- /spec-box -->
 
-RLTP uses three verifiable credentials: the encounter credential, the
-invitation credential and the admission vouch. All three are W3C
+In the frozen Encounter Layer, Membership Tasks and Access Layer texts,
+RLTP uses three verifiable
+credentials: the encounter credential, the invitation credential and the
+admission vouch. All three are W3C
 Verifiable Credentials 2.0 in the form of the
 [DTG credential specification](https://github.com/trustoverip/dtgwg-cred-spec),
-signed with `eddsa-jcs-2022` over `did:key`.
+signed with `eddsa-jcs-2022` over `did:key`. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link; the steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633); the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
 
 | Credential | DTG type | Who issues it to whom | What it does |
 |---|---|---|---|
@@ -37,7 +39,7 @@ signed with `eddsa-jcs-2022` over `did:key`.
 
 ## Encounter credential
 
-One step of an [encounter](/understand/encounter/) yields one
+In the Encounter Layer text, one step of an [encounter](/understand/encounter/) yields one
 encounter credential: the recognizing party's signed statement that
 it recognized the other in this enactment, issued to the recognized
 party under a fresh [pair anchor](term:PairAnchor) of that enactment.
@@ -95,7 +97,7 @@ encloses the accept and the vouches the policy requires
 and stops being one by a `member.remove`, which starts a new epoch:
 revocation is an epoch, prospective and honestly stated
 ([Access §1.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#11-essence),
-[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)).
+[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)). <!-- now:member-remove -->In the library a member leaves by a `member.leave`; `member.remove` and epoch transitions are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:member-remove -->
 Every replica of the log reaches the same answer about who is a
 member
 ([Access §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)).

@@ -73,9 +73,12 @@ minutes.
 
 Spec: [Encounter Layer §5.3](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#53-challenges)
 
-## One scan
+## The ceremony
 
-The [ceremony](term:Ceremony) of this version needs one scan.
+The Encounter Layer's [ceremony](term:Ceremony) needs one scan on the
+connected path and two offline. <!-- now:encounter-ceremony:long -->`encounter-scan`, the ceremony of the Encounter Layer, is superseded: the Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:encounter-ceremony -->
+
+The frozen `encounter-scan` ceremony proceeds as follows:
 
 1. B shows a card with challenge *c<sub>B</sub>*.
 2. A scans it, creates a sent card with a fresh challenge
@@ -105,7 +108,7 @@ Spec: [Encounter Layer §5](https://github.com/real-life-org/trust-protocol/blob
 The credentials of one encounter form an **[edge](term:Edge)** between the two
 anchors. If only A confirmed, the edge is one-sided: A says they
 verified B, B has said nothing. That is a legitimate outcome, not a
-failure, and the app shows it as such. The edge becomes mutual when
+failure. The edge becomes mutual when
 each side holds the other's credential. Mutuality is held, never
 inferred: a card addressed to you suggests verification, only the
 credential proves it.
@@ -126,9 +129,9 @@ unless one of the holders discloses the link.
 Meeting the same person again creates a new pair anchor. After the
 ceremony, a [continuity probe](term:ContinuityProbe) over the fresh channel lets the two
 devices find out that they already share a relationship; only a
-counterpart that holds the earlier one can answer it. On a match the
-new pair is chained to that relationship, and the chain is visible to
-its two holders alone.
+counterpart that holds the earlier one can answer it. In the Trust Layer
+text, on a match the new pair is chained to that relationship, and the
+chain is visible to its two holders alone. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
 
 Spec: [Encounter Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#8-what-a-third-party-can-verify) ·
 [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44)
