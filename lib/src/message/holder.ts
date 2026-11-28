@@ -5,7 +5,7 @@
 // What it registers (messageModule):
 //   human acts  message.send {contactId, text, replyTo?}   a message@1 on
 //               the active head of a ready, unblocked relationship of the
-//               contact (5010–5030), its document carrying the sender
+//               contact (5010–5030), its outbox entry carrying the sender
 //               lifetime sentAt + H − P1D (5110, Delivery RLTP-DEL-7020);
 //               event message.sent {contactId, mid, digest}
 //               message.block {contactId, blocked}   sets or clears the
@@ -57,6 +57,11 @@
 //     one effect per mid holds per tuple, not per relationship
 //   - replyTo (5120) is the application's: the library keeps no history of
 //     sent mids to check it against, and a receiver never rejects it
+//   - the `ceremony` member of a received message/0.1 document is not
+//     read: the handler checks the body and its MAC only, so a member that
+//     carries an `enactment` is not recomputed, where the profile rule of
+//     Delivery §3 makes such a value recompute against the enclosed
+//     material or the document fail
 //   - the block is kept beside the relationships, by relationship id
 //     (`messages.blocked`): the chain's id survives a chaining (6030: the
 //     chain keeps its block, and takes the block of the fresh relationship

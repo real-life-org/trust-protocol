@@ -30,7 +30,7 @@ npm i @real-life/trust-protocol
 `createHolder` is one person's device: its state behind the human acts, the
 delivery channel's three calls and the views an app reads.
 
-One person has one identity, derived from one root seed. A second device or a second app of the
+One person has one identity; with `seedKeys` it is derived from one root seed. A second device or a second app of the
 same person cannot yet hold that identity: two stores over one root seed hold two states that
 never reconcile, so never give the same root seed to a second store, at the same time or later.
 Closing a holder and opening a new one over the same store and seed is the normal reopening.
@@ -502,12 +502,12 @@ This package uses its own semver; the specification uses castings.
 | identity | Identity 0.55 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.32, cards 0.25, credentials 0.26 | — |
 | shared-connect | ceremony definition `interop/ceremonies/shared-connect.ceremony.json` (tf#1034 draft, 8 Nov 2026) | a messaging channel toward a counterpart without a card (tf discussion #1013); the Encounter casting that adopts the ceremony (D5) |
-| trust | Trust Layer 0.31 | — |
-| membership | Membership Tasks 0.21, Access 0.58 | `access-operation/0.1` (Membership 3.3: this library sends its own `x-membership-welcome/0.1` and the new member fetches the log); an admission prompt after the bound of RLTP-MT-3282; of Access: key distribution and transitions (§7, §9.4 beyond the genesis commitment), the conflict matrix (3.6), `policy.change`, device cards (5.1), views (7.3), `member.remove`, the pending exit (5.4); the service identity is provisional (D3); one device per person; the log reaches the members along the invitation tree only |
+| trust | Trust Layer 0.31 | two re-encounters at the same time can leave relationships unchained on both sides (§6a; `test/trust-continuity.test.mjs`, one-sided chaining) |
+| membership | Membership Tasks 0.21, Access 0.58 | `access-operation/0.1` (Membership 3.3: this library sends its own `x-membership-welcome/0.1` and the new member fetches the log); an admission prompt after the bound of RLTP-MT-3282; of Access: key distribution and transitions (§7, §9.4 beyond the genesis commitment), the rows of the conflict matrix (3.6) for removal, policy change and transitions, `policy.change`, device cards (5.1), views (7.3), `member.remove`, the pending exit (5.4); the service identity is provisional (D3); one device per person; the log reaches the members along the invitation tree only |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
-| delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |
+| delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the treatment of incoming documents of the Trust Layer's types under a block (Message Tasks 6240: it waits for the next casting of the Trust Layer; an outgoing introduction toward or through a blocked relationship is refused, 6410) |
 | transport adapter | VTI Mediator Adapter Profile 0.30 (§1c, the displayed card's instance, is the host's and the wire's, not the library's) | a change of the carrier nonce N (RLTP-VTI-1245; profile Open Issue 10); the TSP framing, which is the wire binding's (profile §7; `binding/` in the repository); a return from `direct` to `routed` (profile Open Issue 4); sending framework refusals (profile Open Issue 17) |
-| message | Message Tasks 0.2 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready` and the app keeps the message; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message ends as `failed(expired-by-adapter-policy)` |
+| message | Message Tasks 0.2 | holding a message unsent until its tuple is ready (5020): `sendMessage` answers `not-ready`, and keeping the message until it can be sent is the app's task; checking `replyTo` against the relationship's history (5120), which is the app's; multi-device (§9); `failed(task-expired)` for a message: reachable only with a retry horizon beyond P179D, which the engine does not admit (at most P90D), so an undelivered message the counterpart does not hold ends as `failed(expired-by-adapter-policy)`, and one it holds (`held: true`) is given up at neither |
 | devices | Identity §5.5 | multi-device production: one writer per holder |
 
 ## The contract: the vectors

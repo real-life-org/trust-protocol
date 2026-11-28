@@ -1,7 +1,7 @@
 // GENERATED from lib/dist by scripts/build-simulator-lib.mjs — DO NOT EDIT.
 // Source of truth: lib/src/*.ts. CI enforces freshness (--check).
 // introduction/holder — the Introduction Act on the holder (lib Stage 2,
-// PR 7a; Trust Layer 0.31 §8 on Delivery 0.81 §4.4). The pure forms are
+// PR 7a; Trust Layer 0.31 §8 on Delivery 0.85 §4.4). The pure forms are
 // the root module's (introduction.ts). Trust 0.31 §8 relays the act
 // through the mediator; no rendezvous drop is needed or built.
 //
