@@ -39,6 +39,10 @@ test at festivals and community gatherings.
   has its own anchor and, toward every carrier, its own principal. A
   relay holding six of your relationships holds six relationships.
 
+These points describe the design the specification texts set out. What
+runs today in the library and the app is listed under [Status](#status):
+for groups, a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built.
+
 ## Try it in your browser
 
 Two simulators, no installation, everything running locally in your

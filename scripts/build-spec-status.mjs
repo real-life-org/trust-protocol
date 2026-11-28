@@ -97,7 +97,7 @@ function refs(part, from) {
   const list = refsOf(part)
   for (const r of list) {
     if (deviation(r)) out.push(link('lib/DEVIATIONS.md', r, from))
-    else if (/\.(md|json)$/.test(r)) out.push(link(r, r, from))
+    else if (isPath(r) && !/\s/.test(r)) out.push(link(r, r, from))
     else out.push(r)
   }
   if (part.target) out.push(`by ${link(part.target, part.target.split('/').pop(), from)}`)
@@ -166,6 +166,9 @@ export function deviationRows(text) {
 
 const refsOf = (p) => p.ref === undefined ? [] : Array.isArray(p.ref) ? p.ref : [p.ref]
 const pathIn = (s) => (typeof s === 'string' ? s.trim().split(/\s+/)[0] : '')
+// One reading of a file path for `ref`, `target` and `source`: a first word
+// with a slash or a file extension.
+export const isPath = (token) => /\//.test(token) || /\.(md|json|ts|mjs|js|txt)$/.test(token)
 const fullPath = (root, path) => join(root, repoPathOf(path))
 
 export function checkStatus(root, status) {
@@ -210,13 +213,13 @@ export function checkStatus(root, status) {
           if (!(r in rows)) errors.push(`${pw}: ${r} is no row of lib/DEVIATIONS.md`)
         } else {
           const path = pathIn(r)
-          if (/\.(md|json)$/.test(path) && !existsSync(fullPath(root, path))) errors.push(`${pw}: ref ${path} does not exist`)
+          if (isPath(path) && !existsSync(fullPath(root, path))) errors.push(`${pw}: ref ${path} does not exist`)
         }
       }
       if (p.target && !existsSync(fullPath(root, p.target))) errors.push(`${pw}: target ${p.target} does not exist`)
       for (const item of (p.source ?? '').split(';')) {
         const path = pathIn(item)
-        if (path.includes('/') && !existsSync(fullPath(root, path))) errors.push(`${pw}: source ${path} does not exist`)
+        if (isPath(path) && !existsSync(fullPath(root, path))) errors.push(`${pw}: source ${path} does not exist`)
       }
     }
   }

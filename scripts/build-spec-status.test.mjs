@@ -77,3 +77,15 @@ test('a link out of spec/ from a spec block is a repository link', () => {
   assert.match(block, /\(https:\/\/github\.com\/real-life-org\/trust-protocol\/blob\/main\/lib\/DEVIATIONS\.md\)/)
   assert.doesNotMatch(block, /\(\.\.\/lib\//)
 })
+
+test('ref and source read a file path the same way: a missing file fails in both', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
+  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [
+    { title: 'x', status: 'built-differently', ref: 'lib/nonexistent.ts' },
+    { title: 'y', status: 'built', source: 'missing.md' },
+    { title: 'z', status: 'built', source: 'Status of This Document' },
+  ] })] })
+  assert.ok(errors.some((e) => e.includes('ref lib/nonexistent.ts does not exist')))
+  assert.ok(errors.some((e) => e.includes('source missing.md does not exist')))
+  assert.equal(errors.length, 2)
+})

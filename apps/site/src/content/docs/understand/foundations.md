@@ -65,9 +65,11 @@ produce a valid successor. A verifiable key history for every anchor is
 named as open work, its format deliberately not chosen. `did:webvh`
 and `did:peer` are not specified.
 
-The mnemonic restores keys, not state. Which groups, personas and
-relationships exist is a register in the person's encrypted,
-synchronized state; with a copy of it, everything returns. A lost
+In the Identity Layer text, the mnemonic restores keys, not state. Which
+groups, personas and relationships exist is a register in the person's
+encrypted, synchronized state; with a copy of it, everything returns. The
+library builds neither that recovery nor the synchronization of the
+state. A lost
 mnemonic is final. The library offers no recovery without it:
 recovering an anchor through several trusted people is the subject of
 the Succession draft, which is parked and cannot be set up.
@@ -170,8 +172,8 @@ A third party holding both credentials of one encounter can verify
 both proofs and the shared [enactment binding](term:EnactmentBinding), and learns exactly
 this: two anchors consistently assert an encounter. Whether two
 people met, and who they are, stays with those who know the anchors.
-Personhood predicates therefore measure confirmations relative to
-anchors the verifier already knows.
+The Personhood Predicates text therefore measures confirmations relative
+to anchors the verifier already knows.
 
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
 [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) ·
@@ -204,6 +206,10 @@ is rejected, never silently ignored.
 | `profile/0.1` | Trust | your name, with an optional picture and text, for one contact |
 | `continuity-probe/0.1`, `continuity-mapping/0.1` | Trust | detect a re-encounter and chain it to the existing relationship |
 | `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Trust | the five steps of introducing two people through a mutual contact |
+
+The library sends its own welcome in place of `access-operation/0.1`, and
+sends neither `key-delivery/0.1` nor `removal-notice/0.1`
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 The full register, by layer, with schemas: [Trust Tasks](/reference/trust-tasks/).
 
@@ -336,6 +342,9 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
   atomically; nothing waits for an expiry date.
 - **Relationships never converge into a person.** Every relationship
   has its own anchor and, toward every carrier, its own principal.
+
+These points describe the design the specification texts set out. What
+runs today is in the [status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json): for groups, a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built.
 
 More: [README of the specification repository](https://github.com/real-life-org/trust-protocol#what-is-different-about-it)
 

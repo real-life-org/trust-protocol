@@ -114,6 +114,10 @@ joined, who left and which rules apply. No owner decides; the group's
 own rule does. Members read and write without a server, and their
 copies merge when they meet again. Whoever is inside holds the key, and the key opens the
 shared data. Being a member means holding a place, not holding a claim.
+This is the design the specification texts describe. The library and the
+app run a membership log replicated among the members, with founding,
+admission and leaving; removal, key epochs and key changes are not built
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 | Statement | Place |
 |---|---|

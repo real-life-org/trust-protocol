@@ -111,9 +111,11 @@ rules made at the same time as a removal. The group then shows this
 openly and waits until a member writes a rule change that takes both
 sides into account.
 
-In the library, the one collision resolved is a leave at the same time
-as an admission of the same person: the leave wins. The rest of these
-rules is not built.
+In the library, two admissions of the same person made at the same time
+both stand and make one member. A leave at the same time as an admission
+of the same person, a case these rules leave open, is read as the leave
+winning. Removals, dissolutions and rule changes made at the same time
+are not built.
 
 Spec: [Access Layer §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)
 

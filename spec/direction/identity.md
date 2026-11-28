@@ -16,7 +16,7 @@ identifier is a `did:key` of that key; device keys are derived per device
 within an anchor context. One holder holds one identity: two
 stores over one root seed hold two states that never reconcile, so a
 second device or a second app of the same person cannot hold that identity
-yet ([`lib/README.md`, "The holder"](../../lib/README.md#the-holder)).
+yet ([`lib/README.md`, "The holder"](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md#the-holder)).
 
 ## Assumptions that are being retired
 
@@ -31,8 +31,10 @@ assumptions that the planned model gives up:
 - recovery is done with the words, together with a copy of the person's
   state (its Section 9).
 
-The library follows the first three. It does not implement the recovery
-derivation, and it offers no recovery. New work should not treat these
+The library follows the first three. It implements neither the recovery
+derivation nor the recovery of a whole identity from the words and a copy
+of its state; of the recovery section it builds only the recovery of a
+lost carrier entry. New work should not treat these
 assumptions as lasting.
 
 ## Where it is heading
@@ -75,6 +77,6 @@ The planned order, without dates:
 5. Guardians holding shares.
 
 The experimental login identity of the library
-([`lib/DEVIATIONS.md`](../../lib/DEVIATIONS.md), D6) is replaced at
+([`lib/DEVIATIONS.md`](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), D6) is replaced at
 stage 3. Each stage appears in [`spec/status.json`](../status.json) when
 it is built.

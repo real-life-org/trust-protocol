@@ -103,6 +103,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <p>A group is an encrypted document replicated on every member's device, with a signed log of who joined, who left and which rules apply. Membership is a fact in that state and a capability: holding the key.</p>
       <p>There are no admins. Privileged operations are gated by a decision rule the group states as data, and a removal is a new key epoch.</p>
       <p>Group state is a deterministic reading of the log, on each device. Only members can read it.</p>
+      <p>This is the design the specification texts describe. The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built (<a href="https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json">status</a>).</p>
       <p><a class="tp-more" href="/understand/foundations/#groups" aria-label="More on groups, in Foundations">More →</a></p>
     </div>
     <GroupPlace />
@@ -118,6 +119,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
           <div class="tp-item"><Icon name={icon} /><div><strong>{name}</strong><code>{detail}</code></div></div>
         ))}
       </div>
+      <p>These properties are the design of the specification texts. In the library, key epochs, key rotation and removal are not built (<a href="https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json">status</a>).</p>
     </div>
     <SharedSpace />
   </section>
@@ -127,7 +129,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
       <div class="tp-badge">Services</div>
       <h2>Delivery and replication behind ports</h2>
       <p>Documents travel sealed end to end, with signed acknowledgements and a closed set of delivery states.</p>
-      <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it.</p>
+      <p>Replication is a contract of sixteen promises over signed, causally linked entries. Substrates are judged against the contract, not chosen by it. The library registers no replication adapter; its group log uses an unattested exchange.</p>
     </div>
     <Ports />
   </section>

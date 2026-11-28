@@ -14,7 +14,7 @@
 > | §7a The carrier-relationship identity | built |  |
 > | §4 The mnemonic and the root IKM | direction changed: [direction/identity.md](direction/identity.md) | The library derives every key from one root seed today. |
 > | §8 Anchors as did:key | direction changed: [direction/identity.md](direction/identity.md) |  |
-> | §9 Recovery | direction changed: [direction/identity.md](direction/identity.md) |  |
+> | §9 Recovery | direction changed: [direction/identity.md](direction/identity.md) | Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state. |
 >
 > The library derives every identity from one root seed, and one holder holds one identity (lib/README.md, "The holder"). The planned model gives up the words as root, the identifier as its key, derived keys and recovery through the words; it is not built.
 <!-- spec-status:end -->

@@ -5,10 +5,11 @@
 >
 > | Part | Status | Note |
 > |---|---|---|
-> | §3, §4, §5, §6 `message/0.1`, reception, sending, the block | built |  |
+> | §3, §4, §6 `message/0.1`, its reception, the completion record, the inbox, the block of `message/0.1` and of invitations | built |  |
 > | §5 The `replyTo` of a sent message (RLTP-MSG-5120) | partly built | The library checks only that `replyTo` has the form of a UUID. That it names an earlier message of the same relationship is the sending application's to ensure; the library keeps no history of sent messages to check it against. |
 > | §5 Holding a message until its tuple is ready | not built | `sendMessage` answers `not-ready`; keeping the message until it can be sent is the application's task. |
-> | §5 The sender lifetime (rule 5110) and `failed(task-expired)` | not built | Unreachable under the library's retry horizon of at most P90D: an undelivered message ends as `failed(expired-by-adapter-policy)`. |
+> | §5 Sending, with the sender lifetime (rule 5110) | built | The sender sets the document's `expiresAt` by rule 5110 and the engine applies it. |
+> | §5 The outcome `failed(task-expired)` for a message | built | Unreachable for a message: the library's retry horizon of at most P90D gives an undelivered message up first, as `failed(expired-by-adapter-policy)`. |
 > | §6 The block of the Trust Layer's types | not built | Waits for the Trust Layer's next text. |
 <!-- spec-status:end -->
 

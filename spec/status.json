@@ -31,7 +31,7 @@
         { "sections": ["7a"], "title": "The carrier-relationship identity", "status": "built", "source": "Status of This Document" },
         { "sections": ["4"], "title": "The mnemonic and the root IKM", "status": "direction-changed", "ref": "direction/identity.md", "note": "The library derives every key from one root seed today." },
         { "sections": ["8"], "title": "Anchors as did:key", "status": "direction-changed", "ref": "direction/identity.md" },
-        { "sections": ["9"], "title": "Recovery", "status": "direction-changed", "ref": "direction/identity.md" }
+        { "sections": ["9"], "title": "Recovery", "status": "direction-changed", "ref": "direction/identity.md", "note": "Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state.", "source": "lib/src/carrier-holder.ts" }
       ],
       "note": "The library derives every identity from one root seed, and one holder holds one identity (lib/README.md, \"The holder\"). The planned model gives up the words as root, the identifier as its key, derived keys and recovery through the words; it is not built."
     },
@@ -83,7 +83,7 @@
       "parts": [
         { "sections": ["3.3", "3.4", "3.5"], "title": "Stage-1 authority log: envelope, genesis, `member.add`, `member.leave`, materialization", "status": "built-differently", "ref": ["D1", "D2", "D4"], "source": "lib/README.md (modules: access)" },
         { "sections": ["3.4.1", "5.2"], "title": "The founder's service identity in the genesis (rule 3265)", "status": "built-differently", "ref": ["D3"] },
-        { "sections": ["3.6"], "title": "The conflict matrix", "status": "partly-built", "source": "lib/src/access/log.ts (header)", "note": "Resolved: a leave concurrent with an admission of its subject, the leave winning (D2), and a back-dated admission by a member who has left, applied where valid at its position (D4). The rest of the matrix is not built.", "ref": ["D2", "D4"] },
+        { "sections": ["3.6"], "title": "The conflict matrix", "status": "partly-built", "ref": ["D2", "D4"], "note": "Built, for example: concurrent admissions of one subject both stay canonical and make one member (rule 3475). Read differently: a leave concurrent with an admission of its subject, a case the matrix does not define (D2), and a back-dated admission by a member who has left (D4). The rows for removal, policy change and transitions are not built, as those operations are not.", "source": "lib/test/access-log.test.mjs; lib/src/access/log.ts (header)" },
         { "sections": ["5.1"], "title": "Device cards", "status": "not-built", "source": "lib/README.md (Versions: membership)" },
         { "sections": ["5.3"], "title": "Admission and removal", "status": "partly-built", "note": "Admission is built; `member.remove` is not.", "source": "lib/README.md (Versions: membership)" },
         { "sections": ["5.4"], "title": "Leave, pending exit, dissolve", "status": "partly-built", "note": "A leave takes effect at once and defeats every admission of its subject not causally after it (D2); a leave at sole membership dissolves the group. The pending exit and its transition are not built.", "source": "lib/src/access/log.ts (header)", "ref": ["D2"] },
@@ -120,10 +120,11 @@
       "lastReconciled": "not reconciled",
       "textDigest": "sha256:40d94df9588113422b0e8071d5ed3f39cc5b51800c0ee4c141284f6a6ed5ac8a",
       "parts": [
-        { "sections": ["3", "4", "5", "6"], "title": "`message/0.1`, reception, sending, the block", "status": "built", "source": "Status of This Document; lib/README.md (modules: message)" },
+        { "sections": ["3", "4", "6"], "title": "`message/0.1`, its reception, the completion record, the inbox, the block of `message/0.1` and of invitations", "status": "built", "source": "Status of This Document; lib/README.md (modules: message)" },
         { "sections": ["5"], "title": "The `replyTo` of a sent message (RLTP-MSG-5120)", "status": "partly-built", "note": "The library checks only that `replyTo` has the form of a UUID. That it names an earlier message of the same relationship is the sending application's to ensure; the library keeps no history of sent messages to check it against.", "source": "lib/src/message/holder.ts (header)" },
         { "sections": ["5"], "title": "Holding a message until its tuple is ready", "status": "not-built", "note": "`sendMessage` answers `not-ready`; keeping the message until it can be sent is the application's task.", "source": "lib/README.md (Versions: message)" },
-        { "sections": ["5"], "title": "The sender lifetime (rule 5110) and `failed(task-expired)`", "status": "not-built", "note": "Unreachable under the library's retry horizon of at most P90D: an undelivered message ends as `failed(expired-by-adapter-policy)`.", "source": "lib/README.md (Versions: message)" },
+        { "sections": ["5"], "title": "Sending, with the sender lifetime (rule 5110)", "status": "built", "note": "The sender sets the document's `expiresAt` by rule 5110 and the engine applies it.", "source": "lib/src/message/holder.ts; lib/src/engine.ts" },
+        { "sections": ["5"], "title": "The outcome `failed(task-expired)` for a message", "status": "built", "note": "Unreachable for a message: the library's retry horizon of at most P90D gives an undelivered message up first, as `failed(expired-by-adapter-policy)`.", "source": "lib/README.md (Versions: message)" },
         { "sections": ["6"], "title": "The block of the Trust Layer's types", "status": "not-built", "note": "Waits for the Trust Layer's next text.", "source": "Status of This Document" }
       ],
       "note": ""

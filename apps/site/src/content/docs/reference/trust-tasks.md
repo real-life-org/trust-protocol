@@ -34,9 +34,11 @@ under [Credentials](/reference/credentials/).
 
 ## Encounter
 
-The two transmissions of the encounter ceremony
+The two transmissions of the encounter ceremony `encounter-scan`
 ([Encounter §5.8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#58-the-registered-ceremony-of-this-version)),
-registered by the Delivery Contract itself.
+registered by the Delivery Contract itself. The app connects people with
+`shared-connect` instead, defined in
+[`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies).
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
@@ -91,6 +93,9 @@ precedes an invitation, invitation, consent, the admitting operation,
 and the evidence relay. A sender issues
 `membership-evidence/0.2`; a receiver also accepts `/0.1`
 ([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)).
+The library sends its own `x-membership-welcome/0.1` in place of
+`access-operation/0.1`, and the new member fetches the log
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
