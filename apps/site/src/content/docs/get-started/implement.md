@@ -26,8 +26,10 @@ derived from the person's root seed; the holder keeps its state behind the
 human acts.
 
 One person has one identity. A second device or a second app of the same
-person cannot yet hold it: two holders over one root seed write without
-reconciling, so an app never gives the same root seed to two holders.
+person cannot yet hold it: two stores over one root seed hold two states
+that never reconcile, so an app never gives the same root seed to a second
+store, at the same time or later. Closing a holder and opening a new one over
+the same store and seed is the normal reopening.
 Multiple devices of one identity come with the next Trust Layer casting.
 Until then an app without access to the person's identity creates its own,
 and the contacts made under it stay with it.

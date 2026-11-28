@@ -31,8 +31,10 @@ npm i @real-life/trust-protocol
 delivery channel's three calls and the views an app reads.
 
 One person has one identity, derived from one root seed. A second device or a second app of the
-same person cannot yet hold that identity: two holders over one root seed write without
-reconciling, so never give the same root seed to two holders. Multiple devices of one identity
+same person cannot yet hold that identity: two stores over one root seed hold two states that
+never reconcile, so never give the same root seed to a second store, at the same time or later.
+Closing a holder and opening a new one over the same store and seed is the normal reopening.
+Multiple devices of one identity
 come with the next Trust Layer casting. Until then an app without access to the person's identity
 creates its own; the contacts made under it stay with it.
 
