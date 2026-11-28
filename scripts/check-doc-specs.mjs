@@ -16,7 +16,9 @@
 //     is a specification in spec/ — an error otherwise (runs in
 //     npm run validate);
 //   · with --since <ref>: the specifications changed since <ref> (spec/*.md,
-//     not the archive) make every page that names them PENDING, and so
+//     not the archive; a change only to the generated status block at the
+//     top, which scripts/build-spec-status.mjs writes, does not count)
+//     make every page that names them PENDING, and so
 //     does a library release for every `library: true` page, unless the
 //     same change touches that page. Pending pages fail the check, unless
 //     --checked says a person has read them and they still hold (CI passes
@@ -29,6 +31,7 @@ import { readFileSync, readdirSync, existsSync, statSync, appendFileSync } from 
 import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { splitSpec } from './build-spec-status.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = 'apps/site/src/content/docs'
@@ -122,7 +125,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   let pending = []
   if (since) {
     const diff = execFileSync('git', ['diff', '--name-only', `${since}...HEAD`], { cwd: ROOT, encoding: 'utf8' })
-    pending = pendingPages(ROOT, diff.split('\n').filter(Boolean), { release: released(since) })
+    // a specification whose text outside the generated status block is
+    // unchanged did not change for the pages
+    const textOf = (ref, f) => { try { return splitSpec(execFileSync('git', ['show', `${ref}:${f}`], { cwd: ROOT, encoding: 'utf8' })).rest } catch { return null } }
+    const changed = diff.split('\n').filter(Boolean).filter((f) => !SPEC.test(f) || textOf(since, f) !== textOf('HEAD', f))
+    pending = pendingPages(ROOT, changed, { release: released(since) })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
       const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : [])].join(', ')
