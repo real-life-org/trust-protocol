@@ -95,10 +95,40 @@ export function splitSpec(text) {
 export const joinSpec = (block, rest) => `${block}\n\n${rest}`
 
 // Replace what stands between the markers in a page; null when it has none.
+// The text with its frontmatter and its fenced code blocks blanked out,
+// character for character (line breaks kept): markers count only in the
+// visible flow of a page.
+export function maskHidden(text) {
+  const blank = (t) => t.replace(/[^\n]/g, ' ')
+  let out = text
+  const fm = text.match(/^---\n[\s\S]*?\n---\n/)
+  if (fm) out = blank(fm[0]) + out.slice(fm[0].length)
+  const lines = out.split('\n')
+  let fence = null
+  for (let i = 0; i < lines.length; i++) {
+    const f = lines[i].match(/^ {0,3}(`{3,}|~{3,})/)
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null
+      lines[i] = blank(lines[i])
+    } else if (f) { fence = f[1]; lines[i] = blank(lines[i]) }
+  }
+  return lines.join('\n')
+}
+
+const ANY_MARKER = /<!-- \/?now:[^>]*-->|\{\/\* \/?now:[^}]*\*\/\}|spec-status:(begin|end)|spec-box:(begin|end)/g
+
+// Markers that stand in the frontmatter or in a fenced code block: errors.
+export function hiddenMarkers(text, file) {
+  const masked = maskHidden(text)
+  return [...text.matchAll(ANY_MARKER)].filter((m) => !masked.slice(m.index, m.index + m[0].length).trim())
+    .map((m) => `${file}: ${m[0]} stands in the frontmatter or in a code block, where no reader sees it as status`)
+}
+
 export function replaceBetween(text, body) {
-  if (!count(text, BEGIN) || markerProblem(text)) return null
-  const b = text.indexOf(BEGIN)
-  const e = text.indexOf(END)
+  const masked = maskHidden(text)
+  if (!count(masked, BEGIN) || markerProblem(masked)) return null
+  const b = masked.indexOf(BEGIN)
+  const e = masked.indexOf(END)
   return `${text.slice(0, b)}${BEGIN}\n${body}\n${text.slice(e)}`
 }
 
@@ -151,8 +181,8 @@ function refs(part, from) {
 
 export const BUILT_MEANS = '*Built* means the library implements the part; the text has not been reconciled with the library rule by rule, so single rules may differ.'
 const reconciled = (r) => r === 'not reconciled'
-  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md` or in the header of the source file.'
-  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS} Differences are documented where a note points, in \`lib/DEVIATIONS.md\` or in the header of the source file.`
+  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.'
+  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS} Differences are documented where a note points, in \`lib/DEVIATIONS.md\`, in the header of the source file or in the named test.`
 
 export function renderSpecBlock(doc) {
   const lines = [
@@ -176,7 +206,7 @@ export function renderSpecBlock(doc) {
 
 export function renderReadme(status) {
   return [
-    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} Differences are documented where a note points, in [\`lib/DEVIATIONS.md\`](lib/DEVIATIONS.md) or in the header of the source file. ${PRECEDENCE}`,
+    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} Differences are documented where a note points, in [\`lib/DEVIATIONS.md\`](lib/DEVIATIONS.md), in the header of the source file or in the named test. ${PRECEDENCE}`,
     '',
     '| Document | Version | State | Last reconciled |',
     '|---|---|---|---|',
@@ -369,7 +399,7 @@ export function renderStatement(text, file) {
 // The statements a file uses, each with its form.
 export function statementUses(text, file) {
   const mark = MARKS[file.endsWith('.mdx') ? 'mdx' : 'html']
-  return [...text.matchAll(mark.begin)].map((m) => ({ id: m[1], form: m[2] ?? 'short' }))
+  return [...maskHidden(text).matchAll(mark.begin)].map((m) => ({ id: m[1], form: m[2] ?? 'short' }))
 }
 
 // Fill every marked place of a file from the statements; errors for a
@@ -380,7 +410,9 @@ export function fillStatements(text, statements, file) {
   const errors = []
   let out = ''
   let at = 0
-  const begins = [...text.matchAll(mark.begin)]
+  // markers are read in the visible flow only; a hidden one is an error of generate()
+  const seen = maskHidden(text)
+  const begins = [...seen.matchAll(mark.begin)]
   let pairs = 0
   for (let i = 0; i < begins.length; i++) {
     const m = begins[i]
@@ -388,7 +420,7 @@ export function fillStatements(text, statements, file) {
     const id = m[1], form = m[2] ?? 'short'
     const open = m.index + m[0].length
     const endMark = mark.end(id)
-    const end = text.indexOf(endMark, open)
+    const end = seen.indexOf(endMark, open)
     const next = begins[i + 1]?.index ?? Infinity
     if (end === -1 || end > next) { errors.push(`${file}: now:${id} has no end marker before the next statement`); continue }
     pairs++
@@ -404,13 +436,13 @@ export function fillStatements(text, statements, file) {
     at = end
   }
   out += text.slice(at)
-  const ends = [...text.matchAll(mark.stray)].length
+  const ends = [...seen.matchAll(mark.stray)].length
   if (ends !== pairs) errors.push(`${file}: ${ends} end markers for ${pairs} statements`)
   // a comment that looks like a marker but is none (a capital, a space) is refused
   const loose = file.endsWith('.mdx') ? /\{\/\*\s*\/?\s*now\s*:[^}]*\*\/\}/gi : /<!--\s*\/?\s*now\s*:[\s\S]*?-->/gi
   // the syntax the parser consumes: a begin may name a form, an end never does
   const strict = file.endsWith('.mdx') ? /^\{\/\* (now:[a-z0-9-]+(:[a-z]+)?|\/now:[a-z0-9-]+) \*\/\}$/ : /^<!-- (now:[a-z0-9-]+(:[a-z]+)?|\/now:[a-z0-9-]+) -->$/
-  for (const m of text.matchAll(loose)) if (!strict.test(m[0])) errors.push(`${file}: ${m[0]} is no statement marker`)
+  for (const m of seen.matchAll(loose)) if (!strict.test(m[0])) errors.push(`${file}: ${m[0]} is no statement marker`)
   return { text: out, errors }
 }
 
@@ -438,7 +470,7 @@ export function unmarkedStatements(text, file, statements) {
   const outside = flat(outsideGenerated(text, file))
   const out = []
   for (const [id, st] of Object.entries(statements ?? {})) {
-    for (const form of FORMS) if (typeof st?.[form] === 'string' && st[form].length > 40 && outside.includes(flat(renderStatement(st[form], file)))) out.push(id)
+    for (const form of FORMS) if (typeof st?.[form] === 'string' && st[form].trim() && outside.includes(flat(renderStatement(st[form], file)))) out.push(id)
   }
   return [...new Set(out)]
 }
@@ -552,14 +584,21 @@ export function placeBox(text, box, file) {
   if (!fm) return { text, error: `${file}: no frontmatter` }
   if (fm[0].includes(m.begin) || fm[0].includes(m.end) || fm[0].includes(':::note[Design and status]')) return { text, error: `${file}: a box marker stands inside the frontmatter` }
   let at = fm[0].length
-  // only imports on one line each are read; another form is refused, never cut into
-  for (const line of text.slice(at).split('\n')) {
-    if (!line.trim()) continue
-    if (!/^import\b/.test(line)) break
-    if (!/^import\s.*\sfrom\s+['"][^'"]+['"];?\s*$|^import\s+['"][^'"]+['"];?\s*$/.test(line)) return { text, error: `${file}: an import over several lines; write each import on one line` }
+  // only imports on one line each are read, blank lines between them allowed;
+  // another form is refused, never cut into. `at` ends after the last import.
+  let imports = false
+  for (let pos = at; pos < text.length;) {
+    const nl = text.indexOf('\n', pos)
+    const end = nl === -1 ? text.length : nl + 1
+    const line = text.slice(pos, nl === -1 ? text.length : nl)
+    if (line.trim() && !/^import\b/.test(line)) break
+    if (line.trim()) {
+      if (!/^import\s.*\sfrom\s+['"][^'"]+['"];?\s*$|^import\s+['"][^'"]+['"];?\s*$/.test(line)) return { text, error: `${file}: an import over several lines; write each import on one line` }
+      imports = true
+      at = end
+    }
+    pos = end
   }
-  const imports = text.slice(at).match(/^(\n*(import [^\n]*\n)+)/)
-  if (imports) at += imports[0].length
   // a second box without markers would show twice
   const visible = (t) => t.split(':::note[Design and status]').length - 1
   if (b === 1) {
@@ -585,6 +624,9 @@ export function placeBox(text, box, file) {
 export function generate(root, status) {
   const files = statementFiles(root)
   const errors = [...checkStatus(root, status), ...checkStatements(root, status, files)]
+  for (const file of new Set([README, SITE, ...files, ...boxPages(root).map((p) => p.file)])) {
+    if (existsSync(join(root, file))) errors.push(...hiddenMarkers(readFileSync(join(root, file), 'utf8'), file))
+  }
   for (const file of strayBoxes(root)) errors.push(`${file}: a box on a page that gets none (no specs, or a named exception)`)
   for (const { file, specs } of boxPages(root)) for (const name of specs) if (!status.documents.some((d) => d.file === `${name}.md`)) errors.push(`${file}: specs names ${name}, which has no entry in spec/status.json`)
   const current = new Map()

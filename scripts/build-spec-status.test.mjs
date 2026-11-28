@@ -405,3 +405,34 @@ test('a statement about the app needs a pinned app permalink; a test reference n
   assert.ok(part(['lib/src/x.ts#alpha']).some((e) => e.includes('takes no test name')))
   assert.deepEqual(part(['lib/test/t.test.mjs#alpha one']), [])
 })
+
+test('markers count only in the visible flow: in the frontmatter or a code block they are errors', async () => {
+  const { hiddenMarkers, statementUses, replaceBetween } = await import('./build-spec-status.mjs')
+  const yaml = '---\ntitle: P\ndescription: x <!-- now:holder -->One holder.<!-- /now:holder -->\nspecs: []\n---\n\nText.\n'
+  assert.deepEqual(statementUses(yaml, 'p.md'), [])
+  assert.ok(hiddenMarkers(yaml, 'p.md').some((e) => e.includes('<!-- now:holder --> stands in the frontmatter or in a code block')))
+  const fenced = `---\ntitle: S\nspecs: []\n---\n\n\`\`\`md\n${BEGIN}\n| Document | Role |\n${END}\n\`\`\`\n`
+  assert.equal(replaceBetween(fenced, 'new'), null)
+  assert.ok(hiddenMarkers(fenced, 'p.md').some((e) => e.includes('spec-status:begin')))
+  assert.deepEqual(hiddenMarkers('---\ntitle: P\n---\n\nx <!-- now:holder -->a<!-- /now:holder -->\n', 'p.md'), [])
+})
+
+test('two one-line imports with a blank line between: the box goes after both', async () => {
+  const { renderBox, placeBox } = await import('./build-spec-status.mjs')
+  const box = renderBox(['a-layer'], { documents: [doc()] }, 'p.mdx')
+  const page = "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport A from './a'\n\nimport B from './b'\n\nText.\n"
+  const placed = placeBox(page, box, 'p.mdx')
+  assert.equal(placed.error, undefined)
+  assert.ok(placed.text.indexOf("import B from './b'") < placed.text.indexOf('spec-box:begin'))
+  assert.equal(placeBox(placed.text, box, 'p.mdx').error, undefined)
+})
+
+test('a short statement that lost its markers is found, here and against the merge base', async () => {
+  const short = { rot: { short: 'The library supports key rotation.', evidence: ['lib/src/x.ts'] } }
+  const root = repo({ 'page.md': 'Design. The library supports key rotation.\n\nx <!-- now:rot --><!-- /now:rot -->\n' })
+  assert.ok(checkStatements(root, { statements: short }, ['page.md']).some((e) => e.includes('the statement rot stands without its markers')))
+  const { unmarkedAgainstBase } = await import('./check-doc-specs.mjs')
+  const baseText = 'Design. <!-- now:rot -->The library supports key rotation.<!-- /now:rot -->\n'
+  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', baseText, text: 'Design. The library supports key rotation.\n' }], short), [{ file: 'a.md', id: 'rot' }])
+  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', baseText, text: 'Design.\n' }], short), [], 'removed with its text: no finding')
+})

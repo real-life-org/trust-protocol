@@ -29,13 +29,12 @@
 //        and hands the ack out first among the outbound
 //
 // Acks (delivery-ack/0.1) are no registered task: one common path checks
-// the form (ack.ts macAckForm), then the consistency of 4.2 against the
-// outbox — `ref` is a document this holder sent on that thread, on the
-// arrival tuple (outbox item rkid = arrival rkid), the issuer is that
-// tuple's counterpart, the referenced document's type is of the
-// designated-verifier class (a MAC ack of a signature-class document is
-// the wrong class), and the MAC verifies under the arrival tuple's ack
-// key. A valid ack marks the item delivered (late after failed) and
+// the form its proof claims (ack.ts), then the consistency of 4.2 against
+// the outbox — `ref` is a document this holder sent on that thread from
+// the arrival rkid, of the class the proof form claims, and the issuer is
+// its recipient (the arrival tuple's counterpart, or the anchor it went to
+// where no tuple carried it) — then the proof in that form (Ack class,
+// below). A valid ack marks the item delivered (late after failed) and
 // earns a terminal cache entry, no ack of its own.
 //
 // The stage-9 lock set (Delivery 6.2): the engine serializes every
@@ -180,8 +179,8 @@ export const ackOutbound = (a: Readonly<SealedAck>, attempt: number): Outbound =
 /** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
  *  is a transferable signature; their acks are signed, not MACed. The
  *  `x-` slugs are this library's own experimental, unregistered forms
- *  for what the specifications leave to the application (the welcome until the Access envelope is
- *  built; the introduction offer that conveys the target designator,
+ *  for what the specifications leave to the application (the welcome sent
+ *  in place of access-operation/0.1; the introduction offer that conveys the target designator,
  *  Trust 8.3): signed documents as well. A receiver that does not know
  *  them answers unknown-type (Delivery §6.2). */
 export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([

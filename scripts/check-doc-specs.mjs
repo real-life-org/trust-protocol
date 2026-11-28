@@ -136,11 +136,19 @@ export function changedStatements(before, after) {
 }
 
 // Places this change unmarked: in each changed file that carries
-// statements, a statement (in its wording at the merge base) that stands
-// in the file's text at HEAD outside any generated place.
+// statements, a use marked at the merge base and gone at HEAD whose
+// wording (at the merge base) still stands in the file outside any
+// generated place.
 export function unmarkedAgainstBase(files, baseStatements) {
   const out = []
-  for (const { file, text } of files) for (const id of unmarkedStatements(text, file, baseStatements)) out.push({ file, id })
+  for (const { file, text, baseText } of files) {
+    const before = new Set(statementUses(baseText ?? '', file).map((u) => u.id))
+    const after = new Set(statementUses(text, file).map((u) => u.id))
+    const lost = Object.fromEntries([...before].filter((id) => !after.has(id) && Object.hasOwn(baseStatements, id)).map((id) => [id, baseStatements[id]]))
+    // without a merge-base text, every statement of the base counts
+    const pool = baseText === undefined ? baseStatements : lost
+    for (const id of unmarkedStatements(text, file, pool)) out.push({ file, id })
+  }
   return out
 }
 
@@ -185,7 +193,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     pending = pendingPages(ROOT, changed, { release: released(since), statements, touched })
     const baseStatements = (() => { try { return JSON.parse(show(base, 'spec/status.json') ?? 'null')?.statements ?? {} } catch { return {} } })()
     const carriers = new Set(statementFiles(ROOT))
-    for (const u of unmarkedAgainstBase(changed.filter((f) => carriers.has(f)).map((f) => ({ file: f, text: show('HEAD', f) ?? '' })), baseStatements)) {
+    for (const u of unmarkedAgainstBase(changed.filter((f) => carriers.has(f)).map((f) => ({ file: f, text: show('HEAD', f) ?? '', baseText: show(base, f) ?? '' })), baseStatements)) {
       const e = { file: u.file, msg: `the statement ${u.id} stands here without its markers; put them back or change the statement in spec/status.json` }
       errors.push(e)
       if (gh) console.log(`::error file=${e.file},line=1::${e.msg}`)
