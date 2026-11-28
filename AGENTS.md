@@ -141,11 +141,13 @@ shared proof vectors (`conformance/tf-proof-vectors.mjs` over
 `--check` mode: each committed vector must be reproduced byte for byte.
 
 Where the library knowingly reads a specification against its text, the
-reading is a row in `lib/DEVIATIONS.md` with the issue that asks the next
-casting to settle it; `lib/test/deviations.test.mjs` ties rows and
-`DEVIATION <id>` markers in `lib/src/` together, and
-`scripts/check-deviations-issues.mjs` (CI) fails once such an issue is
-closed while its row still stands.
+reading is documented in one of three places: a row in
+`lib/DEVIATIONS.md`, the header comment of the source file, or a named
+test. A row in
+`lib/DEVIATIONS.md` carries the issue that asks for the text to settle
+it; `lib/test/deviations.test.mjs` ties rows and `DEVIATION <id>` markers
+in `lib/src/` together, and `scripts/check-deviations-issues.mjs` (CI)
+fails once such an issue is closed while its row still stands.
 
 For a change under `lib/`, `simulator/` or `apps/gesamtsimulator/`:
 
