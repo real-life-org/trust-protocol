@@ -265,22 +265,35 @@ export function fileProblem(root, path, within) {
   return null
 }
 
+const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
+
 export function checkStatus(root, status) {
   const errors = []
+  if (!isObject(status)) return ['spec/status.json: not an object']
+  if (!Array.isArray(status.documents)) return ['spec/status.json: documents is not a list']
+  if (!isObject(status.statuses)) errors.push('spec/status.json: statuses is not an object')
   const files = readdirSync(join(root, 'spec')).filter((f) => f.endsWith('.md')).sort()
-  const entries = status.documents.map((d) => d.file)
+  status.documents.forEach((d, i) => { if (!isObject(d) || typeof d.file !== 'string') errors.push(`spec/status.json documents[${i}]: not an entry with a file name`) })
+  const docsOk = status.documents.filter((d) => isObject(d) && typeof d.file === 'string')
+  const entries = docsOk.map((d) => d.file)
   for (const f of files) if (!entries.includes(f)) errors.push(`spec/${f} has no entry in spec/status.json`)
   for (const f of entries) if (!files.includes(f)) errors.push(`spec/status.json names ${f}, which is not in spec/`)
   for (const f of new Set(entries)) if (entries.filter((e) => e === f).length > 1) errors.push(`spec/status.json names ${f} more than once`)
   const devText = existsSync(join(root, 'lib/DEVIATIONS.md')) ? readFileSync(join(root, 'lib/DEVIATIONS.md'), 'utf8') : ''
   const rows = deviationRows(devText)
   const namedAt = {}
-  for (const d of status.documents) {
+  for (const d of docsOk) {
     const where = `spec/status.json ${d.file}`
     if (!files.includes(d.file)) continue
-    for (const k of ['title', 'role', 'version', 'date', 'state', 'lastReconciled', 'textDigest']) if (!d[k]) errors.push(`${where}: no ${k}`)
+    try { checkDocument(d, where) } catch (err) { errors.push(`${where}: malformed (${err.message})`) }
+  }
+  function checkDocument (d, where) {
+    for (const k of ['title', 'role', 'version', 'date', 'state', 'lastReconciled', 'textDigest']) if (typeof d[k] !== 'string' || !d[k]) errors.push(`${where}: no ${k} as text`)
+    for (const k of ['note', 'direction']) if (d[k] !== undefined && typeof d[k] !== 'string') errors.push(`${where}: ${k} is not text`)
+    if (d.parts !== undefined && !Array.isArray(d.parts)) { errors.push(`${where}: parts is not a list`); return }
     let text
-    try { text = splitSpec(readFileSync(join(root, 'spec', d.file), 'utf8')).rest } catch (err) { errors.push(`spec/${d.file}: ${err.message}`); continue }
+    try { text = splitSpec(readFileSync(join(root, 'spec', d.file), 'utf8')).rest } catch (err) { errors.push(`spec/${d.file}: ${err.message}`); return }
+    const visibleText = maskHidden(text)
     const digest = digestOf(text)
     if (d.textDigest && d.textDigest !== digest) errors.push(`${where}: the frozen text has changed (textDigest ${d.textDigest}, the file below its status block is ${digest})`)
     const version = text.match(/^- \*\*Version:\*\*\s*(\S+)/m)?.[1]
@@ -288,26 +301,34 @@ export function checkStatus(root, status) {
     // a count the state names ("one part built differently, two in part") is the count of the parts
     const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }
     for (const [re, status] of [[/\b(one|two|three|four|five|six) parts? built differently\b/, 'built-differently'], [/\b(one|two|three|four|five|six) in part\b/, 'partly-built']]) {
-      const m = d.state?.match(re)
-      const n = (d.parts ?? []).filter((p) => p.status === status).length
+      const m = typeof d.state === 'string' ? d.state.match(re) : null
+      const n = (d.parts ?? []).filter((p) => isObject(p) && p.status === status).length
       if (m && WORDS[m[1]] !== n) errors.push(`${where}: the state says ${m[0]}, the parts have ${n}`)
     }
     const date = text.match(/^- \*\*Date:\*\*\s*(\S+)/m)?.[1]
     if (date && date !== d.date) errors.push(`${where}: date ${d.date}, header says ${date}`)
-    if (d.direction !== undefined) { const why = fileProblem(root, `spec/${d.direction}`, 'spec/direction/'); if (why) errors.push(`${where}: direction ${d.direction} ${why}`) }
+    if (typeof d.direction === 'string') { const why = fileProblem(root, `spec/${d.direction}`, 'spec/direction/'); if (why) errors.push(`${where}: direction ${d.direction} ${why}`) }
     if (!Array.isArray(d.parts) || !d.parts.length) errors.push(`${where}: no parts`)
-    for (const p of d.parts ?? []) {
+    for (const [pi, p] of (d.parts ?? []).entries()) {
+      if (!isObject(p)) { errors.push(`${where} parts[${pi}]: not an object`); continue }
       const pw = `${where} "${p.title}"`
-      if (!p.title) errors.push(`${where}: a part without a title`)
+      if (typeof p.title !== 'string' || !p.title) errors.push(`${where} parts[${pi}]: no title as text`)
+      for (const k of ['note', 'source']) if (p[k] !== undefined && typeof p[k] !== 'string') errors.push(`${pw}: ${k} is not text`)
+      if (p.sections !== undefined && (!Array.isArray(p.sections) || p.sections.some((x) => typeof x !== 'string'))) errors.push(`${pw}: sections is not a list of section numbers`)
       if (typeof p.status !== 'string' || !Object.hasOwn(status.statuses ?? {}, p.status) || !Object.hasOwn(LABEL, p.status)) errors.push(`${pw}: unknown status ${p.status}`)
-      if (p.status === 'partly-built' && !(typeof p.note === 'string' && p.note.trim()) && !(p.differences ?? []).length) errors.push(`${pw}: partly-built without a note or differences saying which part`)
-      if (['built', 'partly-built', 'built-differently'].includes(p.status)) errors.push(...evidenceProblems(root, p.evidence, pw))
+      if (p.status === 'partly-built' && !(typeof p.note === 'string' && p.note.trim()) && !(Array.isArray(p.differences) && p.differences.length)) errors.push(`${pw}: partly-built without a note or differences saying which part`)
+      // a part of a specification is evidenced in this repository; an app permalink may stand beside
+      if (['built', 'partly-built', 'built-differently'].includes(p.status)) {
+        errors.push(...evidenceProblems(root, p.evidence, pw))
+        if (Array.isArray(p.evidence) && p.evidence.length && !p.evidence.some((e) => typeof e === 'string' && EVIDENCE.test(e))) errors.push(`${pw}: no evidence in the library, the vectors or the ceremony definitions`)
+      }
       else if (p.evidence !== undefined) errors.push(...evidenceProblems(root, p.evidence, pw))
       const list = refsOf(p)
       if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
       if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)
-      const diffs = p.differences ?? []
-      if (p.differences !== undefined && (!Array.isArray(p.differences) || !diffs.length)) errors.push(`${pw}: empty differences`)
+      const diffs = Array.isArray(p.differences) ? p.differences : []
+      if (p.differences !== undefined && !Array.isArray(p.differences)) errors.push(`${pw}: differences is not a list`)
+      else if (p.differences !== undefined && !diffs.length) errors.push(`${pw}: empty differences`)
       if (p.status === 'built-differently' && !diffs.length) errors.push(`${pw}: built-differently without differences`)
       for (const x of diffs) {
         if (typeof x !== 'string') { errors.push(`${pw}: a difference is no string`); continue }
@@ -331,8 +352,9 @@ export function checkStatus(root, status) {
       }
       if (p.status === 'direction-changed' && !list.some((r) => typeof r === 'string' && /\.md$/.test(pathIn(r)) && !fileProblem(root, `spec/${pathIn(r)}`, 'spec/direction/'))) errors.push(`${pw}: direction-changed without a ref to a direction note under spec/direction/`)
       if (p.status === 'superseded' && !p.target) errors.push(`${pw}: superseded without target`)
-      for (const s of p.sections ?? []) {
-        if (!new RegExp(`^#{2,6} ${esc(s)}\\.?(?:\\s|$)`, 'm').test(text)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)
+      // headings of the visible text only: a line in a fenced code block is no heading
+      for (const s of Array.isArray(p.sections) ? p.sections.filter((x) => typeof x === 'string') : []) {
+        if (!new RegExp(`^ {0,3}#{2,6} ${esc(s)}\\.?(?:\\s|$)`, 'm').test(visibleText)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)
       }
       for (const r of list) {
         if (deviation(r)) {
@@ -344,7 +366,7 @@ export function checkStatus(root, status) {
         }
       }
       if (p.target) { const why = fileProblem(root, repoPathOf(p.target)); if (why) errors.push(`${pw}: target ${p.target} ${why}`) }
-      for (const item of (p.source ?? '').split(';')) {
+      for (const item of (typeof p.source === 'string' ? p.source : '').split(';')) {
         const path = pathIn(item)
         if (isPath(path)) { const why = fileProblem(root, repoPathOf(path)); if (why) errors.push(`${pw}: source ${path} ${why}`) }
       }
@@ -426,12 +448,12 @@ export function fillStatements(text, statements, file) {
     pairs++
     const st = statements[id]
     if (!st) errors.push(`${file}: now:${id} names no statement in spec/status.json`)
-    else if (!FORMS.includes(form) || !st[form]) errors.push(`${file}: now:${id} names no form ${form}`)
+    else if (!FORMS.includes(form) || typeof st[form] !== 'string' || !st[form]) errors.push(`${file}: now:${id} names no form ${form} as text`)
     const old = text.slice(open, end)
     const block = old.startsWith('\n')
     // Markdown reads a line that begins with a comment as raw HTML: an inline place must not start a line
     if (!block && file.endsWith('.md') && (m.index === 0 || text[m.index - 1] === '\n')) errors.push(`${file}: now:${id} starts a line; write it after text on the line, or as a block on lines of its own`)
-    const body = st?.[form] ? renderStatement(st[form], file) : old.trim()
+    const body = typeof st?.[form] === 'string' && st[form] ? renderStatement(st[form], file) : old.trim()
     out += text.slice(at, open) + (block ? `\n${body}\n` : body)
     at = end
   }
@@ -469,15 +491,20 @@ export function unmarkedStatements(text, file, statements) {
   const flat = (t) => t.replace(/\s+/g, ' ')
   const outside = flat(outsideGenerated(text, file))
   const out = []
-  for (const [id, st] of Object.entries(statements ?? {})) {
-    for (const form of FORMS) if (typeof st?.[form] === 'string' && st[form].trim() && outside.includes(flat(renderStatement(st[form], file)))) out.push(id)
+  for (const [id, st] of Object.entries(isObject(statements) ? statements : {})) {
+    for (const form of FORMS) if (isObject(st) && typeof st[form] === 'string' && st[form].trim() && outside.includes(flat(renderStatement(st[form], file)))) out.push(id)
   }
   return [...new Set(out)]
 }
 
 export function checkStatements(root, status, files) {
   const errors = []
-  const statements = status.statements ?? {}
+  if (status?.statements !== undefined && !isObject(status.statements)) return ['spec/status.json: statements is not an object']
+  const statements = Object.fromEntries(Object.entries(status?.statements ?? {}).filter(([id, st]) => {
+    if (isObject(st)) return true
+    errors.push(`spec/status.json statement ${id}: not an object`)
+    return false
+  }))
   const used = new Set()
   for (const file of files) {
     const text = readFileSync(join(root, file), 'utf8')
@@ -487,13 +514,14 @@ export function checkStatements(root, status, files) {
   }
   for (const [id, st] of Object.entries(statements)) {
     const where = `spec/status.json statement ${id}`
+    if (st.evidence !== undefined && !Array.isArray(st.evidence)) { errors.push(`${where}: evidence is not a list`); if (!used.has(id)) errors.push(`${where}: used on no page`); continue }
     if (!/^[a-z0-9-]+$/.test(id)) errors.push(`${where}: an id is lower case letters, digits and hyphens`)
     if (typeof st.short !== 'string' || !st.short.trim()) errors.push(`${where}: no short form`)
     if (st.long !== undefined && (typeof st.long !== 'string' || !st.long.trim())) errors.push(`${where}: an empty long form`)
     for (const k of Object.keys(st)) if (![...FORMS, 'evidence'].includes(k)) errors.push(`${where}: unknown field ${k}`)
     errors.push(...evidenceProblems(root, st.evidence, where))
     // a statement about the app ("the app", "the Web of Trust app") is evidenced by the app itself, at a fixed commit
-    if (FORMS.some((f) => /\b(the|Web of Trust) app\b/i.test(st[f] ?? '')) && !(st.evidence ?? []).some((e) => typeof e === 'string' && APP_EVIDENCE.test(e))) errors.push(`${where}: speaks of the app without a pinned app permalink in evidence`)
+    if (FORMS.some((f) => typeof st[f] === 'string' && /\b(the|Web of Trust) app\b/i.test(st[f])) && !(st.evidence ?? []).some((e) => typeof e === 'string' && APP_EVIDENCE.test(e))) errors.push(`${where}: speaks of the app without a pinned app permalink in evidence`)
     if (!used.has(id)) errors.push(`${where}: used on no page`)
   }
   return errors
@@ -613,6 +641,20 @@ export function placeBox(text, box, file) {
   return { text: `${before}\n${box}\n\n${text.slice(at).replace(/^\n+/, '')}` }
 }
 
+// A statement place that overlaps the status block of a page: inside it,
+// or open across it. Returns the error, or null.
+export function statusOverlap(text, file) {
+  const masked = maskHidden(text)
+  const b = masked.indexOf(BEGIN), e = masked.indexOf(END)
+  if (b === -1 || e === -1) return null
+  const mark = MARKS[file.endsWith('.mdx') ? 'mdx' : 'html']
+  const at = (re) => [...masked.matchAll(re)].map((m) => m.index)
+  const begins = at(mark.begin), ends = at(mark.stray)
+  if ([...begins, ...ends].some((i) => i > b && i < e + END.length)) return `${file}: a statement marker stands inside the status block`
+  if (begins.filter((i) => i < b).length !== ends.filter((i) => i < b).length) return `${file}: a statement place stands open across the status block`
+  return null
+}
+
 // ── generation: one result per file through every step ─────────────────
 
 // Every generated place of the repository from status.json: the status
@@ -642,6 +684,8 @@ export function generate(root, status) {
   }
   for (const [file, body] of [[README, renderReadme(status)], [SITE, renderSite(status)]]) {
     if (!existsSync(join(root, file))) { errors.push(`${file}: missing`); continue }
+    const overlap = statusOverlap(text(file), file)
+    if (overlap) { errors.push(overlap); continue }
     const next = replaceBetween(text(file), body)
     if (next === null) errors.push(`${file}: not exactly one ${BEGIN} … ${END} pair`)
     else current.set(file, next)
@@ -651,7 +695,11 @@ export function generate(root, status) {
     if (r.error) errors.push(r.error)
     else current.set(file, r.text)
   }
-  for (const file of files) current.set(file, fillStatements(text(file), status.statements ?? {}, file).text)
+  for (const file of files) {
+    const r = fillStatements(text(file), status.statements ?? {}, file)
+    errors.push(...r.errors)
+    current.set(file, r.text)
+  }
   return { errors, outputs: [...current].map(([file, after]) => [file, before.get(file), after]) }
 }
 

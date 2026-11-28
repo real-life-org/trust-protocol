@@ -59,7 +59,7 @@ device holds. No identifier is correlatable across relationships:
 every encounter mints fresh pairwise anchors, and a blinded continuity
 probe re-recognizes an existing relationship afterwards — so meeting
 the same person twice normally produces one contact, not two, without any
-stable identifier travelling. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave relationships unchained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
+stable identifier travelling. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
 
 ## The shape of it
 

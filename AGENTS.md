@@ -209,8 +209,12 @@ A change also updates, where it touches them:
    `specs:` frontmatter; the `docs-follow` workflow
    (`.github/workflows/docs-follow.yml`) fails a pull request that edits
    one of them until the pages are updated or a person has read them and
-   labelled the pull request `docs-checked`. The links alone prove nothing
-   about the text.
+   labelled the pull request `docs-checked`. A page also becomes pending
+   when the entry in `spec/status.json` of a specification it rests on, or
+   the wording of a statement it carries, changes; regenerating the page
+   does not clear that. Edit the page outside its generated places, or
+   have a person read it and label the pull request `docs-checked`. The
+   links alone prove nothing about the text.
 3. **Term register** `terms/rltp.skos.jsonld` for terms added, renamed, or
    removed; the glossary follows from it.
 4. **This file and `CLAUDE.md`** when the change adds a directory, a

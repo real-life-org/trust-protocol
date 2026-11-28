@@ -172,7 +172,7 @@ switched on its own, per contact and per group.
 In the Trust Layer text, meeting the same person again needs no
 disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
-history and chains it to the existing relationship. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave relationships unchained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
+history and chains it to the existing relationship. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
 
 Every artifact belongs to one audience class. Class P covers
 statements meant to be shown, such as the encounter credential, the

@@ -112,6 +112,10 @@ export function pendingPages(root, changedFiles, { release = false, statements =
   return out
 }
 
+// JSON with the keys of every object sorted, arrays in their order: the
+// order keys are written in is no change.
+const canonical = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x))
+
 // The specifications whose entry in spec/status.json differs between two
 // versions of the file (JSON text or null), as `spec/<file>`; the digest of
 // the frozen text does not count, the text itself is compared apart.
@@ -119,7 +123,7 @@ export function changedStatusEntries(before, after) {
   const entries = (text) => {
     if (!text) return new Map()
     try {
-      return new Map((JSON.parse(text).documents ?? []).map(({ textDigest, ...d }) => [d.file, JSON.stringify(d)]))
+      return new Map((JSON.parse(text).documents ?? []).map(({ textDigest, ...d }) => [d.file, canonical(d)]))
     } catch { return new Map() }
   }
   const a = entries(before), b = entries(after)
@@ -194,7 +198,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const baseStatements = (() => { try { return JSON.parse(show(base, 'spec/status.json') ?? 'null')?.statements ?? {} } catch { return {} } })()
     const carriers = new Set(statementFiles(ROOT))
     for (const u of unmarkedAgainstBase(changed.filter((f) => carriers.has(f)).map((f) => ({ file: f, text: show('HEAD', f) ?? '', baseText: show(base, f) ?? '' })), baseStatements)) {
-      const e = { file: u.file, msg: `the statement ${u.id} stands here without its markers; put them back or change the statement in spec/status.json` }
+      const e = { file: u.file, msg: `the statement ${u.id} stands here without its markers; restore the markers and regenerate (node scripts/build-spec-status.mjs), or remove the unmarked wording from this file` }
       errors.push(e)
       if (gh) console.log(`::error file=${e.file},line=1::${e.msg}`)
       console.error(`  ERROR ${e.file} ${e.msg}`)

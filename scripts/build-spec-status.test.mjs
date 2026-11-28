@@ -200,7 +200,10 @@ test('generation runs one text per file through every step: a wrong site table a
   assert.ok(out['spec/a-layer.md'].startsWith(BEGIN))
   // a second generation over the result changes nothing
   for (const [f, , after] of outputs) writeFileSync(join(root, f), after)
-  assert.ok(generate(root, status).outputs.every(([, b, a]) => b === a))
+  const again = generate(root, status)
+  assert.deepEqual(again.errors, [], 'the second generation runs without errors')
+  assert.deepEqual(again.outputs.map(([f]) => f).sort(), outputs.map(([f]) => f).sort(), 'over the same files')
+  assert.ok(again.outputs.every(([, b, a]) => b === a))
 })
 
 test('a path must be a regular file in normal form inside its directory', () => {
@@ -284,7 +287,10 @@ test('the box: set under the frontmatter of every explaining page with specs, fr
   assert.ok(out[`${D}/understand/one.md`].startsWith('---\ntitle: One\nspecs: [a-layer]\n---\n\n' + BOX.md.begin))
   assert.ok(out[`${D}/understand/two.mdx`].includes("import X from './x.astro'\n\n" + BOX.mdx.begin))
   for (const [f, , a] of outputs) writeFileSync(join(root, f), a)
-  assert.ok(generate(root, status).outputs.every(([, b, a]) => b === a))
+  const again = generate(root, status)
+  assert.deepEqual(again.errors, [], 'the second generation runs without errors')
+  assert.deepEqual(again.outputs.map(([f]) => f).sort(), outputs.map(([f]) => f).sort(), 'over the same files')
+  assert.ok(again.outputs.every(([, b, a]) => b === a))
   // a second box fails; a regenerated box is no human edit
   assert.match(placeBox(`${BOX.md.begin}\n${BOX.md.end}\n${BOX.md.begin}\n${BOX.md.end}\n`, box, 'p.md').error, /2 box begin and 2 box end markers/)
   assert.equal(outsideGenerated(`a\n${BOX.md.begin}\nold\n${BOX.md.end}\nb`, 'p.md'), outsideGenerated(`a\n${BOX.md.begin}\nnew\n${BOX.md.end}\nb`, 'p.md'))
@@ -435,4 +441,52 @@ test('a short statement that lost its markers is found, here and against the mer
   const baseText = 'Design. <!-- now:rot -->The library supports key rotation.<!-- /now:rot -->\n'
   assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', baseText, text: 'Design. The library supports key rotation.\n' }], short), [{ file: 'a.md', id: 'rot' }])
   assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', baseText, text: 'Design.\n' }], short), [], 'removed with its text: no finding')
+})
+
+
+test('a register with wrongly typed entries is reported, entry by entry, and never throws', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '', 'page.md': 'x <!-- now:groups --><!-- /now:groups -->\n' })
+  const bad = { statuses: STATUSES, documents: [
+    null,
+    { file: 5 },
+    doc({ parts: [null, { title: 'p', status: 'built', evidence: ['lib/src/x.ts'], differences: {}, sections: 2, source: 7, note: {} }], state: 9, note: [] }),
+  ] }
+  let errors
+  assert.doesNotThrow(() => { errors = checkStatus(root, bad) })
+  assert.ok(errors.some((e) => e.includes('documents[0]: not an entry with a file name')))
+  assert.ok(errors.some((e) => e.includes('documents[1]: not an entry with a file name')))
+  assert.ok(errors.some((e) => e.includes('parts[0]: not an object')))
+  assert.ok(errors.some((e) => e.includes('"p": differences is not a list')))
+  assert.ok(errors.some((e) => e.includes('"p": sections is not a list')))
+  assert.ok(errors.some((e) => e.includes('"p": source is not text')))
+  assert.ok(errors.some((e) => e.includes('no state as text')))
+  assert.deepEqual(checkStatus(root, { documents: {} }), ['spec/status.json: documents is not a list'])
+  assert.deepEqual(checkStatus(root, null), ['spec/status.json: not an object'])
+  let st
+  assert.doesNotThrow(() => { st = checkStatements(root, { statements: { groups: null, other: { short: 5, evidence: 'lib/src/x.ts' } } }, ['page.md']) })
+  assert.ok(st.some((e) => e.includes('statement groups: not an object')))
+  assert.ok(st.some((e) => e.includes('statement other: evidence is not a list')))
+  assert.deepEqual(checkStatements(root, { statements: [] }, ['page.md']), ['spec/status.json: statements is not an object'])
+  assert.doesNotThrow(() => generate(root, bad))
+})
+
+test('a built part needs evidence in this repository; an app permalink alone is not enough', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
+  const app = 'https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/x.ts#L1-L2'
+  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [{ sections: ['2'], title: 'x', status: 'built', evidence: [app] }] })] })
+  assert.ok(errors.some((e) => e.includes('"x": no evidence in the library')))
+})
+
+test('a section is a heading of the visible text, not a line in a code block', () => {
+  const spec = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\n```md\n## 3. Three\n```\n'
+  const root = repo({ 'spec/a-layer.md': spec, 'lib/DEVIATIONS.md': '' })
+  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ textDigest: digestOf(spec), parts: [{ sections: ['3'], title: 'x', status: 'built', evidence: ['lib/src/x.ts'] }] })] })
+  assert.ok(errors.some((e) => e.includes('has no section 3')))
+})
+
+test('a statement place inside or across the status block is refused before anything is written', async () => {
+  const { statusOverlap } = await import('./build-spec-status.mjs')
+  assert.match(statusOverlap(`${BEGIN}\nx <!-- now:groups -->a<!-- /now:groups -->\n${END}\n`, 'README.md'), /inside the status block/)
+  assert.match(statusOverlap(`x <!-- now:groups -->a\n${BEGIN}\n${END}\nb<!-- /now:groups -->\n`, 'README.md'), /open across the status block/)
+  assert.equal(statusOverlap(`x <!-- now:groups -->a<!-- /now:groups -->\n\n${BEGIN}\n${END}\n`, 'README.md'), null)
 })

@@ -178,3 +178,12 @@ test('specs names an entry of spec/status.json, not just a file under spec/', ()
   assert.ok(errors.some((e) => e.file.endsWith('c.md') && e.msg.includes('no specification')))
   assert.ok(!errors.some((e) => e.file.endsWith('a.md')))
 })
+
+test('the order keys are written in is no change of a status entry', async () => {
+  const { changedStatusEntries } = await import('./check-doc-specs.mjs')
+  const a = JSON.stringify({ documents: [{ file: 'access-layer.md', title: 'Access', state: 'Built', parts: [{ title: 'x', status: 'built' }] }] })
+  const b = JSON.stringify({ documents: [{ state: 'Built', file: 'access-layer.md', parts: [{ status: 'built', title: 'x' }], title: 'Access' }] })
+  assert.deepEqual(changedStatusEntries(a, b), [])
+  const c = JSON.stringify({ documents: [{ file: 'access-layer.md', title: 'Access', state: 'Built', parts: [{ title: 'y', status: 'built' }, { title: 'x', status: 'built' }] }] })
+  assert.deepEqual(changedStatusEntries(a, c), ['spec/access-layer.md'], 'the order of parts still counts')
+})

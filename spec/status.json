@@ -86,7 +86,7 @@
       "evidence": ["lib/test/multi-device-baseline.test.mjs"]
     },
     "continuity": {
-      "short": "In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave relationships unchained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).",
+      "short": "In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).",
       "evidence": ["lib/src/trust/continuity.ts", "lib/test/trust-continuity.test.mjs"]
     },
     "direction-assumptions": {
