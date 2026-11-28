@@ -167,7 +167,8 @@ its keys.
 
 ## Where this comes from
 
-None of this runs in a simulator yet. The two ports, the key states
+Key distribution, rotation and the service classes do not run in a
+simulator yet. The two ports, the key states
 and the service classes were derived in the
 [port experiments](https://github.com/real-life-org/port-experimente):
 one authority log driven against three existing key-agreement systems

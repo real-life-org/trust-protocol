@@ -92,8 +92,8 @@ and `did:peer` are not specified as anchors.
 In the Identity Layer text, the mnemonic restores keys, not state. Which
 groups, personas and relationships exist is a register in the person's
 encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state over the store that holds it and with access to the same keys, with `seedKeys` the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery -->
-Recovering an anchor through several trusted people is the subject of
-the Succession draft, which is parked and cannot be set up.
+The parked Succession draft describes how guardians witness the
+transition to a new anchor.
 
 This model is planned to change: an identifier that keeps its name across
 a key change, a main device with linked devices, keys generated rather
@@ -115,7 +115,7 @@ credentials v2, a DTG context, RLTP v1), verified without JSON-LD
 processing. The [encounter credential](term:EncounterCredential) is a DTG Relationship
 Credential under DTG Credentials WD 0.6.0: it lists the DTG registry
 context v1 and declares `issuerScope: "pairwise"`. The [invite](term:Invite) and
-the [vouch](term:Vouch) list the DTG context of Working Draft 01. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link; the steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a `trust-task-error`; the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
+the [vouch](term:Vouch) list the DTG context of Working Draft 01. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link; the steps use the public Trust Tasks `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, with their `#response` documents, and a decline is a [`trust-task-error`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/shared-connect.ts#L633); the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
@@ -191,7 +191,8 @@ both proofs and the shared [enactment binding](term:EnactmentBinding), and learn
 this: two anchors consistently assert an encounter. Whether two
 people met, and who they are, stays with those who know the anchors.
 The Personhood Predicates text therefore measures confirmations relative
-to anchors the verifier already knows.
+to anchors the verifier already knows (P1, P2) or to the members of a
+named group (P3).
 
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
 [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md) ·
@@ -284,7 +285,7 @@ current keys. If the group requires vouches, written `vouch(n)`, the
 newcomer needs n members who vouch for this one admission; a vouch
 never stands for a later one.
 
-This is the frozen Access Layer text. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, epoch transitions, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
+This flow is described in the frozen Access Layer and Membership Tasks texts. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, epoch transitions, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 Specs: [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md)
