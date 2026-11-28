@@ -161,17 +161,18 @@ Either way the devices sort it out. Every encounter runs under a fresh
 pairwise anchor, so on the wire the second scan looks like a stranger;
 right after it, the two devices run a **[continuity probe](term:ContinuityProbe)**, a short
 list of blinded values that only a counterpart holding the earlier
-relationship can match. A match links the new pair to the existing
-relationship and the app shows "re-verified"; an introduced
-relationship becomes a met one. No match means a new contact,
-honestly, which is also what a contact who lost their data becomes.
+relationship can match. In the Trust Layer text, a match links the new
+pair to the existing relationship and an introduced relationship becomes
+a met one. No match means a new contact,
+honestly, which is also what a contact who lost their data becomes. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the counterpart's continuity mapping verifies; two re-encounters at the same time can leave the chaining one-sided, each side keeping unchained a new relationship the other side chained. Details: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts).<!-- /now:continuity -->
 
 Spec: [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44) ·
 [Encounter Layer §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative)
 
 ## Vouching inside a group
 
-A group can require that a newcomer is vouched for. A **[vouch](term:Vouch)** is a
+In the Access Layer text, a group can require that a newcomer is vouched
+for; <!-- now:vouch-threshold -->the library founds a group only with a vouch threshold of 1 and changes no rule afterwards.<!-- /now:vouch-threshold --> A **[vouch](term:Vouch)** is a
 member's signed statement for exactly one admission of exactly one
 person, made inside the group where other members can check it. It
 names how the voucher knows the person, met or introduced, as their
