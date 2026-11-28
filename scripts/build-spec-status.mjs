@@ -197,7 +197,8 @@ export function checkStatus(root, status) {
     for (const p of d.parts ?? []) {
       const pw = `${where} "${p.title}"`
       if (!p.title) errors.push(`${where}: a part without a title`)
-      if (!(p.status in status.statuses) || !(p.status in LABEL)) errors.push(`${pw}: unknown status ${p.status}`)
+      if (typeof p.status !== 'string' || !Object.hasOwn(status.statuses ?? {}, p.status) || !Object.hasOwn(LABEL, p.status)) errors.push(`${pw}: unknown status ${p.status}`)
+      if (p.status === 'partly-built' && !(typeof p.note === 'string' && p.note.trim())) errors.push(`${pw}: partly-built without a note saying which part`)
       const list = refsOf(p)
       if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
       if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)

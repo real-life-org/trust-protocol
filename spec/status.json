@@ -29,11 +29,11 @@
         { "sections": ["6"], "title": "Context labels", "status": "built-differently", "ref": ["D3", "D5", "D6"], "note": "Three derivations of the library lie outside the closed label registry." },
         { "sections": ["7"], "title": "Derived service identities", "status": "not-built", "note": "The founder's service identity in a genesis is provisional (D3).", "source": "lib/README.md (Versions)" },
         { "sections": ["7a"], "title": "The carrier-relationship identity", "status": "built", "source": "Status of This Document" },
-        { "sections": ["4"], "title": "The mnemonic and the root IKM", "status": "direction-changed", "ref": "direction/identity.md", "note": "The library derives every key from one root seed today." },
+        { "sections": ["4"], "title": "The mnemonic and the root IKM", "status": "direction-changed", "ref": "direction/identity.md", "note": "The library's seed key provider derives the person's anchor keys from one root seed today." },
         { "sections": ["8"], "title": "Anchors as did:key", "status": "direction-changed", "ref": "direction/identity.md" },
         { "sections": ["9"], "title": "Recovery", "status": "direction-changed", "ref": "direction/identity.md", "note": "Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state.", "source": "lib/src/carrier-holder.ts" }
       ],
-      "note": "The library derives every identity from one root seed, and one holder holds one identity (lib/README.md, \"The holder\"). The planned model gives up the words as root, the identifier as its key, derived keys and recovery through the words; it is not built."
+      "note": "The library derives the person's anchors from one root seed, and one holder holds one identity (lib/README.md, \"The holder\"). The planned model gives up the words as the required root, the identifier as its key, derived keys, and recovery that requires the words; it is not built."
     },
     {
       "file": "encounter-layer.md",

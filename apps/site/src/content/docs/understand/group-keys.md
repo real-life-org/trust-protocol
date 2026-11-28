@@ -14,8 +14,9 @@ layer's and are explained in [Foundations](/understand/foundations/).
 
 This page explains the key port and replication as the frozen Access
 Layer text and Replication Contract describe them. The library builds
-none of it beyond the group's founding commitment: no key states, no
-rotation, no key distribution, no registered replication adapter
+neither key distribution nor key state transitions such as rotation; its
+group log uses the exchange and ingest admission of Replication §4.4 and
+§7, without a registered replication adapter
 ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 A group has two kinds of truth. Who belongs and what is allowed is

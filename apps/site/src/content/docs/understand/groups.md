@@ -25,7 +25,8 @@ This page explains groups as the frozen Access Layer text describes
 them. The library runs stage 1 of the group log: founding, admission by
 invitation and acceptance, and leaving, with the log exchanged along the
 invitation edges. Removal (`member.remove`), rule changes, key epochs,
-device cards and most of the conflict rules are not built
+device cards and the conflict rules for removal and rule changes are not
+built
 ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#3-the-authority-log)
@@ -79,7 +80,7 @@ log, made under the group's rules like any other.
 In the library today a member can leave, and the leave takes effect in
 the log at once; a leave by the last member ends the group. Removal is
 not built, and no new key epoch follows a leave or a lost device, so
-nothing makes later content unreadable to whoever left.
+the library does not make later content unreadable to whoever left.
 
 Spec: [Access Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#54-leave-pending-exit-and-dissolve) ·
 [§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)
@@ -114,8 +115,7 @@ sides into account.
 In the library, two admissions of the same person made at the same time
 both stand and make one member. A leave at the same time as an admission
 of the same person, a case these rules leave open, is read as the leave
-winning. Removals, dissolutions and rule changes made at the same time
-are not built.
+winning. Removals and rule changes, and their collisions, are not built.
 
 Spec: [Access Layer §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)
 

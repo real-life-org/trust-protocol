@@ -21,8 +21,8 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 In the published Identity Layer, a person keeps one secret, a BIP-39
 mnemonic with the English wordlist, and every identity is derived from its
-seed, one **[anchor](term:Anchor)** per context. The library works this way
-today; the model is planned to change (see the end of this section):
+seed, one **[anchor](term:Anchor)** per context. The library derives the
+person's anchors this way today; the model is planned to change (see the end of this section):
 
 | Context | Label | DTG scope |
 |---|---|---|
@@ -70,14 +70,16 @@ groups, personas and relationships exist is a register in the person's
 encrypted, synchronized state; with a copy of it, everything returns. The
 library builds neither that recovery nor the synchronization of the
 state. A lost
-mnemonic is final. The library offers no recovery without it:
+mnemonic is final. The library offers no way to recover an identity
+without it:
 recovering an anchor through several trusted people is the subject of
 the Succession draft, which is parked and cannot be set up.
 
 This model is planned to change: an identifier that keeps its name across
 a key change, a main device with linked devices, keys generated rather
 than derived from the words, and guardians who help restore the same
-identity. None of it is in the published library. The
+identity. The library has neither identifiers with a log nor linked
+devices or guardians. The
 [identity direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md) says how, and
 [`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json) says which parts of the
 Identity Layer hold today.
@@ -258,7 +260,8 @@ never stands for a later one.
 This is the frozen Access Layer text. The library runs stage 1 of the group log: founding, admission by
 invitation and acceptance, and leaving, with the log exchanged along the
 invitation edges. Removal (`member.remove`), rule changes, key epochs,
-device cards and most of the conflict rules are not built
+device cards and the conflict rules for removal and rule changes are not
+built
 ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)). So in the library a leave
 starts no new key epoch.
 

@@ -89,3 +89,15 @@ test('ref and source read a file path the same way: a missing file fails in both
   assert.ok(errors.some((e) => e.includes('source missing.md does not exist')))
   assert.equal(errors.length, 2)
 })
+
+test('a status that is no own key of the legend, and partly-built without a note, fail', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
+  const statuses = { ...STATUSES, 'partly-built': '' }
+  const errors = checkStatus(root, { statuses, documents: [doc({ parts: [
+    { title: 'x', status: 'constructor' },
+    { title: 'y', status: 'partly-built' },
+    { title: 'z', status: 'partly-built', note: '  ' },
+  ] })] })
+  assert.ok(errors.some((e) => e.includes('"x"') && e.includes('unknown status constructor')))
+  assert.equal(errors.filter((e) => e.includes('partly-built without a note')).length, 2)
+})
