@@ -5,7 +5,7 @@
 // What it registers (messageModule):
 //   human acts  message.send {contactId, text, replyTo?}   a message@1 on
 //               the active head of a ready, unblocked relationship of the
-//               contact (5010–5030), its document carrying the sender
+//               contact (5010–5030), its outbox entry carrying the sender
 //               lifetime sentAt + H − P1D (5110, Delivery RLTP-DEL-7020);
 //               event message.sent {contactId, mid, digest}
 //               message.block {contactId, blocked}   sets or clears the

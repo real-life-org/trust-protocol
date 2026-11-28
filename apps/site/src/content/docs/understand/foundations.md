@@ -74,7 +74,7 @@ recovery context for the person's own encrypted state. <!-- now:derived-identiti
 public anchors alone, without the seed, two anchors of one person cannot
 be linked.
 
-Each context has an Ed25519 key pair, whose public key is the anchor
+Each anchor context of the table has an Ed25519 key pair, whose public key is the anchor
 as a `did:key`, and an X25519 key for key agreement, carried in the
 [contact card](term:ContactCard). Verification needs no network.
 
@@ -202,7 +202,8 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 In the frozen specification texts, every RLTP message is a Trust Task
 document of a private, versioned
 type under `https://real-life.org/trust-tasks/spec/`, with in-band
-`issuer` and `recipient` anchors and no `expiresAt`. An unknown type
+`issuer` and `recipient` anchors and no `expiresAt`; the parties of
+`sealed-envelope/0.1` are its carrier's identifiers instead. An unknown type
 is rejected, never silently ignored. For the app's ceremony, see
 [Credentials we issue](#credentials-we-issue) above.
 

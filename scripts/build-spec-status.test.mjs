@@ -377,7 +377,31 @@ test('differences point to a row of lib/DEVIATIONS.md, the header of a source fi
   assert.ok(errors.some((e) => e.includes('"none": built-differently without differences')))
   assert.ok(errors.some((e) => e.includes('D9 is no row')))
   assert.ok(errors.some((e) => e.includes('difference lib/src/missing.ts does not exist')))
-  assert.ok(errors.some((e) => e.includes('has no test whose name starts "no such test"')))
+  assert.ok(errors.some((e) => e.includes('has 0 tests whose name starts "no such test", not one')))
   assert.ok(errors.some((e) => e.includes('difference README.md is not under lib/src/')))
   assert.equal(renderDifferences(ok[0], 'root'), 'Differences: [D1](lib/DEVIATIONS.md), the header of [`lib/src/x.ts`](lib/src/x.ts), test `one-sided chaining` in [`t.test.mjs`](lib/test/t.test.mjs).')
+})
+
+test('a box inside the frontmatter, and an import over several lines, are refused', async () => {
+  const { renderBox, placeBox } = await import('./build-spec-status.mjs')
+  const box = renderBox(['a-layer'], { documents: [doc()] }, 'p.md')
+  const inYaml = `---\ntitle: P\ndescription: |\n  ${box.split('\n').join('\n  ')}\nspecs: [a-layer]\n---\n\nText.\n`
+  assert.match(placeBox(inYaml, box, 'p.md').error, /a box marker stands inside the frontmatter/)
+  const mdxBox = renderBox(['a-layer'], { documents: [doc()] }, 'p.mdx')
+  const multi = "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport {\n  A,\n  B,\n} from './x'\n\nText.\n"
+  assert.match(placeBox(multi, mdxBox, 'p.mdx').error, /an import over several lines/)
+  assert.equal(placeBox("---\ntitle: P\nspecs: [a-layer]\n---\n\nimport { A, B } from './x'\n\nText.\n", mdxBox, 'p.mdx').error, undefined)
+})
+
+test('a statement about the app needs a pinned app permalink; a test reference needs one test name found once', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '', 'lib/test/t.test.mjs': "test('alpha one', () => {})\ntest('alpha two', () => {})\n", 'page.md': 'x <!-- now:s --><!-- /now:s -->\n' })
+  const app = 'https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/x.ts#L1-L2'
+  const say = (evidence) => checkStatements(root, { statements: { s: { short: 'The library and the app run a log.', evidence } } }, ['page.md'])
+  assert.ok(say(['lib/src/x.ts']).some((e) => e.includes('speaks of the app without a pinned app permalink')))
+  assert.ok(!say(['lib/src/x.ts', app]).some((e) => e.includes('speaks of the app')))
+  const part = (differences) => checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [{ sections: ['2'], title: 'x', status: 'built-differently', differences, evidence: ['lib/src/x.ts'] }] })] })
+  assert.ok(part(['lib/test/t.test.mjs']).some((e) => e.includes('names no test')))
+  assert.ok(part(['lib/test/t.test.mjs#alpha']).some((e) => e.includes('has 2 tests whose name starts "alpha", not one')))
+  assert.ok(part(['lib/src/x.ts#alpha']).some((e) => e.includes('takes no test name')))
+  assert.deepEqual(part(['lib/test/t.test.mjs#alpha one']), [])
 })

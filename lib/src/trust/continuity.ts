@@ -10,8 +10,9 @@
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //
 // Spec follow-up 14 (Trust 0.32): 6900 has the record side chain
-// "atomically with issuing its choice", and 6910 lets it choose on the
-// first match. A probe hit is no evidence of the prior relationship: it
+// "atomically with issuing its choice", and 6a.4 lets it choose freely
+// among its matches (a match report MAY inform the choice, 6910); this
+// library chooses the first match (below). A probe hit is no evidence of the prior relationship: it
 // proves knowledge of the prior's counterpart anchor (a photographed card,
 // a mediator who saw it in the clear) and of the fresh tuple's k_p, never
 // possession of the prior relationship key, which only mac1 proves (6970).
@@ -111,7 +112,8 @@
 //     chains on nothing yet; the non-record side reports the first such
 //     match. A match report that reaches a record side without a choice is
 //     chosen from where its prior is still chainable (6910), and chained
-//     with that issuance: the report is the evidence
+//     with that issuance: the report is the evidence (follow-up 14; 6920
+//     has no match report cause chaining)
 //   - a choice, a report or an alignment whose preparation fails (a key
 //     not available) leaves `continuityOut.due` and a mapping duty; the
 //     receive still commits (its ack, the assembly, the revision)

@@ -38,15 +38,14 @@
 //     sent and still holds, on its tuple (3965)
 //   - the welcome: Membership 3.3 carries it in access-operation/0.1 with
 //     a member.add envelope and a sealed rltp-welcome/0.1 (Section 4),
-//     Access's materialization deciding; until the Access envelope is
-//     built here, the admitting member sends x-membership-welcome/0.1,
-//     signed under its member anchor: the group's name, DID, genesis, rules
-//     and the roster it holds, the new member's entry naming its admission
-//     by the accept's document digest (its memberOp). Replication of the
-//     roster beyond that is the Access port's. Operation ids: the founder's
-//     memberOp is the genesis's oid (the genesis digest's SHA-256, Access
-//     3.3), a member's the oid of its accept document's digest (a member admitted later is
-//     unknown to earlier members until their port materializes it)
+//     Access's materialization deciding. Here the admitting member writes
+//     the member.add envelope into its own log (admission, below) and sends
+//     in place of access-operation/0.1 x-membership-welcome/0.1, signed
+//     under its member anchor: the group's name, DID, genesis, rules and the
+//     roster it holds, and the accept's document digest, by which the new
+//     member finds its admission in the log it fetches. A member's memberOp
+//     is the operation id the materialization of the log gives it
+//     (replica.ts); the founder's is the genesis's
 //   - the admission without a human act at the admitting member: the
 //     invitation stands as the inviter's act of admission (RLTP-MT-3282),
 //     so the accept (n = 1) or the evidence that completes the vouches
@@ -95,21 +94,27 @@
 //     is current, whichever entries they feed. Residue: the binding links the inviter's member
 //     anchor to its pair channel transferably (the invite names that
 //     anchor before consent anyway)
-//   - the admission policy: the group rule vouchThreshold n reads as the
-//     `vouch` rule of member.add (Access 4.2) counting the admitting
-//     member: n distinct members stand behind an admission, the admitting
-//     member one of them, the others by vouch@2 credentials whose issuer
-//     is on its roster. n = 1 admits on the accept. Only the inviter (the
+//   - the admission policy: the group rule vouchThreshold n is this
+//     library's: n distinct members stand behind an admission, the
+//     admitting member counted as one of them, the others by vouch@2
+//     credentials whose issuer is on its roster. n = 1 admits on the accept.
+//     It is not the `vouch` rule of Access 4.2, which counts presented
+//     vouches and requires the subject's own signature over the envelope
+//     (RLTP-ACC-4220); the genesis states no explicit rule, so member.add
+//     falls to the default any-member (Access 4.1, access/genesis.ts). Only the inviter (the
 //     holder that recorded the accept) admits; with n > 1 it relays the
 //     consent pair as membership-evidence/0.2 to the other members on its
 //     roster (candidacy false still permits this silent relay, 3250), and
 //     a member's vouch travels back to it as evidence with its vouch
 //   - membership-evidence: Membership registers /0.2 and keeps /0.1
 //     receivable (3815), as the registry of Delivery 0.85 §4.4 lists them:
-//     both are registered here, /0.2 is the one issued. A relayer this holder does not have on its
-//     roster cannot be acknowledged (its key is unknown): validation-failed
-//     where 3750 has the pending disposition incomplete(missing:
-//     group-state), which this engine does not have
+//     both are registered here, /0.2 is the one issued. Evidence for a
+//     group this holder holds no state for is refused validation-failed
+//     (the refusal names 3755), where 3750 disposes it incomplete(missing:
+//     group-state), a pending disposition this engine does not have; a
+//     relayer that is not on the roster of a group this holder holds is
+//     refused validation-failed (the refusal names 3750; its key is
+//     unknown, so the document cannot be acknowledged)
 //   - the accept's candidacy is false (the decision carries only accept
 //     or decline); surfacing a candidacy (3765) is not built
 //   - the in-library Access (localAccess): where createHolder gets no

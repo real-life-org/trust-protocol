@@ -287,11 +287,16 @@ export function checkStatus(root, status) {
           continue
         }
         const [path, name] = x.split('#')
-        const why = fileProblem(root, path, /^lib\/test\//.test(path) ? 'lib/test/' : 'lib/src/')
+        const isTest = /^lib\/test\//.test(path)
+        const why = fileProblem(root, path, isTest ? 'lib/test/' : 'lib/src/')
         if (why) { errors.push(`${pw}: difference ${path} ${why}`); continue }
+        // a test file is named with one test of it; a source file with its header
+        if (isTest && !name) { errors.push(`${pw}: difference ${path} names no test`); continue }
+        if (!isTest && name !== undefined) { errors.push(`${pw}: difference ${path} is a source file and takes no test name`); continue }
         if (name !== undefined) {
           const body = readFileSync(join(root, path), 'utf8')
-          if (!name || !new RegExp(`\\b(test|it)\\(\\s*['"\`]${esc(name)}`).test(body)) errors.push(`${pw}: ${path} has no test whose name starts "${name}"`)
+          const n = [...body.matchAll(new RegExp(`\\b(test|it)\\(\\s*['"\`]${esc(name)}`, 'g'))].length
+          if (n !== 1) errors.push(`${pw}: ${path} has ${n} tests whose name starts "${name}", not one`)
         }
       }
       if (p.status === 'direction-changed' && !list.some((r) => typeof r === 'string' && /\.md$/.test(pathIn(r)) && !fileProblem(root, `spec/${pathIn(r)}`, 'spec/direction/'))) errors.push(`${pw}: direction-changed without a ref to a direction note under spec/direction/`)
@@ -455,6 +460,8 @@ export function checkStatements(root, status, files) {
     if (st.long !== undefined && (typeof st.long !== 'string' || !st.long.trim())) errors.push(`${where}: an empty long form`)
     for (const k of Object.keys(st)) if (![...FORMS, 'evidence'].includes(k)) errors.push(`${where}: unknown field ${k}`)
     errors.push(...evidenceProblems(root, st.evidence, where))
+    // a statement about the app ("the app", "the Web of Trust app") is evidenced by the app itself, at a fixed commit
+    if (FORMS.some((f) => /\b(the|Web of Trust) app\b/i.test(st[f] ?? '')) && !(st.evidence ?? []).some((e) => typeof e === 'string' && APP_EVIDENCE.test(e))) errors.push(`${where}: speaks of the app without a pinned app permalink in evidence`)
     if (!used.has(id)) errors.push(`${where}: used on no page`)
   }
   return errors
@@ -543,7 +550,14 @@ export function placeBox(text, box, file) {
   if (b > 1 || e > 1 || b !== e) return { text, error: `${file}: ${b} box begin and ${e} box end markers, not one of each` }
   const fm = text.match(/^---\n[\s\S]*?\n---\n/)
   if (!fm) return { text, error: `${file}: no frontmatter` }
+  if (fm[0].includes(m.begin) || fm[0].includes(m.end) || fm[0].includes(':::note[Design and status]')) return { text, error: `${file}: a box marker stands inside the frontmatter` }
   let at = fm[0].length
+  // only imports on one line each are read; another form is refused, never cut into
+  for (const line of text.slice(at).split('\n')) {
+    if (!line.trim()) continue
+    if (!/^import\b/.test(line)) break
+    if (!/^import\s.*\sfrom\s+['"][^'"]+['"];?\s*$|^import\s+['"][^'"]+['"];?\s*$/.test(line)) return { text, error: `${file}: an import over several lines; write each import on one line` }
+  }
   const imports = text.slice(at).match(/^(\n*(import [^\n]*\n)+)/)
   if (imports) at += imports[0].length
   // a second box without markers would show twice
