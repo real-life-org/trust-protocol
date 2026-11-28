@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { BEGIN, END, splitSpec, joinSpec, replaceBetween, renderSpecBlock, checkStatus, digestOf, fillStatements, checkStatements, statementUses, renderStatement } from './build-spec-status.mjs'
+import { BEGIN, END, splitSpec, joinSpec, replaceBetween, renderSpecBlock, checkStatus, digestOf, fillStatements, checkStatements, statementUses, renderStatement, generate, fileProblem } from './build-spec-status.mjs'
 
 const STATUSES = { built: '', 'built-differently': '', superseded: '', 'not-built': '' }
 const SPEC0 = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\ntext\n'
@@ -179,4 +179,60 @@ test('every statement is used, has a short form, known fields and existing evide
   assert.ok(errors.some((e) => e.includes('statement bad: unknown field extra')))
   assert.ok(errors.some((e) => e.includes('evidence lib/src/none.ts does not exist')))
   assert.ok(!errors.some((e) => e.includes('statement groups')))
+})
+
+test('generation runs one text per file through every step: a wrong site table and README are both corrected', () => {
+  const SITE = 'apps/site/src/content/docs/reference/specifications.md'
+  const root = repo({
+    'spec/a-layer.md': SPEC,
+    'lib/DEVIATIONS.md': '',
+    'README.md': `Design. <!-- now:groups -->stale<!-- /now:groups -->\n\n${BEGIN}\nConverged: all documents\n${END}\n`,
+    [SITE]: `---\ntitle: S\nspecs: []\n---\n\n${BEGIN}\n| Converged; its ceremony |\n${END}\n\nMore <!-- now:groups -->stale<!-- /now:groups -->\n`,
+  })
+  const status = { statuses: STATUSES, statements: STMTS, documents: [doc()] }
+  const { errors, outputs } = generate(root, status)
+  assert.deepEqual(errors, [])
+  const out = Object.fromEntries(outputs.map(([f, , after]) => [f, after]))
+  assert.ok(!out[SITE].includes('Converged'), 'the site table is regenerated')
+  assert.ok(out[SITE].includes('| Document | Role | Version | State |'))
+  assert.ok(out[SITE].includes(`<!-- now:groups -->${STMTS.groups.short}<!-- /now:groups -->`), 'and its statement filled in the same pass')
+  assert.ok(!out['README.md'].includes('Converged') && out['README.md'].includes(STMTS.groups.short))
+  assert.ok(out['spec/a-layer.md'].startsWith(BEGIN))
+  // a second generation over the result changes nothing
+  for (const [f, , after] of outputs) writeFileSync(join(root, f), after)
+  assert.ok(generate(root, status).outputs.every(([, b, a]) => b === a))
+})
+
+test('a path must be a regular file in normal form inside its directory', () => {
+  const root = repo({ 'spec/direction/identity.md': '# n\n', 'spec/access-layer.md': '# a\n', 'README.md': '# r\n' })
+  assert.equal(fileProblem(root, 'lib/src/x.ts', 'lib/src/'), null)
+  assert.match(fileProblem(root, 'lib/src/', 'lib/src/'), /normal form|not a file/)
+  assert.match(fileProblem(root, 'lib/src/../../README.md', 'lib/src/'), /normal form/)
+  assert.match(fileProblem(root, 'spec/direction/../access-layer.md', 'spec/direction/'), /normal form/)
+  assert.match(fileProblem(root, 'spec/direction', 'spec/direction/'), /not under|not a file/)
+  const errors = checkStatus(root, { statuses: { ...STATUSES, 'direction-changed': '' }, documents: [] })
+  assert.deepEqual(errors.filter((e) => e.includes('direction')), [])
+  const ev = checkStatements(root, { statements: { s: { short: 'S.', evidence: ['lib/src/', 'lib/src/../../README.md'] } } }, [])
+  assert.equal(ev.filter((e) => e.includes('evidence')).length, 2)
+})
+
+test('a direction ref that leaves spec/direction/ fails', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'spec/direction/identity.md': '# n\n', 'spec/access-layer.md': '# a\n', 'lib/DEVIATIONS.md': '' })
+  const statuses = { ...STATUSES, 'direction-changed': '' }
+  const errors = checkStatus(root, { statuses, documents: [doc({ parts: [{ title: 'x', status: 'direction-changed', ref: 'direction/../access-layer.md' }] })] })
+  assert.ok(errors.some((e) => e.includes('direction-changed without a ref')))
+})
+
+test('a comment that looks like a statement marker but is none fails', () => {
+  const errs = fillStatements('x <!-- now:GROUPS -->old<!-- /now:GROUPS -->', STMTS, 'a.md').errors
+  assert.ok(errs.some((e) => e.includes('<!-- now:GROUPS --> is no statement marker')))
+  assert.ok(fillStatements('x {/* now:Groups */}old{/* /now:Groups */}', STMTS, 'a.mdx').errors.some((e) => e.includes('is no statement marker')))
+})
+
+test('evidence about the app is a file of the public app repository at a fixed commit', () => {
+  const root = repo({})
+  const ok = 'https://github.com/real-life-org/web-of-trust/blob/b9f61b4daccda51ab10be25d062682c4a7febe94/apps/wot-v3/src/x.ts#L1-L2'
+  const errs = (e) => checkStatements(root, { statements: { s: { short: 'S.', evidence: [e] } } }, []).filter((x) => x.includes('evidence'))
+  assert.deepEqual(errs(ok), [])
+  assert.equal(errs('https://github.com/real-life-org/web-of-trust/blob/main/apps/wot-v3/src/x.ts').length, 1)
 })

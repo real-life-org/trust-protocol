@@ -22,7 +22,7 @@ The group's identity is the digest of its founding entry, not a key
 anyone holds, so nobody owns the group or can take it over.
 
 This page explains groups as the frozen Access Layer text describes
-them. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, key epochs, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
+them. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, epoch transitions, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#3-the-authority-log)
 

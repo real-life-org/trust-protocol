@@ -156,3 +156,16 @@ test('a changed statement makes the pages that carry it pending; its evidence do
   // a page the same change touches is not pending
   assert.deepEqual(pendingPages(root, ['spec/status.json', `${DOCS}/understand/groups.md`], { statements: ['groups'] }).map((p) => p.file), [`${DOCS}/understand/why.mdx`])
 })
+
+test('a page the change touched only inside generated places stays pending for a changed statement', async () => {
+  const { outsideGenerated } = await import('./build-spec-status.mjs')
+  const before = 'Design. <!-- now:group-conflicts -->Old.<!-- /now:group-conflicts --> More.\n'
+  const after = 'Design. <!-- now:group-conflicts -->New.<!-- /now:group-conflicts --> More.\n'
+  assert.equal(outsideGenerated(before, 'a.md'), outsideGenerated(after, 'a.md'))
+  assert.notEqual(outsideGenerated(after.replace('More', 'Read'), 'a.md'), outsideGenerated(before, 'a.md'))
+  const root = repo({ 'understand/groups.md': page('[]').replace('Body', after) })
+  const file = `${DOCS}/understand/groups.md`
+  // regenerated only: changed, but not touched by a person
+  assert.deepEqual(pendingPages(root, ['spec/status.json', file], { statements: ['group-conflicts'], touched: ['spec/status.json'] }).map((p) => p.file), [file])
+  assert.deepEqual(pendingPages(root, ['spec/status.json', file], { statements: ['group-conflicts'], touched: ['spec/status.json', file] }), [])
+})

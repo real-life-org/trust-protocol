@@ -145,7 +145,7 @@ list of blinded values that only a counterpart holding the earlier
 relationship can match. A match links the new pair to the existing
 relationship and the app shows "re-verified"; an introduced
 relationship becomes a met one. No match means a new contact,
-honestly, which is also what a contact who lost their data becomes.
+honestly, which is also what a contact who lost their data becomes. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the continuity probe matches. Two re-encounters at the same time can leave the chaining one-sided: each side then keeps one of the new relationships unchained (test `one-sided chaining`).<!-- /now:continuity -->
 
 Spec: [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44) ·
 [Encounter Layer §4.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#44-the-enacting-anchor-fresh-always-normative)

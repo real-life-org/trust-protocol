@@ -64,8 +64,8 @@ Spec: [Encounter Layer §5.3](https://github.com/real-life-org/trust-protocol/bl
 
 ## The ceremony
 
-The [ceremony](term:Ceremony) of the Encounter Layer, `encounter-scan`,
-needs one scan on the connected path and two offline. <!-- now:encounter-ceremony:long -->The Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:encounter-ceremony -->
+The Encounter Layer's [ceremony](term:Ceremony) needs one scan on the
+connected path and two offline. <!-- now:encounter-ceremony:long -->`encounter-scan`, the ceremony of the Encounter Layer, is superseded: the Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:encounter-ceremony -->
 
 1. B shows a card with challenge *c<sub>B</sub>*.
 2. A scans it, creates a sent card with a fresh challenge

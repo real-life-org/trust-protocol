@@ -21,7 +21,7 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 In the published Identity Layer, a person keeps one secret, a BIP-39
 mnemonic with the English wordlist, and every identity is derived from its
-seed, one **[anchor](term:Anchor)** per context. <!-- now:identity -->The library derives the person's anchors from the root seed today; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change (see the end of this section):
+seed, one **[anchor](term:Anchor)** per context. <!-- now:identity -->In the library the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change (see the end of this section):
 
 | Context | Label | DTG scope |
 |---|---|---|
@@ -64,7 +64,7 @@ and `did:peer` are not specified.
 
 In the Identity Layer text, the mnemonic restores keys, not state. Which
 groups, personas and relationships exist is a register in the person's
-encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. It opens a holder from its root seed and its saved state, and needs both.<!-- /now:recovery -->
+encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state only over the store that holds it and with a key provider over the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery -->
 Recovering an anchor through several trusted people is the subject of
 the Succession draft, which is parked and cannot be set up.
 
@@ -143,7 +143,7 @@ switched on its own, per contact and per group.
 
 Meeting the same person again needs no disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
-history and chains it to the existing relationship.
+history and chains it to the existing relationship. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the continuity probe matches. Two re-encounters at the same time can leave the chaining one-sided: each side then keeps one of the new relationships unchained (test `one-sided chaining`).<!-- /now:continuity -->
 
 Every artifact belongs to one audience class. Class P covers
 statements meant to be shown, such as the encounter credential, the
@@ -252,7 +252,7 @@ current keys. If the group requires vouches, written `vouch(n)`, the
 newcomer needs n members who vouch for this one admission; a vouch
 never stands for a later one.
 
-This is the frozen Access Layer text. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, key epochs, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
+This is the frozen Access Layer text. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, epoch transitions, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 Specs: [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md)
@@ -330,7 +330,8 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
 - **Relationships never converge into a person.** Every relationship
   has its own anchor and, toward every carrier, its own principal.
 
-These points describe the design the specification texts set out. <!-- now:groups -->The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
+These points describe the design the specification texts set out; what
+the library builds of groups is under [Groups](#groups) above.
 
 More: [README of the specification repository](https://github.com/real-life-org/trust-protocol#what-is-different-about-it)
 

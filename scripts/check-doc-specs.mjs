@@ -21,7 +21,9 @@
 //     every specification whose entry in spec/status.json changed against
 //     the merge base, make every page that names them PENDING, and so
 //     does a changed statement of spec/status.json (its wording, not its
-//     evidence) for every page that carries it (<!-- now:<id> -->), and so
+//     evidence) for every page that carries it (<!-- now:<id> -->); a page
+//     counts as touched only where the change edits it outside its
+//     generated places, and so
 //     does a library release for every `library: true` page, unless the
 //     same change touches that page. Pending pages fail the check, unless
 //     --checked says a person has read them and they still hold (CI passes
@@ -34,7 +36,7 @@ import { readFileSync, readdirSync, existsSync, statSync, appendFileSync } from 
 import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
-import { splitSpec, statementUses } from './build-spec-status.mjs'
+import { splitSpec, statementUses, outsideGenerated } from './build-spec-status.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = 'apps/site/src/content/docs'
@@ -88,11 +90,12 @@ export function checkDeclarations(root) {
 // when the change is a release, and that the change does not touch; each
 // with the changed specifications it names and `library: true` for a page
 // a release makes pending.
-export function pendingPages(root, changedFiles, { release = false, statements = [] } = {}) {
+export function pendingPages(root, changedFiles, { release = false, statements = [], touched: touchedFiles } = {}) {
   const changed = new Set(changedFiles.map((f) => f.match(SPEC)?.[1]).filter(Boolean))
   const changedStatements = new Set(statements)
   if (!changed.size && !release && !changedStatements.size) return []
-  const touched = new Set(changedFiles)
+  // a page counts as read when this change edits it outside its generated places
+  const touched = new Set(touchedFiles ?? changedFiles)
   const out = []
   for (const file of pages(root)) {
     if (touched.has(file)) continue
@@ -162,7 +165,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const byText = diff.split('\n').filter(Boolean).filter((f) => !SPEC.test(f) || textOf(base, f) !== textOf('HEAD', f))
     const changed = [...new Set([...byText, ...changedStatusEntries(show(base, 'spec/status.json'), show('HEAD', 'spec/status.json'))])]
     const statements = changedStatements(show(base, 'spec/status.json'), show('HEAD', 'spec/status.json'))
-    pending = pendingPages(ROOT, changed, { release: released(since), statements })
+    const touched = changed.filter((f) => !f.startsWith(DOCS + '/') || (() => {
+      const a = show(base, f), b = show('HEAD', f)
+      return a === null || b === null || outsideGenerated(a, f) !== outsideGenerated(b, f)
+    })())
+    pending = pendingPages(ROOT, changed, { release: released(since), statements, touched })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
       const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : []), ...(p.statements ?? []).map((id) => `the statement ${id}`)].join(', ')

@@ -76,7 +76,7 @@ encloses the accept and the vouches the policy requires
 and stops being one by a `member.remove`, which starts a new epoch:
 revocation is an epoch, prospective and honestly stated
 ([Access §1.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#11-essence),
-[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)). <!-- now:member-remove -->In the library a member leaves by a `member.leave`; `member.remove` and epochs are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:member-remove -->
+[§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)). <!-- now:member-remove -->In the library a member leaves by a `member.leave`; `member.remove` and epoch transitions are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:member-remove -->
 Every replica of the log reaches the same answer about who is a
 member
 ([Access §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)).

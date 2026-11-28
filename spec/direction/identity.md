@@ -28,7 +28,7 @@ assumptions that the planned model gives up:
 - recovery requires the words, together with a copy of the person's state
   (its Section 9).
 
-Of these four, <!-- now:direction-assumptions -->the library follows the first three for the person's anchors.<!-- /now:direction-assumptions --> <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. It opens a holder from its root seed and its saved state, and needs both.<!-- /now:recovery --> New work should not treat these
+Of these four, <!-- now:direction-assumptions -->the library follows the second and the third for the person's anchors; it takes the seed as bytes and does not check that they come from words.<!-- /now:direction-assumptions --> <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state only over the store that holds it and with a key provider over the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery --> New work should not treat these
 assumptions as lasting.
 
 ## Where it is heading
@@ -70,7 +70,9 @@ The planned order, without dates:
    implementations.
 5. Guardians holding shares.
 
-The experimental login identity of the library
-([`lib/DEVIATIONS.md`](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), D6) is replaced at
-stage 3. Each stage appears in [`spec/status.json`](../status.json) when
+<!-- now:login-identity -->
+The library's experimental login identity ([D6](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)) is replaced at stage 3.
+<!-- /now:login-identity -->
+
+Each stage appears in [`spec/status.json`](../status.json) when
 it is built.

@@ -11,7 +11,8 @@
 > | §5.5 Device keys | partly built | The derivation is built; one writer per holder stands in for several devices. |
 > | §6 Context labels | built differently: [D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D5](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D6](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md) | Three derivations of the library lie outside the closed label registry. |
 > | §7 Derived service identities | not built | The founder's service identity in a genesis is provisional (D3). |
-> | §7a The carrier-relationship identity | built |  |
+> | §7a.1, §7a.2, §7a.4, §7a.5 The carrier-relationship identity: its derivation | built |  |
+> | §7a.3 The relationship's carrier nonce and its register entry | partly built | The holder registers the nonce of a relationship at generation 1. A change of the nonce, and bringing it together across devices, are not built. |
 > | §4 The mnemonic and the root IKM | direction changed: [direction/identity.md](direction/identity.md) | The library's seed key provider derives the person's anchor keys from one root seed today. |
 > | §8 Anchors as did:key | direction changed: [direction/identity.md](direction/identity.md) |  |
 > | §9 Recovery | direction changed: [direction/identity.md](direction/identity.md) | Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state. |

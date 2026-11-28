@@ -34,8 +34,8 @@
 //
 // --check writes nothing and fails when a generated place differs.
 // Exit 1 on any error, 2 on usage errors.
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
-import { join, dirname, resolve } from 'node:path'
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs'
+import { join, dirname, resolve, posix } from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
@@ -201,6 +201,20 @@ const pathIn = (s) => (typeof s === 'string' ? s.trim().split(/\s+/)[0] : '')
 export const isPath = (token) => /\//.test(token) || /\.(md|json|ts|mjs|js|txt)$/.test(token)
 const fullPath = (root, path) => join(root, repoPathOf(path))
 
+// A path names a regular file of the repository, written in its normal
+// form (no `..`, no `.`, no trailing slash) and, when `within` is given,
+// inside that directory of the repository.
+export function fileProblem(root, path, within) {
+  if (typeof path !== 'string' || !path) return 'is empty'
+  const normal = posix.normalize(path)
+  if (normal !== path || path.endsWith('/') || path.startsWith('/') || normal.startsWith('..')) return 'is not a path in normal form'
+  if (within && !normal.startsWith(within)) return `is not under ${within}`
+  const full = join(root, normal)
+  if (!existsSync(full)) return 'does not exist'
+  if (!statSync(full).isFile()) return 'is not a file'
+  return null
+}
+
 export function checkStatus(root, status) {
   const errors = []
   const files = readdirSync(join(root, 'spec')).filter((f) => f.endsWith('.md')).sort()
@@ -223,7 +237,7 @@ export function checkStatus(root, status) {
     if (version !== d.version) errors.push(`${where}: version ${d.version}, header says ${version}`)
     const date = text.match(/^- \*\*Date:\*\*\s*(\S+)/m)?.[1]
     if (date && date !== d.date) errors.push(`${where}: date ${d.date}, header says ${date}`)
-    if (d.direction !== undefined && (!d.direction || !existsSync(join(root, 'spec', d.direction)))) errors.push(`${where}: direction ${d.direction} does not exist`)
+    if (d.direction !== undefined) { const why = fileProblem(root, `spec/${d.direction}`, 'spec/direction/'); if (why) errors.push(`${where}: direction ${d.direction} ${why}`) }
     if (!Array.isArray(d.parts) || !d.parts.length) errors.push(`${where}: no parts`)
     for (const p of d.parts ?? []) {
       const pw = `${where} "${p.title}"`
@@ -236,7 +250,7 @@ export function checkStatus(root, status) {
       if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
       if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)
       if (p.status === 'built-differently' && !list.length) errors.push(`${pw}: built-differently without ref`)
-      if (p.status === 'direction-changed' && !list.some((r) => typeof r === 'string' && /^direction\/[^\s]+\.md$/.test(pathIn(r)) && existsSync(join(root, 'spec', pathIn(r))))) errors.push(`${pw}: direction-changed without a ref to a direction note under spec/direction/`)
+      if (p.status === 'direction-changed' && !list.some((r) => typeof r === 'string' && /\.md$/.test(pathIn(r)) && !fileProblem(root, `spec/${pathIn(r)}`, 'spec/direction/'))) errors.push(`${pw}: direction-changed without a ref to a direction note under spec/direction/`)
       if (p.status === 'superseded' && !p.target) errors.push(`${pw}: superseded without target`)
       for (const s of p.sections ?? []) {
         if (!new RegExp(`^#{2,6} ${esc(s)}\\.?(?:\\s|$)`, 'm').test(text)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)
@@ -247,13 +261,13 @@ export function checkStatus(root, status) {
           if (!(r in rows)) errors.push(`${pw}: ${r} is no row of lib/DEVIATIONS.md`)
         } else {
           const path = pathIn(r)
-          if (isPath(path) && !existsSync(fullPath(root, path))) errors.push(`${pw}: ref ${path} does not exist`)
+          if (isPath(path)) { const why = fileProblem(root, repoPathOf(path)); if (why) errors.push(`${pw}: ref ${path} ${why}`) }
         }
       }
-      if (p.target && !existsSync(fullPath(root, p.target))) errors.push(`${pw}: target ${p.target} does not exist`)
+      if (p.target) { const why = fileProblem(root, repoPathOf(p.target)); if (why) errors.push(`${pw}: target ${p.target} ${why}`) }
       for (const item of (p.source ?? '').split(';')) {
         const path = pathIn(item)
-        if (isPath(path) && !existsSync(fullPath(root, path))) errors.push(`${pw}: source ${path} does not exist`)
+        if (isPath(path)) { const why = fileProblem(root, repoPathOf(path)); if (why) errors.push(`${pw}: source ${path} ${why}`) }
       }
     }
   }
@@ -267,6 +281,9 @@ export function checkStatus(root, status) {
 // ── statements about what the library builds today ──────────────────────
 
 export const EVIDENCE = /^(lib\/(src|test)\/|vectors\/|interop\/ceremonies\/|binding\/|conformance\/|schemas\/)/
+// A statement about the app is evidenced only by a file of the public app
+// repository at a fixed commit.
+export const APP_EVIDENCE = /^https:\/\/github\.com\/real-life-org\/web-of-trust\/blob\/[0-9a-f]{40}\/[^\s#]+(#L\d+(-L\d+)?)?$/
 const FORMS = ['short', 'long']
 const MARKS = {
   html: { begin: /<!-- now:([a-z0-9-]+)(?::([a-z]+))? -->/g, end: (id) => `<!-- /now:${id} -->`, stray: /<!-- \/now:([a-z0-9-]+) -->/g },
@@ -338,7 +355,21 @@ export function fillStatements(text, statements, file) {
   out += text.slice(at)
   const ends = [...text.matchAll(mark.stray)].length
   if (ends !== pairs) errors.push(`${file}: ${ends} end markers for ${pairs} statements`)
+  // a comment that looks like a marker but is none (a capital, a space) is refused
+  const loose = file.endsWith('.mdx') ? /\{\/\*\s*\/?\s*now\s*:[^}]*\*\/\}/gi : /<!--\s*\/?\s*now\s*:[\s\S]*?-->/gi
+  const strict = file.endsWith('.mdx') ? /^\{\/\* \/?now:[a-z0-9-]+(:[a-z]+)? \*\/\}$/ : /^<!-- \/?now:[a-z0-9-]+(:[a-z]+)? -->$/
+  for (const m of text.matchAll(loose)) if (!strict.test(m[0])) errors.push(`${file}: ${m[0]} is no statement marker`)
   return { text: out, errors }
+}
+
+// A file's text with every generated place emptied: what a person wrote.
+export function outsideGenerated(text, file) {
+  const mdx = file.endsWith('.mdx')
+  const now = mdx ? /(\{\/\* now:([a-z0-9-]+)(?::[a-z]+)? \*\/\})[\s\S]*?(\{\/\* \/now:\2 \*\/\})/g : /(<!-- now:([a-z0-9-]+)(?::[a-z]+)? -->)[\s\S]*?(<!-- \/now:\2 -->)/g
+  let out = text.replace(now, '$1$3')
+  const b = out.indexOf(BEGIN), e = out.indexOf(END)
+  if (b !== -1 && e > b) out = out.slice(0, b + BEGIN.length) + out.slice(e)
+  return out
 }
 
 export function checkStatements(root, status, files) {
@@ -366,10 +397,45 @@ function evidenceProblems(root, evidence, where) {
   if (!Array.isArray(evidence) || !evidence.length) return [`${where}: no evidence`]
   const errors = []
   for (const e of evidence) {
-    if (typeof e !== 'string' || !EVIDENCE.test(e)) errors.push(`${where}: evidence ${e} is no path in the library, the vectors or the ceremony definitions`)
-    else if (!existsSync(join(root, e))) errors.push(`${where}: evidence ${e} does not exist`)
+    if (typeof e === 'string' && APP_EVIDENCE.test(e)) continue
+    const prefix = typeof e === 'string' && e.match(EVIDENCE)?.[0]
+    if (!prefix) { errors.push(`${where}: evidence ${e} is no path in the library, the vectors or the ceremony definitions`); continue }
+    const why = fileProblem(root, e, prefix)
+    if (why) errors.push(`${where}: evidence ${e} ${why}`)
   }
   return errors
+}
+
+// ── generation: one result per file through every step ─────────────────
+
+// Every generated place of the repository from status.json: the status
+// block of each specification, the status section of README.md and the
+// site's document table, then the statements in every file that carries
+// them. Each file has one current text that every step reads and writes,
+// so a later step never starts again from the file as it was. Returns the
+// files with their text before and after, and the errors.
+export function generate(root, status) {
+  const files = statementFiles(root)
+  const errors = [...checkStatus(root, status), ...checkStatements(root, status, files)]
+  const current = new Map()
+  const before = new Map()
+  const text = (file) => {
+    if (!current.has(file)) { const t = readFileSync(join(root, file), 'utf8'); before.set(file, t); current.set(file, t) }
+    return current.get(file)
+  }
+  if (errors.length) return { errors, outputs: [] }
+  for (const d of status.documents) {
+    const file = `spec/${d.file}`
+    current.set(file, joinSpec(renderSpecBlock(d), splitSpec(text(file)).rest))
+  }
+  for (const [file, body] of [[README, renderReadme(status)], [SITE, renderSite(status)]]) {
+    if (!existsSync(join(root, file))) { errors.push(`${file}: missing`); continue }
+    const next = replaceBetween(text(file), body)
+    if (next === null) errors.push(`${file}: not exactly one ${BEGIN} … ${END} pair`)
+    else current.set(file, next)
+  }
+  for (const file of files) current.set(file, fillStatements(text(file), status.statements ?? {}, file).text)
+  return { errors, outputs: [...current].map(([file, after]) => [file, before.get(file), after]) }
 }
 
 // ── command line ────────────────────────────────────────────────────────
@@ -382,30 +448,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   }
   const check = args.includes('--check')
   const status = JSON.parse(readFileSync(join(ROOT, 'spec/status.json'), 'utf8'))
-  const files = statementFiles(ROOT)
-  const errors = [...checkStatus(ROOT, status), ...checkStatements(ROOT, status, files)]
+  const { errors, outputs } = generate(ROOT, status)
   const stale = []
   if (!errors.length) {
-    const outputs = []
-    for (const d of status.documents) {
-      const path = join(ROOT, 'spec', d.file)
-      const text = readFileSync(path, 'utf8')
-      outputs.push([`spec/${d.file}`, text, joinSpec(renderSpecBlock(d), splitSpec(text).rest)])
-    }
-    for (const [file, body] of [[README, renderReadme(status)], [SITE, renderSite(status)]]) {
-      const text = readFileSync(join(ROOT, file), 'utf8')
-      const next = replaceBetween(text, body)
-      if (next === null) errors.push(`${file}: no ${BEGIN} … ${END} markers`)
-      else outputs.push([file, text, next])
-    }
-    for (const file of files) {
-      const text = file === README ? (outputs.find(([f]) => f === README)?.[2] ?? readFileSync(join(ROOT, file), 'utf8')) : readFileSync(join(ROOT, file), 'utf8')
-      const before = readFileSync(join(ROOT, file), 'utf8')
-      const filled = fillStatements(text, status.statements ?? {}, file).text
-      const i = outputs.findIndex(([f]) => f === file)
-      if (i === -1) outputs.push([file, before, filled])
-      else outputs[i][2] = filled
-    }
     for (const [file, before, after] of outputs) {
       if (before === after) continue
       if (check) stale.push(file)

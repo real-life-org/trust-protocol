@@ -39,7 +39,7 @@ test at festivals and community gatherings.
   has its own anchor and, toward every carrier, its own principal. A
   relay holding six of your relationships holds six relationships.
 
-These points describe the design the specification texts set out. <!-- now:groups -->The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
+These points describe the design the specification texts set out. <!-- now:groups -->The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, epoch transitions and key changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 ## Try it in your browser
 
@@ -59,7 +59,7 @@ device holds. No identifier is correlatable across relationships:
 every encounter mints fresh pairwise anchors, and a blinded continuity
 probe re-recognizes an existing relationship afterwards — so meeting
 the same person twice produces one contact, not two, without any
-stable identifier travelling.
+stable identifier travelling. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the continuity probe matches. Two re-encounters at the same time can leave the chaining one-sided: each side then keeps one of the new relationships unchained (test `one-sided chaining`).<!-- /now:continuity -->
 
 ## The shape of it
 
@@ -78,8 +78,7 @@ enforcement, view-shaped authorization, fail-closed concurrency,
 attested convergence target) and either carries a door natively,
 needs an adapter, or is excluded; Replication Contract §10 maps
 p2panda, Keyhive, SECSYNC, NextGraph and Automerge against them. The
-first delivery adapter binds TSP through the VTI mediator and runs
-live.
+first delivery adapter binds TSP through the VTI mediator. <!-- now:vti-adapter -->The library implements this adapter; the wire binding under `binding/` has live probes against a public development instance of the mediator.<!-- /now:vti-adapter -->
 
 ## What is in this repository
 
@@ -90,7 +89,7 @@ live.
 | [`spec/membership-tasks.md`](spec/membership-tasks.md) | **RLTP Membership Tasks** — how membership changes travel: invitation, explicit consent (`membership-invite`, `membership-accept`, `membership-evidence`), the `access-operation` carrier narrowed to the one operation that crosses the replica boundary — the admitting `member.add` delivered to its own subject — with the admission chain (provable invitation provenance), and the welcome seal |
 | [`spec/message-tasks.md`](spec/message-tasks.md) | **RLTP Message Tasks** — direct messages between the two parties of a relationship (`message/0.1`, MAC under a directional relationship key, deniable), the completion record that keeps a message from appearing twice, and the block a holder applies to a relationship |
 | [`spec/access-layer.md`](spec/access-layer.md) | **RLTP Access Layer** — how a group holds shared authority over its membership, data, and itself: the authority log (a causally linked DAG whose genesis digest *is* the group's identity), policies as group-defined decision rules, epochs that make revocation real, chained quorum-signed authorization views toward services, and the enforcement port that keeps the replication/key-agreement substrate replaceable |
-| [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived (<!-- now:identity -->The library derives the person's anchors from the root seed today; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change, see the [direction note](spec/direction/identity.md).): the community anchor of the person's personal community, each generation bound in advance to the next (pre-rotation), per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act |
+| [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived: the community anchor of the person's personal community, each generation bound in advance to the next (pre-rotation), per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act. <!-- now:identity -->In the library the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change; see the [direction note](spec/direction/identity.md). |
 | [`spec/replication-contract.md`](spec/replication-contract.md) | **RLTP Replication Contract** — the service contract behind the Access Layer's replication port: sixteen promises over individually signed, causally linked entries — attested convergence targets, one ingest admission for every road, immutable verdicts under merge-revisable canonicality dispositions, key-blind by construction; the substrate that moves the bytes stays outside the trusted computing base |
 | [`spec/trust-layer.md`](spec/trust-layer.md) | **RLTP Trust Layer** — what a person reveals to a contact and how far it travels: trust classes, stars, anchor mappings (`anchor-mapping@4` with `self-card@2`), the rotation of the community anchor (`anchor-rotation@2`), the profile, continuity, introductions, and the audience discipline the other layers build on |
 | [`spec/personhood-predicates.md`](spec/personhood-predicates.md) | **RLTP Personhood Predicates** — verifier-relative witnessing predicates over encounter credentials: what "a human vouched for a human" can and cannot prove |
@@ -128,8 +127,11 @@ The texts under [`spec/`](spec/) are frozen at the version named below and are n
 | [Succession](spec/succession.md) | 0.2.0-draft | Parked; direction changed ([direction](spec/direction/identity.md)) | not reconciled |
 <!-- spec-status:end -->
 
-The Encounter Layer's ceremony `encounter-scan` is superseded by
-`shared-connect`. <!-- now:encounter-ceremony:long -->The Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:encounter-ceremony --> The identity model is
+<!-- now:encounter-ceremony:long -->
+`encounter-scan`, the ceremony of the Encounter Layer, is superseded: the Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+<!-- /now:encounter-ceremony -->
+
+The identity model is
 planned to change; the [direction note](spec/direction/identity.md) says
 how. <!-- now:direction-identity:long -->The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.<!-- /now:direction-identity -->
 
@@ -210,8 +212,7 @@ Copyright 2026 Anton Tranelis and trust-protocol contributors.
 
 - **Library:** [`@real-life/trust-protocol`](https://www.npmjs.com/package/@real-life/trust-protocol),
   published with provenance from its tag: one person's device as
-  a holder, with encounters, trust, continuity, introductions, groups,
-  messages and the block.
+  a holder; <!-- now:library-acts -->its acts and the parts of each specification it implements are listed in [`lib/README.md`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md) and in the [status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json).<!-- /now:library-acts -->
 - **Simulators:** [`simulator/`](simulator/) and the workbench
   [`apps/gesamtsimulator/`](apps/gesamtsimulator/), both on the real
   library.
