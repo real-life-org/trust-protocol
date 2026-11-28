@@ -6,7 +6,6 @@
 > | Part | Status | Note |
 > |---|---|---|
 > | §4.2, §4.4, §4.6, §5, §5a, §6.1, §6.2 Acknowledgements, registry, carried document, sealed envelope, carrier port, sender status, receive stages | built |  |
-> | §6.2 A document whose processing ends in a discard | built differently: lib/src/receive.ts (header) | Known differences: the library ends it with its own disposition `discarded`; Delivery §6.2 names none for it. |
 > | Incoming documents of the Trust Layer's types under a block | not built | Their treatment waits for the Trust Layer's next text (Message Tasks rule 6240); an outgoing introduction toward or through a blocked relationship is refused. |
 > | Transport adapters beyond the VTI mediator adapter | not built |  |
 > | Whether the app's transport matches the text | not verified |  |

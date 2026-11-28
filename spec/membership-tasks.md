@@ -5,9 +5,9 @@
 >
 > | Part | Status | Note |
 > |---|---|---|
-> | §3.1, §3.5 Invite, prelude | partly built | Known differences: an explicit abort of an invitation is not built. |
-> | §3.4 `membership-evidence/0.2` | partly built | Built: the relay and the vouches it carries. Known differences: where rule 3750 keeps a document pending as `incomplete(missing: group-state)`, the library refuses it as `failed`; surfacing a candidacy (rule 3765) is not built. |
-> | §3.2 `membership-accept/0.2` | partly built | Built: the accept, with the inviter keeping to the time bound of rule 3282. Known differences: an admission prompt after that bound is not built. |
+> | §3.1, §3.5 Invite, prelude | built |  |
+> | §3.4 `membership-evidence/0.2` | partly built | Built: the handlers that receive and relay the evidence and its vouches. Known differences: the test reaches the outgoing relay only through a group state set by hand to a vouch threshold of 2, since founding allows a threshold of 1 only and a rule change is not built; where rule 3750 keeps a document pending as `incomplete(missing: group-state)`, the library refuses it as `failed`; surfacing a candidacy (rule 3765) is not built. |
+> | §3.2 `membership-accept/0.2` | partly built | Built: the accept, with the inviter keeping to the time bound of rule 3282. Known differences: the holder always signs `candidacy: false`, where rule 3250 provides for both signed decisions; an admission prompt after the bound of rule 3282 is not built. |
 > | §3.3 `access-operation/0.1` | built differently: lib/README.md (Versions: membership) | Known differences: the library sends its own `x-membership-welcome/0.1` and the new member fetches the log; stated in the text's own status section, not a row in lib/DEVIATIONS.md. |
 <!-- spec-status:end -->
 

@@ -169,3 +169,12 @@ test('a page the change touched only inside generated places stays pending for a
   assert.deepEqual(pendingPages(root, ['spec/status.json', file], { statements: ['group-conflicts'], touched: ['spec/status.json'] }).map((p) => p.file), [file])
   assert.deepEqual(pendingPages(root, ['spec/status.json', file], { statements: ['group-conflicts'], touched: ['spec/status.json', file] }), [])
 })
+
+test('specs names an entry of spec/status.json, not just a file under spec/', () => {
+  const root = repo({ 'understand/a.md': page('[access-layer]'), 'understand/b.md': page('[trust-layer]'), 'understand/c.md': page('[direction/identity]') })
+  writeFileSync(join(root, 'spec/status.json'), JSON.stringify({ documents: [{ file: 'access-layer.md' }] }))
+  const errors = checkDeclarations(root)
+  assert.ok(errors.some((e) => e.file.endsWith('b.md') && e.msg.includes('no entry in spec/status.json')))
+  assert.ok(errors.some((e) => e.file.endsWith('c.md') && e.msg.includes('no specification')))
+  assert.ok(!errors.some((e) => e.file.endsWith('a.md')))
+})

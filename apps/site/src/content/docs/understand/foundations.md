@@ -203,8 +203,8 @@ In the frozen specification texts, every RLTP message is a Trust Task
 document of a private, versioned
 type under `https://real-life.org/trust-tasks/spec/`, with in-band
 `issuer` and `recipient` anchors and no `expiresAt`. An unknown type
-is rejected, never silently ignored. The app's ceremony uses public
-Trust Task types instead; see [Credentials we issue](#credentials-we-issue) above.
+is rejected, never silently ignored. For the app's ceremony, see
+[Credentials we issue](#credentials-we-issue) above.
 
 | Type | Registered in | Purpose |
 |---|---|---|

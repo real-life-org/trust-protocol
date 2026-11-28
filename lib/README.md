@@ -30,7 +30,7 @@ npm i @real-life/trust-protocol
 `createHolder` is one person's device: its state behind the human acts, the
 delivery channel's three calls and the views an app reads.
 
-One person has one identity, derived from one root seed. A second device or a second app of the
+One person has one identity; with `seedKeys` it is derived from one root seed. A second device or a second app of the
 same person cannot yet hold that identity: two stores over one root seed hold two states that
 never reconcile, so never give the same root seed to a second store, at the same time or later.
 Closing a holder and opening a new one over the same store and seed is the normal reopening.

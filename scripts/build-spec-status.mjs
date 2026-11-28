@@ -240,6 +240,13 @@ export function checkStatus(root, status) {
     if (d.textDigest && d.textDigest !== digest) errors.push(`${where}: the frozen text has changed (textDigest ${d.textDigest}, the file below its status block is ${digest})`)
     const version = text.match(/^- \*\*Version:\*\*\s*(\S+)/m)?.[1]
     if (version !== d.version) errors.push(`${where}: version ${d.version}, header says ${version}`)
+    // a count the state names ("one part built differently, two in part") is the count of the parts
+    const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }
+    for (const [re, status] of [[/\b(one|two|three|four|five|six) parts? built differently\b/, 'built-differently'], [/\b(one|two|three|four|five|six) in part\b/, 'partly-built']]) {
+      const m = d.state?.match(re)
+      const n = (d.parts ?? []).filter((p) => p.status === status).length
+      if (m && WORDS[m[1]] !== n) errors.push(`${where}: the state says ${m[0]}, the parts have ${n}`)
+    }
     const date = text.match(/^- \*\*Date:\*\*\s*(\S+)/m)?.[1]
     if (date && date !== d.date) errors.push(`${where}: date ${d.date}, header says ${date}`)
     if (d.direction !== undefined) { const why = fileProblem(root, `spec/${d.direction}`, 'spec/direction/'); if (why) errors.push(`${where}: direction ${d.direction} ${why}`) }
@@ -379,6 +386,8 @@ export function outsideGenerated(text, file) {
   const box = BOX[mdx ? 'mdx' : 'md']
   const bb = out.indexOf(box.begin), be = out.indexOf(box.end)
   if (bb !== -1 && be > bb) out = out.slice(0, bb).replace(/\n+$/, '\n') + out.slice(be + box.end.length).replace(/^\n+/, '\n')
+  // the space after the frontmatter and the imports, where a box goes, counts the same however wide
+  out = out.replace(/^(---\n[\s\S]*?\n---)\n+/, '$1\n\n').replace(/(\nimport [^\n]*)\n+(?!import )/g, '$1\n\n')
   const b = out.indexOf(BEGIN), e = out.indexOf(END)
   if (b !== -1 && e > b) out = out.slice(0, b + BEGIN.length) + out.slice(e)
   return out
@@ -460,6 +469,26 @@ export function boxPages(root) {
   return out
 }
 
+// Pages that carry a box although they get none: no specs, or a named exception.
+export function strayBoxes(root) {
+  const pages = new Set(boxPages(root).map((p) => p.file))
+  const out = []
+  const walk = (dir) => {
+    const full = join(root, dir)
+    if (!existsSync(full)) return
+    for (const e of readdirSync(full, { withFileTypes: true })) {
+      const file = `${dir}/${e.name}`
+      if (e.isDirectory()) { walk(file); continue }
+      if (!/\.mdx?$/.test(e.name) || pages.has(file)) continue
+      const t = readFileSync(join(root, file), 'utf8')
+      if (t.includes('spec-box:begin') || t.includes(':::note[Design and status]')) out.push(file)
+    }
+  }
+  walk(`${DOCS}/understand`)
+  walk(`${DOCS}/reference`)
+  return out.sort()
+}
+
 const lowerFirst = (t) => t.charAt(0).toLowerCase() + t.slice(1)
 
 export function renderBox(specs, status, file) {
@@ -510,6 +539,8 @@ export function placeBox(text, box, file) {
 export function generate(root, status) {
   const files = statementFiles(root)
   const errors = [...checkStatus(root, status), ...checkStatements(root, status, files)]
+  for (const file of strayBoxes(root)) errors.push(`${file}: a box on a page that gets none (no specs, or a named exception)`)
+  for (const { file, specs } of boxPages(root)) for (const name of specs) if (!status.documents.some((d) => d.file === `${name}.md`)) errors.push(`${file}: specs names ${name}, which has no entry in spec/status.json`)
   const current = new Map()
   const before = new Map()
   const text = (file) => {

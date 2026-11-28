@@ -319,3 +319,40 @@ test('a statement left behind with a line break in it is still found', () => {
   const root = repo({ 'page.md': 'Design. The library runs a membership log replicated\namong the members, with founding.\n\nx <!-- now:groups --><!-- /now:groups -->\n' })
   assert.ok(checkStatements(root, { statements: long }, ['page.md']).some((e) => e.includes('the statement groups stands without its markers')))
 })
+
+test('a count in the state is the count of the parts', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
+  const statuses = { ...STATUSES, 'partly-built': '' }
+  const parts = [{ sections: ['2'], title: 'x', status: 'partly-built', note: 'n', evidence: ['lib/src/x.ts'] }]
+  assert.ok(checkStatus(root, { statuses, documents: [doc({ state: 'Mostly built; two in part', parts })] }).some((e) => e.includes('the state says two in part, the parts have 1')))
+  assert.ok(!checkStatus(root, { statuses, documents: [doc({ state: 'Mostly built; one in part', parts })] }).some((e) => e.includes('the state says')))
+})
+
+test('a box on a page that gets none, and specs naming no entry, fail', async () => {
+  const { strayBoxes, BOX } = await import('./build-spec-status.mjs')
+  const D = 'apps/site/src/content/docs'
+  const root = repo({
+    'spec/a-layer.md': SPEC, 'spec/direction/identity.md': '# n\n', 'lib/DEVIATIONS.md': '',
+    'README.md': `x <!-- now:groups --><!-- /now:groups -->\n\n${BEGIN}\n${END}\n`,
+    'apps/site/src/content/docs/reference/specifications.md': `---\ntitle: S\nspecs: []\n---\n\n${BEGIN}\n${END}\n`,
+    [`${D}/understand/none.md`]: `---\ntitle: N\nspecs: []\n---\n\n${BOX.md.begin}\n:::note[Design and status]\nold\n:::\n${BOX.md.end}\n\nText.\n`,
+    [`${D}/understand/odd.md`]: '---\ntitle: O\nspecs: [b-layer]\n---\n\nText.\n',
+    'spec/b-layer.md': '# b\n',
+  })
+  assert.deepEqual(strayBoxes(root), [`${D}/understand/none.md`])
+  const { errors } = generate(root, { statuses: STATUSES, statements: STMTS, documents: [doc()] })
+  assert.ok(errors.some((e) => e.includes('none.md: a box on a page that gets none')))
+  assert.ok(errors.some((e) => e.includes('odd.md: specs names b-layer, which has no entry')))
+})
+
+test('setting a box is no edit of a person, whatever the space after the frontmatter or the imports', async () => {
+  const { renderBox, placeBox, outsideGenerated } = await import('./build-spec-status.mjs')
+  const box = renderBox(['a-layer'], { documents: [doc()] }, 'p.md')
+  for (const page of ['---\ntitle: P\nspecs: [a-layer]\n---\nFirst paragraph.\n', '---\ntitle: P\nspecs: [a-layer]\n---\n\n\nFirst paragraph.\n']) {
+    assert.equal(outsideGenerated(placeBox(page, box, 'p.md').text, 'p.md'), outsideGenerated(page, 'p.md'))
+  }
+  const mdxBox = renderBox(['a-layer'], { documents: [doc()] }, 'p.mdx')
+  for (const page of ["---\ntitle: P\nspecs: [a-layer]\n---\nimport X from './x'\nText.\n", "---\ntitle: P\nspecs: [a-layer]\n---\n\nimport X from './x'\n\n\nText.\n"]) {
+    assert.equal(outsideGenerated(placeBox(page, mdxBox, 'p.mdx').text, 'p.mdx'), outsideGenerated(page, 'p.mdx'))
+  }
+})

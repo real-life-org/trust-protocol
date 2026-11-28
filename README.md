@@ -161,8 +161,8 @@ Graph work where the two effort meet:
   accept `u`/`z` per W3C CID 1.0.
 - **Proofs:** embedded `DataIntegrityProof` with `eddsa-jcs-2022` — no
   RDF processing, offline-verifiable.
-- **Messages:** RLTP delivery documents are private Trust Task
-  specifications (framework 0.6.0, §6.5), named `https://real-life.org/trust-tasks/spec/<slug>/<version>`.
+- **Messages:** the delivery documents the frozen specification texts
+  register are private Trust Task specifications (framework 0.6.0, §6.5), named `https://real-life.org/trust-tasks/spec/<slug>/<version>`.
 - **Roles:** in DTGWG terms the Web of Trust app is a *PNM* (Personal
   Network Manager): local-first, keys on the device, no hosted agent
   (VTA) required, interoperable through Trust Tasks.

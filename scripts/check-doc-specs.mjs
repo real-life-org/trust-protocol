@@ -74,13 +74,17 @@ const pages = (root) => {
 
 export function checkDeclarations(root) {
   const errors = []
+  // the specifications status.json knows, where it exists
+  let ids = null
+  try { ids = new Set(JSON.parse(readFileSync(join(root, 'spec/status.json'), 'utf8')).documents.map((d) => d.file.replace(/\.md$/, ''))) } catch { /* no status.json: the file check alone */ }
   for (const file of pages(root)) {
     const text = readFileSync(join(root, file), 'utf8')
     if (parseLibrary(text) === null) errors.push({ file, msg: 'library: must be true or false' })
     const specs = parseSpecs(text)
     if (!specs) { errors.push({ file, msg: 'no specs: in the frontmatter (use [] for a page that rests on no specification)' }); continue }
     for (const s of specs) {
-      if (!existsSync(join(root, 'spec', `${s}.md`))) errors.push({ file, msg: `specs names ${s}, which is no specification in spec/` })
+      if (!/^[a-z0-9-]+$/.test(s) || !existsSync(join(root, 'spec', `${s}.md`))) errors.push({ file, msg: `specs names ${s}, which is no specification in spec/` })
+      else if (ids && !ids.has(s)) errors.push({ file, msg: `specs names ${s}, which has no entry in spec/status.json` })
     }
   }
   return errors
