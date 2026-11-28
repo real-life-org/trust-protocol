@@ -64,7 +64,13 @@ Spec: [Encounter Layer §5.3](https://github.com/real-life-org/trust-protocol/bl
 
 ## One scan
 
-The [ceremony](term:Ceremony) of this version needs one scan.
+The [ceremony](term:Ceremony) of the Encounter Layer, `encounter-scan`,
+needs one scan. The Web of Trust app connects people with `shared-connect`
+instead, defined in
+[`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies)
+and described for the library in [Implement](/get-started/implement/); no
+specification text describes it yet
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 1. B shows a card with challenge *c<sub>B</sub>*.
 2. A scans it, creates a sent card with a fresh challenge

@@ -8,14 +8,19 @@ New to RLTP? Start with [Foundations](/understand/foundations/) and the
 [Encounter primer](/understand/encounter/); they explain the concepts the
 specifications assume.
 
+Each document opens with a status block that says which of its parts are
+built, built differently, not built or superseded; all of them are
+collected in [`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json). Where a text and
+the library disagree, the library holds.
+
 The specifications are written for implementers and reviewers: English,
 BCP 14 normative language, every document with Security and Privacy
 Considerations. They are dense. This order keeps the dependencies in view.
 
 | # | Document | What it settles |
 |---|---|---|
-| 1 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | How two people verify each other and keep the record of it: the [ceremony](term:Ceremony), [contact cards](term:ContactCard), [challenges](term:Challenge), [encounter credentials](term:EncounterCredential), [edges](term:Edge). |
-| 2 | [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) | One root seed, every identity derived: per-relationship [pair anchors](term:PairAnchor), per-group [member anchors](term:MemberAnchor), service identities. |
+| 1 | [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) | How two people verify each other and keep the record of it: the [ceremony](term:Ceremony) `encounter-scan` (the app uses `shared-connect` instead, defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies)), [contact cards](term:ContactCard), [challenges](term:Challenge), [encounter credentials](term:EncounterCredential), [edges](term:Edge). |
+| 2 | [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) | One root seed, every identity derived: per-relationship [pair anchors](term:PairAnchor), per-group [member anchors](term:MemberAnchor), service identities. This is how the library works today; the model is planned to change ([direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md)). |
 | 3 | [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md) | How documents travel: private Trust Task types, the sealed envelope, staged dispositions, delivery promises. |
 | 4 | [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) | How a group holds shared authority: the [authority log](term:AuthorityLog), [policies](term:Policy) as decision rules, [epochs](term:Epoch) that make revocation real. |
 | 5 | [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) | How membership changes travel: [invitation](term:Invite), explicit consent, the admitting operation and its [welcome](term:Welcome). |
@@ -31,11 +36,14 @@ recovering a person's anchor through several people, parked as a draft.
 
 ## How the documents are made
 
-Every document converges through an adversarial process. Each casting is
-reviewed by an independent reviewer, every finding is triaged and answered,
-and the document is recast, never patched. A layer counts as converged when
-consecutive review rounds produce no blocker-level findings. Earlier castings
-are kept unchanged in [`spec/archive/`](https://github.com/real-life-org/trust-protocol/tree/main/spec/archive).
+The protocol is designed in test benches and in the library. A change of
+behaviour lands in the library with its vectors and flows; the
+specification text follows from what runs, one flow at a time. Until then
+the texts under `spec/` stay as they are, apart from their status block,
+and where a text and the library disagree, the library holds. Earlier
+versions are kept unchanged in
+[`spec/archive/`](https://github.com/real-life-org/trust-protocol/tree/main/spec/archive)
+as history, not as the current state.
 
 Feedback is welcome as an [issue](https://github.com/real-life-org/trust-protocol/issues).
 Disagreement, counterexamples and "your Security Considerations missed X" are

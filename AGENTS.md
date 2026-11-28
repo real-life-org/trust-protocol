@@ -21,9 +21,8 @@ It holds four things:
 - the **site** <https://trust-protocol.real-life.org> under `apps/site/`,
   which publishes the normative files and the simulators unchanged.
 
-The specification text is drafted and reviewed elsewhere and arrives here
-when a casting is ready to be public. The library, the simulators, and the
-site are developed here.
+The library, the simulators, and the site are developed here; how the
+specification changes is stated below.
 
 Nothing in this repository is a deployed service, and nothing here
 targets or probes systems the authors do not own. The one place that
@@ -75,8 +74,10 @@ and fixed in the specification and the library.
 ## Repository Layout
 
 ```text
-spec/          the layer specifications and task-type registrations;
-               spec/archive/ keeps every earlier casting unchanged
+spec/          the layer specifications and task-type registrations, frozen;
+               spec/status.json says what holds, part by part;
+               spec/direction/ holds direction notes (not built, not
+               normative); spec/archive/ keeps earlier versions unchanged
 schemas/       normative JSON Schemas for every wire artifact
 contexts/      the pinned RLTP JSON-LD context (and the DTG context)
 vectors/       deterministic test vectors (implementations MUST reproduce
@@ -133,7 +134,9 @@ This runs the script tests, the companion pin check, the check of links
 into spec sections and of the castings the READMEs name
 (`scripts/check-doc-refs.mjs`), the `specs:` declarations of the site
 pages (`scripts/check-doc-specs.mjs`), the check of this file and `CLAUDE.md`
-against the repository (`scripts/check-agents-md.mjs`),
+against the repository (`scripts/check-agents-md.mjs`), the check of
+`spec/status.json` and of the places generated from it
+(`scripts/build-spec-status.mjs --check`),
 the schema and vector validation, the reading of the Trust Tasks TF's
 shared proof vectors (`conformance/tf-proof-vectors.mjs` over
 `vectors/tf-proof/`), the freshness of the generated
@@ -141,8 +144,9 @@ shared proof vectors (`conformance/tf-proof-vectors.mjs` over
 `--check` mode: each committed vector must be reproduced byte for byte.
 
 Where the library knowingly reads a specification against its text, the
-reading is a row in `lib/DEVIATIONS.md` with the issue that asks the next
-casting to settle it; `lib/test/deviations.test.mjs` ties rows and
+reading is a row in `lib/DEVIATIONS.md` with the issue that asks for the
+text to settle it, and `spec/status.json` names the row at the document
+it concerns; `lib/test/deviations.test.mjs` ties rows and
 `DEVIATION <id>` markers in `lib/src/` together, and
 `scripts/check-deviations-issues.mjs` (CI) fails once such an issue is
 closed while its row still stands.
@@ -174,30 +178,32 @@ rm -rf apps/gesamtsimulator/lib && cp -r simulator/lib apps/gesamtsimulator/lib
 
 CI (`.github/workflows/validate.yml`) runs the check steps above.
 
-## When a Casting Lands
+## How the specification changes
 
-A new casting of a specification arrives as one pull request. Besides the
-specification text, schemas, vectors, and library, that pull request
-updates everything that describes the specification:
+The protocol is designed in test benches and in the library. A change of
+behaviour changes the library with its vectors and flows, and the pages
+that describe it, in the same pull request. The texts under `spec/*.md`
+are frozen: do not edit them, apart from the status block at their top,
+which `node scripts/build-spec-status.mjs` writes from `spec/status.json`
+together with the status section of `README.md` and the document table of
+the site. What holds is in `spec/status.json`; change it there and
+regenerate. Where a text and the library disagree, the library with its
+vectors and flows holds until the text is brought up to date. Never cite
+`spec/archive/` as the current state.
 
-1. **Companion pins** in the other specifications. `npm run validate`
-   warns on stale pins.
-2. **Status line** in `README.md` and the versions named in
-   `lib/README.md`. `npm run validate` fails on a README that names an
-   old casting and warns on a library README that lags one.
-3. **Pages under `apps/site/src/content/docs/`**: every link into a
-   renamed or renumbered section, and every statement the casting made
-   untrue. `npm run validate` fails on a link into a section that no
-   longer exists, here and in the term register. Each page names the
-   specifications it rests on in its `specs:` frontmatter; the
-   `docs-follow` workflow (`.github/workflows/docs-follow.yml`) fails a
-   pull request that edits one of them until the pages are updated or a
-   person has read them and labelled the pull request `docs-checked`.
-   Read the `understand/` pages that cover the layer; the links alone
-   prove nothing about the text.
-4. **Term register** `terms/rltp.skos.jsonld` for terms the casting adds,
-   renames, or removes; the glossary follows from it.
-5. **This file and `CLAUDE.md`** when the casting adds a directory, a
+A change also updates, where it touches them:
+
+1. **Pages under `apps/site/src/content/docs/`.** `npm run validate` fails
+   on a link into a section that no longer exists, here and in the term
+   register. Each page names the specifications it rests on in its
+   `specs:` frontmatter; the `docs-follow` workflow
+   (`.github/workflows/docs-follow.yml`) fails a pull request that edits
+   one of them until the pages are updated or a person has read them and
+   labelled the pull request `docs-checked`. The links alone prove nothing
+   about the text.
+2. **Term register** `terms/rltp.skos.jsonld` for terms added, renamed, or
+   removed; the glossary follows from it.
+3. **This file and `CLAUDE.md`** when the change adds a directory, a
    script, a check, or a workflow. `npm run validate` fails when a
    directory is missing from the layout above, or when a path or an
    `npm run` script named here does not exist.
@@ -231,19 +237,12 @@ lists of exports and modules, so those lists exist once.
   network at runtime. The identifiers under `https://real-life.org/rltp/v1`
   and `https://real-life.org/trust-tasks/` exist for documentation and
   distribution, not as runtime infrastructure.
-- **Drafts are castings.** A new version is a complete re-write answering
-  an adversarial review round; earlier castings are archived unchanged
-  under `spec/archive/`. A document's `Status of This Document` section
-  states its maturity honestly.
-- **Specification, schemas, vectors, and library move together.** A change
-  to normative behaviour keeps all four aligned in one pull request, with
-  the simulator freeze refrozen.
 - **Releases.** A tag `lib-v<version>` whose version matches
   `lib/package.json` publishes the library with npm provenance
   (`.github/workflows/release.yml`). The tag is pushed by a human.
 - **Site pages state the current protocol, not its history.** No "since
   casting 0.30", no "previously", no "earlier generation". Explaining how
-  documents converge, as `get-started/read-the-spec.md` does, is content
+  the documents change, as `get-started/read-the-spec.md` does, is content
   and stays. A heading names its content, the first sentence states a
   fact, no promotional language.
 - **Dependencies** are updated by Renovate under the shared preset of the

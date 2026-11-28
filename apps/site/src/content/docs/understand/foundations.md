@@ -19,9 +19,10 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Identifiers
 
-A person keeps one secret, a BIP-39 mnemonic with the English
-wordlist. Every identity is derived from its seed, one **[anchor](term:Anchor)** per
-context:
+In the published Identity Layer, a person keeps one secret, a BIP-39
+mnemonic with the English wordlist, and every identity is derived from its
+seed, one **[anchor](term:Anchor)** per context. The library works this way
+today; the model is planned to change (see the end of this section):
 
 | Context | Label | DTG scope |
 |---|---|---|
@@ -68,6 +69,14 @@ synchronized state; with a copy of it, everything returns. A lost
 mnemonic is final, unless the person has set up succession:
 recovering an anchor through several trusted people is specified
 separately and currently parked.
+
+This model is planned to change: an identifier that keeps its name across
+a key change, a main device with linked devices, keys generated rather
+than derived from the words, and guardians who help restore the same
+identity. None of it is built. The
+[identity direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md) says how, and
+[`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json) says which parts of the
+Identity Layer hold today.
 
 Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md) ·
 [Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md) (parked)
