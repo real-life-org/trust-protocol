@@ -34,6 +34,8 @@ const linkOrigin = (v) => {
         return undefined;
     return u.origin === v ? v : undefined;
 };
+/** the messaging identity of an act: `.A` left out only where the input says `assertion: false` */
+const messagingDid = (m, relays, assertion) => assertion === false ? sc.peer2Of(m.ed, m.x, relays, { assertion: false }) : sc.peer2Of(m.ed, m.x, relays);
 const isRefusal = (x) => !!x && typeof x === 'object' && x.ok === false;
 /** the nonce the messaging identity derives from: the inviter's handle, the responder's own challenge */
 const nonceB64Of = (e) => e.role === 'inviter' ? e.id : e.flow.challenge;
@@ -163,7 +165,7 @@ const showDef = {
         const id16 = ctx.entropy.bytes('challenge', 16);
         const id = sc.challengeOf16(id16);
         const m = await ctx.keys.sharedConnectMessaging(id16);
-        const did = sc.peer2Of(m.ed, m.x, relays);
+        const did = messagingDid(m, relays, input?.assertion);
         const nowS = Math.floor(ctx.when / 1000);
         const cap = channel === 'sent' ? sc.MAX_EXP_LINK_S : sc.MAX_EXP_CODE_S;
         const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap);
@@ -245,7 +247,7 @@ const proposeDef = {
         const ch16 = ctx.entropy.bytes('challenge', 16);
         const challenge = sc.challengeOf16(ch16);
         const m = await ctx.keys.sharedConnectMessaging(ch16);
-        const did = sc.peer2Of(m.ed, m.x, relays);
+        const did = messagingDid(m, relays, input.assertion);
         const name = typeof input.name === 'string' && input.name.length ? input.name : null;
         const party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) };
         const R = new Responder(party, read.link, challenge, channel, flowOpts(ctx, input.carrier));
@@ -305,6 +307,8 @@ const receiveDef = {
         return applyStep(state, p, when);
     },
 };
+// ── the offline path: the back-code ────────────────────────────────────
+const acceptTaken = (e) => { const a = e.flow.accept; return a !== null && a !== undefined; };
 const backDef = {
     human: true,
     async prepare(ctx, input) {
@@ -313,6 +317,10 @@ const backDef = {
             return no('enactment-unknown');
         if (e.status !== 'open')
             return no('enactment-closed');
+        // the inviter's acceptance is taken: the proposal is decided, the code is no longer needed, and the contact
+        // comes from the inviter's card in its issue step. Not shown, nor shown again
+        if (acceptTaken(e))
+            return no('not-pending');
         const party = await partyOf(ctx, e);
         if (!party)
             return no('keys-missing');
@@ -350,6 +358,9 @@ const backDef = {
         const e = state.sharedConnect.enactments[p.id];
         if (!e)
             return no('enactment-unknown');
+        // the acceptance may have committed after the preparation: named as such, before the generic `concurrent`
+        if (acceptTaken(e))
+            return no('not-pending');
         if (jcs(e.flow) !== p.before)
             return no('concurrent');
         if (e.status !== 'open')
@@ -448,6 +459,14 @@ export function sharedConnectModule() {
         deadlines: (state) => Object.values(state.sharedConnect.enactments).map(leavesAt).filter((d) => d !== null),
     });
 }
+/** see `SharedConnectView.relayed` */
+function relayedOf(e) {
+    const read = e.role === 'responder' ? e.flow.linkRelayed : undefined;
+    if (typeof read === 'boolean')
+        return read;
+    const p = sc.parsePeer2(e.link.from);
+    return p ? p.relays.length > 0 : null;
+}
 export function sharedConnectView(state) {
     return Object.values(state.sharedConnect.enactments).sort((a, b) => a.openedAt - b.openedAt).map((e) => {
         const f = e.flow;
@@ -457,6 +476,7 @@ export function sharedConnectView(state) {
             nonce: nonceB64Of(e),
             accepted: f.accept !== null && f.accept !== undefined,
             backShown: e.role === 'responder' && f.backShown === true,
+            relayed: relayedOf(e),
             theirDid: e.role === 'inviter' ? f.propose?.issuer ?? null : e.link.from,
             theirPair: e.theirPair, name: e.role === 'inviter' ? (f.propose?.payload?.reason ?? null) : e.link.label,
             channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,

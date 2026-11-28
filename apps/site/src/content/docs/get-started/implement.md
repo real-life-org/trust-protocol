@@ -92,7 +92,9 @@ every document the carrier delivers for it goes to `sharedConnectReceive`
 with its TSP sender; the inviter confirms the proposal as a prompt. Without
 a carrier the two codes carry each side's card. `sharedConnectBack` gives
 the responder's proposal as a code to show back, and the responder's contact
-opens with it, from the card in the link it scanned. `sharedConnectReadBack`
+opens with it, from the card in the link it scanned; once the inviter's
+acceptance has arrived the code is refused, and the contact comes from the
+card in the inviter's issue step. `sharedConnectReadBack`
 takes that code on the inviter's side and opens the confirmation; the
 inviter's contact opens when the person accepts. The documents follow when
 a carrier is there. Where

@@ -273,8 +273,9 @@ export class Responder extends Machine {
         if (restore && restore.role !== 'responder')
             throw new Error('not a responder snapshot');
         const l = typeof link.from === 'object' ? { from: link.from.did, id: link.id, exp: link.exp, label: link.label ?? null } : link;
-        const card = typeof link.from === 'object' ? link.card : undefined;
-        super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}), ...(card ? { codeCard: card } : {}) }, o);
+        const read = typeof link.from === 'object' ? link : undefined;
+        const card = read?.card;
+        super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}), ...(card ? { codeCard: card } : {}), ...(read ? { linkRelayed: read.from.relays.length > 0 } : {}) }, o);
     }
     /** the inviter's card from the link, or null */
     get codeCard() { return this.s.codeCard ?? null; }
