@@ -30,9 +30,9 @@ person cannot yet hold it: two stores over one root seed hold two states
 that never reconcile, so an app never gives the same root seed to a second
 store, at the same time or later. Closing a holder and opening a new one over
 the same store and seed is the normal reopening.
-Multiple devices of one identity come with the next Trust Layer casting.
-Until then an app without access to the person's identity creates its own,
-and the contacts made under it stay with it.
+The library does not synchronize holder state between devices or apps. An
+app without access to the person's identity creates its own, and the contacts
+made under it stay with it.
 
 ```ts
 import { createHolder, seedKeys } from '@real-life/trust-protocol'
