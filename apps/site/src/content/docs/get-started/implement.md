@@ -1,7 +1,7 @@
 ---
 title: Implement
 description: The library on npm, the test vectors, and the conformance runner.
-specs: [encounter-layer]
+specs: [encounter-layer, identity-layer]
 library: true
 ---
 
@@ -23,9 +23,9 @@ the minimum; which runtimes are tested is in the
 
 ## One device, one holder
 
-`createHolder` is one person's device. The app passes a store and the keys
-derived from the person's root seed; the holder keeps its state behind the
-human acts.
+`createHolder` is one person's device. The app passes a store and a
+`KeyProvider` (in the example below `seedKeys`, which derives the keys from
+the person's root seed); the holder keeps its state behind the human acts.
 
 One person has one identity. A second device or a second app of the same
 person cannot yet hold it: two stores over one root seed hold two states

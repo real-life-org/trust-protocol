@@ -20,8 +20,8 @@
         "required": ["short", "evidence"],
         "additionalProperties": false,
         "properties": {
-          "short": { "$ref": "#/$defs/text" },
-          "long": { "$ref": "#/$defs/text" },
+          "short": { "$ref": "#/$defs/line" },
+          "long": { "$ref": "#/$defs/line" },
           "evidence": { "$ref": "#/$defs/evidence" }
         }
       }
@@ -30,6 +30,7 @@
   },
   "$defs": {
     "text": { "type": "string", "pattern": "\\S" },
+    "line": { "$comment": "a statement can stand in a table cell: one line, no vertical bar", "type": "string", "pattern": "^[^\\n|]*\\S[^\\n|]*$" },
     "path": { "type": "string", "pattern": "^(?!/)(?!.*(^|/)\\.\\.?(/|$))[A-Za-z0-9._/-]+$" },
     "direction": { "type": "string", "pattern": "^direction/[a-z0-9-]+\\.md$" },
     "evidence": {

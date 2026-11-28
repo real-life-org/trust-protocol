@@ -46,7 +46,7 @@
       "evidence": ["lib/test/access-log.test.mjs", "lib/src/access/log.ts"]
     },
     "vouch-threshold": {
-      "short": "the library founds a group only with a vouch threshold of 1 and changes no rule afterwards.",
+      "short": "the library founds groups with `vouchThreshold` set to 1. The inviter counts toward that threshold, so admission needs no separate vouch credential. The library does not change the rule afterwards.",
       "evidence": ["lib/src/membership/holder.ts", "lib/src/access/log.ts"]
     },
     "member-remove": {
