@@ -187,9 +187,12 @@ are frozen: do not edit them, apart from the status block at their top,
 which `node scripts/build-spec-status.mjs` writes from `spec/status.json`
 together with the status section of `README.md` and the document table of
 the site. What holds is in `spec/status.json`; change it there and
-regenerate. Where a text and the library disagree, the library with its
-vectors and flows holds until the text is brought up to date. Never cite
-`spec/archive/` as the current state.
+regenerate. Statements about what the library builds today stand on
+`README.md`, the site and the direction notes only in places generated
+from the `statements` of `spec/status.json` (`<!-- now:<id> -->`); change
+them there and regenerate. Where a text and the library disagree, the
+library with its vectors and flows holds until the text is brought up to
+date. Never cite `spec/archive/` as the current state.
 
 A change also updates, where it touches them:
 

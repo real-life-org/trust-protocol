@@ -22,12 +22,7 @@ The group's identity is the digest of its founding entry, not a key
 anyone holds, so nobody owns the group or can take it over.
 
 This page explains groups as the frozen Access Layer text describes
-them. The library runs stage 1 of the group log: founding, admission by
-invitation and acceptance, and leaving, with the log exchanged along the
-invitation edges. Removal (`member.remove`), rule changes, key epochs,
-device cards and the conflict rules for removal and rule changes are not
-built
-([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+them. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, key epochs, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#3-the-authority-log)
 
@@ -43,7 +38,9 @@ together, or with every member having a say in removals. The rules for
 changing the rules are protected in the same way, so a group cannot
 lock itself out of its own constitution.
 
+<!-- now:group-rules -->
 In the library, changing the rules (`policy.change`) is not built.
+<!-- /now:group-rules -->
 
 Spec: [Access Layer §4](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#4-policy)
 
@@ -77,10 +74,9 @@ The person who was removed is told so.
 A group can also end itself. Dissolving it is one more entry in the
 log, made under the group's rules like any other.
 
-In the library today a member can leave, and the leave takes effect in
-the log at once; a leave by the last member ends the group. Removal is
-not built, and no new key epoch follows a leave or a lost device, so
-the library does not make later content unreadable to whoever left.
+<!-- now:group-leave -->
+In the library today a member can leave, and the leave takes effect in the log at once; a leave by the last member ends the group. Removal is not built, and no new key epoch follows a leave or a lost device, so the library does not make later content unreadable to whoever left.
+<!-- /now:group-leave -->
 
 Spec: [Access Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#54-leave-pending-exit-and-dissolve) ·
 [§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)
@@ -95,7 +91,9 @@ So a lost phone can be cut off without its owner leaving the group. A member who
 How the keys follow such changes, and how a device gets back in, is
 on [Group keys and replication](/understand/group-keys/).
 
+<!-- now:device-cards -->
 In the library, device cards are not built: one device per person.
+<!-- /now:device-cards -->
 
 Spec: [Access Layer §5.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity)
 
@@ -112,10 +110,9 @@ rules made at the same time as a removal. The group then shows this
 openly and waits until a member writes a rule change that takes both
 sides into account.
 
-In the library, two admissions of the same person made at the same time
-both stand and make one member. A leave at the same time as an admission
-of the same person, a case these rules leave open, is read as the leave
-winning. Removals and rule changes, and their collisions, are not built.
+<!-- now:group-conflicts -->
+In the library, two admissions of the same person made at the same time both stand and make one member. A leave at the same time as an admission of the same person, a case these rules leave open, is read as the leave winning. Removals and rule changes, and their collisions, are not built.
+<!-- /now:group-conflicts -->
 
 Spec: [Access Layer §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)
 

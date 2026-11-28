@@ -21,8 +21,7 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 In the published Identity Layer, a person keeps one secret, a BIP-39
 mnemonic with the English wordlist, and every identity is derived from its
-seed, one **[anchor](term:Anchor)** per context. The library derives the
-person's anchors this way today; the model is planned to change (see the end of this section):
+seed, one **[anchor](term:Anchor)** per context. <!-- now:identity -->The library derives the person's anchors from the root seed today; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change (see the end of this section):
 
 | Context | Label | DTG scope |
 |---|---|---|
@@ -46,9 +45,7 @@ group as the bound
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
-recovery context for the person's own encrypted state; the library
-builds the carrier identity and a provisional service identity, not the
-recovery context. Without the
+recovery context for the person's own encrypted state. <!-- now:derived-identities:long -->The library builds the carrier identity and a provisional service identity ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)), not the recovery context.<!-- /now:derived-identities --> Without the
 seed, two anchors of one person cannot be linked.
 
 Each context has an Ed25519 key pair, whose public key is the anchor
@@ -67,18 +64,14 @@ and `did:peer` are not specified.
 
 In the Identity Layer text, the mnemonic restores keys, not state. Which
 groups, personas and relationships exist is a register in the person's
-encrypted, synchronized state; with a copy of it, everything returns. The
-library builds neither that recovery nor the synchronization of the
-state. The library
-opens a holder from its root seed and its saved state, and needs both:
-recovering an anchor through several trusted people is the subject of
+encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. It opens a holder from its root seed and its saved state, and needs both.<!-- /now:recovery -->
+Recovering an anchor through several trusted people is the subject of
 the Succession draft, which is parked and cannot be set up.
 
 This model is planned to change: an identifier that keeps its name across
 a key change, a main device with linked devices, keys generated rather
 than derived from the words, and guardians who help restore the same
-identity. The library has neither identifiers with a log nor linked
-devices or guardians. The
+identity. <!-- now:direction-identity:long -->The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.<!-- /now:direction-identity --> The
 [identity direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md) says how, and
 [`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json) says which parts of the
 Identity Layer hold today.
@@ -203,9 +196,12 @@ is rejected, never silently ignored.
 | `continuity-probe/0.1`, `continuity-mapping/0.1` | Trust | detect a re-encounter and chain it to the existing relationship |
 | `introduction-request/0.1`, `introduction-forward/0.1`, `introduction-reply/0.1`, `introduction-ack/0.1`, `introduction-voucher/0.1` | Trust | the five steps of introducing two people through a mutual contact |
 
-The library sends its own welcome in place of `access-operation/0.1`, and
-sends neither `key-delivery/0.1` nor `removal-notice/0.1`
-([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+<!-- now:welcome -->
+The library sends its own `x-membership-welcome/0.1` in place of `access-operation/0.1`, and the new member fetches the log ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+<!-- /now:welcome -->
+<!-- now:access-task-types -->
+The library carries the schemas of `key-delivery/0.1` and `removal-notice/0.1` but sends and receives neither: key distribution and `member.remove` are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+<!-- /now:access-task-types -->
 
 The full register, by layer, with schemas: [Trust Tasks](/reference/trust-tasks/).
 
@@ -256,13 +252,7 @@ current keys. If the group requires vouches, written `vouch(n)`, the
 newcomer needs n members who vouch for this one admission; a vouch
 never stands for a later one.
 
-This is the frozen Access Layer text. The library runs stage 1 of the group log: founding, admission by
-invitation and acceptance, and leaving, with the log exchanged along the
-invitation edges. Removal (`member.remove`), rule changes, key epochs,
-device cards and the conflict rules for removal and rule changes are not
-built
-([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)). So in the library a leave
-starts no new key epoch.
+This is the frozen Access Layer text. <!-- now:groups:long -->The library runs stage 1 of the group log: founding, admission by invitation and acceptance, and leaving, with the log exchanged along the invitation edges. Removal (`member.remove`), rule changes, key epochs, device cards and the conflict rules for removal and rule changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 Specs: [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md)
@@ -340,8 +330,7 @@ Specs: [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/
 - **Relationships never converge into a person.** Every relationship
   has its own anchor and, toward every carrier, its own principal.
 
-These points describe the design the specification texts set out. What
-runs today is in the [status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json): for groups, a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built.
+These points describe the design the specification texts set out. <!-- now:groups -->The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 More: [README of the specification repository](https://github.com/real-life-org/trust-protocol#what-is-different-about-it)
 

@@ -20,6 +20,8 @@
 //     top, which scripts/build-spec-status.mjs writes, does not count), and
 //     every specification whose entry in spec/status.json changed against
 //     the merge base, make every page that names them PENDING, and so
+//     does a changed statement of spec/status.json (its wording, not its
+//     evidence) for every page that carries it (<!-- now:<id> -->), and so
 //     does a library release for every `library: true` page, unless the
 //     same change touches that page. Pending pages fail the check, unless
 //     --checked says a person has read them and they still hold (CI passes
@@ -32,7 +34,7 @@ import { readFileSync, readdirSync, existsSync, statSync, appendFileSync } from 
 import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
-import { splitSpec } from './build-spec-status.mjs'
+import { splitSpec, statementUses } from './build-spec-status.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = 'apps/site/src/content/docs'
@@ -86,9 +88,10 @@ export function checkDeclarations(root) {
 // when the change is a release, and that the change does not touch; each
 // with the changed specifications it names and `library: true` for a page
 // a release makes pending.
-export function pendingPages(root, changedFiles, { release = false } = {}) {
+export function pendingPages(root, changedFiles, { release = false, statements = [] } = {}) {
   const changed = new Set(changedFiles.map((f) => f.match(SPEC)?.[1]).filter(Boolean))
-  if (!changed.size && !release) return []
+  const changedStatements = new Set(statements)
+  if (!changed.size && !release && !changedStatements.size) return []
   const touched = new Set(changedFiles)
   const out = []
   for (const file of pages(root)) {
@@ -96,7 +99,8 @@ export function pendingPages(root, changedFiles, { release = false } = {}) {
     const text = readFileSync(join(root, file), 'utf8')
     const specs = (parseSpecs(text) ?? []).filter((s) => changed.has(s))
     const library = release && parseLibrary(text) === true
-    if (specs.length || library) out.push(library ? { file, specs, library } : { file, specs })
+    const uses = [...new Set(statementUses(text, file).map((u) => u.id))].filter((id) => changedStatements.has(id))
+    if (specs.length || library || uses.length) out.push({ file, specs, ...(library ? { library } : {}), ...(uses.length ? { statements: uses } : {}) })
   }
   return out
 }
@@ -113,6 +117,15 @@ export function changedStatusEntries(before, after) {
   }
   const a = entries(before), b = entries(after)
   return [...new Set([...a.keys(), ...b.keys()])].filter((f) => a.get(f) !== b.get(f)).sort().map((f) => `spec/${f}`)
+}
+
+// The statements of spec/status.json whose wording differs between two
+// versions of the file (JSON text or null); evidence does not count.
+export function changedStatements(before, after) {
+  const read = (text) => { try { return JSON.parse(text ?? 'null')?.statements ?? {} } catch { return {} } }
+  const a = read(before), b = read(after)
+  const words = (s) => (s ? JSON.stringify([s.short, s.long]) : null)
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((id) => words(a[id]) !== words(b[id])).sort()
 }
 
 // Whether lib/package.json names another version at HEAD than at <since>.
@@ -148,10 +161,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const textOf = (ref, f) => { const t = show(ref, f); return t === null ? null : splitSpec(t).rest }
     const byText = diff.split('\n').filter(Boolean).filter((f) => !SPEC.test(f) || textOf(base, f) !== textOf('HEAD', f))
     const changed = [...new Set([...byText, ...changedStatusEntries(show(base, 'spec/status.json'), show('HEAD', 'spec/status.json'))])]
-    pending = pendingPages(ROOT, changed, { release: released(since) })
+    const statements = changedStatements(show(base, 'spec/status.json'), show('HEAD', 'spec/status.json'))
+    pending = pendingPages(ROOT, changed, { release: released(since), statements })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
-      const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : [])].join(', ')
+      const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : []), ...(p.statements ?? []).map((id) => `the statement ${id}`)].join(', ')
       const msg = `rests on ${what}${p.specs.length ? ' (edited by this change)' : ''}; update the page, or read it and label the pull request docs-checked`
       if (gh) console.log(`::${level} file=${p.file},line=1::${msg}`)
       console.error(`  ${checked ? 'CHECKED' : 'PENDING'} ${p.file} ${msg}`)
@@ -159,7 +173,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     if (process.env.GITHUB_STEP_SUMMARY && pending.length) {
       appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
         `### Site pages resting on what this change edits`, '',
-        ...pending.map((p) => `- [${checked ? 'x' : ' '}] \`${p.file}\` (${[...p.specs, ...(p.library ? ['library release'] : [])].join(', ')})`), '',
+        ...pending.map((p) => `- [${checked ? 'x' : ' '}] \`${p.file}\` (${[...p.specs, ...(p.library ? ['library release'] : []), ...(p.statements ?? []).map((id) => `statement ${id}`)].join(', ')})`), '',
         checked ? 'Labelled `docs-checked`: read and still true.' : 'Update these pages in this pull request, or read them and add the label `docs-checked`.', '',
       ].join('\n'))
     }

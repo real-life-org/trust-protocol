@@ -139,3 +139,20 @@ test('a changed entry in spec/status.json counts as a change of its specificatio
   assert.deepEqual(changedStatusEntries(null, status(entry('Built'), other)), ['spec/access-layer.md', 'spec/trust-layer.md'])
   assert.deepEqual(changedStatusEntries(status(entry('Built'), other), status(other)), ['spec/access-layer.md'])
 })
+
+test('a changed statement makes the pages that carry it pending; its evidence does not count', async () => {
+  const { changedStatements } = await import('./check-doc-specs.mjs')
+  const before = JSON.stringify({ statements: { groups: { short: 'A log.', evidence: ['lib/src/a.ts'] }, identity: { short: 'Seed.', evidence: ['lib/src/b.ts'] } } })
+  const after = JSON.stringify({ statements: { groups: { short: 'A log, no removal.', evidence: ['lib/src/a.ts'] }, identity: { short: 'Seed.', evidence: ['lib/src/c.ts'] } } })
+  assert.deepEqual(changedStatements(before, after), ['groups'])
+  const root = repo({
+    'understand/groups.md': page('[]').replace('Body', 'Design. <!-- now:groups -->A log.<!-- /now:groups --> Body'),
+    'understand/why.mdx': page('[]').replace('Body', 'Design. {/* now:groups */}A log.{/* /now:groups */} Body'),
+    'understand/trust.md': page('[]').replace('Body', 'x <!-- now:identity -->Seed.<!-- /now:identity --> Body'),
+  })
+  const pending = pendingPages(root, ['spec/status.json'], { statements: ['groups'] })
+  assert.deepEqual(pending.map((p) => p.file), [`${DOCS}/understand/groups.md`, `${DOCS}/understand/why.mdx`])
+  assert.deepEqual(pending[0].statements, ['groups'])
+  // a page the same change touches is not pending
+  assert.deepEqual(pendingPages(root, ['spec/status.json', `${DOCS}/understand/groups.md`], { statements: ['groups'] }).map((p) => p.file), [`${DOCS}/understand/why.mdx`])
+})

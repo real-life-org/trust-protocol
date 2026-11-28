@@ -13,11 +13,7 @@ seed, the anchors per context and the device keys, are the Identity
 layer's and are explained in [Foundations](/understand/foundations/).
 
 This page explains the key port and replication as the frozen Access
-Layer text and Replication Contract describe them. The library builds
-neither key distribution nor key state transitions such as rotation; its
-group log uses the exchange and ingest admission of Replication §4.4 and
-§7, without a registered replication adapter
-([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+Layer text and Replication Contract describe them. <!-- now:group-keys:long -->The library builds neither key distribution nor key state transitions such as rotation; its group log uses the exchange and ingest admission of Replication §4.4 and §7, without a registered replication adapter ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:group-keys -->
 
 A group has two kinds of truth. Who belongs and what is allowed is
 decided by the **[authority log](term:AuthorityLog)**: every device replays the same
@@ -51,8 +47,9 @@ member is designated to issue the rotation, so the wait is short. The
 [epoch](term:Epoch) number still exists, but only as a counter for views and
 ordering.
 
-In the library no removal, rotation or rule change starts a key state,
-because none of them is built.
+<!-- now:key-states -->
+In the library no removal, rotation or rule change starts a key state, because none of them is built.
+<!-- /now:key-states -->
 
 Spec: [Access Layer §7.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#71-transitions-and-the-retained-set) ·
 [§9.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#92-the-key-port)
@@ -79,8 +76,7 @@ Spec: [Access Layer §8](https://github.com/real-life-org/trust-protocol/blob/ma
 **linear/0.1** is the procedure the Access Layer text names for use
 today: one content key per state, delivered to each device individually,
 healed by rotation when states merge. It is simple and costs one message
-per device per change. The library founds a group under `linear/0.1`; it
-does not build the key delivery.
+per device per change. <!-- now:linear -->The library founds a group under `linear/0.1`; it does not build the key delivery.<!-- /now:linear -->
 
 **beekem/0.1** is experimental: a key tree in the style of MLS and
 Keyhive, where a change costs a path through the tree instead of a

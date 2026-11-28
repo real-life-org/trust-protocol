@@ -3,21 +3,17 @@
 **Not built, not normative, may change.** Dated 2026-11-28.
 
 This note says where the identity model of RLTP is heading. It is not a
-specification. The published library and its holder implement neither
-identifiers with a log nor linked devices, generated personal keys or
-guardians. What holds today is the library and
+specification. <!-- now:direction-identity:long -->The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.<!-- /now:direction-identity --> What holds today is the library and
 [`spec/status.json`](../status.json).
 
 ## What runs today
 
-The library's seed key provider derives a person's long-lived anchor keys
-from one root seed. Each anchor context (a relationship, a group, a persona) has its own key,
-derived from the seed and the context's label, and the context's
-identifier is a `did:key` of that key; device keys are derived per device
-within an anchor context. One holder holds one identity: two
-stores over one root seed hold two states that never reconcile, so a
-second device or a second app of the same person cannot hold that identity
-yet ([`lib/README.md`, "The holder"](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md#the-holder)).
+<!-- now:identity:long -->
+The library's seed key provider derives a person's long-lived anchor keys from one root seed. Each anchor context (a relationship, a group, a persona) has its own key, derived from the seed and the context's label, and the context's identifier is a `did:key` of that key; device keys are derived per device within an anchor context.
+<!-- /now:identity -->
+<!-- now:holder -->
+One holder holds one identity: two stores over one root seed hold two states that never reconcile, so a second device or a second app of the same person cannot hold that identity yet ([`lib/README.md`, "The holder"](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md#the-holder)).
+<!-- /now:holder -->
 
 ## Assumptions that are being retired
 
@@ -32,10 +28,7 @@ assumptions that the planned model gives up:
 - recovery requires the words, together with a copy of the person's state
   (its Section 9).
 
-For the person's anchors the library follows the first three. It
-implements neither the recovery derivation nor the recovery of a whole
-identity from the words and a copy of its state; it does implement the
-recovery of a lost carrier entry. New work should not treat these
+Of these four, <!-- now:direction-assumptions -->the library follows the first three for the person's anchors.<!-- /now:direction-assumptions --> <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. It opens a holder from its root seed and its saved state, and needs both.<!-- /now:recovery --> New work should not treat these
 assumptions as lasting.
 
 ## Where it is heading

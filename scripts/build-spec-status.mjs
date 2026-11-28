@@ -7,7 +7,12 @@
 //     the file stays byte for byte as it is;
 //   · the status section of README.md, between the same markers;
 //   · the document table of the site page
-//     apps/site/src/content/docs/reference/specifications.md, between them.
+//     apps/site/src/content/docs/reference/specifications.md, between them;
+//   · every statement about what the library builds today on README.md, the
+//     site's components and pages and spec/direction/*.md, between
+//     <!-- now:<id>[:short|:long] --> and <!-- /now:<id> --> (in MDX
+//     {/* now:<id> */} and {/* /now:<id> */}), from the entry <id> of the
+//     `statements` of status.json.
 //
 // It checks status.json first: every spec/*.md has exactly one entry and
 // every entry a file; the frozen text of each file (everything below the
@@ -18,7 +23,12 @@
 // non-empty and every path a part names (in `ref`, `target`, `source`)
 // exists; every deviation a part names is a row of lib/DEVIATIONS.md, and
 // every row is named at each document its reading names (Identity, Access,
-// …).
+// …); every part that is built, partly built or built differently names
+// `evidence`, paths in the library, the vectors or the ceremony
+// definitions that exist; every statement has a short form, at most a
+// long one besides, and existing evidence, every statement is used at
+// least once, every marker names a statement and form that exist, and
+// every begin marker has exactly one end marker before the next begin.
 //
 //   usage: node scripts/build-spec-status.mjs [--check]
 //
@@ -220,6 +230,8 @@ export function checkStatus(root, status) {
       if (!p.title) errors.push(`${where}: a part without a title`)
       if (typeof p.status !== 'string' || !Object.hasOwn(status.statuses ?? {}, p.status) || !Object.hasOwn(LABEL, p.status)) errors.push(`${pw}: unknown status ${p.status}`)
       if (p.status === 'partly-built' && !(typeof p.note === 'string' && p.note.trim())) errors.push(`${pw}: partly-built without a note saying which part`)
+      if (['built', 'partly-built', 'built-differently'].includes(p.status)) errors.push(...evidenceProblems(root, p.evidence, pw))
+      else if (p.evidence !== undefined) errors.push(...evidenceProblems(root, p.evidence, pw))
       const list = refsOf(p)
       if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
       if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)
@@ -252,6 +264,114 @@ export function checkStatus(root, status) {
   return errors
 }
 
+// ── statements about what the library builds today ──────────────────────
+
+export const EVIDENCE = /^(lib\/(src|test)\/|vectors\/|interop\/ceremonies\/|binding\/|conformance\/|schemas\/)/
+const FORMS = ['short', 'long']
+const MARKS = {
+  html: { begin: /<!-- now:([a-z0-9-]+)(?::([a-z]+))? -->/g, end: (id) => `<!-- /now:${id} -->`, stray: /<!-- \/now:([a-z0-9-]+) -->/g },
+  mdx: { begin: /\{\/\* now:([a-z0-9-]+)(?::([a-z]+))? \*\/\}/g, end: (id) => `{/* /now:${id} */}`, stray: /\{\/\* \/now:([a-z0-9-]+) \*\/\}/g },
+}
+
+// The files that may carry statements: README.md, the site's components
+// and pages, and the direction notes.
+export function statementFiles(root) {
+  const out = []
+  const walk = (dir, re) => {
+    if (!existsSync(join(root, dir))) return
+    for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`
+      if (e.isDirectory()) walk(p, re)
+      else if (re.test(e.name)) out.push(p)
+    }
+  }
+  if (existsSync(join(root, README))) out.push(README)
+  walk('apps/site/src/components', /\.astro$/)
+  walk('apps/site/src/content/docs', /\.mdx?$/)
+  walk('spec/direction', /\.md$/)
+  return out.sort()
+}
+
+// A statement as the file needs it: Markdown as written, HTML in an Astro
+// component.
+export function renderStatement(text, file) {
+  if (!file.endsWith('.astro')) return text
+  const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return esc(text).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
+}
+
+// The statements a file uses, each with its form.
+export function statementUses(text, file) {
+  const mark = MARKS[file.endsWith('.mdx') ? 'mdx' : 'html']
+  return [...text.matchAll(mark.begin)].map((m) => ({ id: m[1], form: m[2] ?? 'short' }))
+}
+
+// Fill every marked place of a file from the statements; errors for a
+// marker that names no statement or form, a begin without its end, a
+// begin inside another place, or an end without its begin.
+export function fillStatements(text, statements, file) {
+  const mark = MARKS[file.endsWith('.mdx') ? 'mdx' : 'html']
+  const errors = []
+  let out = ''
+  let at = 0
+  const begins = [...text.matchAll(mark.begin)]
+  let pairs = 0
+  for (let i = 0; i < begins.length; i++) {
+    const m = begins[i]
+    if (m.index < at) continue
+    const id = m[1], form = m[2] ?? 'short'
+    const open = m.index + m[0].length
+    const endMark = mark.end(id)
+    const end = text.indexOf(endMark, open)
+    const next = begins[i + 1]?.index ?? Infinity
+    if (end === -1 || end > next) { errors.push(`${file}: now:${id} has no end marker before the next statement`); continue }
+    pairs++
+    const st = statements[id]
+    if (!st) errors.push(`${file}: now:${id} names no statement in spec/status.json`)
+    else if (!FORMS.includes(form) || !st[form]) errors.push(`${file}: now:${id} names no form ${form}`)
+    const old = text.slice(open, end)
+    const block = old.startsWith('\n')
+    const body = st?.[form] ? renderStatement(st[form], file) : old.trim()
+    out += text.slice(at, open) + (block ? `\n${body}\n` : body)
+    at = end
+  }
+  out += text.slice(at)
+  const ends = [...text.matchAll(mark.stray)].length
+  if (ends !== pairs) errors.push(`${file}: ${ends} end markers for ${pairs} statements`)
+  return { text: out, errors }
+}
+
+export function checkStatements(root, status, files) {
+  const errors = []
+  const statements = status.statements ?? {}
+  const used = new Set()
+  for (const file of files) {
+    const text = readFileSync(join(root, file), 'utf8')
+    for (const u of statementUses(text, file)) used.add(u.id)
+    errors.push(...fillStatements(text, statements, file).errors)
+  }
+  for (const [id, st] of Object.entries(statements)) {
+    const where = `spec/status.json statement ${id}`
+    if (!/^[a-z0-9-]+$/.test(id)) errors.push(`${where}: an id is lower case letters, digits and hyphens`)
+    if (typeof st.short !== 'string' || !st.short.trim()) errors.push(`${where}: no short form`)
+    if (st.long !== undefined && (typeof st.long !== 'string' || !st.long.trim())) errors.push(`${where}: an empty long form`)
+    for (const k of Object.keys(st)) if (![...FORMS, 'evidence'].includes(k)) errors.push(`${where}: unknown field ${k}`)
+    errors.push(...evidenceProblems(root, st.evidence, where))
+    if (!used.has(id)) errors.push(`${where}: used on no page`)
+  }
+  return errors
+}
+
+function evidenceProblems(root, evidence, where) {
+  if (!Array.isArray(evidence) || !evidence.length) return [`${where}: no evidence`]
+  const errors = []
+  for (const e of evidence) {
+    if (typeof e !== 'string' || !EVIDENCE.test(e)) errors.push(`${where}: evidence ${e} is no path in the library, the vectors or the ceremony definitions`)
+    else if (!existsSync(join(root, e))) errors.push(`${where}: evidence ${e} does not exist`)
+  }
+  return errors
+}
+
 // ── command line ────────────────────────────────────────────────────────
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
@@ -262,7 +382,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   }
   const check = args.includes('--check')
   const status = JSON.parse(readFileSync(join(ROOT, 'spec/status.json'), 'utf8'))
-  const errors = checkStatus(ROOT, status)
+  const files = statementFiles(ROOT)
+  const errors = [...checkStatus(ROOT, status), ...checkStatements(ROOT, status, files)]
   const stale = []
   if (!errors.length) {
     const outputs = []
@@ -277,6 +398,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       if (next === null) errors.push(`${file}: no ${BEGIN} … ${END} markers`)
       else outputs.push([file, text, next])
     }
+    for (const file of files) {
+      const text = file === README ? (outputs.find(([f]) => f === README)?.[2] ?? readFileSync(join(ROOT, file), 'utf8')) : readFileSync(join(ROOT, file), 'utf8')
+      const before = readFileSync(join(ROOT, file), 'utf8')
+      const filled = fillStatements(text, status.statements ?? {}, file).text
+      const i = outputs.findIndex(([f]) => f === file)
+      if (i === -1) outputs.push([file, before, filled])
+      else outputs[i][2] = filled
+    }
     for (const [file, before, after] of outputs) {
       if (before === after) continue
       if (check) stale.push(file)
@@ -286,6 +415,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   for (const e of errors) console.error(`  ERROR ${e}`)
   for (const f of stale) console.error(`  STALE ${f}: run node scripts/build-spec-status.mjs`)
   const failed = errors.length + stale.length
-  console.log(failed ? `spec status: ${errors.length} error(s), ${stale.length} stale` : `spec status: ok, ${status.documents.length} documents`)
+  console.log(failed ? `spec status: ${errors.length} error(s), ${stale.length} stale` : `spec status: ok, ${status.documents.length} documents, ${Object.keys(status.statements ?? {}).length} statements`)
   process.exit(failed ? 1 : 0)
 }

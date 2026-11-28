@@ -39,9 +39,7 @@ test at festivals and community gatherings.
   has its own anchor and, toward every carrier, its own principal. A
   relay holding six of your relationships holds six relationships.
 
-These points describe the design the specification texts set out. What
-runs today in the library and the app is listed under [Status](#status):
-for groups, a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built.
+These points describe the design the specification texts set out. <!-- now:groups -->The library and the app run a membership log replicated among the members, with founding, admission and leaving; removal, rule changes, key epochs and key changes are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:groups -->
 
 ## Try it in your browser
 
@@ -92,7 +90,7 @@ live.
 | [`spec/membership-tasks.md`](spec/membership-tasks.md) | **RLTP Membership Tasks** — how membership changes travel: invitation, explicit consent (`membership-invite`, `membership-accept`, `membership-evidence`), the `access-operation` carrier narrowed to the one operation that crosses the replica boundary — the admitting `member.add` delivered to its own subject — with the admission chain (provable invitation provenance), and the welcome seal |
 | [`spec/message-tasks.md`](spec/message-tasks.md) | **RLTP Message Tasks** — direct messages between the two parties of a relationship (`message/0.1`, MAC under a directional relationship key, deniable), the completion record that keeps a message from appearing twice, and the block a holder applies to a relationship |
 | [`spec/access-layer.md`](spec/access-layer.md) | **RLTP Access Layer** — how a group holds shared authority over its membership, data, and itself: the authority log (a causally linked DAG whose genesis digest *is* the group's identity), policies as group-defined decision rules, epochs that make revocation real, chained quorum-signed authorization views toward services, and the enforcement port that keeps the replication/key-agreement substrate replaceable |
-| [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived (the library derives the person's anchors this way today; the model is planned to change, see the [direction note](spec/direction/identity.md)): the community anchor of the person's personal community, each generation bound in advance to the next (pre-rotation), per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act |
+| [`spec/identity-layer.md`](spec/identity-layer.md) | **RLTP Identity Layer** — one root seed, every identity derived (<!-- now:identity -->The library derives the person's anchors from the root seed today; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change, see the [direction note](spec/direction/identity.md).): the community anchor of the person's personal community, each generation bound in advance to the next (pre-rotation), per-relationship pair anchors, per-group member anchors, derived service identities; contexts never link without their holder's deliberate act |
 | [`spec/replication-contract.md`](spec/replication-contract.md) | **RLTP Replication Contract** — the service contract behind the Access Layer's replication port: sixteen promises over individually signed, causally linked entries — attested convergence targets, one ingest admission for every road, immutable verdicts under merge-revisable canonicality dispositions, key-blind by construction; the substrate that moves the bytes stays outside the trusted computing base |
 | [`spec/trust-layer.md`](spec/trust-layer.md) | **RLTP Trust Layer** — what a person reveals to a contact and how far it travels: trust classes, stars, anchor mappings (`anchor-mapping@4` with `self-card@2`), the rotation of the community anchor (`anchor-rotation@2`), the profile, continuity, introductions, and the audience discipline the other layers build on |
 | [`spec/personhood-predicates.md`](spec/personhood-predicates.md) | **RLTP Personhood Predicates** — verifier-relative witnessing predicates over encounter credentials: what "a human vouched for a human" can and cannot prove |
@@ -131,14 +129,9 @@ The texts under [`spec/`](spec/) are frozen at the version named below and are n
 <!-- spec-status:end -->
 
 The Encounter Layer's ceremony `encounter-scan` is superseded by
-`shared-connect`, defined in [`interop/ceremonies/`](interop/ceremonies/)
-with its vector and implemented as holder acts in the library; no
-specification text describes it yet. The Web of Trust app shows
-`shared-connect` codes
-([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555),
-[`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). The identity model is
+`shared-connect`. <!-- now:encounter-ceremony:long -->The Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:encounter-ceremony --> The identity model is
 planned to change; the [direction note](spec/direction/identity.md) says
-how. The library has neither identifiers with a log nor linked devices.
+how. <!-- now:direction-identity:long -->The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.<!-- /now:direction-identity -->
 
 What the Access Layer text sets out, in its own words: **there are no
 admins** (privileged operations are gated by group-defined policy);

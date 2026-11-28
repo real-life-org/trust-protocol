@@ -36,9 +36,7 @@ under [Credentials](/reference/credentials/).
 
 The two transmissions of the encounter ceremony `encounter-scan`
 ([Encounter §5.8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#58-the-registered-ceremony-of-this-version)),
-registered by the Delivery Contract itself. The app connects people with
-`shared-connect` instead, defined in
-[`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies).
+registered by the Delivery Contract itself. <!-- now:encounter-ceremony -->The app connects people with `shared-connect` instead, defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies).<!-- /now:encounter-ceremony -->
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
@@ -77,9 +75,7 @@ artifact; it carries its own MAC, the document carries no proof.
 
 ## Access
 
-Key material and the removal notice. The library carries both schemas but
-sends and receives neither: key distribution and `member.remove` are not
-built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+Key material and the removal notice. <!-- now:access-task-types -->The library carries the schemas of `key-delivery/0.1` and `removal-notice/0.1` but sends and receives neither: key distribution and `member.remove` are not built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:access-task-types -->
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|
@@ -92,10 +88,7 @@ The transport of membership changes: the [prelude](term:Prelude) that
 precedes an invitation, invitation, consent, the admitting operation,
 and the evidence relay. A sender issues
 `membership-evidence/0.2`; a receiver also accepts `/0.1`
-([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)).
-The library sends its own `x-membership-welcome/0.1` in place of
-`access-operation/0.1`, and the new member fetches the log
-([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+([RLTP-MT-3815](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md#34-membership-evidence02)). <!-- now:welcome -->The library sends its own `x-membership-welcome/0.1` in place of `access-operation/0.1`, and the new member fetches the log ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).<!-- /now:welcome -->
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|

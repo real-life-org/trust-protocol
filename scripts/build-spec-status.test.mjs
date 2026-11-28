@@ -3,16 +3,16 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { BEGIN, END, splitSpec, joinSpec, replaceBetween, renderSpecBlock, checkStatus, digestOf } from './build-spec-status.mjs'
+import { BEGIN, END, splitSpec, joinSpec, replaceBetween, renderSpecBlock, checkStatus, digestOf, fillStatements, checkStatements, statementUses, renderStatement } from './build-spec-status.mjs'
 
 const STATUSES = { built: '', 'built-differently': '', superseded: '', 'not-built': '' }
 const SPEC0 = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\ntext\n'
-const doc = (over = {}) => ({ file: 'a-layer.md', title: 'A', role: 'Layer 1', version: '0.1.0-draft', date: '2026-01-01', state: 'Built', lastReconciled: 'not reconciled', textDigest: digestOf(SPEC0), parts: [{ sections: ['2'], title: 'Two', status: 'built' }], note: '', ...over })
+const doc = (over = {}) => ({ file: 'a-layer.md', title: 'A', role: 'Layer 1', version: '0.1.0-draft', date: '2026-01-01', state: 'Built', lastReconciled: 'not reconciled', textDigest: digestOf(SPEC0), parts: [{ sections: ['2'], title: 'Two', status: 'built', evidence: ['lib/src/x.ts'] }], note: '', ...over })
 const SPEC = '# A\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 2. Two\n\ntext\n'
 
 function repo(files) {
   const root = mkdtempSync(join(tmpdir(), 'spec-status-'))
-  for (const [f, t] of Object.entries(files)) { mkdirSync(join(root, f, '..'), { recursive: true }); writeFileSync(join(root, f), t) }
+  for (const [f, t] of Object.entries({ 'lib/src/x.ts': '// x\n', ...files })) { mkdirSync(join(root, f, '..'), { recursive: true }); writeFileSync(join(root, f), t) }
   return root
 }
 
@@ -81,9 +81,9 @@ test('a link out of spec/ from a spec block is a repository link', () => {
 test('ref and source read a file path the same way: a missing file fails in both', () => {
   const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
   const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [
-    { title: 'x', status: 'built-differently', ref: 'lib/nonexistent.ts' },
-    { title: 'y', status: 'built', source: 'missing.md' },
-    { title: 'z', status: 'built', source: 'Status of This Document' },
+    { title: 'x', status: 'built-differently', ref: 'lib/nonexistent.ts', evidence: ['lib/src/x.ts'] },
+    { title: 'y', status: 'built', source: 'missing.md', evidence: ['lib/src/x.ts'] },
+    { title: 'z', status: 'built', source: 'Status of This Document', evidence: ['lib/src/x.ts'] },
   ] })] })
   assert.ok(errors.some((e) => e.includes('ref lib/nonexistent.ts does not exist')))
   assert.ok(errors.some((e) => e.includes('source missing.md does not exist')))
@@ -129,4 +129,54 @@ test('direction-changed needs a ref to an existing note under spec/direction/', 
   ] })] })
   assert.equal(errors.filter((e) => e.includes('direction-changed without a ref')).length, 2)
   assert.ok(!errors.some((e) => e.includes('"z"')))
+})
+
+test('a built part needs evidence: existing paths in the library, the vectors or the ceremony definitions', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'lib/DEVIATIONS.md': '' })
+  const errors = checkStatus(root, { statuses: STATUSES, documents: [doc({ parts: [
+    { sections: ['2'], title: 'none', status: 'built' },
+    { sections: ['2'], title: 'missing', status: 'built', evidence: ['lib/test/missing.test.mjs'] },
+    { sections: ['2'], title: 'prose', status: 'built', evidence: ['lib/README.md'] },
+    { sections: ['2'], title: 'fine', status: 'built', evidence: ['lib/src/x.ts'] },
+  ] })] })
+  assert.ok(errors.some((e) => e.includes('"none"') && e.includes('no evidence')))
+  assert.ok(errors.some((e) => e.includes('evidence lib/test/missing.test.mjs does not exist')))
+  assert.ok(errors.some((e) => e.includes('evidence lib/README.md is no path')))
+  assert.ok(!errors.some((e) => e.includes('"fine"')))
+})
+
+const STMTS = { groups: { short: 'The library runs a `log` ([status](https://x/s.json)).', long: 'Long form.', evidence: ['lib/src/x.ts'] } }
+
+test('a marked place is filled from its statement, inline and as a block, in Markdown, MDX and Astro', () => {
+  const md = 'Design. <!-- now:groups -->old<!-- /now:groups --> More.\n\n<!-- now:groups:long -->\nold\n<!-- /now:groups -->\n'
+  const r = fillStatements(md, STMTS, 'a.md')
+  assert.deepEqual(r.errors, [])
+  assert.equal(r.text, 'Design. <!-- now:groups -->The library runs a `log` ([status](https://x/s.json)).<!-- /now:groups --> More.\n\n<!-- now:groups:long -->\nLong form.\n<!-- /now:groups -->\n')
+  const mdx = 'Design. {/* now:groups */}{/* /now:groups */}\n'
+  assert.equal(fillStatements(mdx, STMTS, 'a.mdx').text, 'Design. {/* now:groups */}' + STMTS.groups.short + '{/* /now:groups */}\n')
+  const astro = '<p>Design. <!-- now:groups --><!-- /now:groups --></p>'
+  assert.equal(fillStatements(astro, STMTS, 'a.astro').text, '<p>Design. <!-- now:groups -->The library runs a <code>log</code> (<a href="https://x/s.json">status</a>).<!-- /now:groups --></p>')
+  assert.deepEqual(statementUses(md, 'a.md'), [{ id: 'groups', form: 'short' }, { id: 'groups', form: 'long' }])
+  assert.equal(renderStatement('a < b', 'x.astro'), 'a &lt; b')
+})
+
+test('a marker that names no statement or form, a begin without its end, a stray end, a nested begin fail', () => {
+  const errs = (t, f = 'a.md') => fillStatements(t, STMTS, f).errors
+  assert.ok(errs('x <!-- now:nope --><!-- /now:nope -->').some((e) => e.includes('now:nope names no statement')))
+  assert.ok(errs('x <!-- now:groups:medium --><!-- /now:groups -->').some((e) => e.includes('names no form medium')))
+  assert.ok(errs('x <!-- now:groups -->text').some((e) => e.includes('no end marker')))
+  assert.ok(errs('x <!-- /now:groups -->').some((e) => e.includes('1 end markers for 0 statements')))
+  assert.ok(errs('x <!-- now:groups --> <!-- now:groups --><!-- /now:groups -->').some((e) => e.includes('no end marker before the next statement')))
+  assert.ok(errs('x {/* now:groups */}', 'a.mdx').some((e) => e.includes('no end marker')))
+})
+
+test('every statement is used, has a short form, known fields and existing evidence', () => {
+  const root = repo({ 'page.md': 'x <!-- now:groups --><!-- /now:groups -->\n' })
+  const statements = { ...STMTS, unused: { short: 'S.', evidence: ['lib/src/x.ts'] }, bad: { long: 'L.', evidence: ['lib/src/none.ts'], extra: 1 } }
+  const errors = checkStatements(root, { statements }, ['page.md'])
+  assert.ok(errors.some((e) => e.includes('statement unused: used on no page')))
+  assert.ok(errors.some((e) => e.includes('statement bad: no short form')))
+  assert.ok(errors.some((e) => e.includes('statement bad: unknown field extra')))
+  assert.ok(errors.some((e) => e.includes('evidence lib/src/none.ts does not exist')))
+  assert.ok(!errors.some((e) => e.includes('statement groups')))
 })
