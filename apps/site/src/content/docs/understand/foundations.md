@@ -34,9 +34,9 @@ identifier: `pairwise` is known to one counterpart, `directed` to a
 set the holder chooses, `public` to anyone. A [pair anchor](term:PairAnchor) is
 `pairwise`; a [member anchor](term:MemberAnchor) is `directed`, because every member of
 the group can correlate it; a persona is `public`, because its
-profile is meant for everyone. Personas are specified but not yet
-built, and whether RLTP also needs personas toward a chosen set is an
-open question; today that role falls to the member anchor.
+profile is meant for everyone. <!-- now:personas -->The library derives a persona's anchor from its `persona/<name>` label; no holder act creates or uses a persona.<!-- /now:personas -->
+Whether RLTP also needs personas toward a chosen set is an open question;
+in the specification texts that role falls to the member anchor.
 The Trust Tasks framework knows no `directed`: a task type declares an
 identifier that several counterparties recognise as `public`, so the
 types whose parties are member anchors declare them `public`, with the

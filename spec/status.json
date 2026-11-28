@@ -93,6 +93,10 @@
       "long": "The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. It opens a holder from its root seed and its saved state, and needs both.",
       "evidence": ["lib/src/carrier-holder.ts","lib/src/keys-seed.ts"]
     },
+    "personas": {
+      "short": "The library derives a persona's anchor from its `persona/<name>` label; no holder act creates or uses a persona.",
+      "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs", "vectors/identity-derivation.json"]
+    },
     "direction-identity": {
       "short": "An identifier that survives a key change, linked devices and guardians are planned, not in the library.",
       "long": "The library has neither identifiers with a log nor linked devices, generated personal keys or guardians.",
