@@ -70,8 +70,7 @@ groups, personas and relationships exist is a register in the person's
 encrypted, synchronized state; with a copy of it, everything returns. The
 library builds neither that recovery nor the synchronization of the
 state. The library
-opens a holder from its root seed and its saved state. If both are lost,
-the identity is lost:
+opens a holder from its root seed and its saved state, and needs both:
 recovering an anchor through several trusted people is the subject of
 the Succession draft, which is parked and cannot be set up.
 
