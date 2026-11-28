@@ -113,7 +113,7 @@
 //     group this holder holds no state for is refused validation-failed
 //     (the refusal names 3755), where 3750 disposes it incomplete(missing:
 //     group-state), a pending disposition this engine does not have; a
-//     relayer that is not on the roster of a group this holder holds is
+//     relayer that is not on the roster of a group in phase `member` is
 //     refused validation-failed (the refusal names 3750; its key is
 //     unknown, so the document cannot be acknowledged)
 //   - the accept's candidacy is false (the decision carries only accept

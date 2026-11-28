@@ -212,8 +212,9 @@ A change also updates, where it touches them:
    (`.github/workflows/docs-follow.yml`) fails a pull request that edits
    one of them until the pages are updated or a person has read them and
    labelled the pull request `docs-checked`. A page also becomes pending
-   when a generated region on it changes while the text a person wrote
-   there stays as it was. The links alone prove nothing about the text.
+   when a generated region on it changes, or the `state` of a specification
+   it names changes in `spec/status.json` (a status block alone does not),
+   while the text a person wrote there stays as it was. The links alone prove nothing about the text.
 3. **Term register** `terms/rltp.skos.jsonld` for terms added, renamed, or
    removed; the glossary follows from it.
 4. **This file and `CLAUDE.md`** when the change adds a directory, a
