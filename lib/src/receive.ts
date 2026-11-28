@@ -29,13 +29,12 @@
 //        and hands the ack out first among the outbound
 //
 // Acks (delivery-ack/0.1) are no registered task: one common path checks
-// the form (ack.ts macAckForm), then the consistency of 4.2 against the
-// outbox — `ref` is a document this holder sent on that thread, on the
-// arrival tuple (outbox item rkid = arrival rkid), the issuer is that
-// tuple's counterpart, the referenced document's type is of the
-// designated-verifier class (a MAC ack of a signature-class document is
-// the wrong class), and the MAC verifies under the arrival tuple's ack
-// key. A valid ack marks the item delivered (late after failed) and
+// the form its proof claims (ack.ts), then the consistency of 4.2 against
+// the outbox — `ref` is a document this holder sent on that thread from
+// the arrival rkid, of the class the proof form claims, and the issuer is
+// its recipient (the arrival tuple's counterpart, or the anchor it went to
+// where no tuple carried it) — then the proof in that form (Ack class,
+// below). A valid ack marks the item delivered (late after failed) and
 // earns a terminal cache entry, no ack of its own.
 //
 // The stage-9 lock set (Delivery 6.2): the engine serializes every
@@ -80,10 +79,9 @@
 // effect-cache entry (a redelivery is evaluated afresh and meets the lower
 // bound), no ack (the delivery must not complete), no event; the completed
 // high-water mark stays. A chunk that does not authenticate is a plain
-// refusal and touches nothing. DELIVERY GAP: Delivery §6.2 names no
-// disposition for a document whose processing ends in such a discard;
-// `discarded` (both reasons) is this library's, to be registered in
-// Delivery 0.82.
+// refusal and touches nothing. Delivery 0.85 §6.2 prescribes this
+// disposition: `discarded` (RLTP-DEL-6290), with no ack (RLTP-DEL-6300)
+// and no completed-effect cache entry (RLTP-DEL-6305).
 //
 // A verified ack runs the ack handler a module registered for the
 // acknowledged item's type, in the ack's transaction (engine.ts
@@ -181,9 +179,9 @@ export const ackOutbound = (a: Readonly<SealedAck>, attempt: number): Outbound =
 /** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
  *  is a transferable signature; their acks are signed, not MACed. The
  *  `x-` slugs are this library's own experimental, unregistered forms
- *  for what the specifications leave to the application (the welcome until the Access envelope is
- *  built; the introduction offer that conveys the target designator,
- *  Trust 8.3): signed documents as well. A receiver that does not know
+ *  for the welcome it sends in place of access-operation/0.1 and for
+ *  the introduction offer that conveys the target designator, which Trust
+ *  8.3 leaves to the application: signed documents as well. A receiver that does not know
  *  them answers unknown-type (Delivery §6.2). */
 export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([
   TT + 'encounter-bundle/0.1',

@@ -1,8 +1,9 @@
 # Deviations from the specification
 
-Every place where this library knowingly reads a specification differently
-from its text is listed here, with the issue that asks the next casting to
-settle it. `test/deviations.test.mjs` checks that every `DEVIATION <id>`
+Where this library knowingly reads a specification differently from its
+text, the reading is documented in one of three places: a row here, the
+header comment of the source file, or a named test. Each row here carries
+the issue that asks for the text to settle it. `test/deviations.test.mjs` checks that every `DEVIATION <id>`
 marker in `src/` has a row here and that every row with code names a file
 that carries its marker; `scripts/check-deviations-issues.mjs` (CI) fails
 once an issue is closed while its row still stands, so a settled

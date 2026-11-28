@@ -12,8 +12,10 @@
 // Rule numbers: bare four-digit numbers are RLTP-TRU (trust-layer.md).
 //
 // Spec follow-up 14 (Trust 0.32): 6900 has the record side chain
-// "atomically with issuing its choice", and 6910 lets it choose on the
-// first match. A probe hit is no evidence of the prior relationship: it
+// "atomically with issuing its choice", and 6a.4 lets it choose freely
+// among its matches (a match report MAY inform the choice, 6910); this
+// library chooses the first match, in prior-candidate order, that is still
+// chainable and whose mapping it can prepare (below). A probe hit is no evidence of the prior relationship: it
 // proves knowledge of the prior's counterpart anchor (a photographed card,
 // a mediator who saw it in the clear) and of the fresh tuple's k_p, never
 // possession of the prior relationship key, which only mac1 proves (6970).
@@ -88,7 +90,7 @@
 // probe (6820, 6830), behind the testing module's non-human command
 // continuity.newTuple.
 //
-// Choices this file makes where note and spec leave them open:
+// Implementation choices and deviations:
 //   - the prior-candidate set is the active-head tuples of every live
 //     relationship at tuple creation, in the order their heads were
 //     created (entryOrder.heads), the fresh tuple excluded (2300, 6740)
@@ -108,11 +110,12 @@
 //     `chosen` is final once set except here, where the chosen prior was
 //     consumed by another chaining and the choice is owed again on its head
 //   - the record side chooses the first match, in prior-candidate order,
-//     whose tuple is still the active head of a live relationship, and
-//     chains on nothing yet; the non-record side reports the first such
-//     match. A match report that reaches a record side without a choice is
+//     whose tuple is still the active head of a live relationship and
+//     whose mapping it can prepare (a match whose prior relationship key
+//     or scope is not available is passed over), and chains on nothing yet. A match report that reaches a record side without a choice is
 //     chosen from where its prior is still chainable (6910), and chained
-//     with that issuance: the report is the evidence
+//     with that issuance: the report is the evidence (follow-up 14; 6920
+//     has no match report cause chaining)
 //   - a choice, a report or an alignment whose preparation fails (a key
 //     not available) leaves `continuityOut.due` and a mapping duty; the
 //     receive still commits (its ack, the assembly, the revision)
@@ -203,12 +206,12 @@
 //      active head, 6910), issuing its choice without chaining (follow-up
 //      14); A, record side of y, does the same for y. The two choices
 //      cross: A chains x on verifying C's (6900, 6220), C chains y on A's
-//   2. the reports and alignments follow: A's alignment on y reaches C,
-//      the record side of y, naming the prior it chose; its prior is in
-//      C's frozen prior-candidate set of y (6960 passes on the snapshot),
-//      but C's original tuple is no longer an active head: x took it.
+//   2. the reports and alignments follow: A's alignment on x reaches C,
+//      the record side of x, naming the prior it chose; its prior is in
+//      C's frozen prior-candidate set of x (6960 passes on the snapshot),
+//      but C's original tuple is no longer an active head: y took it.
 //      Nothing in 6.4 or 6a.4 says onto what C appends; this library
-//      refuses it (validation-failed, ref 6900), symmetrically at A for x.
+//      refuses it (validation-failed, ref 6900), symmetrically at A for y.
 //      Since follow-up 17 the refusal comes earlier, ref 6960: C's chaining
 //      of y put y in the original's place in x's candidates (and A's of x
 //      in y's), and each record side's re-choice on its own head meets a
@@ -226,8 +229,7 @@
 //      never chained. (Had C issued on x before rotating, x's earliest
 //      anchor would be the earlier generation and the segment would reach
 //      A; the divergent chains and the endless duty of step 3 remain.)
-// Each local decision follows a rule as written (6900, 6910, 6960); the
-// refusal of step 2 is this library's conservative reading, which 6900
+// The refusal of step 2 is this library's conservative reading, which 6900
 // does not state; the end state violates the progress rules 6870 and
 // 6990. What 0.32 needs to decide, either:
 //   (a) order competing chainings: one deterministic winner among fresh

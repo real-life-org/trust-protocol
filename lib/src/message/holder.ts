@@ -5,7 +5,7 @@
 // What it registers (messageModule):
 //   human acts  message.send {contactId, text, replyTo?}   a message@1 on
 //               the active head of a ready, unblocked relationship of the
-//               contact (5010–5030), its document carrying the sender
+//               contact (5010–5030), its outbox entry carrying the sender
 //               lifetime sentAt + H − P1D (5110, Delivery RLTP-DEL-7020);
 //               event message.sent {contactId, mid, digest}
 //               message.block {contactId, blocked}   sets or clears the
@@ -86,6 +86,9 @@
 //     anchor mapping) are evaluated as without a block until the Trust
 //     Layer's casting takes the change up (RLTP-MSG-6240); the views mark
 //     a blocked contact so an application shows nothing of it (6230)
+//
+// Against Delivery §3: the handler does not recompute `ceremony.enactment`
+// of a received message/0.1.
 import type { CommandDef, HolderModule, OutboundDraft, Refusal, TaskHandler } from '../engine.js'
 import type { HolderState, InboxEntry, Millis, Rates, Relationship, Tuple } from '../state.js'
 import type { JsonObject } from '../core.js'
