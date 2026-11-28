@@ -52,10 +52,25 @@ const PRECEDENCE = 'Where a specification text and the library disagree, the lib
 // ── the block in a specification ────────────────────────────────────────
 
 // A specification's text without its generated block, and the block.
+const count = (text, marker) => text.split(marker).length - 1
+
+// Exactly one begin and one end marker, in that order, or none.
+export function markerProblem(text) {
+  const b = count(text, BEGIN), e = count(text, END)
+  if (b === 0 && e === 0) return null
+  if (b !== 1 || e !== 1) return `${b} begin and ${e} end markers, not one of each`
+  if (text.indexOf(END) < text.indexOf(BEGIN)) return 'the end marker stands before the begin marker'
+  return null
+}
+
 export function splitSpec(text) {
-  if (!text.startsWith(BEGIN)) return { block: null, rest: text }
+  const problem = markerProblem(text)
+  if (problem) throw new Error(`status block: ${problem}`)
+  if (!text.startsWith(BEGIN)) {
+    if (count(text, BEGIN)) throw new Error('status block: not at the top of the file')
+    return { block: null, rest: text }
+  }
   const end = text.indexOf(END)
-  if (end === -1) throw new Error('status block has no end marker')
   let rest = text.slice(end + END.length)
   if (rest.startsWith('\n\n')) rest = rest.slice(2)
   else if (rest.startsWith('\n')) rest = rest.slice(1)
@@ -66,9 +81,9 @@ export const joinSpec = (block, rest) => `${block}\n\n${rest}`
 
 // Replace what stands between the markers in a page; null when it has none.
 export function replaceBetween(text, body) {
+  if (!count(text, BEGIN) || markerProblem(text)) return null
   const b = text.indexOf(BEGIN)
   const e = text.indexOf(END)
-  if (b === -1 || e === -1 || e < b) return null
   return `${text.slice(0, b)}${BEGIN}\n${body}\n${text.slice(e)}`
 }
 
@@ -104,12 +119,17 @@ function refs(part, from) {
   return out.join(', ')
 }
 
+export const BUILT_MEANS = '*Built* means the library implements the part; the text has not been reconciled with the library rule by rule, so single rules may differ.'
+const reconciled = (r) => r === 'not reconciled'
+  ? '**Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ.'
+  : `**Last reconciled against the library:** ${r}. ${BUILT_MEANS}`
+
 export function renderSpecBlock(doc) {
   const lines = [
     BEGIN,
     `> **Status, generated from [\`status.json\`](status.json).** This text is frozen at version ${doc.version} (${doc.date}) and is not edited. ${PRECEDENCE} The library is [\`lib/\`](${REPO}/lib/README.md). Earlier versions under [\`archive/\`](archive/) are history, not the current state.`,
     '>',
-    `> **State:** ${doc.state}. **Last reconciled against the library:** ${doc.lastReconciled}.${doc.direction ? ` **Direction:** ${link(doc.direction, doc.direction, 'spec')} (not built, not normative).` : ''}`,
+    `> **State:** ${doc.state}. ${reconciled(doc.lastReconciled)}${doc.direction ? ` **Direction:** ${link(doc.direction, doc.direction, 'spec')} (not built, not normative).` : ''}`,
     '>',
     '> | Part | Status | Note |',
     '> |---|---|---|',
@@ -126,7 +146,7 @@ export function renderSpecBlock(doc) {
 
 export function renderReadme(status) {
   return [
-    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${PRECEDENCE}`,
+    `The texts under [\`spec/\`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [\`spec/status.json\`](spec/status.json). ${BUILT_MEANS.replace('the text has', 'the texts have')} ${PRECEDENCE}`,
     '',
     '| Document | Version | State | Last reconciled |',
     '|---|---|---|---|',
@@ -185,7 +205,8 @@ export function checkStatus(root, status) {
     const where = `spec/status.json ${d.file}`
     if (!files.includes(d.file)) continue
     for (const k of ['title', 'role', 'version', 'date', 'state', 'lastReconciled', 'textDigest']) if (!d[k]) errors.push(`${where}: no ${k}`)
-    const text = splitSpec(readFileSync(join(root, 'spec', d.file), 'utf8')).rest
+    let text
+    try { text = splitSpec(readFileSync(join(root, 'spec', d.file), 'utf8')).rest } catch (err) { errors.push(`spec/${d.file}: ${err.message}`); continue }
     const digest = digestOf(text)
     if (d.textDigest && d.textDigest !== digest) errors.push(`${where}: the frozen text has changed (textDigest ${d.textDigest}, the file below its status block is ${digest})`)
     const version = text.match(/^- \*\*Version:\*\*\s*(\S+)/m)?.[1]
@@ -203,7 +224,7 @@ export function checkStatus(root, status) {
       if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
       if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)
       if (p.status === 'built-differently' && !list.length) errors.push(`${pw}: built-differently without ref`)
-      if (p.status === 'direction-changed' && !list.length) errors.push(`${pw}: direction-changed without ref`)
+      if (p.status === 'direction-changed' && !list.some((r) => typeof r === 'string' && /^direction\/[^\s]+\.md$/.test(pathIn(r)) && existsSync(join(root, 'spec', pathIn(r))))) errors.push(`${pw}: direction-changed without a ref to a direction note under spec/direction/`)
       if (p.status === 'superseded' && !p.target) errors.push(`${pw}: superseded without target`)
       for (const s of p.sections ?? []) {
         if (!new RegExp(`^#{2,6} ${esc(s)}\\.?(?:\\s|$)`, 'm').test(text)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)

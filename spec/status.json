@@ -1,7 +1,7 @@
 {
   "$comment": "What holds for each specification under spec/. The texts under spec/*.md are frozen at the casting named here and are not edited, apart from the status block at their top. scripts/build-spec-status.mjs writes that block, the status section of README.md and the document table of apps/site/src/content/docs/reference/specifications.md from this file; `npm run validate` checks them with --check, and checks each frozen text against its `textDigest`. Where a text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.",
   "statuses": {
-    "built": "implemented in the library",
+    "built": "the library implements this part; it has not been reconciled with the text rule by rule, so single rules may differ",
     "partly-built": "implemented in the library in part; the note says which part",
     "built-differently": "implemented in the library with a reading other than the text; `ref` names where the reading is stated",
     "not-built": "not implemented in the library",
@@ -63,7 +63,7 @@
       "textDigest": "sha256:ffc5423d0ec5199de5886326ac3145ce8e3c6aa7c3146d3ecaca9491886ce83f",
       "parts": [
         { "sections": ["2", "2a", "5", "6", "6b"], "title": "Deliverable set, trust classes, stars, anchor mapping, profile", "status": "built", "source": "Status of This Document; lib/README.md (modules: trust/*)" },
-        { "sections": ["6a"], "title": "Continuity", "status": "built", "note": "A rule for recognising the same two people across several devices is being modelled for the next text; the library does not implement it." },
+        { "sections": ["6a"], "title": "Continuity", "status": "partly-built", "note": "Built, for example: the continuity probe and mapping, and chaining a re-encounter into the existing relationship. Not built: two re-encounters at the same time can leave the chaining one-sided while contact exists, against rules 6870 and 6990 (test `one-sided chaining`). A rule for recognising the same two people across several devices is being modelled for the next text; the library does not implement it.", "source": "lib/test/trust-continuity.test.mjs; lib/README.md (modules: trust/continuity)" },
         { "sections": ["8"], "title": "The Introduction Act", "status": "partly-built", "note": "Built in its three roles. The requester waits for the ack and the reply until the act's expiry; the ack timeout of §8.4 (rule 8690) is not applied.", "source": "lib/src/introduction/holder.ts (header); lib/README.md (modules: introduction)" },
         { "sections": ["8.3"], "title": "The target designator", "status": "built-differently", "ref": "lib/README.md (Versions: introduction)", "note": "The mediator mints the designator, keeps its mapping and sends it to the requester in its own `x-introduction-offer/0.1`; how the requester learns it is a point the text leaves to its next version.", "source": "lib/src/introduction/holder.ts" },
         { "sections": ["9.1"], "title": "Attestation", "status": "not-built", "note": "A documented option without an artifact.", "source": "Status of This Document" },
@@ -100,11 +100,12 @@
       "role": "Layer 4, transport of membership changes",
       "version": "0.21.1-draft",
       "date": "2026-10-27",
-      "state": "Mostly built; one part built differently",
+      "state": "Mostly built; one part built differently, two in part",
       "lastReconciled": "not reconciled",
       "textDigest": "sha256:219818591096b82a2dfa33d2b3eddf71a70f2156d094bbfe8ae7065b1d55192b",
       "parts": [
-        { "sections": ["3.1", "3.4", "3.5"], "title": "Invite, evidence, prelude", "status": "built", "source": "lib/README.md (modules: membership)" },
+        { "sections": ["3.1", "3.5"], "title": "Invite, prelude", "status": "built", "source": "lib/README.md (modules: membership)" },
+        { "sections": ["3.4"], "title": "`membership-evidence/0.2`", "status": "partly-built", "note": "The relay and the vouches it carries are built. Where rule 3750 keeps a document pending as `incomplete(missing: group-state)`, the library refuses it as `failed`; surfacing a candidacy (rule 3765) is not built.", "source": "lib/src/membership/holder.ts (header); lib/test/membership-holder.test.mjs" },
         { "sections": ["3.2"], "title": "`membership-accept/0.2`", "status": "partly-built", "note": "The accept is built, and the inviter keeps to the time bound of rule 3282; an admission prompt after that bound is not built.", "source": "lib/README.md (Versions: membership)" },
         { "sections": ["3.3"], "title": "`access-operation/0.1`", "status": "built-differently", "ref": "lib/README.md (Versions: membership)", "note": "The library sends its own `x-membership-welcome/0.1` and the new member fetches the log. Stated in the text's own status section; not a row in lib/DEVIATIONS.md." }
       ],

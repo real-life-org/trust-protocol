@@ -109,3 +109,24 @@ test('a cited section must be a heading of its own, not the prefix of a child he
   assert.ok(errors.some((e) => e.includes('has no section 2')) && !errors.some((e) => e.includes('has no section 2.1')))
   assert.ok(!errors.some((e) => e.includes('has no section 3')))
 })
+
+test('exactly one begin and one end marker: a second block on a page or in a spec fails', () => {
+  const page = `x\n${BEGIN}\nold\n${END}\ny\n`
+  assert.equal(replaceBetween(page + `${BEGIN}\nConverged: all documents\n${END}\n`, 'new'), null)
+  assert.equal(replaceBetween(`x\n${END}\n${BEGIN}\n`, 'new'), null)
+  const spec = joinSpec(renderSpecBlock(doc()), SPEC) + `\n${BEGIN}\nConverged\n${END}\n`
+  const root = repo({ 'spec/a-layer.md': spec, 'lib/DEVIATIONS.md': '' })
+  assert.ok(checkStatus(root, { statuses: STATUSES, documents: [doc()] }).some((e) => e.includes('2 begin and 2 end markers')))
+})
+
+test('direction-changed needs a ref to an existing note under spec/direction/', () => {
+  const root = repo({ 'spec/a-layer.md': SPEC, 'spec/direction/identity.md': '# note\n', 'lib/DEVIATIONS.md': '' })
+  const statuses = { ...STATUSES, 'direction-changed': '' }
+  const errors = checkStatus(root, { statuses, documents: [doc({ parts: [
+    { title: 'x', status: 'direction-changed', ref: 'typo' },
+    { title: 'y', status: 'direction-changed', ref: 'direction/missing.md' },
+    { title: 'z', status: 'direction-changed', ref: 'direction/identity.md' },
+  ] })] })
+  assert.equal(errors.filter((e) => e.includes('direction-changed without a ref')).length, 2)
+  assert.ok(!errors.some((e) => e.includes('"z"')))
+})
