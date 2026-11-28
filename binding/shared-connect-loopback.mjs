@@ -4,6 +4,12 @@
 // inside the registry's TSP binding envelope, exactly as the inviter CLI does
 // it over the mediator. No network. Exit 0 when the enactment completes and
 // every check passes.
+//
+//   node binding/shared-connect-loopback.mjs [--no-assertion | --no-assertion-inviter | --no-assertion-responder]
+//
+// The flags leave out the assertionMethod segment of the messaging peer DID
+// (`.V.E` instead of `.V.A.E` for did:peer:2; no `assertionMethod` in the
+// did:peer:4 document) on both sides, the inviter's only, or the responder's only.
 import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import { pack as tspPack, packInvite, packAccept, unpack as tspUnpack, decodeEnvelope } from "@openvtc/vti-tsp-js";
 import { sharedConnect as sc } from "../lib/dist/index.js";
@@ -11,11 +17,16 @@ import { hkdf, rand, b64uOf } from "../lib/dist/crypto.js";
 
 const te = new TextEncoder(), td = new TextDecoder();
 const ENVELOPE = "https://trusttasks.org/binding/tsp/0.1/envelope";
+const flag = (name) => process.argv.slice(2).includes(name);
+const ASSERTION = {
+  inviter: !(flag("--no-assertion") || flag("--no-assertion-inviter")),
+  responder: !(flag("--no-assertion") || flag("--no-assertion-responder")),
+};
 const ok = (cond, what) => { if (!cond) { console.error("FAIL " + what); process.exit(1); } console.log("ok   " + what); };
 
-async function side (name, relays, method) {
+async function side (name, relays, method, assertion = true) {
   const msgSeed = rand(32), pairSeed = rand(32);
-  const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, name, method);
+  const party = await sc.partyFromSeeds(msgSeed, pairSeed, relays, name, method, { assertion });
   const edSecret = await hkdf(msgSeed, "shared-connect/messaging/ed25519");
   const xSecret = await hkdf(msgSeed, "shared-connect/messaging/x25519");
   ok(Buffer.compare(ed25519.getPublicKey(edSecret), party.peer.ed) === 0 && Buffer.compare(x25519.getPublicKey(xSecret), party.peer.x) === 0, `${name}: wire keys equal the library's`);
@@ -36,9 +47,9 @@ async function hop (from, to, body) {
 
 const MED = "did:webvh:QmUTUkdHgppiciLpqcxkTi6Pbc9VuZzWXvH4L2Dk2dY2WL:mediator.web-of-trust.de";
 async function run (method) {
-console.log(`\n── ${method} ──`);
-const inviter = await side("Anton", [{ kind: "tsp-mediator", address: MED }], method);
-const responder = await side("Keyring", [{ kind: "tsp-mediator", address: MED }], method);
+console.log(`\n── ${method} (assertionMethod: inviter ${ASSERTION.inviter ? "yes" : "no"}, responder ${ASSERTION.responder ? "yes" : "no"}) ──`);
+const inviter = await side("Anton", [{ kind: "tsp-mediator", address: MED }], method, ASSERTION.inviter);
+const responder = await side("Keyring", [{ kind: "tsp-mediator", address: MED }], method, ASSERTION.responder);
 
 // the link
 const id = sc.challengeOf16(rand(16));
