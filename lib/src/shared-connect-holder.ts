@@ -129,6 +129,18 @@ function openFor (s: HolderState, e: SharedConnectEnactment, theirPair: string, 
   return { ...opened, contactId: ids.contactId }
 }
 
+/** The counterpart's card a completed enactment opens from: the card in its issue, else the card a code carried
+ *  (the inviter's in the link, the responder's in the back-code), verified when it was read. The machines keep
+ *  the two in agreement (the acceptance names the link card's pair, an issue's card has the code card's key
+ *  agreement key), so the fallback only matters for an issue without a card, which a counterpart may send; the
+ *  code card is taken only for the pair the enactment names. Null where neither is there. */
+function openingCardOf (after: Snap, theirPair: string | null): { keyAgreement: unknown } | null {
+  const issued = sc.cardOfIssue(after.issueTheirs)
+  if (issued) return issued
+  const code = after.codeCard as { anchor: unknown, keyAgreement: unknown } | undefined
+  return code && theirPair !== null && code.anchor === theirPair ? code : null
+}
+
 function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extra: EventDraft[] = []): Applied | Refusal {
   const e = state.sharedConnect.enactments[step.id]
   if (!e) return no('enactment-unknown')
@@ -164,8 +176,8 @@ function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extr
       case 'refused': events.push({ type: 'sharedconnect.refused', id: e.id, docType: ev.type, reason: ev.reason }); break
       case 'complete': {
         status = 'complete'
-        // design (d): the counterpart's card in its issue opens the relationship; without one the credentials stay here
-        const card = sc.cardOfIssue(after.issueTheirs)
+        // design (d): the counterpart's card opens the relationship; without one the credentials stay here
+        const card = openingCardOf(after, theirPair)
         if (card && theirPair && contactId === null) {
           const opened = openFor(s, e, theirPair, card.keyAgreement as string, when)
           if (opened) { s = opened.state; contactId = opened.contactId; events.push(...(opened.events ?? [])); duties = opened.duties ?? [] }

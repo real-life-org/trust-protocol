@@ -66,6 +66,18 @@ function openFor(s, e, theirPair, keyAgreement, when) {
     const opened = openTuple(s, { relId: ids.relId, contactId: ids.contactId, ownPairLabel: e.label, counterpartAnchor: theirPair, counterpartKeyAgreement: keyAgreement, provenance: { kind: 'ceremony' } }, rkid, when);
     return { ...opened, contactId: ids.contactId };
 }
+/** The counterpart's card a completed enactment opens from: the card in its issue, else the card a code carried
+ *  (the inviter's in the link, the responder's in the back-code), verified when it was read. The machines keep
+ *  the two in agreement (the acceptance names the link card's pair, an issue's card has the code card's key
+ *  agreement key), so the fallback only matters for an issue without a card, which a counterpart may send; the
+ *  code card is taken only for the pair the enactment names. Null where neither is there. */
+function openingCardOf(after, theirPair) {
+    const issued = sc.cardOfIssue(after.issueTheirs);
+    if (issued)
+        return issued;
+    const code = after.codeCard;
+    return code && theirPair !== null && code.anchor === theirPair ? code : null;
+}
 function applyStep(state, step, when, extra = []) {
     const e = state.sharedConnect.enactments[step.id];
     if (!e)
@@ -116,8 +128,8 @@ function applyStep(state, step, when, extra = []) {
                 break;
             case 'complete': {
                 status = 'complete';
-                // design (d): the counterpart's card in its issue opens the relationship; without one the credentials stay here
-                const card = sc.cardOfIssue(after.issueTheirs);
+                // design (d): the counterpart's card opens the relationship; without one the credentials stay here
+                const card = openingCardOf(after, theirPair);
                 if (card && theirPair && contactId === null) {
                     const opened = openFor(s, e, theirPair, card.keyAgreement, when);
                     if (opened) {
