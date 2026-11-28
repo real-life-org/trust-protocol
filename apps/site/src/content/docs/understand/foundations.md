@@ -4,6 +4,31 @@ description: What a protocol developer needs to know before reading the RLTP spe
 specs: [encounter-layer, identity-layer, delivery-contract, access-layer, membership-tasks, message-tasks, trust-layer, personhood-predicates, replication-contract, adapter-vti-mediator, succession]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+<details>
+<summary>The 11 specifications this page rests on</summary>
+
+- [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md): built; its ceremony is superseded in the app
+- [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/identity-layer.md): partly built; direction changed
+- [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md): built, with the gaps listed
+- [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md): mostly not built; the stage-1 group log is built
+- [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md): mostly built; one part built differently, two in part
+- [Message Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md): partly built
+- [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md): built, with the gaps listed
+- [Personhood Predicates](https://github.com/real-life-org/trust-protocol/blob/main/spec/personhood-predicates.md): not verified
+- [Replication Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/replication-contract.md): not built as a contract; parts used by the group log
+- [VTI mediator adapter](https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md): built, with one deviation and the gaps listed
+- [Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md): parked; direction changed
+
+</details>
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 ## What RLTP is
 
 RLTP records encounters: two people meet, each verifies the other,

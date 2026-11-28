@@ -1,3 +1,18 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.31.0-draft (2026-10-14) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Built, with the gaps listed. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §2, §2a, §5, §6, §6b Deliverable set, trust classes, stars, anchor mapping, profile | built | Rule 2300 (the frozen prior-candidate set): see §6a. |
+> | §6a Continuity | partly built | Differences: the header of [`lib/src/trust/continuity.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/trust/continuity.ts), test `one-sided chaining` in [`trust-continuity.test.mjs`](https://github.com/real-life-org/trust-protocol/blob/main/lib/test/trust-continuity.test.mjs). |
+> | §8 The Introduction Act | partly built | Built in its three roles. Differences: the header of [`lib/src/introduction/holder.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/introduction/holder.ts). |
+> | §8.3 The target designator | built differently | Differences: the header of [`lib/src/introduction/holder.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/introduction/holder.ts). |
+> | §9.1 Attestation | not built | A documented option without an artifact. |
+> | Several devices of one person | not built | One writer per holder. |
+<!-- /spec-status -->
+
 # RLTP Trust Layer
 
 **Real Life Trust Protocol — Layer 3: Trust**

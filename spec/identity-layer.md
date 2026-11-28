@@ -1,3 +1,26 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.55.0-draft (2026-10-27) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Partly built; direction changed. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test. **Direction:** [direction/identity.md](direction/identity.md) (not built, not normative).
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §5.1, §5.2 Labeled contexts and key agreement material | built |  |
+> | §5.3 Recovery context | not built |  |
+> | §5.4 The community anchor's generations and rotation | built |  |
+> | §5.5 Device keys | partly built | Built: the derivation of device keys and the registration and revocation of device names (tests `addDevice`, `revokeDevice`). Not built: several devices of one person; one writer per holder stands in for them. |
+> | §6 Context labels | built differently | Differences: [D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D5](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D6](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md). |
+> | §7 Derived service identities | not built | The founder's service identity in a genesis is provisional (D3). |
+> | §7a.1, §7a.2, §7a.4 The carrier-relationship identity: its derivation | built |  |
+> | §7a.5 Prohibitions | partly built | Checked: another nonce or another carrier gives another principal (test `carrierContext`). Not verified: that no social artifact names the principal. |
+> | §7a.3 The relationship's carrier nonce and its register entry | partly built | Built: the registration at generation 1, the refusal of a nonce the register holds, the recovery flow's move to a fresh nonce through the `rotateTo` callback its caller supplies. Not built: a change of the nonce by the holder on its own, and bringing it together across devices. |
+> | §4 The mnemonic and the root IKM | direction changed: [direction/identity.md](direction/identity.md) | The library's seed key provider derives the person's anchor keys from one root seed today. |
+> | §8 Anchors as did:key | direction changed: [direction/identity.md](direction/identity.md) |  |
+> | §9 Recovery | direction changed: [direction/identity.md](direction/identity.md) | Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state. |
+>
+> With the default key provider `seedKeys`, the library derives the person's anchors from one root seed, and one holder holds one identity (lib/README.md, "The holder"). The planned model gives up the words as the required root, the identifier as its key, derived keys, and recovery that requires the words; it is not built.
+<!-- /spec-status -->
+
 # RLTP Identity Layer
 
 **Real Life Trust Protocol — Layer 1: Identity**

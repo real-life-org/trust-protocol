@@ -4,6 +4,26 @@ description: "Every registered task type, by layer: where it is registered, what
 specs: [access-layer, delivery-contract, encounter-layer, membership-tasks, message-tasks, trust-layer]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+<details>
+<summary>The 6 specifications this page rests on</summary>
+
+- [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md): mostly not built; the stage-1 group log is built
+- [Delivery Contract](https://github.com/real-life-org/trust-protocol/blob/main/spec/delivery-contract.md): built, with the gaps listed
+- [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md): built; its ceremony is superseded in the app
+- [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md): mostly built; one part built differently, two in part
+- [Message Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/message-tasks.md): partly built
+- [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md): built, with the gaps listed
+
+</details>
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 Every RLTP message is a Trust Task document of a private, versioned
 type, named `https://real-life.org/trust-tasks/spec/<slug>/<version>`,
 with in-band `issuer` and `recipient` anchors and no `expiresAt`. An

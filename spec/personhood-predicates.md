@@ -1,3 +1,15 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.12.0-draft (2026-08-13) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Not verified. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | Predicates P1 to P3 and the result model | not verified | Not checked against any implementation; lib/README.md names no module for it. |
+>
+> Written against Encounter 0.22 and Access 0.25.
+<!-- /spec-status -->
+
 # RLTP Personhood Predicates
 
 **Real Life Trust Protocol — verifier-relative witnessing predicates**

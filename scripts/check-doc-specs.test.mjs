@@ -41,22 +41,41 @@ test('every page declares its specs, and only specifications that exist', () => 
   ])
 })
 
-test('a changed specification makes its pages pending unless the same change touches them', () => {
-  const root = repo({
-    'understand/groups.md': page('[access-layer, membership-tasks]'),
-    'understand/group-keys.md': page('[access-layer]'),
-    'understand/trust.md': page('[trust-layer]'),
-    'get-started/try-it.md': page('[]'),
-  })
-  const changed = ['spec/access-layer.md', `${DOCS}/understand/group-keys.md`, 'spec/archive/access-layer-0.56.md', 'README.md']
-  assert.deepEqual(pendingPages(root, changed), [
+// ── what makes a page pending ───────────────────────────────────────────
+
+const block = (body) => `<!-- spec-status -->\n${body}\n<!-- /spec-status -->\n\n`
+const boxed = (specs, box, text) => page(specs).replace('Body', `<!-- spec-box -->\n${box}\n<!-- /spec-box -->\n\n${text}`)
+
+test('a specification whose frozen text changed makes its pages pending; a change of its status block alone does not', () => {
+  const root = repo({ 'understand/groups.md': page('[access-layer]'), 'understand/trust.md': page('[trust-layer]') })
+  writeFileSync(join(root, 'spec/access-layer.md'), `${block('new status')}# access-layer\nedited\n`)
+  writeFileSync(join(root, 'spec/trust-layer.md'), `${block('new status')}# trust-layer\n`)
+  const base = new Map([['spec/access-layer.md', `${block('old status')}# access-layer\n`], ['spec/trust-layer.md', `${block('old status')}# trust-layer\n`]])
+  assert.deepEqual(pendingPages(root, ['spec/access-layer.md', 'spec/trust-layer.md', 'spec/archive/access-layer-0.56.md'], { base }), [
     { file: `${DOCS}/understand/groups.md`, specs: ['access-layer'] },
   ])
 })
 
-test('no changed specification, nothing pending', () => {
-  const root = repo({ 'understand/groups.md': page('[access-layer]') })
-  assert.deepEqual(pendingPages(root, ['spec/archive/access-layer-0.56.md', `${DOCS}/understand/groups.md`]), [])
+test('a specification whose state in spec/status.json changed makes its pages pending', () => {
+  const root = repo({ 'get-started/try-it.md': page('[access-layer, trust-layer]'), 'understand/trust.md': page('[trust-layer]') })
+  writeFileSync(join(root, 'spec/status.json'), JSON.stringify({ documents: [{ file: 'access-layer.md', state: 'Built' }, { file: 'trust-layer.md', state: 'Built' }] }))
+  assert.deepEqual(pendingPages(root, ['spec/status.json'], { baseStates: new Map([['trust-layer.md', 'Built']]) }), [
+    { file: `${DOCS}/get-started/try-it.md`, specs: ['access-layer'] },
+  ])
+})
+
+test('a page whose generated regions changed while its handwritten text stayed is pending', () => {
+  const file = `${DOCS}/understand/groups.md`
+  const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text.') })
+  const base = new Map([[file, boxed('[access-layer]', 'Access: not built.', 'Text.')]])
+  assert.deepEqual(pendingPages(root, ['spec/status.json', file], { base }), [{ file, specs: [], generated: true }])
+})
+
+test('a page edited by hand, or new, is not pending, whatever else changed', () => {
+  const file = `${DOCS}/understand/groups.md`
+  const root = repo({ 'understand/groups.md': boxed('[access-layer]', 'Access: built.', 'Text, edited.'), 'understand/new.md': page('[access-layer]') })
+  const base = new Map([[file, boxed('[access-layer]', 'Access: not built.', 'Text.')], [`${DOCS}/understand/new.md`, null]])
+  assert.deepEqual(pendingPages(root, ['spec/access-layer.md', file, `${DOCS}/understand/new.md`], { base }), [])
 })
 
 // ── the repository's own mapping ────────────────────────────────────────

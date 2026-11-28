@@ -13,10 +13,9 @@ anyone else's systems.
 
 ## Claude-specific notes
 
-- Specification text is drafted and reviewed in the private workshop and
-  arrives here when a casting is ready to be public. The library under
-  `lib/`, the simulators, and the site are developed here, as pull requests
-  against `main`.
+- The texts under `spec/*.md` are frozen; follow "How the specification
+  changes" in `AGENTS.md`. The library under `lib/`, the simulators, and
+  the site are developed here, as pull requests against `main`.
 - Before proposing any change, run `npm run validate` from the root; for
   changes under `lib/` also the library steps listed in `AGENTS.md`
   under "Checks". `node scripts/validate.mjs` alone is not the full

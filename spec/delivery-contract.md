@@ -1,3 +1,16 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.85.2-draft (2026-10-28) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Built, with the gaps listed. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §4.2, §4.4, §4.6, §5, §5a, §6.1, §6.2 Acknowledgements, registry, carried document, sealed envelope, carrier port, sender status, receive stages | built |  |
+> | Incoming documents of the Trust Layer's types under a block | not built | Their treatment waits for the Trust Layer's next text (Message Tasks rule 6240); an outgoing introduction toward or through a blocked relationship is refused. |
+> | Transport adapters beyond the VTI mediator adapter | not built |  |
+> | Whether the app's transport matches the text | not verified |  |
+<!-- /spec-status -->
+
 # RLTP Delivery Contract
 
 **Real Life Trust Protocol — service contract: Delivery**

@@ -4,6 +4,25 @@ description: "The three verifiable credentials of the protocol: who issues each 
 specs: [access-layer, encounter-layer, membership-tasks, succession, trust-layer]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+<details>
+<summary>The 5 specifications this page rests on</summary>
+
+- [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md): mostly not built; the stage-1 group log is built
+- [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md): built; its ceremony is superseded in the app
+- [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md): mostly built; one part built differently, two in part
+- [Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md): parked; direction changed
+- [Trust Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md): built, with the gaps listed
+
+</details>
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 RLTP uses three verifiable credentials: the encounter credential, the
 invitation credential and the admission vouch. All three are W3C
 Verifiable Credentials 2.0 in the form of the

@@ -1,3 +1,16 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.21.1-draft (2026-10-27) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Mostly built; one part built differently, two in part. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §3.1, §3.5 Invite, prelude | built |  |
+> | §3.4 `membership-evidence/0.2` | partly built | Built: the handlers that receive and relay the evidence and its vouches; the test reaches the outgoing relay through a group state set by hand. Not built: surfacing a candidacy (rule 3765). Differences: the header of [`lib/src/membership/holder.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/membership/holder.ts), test `membership: a vouch rule of two` in [`membership-holder.test.mjs`](https://github.com/real-life-org/trust-protocol/blob/main/lib/test/membership-holder.test.mjs), test `membership: evidence from an anchor that is not on the roster` in [`membership-holder.test.mjs`](https://github.com/real-life-org/trust-protocol/blob/main/lib/test/membership-holder.test.mjs). |
+> | §3.2 `membership-accept/0.2` | partly built | Built: the accept. Not built: an admission prompt after the bound of rule 3282. Differences: the header of [`lib/src/membership/holder.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/membership/holder.ts). |
+> | §3.3 `access-operation/0.1` | built differently | Differences: the header of [`lib/src/membership/holder.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/membership/holder.ts). |
+<!-- /spec-status -->
+
 # RLTP Membership Tasks
 
 **Real Life Trust Protocol — task types: Membership**

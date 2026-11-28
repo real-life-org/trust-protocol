@@ -1,3 +1,24 @@
+<!-- spec-status -->
+> **Status, generated from [`status.json`](status.json).** This text is frozen at version 0.58.0-draft (2026-10-25) and is not edited. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date. The library is [`lib/`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md). Earlier versions under [`archive/`](archive/) are history, not the current state.
+>
+> **State:** Mostly not built; the stage-1 group log is built. **Not reconciled** with the library rule by rule, so in the table below *built* means the library implements the part and single rules may differ; differences are documented where a note points, in `lib/DEVIATIONS.md`, in the header of the source file or in the named test.
+>
+> | Part | Status | Note |
+> |---|---|---|
+> | §3.3, §3.4, §3.5 Stage-1 authority log: envelope, genesis, `member.add`, `member.leave`, materialization | built differently | Differences: [D1](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D2](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D4](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), the header of [`lib/src/access/log.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/access/log.ts). |
+> | §3.4.1, §5.2 The founder's service identity in the genesis (rule 3265) | built differently | Differences: [D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md). |
+> | §3.6 The conflict matrix | partly built | Built, for example: concurrent admissions of one subject (rule 3475). Not built: the rows for removal, policy change and transitions. Differences: [D2](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), [D4](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), the header of [`lib/src/access/log.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/access/log.ts), test `concurrent admissions of one subject` in [`access-log.test.mjs`](https://github.com/real-life-org/trust-protocol/blob/main/lib/test/access-log.test.mjs). |
+> | §5.1 Device cards | not built |  |
+> | §5.3 Admission and removal | partly built | Built: admission. Not built: `member.remove`. |
+> | §5.4 Leave, pending exit, dissolve | partly built | Not built: the pending exit and its transition. Differences: [D2](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md), the header of [`lib/src/access/log.ts`](https://github.com/real-life-org/trust-protocol/blob/main/lib/src/access/log.ts). |
+> | §7, §9.4 Key distribution and epoch transitions | not built | Beyond the genesis commitment. |
+> | §7.3 Authorization views | not built |  |
+> | `policy.change` | not built |  |
+> | §10 Task types `key-delivery/0.1` and `removal-notice/0.1` | not built | Schemas and generated wire types only; no holder sends or receives them. |
+>
+> The group log of today runs; the future substrate of groups is under review. The text's own status section still says the authority rules are not yet in the library.
+<!-- /spec-status -->
+
 # RLTP Access Layer
 
 **Real Life Trust Protocol — Layer 4: Access**

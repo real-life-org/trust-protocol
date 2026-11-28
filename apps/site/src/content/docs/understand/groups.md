@@ -4,6 +4,17 @@ description: How a group holds itself together. A place on its members' devices,
 specs: [access-layer, membership-tasks]
 ---
 
+<!-- spec-box -->
+:::note[Design and status]
+This page describes the frozen specification texts. What the library builds of them:
+
+- [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md): mostly not built; the stage-1 group log is built
+- [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md): mostly built; one part built differently, two in part
+
+Details, part by part: [Specifications](/reference/specifications/) and the status block at the top of each document.
+:::
+<!-- /spec-box -->
+
 ## What a group is
 
 A [group](term:Group) is a place its [members](term:Member) hold together: an encrypted document on
