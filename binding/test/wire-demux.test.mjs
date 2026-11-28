@@ -37,31 +37,31 @@ const sha256hex = async (text) => Buffer.from(await crypto.subtle.digest("SHA-25
 // the real timer, taken before a test mocks the global one (t.mock.timers)
 const realSetTimeout = globalThis.setTimeout;
 
-/** What every client session does, observed in the session class the wire's
- *  session extends (test only, nothing is changed): `acks` records each
- *  ack the moment it STARTS (before it is packed and sent), `framesDone`
- *  each received frame once the session's handling of it, the wire's
- *  dispatch included, has ended; `isOpenReads` each read of isOpen.
- *  Entries name the session's client DID. */
-const sessions = { acks: [], framesDone: [], isOpenReads: [] };
-{
-  const { _ackReceived, _onFrame } = MediatorSession.prototype;
-  // isOpenReads: every read of a session's isOpen, with what it said
-  const isOpen = Object.getOwnPropertyDescriptor(MediatorSession.prototype, "isOpen");
-  Object.defineProperty(MediatorSession.prototype, "isOpen", {
-    configurable: true,
-    get() { const open = isOpen.get.call(this); sessions.isOpenReads.push({ did: this.client.did, open }); return open; },
-  });
-  MediatorSession.prototype._ackReceived = function (ids) {
-    sessions.acks.push({ did: this.client.did, ids: [...ids] });
-    return _ackReceived.call(this, ids);
-  };
-  MediatorSession.prototype._onFrame = async function (data) {
-    try { return await _onFrame.call(this, data); } finally { sessions.framesDone.push({ did: this.client.did, data }); }
-  };
+/** Observes, for one test, what the client sessions do, in the session
+ *  class the wire's session extends (nothing is changed; the original
+ *  property descriptors are restored when the test ends): `acks` records
+ *  each ack the moment it STARTS (before it is packed and sent),
+ *  `framesDone` each received frame once the session's handling of it,
+ *  the wire's dispatch included, has ended, `isOpenReads` each read of
+ *  isOpen. Entries name the session's client DID. */
+function observeSessions(ctx) {
+  const seen = { acks: [], framesDone: [], isOpenReads: [] };
+  const proto = MediatorSession.prototype;
+  const saved = Object.fromEntries(["isOpen", "_ackReceived", "_onFrame"].map((k) => [k, Object.getOwnPropertyDescriptor(proto, k)]));
+  ctx.after(() => { for (const [k, d] of Object.entries(saved)) Object.defineProperty(proto, k, d); });
+  Object.defineProperty(proto, "isOpen", { ...saved.isOpen, get() {
+    const open = saved.isOpen.get.call(this); seen.isOpenReads.push({ did: this.client.did, open }); return open;
+  } });
+  Object.defineProperty(proto, "_ackReceived", { ...saved._ackReceived, value(ids) {
+    seen.acks.push({ did: this.client.did, ids: [...ids] }); return saved._ackReceived.value.call(this, ids);
+  } });
+  Object.defineProperty(proto, "_onFrame", { ...saved._onFrame, async value(data) {
+    try { return await saved._onFrame.value.call(this, data); } finally { seen.framesDone.push({ did: this.client.did, data }); }
+  } });
+  /** The mediator queue ids whose ack a client's session has started. */
+  seen.acksStarted = (did) => seen.acks.filter((a) => a.did === did).flatMap((a) => a.ids);
+  return seen;
 }
-/** The mediator queue ids whose ack a client's session has started. */
-const acksStarted = (did) => sessions.acks.filter((a) => a.did === did).flatMap((a) => a.ids);
 
 /** Waits until `cond()` (sync or async) holds, polling about every 5 ms,
  *  and returns its value. Tests wait for the event they assert, never for
@@ -162,19 +162,23 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       // offersTo(did) counts the offer passes made after each open
       // med.holdOpens: the open waits until med.releaseOpens()
       const open = () => {
-        if (this.readyState === 0) this.readyState = 1;
+        // a socket closed before its open never opens, and is offered nothing
+        if (this.readyState !== 0) return;
+        this.readyState = 1;
         this.onopen?.();
         setTimeout(() => void reoffer(this.did).finally(() => offered.push(this.did)), 10);
       };
       setTimeout(() => (med.holdOpens ? heldOpens.push(open) : open()), 0);
     }
     send(data) {
+      // as ws does: a send before the open throws
+      if (this.readyState === 0) throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
       // as ws does: a send after close is dropped without an error
       if (this.readyState !== 1) { dropped.push({ why: "socket closed", sender: this.did }); return; }
       if (typeof data === "string") {
         // a socket that dies while a DIDComm frame (an ack) is on its way
         if (med.closeOnNextText === this.did) { med.closeOnNextText = null; this.close(); dropped.push({ why: "socket closed", sender: this.did }); return; }
-        sent.push({ did: this.did, data }); return;
+        sent.push({ did: this.did, data, ws: this }); return;
       }
       const qb2 = new Uint8Array(data);
       const env = decodeEnvelope(qb2).envelope;
@@ -234,24 +238,29 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   /** The DIDComm messages a client sent the mediator, in order (decrypted
    *  with the current or an earlier key of the mediator; each frame once). */
   const decoded = new Map();             // sent entry → its decrypted message
+  /** One sent entry's message, or undefined when no key of the mediator opens it. */
+  const messageOf = async (f, clientXPublic, clientKid) => {
+    if (!decoded.has(f)) {
+      const doc = didKey.resolve(f.did).didDocument;
+      clientKid ??= doc.keyAgreement?.[0]?.id ?? doc.keyAgreement?.[0];
+      clientXPublic ??= peerKeys(f.did).encPub;
+      for (const sk of [xSecret, ...oldSecrets]) {
+        try {
+          const { message } = await didcommUnpack(f.data,
+            { kid, privateJwk: jwk.privateJwk("X25519", sk, x25519.getPublicKey(sk)) },
+            { kid: clientKid, publicJwk: jwk.publicJwk("X25519", clientXPublic) });
+          decoded.set(f, message);
+          break;
+        } catch { /* sealed to another key */ }
+      }
+    }
+    return decoded.get(f);
+  };
   const messagesFrom = async (did, clientXPublic, clientKid) => {
-    const doc = didKey.resolve(did).didDocument;
-    clientKid ??= doc.keyAgreement?.[0]?.id ?? doc.keyAgreement?.[0];
-    clientXPublic ??= peerKeys(did).encPub;
     const out = [];
     for (const f of sent.filter((s) => s.did === did)) {
-      if (!decoded.has(f)) {
-        for (const sk of [xSecret, ...oldSecrets]) {
-          try {
-            const { message } = await didcommUnpack(f.data,
-              { kid, privateJwk: jwk.privateJwk("X25519", sk, x25519.getPublicKey(sk)) },
-              { kid: clientKid, publicJwk: jwk.publicJwk("X25519", clientXPublic) });
-            decoded.set(f, message);
-            break;
-          } catch { /* sealed to another key */ }
-        }
-      }
-      if (decoded.has(f)) out.push(decoded.get(f));
+      const m = await messageOf(f, clientXPublic, clientKid);
+      if (m) out.push(m);
     }
     return out;
   };
@@ -273,7 +282,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
 
   return Object.assign(med, {
     transport: { fetch, resolve, WebSocketImpl: FakeWs },
-    deliver, ackedBy, liveDeliveries, rotate, sockets, dropped, forwarded, direct, opened, sent,
+    deliver, ackedBy, liveDeliveries, messageOf, rotate, sockets, dropped, forwarded, direct, opened, sent,
     offersTo: (did) => offered.filter((d) => d === did).length,
     releaseOpens: () => { med.holdOpens = false; for (const open of heldOpens.splice(0)) open(); },
     publicKey: () => xPublic,
@@ -364,7 +373,8 @@ const ackedAll = (med, did, texts) => until(async () => {
 }, "the acks at the mediator");
 const adapterLines = (logs) => logs.filter((l) => !l.startsWith("[vti-adapter]"));
 
-test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter; the queue keeps moving (RLTP-VTI-7140)", async () => {
+test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter; the queue keeps moving (RLTP-VTI-7140)", async (ctx) => {
+  const sessions = observeSessions(ctx);
   const med = mediatorDouble();
   const logs = [];
   const { A, B, alice, bob } = await pair(med, logs);
@@ -414,12 +424,12 @@ test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter
 
   // and its ack still waits for the adapter's conclude (delete-to-ack):
   // no ack of it was even started while the wire handled it
-  assert.ok(!acksStarted(A.ids.conn.did).includes(depositId), "no ack started before conclude");
+  assert.ok(!sessions.acksStarted(A.ids.conn.did).includes(depositId), "no ack started before conclude");
   const before = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
   assert.equal(before, texts.length, "no ack before conclude");
   alice.conclude(c, Date.now());
   await alice.settle();
-  assert.ok(acksStarted(A.ids.conn.did).includes(depositId), "the ack conclude started is the deposit's");
+  assert.ok(sessions.acksStarted(A.ids.conn.did).includes(depositId), "the ack conclude started is the deposit's");
   const after = await until(async () => {
     const n = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
     return n > texts.length && n;
@@ -938,6 +948,7 @@ test("a frame refused above the cap keeps queueEmpty false; once the buffer is c
 });
 
 test("authenticate during a background reconnect waits for it: one socket, never two (review 3 N2)", async (ctx) => {
+  const sessions = observeSessions(ctx);
   const med = mediatorDouble();
   const { B, alice, bob, wireB } = await pair(med, []);
   const opens = () => med.opened.filter((d) => d === B.ids.conn.did).length;
@@ -949,12 +960,19 @@ test("authenticate during a background reconnect waits for it: one socket, never
   let releaseToken;
   med.tokenGate = new Promise((r) => { releaseToken = r; });
   const tokens = med.tokenRequests;
-  let authenticated = false, openWhenAuthenticated = null;
-  const auth = wireB.authenticate().then(() => { authenticated = true; openWhenAuthenticated = med.openSockets(B.ids.conn.did); });
+  let authenticated = false, openWhenAuthenticated = null, sentWhenAuthenticated = null;
+  let reconnectWs = null;
+  const auth = wireB.authenticate().then(() => {
+    authenticated = true;
+    openWhenAuthenticated = med.openSockets(B.ids.conn.did);
+    // what the reconnect's socket had carried by then (decrypted below)
+    sentWhenAuthenticated = med.sent.filter((f) => f.ws === reconnectWs);
+  });
   await until(() => med.tokenRequests > tokens, "authenticate at the token request");
   // the background reconnect starts: its backoff fires, its socket is opening
   med.holdOpens = true;
   ctx.mock.timers.tick(50);
+  reconnectWs = med.sockets.get(B.ids.conn.did);
   assert.equal(opens(), 2, "the background reconnect constructed its socket");
   assert.equal(med.openSockets(B.ids.conn.did), 0, "its open is still pending");
   // authenticate continues while that reconnect runs: its socket cannot
@@ -969,6 +987,9 @@ test("authenticate during a background reconnect waits for it: one socket, never
   await releaseUntil(ctx, () => authenticated, "authenticate");
   await auth;
   assert.equal(openWhenAuthenticated, 1, "authenticate returned only once the reconnect's socket was open");
+  // the reconnect ends with the live-delivery change on its socket: authenticate waited for all of it
+  const types = await Promise.all(sentWhenAuthenticated.map(async (f) => (await med.messageOf(f))?.type ?? ""));
+  assert.ok(types.some((t) => t.endsWith("/live-delivery-change")), "authenticate returned only once the reconnect was complete: " + JSON.stringify(types));
   // every timer still pending, then count
   ctx.mock.timers.runAll();
   assert.equal(med.openSockets(B.ids.conn.did), 1);
