@@ -1,8 +1,8 @@
 {
   "$comment": "What holds for each specification under spec/; its form is spec/status.schema.json. The texts under spec/*.md are frozen at the casting named here and are not edited, apart from the status block at their top. scripts/build-spec-status.mjs writes that block, the status section of README.md and the document table of apps/site/src/content/docs/reference/specifications.md from this file; `npm run validate` checks them with --check, and checks each frozen text against its `textDigest`. `statements` is the source of the marked statements about what the library builds today on README.md, the site and the direction notes; the generator writes them into the places marked <!-- now:<id> -->. A part that is built, partly built or built differently names its `evidence` in the library, the vectors or the ceremony definitions. Where a text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.",
   "statuses": {
-    "built": "the library implements this part; it has not been reconciled with the text rule by rule, so single rules may differ",
-    "partly-built": "implemented in the library in part; the note names what is not built and points to where differences are documented",
+    "built": "the library implements this part",
+    "partly-built": "implemented in the library in part; a note names what is not built, or `differences` points to where the differences are documented",
     "built-differently": "implemented in the library with a reading other than the text; `differences` points to where it is documented: a row of lib/DEVIATIONS.md, the header of a source file, a test",
     "not-built": "not implemented in the library",
     "superseded": "replaced; `target` names what replaces it",

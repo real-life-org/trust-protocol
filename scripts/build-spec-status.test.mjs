@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
-import { validateForm, checkRegister, regions, fill, generate, frozenText, digestOf } from './build-spec-status.mjs'
+import { validateForm, checkRegister, regions, fill, generate, frozenText, digestOf, renderSpecBlock, renderReadme, renderSite } from './build-spec-status.mjs'
 
 const SITE = 'apps/site/src/content/docs/reference/specifications.md'
 const SPEC = '# A Layer\n\n- **Version:** 0.1.0-draft\n- **Date:** 2026-01-01\n\n## 1. Intro\n\n## 2a. More\n'
@@ -56,6 +56,7 @@ test('the schema refuses a register of the wrong form, with the path of the faul
     [(r) => { part(r, 0).evidence = ['lib/README.md'] }, '/documents/0/parts/0/evidence: must contain at least 1 valid item'],
     [(r) => { part(r, 1).differences = ['lib/test/x.test.mjs'] }, '/documents/0/parts/1/differences/0: must match pattern'],
     [(r) => { part(r, 0).target = '../outside.md' }, '/documents/0/parts/0/target: must match pattern'],
+    [(r) => { part(r, 0).evidence.push('https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65') }, '/documents/0/parts/0/evidence/1: must match pattern'],
     [(r) => { delete r.statements.s1.evidence }, "/statements/s1: must have required property 'evidence'"],
     [(r) => { r.documents[0].textDigest = 'abc' }, '/documents/0/textDigest: must match pattern'],
   ]
@@ -158,4 +159,12 @@ test('generating is idempotent, and a file that differs from what it generates i
   assert.match(readme, /<!-- now:s1:long -->\nLong\.\n<!-- \/now:s1 -->/)
   writeFileSync(join(root, 'README.md'), readme.replace('Long.', 'Long, edited by hand.'))
   assert.deepEqual(stale(), ['README.md'])
+})
+
+test('a pipe in a title stays in its cell, and a reconciled head says only its version', () => {
+  const r = register(); Object.assign(r.documents[0], { title: 'A | Layer', lastReconciled: '0.25.0' })
+  for (const table of [renderReadme(r), renderSite(r)]) assert.match(table, /\[A \\\| Layer\]/)
+  const head = renderSpecBlock(r.documents[0])
+  assert.match(head, /\*\*Last reconciled against the library:\*\* 0\.25\.0\. \*Built\* means the library implements the part\. Differences/)
+  assert.doesNotMatch(head, /not been reconciled/)
 })

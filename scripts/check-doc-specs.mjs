@@ -17,7 +17,8 @@
 //     npm run validate);
 //   · with --since <ref>: a page is PENDING when, against the merge base,
 //     the frozen text of a specification it names changed (spec/*.md below
-//     its generated status block, not the archive), a library release
+//     its generated status block, not the archive) or its `state` in
+//     spec/status.json changed, a library release
 //     changed lib/package.json and the page has `library: true`, or the
 //     content of a region on the page that scripts/build-spec-status.mjs
 //     generates changed; unless the same change edits what a person wrote

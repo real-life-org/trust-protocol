@@ -32,7 +32,7 @@ Considerations. They are dense. This order keeps the dependencies in view.
 Two companions: the [VTI mediator adapter](https://github.com/real-life-org/trust-protocol/blob/main/spec/adapter-vti-mediator.md),
 a delivery profile over the Verifiable Trust Infrastructure, and
 [Succession](https://github.com/real-life-org/trust-protocol/blob/main/spec/succession.md),
-recovering a person's anchor through several people, parked as a draft.
+carrying a person's relationships to a new anchor with the guardians' backing, parked as a draft.
 
 ## How the documents are made
 
