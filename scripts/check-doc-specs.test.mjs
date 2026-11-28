@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
-import { parseSpecs, parseLibrary, checkDeclarations, pendingPages } from './check-doc-specs.mjs'
+import { parseSpecs, parseLibrary, checkDeclarations, pendingPages, changedStatusEntries } from './check-doc-specs.mjs'
 
 const DOCS = 'apps/site/src/content/docs'
 const page = (specs) => `---\ntitle: T\ndescription: D\n${specs === undefined ? '' : `specs: ${specs}\n`}---\n\nBody with specs: [not, frontmatter]\n`
@@ -122,4 +122,20 @@ test('a library release makes the library pages pending unless the same change t
 
 test('the Implement page follows every library release', () => {
   assert.ok(pendingPages(ROOT, ['lib/package.json'], { release: true }).some((p) => p.file.endsWith('get-started/implement.md')))
+})
+
+test('a changed entry in spec/status.json counts as a change of its specification', () => {
+  const entry = (state, digest = 'sha256:a') => ({ file: 'access-layer.md', title: 'Access', state, textDigest: digest, parts: [] })
+  const status = (...docs) => JSON.stringify({ documents: docs })
+  const other = { file: 'trust-layer.md', state: 'Built', parts: [] }
+  // built -> superseded: the specification counts as changed, its pages are pending
+  const changed = changedStatusEntries(status(entry('Built'), other), status(entry('Superseded'), other))
+  assert.deepEqual(changed, ['spec/access-layer.md'])
+  const root = repo({ 'understand/groups.md': page('[access-layer]'), 'understand/trust.md': page('[trust-layer]') })
+  assert.deepEqual(pendingPages(root, changed).map((p) => p.file), [`${DOCS}/understand/groups.md`])
+  // the digest alone does not count; an unchanged entry does not count
+  assert.deepEqual(changedStatusEntries(status(entry('Built', 'sha256:a')), status(entry('Built', 'sha256:b'))), [])
+  // a new or removed entry counts; no file before counts every entry
+  assert.deepEqual(changedStatusEntries(null, status(entry('Built'), other)), ['spec/access-layer.md', 'spec/trust-layer.md'])
+  assert.deepEqual(changedStatusEntries(status(entry('Built'), other), status(other)), ['spec/access-layer.md'])
 })

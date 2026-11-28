@@ -12,6 +12,12 @@ replaced whenever the membership changes. A person's own keys, the
 seed, the anchors per context and the device keys, are the Identity
 layer's and are explained in [Foundations](/understand/foundations/).
 
+This page explains the key port and replication as the frozen Access
+Layer text and Replication Contract describe them. The library builds
+none of it beyond the group's founding commitment: no key states, no
+rotation, no key distribution, no registered replication adapter
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+
 A group has two kinds of truth. Who belongs and what is allowed is
 decided by the **[authority log](term:AuthorityLog)**: every device replays the same
 signed entries and arrives at the same answer. What the content is
@@ -43,6 +49,9 @@ split. Until it has, members keep reading and writing waits; one
 member is designated to issue the rotation, so the wait is short. The
 [epoch](term:Epoch) number still exists, but only as a counter for views and
 ordering.
+
+In the library no removal, rotation or rule change starts a key state,
+because none of them is built.
 
 Spec: [Access Layer §7.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#71-transitions-and-the-retained-set) ·
 [§9.2](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#92-the-key-port)

@@ -35,7 +35,8 @@ the same store and seed is the normal reopening.
 The library does not synchronize holder state between devices or apps. An
 app without access to the person's identity creates its own, and the contacts
 made under it stay with it. The identity model is planned to change, with
-a main device, linked devices and generated keys; none of it is built
+a main device, linked devices and generated keys; none of it is in the
+published library
 ([direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md)).
 
 ```ts

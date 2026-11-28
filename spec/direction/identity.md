@@ -3,15 +3,17 @@
 **Not built, not normative, may change.** Dated 2026-11-28.
 
 This note says where the identity model of RLTP is heading. It is not a
-specification, and nothing in it is implemented. What holds today is the
-library and [`spec/status.json`](../status.json).
+specification, and none of it is implemented in the published library or
+its holder. What holds today is the library and
+[`spec/status.json`](../status.json).
 
 ## What runs today
 
 The library derives every key of a person from one root seed. Each
-context (a relationship, a group, a persona, a device) has its own key,
+anchor context (a relationship, a group, a persona) has its own key,
 derived from the seed and the context's label, and the context's
-identifier is a `did:key` of that key. One holder holds one identity: two
+identifier is a `did:key` of that key; device keys are derived per device
+within an anchor context. One holder holds one identity: two
 stores over one root seed hold two states that never reconcile, so a
 second device or a second app of the same person cannot hold that identity
 yet ([`lib/README.md`, "The holder"](../../lib/README.md#the-holder)).
@@ -26,10 +28,12 @@ assumptions that the planned model gives up:
   an identifier (its Section 8);
 - every key is derived from the seed and a context label (its Sections 5
   and 6);
-- recovery is done with the words (its Section 9).
+- recovery is done with the words, together with a copy of the person's
+  state (its Section 9).
 
-They describe the library today. New work should not treat them as
-lasting.
+The library follows the first three. It does not implement the recovery
+derivation, and it offers no recovery. New work should not treat these
+assumptions as lasting.
 
 ## Where it is heading
 

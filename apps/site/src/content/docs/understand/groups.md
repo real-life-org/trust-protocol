@@ -21,6 +21,13 @@ arrives at the same answer to who belongs and what is allowed. No server decides
 The group's identity is the digest of its founding entry, not a key
 anyone holds, so nobody owns the group or can take it over.
 
+This page explains groups as the frozen Access Layer text describes
+them. The library runs stage 1 of the group log: founding, admission by
+invitation and acceptance, and leaving, with the log exchanged along the
+invitation edges. Removal (`member.remove`), rule changes, key epochs,
+device cards and most of the conflict rules are not built
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
+
 Spec: [Access Layer §3](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#3-the-authority-log)
 
 ## Rules, not admins
@@ -34,6 +41,8 @@ and the group can replace it, for example with two members deciding
 together, or with every member having a say in removals. The rules for
 changing the rules are protected in the same way, so a group cannot
 lock itself out of its own constitution.
+
+In the library, changing the rules (`policy.change`) is not built.
 
 Spec: [Access Layer §4](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#4-policy)
 
@@ -67,6 +76,11 @@ The person who was removed is told so.
 A group can also end itself. Dissolving it is one more entry in the
 log, made under the group's rules like any other.
 
+In the library today a member can leave, and the leave takes effect in
+the log at once; a leave by the last member ends the group. Removal is
+not built, and no new key epoch follows a leave or a lost device, so
+nothing makes later content unreadable to whoever left.
+
 Spec: [Access Layer §5.4](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#54-leave-pending-exit-and-dissolve) ·
 [§7](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#7-epochs)
 
@@ -79,6 +93,8 @@ The person adds their own devices, up to eight.
 So a lost phone can be cut off without its owner leaving the group. A member whose devices are all gone is still a member.
 How the keys follow such changes, and how a device gets back in, is
 on [Group keys and replication](/understand/group-keys/).
+
+In the library, device cards are not built: one device per person.
 
 Spec: [Access Layer §5.1](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#51-identity)
 
@@ -94,6 +110,10 @@ be made again. Only one collision stops the group: a change of the
 rules made at the same time as a removal. The group then shows this
 openly and waits until a member writes a rule change that takes both
 sides into account.
+
+In the library, the one collision resolved is a leave at the same time
+as an admission of the same person: the leave wins. The rest of these
+rules is not built.
 
 Spec: [Access Layer §3.6](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md#36-concurrency-the-conflict-matrix)
 

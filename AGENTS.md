@@ -193,7 +193,10 @@ vectors and flows holds until the text is brought up to date. Never cite
 
 A change also updates, where it touches them:
 
-1. **Pages under `apps/site/src/content/docs/`.** `npm run validate` fails
+1. **Schemas.** A change to a wire form changes the affected schemas
+   under `schemas/` in the same pull request, with the generated
+   `lib/src/schemas.ts` and `lib/src/wire.ts`.
+2. **Pages under `apps/site/src/content/docs/`.** `npm run validate` fails
    on a link into a section that no longer exists, here and in the term
    register. Each page names the specifications it rests on in its
    `specs:` frontmatter; the `docs-follow` workflow
@@ -201,9 +204,9 @@ A change also updates, where it touches them:
    one of them until the pages are updated or a person has read them and
    labelled the pull request `docs-checked`. The links alone prove nothing
    about the text.
-2. **Term register** `terms/rltp.skos.jsonld` for terms added, renamed, or
+3. **Term register** `terms/rltp.skos.jsonld` for terms added, renamed, or
    removed; the glossary follows from it.
-3. **This file and `CLAUDE.md`** when the change adds a directory, a
+4. **This file and `CLAUDE.md`** when the change adds a directory, a
    script, a check, or a workflow. `npm run validate` fails when a
    directory is missing from the layout above, or when a path or an
    `npm run` script named here does not exist.

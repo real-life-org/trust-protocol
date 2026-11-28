@@ -75,7 +75,9 @@ artifact; it carries its own MAC, the document carries no proof.
 
 ## Access
 
-Key material and the removal notice.
+Key material and the removal notice. The library carries both schemas but
+sends and receives neither: key distribution and `member.remove` are not
+built ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).
 
 | Type | Carries | Rules | Schema |
 |---|---|---|---|

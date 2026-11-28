@@ -9,12 +9,16 @@
 //   · the document table of the site page
 //     apps/site/src/content/docs/reference/specifications.md, between them.
 //
-// It checks status.json first: every spec/*.md has an entry and every entry
-// a file; the version (and date, where the header has one) is the one in
-// the file's header; every status is defined; every section a part names
-// is a heading of the file; every deviation a part names is a row of
-// lib/DEVIATIONS.md and every row is named by some part; every path a part
-// names exists.
+// It checks status.json first: every spec/*.md has exactly one entry and
+// every entry a file; the frozen text of each file (everything below the
+// block) has the SHA-256 digest its entry names in `textDigest`, so an edit
+// of a frozen text fails; the version (and date, where the header has one)
+// is the one in the file's header; every status is defined; every section
+// a part names is a heading of the file; every reference and target is
+// non-empty and every path a part names (in `ref`, `target`, `source`)
+// exists; every deviation a part names is a row of lib/DEVIATIONS.md, and
+// every row is named at each document its reading names (Identity, Access,
+// …).
 //
 //   usage: node scripts/build-spec-status.mjs [--check]
 //
@@ -22,6 +26,7 @@
 // Exit 1 on any error, 2 on usage errors.
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -73,17 +78,23 @@ const deviation = (id) => /^D\d+$/.test(id)
 const sectionsOf = (p) => (p.sections ?? []).map((s) => `§${s}`).join(', ')
 const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
 
-// A link to a path given relative to spec/, written from `from` ('spec',
-// 'root' or 'site').
+// A path given relative to spec/, or to the repository root when it starts
+// with a top-level directory other than spec/.
+const OUTSIDE = /^(lib|interop|binding|vectors|schemas|conformance)\//
+const repoPathOf = (path) => OUTSIDE.test(path) ? path : `spec/${path}`
+
+// A link written from `from` ('spec', 'root' or 'site'). From a spec, a
+// path outside spec/ is a repository link: the site publishes spec/ as raw
+// files beside the pages, but not lib/.
 function link(path, text, from) {
-  const repoPath = path.startsWith('lib/') || path.startsWith('interop/') ? path : `spec/${path}`
-  const href = from === 'site' ? `${REPO}/${repoPath}` : from === 'root' ? repoPath : (repoPath.startsWith('spec/') ? repoPath.slice(5) : `../${repoPath}`)
+  const repoPath = repoPathOf(path)
+  const href = from === 'site' ? `${REPO}/${repoPath}` : from === 'root' ? repoPath : (repoPath.startsWith('spec/') ? repoPath.slice(5) : `${REPO}/${repoPath}`)
   return `[${text ?? path}](${href})`
 }
 
 function refs(part, from) {
   const out = []
-  const list = part.ref === undefined ? [] : Array.isArray(part.ref) ? part.ref : [part.ref]
+  const list = refsOf(part)
   for (const r of list) {
     if (deviation(r)) out.push(link('lib/DEVIATIONS.md', r, from))
     else if (/\.(md|json)$/.test(r)) out.push(link(r, r, from))
@@ -96,7 +107,7 @@ function refs(part, from) {
 export function renderSpecBlock(doc) {
   const lines = [
     BEGIN,
-    `> **Status, generated from [\`status.json\`](status.json).** This text is frozen at version ${doc.version} (${doc.date}) and is not edited. ${PRECEDENCE} The library is [\`lib/\`](../lib/README.md). Earlier versions under [\`archive/\`](archive/) are history, not the current state.`,
+    `> **Status, generated from [\`status.json\`](status.json).** This text is frozen at version ${doc.version} (${doc.date}) and is not edited. ${PRECEDENCE} The library is [\`lib/\`](${REPO}/lib/README.md). Earlier versions under [\`archive/\`](archive/) are history, not the current state.`,
     '>',
     `> **State:** ${doc.state}. **Last reconciled against the library:** ${doc.lastReconciled}.${doc.direction ? ` **Direction:** ${link(doc.direction, doc.direction, 'spec')} (not built, not normative).` : ''}`,
     '>',
@@ -137,49 +148,82 @@ export function renderSite(status) {
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+export const digestOf = (text) => `sha256:${createHash('sha256').update(text, 'utf8').digest('hex')}`
+
+// The specification a deviation's reading names, by the name it uses.
+const NAMES = { Identity: 'identity-layer.md', Encounter: 'encounter-layer.md', Trust: 'trust-layer.md', Access: 'access-layer.md', Membership: 'membership-tasks.md', Message: 'message-tasks.md', Delivery: 'delivery-contract.md', Replication: 'replication-contract.md', VTI: 'adapter-vti-mediator.md' }
+
+export function deviationRows(text) {
+  const rows = {}
+  for (const line of text.split('\n')) {
+    const m = line.match(/^\| (D\d+) \|/)
+    if (!m) continue
+    const reading = line.split('|').slice(5).join('|')
+    rows[m[1]] = [...new Set([...reading.matchAll(new RegExp(`\\b(${Object.keys(NAMES).join('|')})\\b`, 'g'))].map((n) => NAMES[n[1]]))]
+  }
+  return rows
+}
+
+const refsOf = (p) => p.ref === undefined ? [] : Array.isArray(p.ref) ? p.ref : [p.ref]
+const pathIn = (s) => (typeof s === 'string' ? s.trim().split(/\s+/)[0] : '')
+const fullPath = (root, path) => join(root, repoPathOf(path))
+
 export function checkStatus(root, status) {
   const errors = []
   const files = readdirSync(join(root, 'spec')).filter((f) => f.endsWith('.md')).sort()
   const entries = status.documents.map((d) => d.file)
   for (const f of files) if (!entries.includes(f)) errors.push(`spec/${f} has no entry in spec/status.json`)
   for (const f of entries) if (!files.includes(f)) errors.push(`spec/status.json names ${f}, which is not in spec/`)
+  for (const f of new Set(entries)) if (entries.filter((e) => e === f).length > 1) errors.push(`spec/status.json names ${f} more than once`)
   const devText = existsSync(join(root, 'lib/DEVIATIONS.md')) ? readFileSync(join(root, 'lib/DEVIATIONS.md'), 'utf8') : ''
-  const rows = [...devText.matchAll(/^\| (D\d+) \|/gm)].map((m) => m[1])
-  const named = new Set()
+  const rows = deviationRows(devText)
+  const namedAt = {}
   for (const d of status.documents) {
     const where = `spec/status.json ${d.file}`
     if (!files.includes(d.file)) continue
-    for (const k of ['title', 'role', 'version', 'date', 'state', 'lastReconciled']) if (!d[k]) errors.push(`${where}: no ${k}`)
+    for (const k of ['title', 'role', 'version', 'date', 'state', 'lastReconciled', 'textDigest']) if (!d[k]) errors.push(`${where}: no ${k}`)
     const text = splitSpec(readFileSync(join(root, 'spec', d.file), 'utf8')).rest
+    const digest = digestOf(text)
+    if (d.textDigest && d.textDigest !== digest) errors.push(`${where}: the frozen text has changed (textDigest ${d.textDigest}, the file below its status block is ${digest})`)
     const version = text.match(/^- \*\*Version:\*\*\s*(\S+)/m)?.[1]
     if (version !== d.version) errors.push(`${where}: version ${d.version}, header says ${version}`)
     const date = text.match(/^- \*\*Date:\*\*\s*(\S+)/m)?.[1]
     if (date && date !== d.date) errors.push(`${where}: date ${d.date}, header says ${date}`)
-    if (d.direction && !existsSync(join(root, 'spec', d.direction))) errors.push(`${where}: direction ${d.direction} does not exist`)
+    if (d.direction !== undefined && (!d.direction || !existsSync(join(root, 'spec', d.direction)))) errors.push(`${where}: direction ${d.direction} does not exist`)
     if (!Array.isArray(d.parts) || !d.parts.length) errors.push(`${where}: no parts`)
     for (const p of d.parts ?? []) {
       const pw = `${where} "${p.title}"`
       if (!p.title) errors.push(`${where}: a part without a title`)
       if (!(p.status in status.statuses) || !(p.status in LABEL)) errors.push(`${pw}: unknown status ${p.status}`)
-      if (p.status === 'built-differently' && !p.ref) errors.push(`${pw}: built-differently without ref`)
-      if (p.status === 'direction-changed' && !p.ref) errors.push(`${pw}: direction-changed without ref`)
+      const list = refsOf(p)
+      if (p.ref !== undefined && (!list.length || list.some((r) => typeof r !== 'string' || !r.trim()))) errors.push(`${pw}: an empty ref`)
+      if (p.target !== undefined && (typeof p.target !== 'string' || !p.target.trim())) errors.push(`${pw}: an empty target`)
+      if (p.status === 'built-differently' && !list.length) errors.push(`${pw}: built-differently without ref`)
+      if (p.status === 'direction-changed' && !list.length) errors.push(`${pw}: direction-changed without ref`)
       if (p.status === 'superseded' && !p.target) errors.push(`${pw}: superseded without target`)
       for (const s of p.sections ?? []) {
         if (!new RegExp(`^#{2,6} ${esc(s)}(?:\\.|\\s)`, 'm').test(text)) errors.push(`${pw}: spec/${d.file} has no section ${s}`)
       }
-      const list = p.ref === undefined ? [] : Array.isArray(p.ref) ? p.ref : [p.ref]
       for (const r of list) {
-        if (deviation(r)) { named.add(r); if (!rows.includes(r)) errors.push(`${pw}: ${r} is no row of lib/DEVIATIONS.md`) }
-        else {
-          const path = r.split(' ')[0]
-          const full = path.startsWith('lib/') ? join(root, path) : join(root, 'spec', path)
-          if (/\.(md|json)$/.test(path) && !existsSync(full)) errors.push(`${pw}: ${path} does not exist`)
+        if (deviation(r)) {
+          ;(namedAt[r] ??= new Set()).add(d.file)
+          if (!(r in rows)) errors.push(`${pw}: ${r} is no row of lib/DEVIATIONS.md`)
+        } else {
+          const path = pathIn(r)
+          if (/\.(md|json)$/.test(path) && !existsSync(fullPath(root, path))) errors.push(`${pw}: ref ${path} does not exist`)
         }
       }
-      if (p.target && !existsSync(p.target.startsWith('interop/') || p.target.startsWith('lib/') ? join(root, p.target) : join(root, 'spec', p.target))) errors.push(`${pw}: target ${p.target} does not exist`)
+      if (p.target && !existsSync(fullPath(root, p.target))) errors.push(`${pw}: target ${p.target} does not exist`)
+      for (const item of (p.source ?? '').split(';')) {
+        const path = pathIn(item)
+        if (path.includes('/') && !existsSync(fullPath(root, path))) errors.push(`${pw}: source ${path} does not exist`)
+      }
     }
   }
-  for (const r of rows) if (!named.has(r)) errors.push(`lib/DEVIATIONS.md ${r} is named by no part in spec/status.json`)
+  for (const [r, docs] of Object.entries(rows)) {
+    if (!namedAt[r]) { errors.push(`lib/DEVIATIONS.md ${r} is named by no part in spec/status.json`); continue }
+    for (const f of docs) if (entries.includes(f) && !namedAt[r].has(f)) errors.push(`lib/DEVIATIONS.md ${r} names ${f}, whose entry in spec/status.json does not name it`)
+  }
   return errors
 }
 

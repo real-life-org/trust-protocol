@@ -46,7 +46,9 @@ group as the bound
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
-recovery context for the person's own encrypted state. Without the
+recovery context for the person's own encrypted state; the library
+builds the carrier identity and a provisional service identity, not the
+recovery context. Without the
 seed, two anchors of one person cannot be linked.
 
 Each context has an Ed25519 key pair, whose public key is the anchor
@@ -73,7 +75,7 @@ the Succession draft, which is parked and cannot be set up.
 This model is planned to change: an identifier that keeps its name across
 a key change, a main device with linked devices, keys generated rather
 than derived from the words, and guardians who help restore the same
-identity. None of it is built. The
+identity. None of it is in the published library. The
 [identity direction note](https://github.com/real-life-org/trust-protocol/blob/main/spec/direction/identity.md) says how, and
 [`spec/status.json`](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json) says which parts of the
 Identity Layer hold today.
@@ -251,6 +253,13 @@ proof of consent. A welcome sealed to the newcomer carries the
 current keys. If the group requires vouches, written `vouch(n)`, the
 newcomer needs n members who vouch for this one admission; a vouch
 never stands for a later one.
+
+This is the frozen Access Layer text. The library runs stage 1 of the group log: founding, admission by
+invitation and acceptance, and leaving, with the log exchanged along the
+invitation edges. Removal (`member.remove`), rule changes, key epochs,
+device cards and most of the conflict rules are not built
+([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)). So in the library a leave
+starts no new key epoch.
 
 Specs: [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md)

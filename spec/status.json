@@ -1,5 +1,5 @@
 {
-  "$comment": "What holds for each specification under spec/. The texts under spec/*.md are frozen at the casting named here and are not edited, apart from the status block at their top. scripts/build-spec-status.mjs writes that block, the status section of README.md and the document table of apps/site/src/content/docs/reference/specifications.md from this file; `npm run validate` checks them with --check. Where a text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.",
+  "$comment": "What holds for each specification under spec/. The texts under spec/*.md are frozen at the casting named here and are not edited, apart from the status block at their top. scripts/build-spec-status.mjs writes that block, the status section of README.md and the document table of apps/site/src/content/docs/reference/specifications.md from this file; `npm run validate` checks them with --check, and checks each frozen text against its `textDigest`. Where a text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.",
   "statuses": {
     "built": "implemented in the library",
     "partly-built": "implemented in the library in part; the note says which part",
@@ -20,6 +20,7 @@
       "state": "Partly built; direction changed",
       "lastReconciled": "not reconciled",
       "direction": "direction/identity.md",
+      "textDigest": "sha256:d9fb8c8f67a1fdc5c2b53b38bb072584343e8b404f0caa9092260a0cd07e3400",
       "parts": [
         { "sections": ["5.1", "5.2"], "title": "Labeled contexts and key agreement material", "status": "built", "source": "lib/README.md (modules: identity)" },
         { "sections": ["5.3"], "title": "Recovery context", "status": "not-built", "source": "lib/README.md (Versions); Status of This Document" },
@@ -42,9 +43,11 @@
       "date": "2026-10-27",
       "state": "Built; its ceremony is superseded in the app",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:e4718926645603af422bd6cdc8f5c97968980878b701cf8a179b8b3ebc209544",
       "parts": [
         { "sections": ["4", "5", "6", "7"], "title": "Anchors, credentials, challenges, enactment record, contact card", "status": "built", "source": "lib/README.md (modules: encounter); Appendix A" },
-        { "sections": ["5.8"], "title": "The ceremony `encounter-scan`", "status": "superseded", "target": "interop/ceremonies/shared-connect.ceremony.json", "note": "Still built in the library. The Web of Trust app connects people with `shared-connect`, which no specification text describes yet; its messaging identity is a deviation (D5)." },
+        { "sections": ["5.8"], "title": "The ceremony `encounter-scan`", "status": "superseded", "target": "interop/ceremonies/shared-connect.ceremony.json", "note": "Still built in the library. The Web of Trust app shows `shared-connect` codes ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555)). No specification text describes `shared-connect` yet." },
+        { "title": "The messaging identity of a `shared-connect` enactment", "status": "built-differently", "ref": ["D5"], "note": "Derived outside the label registry until an Encounter text adopts `shared-connect`." },
         { "title": "A ceremony across several devices of one person", "status": "not-built", "source": "Status of This Document" }
       ],
       "note": "`shared-connect` has a ceremony definition, a vector and holder acts in the library (interop/ceremonies/index.md; lib/README.md, Versions); an Encounter text that adopts it does not exist."
@@ -57,12 +60,14 @@
       "date": "2026-10-14",
       "state": "Built, with the gaps listed",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:ffc5423d0ec5199de5886326ac3145ce8e3c6aa7c3146d3ecaca9491886ce83f",
       "parts": [
-        { "sections": ["2", "2a", "5", "6", "6b", "8"], "title": "Deliverable set, trust classes, stars, anchor mapping, profile, introductions", "status": "built", "source": "Status of This Document; lib/README.md (modules: trust/*, introduction)" },
+        { "sections": ["2", "2a", "5", "6", "6b"], "title": "Deliverable set, trust classes, stars, anchor mapping, profile", "status": "built", "source": "Status of This Document; lib/README.md (modules: trust/*)" },
         { "sections": ["6a"], "title": "Continuity", "status": "built", "note": "A rule for recognising the same two people across several devices is being modelled for the next text; the library does not implement it." },
-        { "sections": ["8.3"], "title": "The target designator", "status": "not-built", "note": "The library's mediator sends `x-introduction-offer/0.1` instead.", "source": "lib/README.md (Versions: introduction)" },
+        { "sections": ["8"], "title": "The Introduction Act", "status": "partly-built", "note": "Built in its three roles. The requester waits for the ack and the reply until the act's expiry; the ack timeout of §8.4 (rule 8690) is not applied.", "source": "lib/src/introduction/holder.ts (header); lib/README.md (modules: introduction)" },
+        { "sections": ["8.3"], "title": "The target designator", "status": "built-differently", "ref": "lib/README.md (Versions: introduction)", "note": "The mediator mints the designator, keeps its mapping and sends it to the requester in its own `x-introduction-offer/0.1`; how the requester learns it is a point the text leaves to its next version.", "source": "lib/src/introduction/holder.ts" },
         { "sections": ["9.1"], "title": "Attestation", "status": "not-built", "note": "A documented option without an artifact.", "source": "Status of This Document" },
-        { "title": "Several devices of one person", "status": "not-built", "note": "One writer per holder; group membership is read from the holder's own groups, not from a replicated Access roster.", "source": "Status of This Document" }
+        { "title": "Several devices of one person", "status": "not-built", "note": "One writer per holder.", "source": "Status of This Document" }
       ],
       "note": ""
     },
@@ -74,17 +79,18 @@
       "date": "2026-10-25",
       "state": "Mostly not built; the stage-1 group log is built",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:3c89665a4b0b286d372dc465a3915913f456756982f6baea5866c9afcc952115",
       "parts": [
         { "sections": ["3.3", "3.4", "3.5"], "title": "Stage-1 authority log: envelope, genesis, `member.add`, `member.leave`, materialization", "status": "built-differently", "ref": ["D1", "D2", "D4"], "source": "lib/README.md (modules: access)" },
-        { "sections": ["3.2"], "title": "The founder's service identity in the genesis", "status": "built-differently", "ref": ["D3"] },
-        { "sections": ["3.6"], "title": "The conflict matrix", "status": "not-built", "source": "lib/README.md (Versions: membership)" },
+        { "sections": ["3.4.1", "5.2"], "title": "The founder's service identity in the genesis (rule 3265)", "status": "built-differently", "ref": ["D3"] },
+        { "sections": ["3.6"], "title": "The conflict matrix", "status": "partly-built", "source": "lib/src/access/log.ts (header)", "note": "Resolved: a leave concurrent with an admission of its subject, the leave winning (D2), and a back-dated admission by a member who has left, applied where valid at its position (D4). The rest of the matrix is not built.", "ref": ["D2", "D4"] },
         { "sections": ["5.1"], "title": "Device cards", "status": "not-built", "source": "lib/README.md (Versions: membership)" },
         { "sections": ["5.3"], "title": "Admission and removal", "status": "partly-built", "note": "Admission is built; `member.remove` is not.", "source": "lib/README.md (Versions: membership)" },
-        { "sections": ["5.4"], "title": "Leave, pending exit, dissolve", "status": "partly-built", "note": "Leave is built (D2); the pending exit is not.", "source": "lib/README.md (Versions: membership)" },
+        { "sections": ["5.4"], "title": "Leave, pending exit, dissolve", "status": "partly-built", "note": "A leave takes effect at once and defeats every admission of its subject not causally after it (D2); a leave at sole membership dissolves the group. The pending exit and its transition are not built.", "source": "lib/src/access/log.ts (header)", "ref": ["D2"] },
         { "sections": ["7", "9.4"], "title": "Key distribution and epoch transitions", "status": "not-built", "note": "Beyond the genesis commitment.", "source": "lib/README.md (Versions: membership)" },
         { "sections": ["7.3"], "title": "Authorization views", "status": "not-built", "source": "lib/README.md (Versions: membership)" },
         { "title": "`policy.change`", "status": "not-built", "source": "lib/README.md (Versions: membership)" },
-        { "sections": ["10"], "title": "Task types `key-delivery/0.1` and `removal-notice/0.1`", "status": "not-verified" }
+        { "sections": ["10"], "title": "Task types `key-delivery/0.1` and `removal-notice/0.1`", "status": "not-built", "note": "Schemas and generated wire types only; no holder sends or receives them.", "source": "lib/src/schemas.ts; lib/src/wire.ts" }
       ],
       "note": "The group log of today runs; the future substrate of groups is under review. The text's own status section still says the authority rules are not yet in the library."
     },
@@ -96,8 +102,10 @@
       "date": "2026-10-27",
       "state": "Mostly built; one part built differently",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:219818591096b82a2dfa33d2b3eddf71a70f2156d094bbfe8ae7065b1d55192b",
       "parts": [
-        { "sections": ["3.1", "3.2", "3.4", "3.5"], "title": "Invite, accept, evidence, prelude", "status": "built", "source": "lib/README.md (modules: membership)" },
+        { "sections": ["3.1", "3.4", "3.5"], "title": "Invite, evidence, prelude", "status": "built", "source": "lib/README.md (modules: membership)" },
+        { "sections": ["3.2"], "title": "`membership-accept/0.2`", "status": "partly-built", "note": "The accept is built, and the inviter keeps to the time bound of rule 3282; an admission prompt after that bound is not built.", "source": "lib/README.md (Versions: membership)" },
         { "sections": ["3.3"], "title": "`access-operation/0.1`", "status": "built-differently", "ref": "lib/README.md (Versions: membership)", "note": "The library sends its own `x-membership-welcome/0.1` and the new member fetches the log. Stated in the text's own status section; not a row in lib/DEVIATIONS.md." }
       ],
       "note": ""
@@ -108,12 +116,14 @@
       "role": "Layer 3, direct messages and the block",
       "version": "0.2.0-draft",
       "date": "2026-10-25",
-      "state": "Built; one check is left to the application",
+      "state": "Partly built",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:40d94df9588113422b0e8071d5ed3f39cc5b51800c0ee4c141284f6a6ed5ac8a",
       "parts": [
         { "sections": ["3", "4", "5", "6"], "title": "`message/0.1`, reception, sending, the block", "status": "built", "source": "Status of This Document; lib/README.md (modules: message)" },
         { "sections": ["5"], "title": "The `replyTo` of a sent message (RLTP-MSG-5120)", "status": "partly-built", "note": "The library checks only that `replyTo` has the form of a UUID. That it names an earlier message of the same relationship is the sending application's to ensure; the library keeps no history of sent messages to check it against.", "source": "lib/src/message/holder.ts (header)" },
-        { "sections": ["5"], "title": "Holding a message until its tuple is ready", "status": "not-built", "note": "`sendMessage` answers `not-ready` and the app keeps the message; the app's behaviour is not verified.", "source": "lib/README.md (Versions: message)" },
+        { "sections": ["5"], "title": "Holding a message until its tuple is ready", "status": "not-built", "note": "`sendMessage` answers `not-ready`; keeping the message until it can be sent is the application's task.", "source": "lib/README.md (Versions: message)" },
+        { "sections": ["5"], "title": "The sender lifetime (rule 5110) and `failed(task-expired)`", "status": "not-built", "note": "Unreachable under the library's retry horizon of at most P90D: an undelivered message ends as `failed(expired-by-adapter-policy)`.", "source": "lib/README.md (Versions: message)" },
         { "sections": ["6"], "title": "The block of the Trust Layer's types", "status": "not-built", "note": "Waits for the Trust Layer's next text.", "source": "Status of This Document" }
       ],
       "note": ""
@@ -124,10 +134,12 @@
       "role": "Service behind a port",
       "version": "0.85.2-draft",
       "date": "2026-10-28",
-      "state": "Built",
+      "state": "Built, with the gaps listed",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:d68a07c7cdeb0a5c43c1e0f8c3c1b1e0e46018513520abec8be94d0ad49d8b85",
       "parts": [
         { "sections": ["4.2", "4.4", "4.6", "5", "5a", "6.1", "6.2"], "title": "Acknowledgements, registry, carried document, sealed envelope, carrier port, sender status, receive stages", "status": "built", "source": "Status of This Document; lib/README.md (modules: receive, engine, carrier)" },
+        { "title": "The block of the Trust Layer's types", "status": "not-built", "note": "Their treatments wait for the Trust Layer's next text (Message Tasks rule 6240).", "source": "lib/README.md (Versions: delivery)" },
         { "title": "Transport adapters beyond the VTI mediator adapter", "status": "not-built", "source": "lib/README.md (Versions: delivery)" },
         { "title": "Whether the app's transport matches the text", "status": "not-verified" }
       ],
@@ -139,12 +151,14 @@
       "role": "Delivery profile",
       "version": "0.30.0-draft",
       "date": "2026-10-28",
-      "state": "Built, one deviation",
+      "state": "Built, with one deviation and the gaps listed",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:3ef8e15eddb1a9c4394a713080bbf30e112d913364e00723053e417ec5ac57f5",
       "parts": [
-        { "sections": ["1", "1a", "1b", "2", "3", "3a", "3b", "4", "5", "6"], "title": "The adapter", "status": "built", "source": "lib/README.md (Versions: transport adapter)" },
+        { "sections": ["1", "1a", "1b", "2", "3", "3a", "3b", "4", "5", "6"], "title": "The adapter in the library", "status": "built", "source": "lib/README.md (Versions: transport adapter)" },
         { "sections": ["1", "8"], "title": "The carrier context the key provider gives", "status": "built-differently", "ref": ["D7"] },
-        { "sections": ["7"], "title": "TSP framing", "status": "built", "note": "In the wire binding under binding/, not in the library." },
+        { "sections": ["1c"], "title": "The displayed card's instance", "status": "not-built", "note": "Not in the library: the host's and the wire's.", "source": "lib/README.md (Versions: transport adapter)" },
+        { "sections": ["7"], "title": "TSP framing", "status": "not-built", "note": "Not in the library: the TSP framing is the wire binding's; the repository's wire binding under `binding/` implements it.", "source": "lib/README.md (Versions: transport adapter)" },
         { "title": "Open Issues 4, 10 and 17 (return to routed, change of the carrier nonce, sending framework refusals)", "status": "not-built", "source": "lib/README.md (Versions: transport adapter)" }
       ],
       "note": "The header carries no date; the date is that of version 0.30 in Appendix B."
@@ -157,8 +171,9 @@
       "date": "2026-08-26",
       "state": "Not built as a contract; parts used by the group log",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:8d4794da6f302a1d6cab592a92502a00b3d2bd24147a962e0a97bf670bd6bbbc",
       "parts": [
-        { "sections": ["4.4", "7"], "title": "Unattested exchange profile and ingest admission", "status": "partly-built", "note": "Used by the stage-1 group log exchange (D1).", "source": "lib/README.md (modules: access)" },
+        { "sections": ["4.4", "7"], "title": "Unattested exchange profile and ingest admission", "status": "partly-built", "note": "Used by the stage-1 group log exchange, whose types are replication ingress.", "source": "lib/README.md (modules: access)", "ref": ["D1"] },
         { "sections": ["9"], "title": "Adapter registration", "status": "not-built", "note": "No registered adapter.", "source": "lib/README.md (modules: access)" },
         { "sections": ["5"], "title": "The sixteen promises", "status": "not-verified" }
       ],
@@ -170,10 +185,11 @@
       "role": "Cross-cutting",
       "version": "0.12.0-draft",
       "date": "2026-08-13",
-      "state": "Not built",
+      "state": "Not verified",
       "lastReconciled": "not reconciled",
+      "textDigest": "sha256:4095e826d9f055a7214577b35d98d96dc9e18a44b2acc89155ad24bfadad6044",
       "parts": [
-        { "title": "Whole document", "status": "not-built", "note": "lib/README.md names no module for it; use outside the library is not verified." }
+        { "title": "Predicates P1 to P3 and the result model", "status": "not-verified", "note": "Not checked against any implementation; lib/README.md names no module for it." }
       ],
       "note": "Written against Encounter 0.22 and Access 0.25."
     },
@@ -186,6 +202,7 @@
       "state": "Parked; direction changed",
       "lastReconciled": "not reconciled",
       "direction": "direction/identity.md",
+      "textDigest": "sha256:836b619ee0ccd5a3539c17369301aba72017900d7621925fb5bbcccb97565916",
       "parts": [
         { "title": "Whole document", "status": "parked", "note": "The text says nothing in it should be implemented.", "source": "Status of This Document" },
         { "sections": ["3", "4", "5"], "title": "Guardians and the succession", "status": "direction-changed", "ref": "direction/identity.md", "note": "In the planned model guardians hold shares of a secret, so the same identifier continues." }

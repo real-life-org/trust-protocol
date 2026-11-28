@@ -118,20 +118,23 @@ The texts under [`spec/`](spec/) are frozen at the version named below and are n
 | [Trust Layer](spec/trust-layer.md) | 0.31.0-draft | Built, with the gaps listed | not reconciled |
 | [Access Layer](spec/access-layer.md) | 0.58.0-draft | Mostly not built; the stage-1 group log is built | not reconciled |
 | [Membership Tasks](spec/membership-tasks.md) | 0.21.1-draft | Mostly built; one part built differently | not reconciled |
-| [Message Tasks](spec/message-tasks.md) | 0.2.0-draft | Built; one check is left to the application | not reconciled |
-| [Delivery Contract](spec/delivery-contract.md) | 0.85.2-draft | Built | not reconciled |
-| [VTI mediator adapter](spec/adapter-vti-mediator.md) | 0.30.0-draft | Built, one deviation | not reconciled |
+| [Message Tasks](spec/message-tasks.md) | 0.2.0-draft | Partly built | not reconciled |
+| [Delivery Contract](spec/delivery-contract.md) | 0.85.2-draft | Built, with the gaps listed | not reconciled |
+| [VTI mediator adapter](spec/adapter-vti-mediator.md) | 0.30.0-draft | Built, with one deviation and the gaps listed | not reconciled |
 | [Replication Contract](spec/replication-contract.md) | 0.26.0-draft | Not built as a contract; parts used by the group log | not reconciled |
-| [Personhood Predicates](spec/personhood-predicates.md) | 0.12.0-draft | Not built | not reconciled |
+| [Personhood Predicates](spec/personhood-predicates.md) | 0.12.0-draft | Not verified | not reconciled |
 | [Succession](spec/succession.md) | 0.2.0-draft | Parked; direction changed ([direction](spec/direction/identity.md)) | not reconciled |
 <!-- spec-status:end -->
 
-The Encounter Layer's ceremony `encounter-scan` is superseded: the Web of
-Trust app connects people with `shared-connect`, defined in
-[`interop/ceremonies/`](interop/ceremonies/) and implemented in the
-library, which no specification text describes yet. The identity model is
+The Encounter Layer's ceremony `encounter-scan` is superseded by
+`shared-connect`, defined in [`interop/ceremonies/`](interop/ceremonies/)
+with its vector and implemented as holder acts in the library; no
+specification text describes it yet. The Web of Trust app shows
+`shared-connect` codes
+([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555),
+[`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). The identity model is
 planned to change; the [direction note](spec/direction/identity.md) says
-how, and none of it is built.
+how; none of it is in the published library.
 
 What the Access Layer text sets out, in its own words: **there are no
 admins** (privileged operations are gated by group-defined policy);
@@ -188,8 +191,9 @@ correlation properties.
 The vocabulary terms of this specification are also published as a SKOS concept
 scheme, [`terms/rltp.skos.jsonld`](terms/rltp.skos.jsonld) (JSON-LD, namespace
 `https://real-life.org/rltp/v1#`, label and one-sentence definition in English
-and German, source section per term). The specification files stay normative;
-the scheme is their machine-readable digest. Mappings to the terms of the Real
+and German, source section per term). The specification files stay normative,
+except where they and the library disagree: there the library holds (see
+[Status](#status)); the scheme is their machine-readable digest. Mappings to the terms of the Real
 Life Network Protocol and the Real Life Stack live in the shared register,
 [real-life-org/meta](https://github.com/real-life-org/meta), not here.
 

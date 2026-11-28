@@ -17,8 +17,9 @@
 //     npm run validate);
 //   · with --since <ref>: the specifications changed since <ref> (spec/*.md,
 //     not the archive; a change only to the generated status block at the
-//     top, which scripts/build-spec-status.mjs writes, does not count)
-//     make every page that names them PENDING, and so
+//     top, which scripts/build-spec-status.mjs writes, does not count), and
+//     every specification whose entry in spec/status.json changed against
+//     the merge base, make every page that names them PENDING, and so
 //     does a library release for every `library: true` page, unless the
 //     same change touches that page. Pending pages fail the check, unless
 //     --checked says a person has read them and they still hold (CI passes
@@ -100,6 +101,20 @@ export function pendingPages(root, changedFiles, { release = false } = {}) {
   return out
 }
 
+// The specifications whose entry in spec/status.json differs between two
+// versions of the file (JSON text or null), as `spec/<file>`; the digest of
+// the frozen text does not count, the text itself is compared apart.
+export function changedStatusEntries(before, after) {
+  const entries = (text) => {
+    if (!text) return new Map()
+    try {
+      return new Map((JSON.parse(text).documents ?? []).map(({ textDigest, ...d }) => [d.file, JSON.stringify(d)]))
+    } catch { return new Map() }
+  }
+  const a = entries(before), b = entries(after)
+  return [...new Set([...a.keys(), ...b.keys()])].filter((f) => a.get(f) !== b.get(f)).sort().map((f) => `spec/${f}`)
+}
+
 // Whether lib/package.json names another version at HEAD than at <since>.
 const released = (since) => {
   const version = (ref) => { try { return JSON.parse(execFileSync('git', ['show', `${ref}:lib/package.json`], { cwd: ROOT, encoding: 'utf8' })).version } catch { return null } }
@@ -125,10 +140,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   let pending = []
   if (since) {
     const diff = execFileSync('git', ['diff', '--name-only', `${since}...HEAD`], { cwd: ROOT, encoding: 'utf8' })
-    // a specification whose text outside the generated status block is
-    // unchanged did not change for the pages
-    const textOf = (ref, f) => { try { return splitSpec(execFileSync('git', ['show', `${ref}:${f}`], { cwd: ROOT, encoding: 'utf8' })).rest } catch { return null } }
-    const changed = diff.split('\n').filter(Boolean).filter((f) => !SPEC.test(f) || textOf(since, f) !== textOf('HEAD', f))
+    // against the merge base: a specification whose text outside the
+    // generated status block is unchanged did not change for the pages,
+    // unless its entry in spec/status.json changed
+    const base = execFileSync('git', ['merge-base', since, 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim()
+    const show = (ref, f) => { try { return execFileSync('git', ['show', `${ref}:${f}`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } }
+    const textOf = (ref, f) => { const t = show(ref, f); return t === null ? null : splitSpec(t).rest }
+    const byText = diff.split('\n').filter(Boolean).filter((f) => !SPEC.test(f) || textOf(base, f) !== textOf('HEAD', f))
+    const changed = [...new Set([...byText, ...changedStatusEntries(show(base, 'spec/status.json'), show('HEAD', 'spec/status.json'))])]
     pending = pendingPages(ROOT, changed, { release: released(since) })
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
