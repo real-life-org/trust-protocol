@@ -179,9 +179,9 @@ export const ackOutbound = (a: Readonly<SealedAck>, attempt: number): Outbound =
 /** Signature-class types (Delivery 4.2/4.4): payloads whose authenticity
  *  is a transferable signature; their acks are signed, not MACed. The
  *  `x-` slugs are this library's own experimental, unregistered forms
- *  for what the specifications leave to the application (the welcome sent
- *  in place of access-operation/0.1; the introduction offer that conveys the target designator,
- *  Trust 8.3): signed documents as well. A receiver that does not know
+ *  for the welcome it sends in place of access-operation/0.1 and for
+ *  the introduction offer that conveys the target designator, which Trust
+ *  8.3 leaves to the application: signed documents as well. A receiver that does not know
  *  them answers unknown-type (Delivery §6.2). */
 export const SIGNATURE_CLASS: ReadonlySet<string> = new Set([
   TT + 'encounter-bundle/0.1',

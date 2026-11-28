@@ -42,8 +42,7 @@
 //     the member.add envelope into its own log (admission, below) and sends
 //     in place of access-operation/0.1 x-membership-welcome/0.1, signed
 //     under its member anchor: the group's name, DID, genesis, rules and the
-//     roster it holds, and the accept's document digest, by which the new
-//     member finds its admission in the log it fetches. A member's memberOp
+//     roster it holds, and the accept's document digest. A member's memberOp
 //     is the operation id the materialization of the log gives it
 //     (replica.ts); the founder's is the genesis's
 //   - the admission without a human act at the admitting member: the
