@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.25.0
+
+The rest of trust-protocol#216 on the shared-connect holder, and the short messaging identity as an
+option of the two acts.
+
+- `SharedConnectView.relayed` (`boolean | null`): whether the link of the enactment names a relay
+  (a service entry `parsePeer` reads as a relay). For the inviter its own link (`did`); for the
+  responder the link it read (`link.from`), resolved when the link was read, so a did:peer:4 needs
+  no asynchronous reading in the view. The responder's flow snapshot keeps the reading as
+  `linkRelayed` (the flow snapshot is a free object in the codec: the stored state keeps its
+  version). A responder's enactment stored without it states the value read from `link.from` when
+  that is a did:peer:2, and `null` when it is a did:peer:4.
+- `sharedconnect.back` after the inviter's acceptance: a new act is refused with `not-pending`
+  while the enactment is open (before, it opened the contact from the card in the link although
+  the code was no longer needed), and with `enactment-closed` once it is complete. The check runs
+  in the preparation and in the apply, so an acceptance that commits while the act prepares
+  refuses it as well; a back-code shown before the acceptance is not given out again by a new act.
+  The act that gave a code, repeated under its `actId`, is answered from the journal with the
+  same code, as every repeated human act is.
+- The responder's completed enactment opens its relationship from the inviter's card in its issue
+  step, or, where that issue carries no card, from the inviter's card in the link, verified when
+  the link was read and for the pair the acceptance names. The inviter's rule is unchanged: a card
+  from a back-code opens only at the acceptance and only for a link shown in person. Before, a
+  responder that read the inviter's card in the link and got the acceptance before showing a
+  back-code ended without a contact when the inviter's issue carried none, while the inviter had
+  one. A relationship opened this way has no delivery hints for the counterpart: the link card
+  carries none.
+- `sharedconnect.show` and `sharedconnect.propose` take `assertion?: boolean`. With `false` this
+  side's messaging identity is written without the `.A` segment (`peer2Of(ed, x, relays,
+  { assertion: false })`, 50 characters shorter in the link). Without the input the identity is
+  written as before, with `.A`; the vectors are unchanged.
+
 ## 0.24.0
 
 The carrier context: a host builds the VTI mediator adapter, its delivery hint, the holder's

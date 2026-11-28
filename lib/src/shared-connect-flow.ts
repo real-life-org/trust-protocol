@@ -59,8 +59,10 @@ export interface Pending { propose: any, name: string | null, relationshipDid: s
  *  with it: the same pair anchor, the same key agreement key. */
 interface Common { deliveryHints?: string[], codeCard?: any, propose: any, accept: any, decline: any, failed: { code: string, step: string, message: string | null } | null, issueMine: any, issueTheirs: any, receiptMine: any, receiptTheirs: any, held: any[] }
 export interface InviterSnapshot extends Common { role: 'inviter', id: string, exp: number }
-/** `backShown`: this side showed its proposal back as a code (`back()`). */
-export interface ResponderSnapshot extends Common { role: 'responder', link: { from: string, id: string, exp: number, label: string | null }, challenge: string, channel: Channel, backShown?: boolean }
+/** `backShown`: this side showed its proposal back as a code (`back()`). `linkRelayed`: the link's `from`
+ *  names at least one relay (`Peer2.relays`), as resolved when the link was read; absent in a snapshot written
+ *  before the field existed or from a stored link (a did:peer:4 is resolved asynchronously, not on restore). */
+export interface ResponderSnapshot extends Common { role: 'responder', link: { from: string, id: string, exp: number, label: string | null }, challenge: string, channel: Channel, backShown?: boolean, linkRelayed?: boolean }
 
 /** held documents: one per id, at most this many (a peer the handle admitted, before the decision) */
 const HELD_MAX = 8
@@ -261,8 +263,9 @@ export class Responder extends Machine<ResponderSnapshot> {
   constructor (party: Party, link: ReadLink | ResponderSnapshot['link'], challenge: string, channel: Channel, o: FlowOptions, restore?: ResponderSnapshot) {
     if (restore && restore.role !== 'responder') throw new Error('not a responder snapshot')
     const l = typeof (link as ReadLink).from === 'object' ? { from: (link as ReadLink).from.did, id: link.id, exp: link.exp, label: (link as ReadLink).label ?? null } : link as ResponderSnapshot['link']
-    const card = typeof (link as ReadLink).from === 'object' ? (link as ReadLink).card : undefined
-    super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}), ...(card ? { codeCard: card } : {}) }, o)
+    const read = typeof (link as ReadLink).from === 'object' ? link as ReadLink : undefined
+    const card = read?.card
+    super(party, restore ?? { role: 'responder', link: l, challenge, channel, ...empty(), ...(o.deliveryHints?.length ? { deliveryHints: [...o.deliveryHints] } : {}), ...(card ? { codeCard: card } : {}), ...(read ? { linkRelayed: read.from.relays.length > 0 } : {}) }, o)
   }
   /** the inviter's card from the link, or null */
   get codeCard (): any | null { return this.s.codeCard ?? null }

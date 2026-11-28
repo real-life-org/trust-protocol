@@ -66,8 +66,11 @@ export const RETENTION = 30 * 24 * 3_600_000
 /** `origin`: the link's host (`https://…`, no path), where the app that shows it is reachable as an app link and
  *  a page explains the code to someone without the app; the flow stays the registered URI (`_type` absolute).
  *  Default: the VTI link host. */
-export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput, origin?: string }
-export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string, carrier?: CarrierOfferInput }
+/** `assertion: false`: this side's messaging identity is written without the `.A` segment (`peer2Of`'s option,
+ *  50 characters shorter in the link); the step proofs need only `authentication`. Default: with `.A`. The
+ *  identity is stored with the enactment, so a restart keeps the form chosen here. */
+export interface ShowInput { relays: Relay[], minutes?: number, name?: string, channel?: 'displayed' | 'sent', carrier?: CarrierOfferInput, origin?: string, assertion?: boolean }
+export interface ProposeInput { link: string, relays: Relay[], channel: 'scan' | 'link', name?: string, carrier?: CarrierOfferInput, assertion?: boolean }
 export interface ReceiveInput { doc: unknown, sender: string }
 /** `id`: the enactment this side answered as responder; `origin`: the host of the code, as `show` takes it */
 export interface BackInput { id: string, origin?: string }
@@ -87,6 +90,9 @@ const linkOrigin = (v: unknown): string | undefined => {
   if (u.protocol !== 'https:' || u.username || u.password || u.port || u.pathname !== '/' || u.search || u.hash) return undefined
   return u.origin === v ? v : undefined
 }
+/** the messaging identity of an act: `.A` left out only where the input says `assertion: false` */
+const messagingDid = (m: { ed: Uint8Array, x: Uint8Array }, relays: Relay[], assertion: unknown): string =>
+  assertion === false ? sc.peer2Of(m.ed, m.x, relays, { assertion: false }) : sc.peer2Of(m.ed, m.x, relays)
 const isRefusal = (x: unknown): x is Refusal => !!x && typeof x === 'object' && (x as Refusal).ok === false
 type Snap = InviterSnapshot | ResponderSnapshot
 
@@ -121,6 +127,18 @@ function openFor (s: HolderState, e: SharedConnectEnactment, theirPair: string, 
   if (!rkid || Object.hasOwn(s.relationships, ids.relId) || Object.hasOwn(s.contacts, ids.contactId)) return null
   const opened = openTuple(s, { relId: ids.relId, contactId: ids.contactId, ownPairLabel: e.label, counterpartAnchor: theirPair, counterpartKeyAgreement: keyAgreement, provenance: { kind: 'ceremony' } }, rkid, when)
   return { ...opened, contactId: ids.contactId }
+}
+
+/** The counterpart's card a completed enactment opens from: the card in its issue; for the responder, where that
+ *  issue carries none, the inviter's card from the link it read, verified then, and only for the pair the
+ *  acceptance names (the machine already refuses an acceptance for another pair and an issue card with another
+ *  key). The inviter takes no such fallback: a card from a back-code opens only at the acceptance and only for a
+ *  link shown in person (below in applyStep). Null where there is no card to open from. */
+function openingCardOf (e: SharedConnectEnactment, after: Snap, theirPair: string | null): { keyAgreement: unknown } | null {
+  const issued = sc.cardOfIssue(after.issueTheirs)
+  if (issued || e.role !== 'responder') return issued
+  const code = after.codeCard as { anchor: unknown, keyAgreement: unknown } | undefined
+  return code && theirPair !== null && code.anchor === theirPair ? code : null
 }
 
 function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extra: EventDraft[] = []): Applied | Refusal {
@@ -158,8 +176,8 @@ function applyStep (state: Readonly<HolderState>, step: Step, when: Millis, extr
       case 'refused': events.push({ type: 'sharedconnect.refused', id: e.id, docType: ev.type, reason: ev.reason }); break
       case 'complete': {
         status = 'complete'
-        // design (d): the counterpart's card in its issue opens the relationship; without one the credentials stay here
-        const card = sc.cardOfIssue(after.issueTheirs)
+        // design (d): the counterpart's card opens the relationship; without one the credentials stay here
+        const card = openingCardOf(e, after, theirPair)
         if (card && theirPair && contactId === null) {
           const opened = openFor(s, e, theirPair, card.keyAgreement as string, when)
           if (opened) { s = opened.state; contactId = opened.contactId; events.push(...(opened.events ?? [])); duties = opened.duties ?? [] }
@@ -199,7 +217,7 @@ const showDef: CommandDef<ShowInput, ShowPrep> = {
     const id16 = ctx.entropy.bytes('challenge', 16)
     const id = sc.challengeOf16(id16)
     const m = await ctx.keys.sharedConnectMessaging(id16)
-    const did = sc.peer2Of(m.ed, m.x, relays)
+    const did = messagingDid(m, relays, input?.assertion)
     const nowS = Math.floor(ctx.when / 1000)
     const cap = channel === 'sent' ? sc.MAX_EXP_LINK_S : sc.MAX_EXP_CODE_S
     const exp = nowS + Math.min(Math.max(60, Math.round((input?.minutes ?? 10) * 60)), cap)
@@ -272,7 +290,7 @@ const proposeDef: CommandDef<ProposeInput, ProposePrep> = {
     const ch16 = ctx.entropy.bytes('challenge', 16)
     const challenge = sc.challengeOf16(ch16)
     const m = await ctx.keys.sharedConnectMessaging(ch16)
-    const did = sc.peer2Of(m.ed, m.x, relays)
+    const did = messagingDid(m, relays, input.assertion)
     const name = typeof input.name === 'string' && input.name.length ? input.name : null
     const party: Party = { messaging: { did, sign: m.sign }, pair: { anchor: own.anchor, keyAgreement: own.keyAgreement, sign: (h) => ctx.keys.sign(label, h) }, ...(name ? { name } : {}) }
     const R = new Responder(party, read.link, challenge, channel, flowOpts(ctx, input.carrier))
@@ -327,6 +345,7 @@ const receiveDef: CommandDef<ReceiveInput, Refusal | Step> = {
 
 // ── the offline path: the back-code ────────────────────────────────────
 
+const acceptTaken = (e: SharedConnectEnactment): boolean => { const a = (e.flow as unknown as ResponderSnapshot).accept; return a !== null && a !== undefined }
 type BackPrep = Refusal | { id: string, before: string, after: ResponderSnapshot, code: string }
 
 const backDef: CommandDef<BackInput, BackPrep> = {
@@ -335,6 +354,9 @@ const backDef: CommandDef<BackInput, BackPrep> = {
     const e = typeof input?.id === 'string' ? ctx.snapshot.sharedConnect.enactments[input.id] : undefined
     if (!e || e.role !== 'responder') return no('enactment-unknown')
     if (e.status !== 'open') return no('enactment-closed')
+    // the inviter's acceptance is taken: the proposal is decided, the code is no longer needed, and the contact
+    // comes from the inviter's card in its issue step. Not shown, nor shown again
+    if (acceptTaken(e)) return no('not-pending')
     const party = await partyOf(ctx, e); if (!party) return no('keys-missing')
     const machine = machineOf(ctx, party, e) as Responder
     // only a code this side's camera read counts as shown in person; and only a link with the inviter's card
@@ -357,6 +379,8 @@ const backDef: CommandDef<BackInput, BackPrep> = {
     if (isRefusal(p)) return p
     const e = state.sharedConnect.enactments[p.id]
     if (!e) return no('enactment-unknown')
+    // the acceptance may have committed after the preparation: named as such, before the generic `concurrent`
+    if (acceptTaken(e)) return no('not-pending')
     if (jcs(e.flow) !== p.before) return no('concurrent')
     if (e.status !== 'open') return no('enactment-closed')
     const card = p.after.codeCard as { anchor: string, keyAgreement: string }
@@ -462,6 +486,11 @@ export interface SharedConnectView {
   accepted: boolean
   /** the responder showed its proposal back as a code (`sharedconnect.back`); false for the inviter */
   backShown: boolean
+  /** the link of this enactment names at least one relay (a service entry `parsePeer` reads as a relay): the
+   *  inviter's own link (`did`), the link the responder read (`link.from`, as resolved when it was read). Null
+   *  where it is not known: a responder's enactment stored before the reading was kept, whose `link.from` is a
+   *  did:peer:4 (a did:peer:2 is read from the link as stored) */
+  relayed: boolean | null
   /** the counterpart's messaging identity once known (the propose issuer / the link's from) */
   theirDid: string | null
   theirPair: string | null
@@ -496,6 +525,14 @@ export interface SharedConnectView {
   closedAt: Millis | null
 }
 
+/** see `SharedConnectView.relayed` */
+function relayedOf (e: SharedConnectEnactment): boolean | null {
+  const read = e.role === 'responder' ? (e.flow as unknown as ResponderSnapshot).linkRelayed : undefined
+  if (typeof read === 'boolean') return read
+  const p = sc.parsePeer2(e.link.from)
+  return p ? p.relays.length > 0 : null
+}
+
 export function sharedConnectView (state: Readonly<HolderState>): SharedConnectView[] {
   return Object.values(state.sharedConnect.enactments).sort((a, b) => a.openedAt - b.openedAt).map((e) => {
     const f = e.flow as unknown as Snap
@@ -505,6 +542,7 @@ export function sharedConnectView (state: Readonly<HolderState>): SharedConnectV
       nonce: nonceB64Of(e),
       accepted: f.accept !== null && f.accept !== undefined,
       backShown: e.role === 'responder' && (f as ResponderSnapshot).backShown === true,
+      relayed: relayedOf(e),
       theirDid: e.role === 'inviter' ? (f as InviterSnapshot).propose?.issuer ?? null : e.link.from,
       theirPair: e.theirPair, name: e.role === 'inviter' ? ((f as InviterSnapshot).propose?.payload?.reason ?? null) : e.link.label,
       channel: e.channel, theirChannel: theirChannelOf(e), met: metInEnactment(e), promptId: pending ? promptIdOf(e.id) : null, contactId: e.contactId,
