@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { x25519 } from "@noble/curves/ed25519.js";
-import { multibase, jwk, didKey, unpack as didcommUnpack, pack as didcommPack } from "@openvtc/vti-didcomm-js";
+import { multibase, jwk, didKey, unpack as didcommUnpack, pack as didcommPack, MediatorSession } from "@openvtc/vti-didcomm-js";
 import {
   pack as tspPack, unpack as tspUnpack, packInvite, packAccept, packWithHops, packRouted,
   decodeEnvelope, nextHop, peekRevision, cesr, sign as tspSign,
@@ -36,6 +36,32 @@ const b64u = (u8) => Buffer.from(u8).toString("base64url");
 const sha256hex = async (text) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))).toString("hex");
 // the real timer, taken before a test mocks the global one (t.mock.timers)
 const realSetTimeout = globalThis.setTimeout;
+
+/** What every client session does, observed in the session class the wire's
+ *  session extends (test only, nothing is changed): `acks` records each
+ *  ack the moment it STARTS (before it is packed and sent), `framesDone`
+ *  each received frame once the session's handling of it, the wire's
+ *  dispatch included, has ended; `isOpenReads` each read of isOpen.
+ *  Entries name the session's client DID. */
+const sessions = { acks: [], framesDone: [], isOpenReads: [] };
+{
+  const { _ackReceived, _onFrame } = MediatorSession.prototype;
+  // isOpenReads: every read of a session's isOpen, with what it said
+  const isOpen = Object.getOwnPropertyDescriptor(MediatorSession.prototype, "isOpen");
+  Object.defineProperty(MediatorSession.prototype, "isOpen", {
+    configurable: true,
+    get() { const open = isOpen.get.call(this); sessions.isOpenReads.push({ did: this.client.did, open }); return open; },
+  });
+  MediatorSession.prototype._ackReceived = function (ids) {
+    sessions.acks.push({ did: this.client.did, ids: [...ids] });
+    return _ackReceived.call(this, ids);
+  };
+  MediatorSession.prototype._onFrame = async function (data) {
+    try { return await _onFrame.call(this, data); } finally { sessions.framesDone.push({ did: this.client.did, data }); }
+  };
+}
+/** The mediator queue ids whose ack a client's session has started. */
+const acksStarted = (did) => sessions.acks.filter((a) => a.did === did).flatMap((a) => a.ids);
 
 /** Waits until `cond()` (sync or async) holds, polling about every 5 ms,
  *  and returns its value. Tests wait for the event they assert, never for
@@ -75,7 +101,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   // refuseDirect: a mediator with local direct delivery off (0.45's code default):
   // a single-layer frame is refused with a problem report on the sender's socket
   // refuseNextDirect: the next single-layer frame only is refused with that code
-  const med = { dropRouted: false, closeOnNextText: null, refuseDirect: false, refuseNextDirect: null };
+  const med = { dropRouted: false, closeOnNextText: null, refuseDirect: false, refuseNextDirect: null, tokenGate: null, tokenRequests: 0, holdOpens: false };
+  const heldOpens = [];
   const all = [];                        // every socket ever opened
 
   const resolve = async () => ({
@@ -99,6 +126,9 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       lastChallengeDid = JSON.parse(init.body).did;
       return new Response(JSON.stringify({ data: { challenge: "c", session_id: "s" } }), { status: 200 });
     }
+    // med.tokenGate: a promise that holds the token response until the test releases it
+    med.tokenRequests++;
+    if (med.tokenGate) await med.tokenGate;
     return new Response(JSON.stringify({ data: {
       access_token: `tok:${lastChallengeDid}`, access_expires_at: now + 600,
       refresh_token: "r", refresh_expires_at: now + 86400,
@@ -124,12 +154,19 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   class FakeWs {
     constructor(_url, protocols) {
       this.did = protocols[0].slice("bearer.tok:".length);
-      this.readyState = 1;
+      // as ws does: CONNECTING until the open event
+      this.readyState = 0;
       sockets.set(this.did, this);
       opened.push(this.did);
       all.push(this);
       // offersTo(did) counts the offer passes made after each open
-      setTimeout(() => { this.onopen?.(); setTimeout(() => void reoffer(this.did).finally(() => offered.push(this.did)), 10); }, 0);
+      // med.holdOpens: the open waits until med.releaseOpens()
+      const open = () => {
+        if (this.readyState === 0) this.readyState = 1;
+        this.onopen?.();
+        setTimeout(() => void reoffer(this.did).finally(() => offered.push(this.did)), 10);
+      };
+      setTimeout(() => (med.holdOpens ? heldOpens.push(open) : open()), 0);
     }
     send(data) {
       // as ws does: a send after close is dropped without an error
@@ -238,6 +275,7 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
     transport: { fetch, resolve, WebSocketImpl: FakeWs },
     deliver, ackedBy, liveDeliveries, rotate, sockets, dropped, forwarded, direct, opened, sent,
     offersTo: (did) => offered.filter((d) => d === did).length,
+    releaseOpens: () => { med.holdOpens = false; for (const open of heldOpens.splice(0)) open(); },
     publicKey: () => xPublic,
     openSockets: (did) => all.filter((w) => w.did === did && w.readyState === 1).length,
   });
@@ -296,12 +334,20 @@ async function pair(med, logs, { A, B, mediatorDid = MEDIATOR_DID, depositMode, 
   await until(() => med.offersTo(A.ids.conn.did) > offersA && med.offersTo(B.ids.conn.did) > offersB, "the offer at the open");
   return { A, B, alice, bob, wireA, wireB };
 }
-/** Closes a client's socket at the double and waits until the client has seen the close. */
-async function dropSocket(med, did) {
+/** Drives setTimeout from here on (node:test mock timers): the double's
+ *  open and close events and the wire's reconnect backoff fire only when
+ *  the test ticks. Date, setImmediate and until()'s own timer stay real. */
+const holdTimers = (ctx) => ctx.mock.timers.enable({ apis: ["setTimeout"] });
+/** With the timers held: closes a client's socket at the double and
+ *  dispatches the close at once; the reconnect it schedules stays held. */
+function dropSocketHeld(ctx, med, did) {
   const ws = med.sockets.get(did);
   ws.close();
-  await until(() => ws.closeDispatched, "the close of the socket of " + did);
+  ctx.mock.timers.tick(0);
+  assert.ok(ws.closeDispatched, "the client saw the close");
 }
+/** Releases the held timers, `ms` of driven time per poll, until `cond` holds. */
+const releaseUntil = (ctx, cond, what, ms = 0) => until(async () => { ctx.mock.timers.tick(ms); return cond(); }, what);
 /** Waits until `n` frames in all have reached the side's adapter, and the
  *  wire is done with the last one: what the wire does after its consumer
  *  returns (queueEmpty's bookkeeping) runs in microtasks, which one turn
@@ -359,15 +405,21 @@ test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter
   // the queue is not blocked: a real deposit behind them is delivered, its seal byte-identical
   const seal = sealOf();
   bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await reached(A, 1);
+  // the session's handling of the deposit's frame, the wire's dispatch included, has ended
+  const done = await until(() => sessions.framesDone.find((f) => f.did === A.ids.conn.did && !texts.includes(f.data)), "the end of the deposit's dispatch");
+  const depositId = await sha256hex(done.data);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(seal));
 
   // and its ack still waits for the adapter's conclude (delete-to-ack):
-  // the wire is done with the frame once the adapter took it
+  // no ack of it was even started while the wire handled it
+  assert.ok(!acksStarted(A.ids.conn.did).includes(depositId), "no ack started before conclude");
   const before = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
   assert.equal(before, texts.length, "no ack before conclude");
-  alice.conclude(c, Date.now()); await alice.settle();
+  alice.conclude(c, Date.now());
+  await alice.settle();
+  assert.ok(acksStarted(A.ids.conn.did).includes(depositId), "the ack conclude started is the deposit's");
   const after = await until(async () => {
     const n = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
     return n > texts.length && n;
@@ -654,17 +706,19 @@ test("routed addressing on the wire reproduces vectors/vti-routed-addressing.jso
   alice.close(); bob.close();
 });
 
-test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rotates; the renewal resolves the new key and the waiting document arrives sealed to it; a frame sealed to the old key is dropped", async () => {
+test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rotates; the renewal resolves the new key and the waiting document arrives sealed to it; a frame sealed to the old key is dropped", async (ctx) => {
   const med = mediatorDouble();
   const logs = [];
   const { A, B, alice, bob } = await pair(med, logs);
   const oldKey = med.publicKey();
-  await dropSocket(med, B.ids.conn.did);
+  // the reconnect is held until the failed attempt is over, then released
+  holdTimers(ctx);
+  dropSocketHeld(ctx, med, B.ids.conn.did);
   const seal = sealOf();
   const id = bob.submit(sealBytes(seal), Date.now()); await bob.settle();
   assert.equal(bob.status(id).state, "awaiting-transport");
   // the socket is reopened in the background
-  await until(async () => (await med.liveDeliveries(B.ids.conn.did)) >= 2, "B's session reopened");
+  await releaseUntil(ctx, async () => (await med.liveDeliveries(B.ids.conn.did)) >= 2, "B's session reopened");
   med.rotate();
   // a frame packed for the old key never reaches anyone
   const stale = await packRouted((await tspPack(rand(16), B.ids.conn.did, A.ids.conn.did,
@@ -733,7 +787,9 @@ test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after
   p.alice.close(); p.bob.close();
 });
 
-test("queueEmpty right after the session opens is false; a successor restored past the deadline does not switch at once (B1)", async () => {
+test("queueEmpty right after the session opens is false; a successor restored past the deadline does not switch at once (B1)", async (ctx) => {
+  // the clock stands still from before the opening: "right after" holds however long the opening takes
+  ctx.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const med = mediatorDouble();
   const send = { mode: "routed", open: [{ digest: "d0", acceptedAt: 0 }] };
   const { alice, bob, wireB } = await pair(med, [], { restoredB: { concluded: [], pending: [], send } });
@@ -744,16 +800,18 @@ test("queueEmpty right after the session opens is false; a successor restored pa
   alice.close(); bob.close();
 });
 
-test("a closed connection socket fails the deposit as unreachable — never accepted on a dead socket — and the retry after the reconnect lands (B1)", async () => {
+test("a closed connection socket fails the deposit as unreachable — never accepted on a dead socket — and the retry after the reconnect lands (B1)", async (ctx) => {
   const med = mediatorDouble();
   const { A, B, alice, bob } = await pair(med, []);
-  await dropSocket(med, B.ids.conn.did);
+  // the reconnect is held until the failed attempt is over, then released
+  holdTimers(ctx);
+  dropSocketHeld(ctx, med, B.ids.conn.did);
   const { view, seal } = docView();
   const [{ submissionId: id }] = bob.reconcile(view, gate(), Date.now()); await bob.settle();
   assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "transport-unreachable" });
   assert.deepEqual(bob.ackState().send.open, [], "nothing open before an acceptance");
   assert.equal(med.forwarded.length, 0);
-  await until(async () => (await med.liveDeliveries(B.ids.conn.did)) >= 2, "B's session reopened");
+  await releaseUntil(ctx, async () => (await med.liveDeliveries(B.ids.conn.did)) >= 2, "B's session reopened");
   assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2, "reopened");
   bob.advance(Date.now()); await bob.settle(); await reached(A, 1);
   assert.equal(bob.status(id).state, "accepted");
@@ -763,16 +821,19 @@ test("a closed connection socket fails the deposit as unreachable — never acce
   alice.close(); bob.close();
 });
 
-test("an ack on a closed socket fails, so the intent stays and the next advance sends it (N6)", async () => {
+test("an ack on a closed socket fails, so the intent stays and the next advance sends it (N6)", async (ctx) => {
   const med = mediatorDouble();
   const { A, alice, bob } = await pair(med, []);
   bob.submit(sealBytes(), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
-  await dropSocket(med, A.ids.conn.did);
+  // the reconnect is held until the failed ack is over, then released
+  holdTimers(ctx);
+  dropSocketHeld(ctx, med, A.ids.conn.did);
   alice.conclude(c, Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 1, "the intent stays");
   // reopened; the mediator offered the unacked frame again, and the adapter absorbed it
+  await releaseUntil(ctx, () => A.handled.length >= 2, "the offer at the reopening", 10);
   await reached(A, 2);
   alice.advance(Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 0);
@@ -879,23 +940,39 @@ test("a frame refused above the cap keeps queueEmpty false; once the buffer is c
 test("authenticate during a background reconnect waits for it: one socket, never two (review 3 N2)", async (ctx) => {
   const med = mediatorDouble();
   const { B, alice, bob, wireB } = await pair(med, []);
-  // driven timers from here: the close, the wire's reconnect backoff and the
-  // double's open all fire when the test says, so the background reconnect
-  // is still pending while authenticate runs, and fires after it
-  ctx.mock.timers.enable({ apis: ["setTimeout"] });
-  const ws = med.sockets.get(B.ids.conn.did);
-  ws.close(); ctx.mock.timers.tick(0);
-  assert.ok(ws.closeDispatched, "the wire saw the close and scheduled its reconnect");
-  let authenticated = false;
-  const auth = wireB.authenticate().then(() => { authenticated = true; });
-  // only timers due now (the double's open of the new socket), never the backoff
-  await until(() => { ctx.mock.timers.tick(0); return authenticated; }, "authenticate");
+  const opens = () => med.opened.filter((d) => d === B.ids.conn.did).length;
+  // driven timers: the close, the wire's reconnect backoff and the double's
+  // open of a socket fire only when the test ticks
+  holdTimers(ctx);
+  dropSocketHeld(ctx, med, B.ids.conn.did);
+  // authenticate runs up to the mediator's token answer, which the double holds
+  let releaseToken;
+  med.tokenGate = new Promise((r) => { releaseToken = r; });
+  const tokens = med.tokenRequests;
+  let authenticated = false, openWhenAuthenticated = null;
+  const auth = wireB.authenticate().then(() => { authenticated = true; openWhenAuthenticated = med.openSockets(B.ids.conn.did); });
+  await until(() => med.tokenRequests > tokens, "authenticate at the token request");
+  // the background reconnect starts: its backoff fires, its socket is opening
+  med.holdOpens = true;
+  ctx.mock.timers.tick(50);
+  assert.equal(opens(), 2, "the background reconnect constructed its socket");
+  assert.equal(med.openSockets(B.ids.conn.did), 0, "its open is still pending");
+  // authenticate continues while that reconnect runs: its socket cannot
+  // open before the test releases it, so authenticate finds the session
+  // closed; the open is released once authenticate has checked it
+  const reads = sessions.isOpenReads.length;
+  med.tokenGate = null; releaseToken();
+  // authenticate's renewal checks the session (closed) and, in the same
+  // synchronous step, joins the running reconnect or would start one
+  await until(() => sessions.isOpenReads.slice(reads).some((r) => r.did === B.ids.conn.did && !r.open), "authenticate's check of the session");
+  med.releaseOpens();
+  await releaseUntil(ctx, () => authenticated, "authenticate");
   await auth;
-  // now every pending timer, the background reconnect included: it decides
-  // synchronously (an open session is left alone, a new socket is constructed at once)
+  assert.equal(openWhenAuthenticated, 1, "authenticate returned only once the reconnect's socket was open");
+  // every timer still pending, then count
   ctx.mock.timers.runAll();
   assert.equal(med.openSockets(B.ids.conn.did), 1);
-  assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2);
+  assert.equal(opens(), 2);
   alice.close(); bob.close();
 });
 
@@ -914,7 +991,7 @@ test("an ack whose socket dies while it is sent fails, so the intent stays (revi
   alice.close(); bob.close();
 });
 
-test("a receive-only side reconnects by itself after its socket drops, and receives again; a closed wire reconnects nothing (review 3 N4)", async () => {
+test("a receive-only side reconnects by itself after its socket drops, and receives again; a closed wire reconnects nothing (review 3 N4)", async (ctx) => {
   const med = mediatorDouble();
   const { A, alice, bob, wireA } = await pair(med, []);
   med.sockets.get(A.ids.conn.did).close();
@@ -926,10 +1003,14 @@ test("a receive-only side reconnects by itself after its socket drops, and recei
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(seal));
   const before = med.opened.length;
   const ws = med.sockets.get(A.ids.conn.did);
+  // driven timers: whatever close() or the close event schedules is run out below
+  holdTimers(ctx);
   wireA.close();
-  // after close() the wire holds no reconnect timer, and the close event,
-  // once seen, schedules none: nothing is left that could reconnect
-  await until(() => ws.closeDispatched, "the close of A's socket");
+  ctx.mock.timers.runAll();
+  assert.ok(ws.closeDispatched, "the client saw the close");
+  // a reconnect started from a promise chain gets its turn, then the timers once more
+  await new Promise((r) => setImmediate(r));
+  ctx.mock.timers.runAll();
   assert.equal(med.opened.length, before, "no reconnect after close()");
   alice.close(); bob.close();
 });
