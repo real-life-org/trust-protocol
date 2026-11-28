@@ -34,7 +34,22 @@ const MEDIATOR_DID = "did:example:mediator-double";
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 const b64u = (u8) => Buffer.from(u8).toString("base64url");
 const sha256hex = async (text) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))).toString("hex");
-const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
+// the real timer, taken before a test mocks the global one (t.mock.timers)
+const realSetTimeout = globalThis.setTimeout;
+
+/** Waits until `cond()` (sync or async) holds, polling about every 5 ms,
+ *  and returns its value. Tests wait for the event they assert, never for
+ *  an interval: the deadline is only a safety net for an event that never
+ *  comes, it never makes a test pass. */
+async function until(cond, what, deadlineMs = 5000) {
+  const end = performance.now() + deadlineMs;
+  for (;;) {
+    const v = await cond();
+    if (v) return v;
+    if (performance.now() > end) throw new Error("timed out waiting for " + what);
+    await new Promise((r) => realSetTimeout(r, 5));
+  }
+}
 
 /** Store-and-forward mediator double. A binary TSP frame is relayed only
  *  when its envelope sender is the socket's authenticated DID (measured
@@ -113,7 +128,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
       sockets.set(this.did, this);
       opened.push(this.did);
       all.push(this);
-      setTimeout(() => { this.onopen?.(); setTimeout(() => void reoffer(this.did), 10); }, 0);
+      // offersTo(did) counts the offer passes made after each open
+      setTimeout(() => { this.onopen?.(); setTimeout(() => void reoffer(this.did).finally(() => offered.push(this.did)), 10); }, 0);
     }
     send(data) {
       // as ws does: a send after close is dropped without an error
@@ -135,7 +151,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
     close() {
       if (this.readyState === 3) return;
       this.readyState = 3;
-      setTimeout(() => this.onclose?.({ code: 1006 }), 0);
+      // closeDispatched: the client has seen the close (its onclose ran)
+      setTimeout(() => { this.onclose?.({ code: 1006 }); this.closeDispatched = true; }, 0);
     }
   }
 
@@ -177,26 +194,39 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
   /** Inject a frame into a client's socket as the mediator would deliver it (and hold it). */
   const deliver = (did, qb2) => toClient(did, qb2);
 
-  /** The message ids a client has acked (decrypting its messages-received
-   *  with the current or an earlier key of the mediator). */
-  const ackedBy = async (did, clientXPublic, clientKid) => {
+  /** The DIDComm messages a client sent the mediator, in order (decrypted
+   *  with the current or an earlier key of the mediator; each frame once). */
+  const decoded = new Map();             // sent entry → its decrypted message
+  const messagesFrom = async (did, clientXPublic, clientKid) => {
     const doc = didKey.resolve(did).didDocument;
     clientKid ??= doc.keyAgreement?.[0]?.id ?? doc.keyAgreement?.[0];
     clientXPublic ??= peerKeys(did).encPub;
-    const ids = [];
+    const out = [];
     for (const f of sent.filter((s) => s.did === did)) {
-      for (const sk of [xSecret, ...oldSecrets]) {
-        try {
-          const { message } = await didcommUnpack(f.data,
-            { kid, privateJwk: jwk.privateJwk("X25519", sk, x25519.getPublicKey(sk)) },
-            { kid: clientKid, publicJwk: jwk.publicJwk("X25519", clientXPublic) });
-          if (message.type.endsWith("/messages-received")) ids.push(...message.body.message_id_list);
-          break;
-        } catch { /* sealed to another key */ }
+      if (!decoded.has(f)) {
+        for (const sk of [xSecret, ...oldSecrets]) {
+          try {
+            const { message } = await didcommUnpack(f.data,
+              { kid, privateJwk: jwk.privateJwk("X25519", sk, x25519.getPublicKey(sk)) },
+              { kid: clientKid, publicJwk: jwk.publicJwk("X25519", clientXPublic) });
+            decoded.set(f, message);
+            break;
+          } catch { /* sealed to another key */ }
+        }
       }
+      if (decoded.has(f)) out.push(decoded.get(f));
     }
-    return ids;
+    return out;
   };
+  /** The message ids a client has acked (its messages-received). */
+  const ackedBy = async (did, clientXPublic, clientKid) =>
+    (await messagesFrom(did, clientXPublic, clientKid))
+      .filter((m) => m.type.endsWith("/messages-received")).flatMap((m) => m.body.message_id_list);
+  /** How many sessions a client has finished opening: each connect ends
+   *  with the live-delivery change on the new socket. */
+  const liveDeliveries = async (did) =>
+    (await messagesFrom(did)).filter((m) => m.type.endsWith("/live-delivery-change")).length;
+  const offered = [];                    // the DID of every offer pass completed after an open
 
   const rotate = () => {
     oldSecrets.push(xSecret);
@@ -206,7 +236,8 @@ function mediatorDouble(mediatorDid = MEDIATOR_DID) {
 
   return Object.assign(med, {
     transport: { fetch, resolve, WebSocketImpl: FakeWs },
-    deliver, ackedBy, rotate, sockets, dropped, forwarded, direct, opened, sent,
+    deliver, ackedBy, liveDeliveries, rotate, sockets, dropped, forwarded, direct, opened, sent,
+    offersTo: (did) => offered.filter((d) => d === did).length,
     publicKey: () => xPublic,
     openSockets: (did) => all.filter((w) => w.did === did && w.readyState === 1).length,
   });
@@ -240,18 +271,51 @@ async function pair(med, logs, { A, B, mediatorDid = MEDIATOR_DID, depositMode, 
     transport: med.transport, log: (l) => logs.push(l), depositMode,
   });
   const wireA = await mk(A, B); const wireB = await mk(B, A);
-  // the adapter's consumer, for tests that fill its buffer directly
-  const onDeliverA = wireA.onDeliver;
-  wireA.onDeliver = (cb) => { A.consumer = cb; onDeliverA.call(wireA, cb); };
+  // side.consumer: the adapter's consumer, for tests that fill its buffer
+  // directly; side.handled: what it returned for every frame the wire
+  // handed it, so a test can wait until a frame has reached the adapter
+  for (const [side, wire] of [[A, wireA], [B, wireB]]) {
+    const onDeliver = wire.onDeliver;
+    side.handled = [];
+    wire.onDeliver = (cb) => {
+      side.consumer = cb;
+      onDeliver.call(wire, async (payload, sender) => {
+        try { const took = await cb(payload, sender); side.handled.push(took); return took; } catch (e) { side.handled.push(e); throw e; }
+      });
+    };
+  }
   const alice = await MediatorCarrierAdapter.open(A.ids.context, wireA);
   const bob = restoredB
     ? await MediatorCarrierAdapter.open(B.ids.context, wireB, restoredB, Date.now())
     : await MediatorCarrierAdapter.open(B.ids.context, wireB);
+  const offersA = med.offersTo(A.ids.conn.did); const offersB = med.offersTo(B.ids.conn.did);
   // one handshake at a time: the double keys tokens by the last challenge
   alice.register([], Date.now()); await alice.settle();
   bob.register([], Date.now()); await bob.settle();
+  // the double's first offer of what it holds has passed on both sockets
+  await until(() => med.offersTo(A.ids.conn.did) > offersA && med.offersTo(B.ids.conn.did) > offersB, "the offer at the open");
   return { A, B, alice, bob, wireA, wireB };
 }
+/** Closes a client's socket at the double and waits until the client has seen the close. */
+async function dropSocket(med, did) {
+  const ws = med.sockets.get(did);
+  ws.close();
+  await until(() => ws.closeDispatched, "the close of the socket of " + did);
+}
+/** Waits until `n` frames in all have reached the side's adapter, and the
+ *  wire is done with the last one: what the wire does after its consumer
+ *  returns (queueEmpty's bookkeeping) runs in microtasks, which one turn
+ *  of the event loop (setImmediate, no interval) completes. */
+const reached = async (side, n) => {
+  await until(() => side.handled.length >= n, `${n} frame(s) at the adapter`);
+  await new Promise((r) => setImmediate(r));
+};
+/** Waits until the mediator double holds an ack of every one of `texts` from `did`. */
+const ackedAll = (med, did, texts) => until(async () => {
+  const acked = await med.ackedBy(did);
+  for (const t of texts) if (!acked.includes(await sha256hex(t))) return false;
+  return true;
+}, "the acks at the mediator");
 const adapterLines = (logs) => logs.filter((l) => !l.startsWith("[vti-adapter]"));
 
 test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter; the queue keeps moving (RLTP-VTI-7140)", async () => {
@@ -271,9 +335,16 @@ test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter
   const routed = await packRouted(inner.bytes, [A.ids.conn.did], B.ids.conn.did, A.ids.conn.did, bobKeys);
 
   const texts = [];
-  for (const f of [invite, accept, nested, empty, routed]) { texts.push(med.deliver(A.ids.conn.did, f.bytes)); await tick(); }
+  // one at a time: each frame's log line before the next, so the lines keep their order
+  for (const f of [invite, accept, nested, empty, routed]) {
+    texts.push(med.deliver(A.ids.conn.did, f.bytes));
+    await until(() => logs.length >= texts.length, `the log line of frame ${texts.length}`);
+  }
+  // every frame's decision is final once the mediator holds its ack
+  await ackedAll(med, A.ids.conn.did, texts);
 
   assert.equal(alice.collect(Date.now()).items.length, 0, "no TSP control/unsupported frame may reach the adapter");
+  assert.equal(A.handled.length, 0, "nothing handed to the adapter's consumer");
   assert.match(logs[0], /control\/invite from did:key:/);
   assert.ok(logs[0].includes(B.ids.conn.did), "log names the sender VID");
   assert.match(logs[1], /control\/accept/);
@@ -287,16 +358,20 @@ test("XRFI, XRFA, nested, routed and empty direct frames never reach the adapter
 
   // the queue is not blocked: a real deposit behind them is delivered, its seal byte-identical
   const seal = sealOf();
-  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(seal));
 
-  // and its ack still waits for the adapter's conclude (delete-to-ack)
+  // and its ack still waits for the adapter's conclude (delete-to-ack):
+  // the wire is done with the frame once the adapter took it
   const before = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
   assert.equal(before, texts.length, "no ack before conclude");
-  alice.conclude(c, Date.now()); await alice.settle(); await tick();
-  const after = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
+  alice.conclude(c, Date.now()); await alice.settle();
+  const after = await until(async () => {
+    const n = (await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid)).length;
+    return n > texts.length && n;
+  }, "the ack of the concluded frame");
   assert.equal(after, texts.length + 1, "conclude acks the delivered frame");
   alice.close(); bob.close();
 });
@@ -305,7 +380,7 @@ test("TSP 1.0 (§7): both layers of a deposit declare YTSP-BAA and carry the sen
   const med = mediatorDouble();
   const logs = [];
   const { A, B, alice, bob } = await pair(med, logs);
-  bob.submit(sealBytes(), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(), Date.now()); await bob.settle(); await reached(A, 1);
   const c1 = alice.collect(Date.now());
   assert.equal(c1.items.length, 1);
   const [f] = med.forwarded;
@@ -313,15 +388,19 @@ test("TSP 1.0 (§7): both layers of a deposit declare YTSP-BAA and carry the sen
   assert.deepEqual(peekRevision(f.inner), { major: 1, minor: 0, recognised: true }, "inner layer");
   const inner = await tspUnpack(f.inner, { receiverDecryptionKey: A.ids.conn.xSecret, senderSigningKey: B.ids.conn.edPublic });
   assert.equal(inner.sender, B.ids.conn.did, "the sender VID, bound in the confidential payload (ESSR)");
-  alice.conclude(c1, Date.now()); await alice.settle(); await tick();
+  alice.conclude(c1, Date.now()); await alice.settle();
+  await until(async () => (await med.ackedBy(A.ids.conn.did)).length === 1, "the ack of the first deposit");
 
   // the same frame, marked Rev 3 (YTSP-AAC): refused before any key is touched
   const bobKeys = { senderSigningKey: B.ids.conn.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
   const v1 = await tspPack(await carried(sealOf(), B.ids.conn.did, A.ids.conn.did), B.ids.conn.did, A.ids.conn.did, bobKeys);
   const text = b64u(v1.bytes);
   const rev3 = new Uint8Array(Buffer.from(text.replace("YTSP-BAA", "YTSP-AAC"), "base64url"));
-  const rev3Text = med.deliver(A.ids.conn.did, rev3); await tick();
+  const rev3Text = med.deliver(A.ids.conn.did, rev3);
+  // the refusal is final once the mediator holds its ack
+  await ackedAll(med, A.ids.conn.did, [rev3Text]);
   assert.equal(alice.collect(Date.now()).items.length, 0, "a Rev 3 frame never reaches the adapter");
+  assert.equal(A.handled.length, 1, "only the first deposit was handed to the adapter");
   assert.equal(logs.length, 1);
   assert.match(logs[0], /Rev 3 \(YTSP-AAC\)/, logs[0]);
   assert.match(logs[0], /acked and dropped/);
@@ -330,7 +409,7 @@ test("TSP 1.0 (§7): both layers of a deposit declare YTSP-BAA and carry the sen
 
   // a 1.0 deposit behind it arrives
   const next = sealOf();
-  bob.submit(sealBytes(next), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(next), Date.now()); await bob.settle(); await reached(A, 2);
   const c2 = alice.collect(Date.now());
   assert.equal(c2.items.length, 1);
   assert.deepEqual(new Uint8Array(c2.items[0].bytes), sealBytes(next));
@@ -371,13 +450,16 @@ test("RLTP-VTI-7140, major version 1: a 1.1 direct frame is delivered; a frame o
   const seal = sealOf();
   const v11 = await packMinor(1, await carried(seal, B.ids.conn.did, A.ids.conn.did), B.ids.conn.did, A.ids.conn.did, bobKeys);
   assert.deepEqual(peekRevision(v11), { major: 1, minor: 1, recognised: false });
-  med.deliver(A.ids.conn.did, v11); await tick();
+  med.deliver(A.ids.conn.did, v11); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1, "a later MINOR of major version 1 is delivered");
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(seal));
   const v1 = await tspPack(await carried(sealOf(), B.ids.conn.did, A.ids.conn.did), B.ids.conn.did, A.ids.conn.did, bobKeys);
-  const v2Text = med.deliver(A.ids.conn.did, new Uint8Array(Buffer.from(b64u(v1.bytes).replace("YTSP-BAA", "YTSP-CAA"), "base64url"))); await tick();
+  const v2Text = med.deliver(A.ids.conn.did, new Uint8Array(Buffer.from(b64u(v1.bytes).replace("YTSP-BAA", "YTSP-CAA"), "base64url")));
+  // the refusal is final once the mediator holds its ack
+  await ackedAll(med, A.ids.conn.did, [v2Text]);
   assert.equal(alice.collect(Date.now()).items.length, 0, "major version 2 never reaches the adapter");
+  assert.equal(A.handled.length, 1, "only the 1.1 frame was handed to the adapter");
   assert.equal(logs.length, 1);
   assert.match(logs[0], /MAJOR 2/, logs[0]);
   const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
@@ -392,14 +474,17 @@ test("RLTP-VTI-7140: a frame whose sender VID in the confidential payload differ
   const X = await deriveWireIdentities(rand(32), MEDIATOR_DID, rand(32));
   const bobKeys = { senderSigningKey: B.ids.conn.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
   const bad = await packEssrMismatch(await carried(sealOf(), B.ids.conn.did, A.ids.conn.did), B.ids.conn.did, X.conn.did, A.ids.conn.did, bobKeys);
-  const badText = med.deliver(A.ids.conn.did, bad); await tick();
+  const badText = med.deliver(A.ids.conn.did, bad);
+  // the refusal is final once the mediator holds its ack
+  await ackedAll(med, A.ids.conn.did, [badText]);
   assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.equal(A.handled.length, 0);
   assert.equal(logs.length, 1);
   assert.ok(logs[0].includes(B.ids.conn.did) && /refused/.test(logs[0]), logs[0]);
   const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
   assert.ok(acked.includes(await sha256hex(badText)));
   const next = sealOf();
-  bob.submit(sealBytes(next), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(next), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(next));
@@ -416,10 +501,13 @@ test("RLTP-VTI-7140: the consumer receives the payload unchanged with its authen
   const wire = await createVtiWire({ connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport: med.transport, log: (l) => logs.push(l) });
   const seen = [];
   wire.onDeliver(async (payload, sender) => { seen.push({ payload: new Uint8Array(payload), sender }); return true; });
-  await wire.authenticate(); await tick();
+  await wire.authenticate();
+  // the double's offer at the open has passed: the frame below reaches the wire once
+  await until(() => med.offersTo(A.ids.conn.did) >= 1, "the offer at the open");
   const payload = rand(77);                       // whatever the payload, the wire passes it on unread
   const bobKeys = { senderSigningKey: B.ids.conn.edSecret, receiverEncryptionKey: peerKeys(A.ids.conn.did).encPub };
-  med.deliver(A.ids.conn.did, (await tspPack(payload, B.ids.conn.did, A.ids.conn.did, bobKeys)).bytes); await tick();
+  med.deliver(A.ids.conn.did, (await tspPack(payload, B.ids.conn.did, A.ids.conn.did, bobKeys)).bytes);
+  await until(() => seen.length >= 1, "the delivery to the consumer");
   assert.equal(seen.length, 1);
   assert.deepEqual(seen[0].payload, payload, "M-2: the payload byte for byte");
   assert.equal(seen[0].sender, B.ids.conn.did, "the sender TSP authenticated");
@@ -432,8 +520,10 @@ test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the connect
   med.refuseDirect = true;
   const logs = [];
   const send = { mode: "direct", open: [] };
-  const { alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
-  const first = bob.submit(sealBytes(), Date.now()); await bob.settle(); await tick(50);
+  const { A, alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
+  const first = bob.submit(sealBytes(), Date.now()); await bob.settle();
+  // the problem report follows the double's refusal of the frame
+  await until(() => logs.some((l) => /direct_delivery\.denied/.test(l)), "the problem report");
   assert.equal(bob.status(first).state, "accepted", "the refused deposit had already left");
   assert.equal(alice.collect(Date.now()).items.length, 0);
   assert.ok(logs.some((l) => /direct_delivery\.denied/.test(l)), JSON.stringify(logs));
@@ -444,7 +534,7 @@ test("RLTP-VTI-3120: a mediator that refuses direct delivery answers the connect
   assert.equal(med.dropped.filter((d) => d.why === "direct delivery denied").length, 1, "nothing deposited after the refusal");
   await assert.rejects(wireB.deposit("t", sealBytes(), "direct"), (e) => e instanceof WireError && e.kind === "direct-refused");
   // routed is not refused by it
-  await wireB.deposit("t", await carried(sealOf(), wireB.connectionDid, wireB.counterpart()), "routed"); await tick();
+  await wireB.deposit("t", await carried(sealOf(), wireB.connectionDid, wireB.counterpart()), "routed"); await reached(A, 1);
   assert.equal(alice.collect(Date.now()).items.length, 1, "routed still carried");
   alice.close(); bob.close();
 });
@@ -455,7 +545,8 @@ test("RLTP-VTI-3120: one deposit, then the refusal of direct delivery arrives: t
   const logs = [];
   const send = { mode: "direct", open: [] };
   const first = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
-  const id0 = first.bob.submit(sealBytes(), Date.now()); await first.bob.settle(); await tick(50);
+  const id0 = first.bob.submit(sealBytes(), Date.now()); await first.bob.settle();
+  await until(() => first.wireB.directRefused(), "the refusal of direct delivery");
   assert.equal(first.bob.status(id0).state, "accepted");
   assert.equal(first.wireB.directRefused(), true);
   // the host's final persist after the close: the signal outlives it
@@ -466,7 +557,8 @@ test("RLTP-VTI-3120: one deposit, then the refusal of direct delivery arrives: t
   med.refuseDirect = false;
   const next = await pair(med, [], { A: first.A, B: first.B, restoredB: snap });
   const { view } = docView();
-  const [{ submissionId: id }] = next.bob.reconcile(view, gate(), Date.now()); await next.bob.settle(); await tick(50);
+  // settle() ends the attempt: a deposit would have reached the double synchronously within it
+  const [{ submissionId: id }] = next.bob.reconcile(view, gate(), Date.now()); await next.bob.settle();
   assert.deepEqual(next.bob.status(id), { state: "awaiting-transport", reason: "carrier-refused-retriable" });
   assert.deepEqual(med.direct, []);
   next.alice.close(); next.bob.close();
@@ -478,12 +570,14 @@ test("RLTP-VTI-3120, §5: any other problem report (e.p.delivery.refused) is log
   const logs = [];
   const send = { mode: "direct", open: [] };
   const { A, B, alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
-  bob.submit(sealBytes(), Date.now()); await bob.settle(); await tick(50);
+  bob.submit(sealBytes(), Date.now()); await bob.settle();
+  // the problem report follows the double's refusal of the frame
+  await until(() => logs.some((l) => /e\.p\.delivery\.refused/.test(l)), "the problem report");
   assert.equal(alice.collect(Date.now()).items.length, 0);
   assert.ok(logs.some((l) => /e\.p\.delivery\.refused/.test(l)), JSON.stringify(logs));
   assert.equal(wireB.directRefused(), false);
   const next = sealOf();
-  const id = bob.submit(sealBytes(next), Date.now()); await bob.settle(); await tick(50);
+  const id = bob.submit(sealBytes(next), Date.now()); await bob.settle(); await reached(A, 1);
   assert.equal(bob.status(id).state, "accepted");
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1, "no lock: the next deposit is delivered");
@@ -497,7 +591,7 @@ test("routed (RLTP-VTI-1120, 3110, 3115): outer connection DID → C with the ro
   const logs = [];
   const { A, B, alice, bob, wireB } = await pair(med, logs);
   const seal = sealOf();
-  const id = bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await tick();
+  const id = bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await reached(A, 1);
   assert.equal(bob.status(id).state, "accepted");
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
@@ -533,8 +627,9 @@ test("routed addressing on the wire reproduces vectors/vti-routed-addressing.jso
   const logs = [];
   const { alice, bob } = await pair(med, logs, { A, B, mediatorDid: V.carrier });
   assert.deepEqual({ A: { connection: A.ids.conn.did }, B: { connection: B.ids.conn.did } }, V.sides);
-  alice.submit(sealBytes(), Date.now()); await alice.settle(); await tick();
-  bob.submit(sealBytes(), Date.now()); await bob.settle(); await tick();
+  // one after the other, so med.forwarded holds A→B, then B→A
+  alice.submit(sealBytes(), Date.now()); await alice.settle(); await reached(B, 1);
+  bob.submit(sealBytes(), Date.now()); await bob.settle(); await reached(A, 1);
   const strip = ({ sealedTo, signedBy, payload, ...rest }) => rest;
   const keys = { A, B };
   for (const [i, key] of ["A→B", "B→A"].entries()) {
@@ -564,21 +659,25 @@ test("rebinding (RLTP-VTI-7110, 7120): a deposit that failed waits; C's key rota
   const logs = [];
   const { A, B, alice, bob } = await pair(med, logs);
   const oldKey = med.publicKey();
-  med.sockets.get(B.ids.conn.did).close(); await tick();
+  await dropSocket(med, B.ids.conn.did);
   const seal = sealOf();
   const id = bob.submit(sealBytes(seal), Date.now()); await bob.settle();
   assert.equal(bob.status(id).state, "awaiting-transport");
-  await tick();                                   // the socket is reopened in the background
+  // the socket is reopened in the background
+  await until(async () => (await med.liveDeliveries(B.ids.conn.did)) >= 2, "B's session reopened");
   med.rotate();
   // a frame packed for the old key never reaches anyone
   const stale = await packRouted((await tspPack(rand(16), B.ids.conn.did, A.ids.conn.did,
     { senderSigningKey: B.ids.conn.edSecret, receiverEncryptionKey: A.ids.conn.xPublic })).bytes,
   [A.ids.conn.did], B.ids.conn.did, MEDIATOR_DID, { senderSigningKey: B.ids.conn.edSecret, receiverEncryptionKey: oldKey });
-  med.sockets.get(B.ids.conn.did).send(stale.bytes); await tick();
+  med.sockets.get(B.ids.conn.did).send(stale.bytes);
+  // the double's decision on the stale frame
+  await until(() => med.dropped.some((d) => d.why === "not openable with the current key"), "the drop of the stale frame");
   assert.deepEqual(med.dropped.map((d) => d.why).filter((w) => w !== "socket closed"), ["not openable with the current key"]);
   assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.equal(A.handled.length, 0);
   // the next attempt after the access token's expiry: renewal, new key, packed anew
-  bob.advance(Date.now() + 601_000); await bob.settle(); await tick();
+  bob.advance(Date.now() + 601_000); await bob.settle(); await reached(A, 1);
   assert.equal(bob.status(id).state, "accepted");
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
@@ -594,7 +693,7 @@ test("fallback (RLTP-VTI-3120): an adapter in mode direct deposits the inner mes
   const { A, B, alice, bob, wireB } = await pair(med, logs, { restoredB: { concluded: [], pending: [], send } });
   assert.equal(bob.sendMode, "direct");
   const seal = sealOf();
-  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(seal));
@@ -607,13 +706,13 @@ test("fallback (RLTP-VTI-3120): an adapter in mode direct deposits the inner mes
   const med2 = mediatorDouble();
   const p2 = await pair(med2, [], { depositMode: "direct" });
   assert.equal(p2.bob.sendMode, "routed");
-  p2.bob.submit(sealBytes(seal), Date.now()); await p2.bob.settle(); await tick();
+  p2.bob.submit(sealBytes(seal), Date.now()); await p2.bob.settle(); await reached(p2.A, 1);
   assert.equal(p2.alice.collect(Date.now()).items.length, 1);
   assert.equal(med2.direct[0].session, p2.B.ids.conn.did);
   alice.close(); bob.close(); p2.alice.close(); p2.bob.close();
 });
 
-test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after a frame, true on an open, quiet session", async () => {
+test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after a frame, true on an open, quiet session", async (ctx) => {
   const med = mediatorDouble();
   const logs = [];
   const A = { root: rand(32), nonce: rand(32) };
@@ -623,11 +722,13 @@ test("queueEmpty (RLTP-VTI-3130): false before the session opens and right after
   const cold = await createVtiWire({ connection: A.ids.context.connection, peerDid: B.ids.conn.did, transport: med.transport });
   assert.equal(cold.queueEmpty(), false, "no session");
   const p = await pair(med, logs, { A, B });
-  await tick(1100);
+  // the quiet period (QUIET_MS, 1 s) passes on a driven clock: Date only, the timers stay real
+  ctx.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  ctx.mock.timers.tick(1100);
   assert.equal(p.wireA.queueEmpty(), true);
-  p.bob.submit(sealBytes(), Date.now()); await p.bob.settle(); await tick();
+  p.bob.submit(sealBytes(), Date.now()); await p.bob.settle(); await reached(A, 1);
   assert.equal(p.wireA.queueEmpty(), false, "a frame just arrived");
-  await tick(1100);
+  ctx.mock.timers.tick(1100);
   assert.equal(p.wireA.queueEmpty(), true);
   p.alice.close(); p.bob.close();
 });
@@ -645,16 +746,16 @@ test("queueEmpty right after the session opens is false; a successor restored pa
 
 test("a closed connection socket fails the deposit as unreachable — never accepted on a dead socket — and the retry after the reconnect lands (B1)", async () => {
   const med = mediatorDouble();
-  const { B, alice, bob } = await pair(med, []);
-  med.sockets.get(B.ids.conn.did).close(); await tick();
+  const { A, B, alice, bob } = await pair(med, []);
+  await dropSocket(med, B.ids.conn.did);
   const { view, seal } = docView();
   const [{ submissionId: id }] = bob.reconcile(view, gate(), Date.now()); await bob.settle();
   assert.deepEqual(bob.status(id), { state: "awaiting-transport", reason: "transport-unreachable" });
   assert.deepEqual(bob.ackState().send.open, [], "nothing open before an acceptance");
   assert.equal(med.forwarded.length, 0);
-  await tick();
+  await until(async () => (await med.liveDeliveries(B.ids.conn.did)) >= 2, "B's session reopened");
   assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2, "reopened");
-  bob.advance(Date.now()); await bob.settle(); await tick();
+  bob.advance(Date.now()); await bob.settle(); await reached(A, 1);
   assert.equal(bob.status(id).state, "accepted");
   assert.equal(bob.ackState().send.open.length, 1, "accepted in routed: an open deposit");
   const c = alice.collect(Date.now());
@@ -665,16 +766,20 @@ test("a closed connection socket fails the deposit as unreachable — never acce
 test("an ack on a closed socket fails, so the intent stays and the next advance sends it (N6)", async () => {
   const med = mediatorDouble();
   const { A, alice, bob } = await pair(med, []);
-  bob.submit(sealBytes(), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
-  med.sockets.get(A.ids.conn.did).close(); await tick();
+  await dropSocket(med, A.ids.conn.did);
   alice.conclude(c, Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 1, "the intent stays");
-  await tick(100);                                 // reopened; the mediator offered the frame again (absorbed)
-  alice.advance(Date.now()); await alice.settle(); await tick();
+  // reopened; the mediator offered the unacked frame again, and the adapter absorbed it
+  await reached(A, 2);
+  alice.advance(Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 0);
-  const acked = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+  const acked = await until(async () => {
+    const ids = await med.ackedBy(A.ids.conn.did, A.ids.conn.xPublic, A.ids.conn.kid);
+    return ids.length > 0 && ids;
+  }, "the ack at the mediator");
   assert.equal(acked.length, 1);
   alice.close(); bob.close();
 });
@@ -687,18 +792,23 @@ test("a frame from a foreign sender or one that cannot be read is logged and ack
   const X = await deriveWireIdentities(rand(32), MEDIATOR_DID, rand(32));
   const foreign = await tspPack(await carried(sealOf(), X.conn.did, A.ids.conn.did), X.conn.did, A.ids.conn.did,
     { senderSigningKey: X.conn.edSecret, receiverEncryptionKey: A.ids.conn.xPublic });
-  const t1 = med.deliver(A.ids.conn.did, foreign.bytes); await tick();
+  const t1 = med.deliver(A.ids.conn.did, foreign.bytes);
+  await until(() => logs.length >= 1, "the log line of frame 1");
   // the expected sender's frame, tampered: its signature no longer holds
   const good = await tspPack(rand(40), bobIds.conn.did, A.ids.conn.did,
     { senderSigningKey: bobIds.conn.edSecret, receiverEncryptionKey: A.ids.conn.xPublic });
   const tampered = new Uint8Array(good.bytes); tampered[tampered.length - 5] ^= 0xff;
-  const t2 = med.deliver(A.ids.conn.did, tampered); await tick();
+  const t2 = med.deliver(A.ids.conn.did, tampered);
+  await until(() => logs.length >= 2, "the log line of frame 2");
   // a frame of the expected sender for another receiver (this side's connection DID of another relationship)
   const Y = await deriveWireIdentities(A.root, MEDIATOR_DID, rand(32));
   const other = await tspPack(rand(40), bobIds.conn.did, Y.conn.did,
     { senderSigningKey: bobIds.conn.edSecret, receiverEncryptionKey: A.ids.conn.xPublic });
-  const t3 = med.deliver(A.ids.conn.did, other.bytes); await tick();
+  const t3 = med.deliver(A.ids.conn.did, other.bytes);
+  // every refusal is final once the mediator holds its ack
+  await ackedAll(med, A.ids.conn.did, [t1, t2, t3]);
   assert.equal(alice.collect(Date.now()).items.length, 0);
+  assert.equal(A.handled.length, 0);
   assert.equal(logs.length, 3);
   assert.ok(logs[0].includes(X.conn.did) && /refused/.test(logs[0]), logs[0]);
   assert.ok(logs[1].includes(bobIds.conn.did) && /refused/.test(logs[1]), logs[1]);
@@ -708,22 +818,26 @@ test("a frame from a foreign sender or one that cannot be read is logged and ack
   alice.close(); bob.close();
 });
 
-test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed frames, a quiet queue, the deadline — then mode direct carries the next document on the same session", async () => {
+test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed frames, a quiet queue, the deadline — then mode direct carries the next document on the same session", async (ctx) => {
   const med = mediatorDouble();
   med.dropRouted = true;
   const logs = [];
-  const { B, alice, bob } = await pair(med, logs);
+  const { A, B, alice, bob } = await pair(med, logs);
   const bobGate = gate();
-  bob.reconcile(docView().view, bobGate, Date.now()); await bob.settle(); await tick();
+  bob.reconcile(docView().view, bobGate, Date.now()); await bob.settle();
+  await until(() => med.dropped.some((d) => d.why === "routed frames not carried"), "the double's drop of the routed frame");
   assert.equal(alice.collect(Date.now()).items.length, 0, "routed frames are not carried");
-  await tick(1100);                               // the real queueEmpty: a quiet open socket
+  // the real queueEmpty, a quiet open socket: the quiet period passes on a
+  // driven clock (Date only, the timers stay real)
+  ctx.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  ctx.mock.timers.tick(1100);
   let t = Date.now();
   bob.conclude(bob.collect(t), t);
   bob.advance(t + 72 * 3_600_000);
   assert.equal(bob.sendMode, "direct");
   t += 72 * 3_600_000 + 1;
   const second = sealOf();
-  bob.submit(sealBytes(second), t); await bob.settle(); await tick();
+  bob.submit(sealBytes(second), t); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.equal(c.items.length, 1);
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(second));
@@ -733,7 +847,7 @@ test("the switch end to end (RLTP-VTI-3130): a mediator that carries no routed f
   alice.close(); bob.close();
 });
 
-test("a frame refused above the cap keeps queueEmpty false; once the buffer is concluded the mediator offers it again at the next open, the adapter takes it, queueEmpty turns true (review 3 N1, review 4 N4)", async () => {
+test("a frame refused above the cap keeps queueEmpty false; once the buffer is concluded the mediator offers it again at the next open, the adapter takes it, queueEmpty turns true (review 3 N1, review 4 N4)", async (ctx) => {
   const med = mediatorDouble();
   const { A, B, alice, bob, wireA } = await pair(med, []);
   // fill the buffer to the cap through the adapter's consumer: maximal carried
@@ -743,28 +857,43 @@ test("a frame refused above the cap keeps queueEmpty false; once the buffer is c
   while (await feed({ ...big, nonce: B64U(12) })) { /* fill */ }
   while (await feed(sealOf())) { /* top up */ }
   const seal = sealOf();
-  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await tick();
-  await tick(1100);
+  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await reached(A, 1);
+  assert.equal(A.handled[0], false, "the frame through the wire was not taken");
+  // past the quiet period on a driven clock (Date only, the timers stay real)
+  ctx.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  ctx.mock.timers.tick(1100);
   assert.equal(wireA.queueEmpty(), false, "a frame was left with the mediator");
   const c = alice.collect(Date.now());
   assert.ok(!c.items.some((it) => Buffer.from(it.bytes).equals(Buffer.from(sealBytes(seal)))), "only the big ones");
   alice.conclude(c, Date.now()); await alice.settle();
   med.sockets.get(A.ids.conn.did).close();         // the next open offers it again
-  await tick(300);
+  await reached(A, 2);
   const again = alice.collect(Date.now());
   assert.equal(again.items.length, 1);
   assert.deepEqual(new Uint8Array(again.items[0].bytes), sealBytes(seal));
-  await tick(1100);
+  ctx.mock.timers.tick(1100);
   assert.equal(wireA.queueEmpty(), true);
   alice.close(); bob.close();
 });
 
-test("authenticate during a background reconnect waits for it: one socket, never two (review 3 N2)", async () => {
+test("authenticate during a background reconnect waits for it: one socket, never two (review 3 N2)", async (ctx) => {
   const med = mediatorDouble();
   const { B, alice, bob, wireB } = await pair(med, []);
-  med.sockets.get(B.ids.conn.did).close(); await tick(0);
-  await wireB.authenticate();
-  await tick(300);
+  // driven timers from here: the close, the wire's reconnect backoff and the
+  // double's open all fire when the test says, so the background reconnect
+  // is still pending while authenticate runs, and fires after it
+  ctx.mock.timers.enable({ apis: ["setTimeout"] });
+  const ws = med.sockets.get(B.ids.conn.did);
+  ws.close(); ctx.mock.timers.tick(0);
+  assert.ok(ws.closeDispatched, "the wire saw the close and scheduled its reconnect");
+  let authenticated = false;
+  const auth = wireB.authenticate().then(() => { authenticated = true; });
+  // only timers due now (the double's open of the new socket), never the backoff
+  await until(() => { ctx.mock.timers.tick(0); return authenticated; }, "authenticate");
+  await auth;
+  // now every pending timer, the background reconnect included: it decides
+  // synchronously (an open session is left alone, a new socket is constructed at once)
+  ctx.mock.timers.runAll();
   assert.equal(med.openSockets(B.ids.conn.did), 1);
   assert.equal(med.opened.filter((d) => d === B.ids.conn.did).length, 2);
   alice.close(); bob.close();
@@ -773,13 +902,14 @@ test("authenticate during a background reconnect waits for it: one socket, never
 test("an ack whose socket dies while it is sent fails, so the intent stays (review 3 N3)", async () => {
   const med = mediatorDouble();
   const { A, alice, bob } = await pair(med, []);
-  bob.submit(sealBytes(), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   med.closeOnNextText = A.ids.conn.did;
   alice.conclude(c, Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 1);
-  await tick(300);
-  alice.advance(Date.now()); await alice.settle(); await tick();
+  // reopened; the mediator offered the unacked frame again, and the adapter absorbed it
+  await reached(A, 2);
+  alice.advance(Date.now()); await alice.settle();
   assert.equal(alice.ackState().pending.length, 0);
   alice.close(); bob.close();
 });
@@ -788,15 +918,18 @@ test("a receive-only side reconnects by itself after its socket drops, and recei
   const med = mediatorDouble();
   const { A, alice, bob, wireA } = await pair(med, []);
   med.sockets.get(A.ids.conn.did).close();
-  await tick(300);
+  await until(async () => (await med.liveDeliveries(A.ids.conn.did)) >= 2, "A's session reopened");
   assert.equal(med.openSockets(A.ids.conn.did), 1, "reopened without a send of its own");
   const seal = sealOf();
-  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await tick();
+  bob.submit(sealBytes(seal), Date.now()); await bob.settle(); await reached(A, 1);
   const c = alice.collect(Date.now());
   assert.deepEqual(new Uint8Array(c.items[0].bytes), sealBytes(seal));
   const before = med.opened.length;
+  const ws = med.sockets.get(A.ids.conn.did);
   wireA.close();
-  await tick(300);
+  // after close() the wire holds no reconnect timer, and the close event,
+  // once seen, schedules none: nothing is left that could reconnect
+  await until(() => ws.closeDispatched, "the close of A's socket");
   assert.equal(med.opened.length, before, "no reconnect after close()");
   alice.close(); bob.close();
 });
