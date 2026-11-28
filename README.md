@@ -110,7 +110,7 @@ All documents are **Editor's Drafts**. Design happens in test benches and
 in the library, and a specification text follows from what runs.
 
 <!-- spec-status -->
-The texts under [`spec/`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [`spec/status.json`](spec/status.json). *Built* means the library implements the part; the texts have not been reconciled with the library rule by rule, so single rules may differ. Differences are documented where a note points, in [`lib/DEVIATIONS.md`](lib/DEVIATIONS.md), in the header of the source file or in the named test. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.
+The texts under [`spec/`](spec/) are frozen at the version named below and are not edited, apart from a generated status block at their top. They are brought up to date one flow at a time. What holds, part by part, is in [`spec/status.json`](spec/status.json). *Built* means the library implements the part; where a text has not been reconciled with the library rule by rule (the last column), single rules may differ. Differences are documented where a note points, in [`lib/DEVIATIONS.md`](lib/DEVIATIONS.md), in the header of the source file or in the named test. Where a specification text and the library disagree, the library with its vectors and flows holds until the text is brought up to date.
 
 | Document | Version | State | Last reconciled |
 |---|---|---|---|

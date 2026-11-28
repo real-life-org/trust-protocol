@@ -88,7 +88,7 @@
         },
         { "if": { "properties": { "status": { "const": "built-differently" } } }, "then": { "required": ["differences"] } },
         { "if": { "properties": { "status": { "const": "partly-built" } } }, "then": { "anyOf": [{ "required": ["note"] }, { "required": ["differences"] }] } },
-        { "if": { "properties": { "status": { "const": "superseded" } } }, "then": { "required": ["target"] } },
+        { "if": { "properties": { "status": { "const": "superseded" } } }, "then": { "required": ["target"], "not": { "required": ["direction"] } } },
         { "if": { "properties": { "status": { "const": "direction-changed" } } }, "then": { "required": ["direction"] } }
       ]
     }

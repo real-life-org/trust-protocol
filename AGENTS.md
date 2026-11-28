@@ -117,10 +117,11 @@ scripts/       publication checks, vector generators, and the build scripts
 
 ### Specification paths are never auto-merged
 
-Changes under `spec/`, `schemas/`, `contexts/`, `vectors/`, `fixtures/`,
-`conformance/`, `interop/` and `terms/` are normative. An agent may prepare
-them as a pull request, but only a human maintainer merges them (see
-`.github/CODEOWNERS`).
+Changes under `spec/` (the frozen texts, `spec/status.json` and the
+direction notes, which are not normative), `schemas/`, `contexts/`,
+`vectors/`, `fixtures/`, `conformance/`, `interop/` and `terms/` are merged
+only by a human maintainer; an agent may prepare them as a pull request
+(see `.github/CODEOWNERS`).
 
 ## Checks
 
@@ -144,12 +145,13 @@ shared proof vectors (`conformance/tf-proof-vectors.mjs` over
 `--check` mode: each committed vector must be reproduced byte for byte.
 
 Where the library knowingly reads a specification against its text, the
-reading is a row in `lib/DEVIATIONS.md` with the issue that asks for the
-text to settle it, and `spec/status.json` names the row at the document
-it concerns; `lib/test/deviations.test.mjs` ties rows and
-`DEVIATION <id>` markers in `lib/src/` together, and
-`scripts/check-deviations-issues.mjs` (CI) fails once such an issue is
-closed while its row still stands.
+reading is documented in one of three places: a row in
+`lib/DEVIATIONS.md`, the header comment of the source file, or a named
+test; `spec/status.json` names the place at the part it concerns. A row in
+`lib/DEVIATIONS.md` carries the issue that asks for the text to settle
+it; `lib/test/deviations.test.mjs` ties rows and `DEVIATION <id>` markers
+in `lib/src/` together, and `scripts/check-deviations-issues.mjs` (CI)
+fails once such an issue is closed while its row still stands.
 
 For a change under `lib/`, `simulator/` or `apps/gesamtsimulator/`:
 
@@ -191,8 +193,8 @@ every region between `<!-- spec-status -->`, `<!-- spec-box -->` or
 specification, the status section of `README.md` and the document table
 of the site; the box on every page under `understand/` and `reference/`
 that rests on specifications (`reference/specifications.md`, the table
-itself, excepted); and every statement about what the library builds
-today, from `statements`. Edit the register, never a region. The landing page documents what is
+itself, excepted); and every marked statement about what the library
+builds today, from `statements`. Edit the register, never a region. The landing page documents what is
 live and changes only in a change of its own that the author decides, not
 on the side of another pull request. Where a text and the library disagree, the
 library with its vectors and flows holds until the text is brought up to
