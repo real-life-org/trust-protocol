@@ -187,8 +187,9 @@ correlation properties.
 - **Validate, then consume.** Nothing consumes single-use material
   before the content fully validates.
 - **Authenticity always has exactly one carrier.**
-- **Every mechanism names its user action.** The protocol's total user
-  actions are two: exchange cards, confirm recognition.
+- **Every mechanism names its user action.** In the encounter
+  ceremony `encounter-scan` the user actions are two: exchange cards,
+  confirm recognition.
 
 ## Term register
 

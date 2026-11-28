@@ -112,11 +112,6 @@ establish physical presence, personhood, that a name belongs to a
 legal person, or trust. Freshness and verification are established
 toward the two participants only.
 
-Status: the credentials follow DTG Credentials WD01. The move to the
-DTG context v2 is pending, and the vouch is to become a DTG
-`StatementCredential` with its own predicate. Both are planned as one
-wire change.
-
 Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md) ·
 [Membership Tasks](https://github.com/real-life-org/trust-protocol/blob/main/spec/membership-tasks.md) ·
 [Access Layer](https://github.com/real-life-org/trust-protocol/blob/main/spec/access-layer.md)

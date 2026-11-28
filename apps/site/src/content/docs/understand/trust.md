@@ -152,7 +152,9 @@ Spec: [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Vouching inside a group
 
-A group can require that a newcomer is vouched for. A **[vouch](term:Vouch)** is a
+In the Access Layer text, a group can require that a newcomer is vouched
+for; the library founds a group only with a vouch threshold of 1 and
+changes no rule afterwards. A **[vouch](term:Vouch)** is a
 member's signed statement for exactly one admission of exactly one
 person, made inside the group where other members can check it. It
 names how the voucher knows the person, met or introduced, as their
