@@ -4,11 +4,12 @@ description: "The three verifiable credentials of the protocol: who issues each 
 specs: [access-layer, encounter-layer, membership-tasks, succession, trust-layer]
 ---
 
-RLTP uses three verifiable credentials: the encounter credential, the
-invitation credential and the admission vouch. All three are W3C
+In the frozen specification texts, RLTP uses three verifiable
+credentials: the encounter credential, the invitation credential and the
+admission vouch. All three are W3C
 Verifiable Credentials 2.0 in the form of the
 [DTG credential specification](https://github.com/trustoverip/dtgwg-cred-spec),
-signed with `eddsa-jcs-2022` over `did:key`.
+signed with `eddsa-jcs-2022` over `did:key`. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link, the documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, and the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
 
 | Credential | DTG type | Who issues it to whom | What it does |
 |---|---|---|---|
@@ -18,7 +19,7 @@ signed with `eddsa-jcs-2022` over `did:key`.
 
 ## Encounter credential
 
-One step of an [encounter](/understand/encounter/) yields one
+In the Encounter Layer text, one step of an [encounter](/understand/encounter/) yields one
 encounter credential: the recognizing party's signed statement that
 it recognized the other in this enactment, issued to the recognized
 party under a fresh [pair anchor](term:PairAnchor) of that enactment.

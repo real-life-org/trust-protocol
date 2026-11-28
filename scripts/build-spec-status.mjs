@@ -348,6 +348,8 @@ export function fillStatements(text, statements, file) {
     else if (!FORMS.includes(form) || !st[form]) errors.push(`${file}: now:${id} names no form ${form}`)
     const old = text.slice(open, end)
     const block = old.startsWith('\n')
+    // Markdown reads a line that begins with a comment as raw HTML: an inline place must not start a line
+    if (!block && file.endsWith('.md') && (m.index === 0 || text[m.index - 1] === '\n')) errors.push(`${file}: now:${id} starts a line; write it after text on the line, or as a block on lines of its own`)
     const body = st?.[form] ? renderStatement(st[form], file) : old.trim()
     out += text.slice(at, open) + (block ? `\n${body}\n` : body)
     at = end
@@ -357,7 +359,8 @@ export function fillStatements(text, statements, file) {
   if (ends !== pairs) errors.push(`${file}: ${ends} end markers for ${pairs} statements`)
   // a comment that looks like a marker but is none (a capital, a space) is refused
   const loose = file.endsWith('.mdx') ? /\{\/\*\s*\/?\s*now\s*:[^}]*\*\/\}/gi : /<!--\s*\/?\s*now\s*:[\s\S]*?-->/gi
-  const strict = file.endsWith('.mdx') ? /^\{\/\* \/?now:[a-z0-9-]+(:[a-z]+)? \*\/\}$/ : /^<!-- \/?now:[a-z0-9-]+(:[a-z]+)? -->$/
+  // the syntax the parser consumes: a begin may name a form, an end never does
+  const strict = file.endsWith('.mdx') ? /^\{\/\* (now:[a-z0-9-]+(:[a-z]+)?|\/now:[a-z0-9-]+) \*\/\}$/ : /^<!-- (now:[a-z0-9-]+(:[a-z]+)?|\/now:[a-z0-9-]+) -->$/
   for (const m of text.matchAll(loose)) if (!strict.test(m[0])) errors.push(`${file}: ${m[0]} is no statement marker`)
   return { text: out, errors }
 }
@@ -372,6 +375,17 @@ export function outsideGenerated(text, file) {
   return out
 }
 
+// The statements whose wording stands in a file outside its generated
+// places: a place whose markers were removed and whose text stayed.
+export function unmarkedStatements(text, file, statements) {
+  const outside = outsideGenerated(text, file)
+  const out = []
+  for (const [id, st] of Object.entries(statements ?? {})) {
+    for (const form of FORMS) if (typeof st?.[form] === 'string' && st[form].length > 40 && outside.includes(renderStatement(st[form], file))) out.push(id)
+  }
+  return [...new Set(out)]
+}
+
 export function checkStatements(root, status, files) {
   const errors = []
   const statements = status.statements ?? {}
@@ -380,6 +394,7 @@ export function checkStatements(root, status, files) {
     const text = readFileSync(join(root, file), 'utf8')
     for (const u of statementUses(text, file)) used.add(u.id)
     errors.push(...fillStatements(text, statements, file).errors)
+    errors.push(...unmarkedStatements(text, file, statements).map((id) => `${file}: the statement ${id} stands without its markers`))
   }
   for (const [id, st] of Object.entries(statements)) {
     const where = `spec/status.json statement ${id}`

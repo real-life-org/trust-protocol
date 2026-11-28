@@ -70,10 +70,15 @@
       "long": "`encounter-scan`, the ceremony of the Encounter Layer, is superseded: the Web of Trust app connects people with `shared-connect` instead ([web-of-trust#555](https://github.com/real-life-org/web-of-trust/pull/555), [`apps/wot-v3/src/adapters/rltp/index.ts`](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)). It is defined in [`interop/ceremonies/`](https://github.com/real-life-org/trust-protocol/tree/main/interop/ceremonies) with its vector and implemented as holder acts in the library; no specification text describes it yet ([status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json)).",
       "evidence": ["interop/ceremonies/shared-connect.ceremony.json", "vectors/shared-connect.json", "lib/src/shared-connect-holder.ts", "lib/test/shared-connect-holder.test.mjs", "https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65"]
     },
+    "app-profile": {
+      "short": "The Web of Trust app connects people with `shared-connect`, whose documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1` ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).",
+      "long": "The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link, the documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, and the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).",
+      "evidence": ["vectors/shared-connect.json", "interop/ceremonies/shared-connect.ceremony.json", "https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65"]
+    },
     "identity": {
-      "short": "In the library the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`.",
+      "short": "With the library's default key provider `seedKeys`, the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`, and an app may bind another key provider.",
       "long": "The library's seed key provider derives a person's long-lived anchor keys from one root seed. Each anchor context (a relationship, a group, a persona) has its own key, derived from the seed and the context's label, and the context's identifier is a `did:key` of that key; device keys are derived per device within an anchor context.",
-      "evidence": ["lib/src/keys-seed.ts", "lib/src/identity.ts", "lib/test/identity.test.mjs"]
+      "evidence": ["lib/src/keys-seed.ts", "lib/src/identity.ts", "lib/test/identity.test.mjs", "lib/src/ports.ts"]
     },
     "derived-identities": {
       "short": "The service identity derivation of Identity §7 is not built; for a group's founding the library uses a provisional derivation ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)).",
@@ -85,17 +90,17 @@
       "evidence": ["lib/test/multi-device-baseline.test.mjs"]
     },
     "continuity": {
-      "short": "In the library a re-encounter is chained into the existing relationship once the continuity probe matches. Two re-encounters at the same time can leave the chaining one-sided: each side then keeps one of the new relationships unchained (test `one-sided chaining`).",
+      "short": "In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is processed. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).",
       "evidence": ["lib/src/trust/continuity.ts", "lib/test/trust-continuity.test.mjs"]
     },
     "direction-assumptions": {
-      "short": "the library follows the second and the third for the person's anchors; it takes the seed as bytes and does not check that they come from words.",
+      "short": "the library's default key provider `seedKeys` follows the second and the third for the person's anchors; it takes the seed as bytes and does not check that they come from words.",
       "evidence": ["lib/src/keys-seed.ts"]
     },
     "recovery": {
       "short": "Recovering a whole identity from the mnemonic and a copy of the person's state is specified, not built in the library.",
-      "long": "The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state only over the store that holds it and with a key provider over the same root seed; a holder over an empty store starts a new state.",
-      "evidence": ["lib/src/carrier-holder.ts", "lib/src/keys-seed.ts", "lib/src/holder-api.ts", "lib/test/multi-device-baseline.test.mjs"]
+      "long": "The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state over the store that holds it and with access to the same keys, with `seedKeys` the same root seed; a holder over an empty store starts a new state.",
+      "evidence": ["lib/src/carrier-holder.ts", "lib/src/keys-seed.ts", "lib/src/holder-api.ts", "lib/test/multi-device-baseline.test.mjs", "lib/src/ports.ts"]
     },
     "personas": {
       "short": "The library derives a persona's anchor from its `persona/<name>` label; no holder act creates or uses a persona.",
@@ -109,10 +114,6 @@
     "vti-adapter": {
       "short": "The library implements this adapter; the wire binding under `binding/` has live probes against a public development instance of the mediator.",
       "evidence": ["lib/src/adapters/vti-mediator.ts", "lib/test/adapter-vti-mediator.test.mjs", "binding/live-probe.mjs"]
-    },
-    "library-acts": {
-      "short": "its acts and the parts of each specification it implements are listed in [`lib/README.md`](https://github.com/real-life-org/trust-protocol/blob/main/lib/README.md) and in the [status](https://github.com/real-life-org/trust-protocol/blob/main/spec/status.json).",
-      "evidence": ["lib/src/holder-api.ts"]
     },
     "login-identity": {
       "short": "The library's experimental login identity ([D6](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)) is replaced at stage 3.",
@@ -134,11 +135,12 @@
         { "sections": ["5.1", "5.2"], "title": "Labeled contexts and key agreement material", "status": "built", "source": "lib/README.md (modules: identity)", "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs"] },
         { "sections": ["5.3"], "title": "Recovery context", "status": "not-built", "source": "lib/README.md (Versions); Status of This Document" },
         { "sections": ["5.4"], "title": "The community anchor's generations and rotation", "status": "built", "source": "lib/README.md (modules: identity-state); Status of This Document", "evidence": ["lib/src/identity-state.ts", "lib/test/anchor.test.mjs"] },
-        { "sections": ["5.5"], "title": "Device keys", "status": "partly-built", "note": "The derivation is built; one writer per holder stands in for several devices.", "source": "lib/README.md (Versions: devices); Status of This Document", "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs"] },
+        { "sections": ["5.5"], "title": "Device keys", "status": "partly-built", "note": "The derivation of device keys and the registration and revocation of device names are built (tests `addDevice`, `revokeDevice`); one writer per holder stands in for several devices.", "source": "lib/README.md (Versions: devices); Status of This Document", "evidence": ["lib/src/identity.ts", "lib/test/identity.test.mjs"] },
         { "sections": ["6"], "title": "Context labels", "status": "built-differently", "ref": ["D3", "D5", "D6"], "note": "Three derivations of the library lie outside the closed label registry.", "evidence": ["lib/src/keys-seed.ts"] },
         { "sections": ["7"], "title": "Derived service identities", "status": "not-built", "note": "The founder's service identity in a genesis is provisional (D3).", "source": "lib/README.md (Versions)" },
-        { "sections": ["7a.1", "7a.2", "7a.4", "7a.5"], "title": "The carrier-relationship identity: its derivation", "status": "built", "evidence": ["lib/src/carrier-identity.ts", "lib/test/carrier.test.mjs"] },
-        { "sections": ["7a.3"], "title": "The relationship's carrier nonce and its register entry", "status": "partly-built", "note": "The holder registers the nonce of a relationship at generation 1. A change of the nonce, and bringing it together across devices, are not built.", "evidence": ["lib/src/identity-state.ts"] },
+        { "sections": ["7a.1", "7a.2", "7a.4"], "title": "The carrier-relationship identity: its derivation", "status": "built", "evidence": ["lib/src/carrier-identity.ts", "lib/test/carrier.test.mjs"] },
+        { "sections": ["7a.5"], "title": "Prohibitions", "status": "partly-built", "note": "Checked: another nonce or another carrier gives another principal (test `carrierContext`). Not verified: that no social artifact names the principal.", "evidence": ["lib/test/carrier-context.test.mjs", "lib/src/carrier-identity.ts"] },
+        { "sections": ["7a.3"], "title": "The relationship's carrier nonce and its register entry", "status": "partly-built", "note": "The holder registers the nonce of a relationship at generation 1 and refuses a nonce it already holds; the recovery flow moves to a fresh nonce through the `rotateTo` callback its caller supplies. A change of the nonce by the holder on its own, and bringing it together across devices, are not built.", "evidence": ["lib/src/identity-state.ts", "lib/src/carrier-holder.ts", "lib/test/delivery-hints.test.mjs"] },
         { "sections": ["4"], "title": "The mnemonic and the root IKM", "status": "direction-changed", "ref": "direction/identity.md", "note": "The library's seed key provider derives the person's anchor keys from one root seed today." },
         { "sections": ["8"], "title": "Anchors as did:key", "status": "direction-changed", "ref": "direction/identity.md" },
         { "sections": ["9"], "title": "Recovery", "status": "direction-changed", "ref": "direction/identity.md", "note": "Built: the recovery of a lost carrier entry. Not built: the recovery of a whole identity from the words and a copy of its state.", "source": "lib/src/carrier-holder.ts" }

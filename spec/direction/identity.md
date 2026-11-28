@@ -28,7 +28,7 @@ assumptions that the planned model gives up:
 - recovery requires the words, together with a copy of the person's state
   (its Section 9).
 
-Of these four, <!-- now:direction-assumptions -->the library follows the second and the third for the person's anchors; it takes the seed as bytes and does not check that they come from words.<!-- /now:direction-assumptions --> <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state only over the store that holds it and with a key provider over the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery --> New work should not treat these
+Of these four, <!-- now:direction-assumptions -->the library's default key provider `seedKeys` follows the second and the third for the person's anchors; it takes the seed as bytes and does not check that they come from words.<!-- /now:direction-assumptions --> <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state over the store that holds it and with access to the same keys, with `seedKeys` the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery --> New work should not treat these
 assumptions as lasting.
 
 ## Where it is heading

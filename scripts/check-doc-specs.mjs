@@ -36,7 +36,7 @@ import { readFileSync, readdirSync, existsSync, statSync, appendFileSync } from 
 import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
-import { splitSpec, statementUses, outsideGenerated } from './build-spec-status.mjs'
+import { splitSpec, statementUses, outsideGenerated, unmarkedStatements, statementFiles } from './build-spec-status.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = 'apps/site/src/content/docs'
@@ -131,6 +131,15 @@ export function changedStatements(before, after) {
   return [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((id) => words(a[id]) !== words(b[id])).sort()
 }
 
+// Places this change unmarked: in each changed file that carries
+// statements, a statement (in its wording at the merge base) that stands
+// in the file's text at HEAD outside any generated place.
+export function unmarkedAgainstBase(files, baseStatements) {
+  const out = []
+  for (const { file, text } of files) for (const id of unmarkedStatements(text, file, baseStatements)) out.push({ file, id })
+  return out
+}
+
 // Whether lib/package.json names another version at HEAD than at <since>.
 const released = (since) => {
   const version = (ref) => { try { return JSON.parse(execFileSync('git', ['show', `${ref}:lib/package.json`], { cwd: ROOT, encoding: 'utf8' })).version } catch { return null } }
@@ -170,6 +179,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       return a === null || b === null || outsideGenerated(a, f) !== outsideGenerated(b, f)
     })())
     pending = pendingPages(ROOT, changed, { release: released(since), statements, touched })
+    const baseStatements = (() => { try { return JSON.parse(show(base, 'spec/status.json') ?? 'null')?.statements ?? {} } catch { return {} } })()
+    const carriers = new Set(statementFiles(ROOT))
+    for (const u of unmarkedAgainstBase(changed.filter((f) => carriers.has(f)).map((f) => ({ file: f, text: show('HEAD', f) ?? '' })), baseStatements)) {
+      const e = { file: u.file, msg: `the statement ${u.id} stands here without its markers; put them back or change the statement in spec/status.json` }
+      errors.push(e)
+      if (gh) console.log(`::error file=${e.file},line=1::${e.msg}`)
+      console.error(`  ERROR ${e.file} ${e.msg}`)
+    }
     const level = checked ? 'notice' : 'error'
     for (const p of pending) {
       const what = [...p.specs, ...(p.library ? ['the library, which this change releases'] : []), ...(p.statements ?? []).map((id) => `the statement ${id}`)].join(', ')

@@ -116,9 +116,9 @@ unless one of the holders discloses the link.
 Meeting the same person again creates a new pair anchor. After the
 ceremony, a [continuity probe](term:ContinuityProbe) over the fresh channel lets the two
 devices find out that they already share a relationship; only a
-counterpart that holds the earlier one can answer it. On a match the
-new pair is chained to that relationship, and the chain is visible to
-its two holders alone.
+counterpart that holds the earlier one can answer it. In the Trust Layer
+text, on a match the new pair is chained to that relationship, and the
+chain is visible to its two holders alone. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is processed. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
 
 Spec: [Encounter Layer §8](https://github.com/real-life-org/trust-protocol/blob/main/spec/encounter-layer.md#8-what-a-third-party-can-verify) ·
 [Trust Layer §6a](https://github.com/real-life-org/trust-protocol/blob/main/spec/trust-layer.md#6a-continuity-normative-the-other-half-of-encounter-44)

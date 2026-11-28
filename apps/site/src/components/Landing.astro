@@ -59,7 +59,7 @@ const dtg: { label: string; text: string; href: string; repo: string }[] = [
     <div>
       <div class="tp-badge">Identity</div>
       <h2>One seed, an anchor per context</h2>
-      <p>A person is one mnemonic. <!-- now:identity -->In the library the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a <code>did:key</code>.<!-- /now:identity --> <!-- now:direction-identity -->An identifier that survives a key change, linked devices and guardians are planned, not in the library.<!-- /now:direction-identity --></p>
+      <p>A person is one mnemonic. <!-- now:identity -->With the library's default key provider <code>seedKeys</code>, the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a <code>did:key</code>, and an app may bind another key provider.<!-- /now:identity --> <!-- now:direction-identity -->An identifier that survives a key change, linked devices and guardians are planned, not in the library.<!-- /now:direction-identity --></p>
       <p>Contexts never link unless their holder decides to link them. <!-- now:recovery -->Recovering a whole identity from the mnemonic and a copy of the person's state is specified, not built in the library.<!-- /now:recovery --></p>
       <p><a class="tp-more" href="/understand/foundations/#identifiers" aria-label="More on identifiers, in Foundations">More →</a></p>
     </div>

@@ -502,7 +502,7 @@ This package uses its own semver; the specification uses castings.
 | identity | Identity 0.55 | recovery derivation (§5.3), service identities (§7) |
 | encounter | Encounter 0.32, cards 0.25, credentials 0.26 | — |
 | shared-connect | ceremony definition `interop/ceremonies/shared-connect.ceremony.json` (tf#1034 draft, 8 Nov 2026) | a messaging channel toward a counterpart without a card (tf discussion #1013); the Encounter casting that adopts the ceremony (D5) |
-| trust | Trust Layer 0.31 | — |
+| trust | Trust Layer 0.31 | two re-encounters at the same time can leave relationships unchained on both sides (§6a; `test/trust-continuity.test.mjs`, one-sided chaining) |
 | membership | Membership Tasks 0.21, Access 0.58 | `access-operation/0.1` (Membership 3.3: this library sends its own `x-membership-welcome/0.1` and the new member fetches the log); an admission prompt after the bound of RLTP-MT-3282; of Access: key distribution and transitions (§7, §9.4 beyond the genesis commitment), the rows of the conflict matrix (3.6) for removal, policy change and transitions, `policy.change`, device cards (5.1), views (7.3), `member.remove`, the pending exit (5.4); the service identity is provisional (D3); one device per person; the log reaches the members along the invitation tree only |
 | introduction | Trust 0.31 §8 | how a requester learns the mediator's designator (8.3): this library's mediator sends `x-introduction-offer/0.1` |
 | delivery | Delivery 0.85 | transport adapters beyond `./adapters/vti-mediator`; the block of the Trust Layer's types (Message Tasks 6240: their treatments wait for the next casting of the Trust Layer) |

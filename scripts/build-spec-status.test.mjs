@@ -236,3 +236,25 @@ test('evidence about the app is a file of the public app repository at a fixed c
   assert.deepEqual(errs(ok), [])
   assert.equal(errs('https://github.com/real-life-org/web-of-trust/blob/main/apps/wot-v3/src/x.ts').length, 1)
 })
+
+test('a statement whose markers were removed while its text stayed fails', async () => {
+  const long = { groups: { short: 'The library runs a membership log replicated among the members, with founding.', evidence: ['lib/src/x.ts'] } }
+  const root = repo({ 'page.md': 'Design. The library runs a membership log replicated among the members, with founding.\n\nx <!-- now:groups --><!-- /now:groups -->\n' })
+  assert.ok(checkStatements(root, { statements: long }, ['page.md']).some((e) => e.includes('the statement groups stands without its markers')))
+  const { unmarkedAgainstBase } = await import('./check-doc-specs.mjs')
+  // against the merge base: the old wording left behind after the markers went
+  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', text: 'Design. The library runs a membership log replicated among the members, with founding.\n' }], long), [{ file: 'a.md', id: 'groups' }])
+  assert.deepEqual(unmarkedAgainstBase([{ file: 'a.md', text: 'Design. <!-- now:groups -->The library runs a membership log replicated among the members, with founding.<!-- /now:groups -->\n' }], long), [])
+})
+
+test('an end marker only in the syntax the parser consumes; other marker misuse fails', () => {
+  const errs = (t, f = 'a.md') => fillStatements(t, STMTS, f).errors
+  // an end that names a form is not consumed
+  assert.ok(errs('x <!-- now:groups:long -->a<!-- /now:groups:long -->').some((e) => e.includes('<!-- /now:groups:long --> is no statement marker')))
+  assert.ok(errs('x <!-- /now:groups:long -->').some((e) => e.includes('is no statement marker')))
+  // the end of another statement inside a place
+  assert.ok(errs('x <!-- now:groups --> y <!-- /now:other --> <!-- /now:groups -->').some((e) => e.includes('2 end markers for 1 statements')))
+  // an inline place that starts a line would be raw HTML in Markdown
+  assert.ok(errs('<!-- now:groups -->old<!-- /now:groups -->\n').some((e) => e.includes('starts a line')))
+  assert.deepEqual(errs('<!-- now:groups -->\nold\n<!-- /now:groups -->\n'), [])
+})

@@ -21,7 +21,7 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 In the published Identity Layer, a person keeps one secret, a BIP-39
 mnemonic with the English wordlist, and every identity is derived from its
-seed, one **[anchor](term:Anchor)** per context. <!-- now:identity -->In the library the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`.<!-- /now:identity --> The model is planned to change (see the end of this section):
+seed, one **[anchor](term:Anchor)** per context. <!-- now:identity -->With the library's default key provider `seedKeys`, the person's anchors are derived from a root seed given as bytes, which the Identity Layer text (§4) derives from the words; each anchor is a `did:key`, and an app may bind another key provider.<!-- /now:identity --> The Identity Layer text names these contexts:
 
 | Context | Label | DTG scope |
 |---|---|---|
@@ -45,8 +45,9 @@ group as the bound
 
 Further derivations have no social surface: a service identity per
 group, a carrier identity per relationship and carrier, and a
-recovery context for the person's own encrypted state. <!-- now:derived-identities:long -->The library builds the carrier identity and a provisional service identity ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)), not the recovery context.<!-- /now:derived-identities --> Without the
-seed, two anchors of one person cannot be linked.
+recovery context for the person's own encrypted state. <!-- now:derived-identities:long -->The library builds the carrier identity and a provisional service identity ([D3](https://github.com/real-life-org/trust-protocol/blob/main/lib/DEVIATIONS.md)), not the recovery context.<!-- /now:derived-identities --> From the
+public anchors alone, without the seed, two anchors of one person cannot
+be linked.
 
 Each context has an Ed25519 key pair, whose public key is the anchor
 as a `did:key`, and an X25519 key for key agreement, carried in the
@@ -64,7 +65,7 @@ and `did:peer` are not specified.
 
 In the Identity Layer text, the mnemonic restores keys, not state. Which
 groups, personas and relationships exist is a register in the person's
-encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state only over the store that holds it and with a key provider over the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery -->
+encrypted, synchronized state; with a copy of it, everything returns. <!-- now:recovery:long -->The library implements neither the recovery derivation nor the recovery of a whole identity from the words and a copy of its state, nor the synchronization of that state; it does implement the recovery of a lost carrier entry. A holder continues a person's state over the store that holds it and with access to the same keys, with `seedKeys` the same root seed; a holder over an empty store starts a new state.<!-- /now:recovery -->
 Recovering an anchor through several trusted people is the subject of
 the Succession draft, which is parked and cannot be set up.
 
@@ -81,13 +82,14 @@ Specs: [Identity Layer](https://github.com/real-life-org/trust-protocol/blob/mai
 
 ## Credentials we issue
 
-RLTP issues three credentials, all W3C Verifiable Credentials 2.0
+In the frozen specification texts, RLTP issues three credentials, all W3C
+Verifiable Credentials 2.0
 with closed schemas and three contexts pinned by value (W3C
 credentials v2, a DTG context, RLTP v1), verified without JSON-LD
 processing. The [encounter credential](term:EncounterCredential) is a DTG Relationship
 Credential under DTG Credentials WD 0.6.0: it lists the DTG registry
 context v1 and declares `issuerScope: "pairwise"`. The [invite](term:Invite) and
-the [vouch](term:Vouch) list the DTG context of Working Draft 01.
+the [vouch](term:Vouch) list the DTG context of Working Draft 01. <!-- now:app-profile:long -->The Web of Trust app connects people with `shared-connect`: the inviter shows a code or sends a link, the documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1`, and the credential each side issues is a DTG `RelationshipCredential` with two contexts, W3C credentials v2 and the DTG registry context v1 ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json), [app](https://github.com/real-life-org/web-of-trust/blob/af18d3df0e02b1b924df9670076c63b6195f2857/apps/wot-v3/src/adapters/rltp/index.ts#L60-L65)).<!-- /now:app-profile -->
 
 | Credential | Issued when | Issuer → subject | `type` | Proof | Revocation | Schema · vector |
 |---|---|---|---|---|---|---|
@@ -141,9 +143,10 @@ name with an optional picture and text: trusting someone sends the
 classes meant for trusted contacts in one step, and each class can be
 switched on its own, per contact and per group.
 
-Meeting the same person again needs no disclosure: a [continuity probe](term:ContinuityProbe)
+In the Trust Layer text, meeting the same person again needs no
+disclosure: a [continuity probe](term:ContinuityProbe)
 after the encounter detects the re-encounter from the shared
-history and chains it to the existing relationship. <!-- now:continuity -->In the library a re-encounter is chained into the existing relationship once the continuity probe matches. Two re-encounters at the same time can leave the chaining one-sided: each side then keeps one of the new relationships unchained (test `one-sided chaining`).<!-- /now:continuity -->
+history and chains it to the existing relationship. <!-- now:continuity -->In the library a hit of the continuity probe chains nothing yet; a re-encounter is chained into the existing relationship once the continuity mapping that follows is processed. Two re-encounters at the same time can leave relationships unchained on both sides (test `one-sided chaining`).<!-- /now:continuity -->
 
 Every artifact belongs to one audience class. Class P covers
 statements meant to be shown, such as the encounter credential, the
@@ -170,10 +173,11 @@ Specs: [Encounter Layer](https://github.com/real-life-org/trust-protocol/blob/ma
 
 ## Trust Tasks
 
-Every RLTP message is a Trust Task document of a private, versioned
+In the frozen specification texts, every RLTP message is a Trust Task
+document of a private, versioned
 type under `https://real-life.org/trust-tasks/spec/`, with in-band
 `issuer` and `recipient` anchors and no `expiresAt`. An unknown type
-is rejected, never silently ignored.
+is rejected, never silently ignored. <!-- now:app-profile -->The Web of Trust app connects people with `shared-connect`, whose documents are the public Trust Task types `vrc/relationships/propose/0.1` and `vrc/relationships/issue/0.1` ([definition](https://github.com/real-life-org/trust-protocol/blob/main/interop/ceremonies/shared-connect.ceremony.json), [vector](https://github.com/real-life-org/trust-protocol/blob/main/vectors/shared-connect.json)).<!-- /now:app-profile -->
 
 | Type | Registered in | Purpose |
 |---|---|---|
